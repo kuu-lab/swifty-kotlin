@@ -399,6 +399,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-ful `when` used as a statement (its value discarded) only
             // needs to be exhaustive when the subject is Boolean, enum, or sealed —
             // for any other subject type, Kotlin requires exhaustiveness only when
@@ -563,6 +564,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-less `when` used as a statement (its value discarded) does not
             // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {
