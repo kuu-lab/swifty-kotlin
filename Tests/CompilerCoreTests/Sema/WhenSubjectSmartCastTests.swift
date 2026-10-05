@@ -133,7 +133,7 @@ struct WhenSubjectSmartCastTests {
         }
         fun classify(node: Node) = when (node) {
             is Other.Leaf -> 1
-            Node.End -> 2
+            is Node.End -> 2
         }
         """
 
