@@ -1649,10 +1649,18 @@ final class CallTypeChecker {
            let lambdaIndex = coroutineLauncherLambdaArgIndex,
            lambdaIndex < args.count
         {
-            let lambdaReturnType: TypeID = calleeName == knownNames.launch
-                ? sema.types.unitType
-                : expectedType ?? sema.types.anyType
+            let lambdaReturnType: TypeID
+            if calleeName == knownNames.launch {
+                lambdaReturnType = sema.types.unitType
+            } else if calleeName == knownNames.async {
+                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
+                    ?? sema.types.nullableAnyType
+            } else {
+                lambdaReturnType = expectedType ?? sema.types.anyType
+            }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
+                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
+                    ? nil : coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -1689,6 +1697,7 @@ final class CallTypeChecker {
                                                         case .lambdaLiteral = secondArgExpr
         {
             sema.types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: expectedType ?? sema.types.anyType,
                 isSuspend: true,
@@ -2768,34 +2777,25 @@ final class CallTypeChecker {
             }
         }
         if !candidates.isEmpty {
-            // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
-            // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
-            // rather than made generic over the block's return type, because a
-            // real type parameter there hangs the constraint solver. When the
-            // call site
-            // has a concrete expectedType (e.g. a declared function return
-            // type), Any fails the return-type-vs-expectedType compatibility
-            // check and every candidate is rejected ("no viable overload").
-            // Resolve with expectedType relaxed to nil instead -- the same path
-            // already picks the right overload correctly via argument matching
-            // when there is no expected type -- then restore expectedType as
-            // the call's result type below. The lambda body itself was already
-            // checked against expectedType via coroutineLauncherExpectedLambdaType
-            // / withContextExpectedLambdaType above.
-            //
-            // Matched by FQName + the synthetic flag (not just the short name)
-            // so a user-defined function that happens to also be named
-            // "withContext" doesn't get its return type silently overridden --
-            // registerSyntheticCoroutineTopLevelFunction doesn't set an
-            // externalLinkName for withContext (the runtime callee swap happens
-            // later, in CoroutineLoweringPass, purely by name), so externalLinkName
-            // isn't available here to disambiguate instead.
-            let coroutinesWithContextFQName = [
-                interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("withContext"),
+            // Synthetic builders erase their result type. Resolve arguments first,
+            // then recover the actual block result instead of constraining Any.
+            let coroutineBuilderNames: Set<String> = [
+                "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
             ]
-            let isCoroutineBuilderWithHardcodedAnyReturn = !candidates.isEmpty && candidates.allSatisfy { candidate in
+            let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                return symbol.flags.contains(.synthetic) && symbol.fqName == coroutinesWithContextFQName
+                let externalLinkName = sema.symbols.externalLinkName(for: candidate)
+                return externalLinkName == "kk_coroutine_scope_async"
+                    || externalLinkName == "kk_with_timeout"
+                    || externalLinkName == "kk_with_timeout_or_null"
+                    || symbol.flags.contains(.synthetic)
+                    && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
+                    && coroutineBuilderNames.contains(interner.resolve(symbol.name))
+            }
+            let isCoroutineBuilderWithHardcodedAnyReturn = candidates.contains { candidate in
+                isCoroutineBuilderCandidate(candidate)
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout"
+                    && sema.symbols.externalLinkName(for: candidate) != "kk_with_timeout_or_null"
             }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
@@ -2895,21 +2895,18 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // Resolution may narrow a literal only after choosing a vararg
-            // element type. Persist that type for KIR lowering and codegen.
-            if let signature = sema.symbols.functionSignature(for: chosen) {
-                for (index, argument) in args.enumerated() where !argument.isSpread {
-                    guard let parameterIndex = resolved.parameterMapping[index],
-                          signature.valueParameterIsVararg.indices.contains(parameterIndex),
-                          signature.valueParameterIsVararg[parameterIndex],
-                          parameterIndex < signature.parameterTypes.count
-                    else { continue }
-                    let parameterType = signature.parameterTypes[parameterIndex]
-                    let literal = integerLiteralValues(argument.expr, ast: ast)
-                    guard literal.signed != nil || literal.unsigned != nil else { continue }
-                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+            if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+               externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null",
+               let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner)
+            {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                        sema.bindings.bindCoroutineScopeLambdaReceiverType(argument.expr, type: coroutineScopeType)
+                    }
                 }
             }
+            contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
             // KSP-1543: source-backed channelFlow/callbackFlow still use the
             // launcher continuation ABI for their suspend ProducerScope receiver.
             // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern uses
@@ -2946,29 +2943,21 @@ final class CallTypeChecker {
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
             }
-            var adjustedReturnType: TypeID = if let calleeName,
-                let launcherIndex = coroutineLauncherLambdaArgIndex,
-                calleeName == knownNames.async || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope,
-                args.indices.contains(launcherIndex)
+            let adjustedReturnType: TypeID = if let calleeName,
+                let blockArgument = args.first(where: { $0.label == interner.intern("block") }) ?? args.last,
+                isCoroutineBuilderCandidate(chosen)
+                    || calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
             {
                 coroutineBuilderNarrowedReturnType(
                     id: id,
                     launcherName: interner.resolve(calleeName),
-                    lambdaArgExpr: args[launcherIndex].expr,
+                    lambdaArgExpr: blockArgument.expr,
                     fallback: returnType,
                     ast: ast,
                     sema: sema
                 )
             } else {
                 returnType
-            }
-            // STDLIB-CORO-BUG-02: restore the real expectedType as the result
-            // of withContext calls -- see the matching comment above
-            // resolveCallRespectingLambdaReturnType.
-            if isCoroutineBuilderWithHardcodedAnyReturn,
-               let expectedType, expectedType != sema.types.errorType
-            {
-                adjustedReturnType = expectedType
             }
             if let implicitReceiverType = ctx.implicitReceiverType {
                 markCoroutineScopeImplicitReceiverCallIfNeeded(
@@ -3327,11 +3316,11 @@ final class CallTypeChecker {
                         switch argumentExpr {
                         case _ where isSignedIntegerLike:
                             literalExpectedType = uniformNumericLiteralParameterType(
-                                at: index, candidates: memberCandidates, sema: sema
+                                at: index, argumentLabel: argument.label, candidates: memberCandidates, sema: sema
                             )
                         case .uintLiteral:
                             literalExpectedType = uniformUnsignedLiteralParameterType(
-                                at: index, candidates: memberCandidates, sema: sema
+                                at: index, argumentLabel: argument.label, candidates: memberCandidates, sema: sema
                             )
                         default:
                             break

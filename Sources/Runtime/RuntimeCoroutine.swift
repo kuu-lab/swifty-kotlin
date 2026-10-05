@@ -1119,6 +1119,28 @@ final class RuntimeJobHandle: @unchecked Sendable {
         associatedHandle != 0 ? associatedHandle : Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
     }
     private let lock = NSLock()
+    // A source factory can expose a Kotlin wrapper while the hierarchy keeps
+    // raw runtime handles internally. Do not retain a wrapper through its job.
+    private weak var sourceWrapper: RuntimeObjectBox?
+
+    func bindSourceWrapper(_ wrapper: RuntimeObjectBox) {
+        lock.lock()
+        sourceWrapper = wrapper
+        lock.unlock()
+    }
+
+    var sourceIdentityHandle: Int {
+        lock.lock()
+        let wrapper = sourceWrapper
+        lock.unlock()
+        guard let wrapper else { return identityHandle }
+        let raw = Int(bitPattern: Unmanaged.passUnretained(wrapper).toOpaque())
+        guard wrapper.coroutineJobHandle == identityHandle,
+              runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: raw)) })
+        else { return identityHandle }
+        return raw
+    }
+
     private let completionSemaphore = DispatchSemaphore(value: 0)
     private var state: RuntimeJobState = .new
     private var result: Int = 0
@@ -3686,6 +3708,11 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
 
 /// Returns 1 if the scope is active (not cancelled), 0 if cancelled.
 /// This is the ABI backing for `scope.isActive` in Kotlin.
+@_cdecl("__kk_coroutine_scope_is_runtime")
+public func __kk_coroutine_scope_is_runtime(_ handle: Int) -> Int {
+    runtimeCoroutineScope(from: handle) == nil ? 0 : 1
+}
+
 @_cdecl("kk_coroutine_scope_is_active")
 public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -4361,6 +4388,7 @@ public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw:
     else { return jobRaw }
     job.markBodyless()
     wrapper.coroutineJobHandle = jobRaw
+    job.bindSourceWrapper(wrapper)
     if let parent = runtimeJobHandle(from: parentRaw) {
         parent.registerChild(jobRaw)
         if !parent.isSupervisorMarker {
@@ -4549,6 +4577,7 @@ private func runTimeoutBlock(
     let blockContinuation = kk_coroutine_continuation_new(entryPointRaw)
     let blockJob = RuntimeJobHandle()
     if let blockState = runtimeContinuationState(from: blockContinuation) {
+        blockState.launcherArgs = runtimeContinuationState(from: continuation)?.launcherArgs ?? [:]
         blockState.scope = scope
         blockState.jobHandle = blockJob
         blockJob.continuationState = blockState
@@ -4767,6 +4796,11 @@ public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
     case .other:
         return 0
     }
+}
+
+@_cdecl("kk_job_complete_unit")
+public func kk_job_complete_unit(_ jobHandle: Int) -> Int {
+    kk_job_complete(jobHandle, 0)
 }
 
 /// Mark a job as failed with an exception cause. Returns 1 if the transition succeeded.
@@ -4991,7 +5025,9 @@ public func __kk_job_dispose_handle(_ jobHandle: Int, _ handlerID: Int) {
 @_cdecl("__kk_job_children")
 public func __kk_job_children(_ jobHandle: Int) -> Int {
     let job = runtimeJobHandle(from: jobHandle) ?? runtimeAsyncTask(from: jobHandle)?.completionJob
-    let children = job?.childrenSnapshot() ?? []
+    let children = (job?.childrenSnapshot() ?? []).map { handle in
+        runtimeJobHandle(from: handle)?.sourceIdentityHandle ?? handle
+    }
     return runtimeRegisterObject(RuntimeListBox(elements: children))
 }
 
@@ -5001,7 +5037,7 @@ public func __kk_job_parent(_ jobHandle: Int) -> Int {
     guard let parent = job?.parentSnapshot() else {
         return runtimeNullSentinelInt
     }
-    return parent.identityHandle
+    return parent.sourceIdentityHandle
 }
 
 /// Check if the coroutine associated with `continuation` has been cancelled.

@@ -532,7 +532,7 @@ extension DataFlowSemaPhase {
                 return nonPackageExisting.contains { sym in
                     if isCallableLike(sym.kind) { return false }
                     if sym.kind == .property {
-                        return symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                        return !sym.flags.contains(.synthetic) && !symbols.hasExtensionPropertyReceiver(sym.id)
                     }
                     return true
                 }
@@ -1404,9 +1404,12 @@ extension DataFlowSemaPhase {
     /// KSP-707: The bundled `kotlin/Preconditions.kt` source declares `require`/
     /// `check`/`assert` without a `contract { ... }` block, so their smart-cast
     /// narrowing (e.g. `require(x != null); x.length`) is not derived from the
-    /// AST. Attach the `ContractNonNullEffect` directly to the source-backed
-    /// symbols once header collection has registered them, so
-    /// `applyContractEffects` can branch on the passed-in condition expression.
+    /// AST. `requireNotNull`/`checkNotNull` do declare a contract in source, but
+    /// contract effects are not serialized into `.kklib` metadata, so symbols
+    /// imported from a precompiled artifact need it re-attached too. Attach the
+    /// `ContractNonNullEffect` directly to the source-backed or imported symbols
+    /// once header collection has registered them, so `applyContractEffects`
+    /// can branch on the passed-in condition or narrow the nullable argument.
     func patchSourceBackedPreconditionContractEffects(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1462,6 +1465,51 @@ extension DataFlowSemaPhase {
                 ),
                 for: symbol
             )
+        }
+
+        // KUU-1091: `requireNotNull`/`checkNotNull` declare
+        // `contract { returns() implies (value != null) }` in the bundled source,
+        // but `ContractNonNullEffect` is not serialized into `.kklib` metadata,
+        // so symbols imported from a precompiled stdlib artifact still need the
+        // effect attached here. Their `value` parameter is a generic `T?`, so
+        // they are matched by name and arity rather than concrete parameter
+        // types: one `value` parameter, optionally followed by the
+        // `lazyMessage: () -> Any` parameter.
+        let notNullFunctionNames = ["requireNotNull", "checkNotNull"]
+        for name in notNullFunctionNames {
+            let functionFQName = kotlinPkg + [interner.intern(name)]
+            for symbol in symbols.lookupAll(fqName: functionFQName) {
+                guard let symbolInfo = symbols.symbol(symbol),
+                      symbolInfo.kind == .function,
+                      !symbolInfo.flags.contains(.synthetic) || symbolInfo.flags.contains(.importedLibrary),
+                      let signature = symbols.functionSignature(for: symbol),
+                      signature.receiverType == nil,
+                      !signature.valueParameterSymbols.isEmpty
+                else {
+                    continue
+                }
+                let arityMatches = switch signature.parameterTypes.count {
+                case 1:
+                    true
+                case 2:
+                    signature.parameterTypes[1] == lazyMessageType
+                default:
+                    false
+                }
+                // The first parameter must be the nullable `value` — a Boolean
+                // first parameter would route to condition narrowing instead.
+                guard arityMatches,
+                      signature.parameterTypes[0] != types.booleanType else {
+                    continue
+                }
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(
+                        parameterSymbol: signature.valueParameterSymbols[0],
+                        appliesOnAnyReturn: true
+                    ),
+                    for: symbol
+                )
+            }
         }
     }
 

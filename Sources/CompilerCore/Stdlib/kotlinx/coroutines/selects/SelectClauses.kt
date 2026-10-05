@@ -130,3 +130,6 @@ public fun <R> Job.onJoin(block: suspend () -> R) {
 
 public val Mutex.onLock: SelectClause2<Any?, Mutex>
     get() = SelectClause2Impl({ tryLock() }, { this })
+public fun <R> Mutex.onLock(owner: Any? = null, block: suspend (Mutex) -> R) {
+    currentSelectBuilder<R>().registerClause({ tryLock() }) { block(this) }
+}

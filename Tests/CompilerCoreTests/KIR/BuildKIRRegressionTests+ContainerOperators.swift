@@ -430,7 +430,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testClosedRangeInterfaceMembershipUsesRangeBridge() throws {
+    @Test func testClosedRangeInterfaceMembershipUsesInterfaceDispatch() throws {
         let source = """
         fun check(range: ClosedRange<Int>): Boolean = 3 in range && range.contains(3)
         fun checkNotIn(range: ClosedRange<Int>): Boolean = 7 !in range
@@ -441,7 +441,15 @@ extension BuildKIRRegressionTests {
         for functionName in ["check", "checkNotIn"] {
             let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_range_contains"), "ClosedRange membership must link to the range bridge: \(callees)")
+            let interfaceContainsCalls = body.filter { instruction in
+                guard case let .virtualCall(_, callee, _, _, _, _, _, dispatch) = instruction,
+                      ctx.interner.resolve(callee) == "contains",
+                      case .itableDynamic = dispatch
+                else { return false }
+                return true
+            }
+            #expect(interfaceContainsCalls.count == (functionName == "check" ? 2 : 1),
+                    "Erased ClosedRange calls must preserve source overrides through interface dispatch")
             #expect(!callees.contains("contains"), "A bare contains symbol cannot link: \(callees)")
         }
     }

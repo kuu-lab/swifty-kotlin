@@ -680,8 +680,8 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            let argType = isVararg[paramIndex] && !arg.isSpread
-                ? (varargIntegerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+            let argType = !arg.isSpread
+                ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
                 : arg.type
 
             // A spread argument contributes the element type of its array to
@@ -732,9 +732,9 @@ extension OverloadResolver {
         return true
     }
 
-    /// Infer a vararg element against this candidate, rather than treating an
+    /// Infer a literal against this candidate, rather than treating an
     /// unsuffixed literal's previously inferred Int as its only possible type.
-    private func varargIntegerLiteralType(
+    private func integerLiteralType(
         _ argument: CallArg,
         parameterType: TypeID,
         types: TypeSystem
@@ -908,10 +908,7 @@ extension OverloadResolver {
         if viable.count == 1 {
             return viable[0].toResolvedCall()
         }
-        if let chosen = pickMostSpecific(viable, typeSystem: typeSystem) {
-            return chosen.toResolvedCall()
-        }
-        if let chosen = preferredIntegerLiteralVararg(viable, call: call, types: typeSystem) {
+        if let chosen = pickMostSpecific(viable, call: call, typeSystem: typeSystem) {
             return chosen.toResolvedCall()
         }
         return errorResult(
@@ -920,48 +917,6 @@ extension OverloadResolver {
             range: call.range,
             secondaryRanges: candidateDeclSites(viable, typeSystem: typeSystem)
         )
-    }
-
-    /// Kotlin's integer-literal priority selects Int over other signed integer
-    /// overloads, and Short over Byte, when ordinary type subtyping cannot
-    /// distinguish otherwise-applicable vararg candidates.
-    private func preferredIntegerLiteralVararg(
-        _ candidates: [ViableCandidate],
-        call: CallExpr,
-        types: TypeSystem
-    ) -> ViableCandidate? {
-        guard !call.args.isEmpty,
-              call.args.allSatisfy({ $0.signedIntegerLiteral != nil && !$0.isSpread })
-        else { return nil }
-        var candidatesByPrimitive: [PrimitiveType: ViableCandidate] = [:]
-        for candidate in candidates {
-            let varargFlags = normalizeFlags(
-                candidate.signature.valueParameterIsVararg,
-                count: candidate.signature.parameterTypes.count
-            )
-            var primitiveForCandidate: PrimitiveType?
-            for (index, paramType) in candidate.instantiatedParameterTypes.enumerated() {
-                guard let paramIndex = candidate.parameterMapping[index],
-                      varargFlags.indices.contains(paramIndex), varargFlags[paramIndex],
-                      case let .primitive(primitive, _) = types.kind(of: types.makeNonNullable(paramType)),
-                      primitive == .int || primitive == .short || primitive == .byte || primitive == .long,
-                      primitiveForCandidate == nil || primitiveForCandidate == primitive
-                else { return nil }
-                primitiveForCandidate = primitive
-            }
-            guard let primitiveForCandidate,
-                  candidatesByPrimitive[primitiveForCandidate] == nil
-            else { return nil }
-            candidatesByPrimitive[primitiveForCandidate] = candidate
-        }
-        if let intCandidate = candidatesByPrimitive[.int] { return intCandidate }
-        if candidatesByPrimitive.count == 2,
-           let shortCandidate = candidatesByPrimitive[.short],
-           candidatesByPrimitive[.byte] != nil
-        {
-            return shortCandidate
-        }
-        return nil
     }
 
     /// ARCH-031: declaration sites of the ambiguous overload candidates,
@@ -1031,11 +986,12 @@ extension OverloadResolver {
 
     private func pickMostSpecific(
         _ candidates: [ViableCandidate],
+        call: CallExpr,
         typeSystem: TypeSystem
     ) -> ViableCandidate? {
         let winners = candidates.filter { candidate in
             for other in candidates where other.symbol != candidate.symbol {
-                if !isMoreSpecificCandidate(candidate, than: other, typeSystem: typeSystem) {
+                if !isMoreSpecificCandidate(candidate, than: other, call: call, typeSystem: typeSystem) {
                     return false
                 }
             }
@@ -1106,9 +1062,10 @@ extension OverloadResolver {
     private func isMoreSpecificCandidate(
         _ lhs: ViableCandidate,
         than rhs: ViableCandidate,
+        call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
-        if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, typeSystem: typeSystem) {
+        if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, call: call, typeSystem: typeSystem) {
             return true
         }
 
@@ -1285,16 +1242,28 @@ extension OverloadResolver {
     private func isMoreSpecific(
         _ lhs: [TypeID],
         than rhs: [TypeID],
+        call: CallExpr,
         typeSystem: TypeSystem
     ) -> Bool {
         if lhs.count != rhs.count {
             return false
         }
         var sawStrict = false
-        for (lhsParam, rhsParam) in zip(lhs, rhs) {
+        for (index, pair) in zip(lhs, rhs).enumerated() {
+            let (lhsParam, rhsParam) = pair
             let lhsSubRhs = typeSystem.isSubtype(lhsParam, rhsParam)
             if !lhsSubRhs {
-                return false
+                // Kotlin's literal-specific widening order is not subtyping:
+                // Int is preferred to Byte/Short/Long, and Short to Byte.
+                guard call.args[index].signedIntegerLiteral != nil,
+                      !call.args[index].isSpread,
+                      case let .primitive(lhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(lhsParam)),
+                      case let .primitive(rhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(rhsParam)),
+                      (lhsPrimitive == .int && [.byte, .short, .long].contains(rhsPrimitive))
+                          || (lhsPrimitive == .short && rhsPrimitive == .byte)
+                else { return false }
+                sawStrict = true
+                continue
             }
             let rhsSubLhs = typeSystem.isSubtype(rhsParam, lhsParam)
             if lhsSubRhs, !rhsSubLhs {

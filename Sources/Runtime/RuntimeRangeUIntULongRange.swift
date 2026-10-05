@@ -73,14 +73,14 @@ public func __kk_uint_range_next(_ iterRaw: Int) -> Int {
 
 // MARK: - UIntRange properties and HOFs (STDLIB-RANGE-036)
 
-@_cdecl("kk_uint_range_step")
+@_cdecl("__kk_uint_range_step")
 public func kk_uint_range_step(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_uint_range_step") { range in
         range.step
     }
 }
 
-@_cdecl("kk_uint_range_forEach")
+@_cdecl("__kk_uint_range_forEach")
 public func kk_uint_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -88,7 +88,7 @@ public func kk_uint_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
                          functionName: "kk_uint_range_forEach", operation: RuntimeUnsignedRangeHOFKind.forEach)
 }
 
-@_cdecl("kk_uint_range_reduce")
+@_cdecl("__kk_uint_range_reduce")
 public func kk_uint_range_reduce(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -96,7 +96,7 @@ public func kk_uint_range_reduce(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: In
                          functionName: "kk_uint_range_reduce", operation: RuntimeUnsignedRangeHOFKind.reduce)
 }
 
-@_cdecl("kk_uint_range_reduceIndexed")
+@_cdecl("__kk_uint_range_reduceIndexed")
 public func kk_uint_range_reduceIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -104,7 +104,7 @@ public func kk_uint_range_reduceIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closure
                          functionName: "kk_uint_range_reduceIndexed", operation: RuntimeUnsignedRangeHOFKind.reduceIndexed)
 }
 
-@_cdecl("kk_uint_range_fold")
+@_cdecl("__kk_uint_range_fold")
 public func kk_uint_range_fold(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -112,7 +112,7 @@ public func kk_uint_range_fold(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: In
                              functionName: "kk_uint_range_fold", operation: RuntimeUnsignedRangeHOFKind.fold)
 }
 
-@_cdecl("kk_uint_range_foldIndexed")
+@_cdecl("__kk_uint_range_foldIndexed")
 public func kk_uint_range_foldIndexed(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
                                       _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -120,7 +120,7 @@ public func kk_uint_range_foldIndexed(_ rangeRaw: Int, _ initialValue: Int, _ fn
                              functionName: "kk_uint_range_foldIndexed", operation: RuntimeUnsignedRangeHOFKind.foldIndexed)
 }
 
-@_cdecl("kk_uint_range_find")
+@_cdecl("__kk_uint_range_find")
 public func kk_uint_range_find(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -128,7 +128,7 @@ public func kk_uint_range_find(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                 functionName: "kk_uint_range_find", orNull: true)
 }
 
-@_cdecl("kk_uint_range_findLast")
+@_cdecl("__kk_uint_range_findLast")
 public func kk_uint_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                    _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -136,7 +136,7 @@ public func kk_uint_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: 
                                functionName: "kk_uint_range_findLast", orNull: true)
 }
 
-@_cdecl("kk_uint_range_first_orThrow")
+@_cdecl("__kk_uint_range_first_orThrow")
 public func kk_uint_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
         RuntimeUnsignedRangeHOFKind.self,
@@ -147,7 +147,7 @@ public func kk_uint_range_first_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMuta
     )
 }
 
-@_cdecl("kk_uint_range_last_orThrow")
+@_cdecl("__kk_uint_range_last_orThrow")
 public func kk_uint_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeFirstOrLastOrThrow(
         RuntimeUnsignedRangeHOFKind.self,
@@ -158,7 +158,7 @@ public func kk_uint_range_last_orThrow(_ rangeRaw: Int, _ outThrown: UnsafeMutab
     )
 }
 
-@_cdecl("kk_uint_range_first_predicate")
+@_cdecl("__kk_uint_range_first_predicate")
 public func kk_uint_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -166,7 +166,7 @@ public func kk_uint_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closu
                                 functionName: "kk_uint_range_first_predicate", orNull: false)
 }
 
-@_cdecl("kk_uint_range_firstOrNull_predicate")
+@_cdecl("__kk_uint_range_firstOrNull_predicate")
 public func kk_uint_range_firstOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -174,7 +174,7 @@ public func kk_uint_range_firstOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _
                                 functionName: "kk_uint_range_firstOrNull_predicate", orNull: true)
 }
 
-@_cdecl("kk_uint_range_last_predicate")
+@_cdecl("__kk_uint_range_last_predicate")
 public func kk_uint_range_last_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -182,7 +182,7 @@ public func kk_uint_range_last_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closur
                                functionName: "kk_uint_range_last_predicate", orNull: false)
 }
 
-@_cdecl("kk_uint_range_lastOrNull_predicate")
+@_cdecl("__kk_uint_range_lastOrNull_predicate")
 public func kk_uint_range_lastOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -214,7 +214,7 @@ public func __kk_uint_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ o
                             functionName: "__kk_uint_range_random_random")
 }
 
-@_cdecl("kk_uint_range_any")
+@_cdecl("__kk_uint_range_any")
 public func kk_uint_range_any(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -222,7 +222,7 @@ public func kk_uint_range_any(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                          functionName: "kk_uint_range_any", operation: RuntimeUnsignedRangeHOFKind.any)
 }
 
-@_cdecl("kk_uint_range_all")
+@_cdecl("__kk_uint_range_all")
 public func kk_uint_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -230,7 +230,7 @@ public func kk_uint_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                          functionName: "kk_uint_range_all", operation: RuntimeUnsignedRangeHOFKind.all)
 }
 
-@_cdecl("kk_uint_range_none")
+@_cdecl("__kk_uint_range_none")
 public func kk_uint_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {

@@ -604,9 +604,9 @@ extension CallLowerer {
                     interner.intern("__kk_range_last")
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
-                        ? "kk_ulong_range_step"
+                        ? "__kk_ulong_range_step"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_step"
+                            ? "__kk_uint_range_step"
                             : (isLongRange ? "__kk_long_range_step" : "kk_range_step")))
                 default:
                     nil
@@ -688,11 +688,11 @@ extension CallLowerer {
             let runtimeCallee: InternedString = if sema.bindings.isULongRangeExpr(receiverExpr)
                 || nonNullReceiverType == sema.types.ulongType
             {
-                interner.intern("kk_ulong_range_step")
+                interner.intern("__kk_ulong_range_step")
             } else if sema.bindings.isUIntRangeExpr(receiverExpr)
                 || nonNullReceiverType == sema.types.uintType
             {
-                interner.intern("kk_uint_range_step")
+                interner.intern("__kk_uint_range_step")
             } else {
                 interner.intern("kk_range_step")
             }

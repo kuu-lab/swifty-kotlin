@@ -207,6 +207,20 @@ struct RangeSyntheticInterfaceTests {
         }
     }
 
+    @Test func testClosedRangeMembersAreSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let owner = ["kotlin", "ranges", "ClosedRange"].map { interner.intern($0) }
+        for name in ["start", "endInclusive", "contains", "isEmpty"] {
+            let members = sema.symbols.lookupAll(fqName: owner + [interner.intern(name)])
+            #expect(members.count == 1)
+            let member = try #require(members.first)
+            let symbol = try #require(sema.symbols.symbol(member))
+            #expect(symbol.declSite != nil)
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(sema.symbols.externalLinkName(for: member) == nil)
+        }
+    }
+
     @Test func testOpenEndRangeSymbolIsRegisteredWithComparableUpperBound() throws {
         let (sema, interner) = try sharedSema()
 

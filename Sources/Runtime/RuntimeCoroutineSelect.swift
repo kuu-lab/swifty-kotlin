@@ -1,5 +1,7 @@
 import Foundation
 
+private let selectBuilderKey = "KSwiftK.selectBuilder"
+
 @_cdecl("__kk_select_start_job")
 public func __kk_select_start_job(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else { return 0 }
@@ -11,9 +13,6 @@ public func __kk_select_start_job(_ handle: Int) -> Int {
     }
     return 0
 }
-
-private let selectBuilderKey = "KSwiftK.selectBuilder"
-
 @_cdecl("__kk_select_builder_exchange")
 public func __kk_select_builder_exchange(_ builder: Int) -> Int {
     let previous = __kk_select_builder_current()

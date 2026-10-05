@@ -6,7 +6,7 @@ import kotlin.internal.KsSymbolName
 internal external fun __dispatcherDefault(): CoroutineDispatcher
 
 @KsSymbolName("kk_dispatcher_main")
-internal external fun __dispatcherMain(): CoroutineDispatcher
+internal external fun __dispatcherMain(): MainCoroutineDispatcher
 
 public object Dispatchers {
     public val Default: CoroutineDispatcher
@@ -19,6 +19,6 @@ public object Dispatchers {
     public val Unconfined: CoroutineDispatcher
         get() = Default
 
-    public val Main: CoroutineDispatcher
+    public val Main: MainCoroutineDispatcher
         get() = __dispatcherMain()
 }

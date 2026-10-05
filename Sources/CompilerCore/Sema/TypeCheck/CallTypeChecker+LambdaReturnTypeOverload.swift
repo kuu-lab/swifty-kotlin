@@ -59,6 +59,7 @@ extension CallTypeChecker {
                 // `shortArray.binarySearch(20)` narrow to Short/Byte.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -71,6 +72,7 @@ extension CallTypeChecker {
                 // fits, which is needed by source-backed unsigned extensions.
                 let literalExpectedType = uniformUnsignedLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -91,6 +93,7 @@ extension CallTypeChecker {
                 // `byteArrayOf(1, -1)` and `shortArrayOf(1, -1)` resolve.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
+                    argumentLabel: argument.label,
                     candidates: candidates,
                     sema: sema
                 )
@@ -128,6 +131,31 @@ extension CallTypeChecker {
                 let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
 
                 switch argumentExpr {
+                case .intLiteral:
+                    contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
+                        at: index,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
+                    )
+                case .uintLiteral:
+                    contextualArgExpectedTypes[index] = uniformUnsignedLiteralParameterType(
+                        at: index,
+                        argumentLabel: argument.label,
+                        candidates: expectedTypeCandidates,
+                        sema: sema
+                    )
+                case .unaryExpr(let op, let operandID, _):
+                    if (op == .unaryPlus || op == .unaryMinus),
+                       case .intLiteral = ast.arena.expr(operandID)
+                    {
+                        contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
+                            at: index,
+                            argumentLabel: argument.label,
+                            candidates: expectedTypeCandidates,
+                            sema: sema
+                        )
+                    }
                 case .callableRef:
                     contextualArgExpectedTypes[index] = callableReferenceExpectedType(
                         at: index,
@@ -508,6 +536,31 @@ extension CallTypeChecker {
         }
     }
 
+    func contextualizeResolvedIntegerArguments(
+        args: [CallArgument],
+        resolved: ResolvedCall,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        guard let chosen = resolved.chosenCallee,
+              let signature = ctx.sema.symbols.functionSignature(for: chosen)
+        else { return }
+        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() where !argument.isSpread {
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            guard literal.signed != nil || literal.unsigned != nil,
+                  let parameterIndex = resolved.parameterMapping[index],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else { continue }
+            let parameterType = ctx.sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameterIndex],
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+        }
+    }
+
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
         // Unit contexts accept and discard any expression result, so Unit must
         // not act as a return-type constraint while choosing an overload.
@@ -526,13 +579,19 @@ extension CallTypeChecker {
     /// path and existing overload resolution still handle those cases.
     func uniformNumericLiteralParameterType(
         at index: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> TypeID? {
         var result: TypeID?
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+                  let parameterType = parameterTypeForArgument(
+                      at: index,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  )
             else {
                 return nil
             }
@@ -563,19 +622,44 @@ extension CallTypeChecker {
         return result
     }
 
+    private func parameterTypeForArgument(
+        at index: Int,
+        argumentLabel: InternedString?,
+        in signature: FunctionSignature,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let argumentLabel else {
+            return parameterTypeForArgument(at: index, in: signature)
+        }
+        for (parameterIndex, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+            if sema.symbols.symbol(parameterSymbol)?.name == argumentLabel,
+               parameterIndex < signature.parameterTypes.count
+            {
+                return signature.parameterTypes[parameterIndex]
+            }
+        }
+        return nil
+    }
+
     /// Returns the single unsigned parameter type shared by all candidates for a
     /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
     /// allows a constant UInt literal to narrow to UByte/UShort or widen to
     /// ULong when the expected parameter type requires it.
     func uniformUnsignedLiteralParameterType(
         at index: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         sema: SemaModule
     ) -> TypeID? {
         var result: TypeID?
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let parameterType = parameterTypeForArgument(at: index, in: signature)
+                  let parameterType = parameterTypeForArgument(
+                      at: index,
+                      argumentLabel: argumentLabel,
+                      in: signature,
+                      sema: sema
+                  )
             else {
                 return nil
             }
@@ -630,16 +714,19 @@ extension CallTypeChecker {
                 return false
             }
             for (otherIndex, inferredType) in inferredNonLambdaArgTypes {
-                guard let parameterType = parameterTypeForArgument(at: otherIndex, in: signature) else {
+                guard let parameterType = parameterTypeForArgument(
+                    at: otherIndex,
+                    argumentLabel: args[otherIndex].label,
+                    in: signature,
+                    sema: sema
+                ) else {
                     return false
                 }
                 if sema.types.isSubtype(inferredType, parameterType) {
                     continue
                 }
                 if !args[otherIndex].isSpread,
-                   let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
-                   otherIndex >= varargIndex,
-                   integerLiteralFitsVararg(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
+                   integerLiteralFitsParameter(args[otherIndex].expr, parameterType: parameterType, ctx: ctx)
                 {
                     continue
                 }
@@ -817,7 +904,7 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    private func integerLiteralFitsVararg(
+    private func integerLiteralFitsParameter(
         _ exprID: ExprID,
         parameterType: TypeID,
         ctx: TypeInferenceContext

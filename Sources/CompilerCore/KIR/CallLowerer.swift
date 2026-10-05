@@ -381,6 +381,10 @@ final class CallLowerer {
             canThrow: canThrow,
             thrownResult: nil
         ))
+        appendRuntimeRangeItableRegistrations(
+            objectValue: result, factoryName: callee,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
         return result
     }
 
@@ -1168,6 +1172,12 @@ final class CallLowerer {
             }
         }
         if loweredCallable == nil {
+            adaptCoroutineLauncherBlock(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema, arena: arena, interner: interner,
+                instructions: &instructions, arguments: &finalArgIDs
+            )
             materializeSourceBackedFunctionValueArguments(
                 chosenCallee: chosen,
                 sourceArgExprs: args.map(\.expr),
@@ -1246,7 +1256,9 @@ final class CallLowerer {
                 }
             }
         }
-        if sourceCalleeName == knownNames.withContext,
+        if sourceCalleeName == knownNames.withContext
+            || sourceCalleeName == knownNames.withTimeout
+            || sourceCalleeName == knownNames.withTimeoutOrNull,
            finalArgIDs.count >= 2,
            let callableInfo = driver.ctx.callableValueInfo(for: finalArgIDs[1]),
            !callableInfo.captureArguments.isEmpty
@@ -1428,6 +1440,10 @@ final class CallLowerer {
                     thrownResult: thrownResult
                 ))
             }
+            appendRuntimeRangeItableRegistrations(
+                objectValue: callResult, factoryName: loweredCalleeName,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             if let arrayResultTypeID {
                 let typeIDExpr = arena.appendExpr(
                     .intLiteral(arrayResultTypeID),

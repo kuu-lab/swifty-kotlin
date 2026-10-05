@@ -29,7 +29,7 @@ expr e@12:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local]
 expr e@12:28 int(7) type=Byte
 expr e@12:31 int(8) type=Byte
 expr e@12:16 call callee=e@12:16#1 args=[_:e@12:28,_:e@12:31] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte]
-expr e@12:5#1 memberCall recv=e@12:5 callee=write args=[_:e@12:16] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray,Int,Int]
+expr e@12:5#1 memberCall recv=e@12:5 callee=write args=[_:e@12:16] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray]
 expr e@13:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local]
 expr e@13:5#1 memberCall recv=e@13:5 callee=hintEmit args=[] type=Unit call=kotlinx.io.Sink.hintEmit[kind=fun;recv=kotlinx.io.Sink;params=]
 expr e@14:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local]

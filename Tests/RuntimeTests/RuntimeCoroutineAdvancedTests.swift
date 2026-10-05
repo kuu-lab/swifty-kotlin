@@ -395,6 +395,24 @@ struct RuntimeCoroutineAdvancedTests {
 
     // MARK: - Test 11: withTimeoutOrNull returns block value when block completes in time
 
+    @Test func testTimeoutBlocksPreserveLauncherArgumentsOnChildContinuation() {
+        let entry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, thrown in
+            thrown?.pointee = 0
+            return Int(kk_coroutine_launcher_arg_get(continuation, 0))
+                + Int(kk_coroutine_launcher_arg_get(continuation, 1))
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let continuation = kk_coroutine_continuation_new(8840)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 7)
+        _ = kk_coroutine_launcher_arg_set(continuation, 1, 9)
+        var thrown = -1
+        #expect(kk_with_timeout(5000, entryRaw, continuation, &thrown) == 16)
+        #expect(thrown == 0)
+        #expect(kk_with_timeout_or_null(5000, entryRaw, continuation) == 16)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 0) == 7)
+        #expect(kk_coroutine_launcher_arg_get(continuation, 1) == 9)
+    }
+
     @Test func testWithTimeoutOrNullReturnsValueWhenBlockCompletesInTime() {
         let entryRaw = unsafeBitCast(
             advcoro_return_fixed as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,

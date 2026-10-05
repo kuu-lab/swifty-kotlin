@@ -13,7 +13,7 @@ extension BundledStdlibExecutionTests {
     func testSelectWaitsAndAdaptsSuspendCallbacks() throws {
         try compileAndRunKotlin(
             diffCaseSource("kotlinx_coroutines_select_wait.kt"),
-            expectedOutput: "received:7\njoined\nawaited:42\nlocked\ntrue\ntimeout\nvalue!\nlazy:9\nproperty:clause\ncaught\nsuspended\ndone\n"
+            expectedOutput: "received:7\njoined\nawaited:42\nlocked\ntrue\ntimeout\nvalue!\nlazy:9\nproperty:clause\ncaught\nsuspended\ninfer:infer\nexp:exp\nnint:11\ndone\n"
         )
     }
 }
