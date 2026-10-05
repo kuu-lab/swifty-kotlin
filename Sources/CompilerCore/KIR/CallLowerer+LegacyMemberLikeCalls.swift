@@ -710,6 +710,7 @@ extension CallLowerer {
         // Primitive member function: Int/Long.inv() → kk_op_inv (P5-103)
         if calleeName == interner.intern("inv"),
            args.isEmpty,
+           sema.bindings.callBinding(for: exprID) == nil,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
         {
             instructions.append(.call(
@@ -866,6 +867,7 @@ extension CallLowerer {
             let rawRhsType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             let nonNullRhsType = sema.types.makeNonNullable(rawRhsType)
             let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
+            let isBitwiseReceiver = isShiftReceiver || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
             let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
             let primitiveCallee: InternedString? = switch calleeNameStr {
             case "plus":
@@ -889,11 +891,11 @@ extension CallLowerer {
                     ? interner.intern("kk_op_urem")
                     : interner.intern(nonNullReceiverType == longType || nonNullRhsType == longType ? "kk_op_lfloor_mod" : "kk_op_floor_mod")
             case "and":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
             case "or":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
             case "xor":
-                rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
+                isBitwiseReceiver && rawRhsType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
             case "shl":
                 isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shl") : nil
             case "shr":
