@@ -348,6 +348,7 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
+        resultTypeOverride: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // `object` member properties never reach this point: they're always
@@ -364,7 +365,7 @@ extension CallLowerer {
         else {
             return nil
         }
-        let readResultType = sema.bindings.exprTypes[exprID]
+        let readResultType = resultTypeOverride ?? sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
         return lowerStoredMemberPropertyReadValue(
