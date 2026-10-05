@@ -678,7 +678,9 @@ struct LibMetadataImportIntegrationTests {
     // KUU-1213: two libraries exporting the same class FQName used to trap
     // building the per-symbol binding map (duplicate SymbolID → SIGILL).
     // The first library on the search path now wins and the shadowed
-    // duplicate reports KSWIFTK-LIB-0031 instead of crashing.
+    // duplicate reports KSWIFTK-LIB-0031 instead of crashing. The losing
+    // class's members shadow with it — a loser-only member resolving onto
+    // the winner's layout would compile and then crash at runtime.
     @Test(arguments: [false, true])
     func testDuplicateClassAcrossLibrariesFirstWinsWithWarning(indexed: Bool) throws {
         let fm = FileManager.default
@@ -686,13 +688,13 @@ struct LibMetadataImportIntegrationTests {
         try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: baseDir) }
 
-        func writeLibrary(_ moduleName: String) throws -> URL {
+        func writeLibrary(_ moduleName: String, extraMember: Bool = false) throws -> URL {
             let libDir = baseDir.appendingPathComponent(moduleName).appendingPathExtension("kklib")
             try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
             try """
             {"formatVersion": 1, "moduleName": "\(moduleName)", "metadata": "metadata.bin"}
             """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-            let records = [
+            var records = [
                 MetadataRecord(
                     kind: .class,
                     mangledName: "_KK_\(moduleName)_Owner",
@@ -705,6 +707,16 @@ struct LibMetadataImportIntegrationTests {
                     typeSignature: "I"
                 ),
             ]
+            if extraMember {
+                records.append(
+                    MetadataRecord(
+                        kind: .property,
+                        mangledName: "_KK_\(moduleName)_Owner_extra",
+                        fqName: "dup.Owner.extra",
+                        typeSignature: "I"
+                    )
+                )
+            }
             let encoder = MetadataEncoder()
             let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
             try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
@@ -712,9 +724,9 @@ struct LibMetadataImportIntegrationTests {
         }
 
         let libA = try writeLibrary("DuplicateA")
-        let libB = try writeLibrary("DuplicateB")
+        let libB = try writeLibrary("DuplicateB", extraMember: true)
 
-        func winningOwnerModule(searchPaths: [String]) throws -> String? {
+        func winningOwnerModule(searchPaths: [String], winnerHasExtra: Bool) throws -> String? {
             var module: String?
             try withTemporaryFile(contents: "fun main() = 0") { path in
                 let ctx = makeCompilationContext(
@@ -730,12 +742,23 @@ struct LibMetadataImportIntegrationTests {
                     fqName: ["dup", "Owner"].map(ctx.interner.intern)
                 ))
                 module = sema.symbols.moduleFQN(for: owner).map { ctx.interner.resolve($0) }
+                // Both libraries declare `dup.Owner.value`: exactly one
+                // symbol survives. The losing library's extra member is
+                // hidden with its owner instead of resolving onto the
+                // winner's layout.
+                #expect(sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "value"].map(ctx.interner.intern)
+                ).count == 1)
+                let extraSymbols = sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "extra"].map(ctx.interner.intern)
+                )
+                #expect(extraSymbols.isEmpty != winnerHasExtra)
             }
             return module
         }
 
-        #expect(try winningOwnerModule(searchPaths: [libA.path, libB.path]) == "DuplicateA")
-        #expect(try winningOwnerModule(searchPaths: [libB.path, libA.path]) == "DuplicateB")
+        #expect(try winningOwnerModule(searchPaths: [libA.path, libB.path], winnerHasExtra: false) == "DuplicateA")
+        #expect(try winningOwnerModule(searchPaths: [libB.path, libA.path], winnerHasExtra: true) == "DuplicateB")
     }
 }
 #endif
