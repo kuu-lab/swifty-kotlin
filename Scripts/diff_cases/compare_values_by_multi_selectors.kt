@@ -17,6 +17,7 @@ fun main() {
     println(compareValuesBy(a, a, { it.n }, { it.a }, { it.c }, { it.d }))
 
     println(compareValuesBy(a, b, ::name, { it.a }))
+    println(compareValuesBy(a, d, ::name, { it.a }, { it.c }, { it.d }))
     val selector: (P) -> Comparable<*>? = { it.n }
     println(compareValuesBy(a, b, selector, { it.a }))
     println(compareValuesBy<P>(a, b, { it.n }, { it.a }))
@@ -34,5 +35,7 @@ fun main() {
     println(compareValuesBy(a, c, { it.a }, { it.c }, { calls++; it.d }))
     println(calls)
     println(compareValuesBy(a, d, { it.n }, { it.a }, { it.d }, { calls++; it.c }))
+    println(calls)
+    println(compareValuesBy(a, a, { it.n }, { it.a }, { it.c }, { calls++; it.d }))
     println(calls)
 }

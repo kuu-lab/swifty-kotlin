@@ -109,7 +109,7 @@ struct ComparisonsCompareValuesByFunctionTests {
                     return ctx.interner.resolve(name) == "compareValuesBy"
                 })
                 let binding = try #require(sema.bindings.callBinding(for: call))
-                let chosen = try #require(binding.chosenCallee)
+                let chosen = binding.chosenCallee
                 let signature = try #require(sema.symbols.functionSignature(for: chosen))
                 let symbol = try #require(sema.symbols.symbol(chosen))
                 #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "comparisons", "compareValuesBy"])
@@ -120,6 +120,17 @@ struct ComparisonsCompareValuesByFunctionTests {
                     #expect(binding.parameterMapping == [0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 2])
                 }
             }
+            let mixedCall = try #require(firstExprID(in: ast, path: paths[0], ctx: ctx) { _, expr in
+                guard case let .call(_, _, args, _) = expr,
+                      args.count == 4,
+                      case .callableRef = ast.arena.expr(args[2].expr)
+                else { return false }
+                return true
+            })
+            let mixedBinding = try #require(sema.bindings.callBinding(for: mixedCall))
+            let mixedSignature = try #require(sema.symbols.functionSignature(for: mixedBinding.chosenCallee))
+            #expect(mixedSignature.parameterTypes.count == 4)
+            #expect(mixedSignature.typeParameterSymbols.count == 1)
         }
     }
 

@@ -683,6 +683,7 @@ extension CallLowerer {
             // Keep eligible inline arguments visible to imported expansion,
             // including normal returns and nested non-local returns.
             if isInline,
+               case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
