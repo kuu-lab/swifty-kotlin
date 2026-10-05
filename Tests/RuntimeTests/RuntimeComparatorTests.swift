@@ -149,10 +149,13 @@ struct RuntimeComparatorTests {
         for (lhsIndex, lhs) in values.enumerated() {
             for (rhsIndex, rhs) in values.enumerated() {
                 #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], boxedValues[rhsIndex]) == lhs - rhs)
+                #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], rhs) == lhs - rhs)
             }
         }
         #expect(__kk_comparable_compareTo(kk_box_int(122), kk_box_int(97)) == 1)
         #expect(__kk_comparable_compareTo(kk_box_int(97), kk_box_int(122)) == -1)
+        #expect(__kk_comparable_compareTo(kk_box_char(122), runtimeNullSentinelInt) == 1)
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_char(122)) == -1)
     }
 
     @Test
