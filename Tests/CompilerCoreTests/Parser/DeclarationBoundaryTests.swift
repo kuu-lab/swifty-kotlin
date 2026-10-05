@@ -7,6 +7,75 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test(arguments: [
+        "var count = 0\ncount = count + 1\ncount",
+        "val count = 1\ncount",
+        "fun local() = 1\nlocal()",
+        "class Local\n1",
+        "@Suppress(\"UNUSED_VARIABLE\")\nval count = 1\ncount",
+        "run {\nval count = 1\ncount\n}",
+        "listOf(1)[run {\nval index = 0\nindex\n}]",
+    ])
+    func multilineDefaultLambdaDoesNotEndParameterGroup(body: String) {
+        let source = """
+        fun before() = 0
+        fun target(value: Int = run {
+            \(body)
+        }, other: Int = 2): Int = value + other
+        fun after() = 3
+        """
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 0)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+    }
+
+    @Test(arguments: [
+        "class Target(value: Int = run {\nval count = 1\ncount\n})",
+        "class Target {\nconstructor(value: Int = run {\nvar count = 1\ncount\n})\n}",
+        "fun outer() {\nclass Target {\nfun next(value: Int = run {\nval count = 1\ncount\n}): Int = value\n}\n}",
+        "fun target(action: () -> Int = {\nval count = 1\ncount\n}): Int = action()",
+    ])
+    func multilineLambdaInDifferentParameterListsParses(source: String) {
+        #expect(parse(source).diagnostics.diagnostics.isEmpty)
+    }
+
+    @Test(arguments: ["", " = run {\nval count = 1\ncount\n}"])
+    func unterminatedParameterGroupRecoversAfterBalancedLambda(defaultValue: String) {
+        let parsed = parse("fun broken(value: Int\(defaultValue)\nfun after() = 3")
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func multilineDefaultLambdaIssueReproductionParses() {
+        let parsed = parse("""
+        fun topRun(value: Int = run {
+            var count = 0
+            count = count + 1
+            count
+        }): Int = value
+        fun main() {
+            var count = 0
+            class Counter {
+                fun next(value: Int = run {
+                    count = count + 1
+                    count
+                }): Int = value
+            }
+            println(topRun())
+            println(Counter().next())
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 1)
+    }
+
     private func nodeCount(in arena: SyntaxArena, kind: SyntaxKind) -> Int {
         arena.nodes.count { $0.kind == kind }
     }
