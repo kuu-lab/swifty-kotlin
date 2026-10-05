@@ -334,7 +334,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
-                bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema)
+                bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(captureExpr)
                 }
@@ -375,7 +375,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
-                bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema)
+                bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema, overwriteExisting: false)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(closureExpr)
                 }
@@ -404,7 +404,7 @@ final class LambdaLowerer {
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
-                    bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema)
+                    bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema, overwriteExisting: false)
                     if capturesRuntimeScopeReceiver {
                         driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(loadedExpr)
                     }
@@ -628,10 +628,17 @@ final class LambdaLowerer {
         }
     }
 
-    private func bindCapturedOuterLambdaReceiver(_ receiver: KIRExprID, type: TypeID, sema: SemaModule) {
+    private func bindCapturedOuterLambdaReceiver(_ receiver: KIRExprID, type: TypeID, sema: SemaModule, overwriteExisting: Bool = true) {
         guard case let .classType(classType) = sema.types.kind(of: type) else { return }
+        // An extension receiver may share the dispatch owner's nominal type.
+        if !overwriteExisting, driver.ctx.capturedOuterReceiverExprID(for: classType.classSymbol) != nil {
+            return
+        }
         driver.ctx.setCapturedOuterReceiver(receiver, for: classType.classSymbol)
         driver.ctx.setLocalValue(receiver, for: classType.classSymbol)
+        if let owner = sema.symbols.symbol(classType.classSymbol) {
+            driver.ctx.setQualifiedThisReceiver(receiver, for: owner.name)
+        }
     }
 
     private func materializeEscapingCallableValue(

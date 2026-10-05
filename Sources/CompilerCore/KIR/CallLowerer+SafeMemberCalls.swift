@@ -1023,6 +1023,13 @@ extension CallLowerer {
             }
         }
 
+        let dispatchReceiver = chosen.flatMap {
+            memberExtensionDispatchReceiver(for: $0, callExprID: exprID, sema: sema)
+        }
+        if let dispatchReceiver {
+            finalArguments.insert(dispatchReceiver, at: 0)
+        }
+
         // Safe-call collection fallback can resolve the source-backed
         // joinToString declaration without retaining its default-value flags.
         // In that case normalizedCallArguments leaves zero sentinels for the
@@ -1208,7 +1215,11 @@ extension CallLowerer {
                (!hasExternalLink
                    || isClockRuntimeVirtualBridge(chosen, sema: sema)
                    || usesIteratorRuntimeVirtualBridge),
-               let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
+               let dispatchKind = resolveVirtualDispatch(
+                   callee: chosen,
+                   receiverTypeID: dispatchReceiver.flatMap { arena.exprType($0) } ?? receiverTypeForDispatch,
+                   sema: sema, interner: interner
+               )
             {
                 var vcArguments = finalArguments
                 if let signature = sema.symbols.functionSignature(for: chosen),
@@ -1223,7 +1234,7 @@ extension CallLowerer {
                 instructions.append(.virtualCall(
                     symbol: chosen,
                     callee: virtualCalleeName,
-                    receiver: loweredReceiverID,
+                    receiver: dispatchReceiver ?? loweredReceiverID,
                     arguments: vcArguments,
                     result: result,
                     canThrow: false,

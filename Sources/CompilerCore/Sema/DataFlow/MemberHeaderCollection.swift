@@ -84,6 +84,9 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [funDecl.name]
             var memberFlags = flags(from: funDecl.modifiers)
+            if funDecl.receiverType != nil {
+                memberFlags.insert(.memberExtension)
+            }
             checkAndReportDuplicateDeclaration(
                 newKind: .function,
                 fqName: memberFQName,

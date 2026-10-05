@@ -608,6 +608,19 @@ final class ObjectLiteralLowerer {
     }
 
     func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
+        let activeReceiverType = driver.ctx.activeImplicitReceiverSymbol().flatMap {
+            driver.ctx.localDeclaredType(for: $0)
+        } ?? driver.ctx.currentFunctionSymbol.flatMap {
+            sema.symbols.functionSignature(for: $0)?.receiverType
+        }
+        if let owner = sema.symbols.parentSymbol(for: symbol),
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = activeReceiverType,
+           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+        {
+            return activeReceiver
+        }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let receiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
         {

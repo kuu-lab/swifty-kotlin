@@ -154,6 +154,7 @@ extension DataFlowSemaPhase {
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
                 isOverride: metadataRecord.isOverride,
+                isMemberExtension: metadataRecord.isMemberExtension,
                 receiverOwnerFQName: receiverOwnerFQName,
                 valueParameterIsVararg: metadataRecord.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: metadataRecord.valueParameterAllowsNonLocalReturn,

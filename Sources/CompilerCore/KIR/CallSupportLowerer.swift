@@ -149,11 +149,41 @@ final class CallSupportLowerer {
         // parameters; the stub mirrors them and forwards them to the original.
         var params: [KIRParameter] = captures.map(\.param)
         var captureArgExprs: [KIRExprID] = []
+        var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
         if let receiverType = signature.receiverType {
+            if let ownerSymbol = driver.callLowerer.memberExtensionOwnerSymbol(for: originalSymbol, sema: sema),
+               let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            {
+                let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map { .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol, args: ownerArgs, nullability: .nonNull
+                )))
+                let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                let dispatchReceiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                driver.ctx.setLocalValue(dispatchReceiverExpr, for: ownerSymbol)
+                driver.ctx.setLocalDeclaredType(dispatchReceiverType, for: ownerSymbol)
+                driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                driver.ctx.setCapturedOuterReceiver(dispatchReceiverExpr, for: ownerSymbol)
+                dispatchReceiverBinding = (dispatchReceiverSymbol, dispatchReceiverExpr)
+            }
             let receiverSym = syntheticReceiverParameterSymbol(functionSymbol: originalSymbol)
+            driver.ctx.setLocalDeclaredType(receiverType, for: receiverSym)
             params.append(KIRParameter(symbol: receiverSym, type: receiverType))
             let receiverExpr = arena.appendExpr(.symbolRef(receiverSym), type: receiverType)
             driver.ctx.setImplicitReceiver(symbol: receiverSym, exprID: receiverExpr)
+            if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) == nil,
+               let owner = sema.symbols.parentSymbol(for: originalSymbol),
+               case let .classType(classType) = sema.types.kind(of: receiverType),
+               classType.classSymbol == owner
+            {
+                driver.ctx.setCapturedOuterReceiver(receiverExpr, for: owner)
+                driver.ctx.setLocalValue(receiverExpr, for: owner)
+                driver.ctx.setLocalDeclaredType(receiverType, for: owner)
+            }
         }
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: paramCount)
         var effectiveParameterTypes: [TypeID] = []
@@ -199,6 +229,9 @@ final class CallSupportLowerer {
         params.append(KIRParameter(symbol: maskSymbol, type: intType))
 
         var body: [KIRInstruction] = [.beginBlock]
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
 
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
@@ -288,6 +321,9 @@ final class CallSupportLowerer {
 
         let receiverExprForCall = driver.ctx.activeImplicitReceiverExprID()
         var callArgs: [KIRExprID] = captureArgExprs
+        if let dispatchReceiverBinding {
+            callArgs.append(dispatchReceiverBinding.exprID)
+        }
         if let receiverExprForCall {
             callArgs.append(receiverExprForCall)
         }
@@ -335,7 +371,7 @@ final class CallSupportLowerer {
                chosenCallee: originalSymbol,
                calleeName: originalName,
                receiverExpr: nil,
-               loweredReceiverID: receiverExprForCall,
+               loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
                // `finalArguments` itself (see its `vcArguments.removeFirst()`)
