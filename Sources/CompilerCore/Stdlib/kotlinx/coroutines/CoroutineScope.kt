@@ -72,10 +72,10 @@ private fun __kkNewScopeHandle(context: CoroutineContext): Any {
 }
 
 @KsSymbolName("kk_coroutine_scope_new")
-internal external fun kkCoroutineScopeNew(): Any
+internal external fun kkCoroutineScopeNew(): CoroutineScope
 
 @KsSymbolName("kk_supervisor_scope_new")
-internal external fun kkSupervisorScopeNew(): Any
+internal external fun kkSupervisorScopeNew(): CoroutineScope
 
 @KsSymbolName("kk_coroutine_scope_cancel")
 internal external fun kkCoroutineScopeCancel(scope: Any)
@@ -86,11 +86,11 @@ internal external fun kkCoroutineScopeWait(scope: Any): Throwable?
 // Keep the erased block/result contract for nested generic builders.
 // Any? permits nullable results; Sema recovers each call's precise type
 // from its block body.
-public suspend fun coroutineScope(block: suspend () -> Any?): Any? {
+public suspend fun coroutineScope(block: suspend CoroutineScope.() -> Any?): Any? {
     val scope = kkCoroutineScopeNew()
     val result: Any?
     try {
-        result = block()
+        result = block(scope)
     } catch (e: Throwable) {
         kkCoroutineScopeCancel(scope)
         kkCoroutineScopeWait(scope)
@@ -103,11 +103,11 @@ public suspend fun coroutineScope(block: suspend () -> Any?): Any? {
     return result
 }
 
-public suspend fun supervisorScope(block: suspend () -> Any?): Any? {
+public suspend fun supervisorScope(block: suspend CoroutineScope.() -> Any?): Any? {
     val scope = kkSupervisorScopeNew()
     val result: Any?
     try {
-        result = block()
+        result = block(scope)
     } catch (e: Throwable) {
         kkCoroutineScopeCancel(scope)
         kkCoroutineScopeWait(scope)
