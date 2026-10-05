@@ -899,7 +899,7 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    private func integerLiteralFitsParameter(
+    func integerLiteralFitsParameter(
         _ exprID: ExprID,
         parameterType: TypeID,
         ctx: TypeInferenceContext

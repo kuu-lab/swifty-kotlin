@@ -18,6 +18,9 @@ fun shortComparisons(s: Short, b: Byte, other: Short, i: Int, l: Long, f: Float,
 
 fun <T : Comparable<T>> compareGeneric(a: T, b: T): Int = a.compareTo(b)
 
+fun Byte.compareTo(other: String): Int = other.length
+fun Short.compareTo(other: Boolean): Int = if (other) 7 else 8
+
 fun receiver(value: Byte?): Byte? {
     println("receiver")
     return value
@@ -77,4 +80,6 @@ fun main() {
     println(2L.compareTo(b))
     println(1.compareTo(1.5))
     println(2L.compareTo(2.5f))
+    println(b.compareTo("abcd"))
+    println(s.compareTo(true))
 }

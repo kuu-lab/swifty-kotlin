@@ -1,6 +1,33 @@
 // swiftlint:disable function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    func primitiveCompareToCandidateMatches(
+        _ candidate: SymbolID,
+        calleeName: InternedString,
+        receiverType: TypeID,
+        argTypes: [TypeID],
+        sema: SemaModule
+    ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: driver.interner)
+        let receiver = sema.types.makeNonNullable(receiverType)
+        guard calleeName == knownNames.compareTo,
+              receiver == sema.types.byteType || receiver == sema.types.shortType,
+              sema.symbols.parentSymbol(for: candidate) == sema.types.comparableInterfaceSymbol
+        else {
+            return true
+        }
+        guard argTypes.count == 1 else { return false }
+        switch sema.types.kind(of: argTypes[0]) {
+        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull), .primitive(.long, .nonNull),
+             .primitive(.float, .nonNull), .primitive(.double, .nonNull),
+             .nothing(.nonNull):
+            return true
+        default:
+            return false
+        }
+    }
+
     func tryInferRegularMemberCallPrimitiveSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,

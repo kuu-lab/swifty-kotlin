@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 // The hand-built comparator objects below implement `Comparator<T>` at a fixed
 // itable slot (0, 0) but are constructed directly in Swift rather than
@@ -104,6 +105,26 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
 /// `kotlin.comparisons.compareValues`).
 @_cdecl("__kk_comparable_compareTo")
 public func __kk_comparable_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    let areBoxedOperands = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: lhsRaw))
+            && state.objectPointers.contains(UInt(bitPattern: rhsRaw))
+    }
+    if areBoxedOperands,
+       let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhsRaw),
+       let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhsRaw),
+       let lhs = tryCast(lhsPointer, to: RuntimeIntBox.self),
+       let rhs = tryCast(rhsPointer, to: RuntimeIntBox.self),
+       lhs.primitiveTypeBase == rhs.primitiveTypeBase,
+       lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase
+           || lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.shortBase
+    {
+        // JVM Byte/Short Comparable bridges return the difference, unlike
+        // Kotlin's sign-normalized primitive compareTo intrinsics.
+        if lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase {
+            return Int(Int8(truncatingIfNeeded: lhs.value)) - Int(Int8(truncatingIfNeeded: rhs.value))
+        }
+        return Int(Int16(truncatingIfNeeded: lhs.value)) - Int(Int16(truncatingIfNeeded: rhs.value))
+    }
     return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 

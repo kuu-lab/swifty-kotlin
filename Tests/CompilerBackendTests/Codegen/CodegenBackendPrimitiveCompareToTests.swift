@@ -76,7 +76,7 @@ struct CodegenBackendPrimitiveCompareToTests {
             println(comparator(-128, -127.5))
         }
         """
-        try assertKotlinOutput(source, moduleName: "NarrowPrimitiveCompareToSafeCall", expected: "receiver\nargument\n-1\nreceiver\nnull\n-1\n1\nnull\n-1\n1\n-1\n1\n-1\n")
+        try assertKotlinOutput(source, moduleName: "NarrowPrimitiveCompareToSafeCall", expected: "receiver\nargument\n-1\nreceiver\nnull\n-1\n1\nnull\n-255\n65535\n-1\n1\n-1\n")
     }
 
     @Test

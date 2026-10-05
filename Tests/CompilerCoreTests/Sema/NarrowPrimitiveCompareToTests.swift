@@ -23,6 +23,8 @@ struct NarrowPrimitiveCompareToTests {
             val nullableShort: Short? = s
             val byteResult: Int? = nullableByte?.compareTo(d)
             val shortResult: Int? = nullableShort?.compareTo(l)
+            val comparator: (Byte, Double) -> Int = { a, b -> a.compareTo(b) }
+            val lambdaResult: Int = comparator(-128, -127.5)
         }
         """)
         try runSema(ctx)
@@ -32,14 +34,31 @@ struct NarrowPrimitiveCompareToTests {
     @Test
     func nonNumericArgumentsAreRejected() throws {
         let ctx = makeContextFromSource("""
-        fun invalid(b: Byte, s: Short) {
+        fun invalid(b: Byte, s: Short, nullable: Int?) {
             b.compareTo("1")
             s.compareTo(true)
             b.compareTo('a')
+            s.compareTo(nullable)
+            b.compareTo(1u)
+            s.compareTo(null)
         }
         """)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == 3, "\(errors)")
+        #expect(errors.count == 6, "\(errors)")
+    }
+
+    @Test
+    func userDefinedNonNumericCompareToExtensionStillResolves() throws {
+        let ctx = makeContextFromSource("""
+        fun Byte.compareTo(other: String): Int = 0
+        fun Short.compareTo(other: Boolean): Int = 0
+        fun parity(b: Byte, s: Short) {
+            b.compareTo("1")
+            s.compareTo(true)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 }

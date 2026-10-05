@@ -1137,6 +1137,7 @@ extension CallTypeChecker {
                     argTypes: argTypes,
                     range: range,
                     ctx: ctx,
+                    locals: &locals,
                     expectedType: expectedType
                 ) {
                     let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
@@ -1228,6 +1229,7 @@ extension CallTypeChecker {
                 argTypes: argTypes,
                 range: range,
                 ctx: ctx,
+                locals: &locals,
                 expectedType: expectedType
             ) {
                 let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
