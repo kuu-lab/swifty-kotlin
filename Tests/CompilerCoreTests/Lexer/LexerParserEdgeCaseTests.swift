@@ -183,6 +183,58 @@ struct LexerParserEdgeCaseTests {
     }
 
     @Test
+    func testLexerLeadingDotNumericLiterals() {
+        let source = " .5 .5f .5F .25e2 .25E-2f .1_25 .5e+2F"
+        let result = lex(source)
+
+        #expect(result.tokens.map(\.kind) == [
+            .doubleLiteral(".5"),
+            .floatLiteral(".5f"),
+            .floatLiteral(".5F"),
+            .doubleLiteral(".25e2"),
+            .floatLiteral(".25E-2f"),
+            .doubleLiteral(".1_25"),
+            .floatLiteral(".5e+2F"),
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+        #expect(result.tokens.first?.range.start.offset == 1)
+        #expect(result.tokens.first?.range.end.offset == 3)
+        #expect(result.tokens.first?.leadingTrivia == [.spaces(1)])
+    }
+
+    @Test
+    func testLexerLeadingDotLiteralsPreserveDotOperators() {
+        let result = lex("1..5 1..<5 .5..1.5 .5..<1.5 . .name ?.name . 5")
+        let name = result.interner.intern("name")
+
+        #expect(result.tokens.map(\.kind) == [
+            .intLiteral("1"), .symbol(.dotDot), .intLiteral("5"),
+            .intLiteral("1"), .symbol(.dotDotLt), .intLiteral("5"),
+            .doubleLiteral(".5"), .symbol(.dotDot), .doubleLiteral("1.5"),
+            .doubleLiteral(".5"), .symbol(.dotDotLt), .doubleLiteral("1.5"),
+            .symbol(.dot),
+            .symbol(.dot), .identifier(name),
+            .symbol(.questionDot), .identifier(name),
+            .symbol(.dot), .intLiteral("5"),
+            .eof,
+        ])
+        #expect(!result.diagnostics.hasError)
+    }
+
+    @Test
+    func testLexerLeadingDotLiteralsKeepNumericDiagnostics() {
+        for source in [".5_", ".5e_2", ".5e2_"] {
+            let result = lex(source)
+            assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
+        }
+        for source in [".5e", ".5e+", ".5L", ".5u", ".5D"] {
+            let result = lex(source)
+            assertHasDiagnostic("KSWIFTK-LEX-0003", in: result.diagnostics.diagnostics)
+        }
+    }
+
+    @Test
     func testLexerNumericAndCharLiteralsCoverErrorAndSuffixPaths() {
         let source = """
         0x1F 0X 0b101 0b 0o77 0o
