@@ -639,28 +639,30 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         ? resolvedCtx.dispatcher
         : RuntimeDispatcherTag.defaultDispatcher
 
-    var restoreJobHandle: (@Sendable () -> Void)?
+    var restoreJobHandle: (@Sendable (Int) -> Void)?
     if let contState = runtimeContinuationState(from: continuation) {
         if let name = resolvedCtx.name, let scope = contState.scope {
             scope.name = name
         }
-        // Install a Job element from the context (e.g. NonCancellable) as this
-        // block's ambient job, so cancellation checks inside the block observe it
-        // instead of falling through to the caller's job/scope. This is what makes
-        // `withContext(NonCancellable) { ... }` immune to the enclosing job's
-        // cancellation: NonCancellable's backing job is never cancelled.
-        //
-        // This override must not leak past the end of this withContext block --
-        // otherwise every subsequent cancellation check in the same coroutine
-        // would observe the (never-cancelled) override job forever. Save the
-        // original and restore it via restoreJobHandle once the block genuinely
-        // finishes, across all of kk_with_context's completion paths (inline,
-        // CORO-004 async, and non-coroutine semaphore).
         if let overrideJob = runtimeJobHandle(from: resolvedCtx.jobHandleRaw) {
             let savedJobHandle = contState.jobHandle
-            contState.jobHandle = overrideJob
-            restoreJobHandle = { [weak contState] in
+            let isNonCancellable = resolvedCtx.jobHandleRaw == kk_non_cancellable_instance()
+            // Upstream exposes the block's own Job, not the NonCancellable
+            // singleton. It is detached from the cancelled outer Job but can
+            // still be cancelled explicitly from inside the block.
+            let blockJob = isNonCancellable ? runtimeJobHandle(from: kk_job_new()) : nil
+            blockJob?.continuationState = contState
+            contState.jobHandle = blockJob ?? overrideJob
+            let shieldedCaller = isNonCancellable ? RuntimeContinuationState.current : nil
+            shieldedCaller?.beginCancellationShield()
+            restoreJobHandle = { [weak contState] thrown in
+                if thrown != 0 {
+                    _ = blockJob?.completeExceptionally(with: thrown)
+                } else {
+                    _ = blockJob?.complete(with: 0)
+                }
                 contState?.jobHandle = savedJobHandle
+                shieldedCaller?.endCancellationShield()
             }
         }
     }
@@ -897,17 +899,13 @@ func kk_with_context_impl(
     _ dispatcherRaw: Int,
     _ blockFnPtr: Int,
     _ continuation: Int,
-    restoreJobHandle: (@Sendable () -> Void)?
+    restoreJobHandle: (@Sendable (Int) -> Void)?
 ) -> Int {
-    // STDLIB-CORO-077: If dispatcherRaw is a RuntimeCoroutineContext, delegate
-    // to kk_with_context_full which handles context element propagation.
+    // A single element (not just a composed context) must propagate its Job/name/handler.
     if !isDispatcherTag(dispatcherRaw), dispatcherRaw != 0,
-       isRegisteredRuntimeObjectPointer(dispatcherRaw),
-       let ptr = UnsafeMutableRawPointer(bitPattern: dispatcherRaw),
-       runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-       tryCast(ptr, to: RuntimeCoroutineContext.self) != nil
+       isRegisteredRuntimeObjectPointer(dispatcherRaw)
     {
-        restoreJobHandle?()
+        restoreJobHandle?(0)
         return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
     }
 
@@ -924,7 +922,7 @@ func kk_with_context_impl(
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
         // Clean up the continuation to avoid leaking coroutine state.
         _ = kk_coroutine_state_exit(continuation, 0)
-        restoreJobHandle?()
+        restoreJobHandle?(0)
         return 0
     }
 
@@ -965,11 +963,13 @@ func kk_with_context_impl(
         defer { RuntimeDispatcher.current = savedDispatcher }
         RuntimeCoroutineScope.current = parentScope
         RuntimeDispatcher.current = dispatcher
+        var thrown = 0
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
-        restoreJobHandle?()
+        restoreJobHandle?(thrown)
         return result
     }
 
@@ -993,7 +993,7 @@ func kk_with_context_impl(
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
                 onCompletion: { result, thrown in
-                    restoreJobHandle?()
+                    restoreJobHandle?(thrown)
                     if thrown != 0 {
                         callerState.resume(withException: thrown)
                     } else {
@@ -1015,11 +1015,13 @@ func kk_with_context_impl(
         RuntimeCoroutineScope.current = parentScope
         defer { RuntimeCoroutineScope.current = savedScope }
 
+        var thrown = 0
         resultBox.value = runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
-            continuation: continuation
+            continuation: continuation,
+            outThrown: &thrown
         )
-        restoreJobHandle?()
+        restoreJobHandle?(thrown)
         semaphore.signal()
     }
 
