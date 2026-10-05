@@ -426,6 +426,31 @@ extension CallLowerer {
         return makeClosureRawArgument(callableInfo: callableInfo, sema: sema, arena: arena, instructions: &instructions)
     }
 
+    func materializeNominalFunctionValue(
+        _ loweredArgID: KIRExprID,
+        exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard sema.bindings.nominalFunctionExpectedTypes[exprID] != nil,
+              let type = sema.bindings.exprTypes[exprID],
+              case let .functionType(functionType) = sema.types.kind(of: type)
+        else {
+            return loweredArgID
+        }
+        return materializeFunctionValueArgument(
+            loweredArgID: loweredArgID,
+            argExprID: exprID,
+            functionType: functionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func materializeFunctionValueArgument(
         loweredArgID: KIRExprID,
         argExprID: ExprID,
@@ -660,6 +685,11 @@ extension CallLowerer {
             switch sema.types.kind(of: parameterType) {
             case let .functionType(declaredFunctionType):
                 functionType = declaredFunctionType
+            case .classType:
+                guard let nominalFunctionType = sema.types.nominalFunctionType(for: parameterType) else {
+                    continue
+                }
+                functionType = nominalFunctionType
             case .typeParam:
                 // The callee's own declaration erases this parameter to a bare
                 // type parameter (e.g. Pair<A, B>'s `first: A`), so a function
@@ -713,6 +743,8 @@ extension CallLowerer {
             if isInline,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
+               (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)

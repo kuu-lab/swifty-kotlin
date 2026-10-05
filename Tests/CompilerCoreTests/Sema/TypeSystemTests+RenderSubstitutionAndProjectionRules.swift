@@ -2,6 +2,58 @@
 import Testing
 
 extension TypeSystemTests {
+    @Test func testNominalFunctionTypePreservesSignatureAndNullability() throws {
+        let ts = TypeSystem()
+        for arity in 0 ... 5 {
+            let symbol = SymbolID(rawValue: Int32(100 + arity))
+            ts.functionNInterfaceSymbols[arity] = symbol
+            let parameters = Array(repeating: ts.intType, count: arity)
+            let nominal = ts.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: (parameters + [ts.stringType]).map(TypeArg.invariant),
+                nullability: .nullable
+            )))
+            let function = try #require(ts.nominalFunctionType(for: nominal))
+            #expect(function.params == parameters)
+            #expect(function.returnType == ts.stringType)
+            #expect(function.nullability == .nullable)
+            #expect(function.receiver == nil)
+            #expect(!function.isSuspend)
+            #expect(ts.isSubtype(nominal, ts.make(.functionType(function))))
+            #expect(!ts.isSubtype(nominal, ts.make(.functionType(FunctionType(
+                params: parameters,
+                returnType: ts.stringType
+            )))))
+        }
+    }
+
+    @Test func testNominalFunctionTypeRejectsUnrelatedAndIncompleteTypes() {
+        let ts = TypeSystem()
+        let symbol = SymbolID(rawValue: 100)
+        ts.functionNInterfaceSymbols[1] = symbol
+        #expect(ts.nominalFunctionType(for: ts.intType) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: SymbolID(rawValue: 101),
+            args: [.invariant(ts.intType), .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.invariant(ts.intType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.star, .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.out(ts.intType), .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.invariant(ts.intType), .in(ts.stringType)]
+        )))) == nil)
+    }
+
     @Test
     func testRenderTypeForBuiltIns() {
         let ts = TypeSystem()

@@ -221,12 +221,16 @@ struct GoldenHarnessStableKeyTests {
         fun takeNullableFunction(f: Fn?): Int = 1
         fun takeNullableReturn(f: () -> String?): Int = 2
         """)
+        // RF-GOLDEN-008 made the RF-GOLDEN-006 public key the ordinary-body
+        // spelling, so the key continues past `params=` with `ret=`/`names=`/
+        // `origin=` atoms — assert the `params=` payload, which is where the
+        // nullability distinction lives.
         #expect(
-            dump.contains("sample.takeNullableFunction[kind=fun;params=fn{p=;ret=String}?]"),
+            dump.contains("sample.takeNullableFunction[kind=fun;params=fn{p=;ret=String}?;"),
             Comment(rawValue: "nullable function type was not encoded as fn{…}?")
         )
         #expect(
-            dump.contains("sample.takeNullableReturn[kind=fun;params=fn{p=;ret=String?}]"),
+            dump.contains("sample.takeNullableReturn[kind=fun;params=fn{p=;ret=String?};"),
             Comment(rawValue: "nullable return type was not encoded as ret=…?")
         )
     }
@@ -244,8 +248,8 @@ struct GoldenHarnessStableKeyTests {
             probe
         }
         """)
-        #expect(dump.contains("fq=sample.probe[kind=prop]"))
-        #expect(dump.contains("fq=sample.probe[kind=fun;params=]"))
+        #expect(dump.contains("fq=sample.probe[kind=prop;"))
+        #expect(dump.contains("fq=sample.probe[kind=fun;params=;"))
     }
 
     @Test
@@ -258,8 +262,8 @@ struct GoldenHarnessStableKeyTests {
         fun <Alpha> firstOf(x: Alpha): Alpha = x
         fun <Beta> secondOf(y: Beta): Beta = y
         """)
-        #expect(dump.contains("sample.firstOf[kind=fun;params=T0;gen=1]"))
-        #expect(dump.contains("sample.secondOf[kind=fun;params=T0;gen=1]"))
+        #expect(dump.contains("sample.firstOf[kind=fun;params=T0;ret=T0;gen=1"))
+        #expect(dump.contains("sample.secondOf[kind=fun;params=T0;ret=T0;gen=1"))
     }
 
     @Test

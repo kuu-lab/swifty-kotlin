@@ -22,8 +22,11 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads legacy Duration boxes, boxed Long payloads, and raw value-class payloads.
-/// The unbox helper checks registry membership before interpreting a handle.
+private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
+
+/// Reads legacy Duration boxes, boxed Long payloads, boxed value-class objects,
+/// and raw value-class payloads. The unbox helper checks registry membership
+/// before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
     runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: 1)
 }
@@ -31,6 +34,16 @@ func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
 private func runtimeDurationRawValue(from raw: Int) -> Int64 {
     if let box = runtimeDurationBox(from: raw) {
         return box.rawValue
+    }
+    // KUU-1093: Duration implements Comparable<Duration>, so it is a real
+    // boxed object — its single Long field (the tagged rawValue) sits at
+    // slot 2 after the two-slot object header. Tagged nullable-Duration
+    // boxes (RuntimeLongBox + nominal tag) carry the same type ID but are
+    // not RuntimeArrayBox, so they fall through to the unbox path below.
+    if runtimeObjectTypeID(rawValue: raw) == durationRuntimeTypeID,
+       let objectBox = runtimeArrayBox(from: raw), objectBox.count == 3
+    {
+        return Int64(objectBox[2])
     }
     return Int64(kk_unbox_long_static(raw))
 }
@@ -94,14 +107,6 @@ private func runtimeDurationFromLong(_ value: Int64, scale: Int64) -> Int64 {
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
     Int(runtimeDurationOfNanos(nanoseconds))
-}
-
-private func runtimeDurationBoxHandle(fromRawValue rawValue: Int64) -> Int {
-    // Nullable value classes use nominally tagged boxes of their encoded payload.
-    let boxed = kk_box_long_nonnull_static(Int(rawValue))
-    return kk_tag_value_class_box(
-        boxed, Int(runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
-    )
 }
 
 private func runtimeDurationNanoseconds(
@@ -732,7 +737,7 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromRawValue: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -757,7 +762,7 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromRawValue: nanoseconds)
+    return Int(nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)

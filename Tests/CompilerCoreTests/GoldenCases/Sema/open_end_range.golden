@@ -1,19 +1,19 @@
-symbol fq=useOpenEndRange.$0.range[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=useOpenEndRange.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
+symbol fq=useOpenEndRange.$0.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=useOpenEndRange.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
 file fopen_end_range package=_
-  decl useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int] fun useOpenEndRange sym=useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int]
-expr e@4:12 name(value) type=Int ref=useOpenEndRange.$0.value[kind=vparam]
-expr e@4:21 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam]
-expr e@4:12#1 inExpr lhs=e@4:12 rhs=e@4:21 type=Boolean call=kotlin.ranges.OpenEndRange.contains[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=T0;gen=1] targs=[Int]
-expr e@4:31 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam]
-expr e@4:31#1 memberCall recv=e@4:31 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.OpenEndRange.isEmpty[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=;gen=1] targs=[Int]
+  decl useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] fun useOpenEndRange sym=useOpenEndRange[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture]
+expr e@4:12 name(value) type=Int ref=useOpenEndRange.$0.value[kind=vparam;origin=fixture]
+expr e@4:21 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam;origin=fixture]
+expr e@4:12#1 inExpr lhs=e@4:12 rhs=e@4:21 type=Boolean call=kotlin.ranges.OpenEndRange.contains[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[Int]
+expr e@4:31 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam;origin=fixture]
+expr e@4:31#1 memberCall recv=e@4:31 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.OpenEndRange.isEmpty[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>]] targs=[Int]
 expr e@4:30 unary(not) operand=e@4:31#1 type=Boolean
 expr e@4:12#2 binary(logicalAnd) lhs=e@4:12#1 rhs=e@4:30 type=Boolean
-expr e@4:50 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam]
-expr e@4:50#1 memberCall recv=e@4:50 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start[kind=prop]
-expr e@4:64 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam]
-expr e@4:64#1 memberCall recv=e@4:64 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive[kind=prop]
+expr e@4:50 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam;origin=fixture]
+expr e@4:50#1 memberCall recv=e@4:50 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start[kind=prop;type=T0]
+expr e@4:64 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=useOpenEndRange.$0.range[kind=vparam;origin=fixture]
+expr e@4:64#1 memberCall recv=e@4:64 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive[kind=prop;type=T0]
 expr e@4:50#2 binary(lessThan) lhs=e@4:50#1 rhs=e@4:64#1 type=Boolean
 expr e@4:12#3 binary(logicalAnd) lhs=e@4:12#2 rhs=e@4:50#2 type=Boolean
 expr e@4:5 return value=e@4:12#3 type=Nothing

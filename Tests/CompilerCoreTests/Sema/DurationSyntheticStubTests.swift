@@ -14,7 +14,7 @@ struct DurationSyntheticStubTests {
     }
 
     @Test
-    func testDurationOperatorBridgesAreRegistered() throws {
+    func testDurationOperatorBridgesAreNotRegistered() throws {
         let (sema, interner) = try sharedSema()
 
         let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
@@ -25,24 +25,26 @@ struct DurationSyntheticStubTests {
             nullability: .nonNull
         )))
 
-        // Verify __kk_duration_* bridge stubs (MIGRATION-TIME-001 / KSP-471)
-        let expectedBridges: [(name: String, link: String, parameterTypes: [TypeID])] = [
-            ("__kk_duration_plus", "kk_duration_plus", [durationType]),
-            ("__kk_duration_minus", "kk_duration_minus", [durationType]),
-            ("__kk_duration_times_int", "kk_duration_times_int", [sema.types.intType]),
-            ("__kk_duration_div_int", "kk_duration_div_int", [sema.types.intType]),
-            ("__kk_duration_div_duration", "kk_duration_div_duration", [durationType]),
-            ("__kk_duration_unary_minus", "kk_duration_unary_minus", []),
-            ("__kk_duration_absoluteValue", "kk_duration_absoluteValue", []),
-            ("__kk_duration_isNegative", "kk_duration_isNegative", []),
-            ("__kk_duration_isPositive", "kk_duration_isPositive", []),
-            ("__kk_duration_isInfinite", "kk_duration_isInfinite", []),
-            // KSP-471: compareTo moved from a direct compat stub to a bridge
-            // called from the Kotlin source operator function.
-            ("__kk_duration_compareTo", "kk_duration_compareTo", [durationType]),
+        // KUU-1093: `Duration` implements `Comparable<Duration>`, so every Duration
+        // value is a real boxed object. The kk_duration_* cdecls speak raw tagged
+        // Int64 payloads, so Duration-typed member bridges would be a wrong-ABI
+        // hazard; every operation they backed is resolved via Kotlin source.
+        // Assert the former member bridges stay unregistered.
+        let removedBridges: [(name: String, parameterTypes: [TypeID])] = [
+            ("__kk_duration_plus", [durationType]),
+            ("__kk_duration_minus", [durationType]),
+            ("__kk_duration_times_int", [sema.types.intType]),
+            ("__kk_duration_div_int", [sema.types.intType]),
+            ("__kk_duration_div_duration", [durationType]),
+            ("__kk_duration_unary_minus", []),
+            ("__kk_duration_absoluteValue", []),
+            ("__kk_duration_isNegative", []),
+            ("__kk_duration_isPositive", []),
+            ("__kk_duration_isInfinite", []),
+            ("__kk_duration_compareTo", [durationType]),
         ]
 
-        for bridge in expectedBridges {
+        for bridge in removedBridges {
             let bridgeFQName = durationFQName + [interner.intern(bridge.name)]
             let matchingSymbols = sema.symbols.lookupAll(fqName: bridgeFQName).filter { symbolID in
                 guard let signature = sema.symbols.functionSignature(for: symbolID) else {
@@ -51,11 +53,7 @@ struct DurationSyntheticStubTests {
                 return signature.receiverType == durationType
                     && signature.parameterTypes == bridge.parameterTypes
             }
-            #expect(matchingSymbols.count == 1, "Expected exactly one Duration.\(bridge.name) bridge with receiverType=Duration")
-            let symbol = try #require(matchingSymbols.first)
-            #expect(sema.symbols.symbol(symbol)?.kind == .function)
-            #expect(!(sema.symbols.symbol(symbol)?.flags.contains(.operatorFunction) == true), "Duration.\(bridge.name) bridge must not be marked as an operator")
-            #expect(sema.symbols.externalLinkName(for: symbol) == bridge.link)
+            #expect(matchingSymbols.isEmpty, "Duration.\(bridge.name) member bridge must not be registered (KUU-1093)")
         }
     }
 
@@ -74,6 +72,8 @@ struct DurationSyntheticStubTests {
         )))
 
         // Arithmetic operators are Kotlin source extension functions at package scope.
+        // compareTo is excluded: it is a member override on the value class itself
+        // (KUU-1093 — `Duration` implements `Comparable<Duration>`).
         let arithmeticOps: [(name: String, parameterTypes: [TypeID])] = [
             ("plus", [durationType]),
             ("minus", [durationType]),
@@ -81,7 +81,6 @@ struct DurationSyntheticStubTests {
             ("div", [sema.types.intType]),
             ("div", [durationType]),
             ("unaryMinus", []),
-            ("compareTo", [durationType]),
         ]
         for op in arithmeticOps {
             let packageFQName = ["kotlin", "time", op.name].map { interner.intern($0) }
@@ -95,6 +94,19 @@ struct DurationSyntheticStubTests {
             #expect(sema.symbols.symbol(sym)?.declSite != nil, "Duration.\(op.name) should have a declSite (Kotlin source, not a synthetic stub)")
             #expect(sema.symbols.externalLinkName(for: sym) == nil, "Duration.\(op.name) should have no C external link name (Kotlin source)")
         }
+
+        // KUU-1093: compareTo is a Kotlin source member override declared inside the
+        // value class (Comparable<Duration> conformance), not a package-scope extension.
+        let compareToFQName = durationFQName + [interner.intern("compareTo")]
+        let compareToSym = try #require(
+            sema.symbols.lookupAll(fqName: compareToFQName).first { symbolID in
+                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes == [durationType]
+            },
+            "Duration.compareTo should be a Kotlin source member override"
+        )
+        #expect(sema.symbols.symbol(compareToSym)?.declSite != nil, "Duration.compareTo should have a declSite (Kotlin source)")
+        #expect(sema.symbols.externalLinkName(for: compareToSym) == nil, "Duration.compareTo should have no C external link name (Kotlin source)")
 
         // absoluteValue is a Kotlin source extension property at package scope.
         // Extension properties are represented as property symbols (kind == .property) with

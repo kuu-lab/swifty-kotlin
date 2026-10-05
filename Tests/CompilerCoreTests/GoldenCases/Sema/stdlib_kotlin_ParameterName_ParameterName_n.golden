@@ -1,10 +1,10 @@
-symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=golden.sema.readParameterName.$0.parameterName[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ParameterName] ret=String
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.readParameterName.$0.parameterName[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName;ret=String;names=[parameterName];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ParameterName] ret=String
 file fstdlib_kotlin_ParameterName_ParameterName_n package=golden.sema
-  decl golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName] fun readParameterName sym=golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName]
-  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
-expr e@3:63 name(parameterName) type=kotlin.ParameterName ref=golden.sema.readParameterName.$0.parameterName[kind=vparam]
-expr e@3:63#1 memberCall recv=e@3:63 callee=name args=[] type=String ref=kotlin.ParameterName.name[kind=prop]
+  decl golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName;ret=String;names=[parameterName];origin=fixture] fun readParameterName sym=golden.sema.readParameterName[kind=fun;params=kotlin.ParameterName;ret=String;names=[parameterName];origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@3:63 name(parameterName) type=kotlin.ParameterName ref=golden.sema.readParameterName.$0.parameterName[kind=vparam;origin=fixture]
+expr e@3:63#1 memberCall recv=e@3:63 callee=name args=[] type=String ref=kotlin.ParameterName.name[kind=prop;type=String]
 expr e@6:13 string(ok) type=String
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]

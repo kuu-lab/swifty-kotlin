@@ -1,15 +1,15 @@
-symbol fq=golden.sema.Action.run[kind=fun;recv=golden.sema.Action;params=] kind=function vis=public flags=abstractType sig=recv=golden.sema.Action params=[] ret=Unit
-symbol fq=golden.sema.Action[kind=iface] kind=interface vis=public flags=funInterface
-symbol fq=golden.sema.execute.$0.action[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.execute[kind=fun;params=golden.sema.Action] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Action] ret=Unit
-symbol fq=golden.sema.useSam[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.Action.run[kind=fun;recv=golden.sema.Action;params=;ret=Unit;origin=fixture] kind=function vis=public flags=abstractType sig=recv=golden.sema.Action params=[] ret=Unit
+symbol fq=golden.sema.Action[kind=iface;origin=fixture] kind=interface vis=public flags=funInterface
+symbol fq=golden.sema.execute.$0.action[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.execute[kind=fun;params=golden.sema.Action;ret=Unit;names=[action];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Action] ret=Unit
+symbol fq=golden.sema.useSam[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fsam_conversion package=golden.sema
-  decl golden.sema.Action[kind=iface] interface Action sym=golden.sema.Action[kind=iface]
-  decl golden.sema.execute[kind=fun;params=golden.sema.Action] fun execute sym=golden.sema.execute[kind=fun;params=golden.sema.Action]
-  decl golden.sema.useSam[kind=fun;params=] fun useSam sym=golden.sema.useSam[kind=fun;params=]
-expr e@7:31 name(action) type=golden.sema.Action ref=golden.sema.execute.$0.action[kind=vparam]
-expr e@7:31#1 memberCall recv=e@7:31 callee=run args=[] type=Unit call=golden.sema.Action.run[kind=fun;recv=golden.sema.Action;params=]
+  decl golden.sema.Action[kind=iface;origin=fixture] interface Action sym=golden.sema.Action[kind=iface;origin=fixture]
+  decl golden.sema.execute[kind=fun;params=golden.sema.Action;ret=Unit;names=[action];origin=fixture] fun execute sym=golden.sema.execute[kind=fun;params=golden.sema.Action;ret=Unit;names=[action];origin=fixture]
+  decl golden.sema.useSam[kind=fun;params=;ret=Unit;origin=fixture] fun useSam sym=golden.sema.useSam[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@7:31 name(action) type=golden.sema.Action ref=golden.sema.execute.$0.action[kind=vparam;origin=fixture]
+expr e@7:31#1 memberCall recv=e@7:31 callee=run args=[] type=Unit call=golden.sema.Action.run[kind=fun;recv=golden.sema.Action;params=;ret=Unit;origin=fixture]
 expr e@10:23 string(hello) type=String
-expr e@10:15 call callee=e@10:15#1 args=[_:e@10:23] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@10:15 call callee=e@10:15#1 args=[_:e@10:23] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@10:13 lambda params=[] body=e@10:15 label=execute type=golden.sema.Action
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=golden.sema.execute[kind=fun;params=golden.sema.Action]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=golden.sema.execute[kind=fun;params=golden.sema.Action;ret=Unit;names=[action];origin=fixture]

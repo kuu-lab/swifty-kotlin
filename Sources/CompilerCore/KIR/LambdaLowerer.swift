@@ -599,18 +599,20 @@ final class LambdaLowerer {
                 return materialized
             }
         }
-        if let functionType {
-            emitRawFunctionArityTag(
-                lambdaValueExpr, functionType: functionType, sema: sema,
-                arena: arena, interner: interner, instructions: &instructions
+        if !hasNonLocalReturn {
+            if let functionType {
+                emitRawFunctionArityTag(
+                    lambdaValueExpr, functionType: functionType, sema: sema,
+                    arena: arena, interner: interner, instructions: &instructions
+                )
+            }
+            emitFunctionDescription(
+                value: lambdaValueExpr,
+                description: "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: true,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
             )
         }
-        emitFunctionDescription(
-            value: lambdaValueExpr,
-            description: "kotlin.Function\(lambdaParameterTypes.count)",
-            identity: true,
-            sema: sema, arena: arena, interner: interner, instructions: &instructions
-        )
         return lambdaValueExpr
     }
 
@@ -2527,12 +2529,14 @@ final class LambdaLowerer {
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
 
-        emitFunctionDescription(
-            value: lambdaValueExpr,
-            description: "kotlin.Function\(lambdaParameterTypes.count)",
-            identity: true,
-            sema: sema, arena: arena, interner: interner, instructions: &instructions
-        )
+        if !hasNonLocalReturn {
+            emitFunctionDescription(
+                value: lambdaValueExpr,
+                description: "kotlin.Function\(lambdaParameterTypes.count)",
+                identity: true,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
 
         // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(
@@ -2543,7 +2547,7 @@ final class LambdaLowerer {
             hasClosureParam: false
         )
 
-        if let functionType {
+        if !hasNonLocalReturn, let functionType {
             emitRawFunctionArityTag(
                 lambdaValueExpr, functionType: functionType, sema: sema,
                 arena: arena, interner: interner, instructions: &instructions

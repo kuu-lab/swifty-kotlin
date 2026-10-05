@@ -19,11 +19,11 @@ import Testing
 /// |---|---|---|
 /// | fixture 宣言 binding（`decl` / `sym=`） | kept | stays |
 /// | expr 推論型 `type=` | kept | stays |
-/// | 参照・呼び出し解決 `ref=` / `call=` / `targs=` | kept | stays (key: RF-GOLDEN-010; public-ref mapping: RF-GOLDEN-006) |
+/// | 参照・呼び出し解決 `ref=` / `call=` / `targs=` | kept | stays (key: RF-GOLDEN-010 → RF-GOLDEN-006 public key is the RF-GOLDEN-008 default spelling) |
 /// | fixture 所有 symbol の `kind=` / `vis=` / `flags=` / `sig=` / `type=` | kept | stays |
 /// | 外部 symbol の推移的 `sig=` / `type=` / `flags=` メタデータ | emitted today | dedicated stdlib golden (RF-GOLDEN-011), migrated by RF-GOLDEN-003 |
-/// | 由来（source / synthetic / imported / alias） | only `flags=synthetic` | origin classification RF-GOLDEN-002 + dedicated tests |
-/// | `canThrow` / `throws` / `throwingFunction` | **not emitted** | ABI / bridge / runtime tests (RF-GOLDEN-005) |
+/// | 由来（source / synthetic / imported / alias） | `flags=synthetic` + `;origin=fixture`/`;origin=unknown` inside `[...]` reference keys | external-origin tokens stay dedicated: RF-GOLDEN-002 + section stdlib-targets |
+/// | `canThrow` / `throwingFunction` | **not emitted** (`;throws` exists only inside `[...]` reference keys — callable identity, not a flag row) | ABI / bridge / runtime tests (RF-GOLDEN-005) |
 /// | nominal 宣言側 variance / supertype / 型引数 | **not emitted** | dedicated stdlib golden section (RF-GOLDEN-011) |
 /// | typealias underlyingType / 型パラメータ | **not emitted** | dedicated stdlib golden section (RF-GOLDEN-011) |
 /// | symbol-level annotations | only `file` line `annotations=` | dedicated stdlib golden section (RF-GOLDEN-011) |
@@ -63,9 +63,11 @@ struct GoldenHarnessMetadataContractTests {
             // `kotlin.Pair` is library-owned (no case-file `declSite`), so RF-GOLDEN-001's
             // original "fq=kotlin.Pair[kind=class;gen=2]" standalone symbol line no longer
             // prints — `isExcludedLibrarySymbol` (PR: golden-stdlib-artifact) omits every
-            // symbol without a case-file declSite from `symbol` lines. The generic-arity
-            // metadata (`gen=2`) is still observable through the constructor call site.
-            "stdlib_kotlin_Pair_n_n.kt": ["call=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;gen=2]", "call=kotlin.Pair.<init>"],
+            // symbol without a case-file declSite from `symbol` lines, and RF-GOLDEN-008's
+            // fixture-owned contract keeps it out by origin as well. The generic-arity
+            // metadata (`gen=2`) is still observable through the constructor call site,
+            // now spelled with the RF-GOLDEN-006 public key (which adds `ret=`/`names=`).
+            "stdlib_kotlin_Pair_n_n.kt": ["call=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;ret=kotlin.Pair<T0,T1>;gen=2", "call=kotlin.Pair.<init>"],
             "data_class_copy_edge.kt": ["flags=dataType", ".copy[kind=fun", "defaults=["],
             "enum_class.kt": ["kind=enum"],
             "object_literal_property_no_init.kt": ["__ObjectLiteral_", "flags=synthetic"],
@@ -225,10 +227,14 @@ struct GoldenHarnessMetadataContractTests {
     // MARK: - Explicitly not in the ordinary contract
 
     /// `throws` / `canThrow` metadata exists in the semantic model
-    /// (`SymbolFlags.throwingFunction`, `FunctionSignature.canThrow`) but the
-    /// ordinary golden has never carried it — `@Throws` cases render
-    /// `flags=_`. Its verification belongs to ABI / bridge / runtime tests
-    /// (RF-GOLDEN-005), not to this format.
+    /// (`SymbolFlags.throwingFunction`, `FunctionSignature.canThrow`). The
+    /// flag vocabulary deliberately does not render it — `@Throws` cases still
+    /// render `flags=_` — and its verification belongs to ABI / bridge /
+    /// runtime tests (RF-GOLDEN-005). Since RF-GOLDEN-008 the RF-GOLDEN-006
+    /// public reference key is the ordinary-body spelling, so a bare `throws`
+    /// atom can appear *inside `[...]` key brackets* as part of the callee's
+    /// overload identity. What stays forbidden is throws metadata as a flag or
+    /// named field of its own.
     @Test
     func throwingMetadataIsNotInOrdinaryContract() throws {
         let goldens = try Self.semaGoldenContents()
@@ -239,18 +245,33 @@ struct GoldenHarnessMetadataContractTests {
                 !text.contains("throwingFunction") && !text.contains("canThrow"),
                 Comment(rawValue: "\(name) now carries throws metadata in the ordinary golden")
             )
+            for line in text.split(separator: "\n") {
+                // A `throws` atom is legal only inside a `[...]` reference-key
+                // bracket (e.g. `call=...f[kind=fun;params=;throws]`). Any
+                // standalone `throws=`/` throws ` field is a contract change.
+                #expect(
+                    !line.contains("throws=") && !line.contains(" throws "),
+                    Comment(rawValue: "\(name) carries throws metadata outside the public key: \(line)")
+                )
+            }
         }
     }
 
-    /// Metadata classes the ordinary renderer does not emit today. Pinning
-    /// their absence documents what the dedicated stdlib golden (RF-GOLDEN-011)
-    /// must own instead of a quiet extension of this format. Cases carrying a
-    /// `.golden-spec` emit a dedicated `section stdlib-targets` that owns these
-    /// tokens, so the check is scoped to the ordinary output above it.
+    /// Metadata classes the ordinary renderer does not emit. Pinning their
+    /// absence documents what the dedicated stdlib golden (RF-GOLDEN-011)
+    /// owns instead of a quiet extension of this format. Cases carrying a
+    /// `.golden-spec` emit a dedicated `section stdlib-targets` that owns the
+    /// external-origin tokens, so the check is scoped to the ordinary output
+    /// above it. Since RF-GOLDEN-008 the reference keys carry
+    /// `;origin=fixture`/`;origin=unknown` inside their brackets — what stays
+    /// forbidden is any *external* origin token in ordinary output.
     @Test
     func notEmittedMetadataClassesStayAbsent() throws {
         let goldens = try Self.semaGoldenContents()
-        let forbidden = ["supertype=", "underlyingType=", "declaredVariance=", "externalLinkName=", "origin="]
+        let forbidden = [
+            "supertype=", "underlyingType=", "declaredVariance=", "externalLinkName=",
+            "origin=bundledSource", "origin=stdlibStub", "origin=sourceBackedAlias", "origin=importedLibrary",
+        ]
         for (name, text) in goldens {
             let ordinary = text.components(separatedBy: "section stdlib-targets").first ?? text
             for token in forbidden {

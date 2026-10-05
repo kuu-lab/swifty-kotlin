@@ -1,6 +1,6 @@
-symbol fq=golden.sema.constructAtomicLong.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.constructAtomicLong[kind=fun;params=Long] kind=function vis=public flags=_ sig=recv=_ params=[Long] ret=kotlin.concurrent.AtomicLong
+symbol fq=golden.sema.constructAtomicLong.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.constructAtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.AtomicLong;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Long] ret=kotlin.concurrent.AtomicLong
 file fstdlib_kotlin_concurrent_AtomicLong_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class),@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
-  decl golden.sema.constructAtomicLong[kind=fun;params=Long] fun constructAtomicLong sym=golden.sema.constructAtomicLong[kind=fun;params=Long]
-expr e@8:63 name(value) type=Long ref=golden.sema.constructAtomicLong.$0.value[kind=vparam]
-expr e@8:52 call callee=e@8:52#1 args=[_:e@8:63] type=kotlin.concurrent.AtomicLong call=kotlin.concurrent.AtomicLong[kind=fun;params=Long]
+  decl golden.sema.constructAtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.AtomicLong;names=[value];origin=fixture] fun constructAtomicLong sym=golden.sema.constructAtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.AtomicLong;names=[value];origin=fixture]
+expr e@8:63 name(value) type=Long ref=golden.sema.constructAtomicLong.$0.value[kind=vparam;origin=fixture]
+expr e@8:52 call callee=e@8:52#1 args=[_:e@8:63] type=kotlin.concurrent.AtomicLong call=kotlin.concurrent.AtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.AtomicLong;names=[value]]

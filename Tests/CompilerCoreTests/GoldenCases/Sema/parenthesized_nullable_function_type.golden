@@ -1,18 +1,18 @@
-symbol fq=golden.sema.applyOrDefault.$0.g[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.applyOrDefault.$0.x[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int] kind=function vis=public flags=_ sig=recv=_ params=[((Int) -> Int)?,Int] ret=Int
-symbol fq=golden.sema.makeAdder[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=(Int) -> Int
-symbol fq=golden.sema.returnsNullableInt[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=(Int) -> Int?
+symbol fq=golden.sema.applyOrDefault.$0.g[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.applyOrDefault.$0.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int;ret=Int;names=[g,x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[((Int) -> Int)?,Int] ret=Int
+symbol fq=golden.sema.makeAdder[kind=fun;params=;ret=fn{p=Int;ret=Int};origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=(Int) -> Int
+symbol fq=golden.sema.returnsNullableInt[kind=fun;params=;ret=fn{p=Int;ret=Int?};origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=(Int) -> Int?
 file fparenthesized_nullable_function_type package=golden.sema
-  decl golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int] fun applyOrDefault sym=golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int]
-  decl golden.sema.makeAdder[kind=fun;params=] fun makeAdder sym=golden.sema.makeAdder[kind=fun;params=]
-  decl golden.sema.returnsNullableInt[kind=fun;params=] fun returnsNullableInt sym=golden.sema.returnsNullableInt[kind=fun;params=]
-expr e@6:55 name(g) type=((Int) -> Int)? ref=golden.sema.applyOrDefault.$0.g[kind=vparam]
+  decl golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int;ret=Int;names=[g,x];origin=fixture] fun applyOrDefault sym=golden.sema.applyOrDefault[kind=fun;params=fn{p=Int;ret=Int}?,Int;ret=Int;names=[g,x];origin=fixture]
+  decl golden.sema.makeAdder[kind=fun;params=;ret=fn{p=Int;ret=Int};origin=fixture] fun makeAdder sym=golden.sema.makeAdder[kind=fun;params=;ret=fn{p=Int;ret=Int};origin=fixture]
+  decl golden.sema.returnsNullableInt[kind=fun;params=;ret=fn{p=Int;ret=Int?};origin=fixture] fun returnsNullableInt sym=golden.sema.returnsNullableInt[kind=fun;params=;ret=fn{p=Int;ret=Int?};origin=fixture]
+expr e@6:55 name(g) type=((Int) -> Int)? ref=golden.sema.applyOrDefault.$0.g[kind=vparam;origin=fixture]
 expr e@6:64 name(it) type=(Int) -> Int ref=s-0
-expr e@6:67 name(x) type=Int ref=golden.sema.applyOrDefault.$0.x[kind=vparam]
+expr e@6:67 name(x) type=Int ref=golden.sema.applyOrDefault.$0.x[kind=vparam;origin=fixture]
 expr e@6:64#1 call callee=e@6:64 args=[_:e@6:67] type=Int
 expr e@6:62 lambda params=[] body=e@6:64#1 label=let type=((Int) -> Int) -> Int
-expr e@6:55#1 safeMemberCall recv=e@6:55 callee=let args=[_:e@6:62] type=Int? call=kotlin.let[kind=fun;recv=T0;params=fn{p=T0;ret=T1};gen=2] targs=[(Int) -> Int,Int]
+expr e@6:55#1 safeMemberCall recv=e@6:55 callee=let args=[_:e@6:62] type=Int? call=kotlin.let[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;names=[block]] targs=[(Int) -> Int,Int]
 expr e@6:76 int(1) type=Int
 expr e@6:75 unary(unaryMinus) operand=e@6:76 type=Int
 expr e@6:55#2 binary(elvis) lhs=e@6:55#1 rhs=e@6:75 type=Int

@@ -1288,6 +1288,10 @@ extension ExprTypeChecker {
         if let expectedType, case let .functionType(functionType) = sema.types.kind(of: expectedType) {
             expectedFunctionType = functionType
             samConversion = false
+        } else if let expectedType, let functionType = sema.types.nominalFunctionType(for: expectedType) {
+            expectedFunctionType = functionType
+            samConversion = false
+            sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
         } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
             expectedFunctionType = samFT
             samConversion = true
@@ -1535,7 +1539,7 @@ extension ExprTypeChecker {
             return expectedType
         }
 
-        if let expectedType, let expectedFunctionType {
+        if let expectedFunctionType {
             if let session = ctx.builderInference,
                expectedFunctionType.returnType != sema.types.unitType,
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
@@ -1547,8 +1551,9 @@ extension ExprTypeChecker {
                     typeSystem: sema.types,
                     blameRange: ast.arena.exprRange(body)
                 ))
-                sema.bindings.bindExprType(id, type: expectedType)
-                return expectedType
+                let functionType = sema.types.make(.functionType(expectedFunctionType))
+                sema.bindings.bindExprType(id, type: functionType)
+                return functionType
             }
             // Enhanced return type inference with Unit optimization
             let optimizedReturnType = inferOptimizedReturnType(
@@ -1610,7 +1615,7 @@ extension ExprTypeChecker {
                     throws: expectedFunctionType.throws
                 )))
             } else {
-                expectedType
+                sema.types.make(.functionType(expectedFunctionType))
             }
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
@@ -1658,6 +1663,10 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let outerSymbols = Set(locals.values.map(\.symbol))
+
+        if let expectedType, sema.types.nominalFunctionType(for: expectedType) != nil {
+            sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
+        }
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
@@ -2243,6 +2252,9 @@ extension ExprTypeChecker {
             if case .functionType = sema.types.kind(of: expectedType) {
                 expectedFunctionType = expectedType
                 expectedSamInterfaceType = nil
+            } else if let functionType = sema.types.nominalFunctionType(for: expectedType) {
+                expectedFunctionType = sema.types.make(.functionType(functionType))
+                expectedSamInterfaceType = nil
             } else if let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
                 expectedFunctionType = sema.types.make(.functionType(samFT))
                 expectedSamInterfaceType = expectedType
@@ -2290,7 +2302,7 @@ extension ExprTypeChecker {
                     sema: sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                resultType = expectedType ?? expectedFunctionType
+                resultType = expectedSamInterfaceType ?? expectedFunctionType
             }
             sema.bindings.bindAnyToStringCallableRef(id)
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
@@ -2468,7 +2480,12 @@ extension ExprTypeChecker {
         default:
             return nil
         }
-        guard let expectedType, case .functionType = sema.types.kind(of: expectedType) else {
+        let contextualType = expectedType.map { type in
+            sema.types.nominalFunctionType(for: type).map {
+                sema.types.make(.functionType($0))
+            } ?? type
+        }
+        guard let expectedType = contextualType, case .functionType = sema.types.kind(of: expectedType) else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",

@@ -3,6 +3,90 @@
 import Testing
 
 extension BuildKIRRegressionTests {
+    @Test func testBuildKIRMaterializesNominalFunctionArguments() throws {
+        let source = """
+        fun widen(f: Function1<Int, String>): (Int) -> String = f
+        fun main() {
+            val h: Function1<Int, String> = { it.toString() }
+            println(widen(h)(9))
+            println(widen { it.toString() }(10))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let boxedValues = Set(body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_function_create_1"
+            else { return nil }
+            return result
+        })
+        let widenArguments = body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "widen"
+            else { return nil }
+            return arguments.first
+        }
+        #expect(widenArguments.count == 2)
+        #expect(widenArguments.allSatisfy(boxedValues.contains))
+    }
+
+    @Test func testBuildKIRInfersGenericNominalFunctionArguments() throws {
+        let source = """
+        fun <T, R> nominal(f: Function1<T, R>): (T) -> R = f
+        fun <T> ordinary(f: (T) -> String, value: T): String = f(value)
+        fun main() {
+            val offset = 20
+            println(nominal<Int, Int> { it + offset }(5))
+            val h: Function1<Int, String> = { it.toString() }
+            println(ordinary(h, 6))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func testBuildKIRMaterializesNominalPrimitiveOperatorReferences() throws {
+        let ctx = makeContextFromSource("""
+        fun apply(op: Function2<Int, Int, Int>): Int = op(2, 3)
+        fun main() {
+            val plus: Function2<Int, Int, Int> = Int::plus
+            val times: Function2<Long, Long, Long> = Long::times
+            println(plus(2, 3))
+            println(times(7L, 6L))
+            println(apply(Int::times))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: 0 ... 5)
+    func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
+        let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+        let parameters = (0 ..< arity).map { "p\($0)" }.joined(separator: ", ")
+        let arrow = arity == 0 ? "" : "\(parameters) -> "
+        let values = Array(repeating: "1", count: arity).joined(separator: ", ")
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val f: Function\(arity)<\(arguments)> = { \(arrow)7 }
+            println(f(\(values)))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
+        let symbol = try #require(sema.symbols.symbol(owner))
+        let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
+        let linkName = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+        #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
+    }
+
     @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
         let ctx = makeContextFromSource("""
         data class P(val n: String, val a: Int)

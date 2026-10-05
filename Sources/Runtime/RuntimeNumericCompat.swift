@@ -214,7 +214,7 @@ private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
 /// XOR — which `Int32(truncatingIfNeeded:)` below discards — so the two
 /// shifts agree on the low 32 bits for every input (verified against
 /// kotlinc for Long.MIN_VALUE/MAX_VALUE, -1, -5, and -2.5's Double bits).
-private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
+func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
     Int(Int32(truncatingIfNeeded: bits ^ (bits >> 32)))
 }
 
@@ -223,7 +223,7 @@ private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
 /// the wrong helper for this: it's a zero-extending bit-transport encoding
 /// for the ABI boundary, not the sign-extended `Int` that Kotlin's
 /// Float.hashCode()/toBits() expose.
-private func runtimeFloatHashCode(_ value: Float) -> Int {
+func runtimeFloatHashCode(_ value: Float) -> Int {
     if value.isNaN {
         return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32))
     }
@@ -417,6 +417,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
                 hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
             }
             return Int(hash)
+        }
+        // A user hashCode override wins over the structural fallbacks below:
+        // hashed collections already honor it via runtimeElementKeyHash, and
+        // Any.hashCode() must agree with them (KUU-1093 — e.g. boxed Duration,
+        // whose member hashCode is rawValue.hashCode(), not a structural fold).
+        if let overridden = runtimeObjectHashCodeOverride(value) {
+            return overridden
         }
         if runtimeIsDataClass(classID: objBox.classID) {
             // The first two slots are the runtime object header. Data-class

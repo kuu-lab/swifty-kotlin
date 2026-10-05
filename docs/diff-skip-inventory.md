@@ -41,7 +41,7 @@ skip の新規追加／解除はなく、全 skip ケースの `--force-run-skip
 | --- | ---: | --- | --- |
 | DEBT-DIFF-001 | 117 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
-| DEBT-DIFF-003 | 0 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・`coroutine_exception_handling.kt`・`coroutine_scope_lifecycle.kt`・structured concurrency / Deferred / Supervisor 3 件・`coroutine_mutex_semaphore.kt`・`coroutine_edge_cases.kt`・`coroutine_channels_advanced.kt`・`coroutine_flow_backpressure.kt` は解除済み。2026-08-14 に現行 master で4ケースと最小回帰ケースを個別再実行し、全て PASS を確認 |
+| DEBT-DIFF-003 | 1 | advanced coroutine / channel / Flow / structured concurrency | `kotlinx_coroutines_flow_transform_latest_cancellation.kt` は KUU-955 の continuation-aware callable ABI 対応待ち。従来の coroutine / channel ケースは解除済み |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
@@ -112,6 +112,13 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 `script_import_stdlib.kt` は2026-07-09に解除済み（本チケットの7件には含まれないが同じ調査の過程で解消): `shuffled()` を `shuffled(Random(42)).sorted()` に変更し、出力順序に依存しない決定論的検証にした(`sequence_shuffled.kt` と同じ idiom)。KSwiftK の `Random` は JVM kotlinc と PRNG アルゴリズムが異なる(xorshift64\* 系の自前実装で XorWow ではない、`KSP-466`)ため、seed を固定しても生の並び順は一致しない。なお、ローカル既定の `RUN_TIMEOUT=10s` は `kotlinc -script` の起動コストだけで超過する(`script_import_stdlib.kt` に限らず `script_hello.kt` など他の非 skip ケースでも同様に再現する、この環境固有の傾向)。CI は `DIFF_RUN_TIMEOUT=30` を使用しており、その設定なら安定して pass する。
 
 ## DEBT-DIFF-003: advanced coroutine / channel / Flow
+
+2026-10-02: `kotlinx_coroutines_flow_transform_latest_cancellation.kt` remains skipped under
+[KUU-955](https://linear.app/kuu/issue/KUU-955/suspend-receiver-function-values-block-transformlatest-cancellation).
+Suspend function-value callbacks run to completion instead of propagating suspension to the
+launching coroutine; `transformLatest` therefore cannot cancel the previous transform.
+The JVM result is `[1, 2, 20]`, versus the candidate's `[1, 10, 2, 20]`.
+Owner: continuation-aware callable-value ABI / coroutine lowering. Restore the diff after that fix.
 
 `Scripts/diff_kotlinc.sh` は `kotlinx.coroutines` import を検出して `kotlinx-coroutines-core-jvm` を取得できるため、現在の skip 主因は reference classpath ではなく KSwiftK 側の API / runtime parity である。
 

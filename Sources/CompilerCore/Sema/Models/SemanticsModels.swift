@@ -1740,6 +1740,9 @@ public final class BindingTable {
     /// call. Only source-declared expected types are authoritative enough to
     /// contradict an explicit lambda parameter annotation with `Any`.
     public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
+    /// Callable literals checked against nominal FunctionN still infer a
+    /// function type, but must materialize their closure ABI before escaping.
+    public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -2366,6 +2369,10 @@ public final class BindingTable {
     /// Whether the expression's expected type was written in source.
     public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
         sourceDeclaredExpectedTypeExprIDs.contains(expr)
+    }
+
+    public func bindNominalFunctionExpectedType(_ expr: ExprID, type: TypeID) {
+        nominalFunctionExpectedTypes[expr] = type
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.
