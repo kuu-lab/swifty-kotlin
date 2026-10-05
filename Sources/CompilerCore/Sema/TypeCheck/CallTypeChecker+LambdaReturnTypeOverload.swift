@@ -111,6 +111,18 @@ extension CallTypeChecker {
             }
         }
 
+        // Class-name values must denote their companions before they constrain
+        // receiver lambdas, e.g. the block in `with(Duration) { ... }`.
+        for (index, argument) in args.enumerated() {
+            if let type = inferredNonLambdaArgTypes[index],
+               let companionType = driver.helpers.retypeClassNameAsCompanionValue(
+                   argument.expr, currentType: type, ast: ast, sema: sema
+               )
+            {
+                inferredNonLambdaArgTypes[index] = companionType
+            }
+        }
+
         for (index, argument) in args.enumerated() {
             if let type = inferredNonLambdaArgTypes[index] {
                 inferredNonLambdaArgTypes[index] = sourceLevelRangeArgumentType(
