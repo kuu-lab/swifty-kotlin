@@ -15,8 +15,8 @@ import kotlin.internal.KsSymbolName
 // runtime, so these bodiless markers keep the intrinsic's call name in KIR.
 // The coroutine lowering pass rewrites calls to these markers into the runtime
 // entry-point ABI. They must stay bodiless so inlining does not expand them; the
-// runtime exports never-executed stubs only so the standalone copies of the
-// inline callers in the stdlib library still link.
+// create bridge also accepts boxed suspend values for public builders, while
+// the start bridge remains a link-only marker for standalone inline copies.
 @KsSymbolName("kk_create_coroutine_unintercepted_no_receiver")
 @PublishedApi
 internal external fun <T> createCoroutineUninterceptedNoReceiver(

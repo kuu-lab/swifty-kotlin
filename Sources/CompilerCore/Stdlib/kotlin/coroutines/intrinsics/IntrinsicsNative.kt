@@ -89,8 +89,8 @@ internal fun <T> startCoroutineUninterceptedOrReturnFallback(
  * Markers for the receiver-bearing coroutine intrinsics. They are bodiless so
  * inlining leaves the call in place; the coroutine lowering pass rewrites it
  * into the runtime entry-point ABI (a suspend function value cannot be invoked
- * through a `Function2` cast), and the runtime exports same-named stubs only so the standalone copies of the
- * inline callers still link; the stubs are never executed.
+ * through a `Function2` cast). The create marker also accepts boxed suspend
+ * callables for ordinary public builders; the start marker remains link-only.
  */
 @KsSymbolName("kk_start_coroutine_unintercepted_or_return_with_receiver")
 @PublishedApi
