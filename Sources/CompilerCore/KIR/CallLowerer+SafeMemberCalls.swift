@@ -1031,6 +1031,7 @@ extension CallLowerer {
             callBinding: callBinding,
             chosenCallee: chosen,
             spreadFlags: args.map(\.isSpread),
+            argumentLabels: args.map(\.label),
             shared: shared, emit: &instructions
         )
         var finalArguments = safeNormalized.arguments
