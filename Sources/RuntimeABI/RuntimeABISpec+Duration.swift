@@ -4,6 +4,13 @@
 public extension RuntimeABISpec {
     static let durationFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "kk_duration_inWholeMilliseconds",
+            parameters: [RuntimeABIParameter(name: "durationRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "Duration",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_duration_inWholeNanoseconds",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),

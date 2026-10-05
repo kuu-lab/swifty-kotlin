@@ -636,7 +636,11 @@ extension DeclTypeChecker {
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
         if let extensionReceiverType = signature.receiverType {
-            functionCtx = functionCtx.withOuterReceiver(label: function.name, type: extensionReceiverType)
+            functionCtx = functionCtx.withOuterReceiver(
+                label: function.name,
+                type: extensionReceiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
         }
         // Propagate suppression flag so that individual `return` statements inside
         // functions with inferred return types also skip the platform-type warning.
