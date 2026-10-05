@@ -7,6 +7,23 @@
 
 package kotlinx.coroutines.flow
 
+public suspend fun <T> Flow<T>.first(predicate: suspend (T) -> Boolean): T {
+    var found = false
+    var result: Any? = null
+    collectWhile { value ->
+        if (predicate(value)) {
+            found = true
+            result = value
+            false
+        } else {
+            true
+        }
+    }
+    if (!found) throw NoSuchElementException("Expected at least one element matching the predicate")
+    @Suppress("UNCHECKED_CAST")
+    return result as T
+}
+
 public suspend fun <T> Flow<T>.firstOrNull(): T? {
     var result: T? = null
     collectWhile { value ->

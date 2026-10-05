@@ -223,7 +223,12 @@ public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
 // pass-throughs while the filtering and error operators preserve their
 // value-stream semantics.
 
-public fun <T> Flow<T>.buffer(capacity: Int): Flow<T> = this
+public fun <T> Flow<T>.buffer(capacity: Int = -2): Flow<T> {
+    require(capacity >= 0 || capacity == -2 || capacity == -1) {
+        "Buffer size should be non-negative, BUFFERED, or CONFLATED, but was $capacity"
+    }
+    return this
+}
 
 public fun <T> Flow<T>.conflate(): Flow<T> = this
 
