@@ -2649,8 +2649,13 @@ extension NativeEmitter {
                         )
                     )
                 } else {
+                    // Honor the callee symbol's recorded external link name
+                    // (e.g. an imported `name$default` stub carrying its
+                    // `kk_fn_*` link) even without a source-level signature —
+                    // falling back to the raw KIR callee name here emits an
+                    // unresolvable `foo$default` reference.
                     calleeFunction = declareExternalFunction(
-                        named: externalCalleeName,
+                        named: effectiveExternalName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
                     )

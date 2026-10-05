@@ -1843,11 +1843,20 @@ final class CallTypeChecker {
                         return true
                     }
                     let invokeName = interner.intern("invoke")
-                    return driver.helpers.collectMemberFunctionCandidates(
+                    if driver.helpers.collectMemberFunctionCandidates(
                         named: invokeName,
                         receiverType: local.type,
                         sema: sema,
                         interner: interner
+                    ).contains(where: { candidateID in
+                        sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+                    }) {
+                        return true
+                    }
+                    return collectDispatchReceiverMemberExtensionCandidates(
+                        named: invokeName,
+                        extensionReceiverType: sema.types.makeNonNullable(local.type),
+                        ctx: ctx
                     ).contains { candidateID in
                         sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
                     }
@@ -2171,12 +2180,21 @@ final class CallTypeChecker {
            case .classType = sema.types.kind(of: sema.types.makeNonNullable(local.type))
         {
             let invokeName = interner.intern("invoke")
-            let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+            var invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: invokeName,
                 receiverType: local.type,
                 sema: sema,
                 interner: interner
             ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            if invokeCandidates.isEmpty {
+                // `select { clause { } }` — the clause type carries no own
+                // `invoke`; the enclosing builder's member extension does.
+                invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
+                    named: invokeName,
+                    extensionReceiverType: sema.types.makeNonNullable(local.type),
+                    ctx: ctx
+                ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+            }
             if !invokeCandidates.isEmpty {
                 let returnType = inferMemberCallExpr(
                     id, receiverID: calleeID, calleeName: invokeName,
@@ -3135,6 +3153,18 @@ final class CallTypeChecker {
                 guard let sym = sema.symbols.symbol(candidateID) else { return false }
                 return sym.flags.contains(.operatorFunction)
             }
+            // `select { channel.onReceive { } }` — a clause value carries no
+            // own `invoke`; the enclosing builder's member extension does.
+            // It outranks top-level `invoke` extensions in scope.
+            if invokeCandidates.isEmpty {
+                invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
+                    named: invokeName,
+                    extensionReceiverType: sema.types.makeNonNullable(callableCalleeType),
+                    ctx: ctx
+                ).filter { candidateID in
+                    sema.symbols.symbol(candidateID)?.flags.contains(.operatorFunction) == true
+                }
+            }
             // `collectMemberFunctionCandidates` only walks the callee type's
             // nominal member/supertype surface, so a user-declared extension
             // (e.g. `operator fun String.invoke(n: Int)`) is invisible to it.
@@ -3321,8 +3351,42 @@ final class CallTypeChecker {
             }
             if !memberCandidates.isEmpty {
                 // Eagerly infer argument types for overload resolution.
-                let memberArgTypes = args.map { argument in
-                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                // Integer literals still see the candidates' parameter type
+                // so calls like `onTimeout(30)` can narrow `30` to `Long`.
+                let memberArgTypes = args.enumerated().map { index, argument in
+                    var literalExpectedType: TypeID?
+                    if let argumentExpr = ctx.ast.arena.expr(argument.expr) {
+                        let isSignedIntegerLike: Bool = {
+                            switch argumentExpr {
+                            case .intLiteral:
+                                return true
+                            case .unaryExpr(let op, let operandID, _):
+                                guard op == .unaryPlus || op == .unaryMinus,
+                                      case .intLiteral = ctx.ast.arena.expr(operandID)
+                                else {
+                                    return false
+                                }
+                                return true
+                            default:
+                                return false
+                            }
+                        }()
+                        switch argumentExpr {
+                        case _ where isSignedIntegerLike:
+                            literalExpectedType = uniformNumericLiteralParameterType(
+                                at: index, argumentLabel: argument.label, candidates: memberCandidates, sema: sema
+                            )
+                        case .uintLiteral:
+                            literalExpectedType = uniformUnsignedLiteralParameterType(
+                                at: index, argumentLabel: argument.label, candidates: memberCandidates, sema: sema
+                            )
+                        default:
+                            break
+                        }
+                    }
+                    return driver.inferExpr(
+                        argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
                     CallArg(label: argument.label, isSpread: argument.isSpread, type: type)

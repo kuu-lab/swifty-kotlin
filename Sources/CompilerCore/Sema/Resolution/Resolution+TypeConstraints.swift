@@ -699,7 +699,9 @@ extension OverloadResolver {
             if case let .functionType(subFunc) = subtypeKind,
                effectiveParams.count == superEffectiveParams.count,
                subFunc.contextReceivers.count == superFunc.contextReceivers.count,
-               subFunc.isSuspend == superFunc.isSuspend,
+               // A non-suspend function is usable wherever a suspend one is
+               // expected (`() -> T <: suspend () -> T`), but not vice versa.
+               superFunc.isSuspend || !subFunc.isSuspend,
                subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable
             {
                 var result: [VariableConstraint] = []

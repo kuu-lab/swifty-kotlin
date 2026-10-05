@@ -156,6 +156,11 @@ final class CallSupportLowerer {
         var captureArgExprs: [KIRExprID] = []
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
         if let receiverType = signature.receiverType {
+            // Member extensions (`fun T.m(...)` declared inside a nominal
+            // type) carry a dispatch receiver (`this@Owner`) ahead of the
+            // extension receiver, so the stub's ABI is
+            // [dispatch, extension, params..., mask] and its inner call
+            // forwards both receivers.
             if let ownerSymbol = driver.callLowerer.memberExtensionOwnerSymbol(for: originalSymbol, sema: sema),
                let ownerInfo = sema.symbols.symbol(ownerSymbol)
             {
@@ -238,6 +243,9 @@ final class CallSupportLowerer {
             body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
         }
 
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
@@ -384,6 +392,9 @@ final class CallSupportLowerer {
                chosenCallee: originalSymbol,
                calleeName: originalName,
                receiverExpr: nil,
+               // Member extensions dispatch on the enclosing owner (the
+               // leading `callArgs` entry), not the extension receiver —
+               // the extension receiver is an ordinary leading argument.
                loweredReceiverID: dispatchReceiverBinding?.exprID ?? receiverExprForCall,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from

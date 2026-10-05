@@ -862,7 +862,9 @@ extension OverloadResolver {
     ) -> Bool {
         guard case let .functionType(argFunction) = typeSystem.kind(of: argType),
               case let .functionType(paramFunction) = typeSystem.kind(of: paramType),
-              argFunction.isSuspend == paramFunction.isSuspend,
+              // Non-suspend arguments satisfy suspend parameters
+              // (`() -> T <: suspend () -> T`), not the reverse.
+              paramFunction.isSuspend || !argFunction.isSuspend,
               argFunction.params.count == paramFunction.params.count
         else {
             return false

@@ -517,6 +517,12 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
+                // Member extensions (`fun T.m(...)` declared inside a class or
+                // interface) carry two receivers: the dispatch receiver
+                // (`this@Owner`, the enclosing instance) followed by the
+                // extension receiver (bare `this`). Emit the dispatch receiver
+                // as an implicit leading parameter so calls lower to
+                // [dispatch, extension, args] like JVM member extensions.
                 if function.receiverType != nil,
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),

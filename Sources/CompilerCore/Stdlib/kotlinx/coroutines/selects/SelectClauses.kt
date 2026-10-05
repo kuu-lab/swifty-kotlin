@@ -1,8 +1,6 @@
 package kotlinx.coroutines.selects
 
 import kotlin.internal.KsSymbolName
-import kotlin.time.Duration
-import kotlin.time.TimeSource
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -132,16 +130,6 @@ public fun <R> Job.onJoin(block: suspend () -> R) {
 
 public val Mutex.onLock: SelectClause2<Any?, Mutex>
     get() = SelectClause2Impl({ tryLock() }, { this })
-
 public fun <R> Mutex.onLock(owner: Any? = null, block: suspend (Mutex) -> R) {
     currentSelectBuilder<R>().registerClause({ tryLock() }) { block(this) }
-}
-
-public fun <R> SelectBuilder<R>.onTimeout(timeMillis: Long, block: suspend () -> R) {
-    val mark = TimeSource.Monotonic.markNow()
-    registerClause({ timeMillis <= 0L || mark.elapsedNow().inWholeMilliseconds >= timeMillis }, block)
-}
-
-public fun <R> SelectBuilder<R>.onTimeout(timeout: Duration, block: suspend () -> R) {
-    onTimeout(timeout.inWholeMilliseconds, block)
 }

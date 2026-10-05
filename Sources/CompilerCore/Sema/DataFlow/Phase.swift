@@ -426,9 +426,27 @@ final class DataFlowSemaPhase: CompilerPhase {
             // collection/sequence member-call fallback resolution (which keys off
             // parentSymbol == owner) can find them. Skip retained runtime-bridge
             // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            //
+            // Member extensions (`fun T.m(...)` declared inside a nominal type)
+            // must keep their declaring owner as parent: re-parenting them to
+            // the extension receiver would erase the dispatch receiver owner
+            // member-extension calls need for the [dispatch, extension, args]
+            // calling convention.
             guard symbol.kind == .function,
                   !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
             else { continue }
+            let declaringOwnerFQName = Array(symbol.fqName.dropLast())
+            let declaringOwnerIsNominal = symbols.lookupAll(fqName: declaringOwnerFQName)
+                .compactMap { symbols.symbol($0) }
+                .contains { owner in
+                    switch owner.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass: true
+                    default: false
+                    }
+                }
+            if declaringOwnerIsNominal {
+                continue
+            }
             if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
                 // Lazy shells carry the receiver's nominal FQ name in the
                 // compact index, so the parent edge is restored without

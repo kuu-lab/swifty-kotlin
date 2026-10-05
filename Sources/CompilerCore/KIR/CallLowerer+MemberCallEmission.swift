@@ -380,6 +380,15 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        // Member-extension calls carry TWO leading receiver slots here --
+        // [dispatch, extension, ...valueArgs] once the dispatch receiver was
+        // inserted above -- while the callee signature counts only the
+        // extension receiver. Without the override, value-parameter index 0
+        // (e.g. a `suspend (E) -> R` block) would be matched against the
+        // extension receiver slot, so its function value silently stayed a
+        // raw `symbolRef` and crossed the kklib boundary with an ABI the
+        // callee's kk_suspend_function_invoke cannot drive (aggregate
+        // params, KUU-962).
         adaptCoroutineLauncherBlock(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
