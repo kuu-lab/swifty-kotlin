@@ -112,7 +112,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("__kk_sequence_builder_yield")
         let runtimeIteratorBuilderYieldCallee = ctx.interner.intern("__kk_iterator_builder_yield")
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
-        let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
+        let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null_throwing")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
         let flowCollectLatestCallee = ctx.interner.intern("__kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [

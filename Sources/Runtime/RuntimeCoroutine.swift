@@ -4702,8 +4702,8 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
 
 // MARK: - withTimeout / withTimeoutOrNull
 
-/// Runs a `withTimeout`/`withTimeoutOrNull` block on a deadline, reporting whether
-/// the deadline expired first.
+/// Runs a timeout block on a deadline, preserving its result or failure unless
+/// this deadline expires first.
 ///
 /// BUG-190: the block runs on its own *child* continuation seeded from the caller,
 /// never on the caller's continuation. When the deadline expires the block's entry
@@ -4718,7 +4718,7 @@ private func runTimeoutBlock(
     timeoutMillis: Int,
     entryPointRaw: Int,
     continuation: Int
-) -> (timedOut: Bool, result: Int) {
+) -> (timedOut: Bool, result: Int, thrown: Int) {
     let scopeHandle = kk_coroutine_scope_new()
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
         UnsafeMutableRawPointer(bitPattern: scopeHandle)!
@@ -4734,14 +4734,22 @@ private func runTimeoutBlock(
     }
     blockJob.markStarted()
 
-    final class ResultBox: @unchecked Sendable { var value = 0 }
+    final class ResultBox: @unchecked Sendable {
+        var value = 0
+        var thrown = 0
+    }
     let resultBox = ResultBox()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
     let workItem = DispatchWorkItem {
         resultBox.value = runSuspendEntryLoopWithContinuation(
-            entryPointRaw: entryPointRaw, continuation: blockContinuation
+            entryPointRaw: entryPointRaw,
+            continuation: blockContinuation,
+            outThrown: &resultBox.thrown
         )
+        if resultBox.thrown != 0 {
+            scope.cancel()
+        }
     }
     // The block itself runs off-loop (on the global pool) so its suspensions
     // never depend on the caller's queue. The caller, though, may be draining a
@@ -4771,10 +4779,12 @@ private func runTimeoutBlock(
         blockJob.cancel(message: "TimeoutCancellationException")
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
-        return (true, 0)
+        return (true, 0, 0)
     }
-    _ = kk_coroutine_scope_wait(scopeHandle)
-    return (false, resultBox.value)
+    let childFailure = kk_coroutine_scope_wait(scopeHandle)
+    let childThrown = childFailure == runtimeNullSentinelInt ? 0 : childFailure
+    let thrown = resultBox.thrown != 0 ? resultBox.thrown : childThrown
+    return (false, thrown == 0 ? resultBox.value : 0, thrown)
 }
 
 /// Runs the given block with a timeout. If the block does not complete within
@@ -4807,14 +4817,25 @@ public func kk_with_timeout(
         )
         return 0
     }
+    outThrown?.pointee = outcome.thrown
     return outcome.result
 }
 
-/// Runs the given block with a timeout. If the block does not complete within
-/// `timeoutMillis`, returns null (0) instead of throwing.
-/// Used as the lowering target for `withTimeoutOrNull(timeMillis) { }`.
+/// Legacy non-throwing ABI; new Kotlin calls use the throwing bridge below.
 @_cdecl("kk_with_timeout_or_null")
 public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    kk_with_timeout_or_null_throwing(timeoutMillis, entryPointRaw, continuation, nil)
+}
+
+/// Returns null only for this deadline's expiry; block failures propagate unchanged.
+@_cdecl("kk_with_timeout_or_null_throwing")
+public func kk_with_timeout_or_null_throwing(
+    _ timeoutMillis: Int,
+    _ entryPointRaw: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let outcome = runTimeoutBlock(
         timeoutMillis: timeoutMillis,
         entryPointRaw: entryPointRaw,
@@ -4826,6 +4847,7 @@ public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, 
         // would otherwise be indistinguishable from "no value" when printed/compared.
         return runtimeNullSentinelInt
     }
+    outThrown?.pointee = outcome.thrown
     return outcome.result
 }
 

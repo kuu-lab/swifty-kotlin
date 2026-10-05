@@ -26,7 +26,8 @@ extension LoweringPassRegressionTests {
             #expect(callees.filter { $0 == "kk_duration_inWholeMilliseconds" }.count == 3)
             #expect(callees.contains("kk_kxmini_delay"))
             #expect(callees.contains("kk_with_timeout"))
-            #expect(callees.contains("kk_with_timeout_or_null"))
+            #expect(callees.contains("kk_with_timeout_or_null_throwing"))
+            #expect(!callees.contains("kk_with_timeout_or_null"))
         }
     }
 
