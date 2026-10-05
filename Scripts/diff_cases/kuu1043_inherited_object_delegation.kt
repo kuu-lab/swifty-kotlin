@@ -16,8 +16,13 @@ fun makeDelegate(): Child<Int> {
     return Impl()
 }
 object Delegated : Child<Int> by makeDelegate() {
-    init { println("init:" + read()) }
+    init {
+        println("init:" + read())
+        println("value:" + value)
+    }
     override fun read(): Int = 99
+    fun localRead(): Int = value
+    fun localWrite(newValue: Int) { value = newValue }
 }
 class Outer {
     class Nested<T>(delegate: Child<T>) : Child<T> by delegate
@@ -28,6 +33,9 @@ class Outer {
 fun main() {
     println(creations)
     println(Delegated.read())
+    println(Delegated.value)
+    println(Delegated.localRead())
+    Delegated.localWrite(11)
     println(Delegated.value)
     val parent: Parent<Int> = Delegated
     parent.value = 12

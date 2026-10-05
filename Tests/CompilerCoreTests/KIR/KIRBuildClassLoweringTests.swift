@@ -4,6 +4,76 @@ import Testing
 
 @Suite
 struct KIRBuildClassLoweringTests {
+    @Test func testObjectDelegatedPropertyAccessUsesSynthesizedAccessors() throws {
+        let ctx = makeContextFromSource("""
+        interface Parent { var value: Int }
+        class Impl : Parent { override var value: Int = 7 }
+        object Delegated : Parent by Impl() {
+            fun localRead(): Int = value
+            fun localWrite(newValue: Int) { value = newValue }
+        }
+        class Outer {
+            object Nested : Parent by Impl()
+            companion object : Parent by Impl()
+        }
+        fun main() {
+            println(Delegated.value)
+            println(Outer.Nested.value)
+            println(Outer.value)
+            Delegated.value = 8
+            Outer.Nested.value = 9
+            Outer.value = 10
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let main = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "main"
+        })
+        let getters = main.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "get"
+            else { return nil }
+            return symbol
+        }
+        #expect(getters.count == 3, "Body: \(main.body)")
+        let setters = main.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "set"
+            else { return nil }
+            return symbol
+        }
+        #expect(setters.count == 3)
+        #expect(main.body.allSatisfy { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return true }
+            return ctx.interner.resolve(callee) != "value"
+        }, "Body: \(main.body)")
+        #expect((getters + setters).allSatisfy { accessor in
+            findAllKIRFunctions(in: module).contains { $0.symbol == accessor }
+        })
+        #expect(sema.symbols.allSymbols().contains { symbol in
+            sema.symbols.classDelegationForwardingPropertyInfo(for: symbol.id) != nil
+        })
+        let companionInitializer = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
+        })
+        #expect(companionInitializer.body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "kk_object_register_itable_method"
+        })
+        for (functionName, accessorName) in [("localRead", "get"), ("localWrite", "set")] {
+            let function = try #require(findAllKIRFunctions(in: module).first {
+                ctx.interner.resolve($0.name) == functionName
+            })
+            #expect(function.body.contains { instruction in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == accessorName && symbol != nil
+            })
+        }
+    }
+
     @Test func testBuildKIRPhaseThrowsInvalidInputWhenASTOrSemaMissing() {
         let ctx = makeCompilationContext(inputs: [])
 

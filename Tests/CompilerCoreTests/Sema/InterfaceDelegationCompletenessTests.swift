@@ -98,5 +98,21 @@ import Testing
         assertHasDiagnostic("KSWIFTK-SEMA-DELEGATE", in: ctx)
         assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
+
+    @Test func nestedGenericDelegatingConstructorSubstitutesItsResult() throws {
+        let ctx = makeContextFromSource("""
+        interface Parent<T> { fun read(): T }
+        class Impl : Parent<Int> { override fun read(): Int = 7 }
+        class Outer {
+            class Nested<T>(delegate: Parent<T>) : Parent<T> by delegate
+            class Empty<T>
+        }
+        val inferred: Parent<Int> = Outer.Nested(Impl())
+        val explicit: Parent<Int> = Outer.Nested<Int>(Impl())
+        val empty: Outer.Empty<Int> = Outer.Empty<Int>()
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

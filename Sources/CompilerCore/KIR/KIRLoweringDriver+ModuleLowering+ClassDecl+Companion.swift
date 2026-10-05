@@ -93,6 +93,15 @@ extension KIRLoweringDriver {
                     thrownResult: nil
                 ))
             }
+            appendObjectItableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
             appendObjectVtableMethodRegistrations(
                 objectValue: allocatedObject,
                 nominalSymbol: companionSymbol,

@@ -573,6 +573,35 @@ struct MetadataSerializerTests {
         #expect(records[0].isMutable)
     }
 
+    @Test func testRuntimePropertyBridgeTakesPrecedenceOverAbstractGetterStub() throws {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let property = symbols.define(
+            kind: .property,
+            name: interner.intern("size"),
+            fqName: [interner.intern("Collection"), interner.intern("size")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.abstractType]
+        )
+        symbols.setPropertyType(types.intType, for: property)
+        symbols.setExternalLinkName("__kk_collection_size", for: property)
+        let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+        let encoder = MetadataEncoder()
+        let record = encoder.buildRecord(
+            for: try #require(symbols.symbol(property)),
+            symbols: symbols,
+            types: types,
+            moduleName: "Test",
+            interner: interner,
+            functionLinkNames: [getter: "kk_fn_get_stub"]
+        )
+        #expect(record.propertyGetterExternalLinkName == "__kk_collection_size")
+        let decoded = MetadataDecoder().decode(encoder.serialize([record]))
+        #expect(decoded.first?.propertyGetterExternalLinkName == "__kk_collection_size")
+    }
+
     @Test func testBuildRecordsPreservesNominalSupertypeSignaturesForNonGenericClass() {
         let encoder = MetadataEncoder()
         let interner = StringInterner()

@@ -1,4 +1,6 @@
 
+import RuntimeABI
+
 extension KIRLoweringDriver {
     func lowerTopLevelClassDecl(
         _ classDecl: ClassDecl,
@@ -149,7 +151,7 @@ extension KIRLoweringDriver {
     func synthesizeClassDelegationForwardingMethods(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx _: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
@@ -348,7 +350,7 @@ extension KIRLoweringDriver {
     func synthesizeClassDelegationForwardingPropertyAccessors(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         var declIDs: [KIRDeclID] = []
@@ -390,11 +392,11 @@ extension KIRLoweringDriver {
         forwardingSymbol: SymbolID,
         info: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID),
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        compilationCtx _: CompilationContext?
     ) -> [KIRDeclID] {
         let sema = shared.sema
         let arena = shared.arena
-        let interner = compilationCtx.interner
+        let interner = shared.interner
         let intType = sema.types.intType
 
         guard let ownerSym = sema.symbols.symbol(classSymbol) else { return [] }
@@ -524,6 +526,16 @@ extension KIRLoweringDriver {
                 thrownResult: nil,
                 isSuperCall: false
             ))
+        } else if let fallbackAccessorSymbol {
+            body.append(.call(
+                symbol: fallbackAccessorSymbol,
+                callee: accessorName,
+                arguments: callArgs,
+                result: resultExprID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
         } else if accessorKind == .getter,
                   let methodSlot = kirInterfacePropertyGetterSlot(
                       interfaceProperty: info.interfacePropertySymbol,
@@ -553,16 +565,6 @@ extension KIRLoweringDriver {
                     interfaceTypeID: interfaceTypeID,
                     methodSlot: methodSlot
                 )
-            ))
-        } else if let fallbackAccessorSymbol {
-            body.append(.call(
-                symbol: fallbackAccessorSymbol,
-                callee: accessorName,
-                arguments: callArgs,
-                result: resultExprID,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
             ))
         } else {
             let nullOutThrown = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -724,6 +726,15 @@ extension KIRLoweringDriver {
         accessorKind: PropertyAccessorKind,
         sema: SemaModule
     ) -> SymbolID? {
+        let accessorSymbol = classDelegationPropertyAccessorSymbol(
+            for: interfacePropertySymbol, kind: accessorKind, sema: sema
+        )
+        // Imported runtime-backed properties keep the bridge on their accessor,
+        // even when the interface property itself is abstract.
+        if let link = sema.symbols.externalLinkName(for: accessorSymbol),
+           RuntimeABISpec.byName[link] != nil {
+            return accessorSymbol
+        }
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
               !interfaceProperty.flags.contains(.abstractType),
               // A runtime-bridged property's synthetic accessor has no
@@ -732,7 +743,7 @@ extension KIRLoweringDriver {
         else {
             return nil
         }
-        return classDelegationPropertyAccessorSymbol(for: interfacePropertySymbol, kind: accessorKind, sema: sema)
+        return accessorSymbol
     }
 
     private struct ClassDelegationDispatchTarget {
