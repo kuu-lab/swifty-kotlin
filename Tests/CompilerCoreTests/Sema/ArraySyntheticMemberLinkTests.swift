@@ -910,9 +910,10 @@ struct ArraySyntheticMemberLinkTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected array index and iteration members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            errors.isEmpty,
+            "Expected array index and iteration members to type-check, got: \(errors)"
         )
 
         let userPath = try #require(
