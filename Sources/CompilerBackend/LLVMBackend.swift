@@ -3,6 +3,7 @@ import CompilerCore
 
 final class LLVMBackend {
     let target: TargetTriple
+    private let moduleName: String
     private let optLevel: OptimizationLevel
     private let debugInfo: Bool
     let diagnostics: DiagnosticEngine
@@ -12,9 +13,11 @@ final class LLVMBackend {
         target: TargetTriple,
         optLevel: OptimizationLevel,
         debugInfo: Bool,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        moduleName: String = "main"
     ) throws {
         self.target = target
+        self.moduleName = moduleName
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.diagnostics = diagnostics
@@ -52,6 +55,7 @@ final class LLVMBackend {
                     bindings: bindings,
                     module: module,
                     interner: interner,
+                    moduleName: moduleName,
                     typeSystem: typeSystem,
                     symbols: symbols,
                     sourceManager: sourceManager,
@@ -86,6 +90,7 @@ final class LLVMBackend {
                     bindings: bindings,
                     module: module,
                     interner: interner,
+                    moduleName: moduleName,
                     typeSystem: typeSystem,
                     symbols: symbols,
                     sourceManager: sourceManager,

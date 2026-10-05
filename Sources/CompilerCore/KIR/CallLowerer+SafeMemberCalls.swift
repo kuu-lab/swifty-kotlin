@@ -741,6 +741,20 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let invokeResult = tryLowerLexicalExtensionCallableInvocation(
+            exprID,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            shared: shared,
+            emit: &instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let primitiveCompareResult = tryLowerPrimitiveCompareTo(
             exprID,
             receiverExpr: receiverExpr,

@@ -914,7 +914,7 @@ enum TypeRefParserCore {
         }
     }
 
-    /// Parse a named type without consuming nullable suffix or checking for function type suffix.
+    /// Parse a named type, including nullability, without checking for a function type suffix.
     /// Used to parse the receiver part of `ReceiverType.() -> ReturnType`.
     private static func parseNamedTypeOnly(
         _ tokens: [Token],
@@ -975,7 +975,12 @@ enum TypeRefParserCore {
             }
         }
 
-        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        var nullable = false
+        if next < tokens.count, tokens[next].kind == .symbol(.question) {
+            nullable = true
+            next += 1
+        }
+        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
         return (ref, next)
     }
 
