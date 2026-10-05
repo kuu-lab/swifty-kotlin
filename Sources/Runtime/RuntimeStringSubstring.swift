@@ -15,12 +15,7 @@ func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> I
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    guard let range = source.range(of: oldValue) else {
-        return runtimeMakeStringRaw(source)
-    }
-    var result = source
-    result.replaceSubrange(range, with: newValue)
-    return runtimeMakeStringRaw(result)
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue, firstOnly: true))
 }
 
 // KSP-406: replaceRange / removeRange are bundled Kotlin source

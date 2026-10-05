@@ -53,9 +53,6 @@ public inline fun AtomicLong.updateAndFetch(transform: (Long) -> Long): Long {
     }
 }
 
-// Compatibility names retained from the former kotlin.concurrent.AtomicLong
-// typealias surface. They must be declared on the canonical receiver now that
-// the two nominal types are distinct.
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public inline fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
@@ -65,13 +62,3 @@ public inline fun AtomicLong.fetchAndUpdate(transform: (Long) -> Long): Long {
         if (compareAndSet(old, newValue)) return old
     }
 }
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicLong.getAndUpdate(transform: (Long) -> Long): Long =
-    fetchAndUpdate(transform)
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicLong.updateAndGet(transform: (Long) -> Long): Long =
-    updateAndFetch(transform)

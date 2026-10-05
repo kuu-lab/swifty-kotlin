@@ -1093,7 +1093,7 @@ extension CallLowerer {
     /// misread as an unrelated floating-point value. A value that is already
     /// the target floating-point type (or of unknown type) passes through
     /// unchanged.
-    private func widenIntegerOperandToFloatingPoint(
+    func widenIntegerOperandToFloatingPoint(
         _ operandID: KIRExprID,
         operandTypeID: TypeID?,
         isFloatingPoint: Bool,

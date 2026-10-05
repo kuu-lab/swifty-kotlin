@@ -104,7 +104,10 @@ extension CallTypeChecker {
                 if inferredNonLambdaArgTypes[index] != nil {
                     continue
                 }
-                inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                    argument.expr, ctx: ctx, locals: &locals,
+                    expectedType: expectedTypeOverrides[index]
+                )
             }
         }
 
@@ -536,6 +539,31 @@ extension CallTypeChecker {
         }
     }
 
+    func contextualizeResolvedIntegerArguments(
+        args: [CallArgument],
+        resolved: ResolvedCall,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        guard let chosen = resolved.chosenCallee,
+              let signature = ctx.sema.symbols.functionSignature(for: chosen)
+        else { return }
+        let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() where !argument.isSpread {
+            let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+            guard literal.signed != nil || literal.unsigned != nil,
+                  let parameterIndex = resolved.parameterMapping[index],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else { continue }
+            let parameterType = ctx.sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameterIndex],
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+        }
+    }
+
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
         // Unit contexts accept and discard any expression result, so Unit must
         // not act as a return-type constraint while choosing an overload.
@@ -715,8 +743,7 @@ extension CallTypeChecker {
             // candidates disagree on the lambda's shape and no expected type is
             // pushed into the body, leaving its parameters untyped.
             for (argIndex, argument) in args.enumerated() {
-                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr),
-                      !lambdaParams.isEmpty
+                guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr)
                 else {
                     continue
                 }
@@ -729,9 +756,20 @@ extension CallTypeChecker {
                 ),
                       case let .functionType(functionType) = sema.types.kind(
                           of: sema.types.makeNonNullable(parameterType)
-                      ),
-                      functionType.params.count == lambdaParams.count
+                      )
                 else {
+                    if !lambdaParams.isEmpty {
+                        return false
+                    }
+                    continue
+                }
+                // Without a parameter list, only zero parameters or a single
+                // implicit `it` can be supplied, never two or more.
+                if lambdaParams.isEmpty {
+                    if functionType.params.count > 1 {
+                        return false
+                    }
+                } else if functionType.params.count != lambdaParams.count {
                     return false
                 }
             }
@@ -1163,16 +1201,20 @@ extension CallTypeChecker {
            index < signature.classTypeParameterCount {
             return parameterType
         }
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // `T` captures the full receiver type; only `T?` strips nullability
+        // before substituting T (e.g. `nullable.also { it }` versus `T?.ext`).
+        let substitutionReceiverType = declaredReceiver == nonNullDeclaredReceiver
+            ? receiverType
+            : sema.types.makeNonNullable(receiverType)
         // Avoid circular substitution when the concrete receiver still references the same type parameter.
-        guard !sema.types.typeContainsTypeParam(nonNullReceiverType, symbol: receiverTypeParam.symbol) else {
+        guard !sema.types.typeContainsTypeParam(substitutionReceiverType, symbol: receiverTypeParam.symbol) else {
             return parameterType
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
             return parameterType
         }
-        let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiverType]
+        let substitution: [TypeVarID: TypeID] = [typeVar: substitutionReceiverType]
         return sema.types.substituteTypeParameters(
             in: parameterType,
             substitution: substitution,

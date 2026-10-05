@@ -392,6 +392,32 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenStringBuilderCapacityReservation() throws {
+        try assertKotlinOutput(
+            """
+            fun main() {
+                println(StringBuilder(100).capacity())
+                val sb = StringBuilder()
+                sb.ensureCapacity(200)
+                println(sb.capacity())
+                sb.append("a😀b")
+                sb.ensureCapacity(1)
+                println(sb.capacity())
+                println(sb.toString())
+                sb.trimToSize()
+                println(sb.capacity())
+                sb.clear()
+                println(sb.capacity())
+                sb.trimToSize()
+                println(sb.capacity())
+            }
+            """,
+            moduleName: "StringBuilderCapacityReservation",
+            expected: "100\n200\n200\na😀b\n4\n4\n0\n"
+        )
+    }
+
     // BUG-044: StringBuilder instances are constructed via a dedicated
     // runtime entry point (kk_string_builder_new/_from_string_flat) that
     // bypasses the normal kk_object_new class-construction path, so they

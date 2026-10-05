@@ -331,7 +331,8 @@ struct ImportedInlineKIRMaterializerTests {
     private func expressionIDs(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
-             .beginFinallyGuard, .endFinallyGuard:
+             .beginFinallyGuard, .endFinallyGuard, .endNonLocalReturnScope,
+             .beginFinallyCleanup, .endFinallyCleanup:
             return []
         case let .jumpIfEqual(lhs, rhs, _):
             return [lhs, rhs]
@@ -367,6 +368,8 @@ struct ImportedInlineKIRMaterializerTests {
             return [value]
         case let .nonLocalReturn(value):
             return value.map { [$0] } ?? []
+        case let .beginNonLocalReturnScope(value, _), let .resumeNonLocalReturn(value):
+            return [value]
         }
     }
 }

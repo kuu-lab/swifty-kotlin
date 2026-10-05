@@ -15,7 +15,7 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
     while index < raw.endIndex {
         let character = raw[index]
         guard character == "\\" else {
-            result.append(character)
+            result.append(contentsOf: KotlinStringSurrogateEncoding.encode(String(character)))
             index = raw.index(after: index)
             continue
         }
@@ -87,12 +87,10 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
                 }
 
                 if let scalar = UnicodeScalar(scalarValue) {
-                    result.unicodeScalars.append(scalar)
+                    result.append(contentsOf: KotlinStringSurrogateEncoding.encode(String(scalar)))
                     index = hexEnd
-                } else if let markerValue = KotlinStringSurrogateEncoding.markerValue(for: scalarValue),
-                          let marker = UnicodeScalar(markerValue)
-                {
-                    result.unicodeScalars.append(marker)
+                } else if KotlinStringSurrogateEncoding.markerValue(for: scalarValue) != nil {
+                    result.append(contentsOf: KotlinStringSurrogateEncoding.fromUTF16CodeUnits([UInt16(scalarValue)]))
                     index = hexEnd
                 } else {
                     result.append("\\")
@@ -105,7 +103,7 @@ internal func decodeKotlinStringEscapes(_ raw: String) -> String {
                 index = raw.index(after: escapeIndex)
             }
         default:
-            result.append(escape)
+            result.append(contentsOf: KotlinStringSurrogateEncoding.encode(String(escape)))
             index = raw.index(after: escapeIndex)
         }
     }

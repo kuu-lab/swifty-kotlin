@@ -5,9 +5,9 @@ import Testing
 @Suite
 struct BoxingCalleeTableTests {
     private let primitiveExpectations: [(PrimitiveType, String, String)] = [
-        (.byte, "kk_box_int", "kk_unbox_int"),
-        (.short, "kk_box_int", "kk_unbox_int"),
         (.int, "kk_box_int", "kk_unbox_int"),
+        (.byte, "kk_box_byte", "kk_unbox_int"),
+        (.short, "kk_box_short", "kk_unbox_int"),
         (.uint, "kk_box_uint", "kk_unbox_int"),
         (.ubyte, "kk_box_ubyte", "kk_unbox_int"),
         (.ushort, "kk_box_ushort", "kk_unbox_int"),
@@ -91,9 +91,9 @@ struct BoxingCalleeTableTests {
         let types = TypeSystem()
         let table = BoxingCalleeTable(interner: interner)
         let expected: [PrimitiveType: (String, String)] = [
-            .byte: ("kk_box_int_static", "kk_unbox_int_static"),
-            .short: ("kk_box_int_static", "kk_unbox_int_static"),
             .int: ("kk_box_int_static", "kk_unbox_int_static"),
+            .byte: ("kk_box_byte_static", "kk_unbox_int_static"),
+            .short: ("kk_box_short_static", "kk_unbox_int_static"),
             .uint: ("kk_box_uint_static", "kk_unbox_int_static"),
             .ubyte: ("kk_box_ubyte_static", "kk_unbox_int_static"),
             .ushort: ("kk_box_ushort_static", "kk_unbox_int_static"),

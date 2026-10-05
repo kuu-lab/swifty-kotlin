@@ -30,7 +30,7 @@ private external fun <E> __kkProducerScopeChannel(scope: ProducerScope<E>): Send
 @KsSymbolName("kk_coroutine_current_context")
 private external fun __kkProducerScopeCurrentContext(): CoroutineContext
 
-public class ProducerScope<out E> : CoroutineScope, SendChannel<E> {
+public class ProducerScope<in E> : CoroutineScope, SendChannel<E> {
     public override val coroutineContext: CoroutineContext
         get() = __kkProducerScopeCurrentContext()
 

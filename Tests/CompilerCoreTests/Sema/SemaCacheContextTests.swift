@@ -190,6 +190,38 @@ struct SemaCacheContextTests {
 
     // MARK: - Differential Verification (cache ON vs OFF produce same diagnostics)
 
+    @Test func testCallResolutionCachePreservesIntegerLiteralValues() {
+        let setup = makeSemaModule()
+        let name = setup.interner.intern("narrow")
+        let fn = setup.symbols.define(
+            kind: .function, name: name, fqName: [name],
+            declSite: nil, visibility: .public, flags: []
+        )
+        setup.symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [setup.types.byteType], returnType: setup.types.byteType),
+            for: fn
+        )
+        let resolver = OverloadResolver()
+        let cache = SemaCacheContext()
+        resolver.cacheContext = cache
+        for value: Int64 in [127, 128] {
+            let call = CallExpr(
+                range: makeRange(start: 10, end: 20), calleeName: name,
+                args: [CallArg(type: setup.types.intType, signedIntegerLiteral: value)]
+            )
+            let result = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: setup.ctx)
+            #expect((result.chosenCallee == fn) == (value == 127))
+        }
+        let variableCall = CallExpr(
+            range: makeRange(start: 20, end: 30), calleeName: name,
+            args: [CallArg(type: setup.types.intType)]
+        )
+        let result = resolver.resolveCall(candidates: [fn], call: variableCall, expectedType: nil, ctx: setup.ctx)
+        #expect(result.chosenCallee == nil)
+        #expect(cache.callResolutionMisses == 3)
+        #expect(cache.callResolutionHits == 0)
+    }
+
     @Test func testDifferentialVerificationSimpleFunction() throws {
         let source = """
         fun add(a: Int, b: Int): Int = a + b

@@ -242,7 +242,8 @@ public func kk_uIntArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_uIntArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let elements = array.elements.map { Int(UInt32(truncatingIfNeeded: $0)) }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
 /// ULongArray.toList(): List<ULong>

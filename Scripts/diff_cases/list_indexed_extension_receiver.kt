@@ -21,6 +21,10 @@ fun Boolean.receiverValue(): Boolean = this
 
 fun main() {
     val shorts = listOf(0xF0.toShort(), (-1).toShort())
+    println(shorts[0].countLeadingZeroBits())
+    println(shorts[1].countOneBits())
+    println(arrayOf(0xF0.toShort())[0].countLeadingZeroBits())
+    println(shorts.map { it.countLeadingZeroBits() })
     println(shorts[0].widthLeadingZeros())
     println(shorts[1].widthOneBits())
     val short: Short = shorts[0]
@@ -34,6 +38,10 @@ fun main() {
     val bytes = listOf(0x70.toByte(), (-1).toByte())
     println(bytes[0].widthLeadingZeros())
     println(bytes[1].widthOneBits())
+    println((shorts[0] as Any) is Short)
+    println((shorts[0] as Any) is Byte)
+    println((bytes[0] as Any) is Byte)
+    println((bytes[0] as Any) is Int)
     val ubytes = listOf(0xF0.toUByte(), 0xFF.toUByte())
     println(ubytes[0].widthLeadingZeros())
     println(ubytes[1].widthOneBits())

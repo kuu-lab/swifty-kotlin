@@ -64,6 +64,31 @@ struct RuntimeRangeValueSemanticsTests {
     }
 
     @Test
+    func charRangeStringConversionUsesCharactersThroughErasedDispatch() {
+        let range = kk_char_rangeTo(kk_box_char(97), kk_box_char(122))
+        let ascending = __kk_char_range_step(range, 2, nil)
+        let descending = __kk_char_progression_fromClosedRange(0, kk_box_char(122), kk_box_char(97), -3, nil)
+        let unitStep = __kk_char_range_step(range, 1, nil)
+        let empty = kk_char_rangeTo(kk_box_char(122), kk_box_char(97))
+        let unicode = kk_char_rangeTo(kk_box_char(0x03B1), kk_box_char(0x03B3))
+        let nul = kk_char_rangeTo(kk_box_char(0), kk_box_char(0))
+
+        for (raw, expected) in [
+            (range, "a..z"),
+            (ascending, "a..y step 2"),
+            (descending, "z downTo b step 3"),
+            (unitStep, "a..z step 1"),
+            (empty, "z..a"),
+            (unicode, "α..γ"),
+            (nul, "\u{0000}..\u{0000}"),
+        ] {
+            #expect(extractString(from: kk_any_to_string(raw, 0)) == expected)
+            #expect(extractString(from: kk_any_to_string_nullable(raw, 0)) == expected)
+            #expect(runtimeElementToString(raw) == expected)
+        }
+    }
+
+    @Test
     func erasedCharEqualityPreservesRangeOverrides() {
         let range = kk_char_rangeTo(kk_box_char(97), kk_box_char(99))
         let progression = __kk_char_range_step(range, 1, nil)
