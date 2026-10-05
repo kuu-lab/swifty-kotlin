@@ -4,6 +4,22 @@ struct KIRCallableValueInfo {
     let captureArguments: [KIRExprID]
     /// True when lambda has closure param for C HOF ABI (filter, map, etc.).
     let hasClosureParam: Bool
+    /// Raw entry for trampolines that must own the lambda's continuation frames.
+    let unboxedSymbol: SymbolID?
+
+    init(
+        symbol: SymbolID,
+        callee: InternedString,
+        captureArguments: [KIRExprID],
+        hasClosureParam: Bool,
+        unboxedSymbol: SymbolID? = nil
+    ) {
+        self.symbol = symbol
+        self.callee = callee
+        self.captureArguments = captureArguments
+        self.hasClosureParam = hasClosureParam
+        self.unboxedSymbol = unboxedSymbol
+    }
 }
 
 final class LambdaLowerer {
@@ -624,16 +640,15 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
-        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
-        // without dropping the receiver. Keep the raw lambda instead: call sites
-        // that consume such callables adapt them through
-        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
-        guard functionType.receiver == nil else {
+        // Non-suspend receiver lambdas retain their HOF adapter convention.
+        // Suspend values count the receiver as the first invocation argument.
+        guard functionType.receiver == nil || functionType.isSuspend else {
             return nil
         }
+        let invocationTypes = functionType.receiver.map { [$0] + functionType.params }
+            ?? functionType.params
         let createCallee: InternedString
-        switch functionType.params.count {
+        switch invocationTypes.count {
         case 0:
             createCallee = interner.intern("kk_function_create_0")
         case 1:
@@ -656,7 +671,7 @@ final class LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+        let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
             KIRParameter(
                 symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
                 type: type
@@ -793,7 +808,8 @@ final class LambdaLowerer {
             symbol: adapterSymbol,
             callee: adapterName,
             captureArguments: [closureObj],
-            hasClosureParam: false
+            hasClosureParam: false,
+            unboxedSymbol: lambdaSymbol
         )
         return materializedExpr
     }

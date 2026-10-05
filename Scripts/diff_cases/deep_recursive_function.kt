@@ -25,6 +25,12 @@ fun main() {
     }
     println(countDown(9))
 
+    val block: suspend DeepRecursiveScope<Int, Int>.(Int) -> Int = { n ->
+        if (n <= 0) 0 else callRecursive(n - step) + 1
+    }
+    val storedCountDown = DeepRecursiveFunction<Int, Int>(block)
+    println(storedCountDown(9))
+
     val tree = Node(1, Node(2, Node(4, null, null), null), Node(3, null, null))
     println(depth(tree))
     println(depth(null))
