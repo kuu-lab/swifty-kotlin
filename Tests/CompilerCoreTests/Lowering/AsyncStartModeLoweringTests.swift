@@ -80,12 +80,14 @@ struct AsyncStartModeLoweringTests {
     func testStartModeSelectsItsRuntimeLauncher(startMode: String, expected: String) throws {
         let callees = try launcherCallees(startMode: startMode)
 
+        let expectedVariants: Set<String> = [expected, expected + "_with_cont"]
         #expect(
-            callees.contains(expected),
+            !callees.intersection(expectedVariants).isEmpty,
             "CoroutineStart.\(startMode) should lower to \(expected), got: \(callees.sorted())"
         )
 
-        let wrong = callees.intersection(Self.allLaunchers.subtracting([expected]))
+        let allVariants = Self.allLaunchers.union(Self.allLaunchers.map { $0 + "_with_cont" })
+        let wrong = callees.intersection(allVariants.subtracting(expectedVariants))
         #expect(
             wrong.isEmpty,
             "CoroutineStart.\(startMode) also selected \(wrong.sorted())"

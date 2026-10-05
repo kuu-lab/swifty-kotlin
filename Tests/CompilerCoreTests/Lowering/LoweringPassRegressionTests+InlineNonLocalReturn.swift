@@ -4,14 +4,82 @@ import Foundation
 import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
+    func testFunctionNameLabeledReturnLowersAsNonLocalReturn() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        inline fun String.tryIt(block: () -> Unit) { block() }
+        fun named(): Int {
+            invokeBlock { return@named 17 }
+            return -1
+        }
+        fun extensionCall(s: String) {
+            s.tryIt { return@extensionCall }
+        }
+        fun lambdaLocal() {
+            invokeBlock { return@invokeBlock }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let lambdas = module.arena.declarations.compactMap { $0.function }.filter {
+            ctx.interner.resolve($0.name).hasPrefix("kk_lambda")
+        }
+        let nonLocalLambdas = lambdas.filter { function in
+            function.body.contains { if case .nonLocalReturn = $0 { return true }; return false }
+        }
+        #expect(nonLocalLambdas.count == 2)
+        #expect(nonLocalLambdas.allSatisfy { $0.isInlineOnly })
+        #expect(lambdas.filter { !$0.isInlineOnly }.count == 1)
+        try LoweringPhase().run(ctx)
+        for name in ["named", "extensionCall", "lambdaLocal"] {
+            let function = module.arena.declarations.compactMap { $0.function }.first {
+                ctx.interner.resolve($0.name) == name
+            }
+            #expect(function != nil)
+            #expect(function?.body.contains { if case .nonLocalReturn = $0 { return true }; return false } == false)
+        }
+    }
+
+
+    @Test
+    func testFunctionNameReturnThroughFinallyDoesNotReadAnUndefinedResult() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        fun cleanup(value: Int) {}
+        fun uncaptured(): Int {
+            try {
+                invokeBlock { try { return@uncaptured 17 } finally { cleanup(1) } }
+            } finally { cleanup(2) }
+            return -1
+        }
+        fun captured(value: Int): Int {
+            try {
+                invokeBlock { try { return@captured value } finally { cleanup(value) } }
+            } finally { cleanup(value + 1) }
+            return -1
+        }
+        fun unitReturn() {
+            try { invokeBlock { return@unitReturn } } finally { cleanup(1) }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        try LoweringPhase().run(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let failures = KIRVerifier.verify(module: module, symbols: ctx.sema?.symbols, interner: ctx.interner)
+        #expect(failures.isEmpty)
+    }
 
     // MARK: - BUG-209: source lambda returns
 
-    @Test
-    func nestedInlineLambdaReturnKeepsLexicalFunctionTarget() throws {
+    @Test(arguments: ["return 42", "return@value 42"])
+    func nestedInlineLambdaReturnKeepsLexicalFunctionTarget(returnStatement: String) throws {
         let context = makeContextFromSource("""
         inline fun around(block: () -> Unit) { block() }
-        inline fun value(): Int { around { around { return 42 } }; return -1 }
+        inline fun value(): Int { around { around { \(returnStatement) } }; return -1 }
         fun main() { println(value()); println("after") }
         """)
         try runToKIR(context)

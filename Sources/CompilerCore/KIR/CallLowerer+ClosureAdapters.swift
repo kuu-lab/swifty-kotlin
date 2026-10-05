@@ -279,7 +279,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         var loweredCallableID = loweredArgID
-        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        let callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if let originalCallableInfo = callableInfo,
            !originalCallableInfo.hasClosureParam,
            !adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty,
@@ -307,18 +307,16 @@ extension CallLowerer {
                 hasClosureParam: adapted.hasClosureParam
             )
             loweredCallableID = adaptedExpr
-            callableInfo = adapted
         }
 
-        var finalArgs: [KIRExprID] = [loweredCallableID]
-        finalArgs.append(makeClosureRawOrBoxedArgument(
-            callableInfo: callableInfo,
+        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+            loweredCallableID,
             sema: sema,
             arena: arena,
             interner: interner,
             instructions: &instructions
-        ))
-        return finalArgs
+        )
+        return [fnPtrExpr, envPtrExpr]
     }
 
     private func makeCollectionHOFSelectorArgument(
@@ -447,7 +445,8 @@ extension CallLowerer {
                 symbol: function.symbol,
                 callee: function.name,
                 captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
-                hasClosureParam: function.params.count >= functionType.params.count + 1
+                hasClosureParam: function.params.count >= functionType.params.count
+                    + (functionType.receiver == nil ? 0 : 1) + 1
             )
         }
 
@@ -646,9 +645,11 @@ extension CallLowerer {
             else {
                 continue
             }
-            // Same-module inline expansion can consume raw symbols directly,
-            // but tagged callable references still cross the erased invoke ABI.
+            // Ordinary same-module inline callbacks consume raw symbols directly.
+            // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,
+               signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
+               signature.valueParameterAllowsNonLocalReturn[parameterIndex],
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -706,13 +707,14 @@ extension CallLowerer {
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported
-            // Keep eligible inline arguments visible to expansion, including
-            // normal returns and nested non-local returns.
+            // Suspend callbacks need the callable ABI unless a non-local
+            // return requires their raw body to stay visible for inlining.
             if isInline,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
                    || arena.function(for: callable.symbol)?.isInlineOnly == true),
+               (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument
                    || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
@@ -957,6 +959,10 @@ extension CallLowerer {
             let fnPtr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
             instructions.append(.constValue(result: fnPtr, value: .symbolRef(adapterSymbol)))
             return (fnPtr, loweredArgID)
+        }
+        if let callableInfo {
+            fnPtr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+            instructions.append(.constValue(result: fnPtr, value: .symbolRef(callableInfo.symbol)))
         }
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],

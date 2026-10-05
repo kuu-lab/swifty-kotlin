@@ -63,28 +63,69 @@ import Testing
             abstract val prop: String by lazy { "error" }  // Error: abstract property cannot have delegate
         }
         """,
-        """
-        package sample9
-        abstract class EmptyAbstract {
-            fun someMethod() {}  // Warning: abstract class has no abstract members
-        }
-        """,
     ]
 
     private static let _sharedCtx = Result {
         try semaContext(for: abstractErrorSources)
     }
 
-    private func sharedCtx() throws -> CompilationContext {
-        try Self._sharedCtx.get()
+    @Test func testInvalidAbstractDeclarationsStillError() throws {
+        let ctx = try Self._sharedCtx.get()
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+        #expect(ctx.diagnostics.hasError)
     }
 
-    @Test func testWarning_emptyAbstractClass() throws {
-        let ctx = try sharedCtx()
+    @Test(arguments: [
+        """
+        expect abstract class CharsetEncoder
+        actual abstract class CharsetEncoder
+        abstract class PlainAbstract
+        """,
+        """
+        abstract class ConcreteMembers {
+            val value: Int = 1
+            fun someMethod() {}
+        }
+        class Derived : ConcreteMembers()
+        """,
+        """
+        abstract class AbstractOuter {
+            abstract class NestedAbstract
+        }
+        class ConcreteOuter {
+            abstract class NestedAbstract
+        }
+        """,
+        """
+        abstract class Base {
+            abstract fun value(): Int
+        }
+        abstract class Implemented : Base() {
+            override fun value(): Int = 1
+        }
+        class Derived : Implemented()
+        """,
+    ])
+    func testAbstractClassWithoutAbstractMembersDoesNotWarn(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.isEmpty)
+    }
+
+    @Test func testEmptyAbstractClassCannotBeInstantiated() throws {
+        let ctx = makeContextFromSource("""
+        abstract class PlainAbstract
+        fun main() {
+            val instance = PlainAbstract()
+        }
+        """)
+        try runSema(ctx)
+
         assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
         #expect(
-            ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .warning },
-            "Expected an ABSTRACT warning for an empty abstract class"
+            ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .error }
         )
     }
 

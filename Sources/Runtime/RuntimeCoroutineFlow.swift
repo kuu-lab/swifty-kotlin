@@ -1435,38 +1435,34 @@ private func runtimeFlowDeliverValue(
         }
         return thrown == 0
     } else {
-        // Suspend collector ABI: (closureRaw, value, continuation, outThrown)
-        let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
-        let collector = unsafeBitCast(
-            collectorFnPtr,
-            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
         let cont = kk_coroutine_continuation_new(continuation)
-        while true {
-            var thrown = 0
-            let result = collector(collectorEnvPtr, value, cont, &thrown)
-            if thrown != 0 {
-                currentContext?.failure = thrown
-                currentContext?.cancelled = true
-                _ = kk_coroutine_state_exit(cont, 0)
-                return false
-            }
-            if result != suspendedToken {
-                break
-            }
-            guard let state = runtimeContinuationState(from: cont) else {
-                _ = kk_coroutine_state_exit(cont, 0)
-                return false
-            }
-            // CORO-004: This still blocks a GCD thread via the legacy
-            // waitForResumeSignal() path.  Full migration requires making
-            // runtimeFlowDeliverValue itself async (return via continuation
-            // instead of Bool), which in turn requires the flow collect
-            // loop to be restructured as a suspend-entry loop.
-            state.waitForResumeSignal()
+        if let state = runtimeContinuationState(from: cont) {
+            state.launcherArgs = [0: Int64(collectorFnPtr), 1: Int64(collectorEnvPtr), 2: Int64(value)]
+            state.scope = RuntimeContinuationState.current?.scope ?? RuntimeCoroutineScope.current
+            state.jobHandle = RuntimeContinuationState.current?.jobHandle
+            state.flowCollectContext = runtimeFlowCurrentEmitContext()
         }
-        _ = kk_coroutine_state_exit(cont, 0)
-        return true
+        // Install the collector's continuation during every burst so nested
+        // suspend wrappers resume the collector, not its enclosing emitter.
+        let entry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, outThrown in
+            guard let state = runtimeContinuationState(from: continuation) else { return 0 }
+            let collector = unsafeBitCast(
+                Int(state.launcherArgs[0] ?? 0),
+                to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            return collector(Int(state.launcherArgs[1] ?? 0), Int(state.launcherArgs[2] ?? 0), continuation, outThrown)
+        }
+        var thrown = 0
+        _ = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: unsafeBitCast(entry, to: Int.self),
+            continuation: cont,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            currentContext?.failure = thrown
+            currentContext?.cancelled = true
+        }
+        return thrown == 0
     }
 }
 

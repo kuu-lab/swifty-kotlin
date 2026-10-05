@@ -7,6 +7,11 @@
 
 package kotlin.coroutines
 
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("__kk_is_native_dispatcher")
+internal external fun __isNativeDispatcher(element: CoroutineContext.Element): Boolean
+
 public interface ContinuationInterceptor : CoroutineContext.Element {
     public companion object Key : CoroutineContext.Key<ContinuationInterceptor>
 
@@ -18,7 +23,8 @@ public interface ContinuationInterceptor : CoroutineContext.Element {
     @Suppress("UNCHECKED_CAST")
     public override operator fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? {
         if (key is AbstractCoroutineContextKey<*, *>) {
-            return if (key.isSubKey(this.key)) key.tryCast(this) as? E else null
+            val elementKey = if (__isNativeDispatcher(this)) Key else this.key
+            return if (key.isSubKey(elementKey)) key.tryCast(this) as? E else null
         }
         return if (ContinuationInterceptor.Key === key) this as E else null
     }
@@ -26,7 +32,8 @@ public interface ContinuationInterceptor : CoroutineContext.Element {
     @OptIn(ExperimentalStdlibApi::class)
     public override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext {
         if (key is AbstractCoroutineContextKey<*, *>) {
-            return if (key.isSubKey(this.key) && key.tryCast(this) != null) EmptyCoroutineContext else this
+            val elementKey = if (__isNativeDispatcher(this)) Key else this.key
+            return if (key.isSubKey(elementKey) && key.tryCast(this) != null) EmptyCoroutineContext else this
         }
         return if (ContinuationInterceptor.Key === key) EmptyCoroutineContext else this
     }

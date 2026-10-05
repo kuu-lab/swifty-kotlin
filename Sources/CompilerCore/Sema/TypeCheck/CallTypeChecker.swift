@@ -2902,6 +2902,13 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            if sema.symbols.externalLinkName(for: chosen) == "__kk_deep_recursive_function_new" {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markRawSuspendEntryLambdaExpr(argument.expr)
+                    }
+                }
+            }
             if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                externalLinkName == "kk_with_timeout" || externalLinkName == "kk_with_timeout_or_null_throwing",
                let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner)

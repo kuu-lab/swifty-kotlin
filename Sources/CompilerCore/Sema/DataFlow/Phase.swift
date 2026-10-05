@@ -602,10 +602,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )
-        validateAbstractClassConstraints(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
         validateDiamondOverrides(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner

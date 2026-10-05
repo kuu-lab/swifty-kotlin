@@ -611,6 +611,8 @@ extension LocalDeclTypeChecker {
             lambdaLabelStack: [],
             lambdaDepth: 0,
             enclosingFunctionReturnType: resolvedReturnType,
+            enclosingFunctionSymbol: funSymbol,
+            enclosingLambdaExprIDs: [],
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
         if let receiverType {
