@@ -580,6 +580,16 @@ extension CallLowerer {
         let isImported = symbol?.flags.contains(.importedLibrary) == true
         let isInline = symbol?.flags.contains(.inlineFunction) == true
 
+        // Synthetic launchers consume a suspend entry reference plus captures,
+        // not the boxed function-value ABI used by ordinary Kotlin functions.
+        if let symbol,
+           symbol.flags.contains(.synthetic), !isImported,
+           symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
+           ["runBlocking", "launch", "async", "produce"].contains(interner.resolve(symbol.name))
+        {
+            return
+        }
+
         // Runtime bridges and C ABI stubs use explicit (fnPtr, closureRaw) or
         // raw function-pointer expansion; they must not receive a wrapped
         // function-value object. Imported Kotlin functions compiled to .kklib
@@ -692,11 +702,17 @@ extension CallLowerer {
             default:
                 continue
             }
-            // Non-local returns must expand into the caller. Other callbacks
-            // can escape through a factory's object or closure.
+            // Imported bodies can store callbacks in escaping closures. Without
+            // explicit inline-parameter metadata, preserve the function environment.
+            let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                : !isImported
+            // Keep eligible inline arguments visible to expansion, including
+            // normal returns and nested non-local returns.
             if isInline,
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
-               arena.function(for: callable.symbol)?.isInlineOnly == true
+               (allowsRawInlineArgument
+                   || arena.function(for: callable.symbol)?.isInlineOnly == true)
             {
                 continue
             }
@@ -1060,6 +1076,28 @@ extension CallLowerer {
 
         guard loweredArguments.count == originalArgs.count else {
             return loweredArguments
+        }
+
+        if externalLinkName == "__kk_job_invoke_on_completion", loweredArguments.count == 4 {
+            let handler = loweredArguments[3]
+            if driver.ctx.callableValueInfo(for: handler) != nil {
+                return Array(loweredArguments.prefix(3)) + makeCollectionHOFExpandedArguments(
+                    loweredArgID: handler,
+                    argExprID: originalArgs[3].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let (fnPtr, closureRaw) = splitCallableLambdaArgument(
+                handler,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return Array(loweredArguments.prefix(3)) + [fnPtr, closureRaw]
         }
 
         if externalLinkName == "kk_suspend_coroutine", loweredArguments.count == 1 {

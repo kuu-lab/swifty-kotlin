@@ -336,9 +336,9 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    @Test
-    func testFlowAccumulatorsAndCollectorThroughSharedStdlibArtifact() throws {
-        let artifactPath = try Self.buildStdlibArtifact()
+    @Test(arguments: [false, true])
+    func testFlowAccumulatorsAndCollectorThroughSharedStdlibArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let source = """
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
@@ -383,7 +383,7 @@ struct StdlibArtifactRegressionTests {
                 moduleName: "FlowAccumulatorsAndCollector",
                 emit: .executable,
                 outputPath: outputBase,
-                includeStdlib: false,
+                includeStdlib: !useArtifact,
                 stdlibLibraryPath: artifactPath
             )
             try runToKIR(ctx)
