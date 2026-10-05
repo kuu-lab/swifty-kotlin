@@ -75,6 +75,67 @@ struct ImportedInlineKIRRegressionTests {
     }
 
     @Test
+    func importedInlineFunctionKeepsOwnNonLocalReturnTarget() throws {
+        try withCompiledLibrary(
+            source: """
+            package returntarget
+            @PublishedApi internal inline fun hidden(): Int {
+                try { around { return 55 } } finally { println("hidden-finally") }
+                return -1
+            }
+            inline fun exposed(): Int = hidden()
+            inline fun around(block: () -> Unit) { block() }
+            inline fun value(): Int {
+                try { around { return 42 } } finally { println("value-finally") }
+                return -1
+            }
+            inline fun nested(): Int {
+                try { return value() + 1 } finally { println("nested-finally") }
+            }
+            """,
+            moduleName: "InlineReturnTarget"
+        ) { libraryPath in
+            let inlineDirectory = URL(fileURLWithPath: libraryPath).appendingPathComponent("inline-kir")
+            let artifacts = try FileManager.default.contentsOfDirectory(at: inlineDirectory, includingPropertiesForKeys: nil)
+            let serialized = try artifacts.map { try String(contentsOf: $0, encoding: .utf8) }.joined()
+            #expect(serialized.contains("targetB64="))
+            #expect(serialized.contains("functionB64="))
+            let source = """
+            import returntarget.value
+            import returntarget.nested
+            import returntarget.exposed
+            fun main() {
+                println("before")
+                try {
+                    println(value())
+                    println(value())
+                    println(nested())
+                    println("after-value")
+                } finally { println("main-finally") }
+                println("after")
+                println(exposed())
+                println("after-hidden")
+            }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: output) }
+                let context = makeCompilationContext(
+                    inputs: [path], emit: .executable, outputPath: output, searchPaths: [libraryPath]
+                )
+                try runToKIR(context)
+                try LoweringPhase().run(context)
+                #expect(!context.diagnostics.hasError)
+                try CodegenPhase().run(context)
+                try LinkPhase().run(context)
+                let result = try CommandRunner.run(executable: output, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout == "before\nvalue-finally\n42\nvalue-finally\n42\nvalue-finally\nnested-finally\n43\nafter-value\nmain-finally\nafter\nhidden-finally\n55\nafter-hidden\n")
+            }
+        }
+    }
+
+    @Test
     func importedInlineFinallyRunsBeforeCallerFinally() throws {
         try withCompiledLibrary(
             source: """
