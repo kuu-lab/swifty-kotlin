@@ -64,7 +64,6 @@ struct ListSearchPredicateLoweringRoutingTests {
     /// `sourceBackedListSearchCallsSurviveCollectionLiteralLowering`.
     private static let preservedOverloads: Set<String> = [
         "find/2", "findLast/2",
-        "indexOf/2", "lastIndexOf/2",
         "indexOfFirst/2", "indexOfLast/2",
         "contains/2", "containsAll/2",
         "count/2",
@@ -75,13 +74,23 @@ struct ListSearchPredicateLoweringRoutingTests {
         "lastOrNull/1", "lastOrNull/2",
     ]
 
+    /// `indexOf` / `lastIndexOf` used to route through the `ListSearchHOF.kt`
+    /// extensions; KSP-1030 made them `List` interface members with default
+    /// bodies, so member dispatch (a `virtualCall` into `List/List.kt`) wins
+    /// over the extension for `List` receivers — the Kotlin rule that members
+    /// beat extensions. They are excluded from the `.call` overload sets above
+    /// and verified through the member-dispatch assertions below.
+    private static let listMemberSearchNames: Set<String> = [
+        "indexOf", "lastIndexOf",
+    ]
+
     /// The four names RF-LOWER-CALL-010 dropped from
     /// the direct / virtual source-backed preservation gates plus
     /// `containsAll`: no rewrite anywhere in either collection lowering pass
     /// keys on them, so preserving them by name was indistinguishable from
     /// the `loweredBody.append(instruction)` fallthrough.
     private static let namesWithoutAnyLoweringRewrite: Set<String> = [
-        "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "containsAll",
+        "indexOfFirst", "indexOfLast", "containsAll",
     ]
 
     private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
@@ -106,6 +115,22 @@ struct ListSearchPredicateLoweringRoutingTests {
     ) -> [(name: String, argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
             guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return nil }
+            let name = interner.resolve(callee)
+            guard names.contains(name) else { return nil }
+            return (name, arguments.count, symbol)
+        }
+    }
+
+    /// `.virtualCall` instructions whose callee is one of `names` — the shape
+    /// `List` member dispatch takes for the interface-default `indexOf` /
+    /// `lastIndexOf` bodies.
+    private static func virtualCalls(
+        in body: [KIRInstruction],
+        matching names: Set<String>,
+        interner: StringInterner
+    ) -> [(name: String, argumentCount: Int, symbol: SymbolID?)] {
+        body.compactMap { instruction in
+            guard case let .virtualCall(symbol, callee, _, arguments, _, _, _, _) = instruction else { return nil }
             let name = interner.resolve(callee)
             guard names.contains(name) else { return nil }
             return (name, arguments.count, symbol)
@@ -194,7 +219,17 @@ struct ListSearchPredicateLoweringRoutingTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let searchCalls = Self.calls(in: body, matching: Self.searchPredicateNames, interner: ctx.interner)
-            #expect(searchCalls.count == 23, "expected 23 search/predicate calls; got \(searchCalls.count)")
+            // `indexOf` / `lastIndexOf` dispatch as `virtualCall`s to the
+            // `List` interface members, not as direct `.call`s to the
+            // `ListSearchHOF.kt` extensions — members beat extensions for a
+            // `List` receiver.
+            #expect(searchCalls.count == 21, "expected 21 search/predicate calls; got \(searchCalls.count)")
+
+            let memberCalls = Self.virtualCalls(in: body, matching: Self.listMemberSearchNames, interner: ctx.interner)
+            #expect(
+                Set(memberCalls.map(\.name)) == Self.listMemberSearchNames,
+                "indexOf / lastIndexOf must dispatch to the List interface members; got \(memberCalls.map(\.name))"
+            )
 
             // Bare `count()` is the sole overload BuildKIR leaves unbound.
             let unbound = Set(
@@ -217,14 +252,23 @@ struct ListSearchPredicateLoweringRoutingTests {
                     "\(label) must resolve to ListSearchHOF.kt; got \(String(describing: ctx.sourceManager.path(of: fileID)))"
                 )
             }
+            for call in memberCalls {
+                let symbolID = try #require(call.symbol, "\(call.name): member call must carry its symbol")
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(symbolID),
+                    "\(call.name) member must be source-backed"
+                )
+            }
         }
     }
 
-    /// `indexOf` / `lastIndexOf` / `indexOfFirst` / `indexOfLast` /
-    /// `containsAll` are no longer named in either preserve allowlist.  No
-    /// rewrite in the direct or virtual collection pass keys on them, so they
-    /// must still survive untouched — that equivalence is what allowed the
-    /// entries to go.
+    /// `indexOfFirst` / `indexOfLast` / `containsAll` are no longer named in
+    /// either preserve allowlist.  No rewrite in the direct or virtual
+    /// collection pass keys on them, so they must still survive untouched —
+    /// that equivalence is what allowed the entries to go.
+    /// (`indexOf` / `lastIndexOf` used to be in this set too; they now
+    /// dispatch as `List` interface members instead of `ListSearchHOF.kt`
+    /// extension calls — see `listMemberSearchNames`.)
     @Test
     func namesWithoutAnyLoweringRewriteSurviveWithoutBeingPreservedByName() throws {
         try withTemporaryFile(contents: Self.listSearchSource) { path in

@@ -96,7 +96,14 @@ public suspend fun coroutineScope(block: suspend () -> Any): Any {
         result = block()
     } catch (e: Throwable) {
         kkCoroutineScopeCancel(scope)
-        kkCoroutineScopeWait(scope)
+        // When the block unwound because the scope's own Job was cancelled,
+        // kotlinx surfaces the scope coroutine's JobCancellationException
+        // ("ScopeCoroutine was cancelled") rather than the bare
+        // CancellationException raised at the block's next suspend point.
+        val failure = kkCoroutineScopeWait(scope)
+        if (failure is CancellationException) {
+            throw failure
+        }
         throw e
     }
     val failure = kkCoroutineScopeWait(scope)
@@ -113,7 +120,13 @@ public suspend fun supervisorScope(block: suspend () -> Any): Any {
         result = block()
     } catch (e: Throwable) {
         kkCoroutineScopeCancel(scope)
-        kkCoroutineScopeWait(scope)
+        // Same surface contract as coroutineScope: a scope cancelled while its
+        // block unwound throws the scope's own JobCancellationException
+        // ("SupervisorCoroutine was cancelled").
+        val failure = kkCoroutineScopeWait(scope)
+        if (failure is CancellationException) {
+            throw failure
+        }
         throw e
     }
     // Supervisor semantics: wait for children but do not propagate their

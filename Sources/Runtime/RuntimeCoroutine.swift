@@ -1697,6 +1697,12 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// context's Job element instead.
     private(set) var job: RuntimeJobHandle?
     fileprivate var parent: RuntimeCoroutineScope?
+    /// The continuation state and job the pushing body frame carried before
+    /// this scope became ambient — restored by `popScopeFromCurrentContinuation`
+    /// so the enclosing frame resumes under its own job (KUU-964).
+    fileprivate weak var pushedContinuationState: RuntimeContinuationState?
+    fileprivate var savedContinuationJob: RuntimeJobHandle?
+    fileprivate var savedAmbientJob: RuntimeJobHandle?
     /// Optional debug name assigned via CoroutineName context element (STDLIB-CORO-077).
     var name: String?
 
@@ -3603,9 +3609,37 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 /// continuation (see `kk_coroutine_call_direct_suspend`), so binding the scope
 /// here is what lets children launched inside a Kotlin-level `coroutineScope { }`
 /// block register with the freshly created scope rather than the outer one.
-private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?) {
+///
+/// The scope's own Job is also installed as the running frame's context job:
+/// the body frame *is* the scope coroutine, so while the scope is ambient its
+/// `coroutineContext.job` and any suspend-value seeded from
+/// `RuntimeJobHandle.current` / `callerState.jobHandle` observe the scope job
+/// (kotlinx's contract), and children parent to it. The enclosing job is saved
+/// on the scope and restored by `popScopeFromCurrentContinuation`.
+private func pushScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope) {
     RuntimeCoroutineScope.current = scope
-    RuntimeContinuationState.current?.scope = scope
+    scope.savedAmbientJob = RuntimeJobHandle.current
+    if let scopeJob = scope.job {
+        RuntimeJobHandle.current = scopeJob
+    }
+    if let contState = RuntimeContinuationState.current {
+        contState.scope = scope
+        scope.pushedContinuationState = contState
+        scope.savedContinuationJob = contState.jobHandle
+        if let scopeJob = scope.job {
+            contState.jobHandle = scopeJob
+        }
+    }
+}
+
+/// Pop `scope` after `kk_coroutine_scope_wait`: restore the ambient scope to
+/// the scope's parent and put back the job the body frame carried before the
+/// push.
+private func popScopeFromCurrentContinuation(_ scope: RuntimeCoroutineScope) {
+    RuntimeCoroutineScope.current = scope.parent
+    scope.pushedContinuationState?.scope = scope.parent
+    scope.pushedContinuationState?.jobHandle = scope.savedContinuationJob
+    RuntimeJobHandle.current = scope.savedAmbientJob
 }
 
 /// Creates a new coroutine scope and installs it as the current scope in the
@@ -3624,7 +3658,7 @@ public func kk_coroutine_scope_new() -> Int {
 
     // Push: save parent scope and set this as current via the task-scope map
     scope.parent = RuntimeCoroutineScope.current
-    enterScopeOnCurrentContinuation(scope)
+    pushScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -3646,7 +3680,7 @@ public func kk_supervisor_scope_new() -> Int {
     // mirroring kk_coroutine_scope_new so the running continuation observes
     // the same ambient scope the task-scope map reports.
     scope.parent = RuntimeCoroutineScope.current
-    enterScopeOnCurrentContinuation(scope)
+    pushScopeOnCurrentContinuation(scope)
 
     return Int(bitPattern: ptr)
 }
@@ -3682,8 +3716,8 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     }
 
     // Pop: restore parent scope in the task-scope map (CORO-003) and on the
-    // running continuation, mirroring enterScopeOnCurrentContinuation.
-    enterScopeOnCurrentContinuation(scope.parent)
+    // running continuation, mirroring pushScopeOnCurrentContinuation.
+    popScopeFromCurrentContinuation(scope)
 
     // Release the scope
     _ = runtimeReleaseObject(scopeHandle)
@@ -4249,19 +4283,35 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
 
+    // A `kk_function_create_N`-boxed suspend value crosses as its own handle
+    // rather than a raw entry point: resolve the (fnPtr, env) pair before
+    // deferring the invocation onto the launch thread. A boxed value's env
+    // is a single opaque closure slot the invoke thunk unpacks itself, not
+    // the packed-captures shape raw suspend entries expand below.
+    var entryPoint = entryPointRaw
+    var envSlot = envRaw
+    var envIsSingleClosureSlot = false
+    if let box = runtimeFunctionValueBox(from: entryPointRaw) {
+        entryPoint = box.fnPtr
+        envSlot = box.closureRaw
+        envIsSingleClosureSlot = true
+    }
+
     // Expand the env slot into the thunk's positional captures: 0 → none, a
     // packed env object (kk_object_new(2+N, classID: 0), captures at slots
     // 2..) → N captures, anything else → a single raw capture.
     let captures: [Int]
-    if envRaw == 0 {
+    if envIsSingleClosureSlot {
+        captures = [envSlot]
+    } else if envSlot == 0 {
         captures = []
-    } else if let envBox = resolveRuntimeHandle(envRaw, as: RuntimeObjectBox.self),
+    } else if let envBox = resolveRuntimeHandle(envSlot, as: RuntimeObjectBox.self),
               envBox.classID == 0,
               envBox.elements.count > 2
     {
         captures = Array(envBox.elements.dropFirst(2))
     } else {
-        captures = [envRaw]
+        captures = [envSlot]
     }
 
     KxMiniRuntime.launch {
@@ -4274,7 +4324,7 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
         RuntimeJobHandle.current = job
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
-            entryPointRaw: entryPointRaw,
+            entryPointRaw: entryPoint,
             receiver: channelHandle,
             captures: captures,
             outThrown: &thrown
@@ -4327,8 +4377,10 @@ private func runtimeInvokeSuspendLauncherThunk(
 /// pre-created: the bundled `Channel(capacity, onBufferOverflow)` factory
 /// applies the capacity/overflow semantics in Kotlin before the launch.
 @_cdecl("__kk_produce_launch_with_cont")
-public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
-    guard let contState = runtimeContinuationState(from: continuation) else {
+public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw: Int, _ continuation: Int, _ scopeSlotRaw: Int) -> Int {
+    guard let contState = runtimeContinuationState(from: continuation),
+          scopeSlotRaw >= 0
+    else {
         return channelHandle
     }
     let job = RuntimeJobHandle()
@@ -4340,10 +4392,12 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     job.markStarted()
     job.continuationState = contState
     contState.jobHandle = job
-    // launcherArgs[0] is the suspend-entry receiver slot: the block's `this`
-    // (ProducerScope / ActorScope) is the channel handle; captures occupy the
+    // `scopeSlotRaw` names the suspend-entry receiver slot: the block's
+    // `this` (ProducerScope / ActorScope) is the channel handle — 0 for
+    // launcher-marked (receiver-first) literals, `params.count - 1` for
+    // unmarked (captures-first) suspend values — and captures occupy the
     // remaining slots, seeded by the call-site rewrite.
-    contState.launcherArgs[0] = Int64(channelHandle)
+    contState.launcherArgs[Int64(scopeSlotRaw)] = Int64(channelHandle)
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope

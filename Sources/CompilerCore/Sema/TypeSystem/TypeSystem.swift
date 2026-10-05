@@ -351,7 +351,30 @@ public final class TypeSystem {
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {
         ensureImportedNominalMetadataLoaded(for: nominal)
+        let previous = nominalTypeParameterSymbolsMap[nominal] ?? []
         nominalTypeParameterSymbolsMap[nominal] = symbols
+        // The same nominal can be registered twice with different type
+        // parameter symbols: the kklib import path first binds the synthetic
+        // `T<n>` spellings from `typeParamsSig`, then the bundled source
+        // declaration re-registers its own declared symbols (e.g. `kotlin.Enum`
+        // gains the real `E`). Supertype-argument templates stored against
+        // this nominal still spell the earlier symbols, so migrate them
+        // positionally — otherwise `Enum<Color>` keeps lifting to
+        // `Comparable<T<n>>` instead of `Comparable<Color>` and every
+        // `T : Comparable<T>` bound check on an enum fails.
+        guard previous.count == symbols.count,
+              let storedArgs = nominalSupertypeTypeArgsMap[nominal]
+        else {
+            return
+        }
+        var mapping: [SymbolID: SymbolID] = [:]
+        for (old, new) in zip(previous, symbols) where old != new {
+            mapping[old] = new
+        }
+        guard !mapping.isEmpty else { return }
+        nominalSupertypeTypeArgsMap[nominal] = storedArgs.mapValues { args in
+            args.map { substitutingTypeParameterSymbols($0, mapping: mapping) }
+        }
     }
 
     public func nominalTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {

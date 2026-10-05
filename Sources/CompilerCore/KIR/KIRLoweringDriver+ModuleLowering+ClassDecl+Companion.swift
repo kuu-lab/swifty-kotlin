@@ -69,31 +69,37 @@ extension KIRLoweringDriver {
             ))
             body.append(.storeGlobal(value: allocatedObject, symbol: companionSymbol))
 
-            for superSymbol in sema.symbols.directSupertypes(for: companionSymbol) {
-                let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: superSymbol,
-                    sema: sema,
-                    interner: interner
-                )
-                let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: sema.types.intType)
-                body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                let registerResult = arena.appendTemporary(type: sema.types.intType)
-                let superKind = sema.symbols.symbol(superSymbol)?.kind
-                let registerCallee: InternedString = if superKind == .interface {
-                    interner.intern("kk_type_register_iface")
-                } else {
-                    interner.intern("kk_type_register_super")
-                }
-                body.append(.call(
-                    symbol: nil,
-                    callee: registerCallee,
-                    arguments: [classIDExpr, parentExpr],
-                    result: registerResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
+            appendNominalSupertypeEdgeRegistrations(
+                childSymbol: companionSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            // A companion implementing an interface needs the same itable
+            // dispatch surface a top-level object gets: interface slots,
+            // method entries, and property accessors — without them a call
+            // through `Factory<Widget>` (e.g. `Widget.Companion.create()`)
+            // cannot find the companion's implementation.
+            appendObjectItableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
             appendObjectVtableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            appendObjectAnyToStringRegistration(
                 objectValue: allocatedObject,
                 nominalSymbol: companionSymbol,
                 driver: self,

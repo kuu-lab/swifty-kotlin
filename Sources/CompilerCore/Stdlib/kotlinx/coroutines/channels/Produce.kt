@@ -9,6 +9,7 @@ package kotlinx.coroutines.channels
 
 import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 @KsSymbolName("__kk_channel_await_close")
 internal external fun __kkChannelAwaitClose(scope: ProducerScope<*>)
@@ -42,10 +43,12 @@ private external fun <E> __kkProduceLaunch(
     block: suspend ProducerScope<E>.() -> Unit
 ): Channel<E>
 
+@ExperimentalCoroutinesApi
 public fun <E> CoroutineScope.produce(
     block: suspend ProducerScope<E>.() -> Unit
 ): ReceiveChannel<E> = produce(0, block)
 
+@ExperimentalCoroutinesApi
 public fun <E> CoroutineScope.produce(
     capacity: Int = 0,
     block: suspend ProducerScope<E>.() -> Unit

@@ -837,18 +837,20 @@ extension LoweringPassRegressionTests {
     @Test
     func testProduceLaunchFunctionValuePacksCapturesIntoEnvArg() throws {
         // Simulates KUU-951: `produce(block = f)` where `f` is a stored
-        // suspend function value capturing `x`. The value's thunk is
-        // capture-first, so `__kk_produce_launch` must be invoked with the
-        // explicit (fnPtr, env) pair — env materialized at the call site
-        // from the value's callable info — not the launcher-continuation
-        // convention literals use.
+        // suspend function value capturing `x`. The value's suspend entry
+        // is captures-first, so the channel binds in the LAST launcherArg
+        // slot and the env/capture slot goes first — the same
+        // launcher-continuation convention `kk_test_run_blocking_with_cont`
+        // uses for unmarked values, driven through
+        // `__kk_produce_launch_with_cont(channel, thunk, cont, scopeSlot)`.
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
 
         let mainSymbol = SymbolID(rawValue: 830)
         let suspendSymbol = SymbolID(rawValue: 831)
-        let suspendParamSymbol = SymbolID(rawValue: 832)
+        let suspendCaptureSymbol = SymbolID(rawValue: 832)
+        let suspendParamSymbol = SymbolID(rawValue: 833)
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
         let captureExpr = arena.appendExpr(.intLiteral(42))
@@ -878,11 +880,15 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
         // A *named* suspend function — not a `kk_lambda_<exprID>` literal —
-        // so it is never coroutine-launcher marked.
+        // so it is never coroutine-launcher marked. Its suspend entry keeps
+        // the captures-first layout `(cap0, receiver)`.
         let suspendFn = KIRFunction(
             symbol: suspendSymbol,
             name: interner.intern("named_suspend_block"),
-            params: [KIRParameter(symbol: suspendParamSymbol, type: types.make(.primitive(.int, .nonNull)))],
+            params: [
+                KIRParameter(symbol: suspendCaptureSymbol, type: types.make(.primitive(.int, .nonNull))),
+                KIRParameter(symbol: suspendParamSymbol, type: types.make(.primitive(.int, .nonNull))),
+            ],
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [.returnValue(arena.appendExpr(.symbolRef(suspendParamSymbol)))],
             isSuspend: true,
@@ -908,26 +914,44 @@ extension LoweringPassRegressionTests {
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "__kk_produce_launch"
+                  interner.resolve(callee) == "__kk_produce_launch_with_cont"
             else { return nil }
             return arguments
         }
         let launchArgs = try #require(launchCalls.first)
-        #expect(launchArgs.count == 3)
-        // With one capture the env slot is the raw capture value itself.
-        #expect(launchArgs[2] == captureExpr)
+        #expect(launchArgs.count == 4)
+        #expect(launchArgs[0] == channelExpr)
+        // scopeSlot = params.count - 1 = 1: the channel binds in the last
+        // suspend-entry slot, after the leading capture slot.
+        if case let .intLiteral(scopeSlot) = module.arena.expr(launchArgs[3]) {
+            #expect(scopeSlot == 1)
+        } else {
+            Issue.record("expected scopeSlot intLiteral as __kk_produce_launch_with_cont arg 4")
+        }
 
+        let argSetCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  interner.resolve(callee) == "kk_coroutine_launcher_arg_set"
+            else { return nil }
+            return arguments
+        }
+        #expect(argSetCalls.count == 2)
+        // Capture occupies slot 0; slot 1 is reserved for the channel the
+        // runtime writes at launch.
+        #expect(argSetCalls[0][2] == captureExpr)
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains("__kk_produce_launch"))
         #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
     @Test
     func testProduceLaunchOpaqueFunctionValueUsesRuntimeAccessors() throws {
-        // Same call shape but with no callable info recorded for the value:
-        // (fnPtr, env) must be recovered at runtime through the
-        // `kk_function_value_*` accessors.
+        // Same call shape but with a block that cannot resolve to a known
+        // suspend symbol at all (an opaque forwarded value): the raw
+        // `__kk_produce_launch(channel, block)` call is left in place — the
+        // runtime unwraps a `kk_function_create_N` box into its
+        // (fnPtr, env) pair itself, so no call-site accessors are needed.
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -937,7 +961,7 @@ extension LoweringPassRegressionTests {
         let suspendParamSymbol = SymbolID(rawValue: 842)
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
-        let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let opaqueValueExpr = arena.appendExpr(.temporary(9))
         let produceResult = arena.appendExpr(.temporary(3))
 
         let mainFn = KIRFunction(
@@ -947,11 +971,11 @@ extension LoweringPassRegressionTests {
             returnType: types.nullableAnyType,
             body: [
                 .constValue(result: channelExpr, value: .intLiteral(7)),
-                .constValue(result: suspendRefExpr, value: .symbolRef(suspendSymbol)),
+                .constValue(result: opaqueValueExpr, value: .intLiteral(11)),
                 .call(
                     symbol: nil,
                     callee: interner.intern("__kk_produce_launch"),
-                    arguments: [channelExpr, suspendRefExpr],
+                    arguments: [channelExpr, opaqueValueExpr],
                     result: produceResult,
                     canThrow: false,
                     thrownResult: nil
@@ -982,8 +1006,8 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_function_value_fn_ptr"))
-        #expect(mainCallees.contains("kk_function_value_closure_raw"))
+        #expect(mainCallees.contains("__kk_produce_launch"))
+        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
         #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
 
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
@@ -992,7 +1016,7 @@ extension LoweringPassRegressionTests {
             else { return nil }
             return arguments
         }
-        #expect(launchCalls.first?.count == 3)
+        #expect(launchCalls.first?.count == 2)
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 

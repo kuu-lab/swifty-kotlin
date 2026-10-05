@@ -52,7 +52,7 @@ private let blockingDescendantFunctionID = 8_904
 private func launchEventLoopTestActor(_ entry: EventLoopTestSuspendEntry, functionID: Int) {
     let channel = kk_channel_create(1)
     let continuation = kk_coroutine_continuation_new(functionID)
-    _ = __kk_produce_launch_with_cont(channel, unsafeBitCast(entry, to: Int.self), continuation)
+    _ = __kk_produce_launch_with_cont(channel, unsafeBitCast(entry, to: Int.self), continuation, 0)
 }
 
 @_cdecl("runtime_test_blocking_actor")

@@ -1052,14 +1052,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // Launcher-continuation counterpart for a suspend literal block:
-        // `(channel, launcherThunk, continuation)` mirroring
-        // `kk_kxmini_produce_with_cont` (KSP-1573).
+        // `(channel, launcherThunk, continuation, scopeSlot)` mirroring
+        // `kk_kxmini_produce_with_cont` (KSP-1573). `scopeSlot` names the
+        // suspend-entry slot the channel binds to — 0 for receiver-first
+        // literals, `params.count - 1` for captures-first suspend values.
         RuntimeABIFunctionSpec(
             name: "__kk_produce_launch_with_cont",
             parameters: [
                 RuntimeABIParameter(name: "channelHandle", type: .intptr),
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "scopeSlotRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine",

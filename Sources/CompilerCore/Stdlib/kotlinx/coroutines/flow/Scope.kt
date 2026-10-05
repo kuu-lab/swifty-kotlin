@@ -9,6 +9,7 @@
 package kotlinx.coroutines.flow
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.produce
@@ -29,6 +30,7 @@ public fun <T> Flow<T>.launchIn(scope: CoroutineScope): Job {
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 public fun <T> Flow<T>.produceIn(scope: CoroutineScope): ReceiveChannel<T> {
     val source = this
     return produce {
