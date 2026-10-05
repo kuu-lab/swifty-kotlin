@@ -1190,7 +1190,9 @@ extension CoroutineLoweringPass {
 
         // Callable metadata preserves positional captures when the native
         // ABI has packed them into a trailing environment argument.
-        let captures = callableInfo?.captureArguments ?? Array(call.arguments.dropFirst(2))
+        let captures = callableInfo?.captureArguments
+            ?? rewrite.module.arena.lambdaCaptureArgsBySymbol[suspendSymbol]
+            ?? Array(call.arguments.dropFirst(2))
 
         let loweredFunctionIDExpr = rewrite.module.arena.appendExpr(
             .intLiteral(Int64(loweredTarget.symbol.rawValue)),

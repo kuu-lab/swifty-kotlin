@@ -206,7 +206,9 @@ func runtimeInvokeSuspendFunction(
     case 4: result = kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], &thrown)
     default: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
     }
-    callerState?.thrownException = thrown
+    if result != Int(bitPattern: kk_coroutine_suspended()) {
+        callerState?.thrownException = thrown
+    }
     outThrown?.pointee = thrown
     return result
 }

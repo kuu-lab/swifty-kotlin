@@ -32,13 +32,13 @@ struct CodegenBackendDurationHashCodeTests {
             source,
             moduleName: "DurationHashCode",
             expected: """
-            705032705
-            705032705
-            705032705
-            705032705
+            1410065410
+            1410065410
+            1410065410
+            1410065410
             0
-            1
-            1
+            2
+            2
             """ + "\n",
             allowDefaultStdlibLibrary: false
         )

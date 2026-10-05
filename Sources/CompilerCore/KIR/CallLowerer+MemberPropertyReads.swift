@@ -236,13 +236,28 @@ extension CallLowerer {
         // (BUG-265).
         if sema.symbols.propertyHasCustomGetter(for: propertySymbol)
             || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+            || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
         {
-            let receiverID = loweredReceiverID ?? driver.lowerExpr(
-                receiverExpr,
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &instructions
-            )
+            let receiverID: KIRExprID
+            if let loweredReceiverID {
+                receiverID = loweredReceiverID
+            } else if case .nameRef = ast.arena.expr(receiverExpr),
+                      sema.bindings.identifierSymbol(for: receiverExpr) == nil,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+            {
+                let ownerType = sema.types.make(.classType(ClassType(
+                    classSymbol: ownerSymbol, args: [], nullability: .nonNull
+                )))
+                receiverID = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                instructions.append(.constValue(result: receiverID, value: .symbolRef(ownerSymbol)))
+            } else {
+                receiverID = driver.lowerExpr(
+                    receiverExpr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)

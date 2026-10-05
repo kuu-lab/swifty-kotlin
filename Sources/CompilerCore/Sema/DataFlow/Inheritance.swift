@@ -713,7 +713,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
+            for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateAbstractOverridesForDecl(
                     declID: declID,
                     file: file,
@@ -863,22 +863,42 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
+            for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl
+                      let classSymbol = bindings.declSymbols[declID],
+                      let classSym = symbols.symbol(classSymbol)
                 else {
                     continue
                 }
-                var enclosingTypeParameters: [InternedString: SymbolID] = [:]
-                if let classSymbolID = bindings.declSymbols[declID] {
-                    enclosingTypeParameters = buildTypeParameterMap(for: classSymbolID, types: types, symbols: symbols)
+                let entries: [SuperTypeEntry]
+                let range: SourceRange
+                switch decl {
+                case let .classDecl(classDecl):
+                    entries = classDecl.superTypeEntries
+                    range = classDecl.range
+                case let .objectDecl(objectDecl):
+                    entries = objectDecl.superTypeEntries
+                    range = objectDecl.range
+                default:
+                    continue
                 }
-                for entry in classDecl.superTypeEntries where entry.delegateExpression != nil {
+                var enclosingTypeParameters = buildTypeParameterMap(for: classSymbol, types: types, symbols: symbols)
+                var enclosingClassScopes: [[InternedString]] = []
+                var parent = symbols.parentSymbol(for: classSymbol)
+                while let owner = parent, let ownerSym = symbols.symbol(owner) {
+                    enclosingClassScopes.append(ownerSym.fqName)
+                    enclosingTypeParameters.merge(buildTypeParameterMap(for: owner, types: types, symbols: symbols)) {
+                        current, _ in current
+                    }
+                    parent = symbols.parentSymbol(for: owner)
+                }
+                for entry in entries where entry.delegateExpression != nil {
                     guard let resolved = resolveNominalSymbolAndTypeArgs(
                         entry.typeRef,
                         currentPackage: file.packageFQName,
                         imports: file.imports,
                         enclosingTypeParameters: enclosingTypeParameters,
+                        enclosingClassScopes: enclosingClassScopes,
                         ast: ast,
                         symbols: symbols,
                         types: types,
@@ -894,11 +914,9 @@ extension DataFlowSemaPhase {
                         diagnostics.error(
                             "KSWIFTK-SEMA-DELEGATE",
                             "Class delegation is only supported for interfaces, not '\(name)'.",
-                            range: classDecl.range
+                            range: range
                         )
-                    } else if let classSymbol = bindings.declSymbols[declID],
-                              let classSym = symbols.symbol(classSymbol),
-                              let delegateExpr = entry.delegateExpression
+                    } else if let delegateExpr = entry.delegateExpression
                     {
                         symbols.addDelegatedInterface(resolved.symbol, forClass: classSymbol)
                         symbols.setClassDelegationExpr(delegateExpr, forClass: classSymbol, interface: resolved.symbol)
@@ -909,7 +927,7 @@ extension DataFlowSemaPhase {
                             kind: .field,
                             name: fieldName,
                             fqName: fieldFQName,
-                            declSite: classDecl.range,
+                            declSite: range,
                             visibility: .private,
                             flags: []
                         )
@@ -925,6 +943,28 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    private func nominalDeclarationIDs(in file: ASTFile, ast: ASTModule) -> [DeclID] {
+        var result: [DeclID] = []
+        var queue = file.topLevelDecls
+        while let declID = queue.popLast() {
+            guard let decl = ast.arena.decl(declID) else { continue }
+            switch decl {
+            case let .classDecl(classDecl):
+                queue.append(contentsOf: classDecl.nestedClasses + classDecl.nestedObjects)
+                if let companion = classDecl.companionObject { queue.append(companion) }
+            case let .interfaceDecl(interfaceDecl):
+                queue.append(contentsOf: interfaceDecl.nestedClasses + interfaceDecl.nestedObjects)
+                if let companion = interfaceDecl.companionObject { queue.append(companion) }
+            case let .objectDecl(objectDecl):
+                queue.append(contentsOf: objectDecl.nestedClasses + objectDecl.nestedObjects)
+            default:
+                continue
+            }
+            result.append(declID)
+        }
+        return result
     }
 
     /// CLASS-008: Create synthetic method symbols for delegated interface methods
@@ -957,16 +997,31 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
+            for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl,
                       let classSymbol = bindings.declSymbols[declID],
                       let classSym = symbols.symbol(classSymbol)
                 else {
                     continue
                 }
+                let range: SourceRange
+                let memberFunctions: [DeclID]
+                let memberProperties: [DeclID]
+                switch decl {
+                case let .classDecl(classDecl):
+                    range = classDecl.range
+                    memberFunctions = classDecl.memberFunctions
+                    memberProperties = classDecl.memberProperties
+                case let .objectDecl(objectDecl):
+                    range = objectDecl.range
+                    memberFunctions = objectDecl.memberFunctions
+                    memberProperties = objectDecl.memberProperties
+                default:
+                    continue
+                }
                 synthesizeDelegationForwardingForClass(
-                    classDecl: classDecl, classSymbol: classSymbol, classFQName: classSym.fqName,
+                    range: range, memberFunctions: memberFunctions, memberProperties: memberProperties,
+                    classSymbol: classSymbol, classFQName: classSym.fqName,
                     symbols: symbols, bindings: bindings, types: types, interner: interner
                 )
             }
@@ -974,7 +1029,9 @@ extension DataFlowSemaPhase {
     }
 
     private func synthesizeDelegationForwardingForClass(
-        classDecl: ClassDecl,
+        range: SourceRange,
+        memberFunctions: [DeclID],
+        memberProperties: [DeclID],
         classSymbol: SymbolID,
         classFQName: [InternedString],
         symbols: SymbolTable,
@@ -983,12 +1040,12 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         var classMethodKeys: Set<DelegationDispatchKey> = []
-        for funDeclID in classDecl.memberFunctions {
+        for funDeclID in memberFunctions {
             guard let funSymbol = bindings.declSymbols[funDeclID] else { continue }
             classMethodKeys.insert(delegationDispatchKey(for: funSymbol, symbols: symbols, interner: interner))
         }
         var classPropertyNames: Set<InternedString> = []
-        for propDeclID in classDecl.memberProperties {
+        for propDeclID in memberProperties {
             guard let propSymbol = bindings.declSymbols[propDeclID],
                   let propSym = symbols.symbol(propSymbol)
             else { continue }
@@ -1049,7 +1106,7 @@ extension DataFlowSemaPhase {
                         else { continue }
                         synthesizeForwardingMethod(
                             methodSym: memberSym, ifaceSig: ifaceSig,
-                            classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
+                            range: range, classSymbol: classSymbol, classFQName: classFQName,
                             interfaceSymbol: ownerInterface, fieldSymbol: fieldSymbol,
                             substitution: substitution, typeVarBySymbol: typeVarBySymbol,
                             classTypeParameterSymbols: classTypeParameterSymbols,
@@ -1061,7 +1118,7 @@ extension DataFlowSemaPhase {
                         else { continue }
                         synthesizeForwardingProperty(
                             propertySym: memberSym, propertyType: propertyType,
-                            classDecl: classDecl, classSymbol: classSymbol, classFQName: classFQName,
+                            range: range, classSymbol: classSymbol, classFQName: classFQName,
                             interfaceSymbol: ownerInterface, fieldSymbol: fieldSymbol,
                             substitution: substitution, typeVarBySymbol: typeVarBySymbol,
                             symbols: symbols, types: types, interner: interner
@@ -1147,7 +1204,7 @@ extension DataFlowSemaPhase {
     private func synthesizeForwardingMethod(
         methodSym: SemanticSymbol,
         ifaceSig: FunctionSignature,
-        classDecl: ClassDecl,
+        range: SourceRange,
         classSymbol: SymbolID,
         classFQName: [InternedString],
         interfaceSymbol: SymbolID,
@@ -1165,7 +1222,7 @@ extension DataFlowSemaPhase {
             kind: .function,
             name: methodName,
             fqName: forwardingFQName,
-            declSite: classDecl.range,
+            declSite: range,
             visibility: methodSym.visibility,
             flags: [.synthetic, .overrideMember]
         )
@@ -1198,7 +1255,7 @@ extension DataFlowSemaPhase {
                 kind: .valueParameter,
                 name: paramName,
                 fqName: paramFQName,
-                declSite: classDecl.range,
+                declSite: range,
                 visibility: .private,
                 flags: []
             )
@@ -1238,7 +1295,7 @@ extension DataFlowSemaPhase {
     private func synthesizeForwardingProperty(
         propertySym: SemanticSymbol,
         propertyType: TypeID,
-        classDecl: ClassDecl,
+        range: SourceRange,
         classSymbol: SymbolID,
         classFQName: [InternedString],
         interfaceSymbol: SymbolID,
@@ -1257,7 +1314,7 @@ extension DataFlowSemaPhase {
             kind: .property,
             name: propertySym.name,
             fqName: classFQName + [propertySym.name],
-            declSite: classDecl.range,
+            declSite: range,
             visibility: propertySym.visibility,
             flags: flags
         )
@@ -1295,51 +1352,6 @@ extension DataFlowSemaPhase {
               let decl = ast.arena.decl(declID),
               let symbolInfo = symbols.symbol(symbol)
         else {
-            return
-        }
-
-        // Recursively validate nested classes
-        switch decl {
-        case let .classDecl(classDecl):
-            for nestedDeclID in classDecl.nestedClasses {
-                validateAbstractOverridesForDecl(
-                    declID: nestedDeclID,
-                    file: file,
-                    ast: ast,
-                    symbols: symbols,
-                    bindings: bindings,
-                    types: types,
-                    diagnostics: diagnostics,
-                    interner: interner
-                )
-            }
-        case let .interfaceDecl(interfaceDecl):
-            for nestedDeclID in interfaceDecl.nestedClasses {
-                validateAbstractOverridesForDecl(
-                    declID: nestedDeclID,
-                    file: file,
-                    ast: ast,
-                    symbols: symbols,
-                    bindings: bindings,
-                    types: types,
-                    diagnostics: diagnostics,
-                    interner: interner
-                )
-            }
-        case let .objectDecl(objectDecl):
-            for nestedDeclID in objectDecl.nestedClasses {
-                validateAbstractOverridesForDecl(
-                    declID: nestedDeclID,
-                    file: file,
-                    ast: ast,
-                    symbols: symbols,
-                    bindings: bindings,
-                    types: types,
-                    diagnostics: diagnostics,
-                    interner: interner
-                )
-            }
-        default:
             return
         }
 

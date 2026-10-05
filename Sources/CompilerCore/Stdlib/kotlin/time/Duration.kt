@@ -30,9 +30,6 @@ public value class Duration internal constructor(internal val rawValue: Long) {
     public override fun toString(): String = durationToString(rawValue)
 
     public companion object {
-        // Companion-scope numeric extensions are part of the public kotlin.time API.
-        // The package-level aliases below remain for existing source files that use
-        // the short form without importing Duration.Companion.*.
         public fun convert(value: Double, sourceUnit: DurationUnit, targetUnit: DurationUnit): Double {
             val sourceScale = durationUnitScale(sourceUnit).toDouble()
             val targetScale = durationUnitScale(targetUnit).toDouble()
@@ -62,32 +59,6 @@ public value class Duration internal constructor(internal val rawValue: Long) {
         public val Double.days: Duration get() = toDuration(DurationUnit.DAYS)
     }
 }
-
-// Keep the legacy package-level spelling available to bundled implementation
-// sources. The public Kotlin API exposes the same extensions through
-// `Duration.Companion`; these aliases are a source-compatibility bridge for
-// code that predates that migration.
-public val Int.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
-public val Long.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
-public val Double.nanoseconds: Duration get() = toDuration(DurationUnit.NANOSECONDS)
-public val Int.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
-public val Long.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
-public val Double.microseconds: Duration get() = toDuration(DurationUnit.MICROSECONDS)
-public val Int.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
-public val Long.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
-public val Double.milliseconds: Duration get() = toDuration(DurationUnit.MILLISECONDS)
-public val Int.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
-public val Long.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
-public val Double.seconds: Duration get() = toDuration(DurationUnit.SECONDS)
-public val Int.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
-public val Long.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
-public val Double.minutes: Duration get() = toDuration(DurationUnit.MINUTES)
-public val Int.hours: Duration get() = toDuration(DurationUnit.HOURS)
-public val Long.hours: Duration get() = toDuration(DurationUnit.HOURS)
-public val Double.hours: Duration get() = toDuration(DurationUnit.HOURS)
-public val Int.days: Duration get() = toDuration(DurationUnit.DAYS)
-public val Long.days: Duration get() = toDuration(DurationUnit.DAYS)
-public val Double.days: Duration get() = toDuration(DurationUnit.DAYS)
 
 private const val NANOS_PER_MICROSECOND: Long = 1_000L
 private const val NANOS_PER_MILLISECOND: Long = 1_000_000L

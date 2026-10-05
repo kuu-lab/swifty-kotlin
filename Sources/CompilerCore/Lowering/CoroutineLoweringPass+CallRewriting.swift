@@ -35,7 +35,6 @@ extension CoroutineLoweringPass {
         let continuationFactory: InternedString
         let directSuspendCallCallee: InternedString
         let launcherArgSetCallee: InternedString
-        let runtimeRunBlockingWithContCallee: InternedString
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString]
         let kxMiniLauncherWithContCallees: [InternedString: InternedString]
         let coroutineScopeLaunchCallee: InternedString
@@ -148,7 +147,7 @@ extension CoroutineLoweringPass {
         wrapperBody.append(
             .call(
                 symbol: nil,
-                callee: rewrite.runtimeRunBlockingWithContCallee,
+                callee: rewrite.ctx.interner.intern("kk_coroutine_call_suspend_wrapper"),
                 arguments: [entryPointExpr, continuationExpr],
                 result: callResult,
                 canThrow: true,

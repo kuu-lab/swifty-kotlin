@@ -729,6 +729,7 @@ extension ExprLowerer {
                    sema.symbols.symbol(ownerSymbol)?.kind == .object,
                    sema.symbols.propertyHasCustomGetter(for: symbol)
                        || sema.symbols.extensionPropertyGetterAccessor(for: symbol) != nil
+                       || sema.symbols.classDelegationForwardingPropertyInfo(for: symbol) != nil
                 {
                     let ownerType = sema.types.make(.classType(ClassType(
                         classSymbol: ownerSymbol,
@@ -1842,6 +1843,23 @@ extension ExprLowerer {
                     // readLocalDelegateValue) rather than caching, so a
                     // vetoable-style delegate rejecting this write is
                     // observed correctly with no extra bookkeeping here.
+                } else if sema.symbols.classDelegationForwardingPropertyInfo(for: symbol) != nil,
+                          let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                          sema.symbols.symbol(ownerSymbol)?.kind == .object
+                {
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol, args: [], nullability: .nonNull
+                    )))
+                    let receiver = arena.appendExpr(.symbolRef(ownerSymbol), type: ownerType)
+                    instructions.append(.constValue(result: receiver, value: .symbolRef(ownerSymbol)))
+                    instructions.append(.call(
+                        symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                        callee: interner.intern("set"),
+                        arguments: [receiver, valueID],
+                        result: nil,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
                 } else if let symInfo = sema.symbols.symbol(symbol), symInfo.kind == .property || symInfo.kind == .field, {
                     let p = sema.symbols.parentSymbol(for: symbol)
                     let pk = p.flatMap { sema.symbols.symbol($0) }?.kind

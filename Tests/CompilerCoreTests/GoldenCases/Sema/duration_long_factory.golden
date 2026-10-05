@@ -4,13 +4,13 @@ symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ par
 file fduration_long_factory package=_
   decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
 expr e@6:14 long(5) type=Long
-expr e@6:14#1 memberCall recv=e@6:14 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.seconds.$get[kind=fun;recv=Long;params=]
+expr e@6:14#1 memberCall recv=e@6:14 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Long;params=]
 expr e@6:5 localDecl d1 mutable=0 type=_ init=e@6:14#1 type=Unit ref=__local_0.d1[kind=local]
 expr e@7:13 name(d1) type=kotlin.time.Duration ref=__local_0.d1[kind=local]
 expr e@7:13#1 memberCall recv=e@7:13 callee=inWholeSeconds args=[] type=Long call=kotlin.time.inWholeSeconds.$get[kind=fun;recv=kotlin.time.Duration;params=]
 expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@8:14 long(2500) type=Long
-expr e@8:14#1 memberCall recv=e@8:14 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.milliseconds.$get[kind=fun;recv=Long;params=]
+expr e@8:14#1 memberCall recv=e@8:14 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Long;params=]
 expr e@8:5 localDecl d2 mutable=0 type=_ init=e@8:14#1 type=Unit ref=__local_1.d2[kind=local]
 expr e@9:13 name(d2) type=kotlin.time.Duration ref=__local_1.d2[kind=local]
 expr e@9:13#1 memberCall recv=e@9:13 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=]
