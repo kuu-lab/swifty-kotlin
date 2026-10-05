@@ -12,6 +12,15 @@ import Testing
 
 private nonisolated(unsafe) var _catchTypeResolutionCtx: (ctx: CompilationContext, paths: [String])?
 
+private let qualifiedCatchTypeNames = [
+    "kotlin.IllegalStateException",
+    "kotlin.UninitializedPropertyAccessException",
+    "kotlin.RuntimeException",
+    "kotlin.Throwable",
+    "java.io.IOException",
+    "kotlinx.io.EOFException",
+]
+
 private func sharedCatchTypeResolutionCtx() throws -> (ctx: CompilationContext, paths: [String]) {
     if let cached = _catchTypeResolutionCtx { return cached }
     let sources: [String] = [
@@ -74,7 +83,19 @@ private func sharedCatchTypeResolutionCtx() throws -> (ctx: CompilationContext, 
                 }
             }
         """,
-    ]
+    ] + qualifiedCatchTypeNames.enumerated().map { index, typeName in
+        """
+            package catchqualified\(index)
+
+            fun catchQualified(): String {
+                return try {
+                    "try"
+                } catch (e: \(typeName)) {
+                    "catch"
+                }
+            }
+        """
+    }
     var result: (ctx: CompilationContext, paths: [String])?
     try withTemporaryFiles(contents: sources) { paths in
         let ctx = makeCompilationContext(inputs: paths)
@@ -170,7 +191,31 @@ struct CatchClauseTypeResolutionTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0085", in: diagnosticsForPath(paths[4], in: ctx))
     }
 
-    @Test func testUnresolvedCatchTypeStillEmitsSema0085() throws {
+    @Test(arguments: qualifiedCatchTypeNames.indices)
+    func testPackageQualifiedCatchTypePreservesPathAndClassSymbol(index: Int) throws {
+        let (ctx, paths) = try sharedCatchTypeResolutionCtx()
+        let path = paths[5 + index]
+        let typeName = qualifiedCatchTypeNames[index]
+        let expectedPath = typeName.split(separator: ".").map(String.init)
+        let ast = try #require(ctx.ast)
+        let tryExprID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+            if case .tryExpr = expr { return true }
+            return false
+        })
+        guard case let .tryExpr(_, clauses, _, _)? = ast.arena.expr(tryExprID),
+              let typeRef = clauses.first?.paramType,
+              case let .named(parsedPath, _, _)? = ast.arena.typeRef(typeRef)
+        else {
+            Issue.record("Expected named catch parameter type for \(typeName)")
+            return
+        }
+        #expect(parsedPath.map { ctx.interner.resolve($0) } == expectedPath)
+        #expect(try catchParamClassSymbol(in: ctx, path: path) == requireClassSymbol(expectedPath, in: ctx))
+        #expect(diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }.isEmpty)
+    }
+
+    @Test(arguments: ["NonExistentException", "kotlin.NonExistentException", "missing.IllegalStateException", "missing.io.IOException"])
+    func testUnresolvedCatchTypeStillEmitsSema0085(typeName: String) throws {
         var diagnosticsByPath: [Diagnostic] = []
         try withTemporaryFiles(contents: [
             """
@@ -178,7 +223,7 @@ struct CatchClauseTypeResolutionTests {
                 fun f(): String {
                     return try {
                         "try"
-                    } catch (e: NonExistentException) {
+                    } catch (e: \(typeName)) {
                         "catch"
                     }
                 }
@@ -189,6 +234,10 @@ struct CatchClauseTypeResolutionTests {
             diagnosticsByPath = diagnosticsForPath(paths[0], in: ctx)
         }
         assertHasDiagnostic("KSWIFTK-SEMA-0085", in: diagnosticsByPath)
+        #expect(diagnosticsByPath.contains {
+            $0.code == "KSWIFTK-SEMA-0085"
+                && $0.message == "Unresolved exception type '\(typeName)' in catch clause."
+        })
     }
 }
 #endif
