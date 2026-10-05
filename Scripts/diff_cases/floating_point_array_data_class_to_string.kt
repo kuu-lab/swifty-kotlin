@@ -10,5 +10,5 @@ fun main() {
     println(FloatingArrays(doubles, floats))
     println(NullableFloatingArrays(doubles, floats))
     println(NullableFloatingArrays(null, null))
-    println(arrayOf(doubles, floats).contentDeepToString())
+    println(arrayOf<Any>(doubles, floats).contentDeepToString())
 }

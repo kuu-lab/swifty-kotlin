@@ -26,7 +26,7 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
             println(listOf(d, f))
             println(setOf(d))
             println(mapOf("f" to f))
-            println(arrayOf(d, f).contentToString())
+            println(arrayOf<Any>(d, f).contentToString())
             println(Arrays(d, f).toString())
             println(Arrays(d, f))
             println(NullableArrays(d, f))
