@@ -99,12 +99,12 @@ struct SequenceFactoryLifecycleTests {
     }
 
     @Test(arguments: [
-        ("iterator = iterator<String?> { yield(null) }", "iterator"),
-        ("elements = listOf<String?>(null)", "elements"),
-        ("sequence = sequenceOf<String?>(null)", "sequence"),
+        ("Iterator<String?>", "iterator"),
+        ("Iterable<String?>", "elements"),
+        ("Sequence<String?>", "sequence"),
     ])
     func nullableYieldAllUsesCanonicalScopeAndParameterNames(argument: String, parameter: String) throws {
-        let source = "fun probe() = sequence<String?> { yieldAll(\(argument)) }"
+        let source = "suspend fun SequenceScope<String?>.probe(values: \(argument)) { this.yieldAll(\(parameter) = values) }"
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -112,9 +112,7 @@ struct SequenceFactoryLifecycleTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
-                guard case let .call(callee, _, _, _) = expr,
-                      case let .nameRef(name, _) = ast.arena.expr(callee)
-                else { return false }
+                guard case let .memberCall(_, name, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(name) == "yieldAll"
             })
             let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
