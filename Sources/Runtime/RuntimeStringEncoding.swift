@@ -2,6 +2,7 @@
 // Split out from `RuntimeStringStdlib.swift`.
 
 import Foundation
+import RuntimeABI
 
 enum CharsetTag: Int {
     case utf8 = 0
@@ -31,7 +32,7 @@ public func __kk_string_toByteArray_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 @_cdecl("__kk_charset_utf_8")
 public func __kk_charset_utf_8() -> Int { CharsetTag.utf8.rawValue }
@@ -66,12 +67,12 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
         // Unknown charset — fall back to UTF-8. Sema types this as List<Int>.
-        return runtimeMakeListRaw(source.utf8.map { runtimeSignedByteValue(Int($0)) })
+        return runtimeMakeListRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { runtimeSignedByteValue(Int($0)) })
     }
     let bytes: [Int]
     switch tag {
     case .utf8:
-        bytes = source.utf8.map(Int.init)
+        bytes = KotlinStringSurrogateEncoding.unicodeString(source).utf8.map(Int.init)
     case .iso8859_1:
         // ISO-8859-1: each UTF-16 code unit <= 0xFF maps 1:1; others replaced with '?'
         // Using utf16 (not unicodeScalars) to match Kotlin/JVM semantics where
@@ -109,7 +110,7 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
     case .utf32:
         // UTF-32 with BOM (big-endian)
         var result: [Int] = [0x00, 0x00, 0xFE, 0xFF] // BOM
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int((v >> 24) & 0xFF))
             result.append(Int((v >> 16) & 0xFF))
@@ -119,7 +120,7 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
         bytes = result
     case .utf32be:
         var result: [Int] = []
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int((v >> 24) & 0xFF))
             result.append(Int((v >> 16) & 0xFF))
@@ -129,7 +130,7 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
         bytes = result
     case .utf32le:
         var result: [Int] = []
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int(v & 0xFF))
             result.append(Int((v >> 8) & 0xFF))
@@ -152,12 +153,12 @@ public func __kk_string_toByteArray_charset_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
-        return runtimeMakeArrayRaw(source.utf8.map { runtimeSignedByteValue(Int($0)) })
+        return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { runtimeSignedByteValue(Int($0)) })
     }
     let bytes: [Int]
     switch tag {
     case .utf8:
-        bytes = source.utf8.map(Int.init)
+        bytes = KotlinStringSurrogateEncoding.unicodeString(source).utf8.map(Int.init)
     case .iso8859_1:
         bytes = runtimeKotlinStringUTF16CodeUnits(source).map { unit in
             unit <= 0xFF ? Int(unit) : Int(UInt8(ascii: "?"))
@@ -189,7 +190,7 @@ public func __kk_string_toByteArray_charset_flat(
         bytes = result
     case .utf32:
         var result: [Int] = [0x00, 0x00, 0xFE, 0xFF]
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int((v >> 24) & 0xFF))
             result.append(Int((v >> 16) & 0xFF))
@@ -199,7 +200,7 @@ public func __kk_string_toByteArray_charset_flat(
         bytes = result
     case .utf32be:
         var result: [Int] = []
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int((v >> 24) & 0xFF))
             result.append(Int((v >> 16) & 0xFF))
@@ -209,7 +210,7 @@ public func __kk_string_toByteArray_charset_flat(
         bytes = result
     case .utf32le:
         var result: [Int] = []
-        for scalar in source.unicodeScalars {
+        for scalar in KotlinStringSurrogateEncoding.unicodeString(source).unicodeScalars {
             let v = scalar.value
             result.append(Int(v & 0xFF))
             result.append(Int((v >> 8) & 0xFF))
@@ -228,7 +229,7 @@ public func __kk_string_encodeToByteArray_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
@@ -244,7 +245,7 @@ public func __kk_string_encodeToByteArray_range_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let slice = runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
-    return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(KotlinStringSurrogateEncoding.unicodeString(slice).utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
@@ -295,12 +296,12 @@ private func runtimeDecodeUTF8Bytes(
 ) -> Int {
     if throwOnInvalidSequence {
         if let decoded = String(data: Data(bytes), encoding: .utf8) {
-            return runtimeMakeStringRaw(decoded)
+            return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(decoded))
         }
         outThrown?.pointee = runtimeAllocateMalformedInputException()
         return runtimeMakeStringRaw("")
     }
-    return runtimeMakeStringRaw(String(decoding: bytes, as: UTF8.self))
+    return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(String(decoding: bytes, as: UTF8.self)))
 }
 
 private func runtimeDecodeByteArrayRange(
@@ -343,7 +344,7 @@ public func __kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     // Use String(decoding:as:) for UTF-8 replacement decoding: malformed
     // sequences produce U+FFFD instead of returning nil/empty.
     let decoded = String(decoding: bytes, as: UTF8.self)
-    return runtimeMakeStringRaw(decoded)
+    return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(decoded))
 }
 
 // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex)
@@ -425,5 +426,5 @@ public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: In
     default:
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString_charset unsupported charset ID \(charsetId)")
     }
-    return runtimeMakeStringRaw(decoded)
+    return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(decoded))
 }

@@ -1896,7 +1896,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return runtimeFormatFloatingPoint(doubleBox.value)
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-        return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+        return runtimeCharacterFromRaw(charBox.value)
     }
     if let override = runtimeAnyToStringOverrideText(elem) {
         return override
@@ -2003,7 +2003,7 @@ func runtimeElementToString(_ value: RuntimeValue) -> String {
             hash: value.payload3
         )
     case RuntimeValue.charTag:
-        return UnicodeScalar(value.payload0).map(String.init) ?? "?"
+        return runtimeCharacterFromRaw(value.payload0)
     default:
         return runtimeElementToString(value.payload0)
     }
