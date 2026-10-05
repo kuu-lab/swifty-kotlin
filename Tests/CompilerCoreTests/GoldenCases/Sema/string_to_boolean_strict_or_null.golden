@@ -1,6 +1,6 @@
-symbol fq=golden.sema.parseStrictOrNull.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.parseStrictOrNull[kind=fun;params=String] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Boolean?
+symbol fq=golden.sema.parseStrictOrNull.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.parseStrictOrNull[kind=fun;params=String;ret=Boolean?;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Boolean?
 file fstring_to_boolean_strict_or_null package=golden.sema
-  decl golden.sema.parseStrictOrNull[kind=fun;params=String] fun parseStrictOrNull sym=golden.sema.parseStrictOrNull[kind=fun;params=String]
-expr e@3:50 name(value) type=String ref=golden.sema.parseStrictOrNull.$0.value[kind=vparam]
-expr e@3:50#1 memberCall recv=e@3:50 callee=toBooleanStrictOrNull args=[] type=Boolean? call=kotlin.text.toBooleanStrictOrNull[kind=fun;recv=String;params=]
+  decl golden.sema.parseStrictOrNull[kind=fun;params=String;ret=Boolean?;names=[value];origin=fixture] fun parseStrictOrNull sym=golden.sema.parseStrictOrNull[kind=fun;params=String;ret=Boolean?;names=[value];origin=fixture]
+expr e@3:50 name(value) type=String ref=golden.sema.parseStrictOrNull.$0.value[kind=vparam;origin=fixture]
+expr e@3:50#1 memberCall recv=e@3:50 callee=toBooleanStrictOrNull args=[] type=Boolean? call=kotlin.text.toBooleanStrictOrNull[kind=fun;recv=String;params=;ret=Boolean?]

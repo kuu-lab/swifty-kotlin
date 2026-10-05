@@ -1,20 +1,20 @@
-symbol fq=__local_0.fromSize[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLongArray
-symbol fq=__local_1.fromArray[kind=local] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLongArray
-symbol fq=golden.sema.atomicLongArrayConstructors.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.LongArray] ret=Long
+symbol fq=__local_0.fromSize[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLongArray
+symbol fq=__local_1.fromArray[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.concurrent.atomics.AtomicLongArray
+symbol fq=golden.sema.atomicLongArrayConstructors.$0.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray;ret=Long;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.LongArray] ret=Long
 file fstdlib_kotlin_concurrent_atomics_AtomicLongArray_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
-  decl golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray] fun atomicLongArrayConstructors sym=golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray]
+  decl golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray;ret=Long;names=[values];origin=fixture] fun atomicLongArrayConstructors sym=golden.sema.atomicLongArrayConstructors[kind=fun;params=kotlin.LongArray;ret=Long;names=[values];origin=fixture]
 expr e@8:36 int(3) type=Int
-expr e@8:20 call callee=e@8:20#1 args=[_:e@8:36] type=kotlin.concurrent.atomics.AtomicLongArray call=kotlin.concurrent.atomics.AtomicLongArray[kind=fun;params=Int]
-expr e@8:5 localDecl fromSize mutable=0 type=_ init=e@8:20 type=Unit ref=__local_0.fromSize[kind=local]
-expr e@9:37 name(values) type=kotlin.LongArray ref=golden.sema.atomicLongArrayConstructors.$0.values[kind=vparam]
-expr e@9:21 call callee=e@9:21#1 args=[_:e@9:37] type=kotlin.concurrent.atomics.AtomicLongArray call=kotlin.concurrent.atomics.AtomicLongArray[kind=fun;params=kotlin.LongArray]
-expr e@9:5 localDecl fromArray mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.fromArray[kind=local]
-expr e@10:12 name(fromSize) type=kotlin.concurrent.atomics.AtomicLongArray ref=__local_0.fromSize[kind=local]
+expr e@8:20 call callee=e@8:20#1 args=[_:e@8:36] type=kotlin.concurrent.atomics.AtomicLongArray call=kotlin.concurrent.atomics.AtomicLongArray[kind=fun;params=Int;ret=kotlin.concurrent.atomics.AtomicLongArray;names=[size]]
+expr e@8:5 localDecl fromSize mutable=0 type=_ init=e@8:20 type=Unit ref=__local_0.fromSize[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture]
+expr e@9:37 name(values) type=kotlin.LongArray ref=golden.sema.atomicLongArrayConstructors.$0.values[kind=vparam;origin=fixture]
+expr e@9:21 call callee=e@9:21#1 args=[_:e@9:37] type=kotlin.concurrent.atomics.AtomicLongArray call=kotlin.concurrent.atomics.AtomicLongArray[kind=fun;params=kotlin.LongArray;ret=kotlin.concurrent.atomics.AtomicLongArray;names=[array]]
+expr e@9:5 localDecl fromArray mutable=0 type=_ init=e@9:21 type=Unit ref=__local_1.fromArray[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture]
+expr e@10:12 name(fromSize) type=kotlin.concurrent.atomics.AtomicLongArray ref=__local_0.fromSize[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture]
 expr e@10:28 int(0) type=Int
-expr e@10:12#1 memberCall recv=e@10:12 callee=loadAt args=[_:e@10:28] type=Long call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int]
-expr e@10:33 name(fromArray) type=kotlin.concurrent.atomics.AtomicLongArray ref=__local_1.fromArray[kind=local]
+expr e@10:12#1 memberCall recv=e@10:12 callee=loadAt args=[_:e@10:28] type=Long call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int;ret=Long;names=[index]]
+expr e@10:33 name(fromArray) type=kotlin.concurrent.atomics.AtomicLongArray ref=__local_1.fromArray[kind=local;type=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture]
 expr e@10:50 int(1) type=Int
-expr e@10:33#1 memberCall recv=e@10:33 callee=loadAt args=[_:e@10:50] type=Long call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int]
+expr e@10:33#1 memberCall recv=e@10:33 callee=loadAt args=[_:e@10:50] type=Long call=kotlin.concurrent.atomics.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicLongArray;params=Int;ret=Long;names=[index]]
 expr e@10:12#2 binary(add) lhs=e@10:12#1 rhs=e@10:33#1 type=Long
 expr e@10:5 return value=e@10:12#2 type=Nothing
