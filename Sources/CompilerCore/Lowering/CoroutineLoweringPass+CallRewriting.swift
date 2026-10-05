@@ -300,6 +300,7 @@ extension CoroutineLoweringPass {
             if let withContextInstructions = rewriteWithContextCall(
                 call: call,
                 symbolByExprRaw: symbolByExprRaw,
+                functionValueInfoByExprRaw: functionValueInfoByExprRaw,
                 using: rewrite
             ) {
                 loweredBody.append(contentsOf: withContextInstructions)
@@ -867,6 +868,7 @@ extension CoroutineLoweringPass {
     func rewriteWithContextCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
+        functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         guard call.callee == rewrite.withContextCallee,
@@ -875,7 +877,7 @@ extension CoroutineLoweringPass {
                   for: call.arguments[1],
                   module: rewrite.module,
                   propagatedSymbols: symbolByExprRaw
-              ),
+              ) ?? functionValueInfoByExprRaw[call.arguments[1].rawValue]?.symbol,
               let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
             return nil
