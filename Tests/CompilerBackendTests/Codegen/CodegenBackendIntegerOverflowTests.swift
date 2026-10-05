@@ -142,6 +142,55 @@ struct CodegenBackendIntegerOverflowTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func testCodegenScopedByteShortBitwiseExtensions(artifact: Bool) throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/byte_short_bitwise_extensions.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ScopedByteShortBitwiseExtensions",
+            expected: """
+            42
+            43
+            44
+            45
+            short and
+            short or
+            short xor
+            short inv
+            10
+            95
+            85
+            -91
+            52
+            4863
+            4811
+            -4661
+            42
+            43
+            44
+            45
+            short and
+            short or
+            short xor
+            short inv
+            10
+            -91
+            4863
+            -4661
+            null
+            null
+            null
+            null
+            0
+            """ + "\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
     @Test
     func testCodegenLongArithmeticStays64Bit() throws {
         let source = """

@@ -8,6 +8,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     let interner: StringInterner
     var scope: Scope
     var implicitReceiverType: TypeID?
+    /// Receiver values in lexical order, including shadowed lambda receivers.
+    var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
     var builderInference: BuilderInferenceSession?
     var loopDepth: Int
     var loopLabelStack: [InternedString]

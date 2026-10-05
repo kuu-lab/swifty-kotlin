@@ -1854,6 +1854,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if elem == runtimeNullSentinelInt {
         return "null"
     }
+    if let description = runtimeFunctionDescription(elem) {
+        return description
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: elem) else {
         return "\(elem)"
     }
