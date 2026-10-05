@@ -331,7 +331,10 @@ extension CallTypeChecker {
         }
 
         return PreparedCallArguments(
-            argTypes: refinedArgTypes,
+            argTypes: collectPostponedArgumentConstraints(
+                args: args, argTypes: refinedArgTypes, candidates: candidates,
+                ctx: ctx
+            ),
             lambdaLiteralIndices: lambdaLiteralIndices,
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
             blockedLambdaRefinement: blockedLambdaRefinement,
