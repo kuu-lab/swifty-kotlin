@@ -143,6 +143,31 @@ struct CallableRefTypeIdentityTests {
         #expect(classType.args.count == 2, "KProperty1<Counter, Int> should carry both type arguments.")
     }
 
+    @Test(arguments: 0 ... 5)
+    func testFunctionNCastUsesAritySpecificInvoke(arity: Int) throws {
+        let parameters = (0 ..< arity).map { "p\($0): Int" }.joined(separator: ", ")
+        let typeArguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+        let arguments = Array(repeating: "1", count: arity).joined(separator: ", ")
+        let source = """
+        fun target(\(parameters)): Int = 42
+        fun main(): Int {
+            val erased: Any? = ::target
+            return (erased as Function\(arity)<\(typeArguments)>)(\(arguments))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let expectedCallee = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+        let invoke = try #require(mainBody.first {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return ctx.interner.resolve(callee) == expectedCallee
+        })
+        guard case let .call(_, _, callArguments, _, _, _, _, _) = invoke else { return }
+        #expect(callArguments.count == arity + 1)
+    }
+
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
         let source = """
         fun inc(x: Int): Int = x + 1

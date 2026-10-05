@@ -1906,14 +1906,11 @@ final class LambdaLowerer {
             return callableExpr
         }
 
-        // An implicit `::member` returned from its receiver scope outlives
-        // the KIR callable-value table: another function cannot recover its
-        // captured `this` from that compile-time map. Box it using the same
-        // closure adapter as an escaping lambda, so runtime invocation reads
-        // the receiver from the closure object.
+        // Bound references need per-value storage: the same target pointer can
+        // also represent an unbound reference with a different arity. Boxing
+        // preserves the receiver when the value escapes the KIR callable table.
         let callableValue: KIRExprID
-        if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
-           !captureArguments.isEmpty,
+        if !captureArguments.isEmpty,
            case let .functionType(functionType) = sema.types.kind(of: callableType),
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,

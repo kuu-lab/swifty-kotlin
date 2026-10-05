@@ -145,7 +145,10 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
         symbols.setParentSymbol(ownerSymbol, for: invokeSymbol)
-        symbols.setExternalLinkName("kk_function_invoke", for: invokeSymbol)
+        let invokeLinkName = arity <= 5 && arity != 1
+            ? "kk_function_invoke_\(arity)"
+            : "kk_function_invoke"
+        symbols.setExternalLinkName(invokeLinkName, for: invokeSymbol)
 
         // パラメータ型の構築
         var parameterTypes: [TypeID] = []

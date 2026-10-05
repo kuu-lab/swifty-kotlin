@@ -38,6 +38,8 @@ fun main() {
     println(identity(two) is Function2<*, *, *>)
     println(identity(six) is Function6<*, *, *, *, *, *, *>)
     println(identity(six) is Function5<*, *, *, *, *, *>)
+    println((identity(zero) as Function0<Int>)())
+    println((identity(two) as Function2<Int, Int, Int>)(2, 3))
     println(zero())
     println(two(2, 3))
     println(six(1, 2, 3, 4, 5, 6))
@@ -52,6 +54,10 @@ fun main() {
     val unbound = Adder::add
     println(identity(bound) is Function1<*, *>)
     println(identity(unbound) is Function2<*, *, *>)
+    println(identity(bound) is Function2<*, *, *>)
+    println((identity(bound) as Function1<Int, Int>)(2))
+    println((identity(unbound) as Function2<Adder, Int, Int>)(Adder(20), 2))
+    println((identity(Adder(30)::add) as Function1<Int, Int>)(2))
 
     val offset = 3
     val capturing: (Int) -> Int = { it + offset }

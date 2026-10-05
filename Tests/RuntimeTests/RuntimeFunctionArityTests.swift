@@ -49,7 +49,7 @@ struct RuntimeFunctionArityTests {
         let boxed = kk_function_create_1(0x456700, 0, nil)
         #expect(kk_op_is(boxed, functionToken(1)) == 1)
         #expect(kk_op_is(boxed, functionToken(2)) == 0)
-        let reflected = __kk_kfunction_create(0, 0x567800, 0, 2, 0, 0)
+        let reflected = __kk_kfunction_create(0, 2, 0, 0, 0x567800, 0)
         #expect(kk_op_is(reflected, functionToken(2)) == 1)
         #expect(kk_op_is(reflected, functionToken(1)) == 0)
         #expect(kk_op_is(42, functionToken(1)) == 0)
