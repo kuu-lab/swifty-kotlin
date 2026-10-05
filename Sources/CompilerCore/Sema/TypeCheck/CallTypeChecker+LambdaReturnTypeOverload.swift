@@ -704,7 +704,10 @@ extension CallTypeChecker {
         let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
         let candidates = effectiveReceiverType != nil
             ? candidates
-            : candidates.filter { sema.symbols.functionSignature(for: $0)?.receiverType == nil }
+            : candidates.filter {
+                sema.symbols.symbol($0)?.kind == .constructor
+                    || sema.symbols.functionSignature(for: $0)?.receiverType == nil
+            }
 
         var narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -798,6 +801,9 @@ extension CallTypeChecker {
         // corrupts the lambda's expected type with irreconcilable parameter
         // shapes and leaves implicit `it` untyped.
         let receiverFeasible = narrowed.filter { candidate in
+            if sema.symbols.symbol(candidate)?.kind == .constructor {
+                return true
+            }
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }
