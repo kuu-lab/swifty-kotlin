@@ -17,7 +17,7 @@ public abstract class JobSupport(active: Boolean) : Job, ChildJob, ParentJob {
         this.parent = parent
     }
 
-    public fun start(): Boolean {
+    public final override fun start(): Boolean {
         if (activeState || completedState) return false
         activeState = true
         onStart()

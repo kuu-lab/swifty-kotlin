@@ -780,16 +780,20 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     ///
     /// `body` runs after the lock is released: it dispatches the block, and
     /// `NSLock` is not recursive.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard let body = lazyStartBody, !isCompleted, !isCancelled else {
             lazyStartBody = nil
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        isBodyStarted = true
         lock.unlock()
+        completionJob.markScheduled()
         body()
+        return true
     }
 
     func markConsumedByUserCode() {
@@ -1256,15 +1260,18 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     /// STDLIB-CORO-001: Start a LAZY job by dispatching its body exactly once.
-    func startIfNeeded() {
+    @discardableResult
+    func startIfNeeded() -> Bool {
         lock.lock()
         guard state == .new, let body = lazyStartBody else {
             lock.unlock()
-            return
+            return false
         }
         lazyStartBody = nil
+        state = .active
         lock.unlock()
         body()
+        return true
     }
 
     func markBodyless() {
@@ -4441,6 +4448,17 @@ public func kk_supervisor_job_new() -> Int {
     job.isSupervisorMarker = true
     job.markStarted()
     return runtimeRegisterObject(job)
+}
+
+@_cdecl("kk_job_start")
+public func kk_job_start(_ jobHandle: Int) -> Int {
+    if let job = runtimeJobHandle(from: jobHandle) {
+        return job.startIfNeeded() ? 1 : 0
+    }
+    if let task = runtimeAsyncTask(from: jobHandle) {
+        return task.startIfNeeded() ? 1 : 0
+    }
+    return 0
 }
 
 /// Joins (waits for) a job handle to complete and releases it.

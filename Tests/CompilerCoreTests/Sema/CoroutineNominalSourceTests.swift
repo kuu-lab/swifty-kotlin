@@ -31,6 +31,11 @@ struct CoroutineNominalSourceTests {
         fun factory(): CompletableJob = Job()
         fun supervisor(): CompletableJob = SupervisorJob()
         fun deferredJob(deferred: Deferred): Job = deferred
+        fun startJob(job: Job): Boolean = job.start()
+        fun startDeferred(deferred: Deferred<Int>): Boolean = deferred.start()
+        fun startCompletable(job: CompletableJob): Boolean = job.start()
+        fun startCompletableDeferred(deferred: CompletableDeferred<Int>): Boolean = deferred.start()
+        fun startSupport(job: JobSupport): Boolean = job.start()
         fun producerScope(scope: kotlinx.coroutines.channels.ProducerScope<Int>): CoroutineContext = scope.coroutineContext
         fun actorScope(scope: kotlinx.coroutines.channels.ActorScope<Int>): CoroutineContext = scope.coroutineContext
         """
@@ -79,5 +84,15 @@ struct CoroutineNominalSourceTests {
         let active = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("isActive")]))
         #expect(sema.symbols.parentSymbol(for: active) == job)
         #expect(sema.symbols.externalLinkName(for: active) == "kk_job_is_active")
+        let starts = sema.symbols.lookupAll(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("start")])
+        #expect(starts.count == 1)
+        let start = try #require(starts.first)
+        #expect(sema.symbols.parentSymbol(for: start) == job)
+        #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+        let signature = try #require(sema.symbols.functionSignature(for: start))
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType == sema.types.booleanType)
+        #expect(!signature.isSuspend)
+        #expect(sema.symbols.sourceFileID(for: start) != nil)
     }
 }

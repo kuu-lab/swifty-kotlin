@@ -2072,6 +2072,17 @@ extension DataFlowSemaPhase {
             symbols.setTypeAliasUnderlyingType(receiveChannelUnderlyingType, for: receiveChannelAliasSymbol)
         }
 
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("Job")], name: interner.intern("start"), arity: 0) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: jobSymbol,
+                ownerType: jobType,
+                name: "start",
+                externalLinkName: "kk_job_start",
+                returnType: types.booleanType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerSyntheticCoroutineMember(
             ownerSymbol: jobSymbol,
             ownerType: jobType,
