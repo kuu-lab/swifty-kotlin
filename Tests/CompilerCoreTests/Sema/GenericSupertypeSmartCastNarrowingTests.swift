@@ -16,7 +16,7 @@ import Testing
 /// against its function's declared return type unless it sat inside a lambda.
 @Suite
 struct GenericSupertypeSmartCastNarrowingTests {
-    @Test func testImmutablePrimitiveInitializerUsesConcreteCharCompareTo() throws {
+    @Test func testImmutableCharInitializerPreservesDeclaredComparableType() throws {
         let ctx = makeContextFromSource("""
         fun probe(): Int {
             val value: Comparable<Char> = 'z'
@@ -32,14 +32,14 @@ struct GenericSupertypeSmartCastNarrowingTests {
             return ctx.interner.resolve(callee) == "compareTo"
         })
         let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
-        #expect(sema.symbols.externalLinkName(for: chosen) == "kk_char_compareTo")
+        #expect(sema.symbols.externalLinkName(for: chosen) == "__kk_comparable_compareTo")
         guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call) else {
             Issue.record("Expected member call")
             return
         }
-        #expect(sema.bindings.exprType(for: receiver) == sema.types.charType)
         let local = try #require(sema.bindings.identifierSymbol(for: receiver))
-        #expect(sema.symbols.propertyType(for: local) != sema.types.charType)
+        #expect(sema.bindings.exprType(for: receiver) == sema.symbols.propertyType(for: local))
+        #expect(sema.bindings.exprType(for: receiver) != sema.types.charType)
     }
 
     @Test func testPrimitiveInitializerDoesNotNarrowMutableOrNullInitializers() throws {
@@ -55,7 +55,7 @@ struct GenericSupertypeSmartCastNarrowingTests {
         #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test func testImmutablePrimitiveInitializerNarrowsOtherPrimitiveTypes() throws {
+    @Test func testExplicitScalarDeclarationsDoNotGainPrimitiveMembers() throws {
         let ctx = makeContextFromSource("""
         fun probe(): Int {
             val character: Any = 'z'
@@ -64,7 +64,7 @@ struct GenericSupertypeSmartCastNarrowingTests {
         }
         """)
         try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.hasError)
     }
 
     @Test func testSmartCastToUnparameterizedSubtypePreservesSharedTypeParameter() throws {

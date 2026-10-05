@@ -4,6 +4,8 @@ fun <T : Comparable<T>> compareGeneric(lhs: T, rhs: T): Int = lhs.compareTo(rhs)
 
 fun compareComparable(lhs: Comparable<Char>, rhs: Char): Int = lhs.compareTo(rhs)
 
+fun asComparable(value: Char): Comparable<Char> = value
+
 fun main() {
     println('z'.compareTo('a'))
     println('a'.compareTo('z'))
@@ -25,8 +27,10 @@ fun main() {
     println(nullable?.compareTo('a'))
     val missing: Char? = null
     println(missing?.compareTo('a'))
-    val comparable: Comparable<Char> = 'z'
+    val comparable: Comparable<Char> = asComparable('z')
     println(comparable.compareTo('a'))
+    println(comparable)
+    println(compareComparable(comparable, 'a'))
     println(compareGeneric('z', 'a'))
     println(compareGeneric('a', 'z'))
     println(compareGeneric(Char.MAX_VALUE, Char.MIN_VALUE))
