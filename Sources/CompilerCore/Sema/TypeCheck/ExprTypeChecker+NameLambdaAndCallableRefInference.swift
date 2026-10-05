@@ -1503,6 +1503,7 @@ extension ExprTypeChecker {
             return expectedReturnType
         }()
         let returnScope = LambdaReturnInferenceScope(
+            exprID: id,
             label: label,
             expectedReturnType: expectedFunctionType?.returnType == sema.types.unitType
                 ? sema.types.unitType : bodyExpectedType

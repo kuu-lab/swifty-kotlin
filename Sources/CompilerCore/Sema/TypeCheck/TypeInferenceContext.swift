@@ -1,10 +1,12 @@
 /// Shared by copied contexts so nested returns contribute to their actual target.
 final class LambdaReturnInferenceScope {
+    let exprID: ExprID
     let label: InternedString?
     let expectedReturnType: TypeID?
     var returnValueTypes: [ExprID: TypeID] = [:]
 
-    init(label: InternedString?, expectedReturnType: TypeID?) {
+    init(exprID: ExprID, label: InternedString?, expectedReturnType: TypeID?) {
+        self.exprID = exprID
         self.label = label
         self.expectedReturnType = expectedReturnType
     }

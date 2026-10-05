@@ -1628,8 +1628,11 @@ public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
-    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    /// Actual lambda destination and the boundaries crossed to reach it.
     /// Validated after overload resolution has bound the containing calls.
+    public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
+    public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
@@ -1847,6 +1850,11 @@ public final class BindingTable {
     func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
         identifierSymbols[expr] = symbol
         functionReturnLambdaPaths[expr] = lambdaPath
+    }
+
+    func bindLambdaReturn(_ expr: ExprID, target: ExprID, lambdaPath: [ExprID]) {
+        lambdaReturnTargets[expr] = target
+        lambdaReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
