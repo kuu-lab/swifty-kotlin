@@ -871,8 +871,8 @@ extension LoweringPassRegressionTests {
 
     // MARK: - produce/actor Function-Value Block Tests
 
-    @Test(arguments: [0, 42])
-    func testProduceLaunchFunctionValuePacksCapturesIntoEnvArg(captureValue: Int64) throws {
+    @Test(arguments: [false, true], [0, 42])
+    func testProduceLaunchFunctionValuePacksCapturesIntoEnvArg(hasClosureParam: Bool, captureValue: Int64) throws {
         // Simulates KUU-951: `produce(block = f)` where `f` is a stored
         // suspend function value capturing `x`. The value's thunk is
         // capture-first, so `__kk_produce_launch` must be invoked with the
@@ -930,7 +930,7 @@ extension LoweringPassRegressionTests {
             symbol: suspendSymbol,
             callee: interner.intern("named_suspend_block"),
             captureArguments: [captureExpr],
-            hasClosureParam: false
+            hasClosureParam: hasClosureParam
         )
 
         let mainID = arena.appendDecl(.function(mainFn))
@@ -970,8 +970,8 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    @Test
-    func testProduceLaunchOpaqueFunctionValuePreservesRuntimeABI() throws {
+    @Test(arguments: [false, true])
+    func testProduceLaunchOpaqueFunctionValuePreservesBox(hasEnvironment: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -981,7 +981,8 @@ extension LoweringPassRegressionTests {
         let suspendParamSymbol = SymbolID(rawValue: 842)
 
         let channelExpr = arena.appendExpr(.intLiteral(7))
-        let suspendRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
+        let suspendRefExpr = arena.appendTemporary(type: types.anyType)
+        let environmentExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
         let produceResult = arena.appendExpr(.temporary(3))
 
         let mainFn = KIRFunction(
@@ -995,7 +996,9 @@ extension LoweringPassRegressionTests {
                 .call(
                     symbol: nil,
                     callee: interner.intern("__kk_produce_launch"),
-                    arguments: [channelExpr, suspendRefExpr],
+                    arguments: hasEnvironment
+                        ? [channelExpr, suspendRefExpr, environmentExpr]
+                        : [channelExpr, suspendRefExpr],
                     result: produceResult,
                     canThrow: false,
                     thrownResult: nil
@@ -1039,7 +1042,11 @@ extension LoweringPassRegressionTests {
         let launchArgs = try #require(launchCalls.first)
         #expect(launchArgs.count == 3)
         #expect(launchArgs[1] == suspendRefExpr)
-        #expect(arena.expr(launchArgs[2]) == .intLiteral(0))
+        if hasEnvironment {
+            #expect(launchArgs[2] == environmentExpr)
+        } else {
+            #expect(arena.expr(launchArgs[2]) == .intLiteral(0))
+        }
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
