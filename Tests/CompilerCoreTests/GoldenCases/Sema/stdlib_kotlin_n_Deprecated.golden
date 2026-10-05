@@ -1,22 +1,22 @@
-symbol fq=golden.sema.caller[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.newApi[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.oldDefaultWarning[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.oldWarning[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.oldWithReplace[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.caller[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.newApi[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldDefaultWarning[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldWarning[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldWithReplace[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 file fstdlib_kotlin_n_Deprecated package=golden.sema
-  decl golden.sema.oldWarning[kind=fun;params=] fun oldWarning sym=golden.sema.oldWarning[kind=fun;params=]
-  decl golden.sema.oldDefaultWarning[kind=fun;params=] fun oldDefaultWarning sym=golden.sema.oldDefaultWarning[kind=fun;params=]
-  decl golden.sema.oldWithReplace[kind=fun;params=] fun oldWithReplace sym=golden.sema.oldWithReplace[kind=fun;params=]
-  decl golden.sema.newApi[kind=fun;params=] fun newApi sym=golden.sema.newApi[kind=fun;params=]
-  decl golden.sema.caller[kind=fun;params=] fun caller sym=golden.sema.caller[kind=fun;params=]
+  decl golden.sema.oldWarning[kind=fun;params=;ret=Int;origin=fixture] fun oldWarning sym=golden.sema.oldWarning[kind=fun;params=;ret=Int;origin=fixture]
+  decl golden.sema.oldDefaultWarning[kind=fun;params=;ret=Int;origin=fixture] fun oldDefaultWarning sym=golden.sema.oldDefaultWarning[kind=fun;params=;ret=Int;origin=fixture]
+  decl golden.sema.oldWithReplace[kind=fun;params=;ret=Int;origin=fixture] fun oldWithReplace sym=golden.sema.oldWithReplace[kind=fun;params=;ret=Int;origin=fixture]
+  decl golden.sema.newApi[kind=fun;params=;ret=Int;origin=fixture] fun newApi sym=golden.sema.newApi[kind=fun;params=;ret=Int;origin=fixture]
+  decl golden.sema.caller[kind=fun;params=;ret=Int;origin=fixture] fun caller sym=golden.sema.caller[kind=fun;params=;ret=Int;origin=fixture]
 expr e@4:25 int(1) type=Int
 expr e@7:32 int(2) type=Int
 expr e@10:29 int(3) type=Int
 expr e@12:21 int(4) type=Int
-expr e@14:21 call callee=e@14:21#1 args=[] type=Int call=golden.sema.oldWarning[kind=fun;params=]
-expr e@14:36 call callee=e@14:36#1 args=[] type=Int call=golden.sema.oldDefaultWarning[kind=fun;params=]
+expr e@14:21 call callee=e@14:21#1 args=[] type=Int call=golden.sema.oldWarning[kind=fun;params=;ret=Int;origin=fixture]
+expr e@14:36 call callee=e@14:36#1 args=[] type=Int call=golden.sema.oldDefaultWarning[kind=fun;params=;ret=Int;origin=fixture]
 expr e@14:21#2 binary(add) lhs=e@14:21 rhs=e@14:36 type=Int
-expr e@14:58 call callee=e@14:58#1 args=[] type=Int call=golden.sema.oldWithReplace[kind=fun;params=]
+expr e@14:58 call callee=e@14:58#1 args=[] type=Int call=golden.sema.oldWithReplace[kind=fun;params=;ret=Int;origin=fixture]
 expr e@14:21#3 binary(add) lhs=e@14:21#2 rhs=e@14:58 type=Int
-expr e@14:77 call callee=e@14:77#1 args=[] type=Int call=golden.sema.newApi[kind=fun;params=]
+expr e@14:77 call callee=e@14:77#1 args=[] type=Int call=golden.sema.newApi[kind=fun;params=;ret=Int;origin=fixture]
 expr e@14:21#4 binary(add) lhs=e@14:21#3 rhs=e@14:77 type=Int

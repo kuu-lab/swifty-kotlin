@@ -1,9 +1,9 @@
-symbol fq=golden.sema.ResourceDelegate.<init>[kind=ctor;recv=golden.sema.ResourceDelegate;params=] kind=constructor vis=public flags=_ sig=recv=golden.sema.ResourceDelegate params=[] ret=golden.sema.ResourceDelegate
-symbol fq=golden.sema.ResourceDelegate[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.resource[kind=prop] kind=property vis=public flags=_ type=String
+symbol fq=golden.sema.ResourceDelegate.<init>[kind=ctor;recv=golden.sema.ResourceDelegate;params=;ret=golden.sema.ResourceDelegate;origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.ResourceDelegate params=[] ret=golden.sema.ResourceDelegate
+symbol fq=golden.sema.ResourceDelegate[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.resource[kind=prop;type=String;origin=fixture] kind=property vis=public flags=_ type=String
 file fprovide_delegate package=golden.sema
-  decl golden.sema.ResourceDelegate[kind=class] class ResourceDelegate sym=golden.sema.ResourceDelegate[kind=class]
-  decl golden.sema.resource[kind=prop] property resource var=0 sym=golden.sema.resource[kind=prop]
+  decl golden.sema.ResourceDelegate[kind=class;origin=fixture] class ResourceDelegate sym=golden.sema.ResourceDelegate[kind=class;origin=fixture]
+  decl golden.sema.resource[kind=prop;type=String;origin=fixture] property resource var=0 sym=golden.sema.resource[kind=prop;type=String;origin=fixture]
 expr e@6:76 string(value) type=String
 expr e@7:93 this type=golden.sema.ResourceDelegate ref=s-0
-expr e@10:25 call callee=e@10:25#1 args=[] type=golden.sema.ResourceDelegate call=golden.sema.ResourceDelegate.<init>[kind=ctor;recv=golden.sema.ResourceDelegate;params=]
+expr e@10:25 call callee=e@10:25#1 args=[] type=golden.sema.ResourceDelegate call=golden.sema.ResourceDelegate.<init>[kind=ctor;recv=golden.sema.ResourceDelegate;params=;ret=golden.sema.ResourceDelegate;origin=fixture]

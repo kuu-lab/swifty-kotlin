@@ -1,156 +1,156 @@
-symbol fq=Container.Value.$iface0.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=Container.Value.read[kind=fun;recv=Container.Value<T0>;params=;gen=1] kind=function vis=public flags=_ sig=recv=Container.Value<Container.Value.$iface0.T> params=[] ret=Container.Value.$iface0.T
-symbol fq=Container.Value.value[kind=prop] kind=property vis=public flags=abstractType type=Container.Value.$iface0.T
-symbol fq=Container.Value[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=Container[kind=iface] kind=interface vis=private flags=_
-symbol fq=DoubleEntry.<init>.$0.key[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=DoubleEntry.<init>.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=DoubleEntry.<init>[kind=ctor;recv=DoubleEntry;params=String,Double] kind=constructor vis=private flags=_ sig=recv=DoubleEntry params=[String,Double] ret=DoubleEntry
-symbol fq=DoubleEntry[kind=class] kind=class vis=private flags=_
-symbol fq=EntryValue.$class0.K[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=EntryValue.$class0.V[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=EntryValue.<init>.$1.key[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=EntryValue.<init>.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;gen=2] kind=constructor vis=private flags=_ sig=recv=EntryValue<EntryValue.$class0.K, EntryValue.$class0.V> params=[EntryValue.$class0.K,EntryValue.$class0.V] ret=EntryValue<EntryValue.$class0.K, EntryValue.$class0.V>
-symbol fq=EntryValue[kind=class;gen=2] kind=class vis=private flags=_
-symbol fq=Label.VALUE[kind=field] kind=field vis=public flags=_ type=Label
-symbol fq=Label[kind=enum] kind=enumClass vis=private flags=_
-symbol fq=TextValue.<init>.$2.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=TextValue.<init>[kind=ctor;recv=TextValue;params=String] kind=constructor vis=private flags=_ sig=recv=TextValue params=[String] ret=TextValue
-symbol fq=TextValue[kind=class] kind=class vis=private flags=_
-symbol fq=ThrowingEntry.<init>[kind=ctor;recv=ThrowingEntry;params=] kind=constructor vis=private flags=_ sig=recv=ThrowingEntry params=[] ret=ThrowingEntry
-symbol fq=ThrowingEntry[kind=class] kind=class vis=private flags=_
-symbol fq=__local_0.wide[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<Any, Any>
-symbol fq=__local_1.nullable[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String?, Int?>
-symbol fq=__local_2.nested[kind=local] kind=local vis=private flags=_ type=Container.Value<String>
-symbol fq=__local_3.mutable[kind=local] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
-symbol fq=__local_4.live[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Int>
-symbol fq=__local_5.throwing[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Int>
-symbol fq=__local_6.concrete[kind=local] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Double>
-symbol fq=__try_0_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
-symbol fq=__try_1_catch_0.e[kind=local] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
-symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=readValue.$3.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=readValue.$3.value[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=readValue[kind=fun;params=Container.Value<T0>;gen=1] kind=function vis=private flags=_ sig=recv=_ params=[Container.Value<readValue.$3.T>] ret=readValue.$3.T
-symbol fq=show.$4.entry[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.collections.Map.Entry<String, Int>] ret=Unit
+symbol fq=Container.Value.$iface0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=Container.Value.read[kind=fun;recv=Container.Value<T0>;params=;ret=T0;gen=1;classGen=1;origin=fixture] kind=function vis=public flags=_ sig=recv=Container.Value<Container.Value.$iface0.T> params=[] ret=Container.Value.$iface0.T
+symbol fq=Container.Value.value[kind=prop;type=T0;origin=fixture] kind=property vis=public flags=abstractType type=Container.Value.$iface0.T
+symbol fq=Container.Value[kind=iface;gen=1;variance=[o];origin=fixture] kind=interface vis=public flags=_
+symbol fq=Container[kind=iface;origin=fixture] kind=interface vis=private flags=_
+symbol fq=DoubleEntry.<init>.$0.key[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=DoubleEntry.<init>.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=DoubleEntry.<init>[kind=ctor;recv=DoubleEntry;params=String,Double;ret=DoubleEntry;names=[key,value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=DoubleEntry params=[String,Double] ret=DoubleEntry
+symbol fq=DoubleEntry[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=EntryValue.$class0.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=EntryValue.$class0.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=EntryValue.<init>.$1.key[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=EntryValue.<init>.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;ret=EntryValue<T0,T1>;gen=2;classGen=2;names=[key,value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=EntryValue<EntryValue.$class0.K, EntryValue.$class0.V> params=[EntryValue.$class0.K,EntryValue.$class0.V] ret=EntryValue<EntryValue.$class0.K, EntryValue.$class0.V>
+symbol fq=EntryValue[kind=class;gen=2;variance=[o,o];origin=fixture] kind=class vis=private flags=_
+symbol fq=Label.VALUE[kind=field;type=Label;origin=fixture] kind=field vis=public flags=_ type=Label
+symbol fq=Label[kind=enum;origin=fixture] kind=enumClass vis=private flags=_
+symbol fq=TextValue.<init>.$2.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=TextValue.<init>[kind=ctor;recv=TextValue;params=String;ret=TextValue;names=[value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=TextValue params=[String] ret=TextValue
+symbol fq=TextValue[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=ThrowingEntry.<init>[kind=ctor;recv=ThrowingEntry;params=;ret=ThrowingEntry;origin=fixture] kind=constructor vis=private flags=_ sig=recv=ThrowingEntry params=[] ret=ThrowingEntry
+symbol fq=ThrowingEntry[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<Any, Any>
+symbol fq=__local_1.nullable[kind=local;type=kotlin.collections.Map.Entry<String?,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String?, Int?>
+symbol fq=__local_2.nested[kind=local;type=Container.Value<String>;origin=fixture] kind=local vis=private flags=_ type=Container.Value<String>
+symbol fq=__local_3.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
+symbol fq=__local_4.live[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Int>
+symbol fq=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Int>
+symbol fq=__local_6.concrete[kind=local;type=kotlin.collections.Map.Entry<String,Double>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Double>
+symbol fq=__try_0_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
+symbol fq=__try_1_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture] kind=local vis=internal flags=_ type=kotlin.IllegalStateException
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=readValue.$3.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=readValue.$3.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=readValue[kind=fun;params=Container.Value<T0>;ret=T0;gen=1;names=[value];origin=fixture] kind=function vis=private flags=_ sig=recv=_ params=[Container.Value<readValue.$3.T>] ret=readValue.$3.T
+symbol fq=show.$4.entry[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>;ret=Unit;names=[entry];origin=fixture] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.collections.Map.Entry<String, Int>] ret=Unit
 file fstdlib_kotlin_collections_Map_Entry_n package=_
-  decl EntryValue[kind=class;gen=2] class EntryValue sym=EntryValue[kind=class;gen=2]
-  decl Container[kind=iface] interface Container sym=Container[kind=iface]
-  decl TextValue[kind=class] class TextValue sym=TextValue[kind=class]
-  decl DoubleEntry[kind=class] class DoubleEntry sym=DoubleEntry[kind=class]
-  decl Label[kind=enum] class Label sym=Label[kind=enum]
-  decl readValue[kind=fun;params=Container.Value<T0>;gen=1] fun readValue sym=readValue[kind=fun;params=Container.Value<T0>;gen=1]
-  decl ThrowingEntry[kind=class] class ThrowingEntry sym=ThrowingEntry[kind=class]
-  decl show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>] fun show sym=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>]
-  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
-expr e@9:25 name(value) type=Container.Value.$iface0.T ref=Container.Value.value[kind=prop]
+  decl EntryValue[kind=class;gen=2;variance=[o,o];origin=fixture] class EntryValue sym=EntryValue[kind=class;gen=2;variance=[o,o];origin=fixture]
+  decl Container[kind=iface;origin=fixture] interface Container sym=Container[kind=iface;origin=fixture]
+  decl TextValue[kind=class;origin=fixture] class TextValue sym=TextValue[kind=class;origin=fixture]
+  decl DoubleEntry[kind=class;origin=fixture] class DoubleEntry sym=DoubleEntry[kind=class;origin=fixture]
+  decl Label[kind=enum;origin=fixture] class Label sym=Label[kind=enum;origin=fixture]
+  decl readValue[kind=fun;params=Container.Value<T0>;ret=T0;gen=1;names=[value];origin=fixture] fun readValue sym=readValue[kind=fun;params=Container.Value<T0>;ret=T0;gen=1;names=[value];origin=fixture]
+  decl ThrowingEntry[kind=class;origin=fixture] class ThrowingEntry sym=ThrowingEntry[kind=class;origin=fixture]
+  decl show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>;ret=Unit;names=[entry];origin=fixture] fun show sym=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>;ret=Unit;names=[entry];origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@9:25 name(value) type=Container.Value.$iface0.T ref=Container.Value.value[kind=prop;type=T0;origin=fixture]
 expr e@17:40 string(enum) type=String
-expr e@19:59 name(value) type=Container.Value<readValue.$3.T> ref=readValue.$3.value[kind=vparam]
-expr e@19:59#1 memberCall recv=e@19:59 callee=value args=[] type=readValue.$3.T ref=Container.Value.value[kind=prop]
+expr e@19:59 name(value) type=Container.Value<readValue.$3.T> ref=readValue.$3.value[kind=vparam;origin=fixture]
+expr e@19:59#1 memberCall recv=e@19:59 callee=value args=[] type=readValue.$3.T ref=Container.Value.value[kind=prop;type=T0;origin=fixture]
 expr e@22:66 string(key) type=String
-expr e@22:44 call callee=e@22:44#1 args=[_:e@22:66] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?]
+expr e@22:44 call callee=e@22:44#1 args=[_:e@22:66] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?;ret=kotlin.IllegalStateException;names=[message]]
 expr e@22:38 throw value=e@22:44 type=Nothing
 expr e@23:65 string(value) type=String
-expr e@23:43 call callee=e@23:43#1 args=[_:e@23:65] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?]
+expr e@23:43 call callee=e@23:43#1 args=[_:e@23:65] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?;ret=kotlin.IllegalStateException;names=[message]]
 expr e@23:37 throw value=e@23:43 type=Nothing
-expr e@27:13 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=show.$4.entry[kind=vparam]
-expr e@27:13#1 memberCall recv=e@27:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
-expr e@28:13 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=show.$4.entry[kind=vparam]
-expr e@28:13#1 memberCall recv=e@28:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@27:13 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=show.$4.entry[kind=vparam;origin=fixture]
+expr e@27:13#1 memberCall recv=e@27:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@28:13 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=show.$4.entry[kind=vparam;origin=fixture]
+expr e@28:13#1 memberCall recv=e@28:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@32:21 string(source) type=String
 expr e@32:31 int(7) type=Int
-expr e@32:10 call callee=e@32:10#1 args=[_:e@32:21,_:e@32:31] type=EntryValue<String, Int> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;gen=2] targs=[String,Int]
-expr e@32:5 call callee=e@32:5#1 args=[_:e@32:10] type=Unit call=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>]
+expr e@32:10 call callee=e@32:10#1 args=[_:e@32:21,_:e@32:31] type=EntryValue<String, Int> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;ret=EntryValue<T0,T1>;gen=2;classGen=2;names=[key,value];origin=fixture] targs=[String,Int]
+expr e@32:5 call callee=e@32:5#1 args=[_:e@32:10] type=Unit call=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>;ret=Unit;names=[entry];origin=fixture]
 expr e@33:16 string(runtime) type=String
 expr e@33:29 int(9) type=Int
-expr e@33:16#1 memberCall recv=e@33:16 callee=to args=[_:e@33:29] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;gen=2] targs=[String,Int]
-expr e@33:10 call callee=e@33:10#1 args=[_:e@33:16#1] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;gen=2] targs=[String,Int]
-expr e@33:10#2 memberCall recv=e@33:10 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> ref=kotlin.collections.Map.entries[kind=prop]
-expr e@33:10#3 memberCall recv=e@33:10#2 callee=first args=[] type=kotlin.collections.Map.Entry<String, Int> call=kotlin.collections.first[kind=fun;recv=kotlin.collections.Set<T0>;params=;gen=1] targs=[kotlin.collections.Map.Entry<String, Int>]
-expr e@33:5 call callee=e@33:5#1 args=[_:e@33:10#3] type=Unit call=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>]
+expr e@33:16#1 memberCall recv=e@33:16 callee=to args=[_:e@33:29] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
+expr e@33:10 call callee=e@33:10#1 args=[_:e@33:16#1] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[String,Int]
+expr e@33:10#2 memberCall recv=e@33:10 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> ref=kotlin.collections.Map.entries[kind=prop;type=kotlin.collections.Set<kotlin.collections.Map.Entry<T0,T1>>]
+expr e@33:10#3 memberCall recv=e@33:10#2 callee=first args=[] type=kotlin.collections.Map.Entry<String, Int> call=kotlin.collections.first[kind=fun;recv=kotlin.collections.Set<T0>;params=;ret=T0;gen=1] targs=[kotlin.collections.Map.Entry<String, Int>]
+expr e@33:5 call callee=e@33:5#1 args=[_:e@33:10#3] type=Unit call=show[kind=fun;params=kotlin.collections.Map.Entry<String,Int>;ret=Unit;names=[entry];origin=fixture]
 expr e@34:48 string(covariant) type=String
 expr e@34:61 int(11) type=Int
-expr e@34:37 call callee=e@34:37#1 args=[_:e@34:48,_:e@34:61] type=EntryValue<String, Int> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;gen=2] targs=[String,Int]
-expr e@34:5 localDecl wide mutable=0 type=Map.Entry<Any,Any> init=e@34:37 type=Unit ref=__local_0.wide[kind=local]
-expr e@35:13 name(wide) type=kotlin.collections.Map.Entry<Any, Any> ref=__local_0.wide[kind=local]
-expr e@35:13#1 memberCall recv=e@35:13 callee=key args=[] type=Any ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@36:13 name(wide) type=kotlin.collections.Map.Entry<Any, Any> ref=__local_0.wide[kind=local]
-expr e@36:13#1 memberCall recv=e@36:13 callee=value args=[] type=Any ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@34:37 call callee=e@34:37#1 args=[_:e@34:48,_:e@34:61] type=EntryValue<String, Int> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;ret=EntryValue<T0,T1>;gen=2;classGen=2;names=[key,value];origin=fixture] targs=[String,Int]
+expr e@34:5 localDecl wide mutable=0 type=Map.Entry<Any,Any> init=e@34:37 type=Unit ref=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture]
+expr e@35:13 name(wide) type=kotlin.collections.Map.Entry<Any, Any> ref=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture]
+expr e@35:13#1 memberCall recv=e@35:13 callee=key args=[] type=Any ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@36:13 name(wide) type=kotlin.collections.Map.Entry<Any, Any> ref=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture]
+expr e@36:13#1 memberCall recv=e@36:13 callee=value args=[] type=Any ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@37:57 name(null) type=Nothing?
 expr e@37:63 name(null) type=Nothing?
-expr e@37:46 call callee=e@37:46#1 args=[_:e@37:57,_:e@37:63] type=EntryValue<Nothing?, Nothing?> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;gen=2] targs=[Nothing?,Nothing?]
-expr e@37:5 localDecl nullable mutable=0 type=Map.Entry<String?,Int?> init=e@37:46 type=Unit ref=__local_1.nullable[kind=local]
-expr e@38:13 name(nullable) type=kotlin.collections.Map.Entry<String?, Int?> ref=__local_1.nullable[kind=local]
-expr e@38:13#1 memberCall recv=e@38:13 callee=key args=[] type=String? ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@39:13 name(nullable) type=kotlin.collections.Map.Entry<String?, Int?> ref=__local_1.nullable[kind=local]
-expr e@39:13#1 memberCall recv=e@39:13 callee=value args=[] type=Int? ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@37:46 call callee=e@37:46#1 args=[_:e@37:57,_:e@37:63] type=EntryValue<Nothing?, Nothing?> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;ret=EntryValue<T0,T1>;gen=2;classGen=2;names=[key,value];origin=fixture] targs=[Nothing?,Nothing?]
+expr e@37:5 localDecl nullable mutable=0 type=Map.Entry<String?,Int?> init=e@37:46 type=Unit ref=__local_1.nullable[kind=local;type=kotlin.collections.Map.Entry<String?,Int?>;origin=fixture]
+expr e@38:13 name(nullable) type=kotlin.collections.Map.Entry<String?, Int?> ref=__local_1.nullable[kind=local;type=kotlin.collections.Map.Entry<String?,Int?>;origin=fixture]
+expr e@38:13#1 memberCall recv=e@38:13 callee=key args=[] type=String? ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@39:13 name(nullable) type=kotlin.collections.Map.Entry<String?, Int?> ref=__local_1.nullable[kind=local;type=kotlin.collections.Map.Entry<String?,Int?>;origin=fixture]
+expr e@39:13#1 memberCall recv=e@39:13 callee=value args=[] type=Int? ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@40:53 string(nested) type=String
-expr e@40:43 call callee=e@40:43#1 args=[_:e@40:53] type=TextValue call=TextValue.<init>[kind=ctor;recv=TextValue;params=String]
-expr e@40:5 localDecl nested mutable=0 type=Container.Value<String> init=e@40:43 type=Unit ref=__local_2.nested[kind=local]
-expr e@41:13 name(nested) type=Container.Value<String> ref=__local_2.nested[kind=local]
-expr e@41:13#1 memberCall recv=e@41:13 callee=read args=[] type=String call=Container.Value.read[kind=fun;recv=Container.Value<T0>;params=;gen=1] targs=[String]
-expr e@41:5 call callee=e@41:5#1 args=[_:e@41:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@40:43 call callee=e@40:43#1 args=[_:e@40:53] type=TextValue call=TextValue.<init>[kind=ctor;recv=TextValue;params=String;ret=TextValue;names=[value];origin=fixture]
+expr e@40:5 localDecl nested mutable=0 type=Container.Value<String> init=e@40:43 type=Unit ref=__local_2.nested[kind=local;type=Container.Value<String>;origin=fixture]
+expr e@41:13 name(nested) type=Container.Value<String> ref=__local_2.nested[kind=local;type=Container.Value<String>;origin=fixture]
+expr e@41:13#1 memberCall recv=e@41:13 callee=read args=[] type=String call=Container.Value.read[kind=fun;recv=Container.Value<T0>;params=;ret=T0;gen=1;classGen=1;origin=fixture] targs=[String]
+expr e@41:5 call callee=e@41:5#1 args=[_:e@41:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@42:32 string(live) type=String
 expr e@42:42 int(1) type=Int
-expr e@42:32#1 memberCall recv=e@42:32 callee=to args=[_:e@42:42] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;gen=2] targs=[String,Int]
-expr e@42:19 call callee=e@42:19#1 args=[_:e@42:32#1] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.mutableMapOf[kind=fun;params=*kotlin.Pair<T0,T1>;gen=2] targs=[String,Int]
-expr e@42:5 localDecl mutable mutable=0 type=_ init=e@42:19 type=Unit ref=__local_3.mutable[kind=local]
-expr e@43:40 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_3.mutable[kind=local]
-expr e@43:40#1 memberCall recv=e@43:40 callee=entries args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<String, Int>> ref=kotlin.collections.MutableMap.entries[kind=prop]
-expr e@43:40#2 memberCall recv=e@43:40#1 callee=first args=[] type=kotlin.collections.MutableMap.MutableEntry<String, Int> call=kotlin.collections.first[kind=fun;recv=kotlin.collections.Set<T0>;params=;gen=1] targs=[kotlin.collections.MutableMap.MutableEntry<String, Int>]
-expr e@43:5 localDecl live mutable=0 type=Map.Entry<String,Int> init=e@43:40#2 type=Unit ref=__local_4.live[kind=local]
-expr e@44:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_3.mutable[kind=local]
+expr e@42:32#1 memberCall recv=e@42:32 callee=to args=[_:e@42:42] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
+expr e@42:19 call callee=e@42:19#1 args=[_:e@42:32#1] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.mutableMapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.MutableMap<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String,Int]
+expr e@42:5 localDecl mutable mutable=0 type=_ init=e@42:19 type=Unit ref=__local_3.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
+expr e@43:40 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_3.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
+expr e@43:40#1 memberCall recv=e@43:40 callee=entries args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<String, Int>> ref=kotlin.collections.MutableMap.entries[kind=prop;type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<T0,T1>>]
+expr e@43:40#2 memberCall recv=e@43:40#1 callee=first args=[] type=kotlin.collections.MutableMap.MutableEntry<String, Int> call=kotlin.collections.first[kind=fun;recv=kotlin.collections.Set<T0>;params=;ret=T0;gen=1] targs=[kotlin.collections.MutableMap.MutableEntry<String, Int>]
+expr e@43:5 localDecl live mutable=0 type=Map.Entry<String,Int> init=e@43:40#2 type=Unit ref=__local_4.live[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@44:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_3.mutable[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
 expr e@44:13 string(live) type=String
 expr e@44:23 int(2) type=Int
-expr e@44:5#1 indexedAssign receiver=e@44:5 indices=[e@44:13] value=e@44:23 type=Unit call=kotlin.collections.set[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0,T1;gen=2] targs=[String,Int]
-expr e@45:13 name(live) type=kotlin.collections.Map.Entry<String, Int> ref=__local_4.live[kind=local]
-expr e@45:13#1 memberCall recv=e@45:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@45:5 call callee=e@45:5#1 args=[_:e@45:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
-expr e@46:13 name(live) type=kotlin.collections.Map.Entry<String, Int> ref=__local_4.live[kind=local]
-expr e@46:13#1 memberCall recv=e@46:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@46:5 call callee=e@46:5#1 args=[_:e@46:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@47:44 call callee=e@47:44#1 args=[] type=ThrowingEntry call=ThrowingEntry.<init>[kind=ctor;recv=ThrowingEntry;params=]
-expr e@47:5 localDecl throwing mutable=0 type=Map.Entry<String,Int> init=e@47:44 type=Unit ref=__local_5.throwing[kind=local]
-expr e@48:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local]
-expr e@48:19#1 memberCall recv=e@48:19 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@48:11 call callee=e@48:11#1 args=[_:e@48:19#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@44:5#1 indexedAssign receiver=e@44:5 indices=[e@44:13] value=e@44:23 type=Unit call=kotlin.collections.set[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0,T1;ret=Unit;gen=2;names=[key,value]] targs=[String,Int]
+expr e@45:13 name(live) type=kotlin.collections.Map.Entry<String, Int> ref=__local_4.live[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@45:13#1 memberCall recv=e@45:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@45:5 call callee=e@45:5#1 args=[_:e@45:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@46:13 name(live) type=kotlin.collections.Map.Entry<String, Int> ref=__local_4.live[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@46:13#1 memberCall recv=e@46:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@46:5 call callee=e@46:5#1 args=[_:e@46:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@47:44 call callee=e@47:44#1 args=[] type=ThrowingEntry call=ThrowingEntry.<init>[kind=ctor;recv=ThrowingEntry;params=;ret=ThrowingEntry;origin=fixture]
+expr e@47:5 localDecl throwing mutable=0 type=Map.Entry<String,Int> init=e@47:44 type=Unit ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@48:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@48:19#1 memberCall recv=e@48:19 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@48:11 call callee=e@48:11#1 args=[_:e@48:19#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@48:9 blockExpr stmts=[] trailing=e@48:11 type=Unit
-expr e@48:78 name(e) type=kotlin.IllegalStateException ref=__try_0_catch_0.e[kind=local]
-expr e@48:78#1 memberCall recv=e@48:78 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop]
-expr e@48:70 call callee=e@48:70#1 args=[_:e@48:78#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@48:68 blockExpr stmts=[] trailing=e@48:70 type=Unit ref=__try_0_catch_0.e[kind=local]
+expr e@48:78 name(e) type=kotlin.IllegalStateException ref=__try_0_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture]
+expr e@48:78#1 memberCall recv=e@48:78 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop;type=String?]
+expr e@48:70 call callee=e@48:70#1 args=[_:e@48:78#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@48:68 blockExpr stmts=[] trailing=e@48:70 type=Unit ref=__try_0_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture]
 expr e@48:5 try body=e@48:9 catches=[e@48:68] finally=_ type=Unit
-expr e@49:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local]
-expr e@49:19#1 memberCall recv=e@49:19 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@49:11 call callee=e@49:11#1 args=[_:e@49:19#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@49:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
+expr e@49:19#1 memberCall recv=e@49:19 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@49:11 call callee=e@49:11#1 args=[_:e@49:19#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@49:9 blockExpr stmts=[] trailing=e@49:11 type=Unit
-expr e@49:80 name(e) type=kotlin.IllegalStateException ref=__try_1_catch_0.e[kind=local]
-expr e@49:80#1 memberCall recv=e@49:80 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop]
-expr e@49:72 call callee=e@49:72#1 args=[_:e@49:80#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@49:70 blockExpr stmts=[] trailing=e@49:72 type=Unit ref=__try_1_catch_0.e[kind=local]
+expr e@49:80 name(e) type=kotlin.IllegalStateException ref=__try_1_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture]
+expr e@49:80#1 memberCall recv=e@49:80 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop;type=String?]
+expr e@49:72 call callee=e@49:72#1 args=[_:e@49:80#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@49:70 blockExpr stmts=[] trailing=e@49:72 type=Unit ref=__try_1_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture]
 expr e@49:5 try body=e@49:9 catches=[e@49:70] finally=_ type=Unit
 expr e@50:59 string(double) type=String
 expr e@50:69 double(2.5) type=Double
-expr e@50:47 call callee=e@50:47#1 args=[_:e@50:59,_:e@50:69] type=DoubleEntry call=DoubleEntry.<init>[kind=ctor;recv=DoubleEntry;params=String,Double]
-expr e@50:5 localDecl concrete mutable=0 type=Map.Entry<String,Double> init=e@50:47 type=Unit ref=__local_6.concrete[kind=local]
-expr e@51:13 name(concrete) type=kotlin.collections.Map.Entry<String, Double> ref=__local_6.concrete[kind=local]
-expr e@51:13#1 memberCall recv=e@51:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop]
-expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String]
-expr e@52:13 name(concrete) type=kotlin.collections.Map.Entry<String, Double> ref=__local_6.concrete[kind=local]
-expr e@52:13#1 memberCall recv=e@52:13 callee=value args=[] type=Double ref=kotlin.collections.Map.Entry.value[kind=prop]
-expr e@52:5 call callee=e@52:5#1 args=[_:e@52:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@53:23 name(Label) type=Label ref=Label[kind=enum]
-expr e@53:23#1 memberCall recv=e@53:23 callee=VALUE args=[] type=Label ref=Label.VALUE[kind=field]
-expr e@53:13 call callee=e@53:13#1 args=[_:e@53:23#1] type=String call=readValue[kind=fun;params=Container.Value<T0>;gen=1] targs=[String]
-expr e@53:5 call callee=e@53:5#1 args=[_:e@53:13] type=Unit call=kotlin.io.println[kind=fun;params=String]
+expr e@50:47 call callee=e@50:47#1 args=[_:e@50:59,_:e@50:69] type=DoubleEntry call=DoubleEntry.<init>[kind=ctor;recv=DoubleEntry;params=String,Double;ret=DoubleEntry;names=[key,value];origin=fixture]
+expr e@50:5 localDecl concrete mutable=0 type=Map.Entry<String,Double> init=e@50:47 type=Unit ref=__local_6.concrete[kind=local;type=kotlin.collections.Map.Entry<String,Double>;origin=fixture]
+expr e@51:13 name(concrete) type=kotlin.collections.Map.Entry<String, Double> ref=__local_6.concrete[kind=local;type=kotlin.collections.Map.Entry<String,Double>;origin=fixture]
+expr e@51:13#1 memberCall recv=e@51:13 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@52:13 name(concrete) type=kotlin.collections.Map.Entry<String, Double> ref=__local_6.concrete[kind=local;type=kotlin.collections.Map.Entry<String,Double>;origin=fixture]
+expr e@52:13#1 memberCall recv=e@52:13 callee=value args=[] type=Double ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@52:5 call callee=e@52:5#1 args=[_:e@52:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@53:23 name(Label) type=Label ref=Label[kind=enum;origin=fixture]
+expr e@53:23#1 memberCall recv=e@53:23 callee=VALUE args=[] type=Label ref=Label.VALUE[kind=field;type=Label;origin=fixture]
+expr e@53:13 call callee=e@53:13#1 args=[_:e@53:23#1] type=String call=readValue[kind=fun;params=Container.Value<T0>;ret=T0;gen=1;names=[value];origin=fixture] targs=[String]
+expr e@53:5 call callee=e@53:5#1 args=[_:e@53:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 section stdlib-targets
 target fq=kotlin.collections.Map.Entry.key[kind=prop] origin=importedLibrary kind=property vis=public flags=synthetic|abstractType type=kotlin.collections.Map.K
 target fq=kotlin.collections.Map.Entry.value[kind=prop] origin=importedLibrary kind=property vis=public flags=synthetic|abstractType type=kotlin.collections.Map.V

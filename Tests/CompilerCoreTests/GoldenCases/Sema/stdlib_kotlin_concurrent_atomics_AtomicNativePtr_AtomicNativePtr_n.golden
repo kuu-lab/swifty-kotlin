@@ -1,52 +1,52 @@
-symbol fq=__local_0.loaded[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
-symbol fq=__local_1.exchanged[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
-symbol fq=__local_2.previous[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
-symbol fq=__local_3.compared[kind=local] kind=local vis=private flags=_ type=Boolean
-symbol fq=__local_4.witness[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
-symbol fq=__local_5.current[kind=local] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
-symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] ret=String
+symbol fq=__local_0.loaded[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
+symbol fq=__local_1.exchanged[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
+symbol fq=__local_2.previous[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
+symbol fq=__local_3.compared[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_4.witness[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
+symbol fq=__local_5.current[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture] kind=local vis=private flags=_ type=kotlinx.cinterop.NativePtr
+symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr;ret=String;names=[atomic,expected,update];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] ret=String
 file fstdlib_kotlin_concurrent_atomics_AtomicNativePtr_AtomicNativePtr_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class,kotlinx.cinterop.ExperimentalForeignApi::class)]
-  decl golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr] fun atomicNativePtrReceiverMembers sym=golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
-expr e@16:5 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@16:18 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam]
-expr e@16:5#1 memberCall recv=e@16:5 callee=store args=[_:e@16:18] type=Unit call=kotlin.concurrent.atomics.store[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr]
-expr e@17:18 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@17:18#1 memberCall recv=e@17:18 callee=load args=[] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=]
-expr e@17:5 localDecl loaded mutable=0 type=_ init=e@17:18#1 type=Unit ref=__local_0.loaded[kind=local]
-expr e@18:21 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@18:37 name(update) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam]
-expr e@18:21#1 memberCall recv=e@18:21 callee=exchange args=[_:e@18:37] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.exchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr]
-expr e@18:5 localDecl exchanged mutable=0 type=_ init=e@18:21#1 type=Unit ref=__local_1.exchanged[kind=local]
-expr e@19:20 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@19:37 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local]
-expr e@19:20#1 memberCall recv=e@19:20 callee=getAndSet args=[_:e@19:37] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.getAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr]
-expr e@19:5 localDecl previous mutable=0 type=_ init=e@19:20#1 type=Unit ref=__local_2.previous[kind=local]
-expr e@20:20 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@20:41 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam]
-expr e@20:51 name(update) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam]
-expr e@20:20#1 memberCall recv=e@20:20 callee=compareAndSet args=[_:e@20:41,_:e@20:51] type=Boolean call=kotlin.concurrent.atomics.compareAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
-expr e@20:5 localDecl compared mutable=0 type=_ init=e@20:20#1 type=Unit ref=__local_3.compared[kind=local]
-expr e@21:19 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@21:45 name(previous) type=kotlinx.cinterop.NativePtr ref=__local_2.previous[kind=local]
-expr e@21:55 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local]
-expr e@21:19#1 memberCall recv=e@21:19 callee=compareAndExchange args=[_:e@21:45,_:e@21:55] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr]
-expr e@21:5 localDecl witness mutable=0 type=_ init=e@21:19#1 type=Unit ref=__local_4.witness[kind=local]
-expr e@22:19 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@22:19#1 memberCall recv=e@22:19 callee=value args=[] type=kotlinx.cinterop.NativePtr ref=kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop]
-expr e@22:5 localDecl current mutable=0 type=_ init=e@22:19#1 type=Unit ref=__local_5.current[kind=local]
-expr e@23:5 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@23:20 name(current) type=kotlinx.cinterop.NativePtr ref=__local_5.current[kind=local]
-expr e@23:5#1 memberAssign recv=e@23:5 callee=value value=e@23:20 type=Unit ref=kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop]
-expr e@24:14 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local]
-expr e@24:22 name(exchanged) type=kotlinx.cinterop.NativePtr ref=__local_1.exchanged[kind=local]
-expr e@24:33 name(previous) type=kotlinx.cinterop.NativePtr ref=__local_2.previous[kind=local]
-expr e@24:43 name(compared) type=Boolean ref=__local_3.compared[kind=local]
-expr e@24:53 name(witness) type=kotlinx.cinterop.NativePtr ref=__local_4.witness[kind=local]
-expr e@24:62 name(current) type=kotlinx.cinterop.NativePtr ref=__local_5.current[kind=local]
-expr e@24:72 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam]
-expr e@24:72#1 memberCall recv=e@24:72 callee=toString args=[] type=String call=kotlin.concurrent.atomics.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=]
+  decl golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr;ret=String;names=[atomic,expected,update];origin=fixture] fun atomicNativePtrReceiverMembers sym=golden.sema.atomicNativePtrReceiverMembers[kind=fun;params=kotlin.concurrent.atomics.AtomicNativePtr,kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr;ret=String;names=[atomic,expected,update];origin=fixture]
+expr e@16:5 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@16:18 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam;origin=fixture]
+expr e@16:5#1 memberCall recv=e@16:5 callee=store args=[_:e@16:18] type=Unit call=kotlin.concurrent.atomics.store[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr;ret=Unit;names=[newValue]]
+expr e@17:18 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@17:18#1 memberCall recv=e@17:18 callee=load args=[] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=;ret=kotlinx.cinterop.NativePtr]
+expr e@17:5 localDecl loaded mutable=0 type=_ init=e@17:18#1 type=Unit ref=__local_0.loaded[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@18:21 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@18:37 name(update) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam;origin=fixture]
+expr e@18:21#1 memberCall recv=e@18:21 callee=exchange args=[_:e@18:37] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.exchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr;ret=kotlinx.cinterop.NativePtr;names=[newValue]]
+expr e@18:5 localDecl exchanged mutable=0 type=_ init=e@18:21#1 type=Unit ref=__local_1.exchanged[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@19:20 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@19:37 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@19:20#1 memberCall recv=e@19:20 callee=getAndSet args=[_:e@19:37] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.getAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr;ret=kotlinx.cinterop.NativePtr;names=[newValue]]
+expr e@19:5 localDecl previous mutable=0 type=_ init=e@19:20#1 type=Unit ref=__local_2.previous[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@20:20 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@20:41 name(expected) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.expected[kind=vparam;origin=fixture]
+expr e@20:51 name(update) type=kotlinx.cinterop.NativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.update[kind=vparam;origin=fixture]
+expr e@20:20#1 memberCall recv=e@20:20 callee=compareAndSet args=[_:e@20:41,_:e@20:51] type=Boolean call=kotlin.concurrent.atomics.compareAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr;ret=Boolean;names=[expectedValue,newValue]]
+expr e@20:5 localDecl compared mutable=0 type=_ init=e@20:20#1 type=Unit ref=__local_3.compared[kind=local;type=Boolean;origin=fixture]
+expr e@21:19 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@21:45 name(previous) type=kotlinx.cinterop.NativePtr ref=__local_2.previous[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@21:55 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@21:19#1 memberCall recv=e@21:19 callee=compareAndExchange args=[_:e@21:45,_:e@21:55] type=kotlinx.cinterop.NativePtr call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=kotlinx.cinterop.NativePtr,kotlinx.cinterop.NativePtr;ret=kotlinx.cinterop.NativePtr;names=[expectedValue,newValue]]
+expr e@21:5 localDecl witness mutable=0 type=_ init=e@21:19#1 type=Unit ref=__local_4.witness[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@22:19 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@22:19#1 memberCall recv=e@22:19 callee=value args=[] type=kotlinx.cinterop.NativePtr ref=kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop;type=kotlinx.cinterop.NativePtr;mutable]
+expr e@22:5 localDecl current mutable=0 type=_ init=e@22:19#1 type=Unit ref=__local_5.current[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@23:5 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@23:20 name(current) type=kotlinx.cinterop.NativePtr ref=__local_5.current[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@23:5#1 memberAssign recv=e@23:5 callee=value value=e@23:20 type=Unit ref=kotlin.concurrent.atomics.AtomicNativePtr.value[kind=prop;type=kotlinx.cinterop.NativePtr;mutable]
+expr e@24:14 name(loaded) type=kotlinx.cinterop.NativePtr ref=__local_0.loaded[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@24:22 name(exchanged) type=kotlinx.cinterop.NativePtr ref=__local_1.exchanged[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@24:33 name(previous) type=kotlinx.cinterop.NativePtr ref=__local_2.previous[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@24:43 name(compared) type=Boolean ref=__local_3.compared[kind=local;type=Boolean;origin=fixture]
+expr e@24:53 name(witness) type=kotlinx.cinterop.NativePtr ref=__local_4.witness[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@24:62 name(current) type=kotlinx.cinterop.NativePtr ref=__local_5.current[kind=local;type=kotlinx.cinterop.NativePtr;origin=fixture]
+expr e@24:72 name(atomic) type=kotlin.concurrent.atomics.AtomicNativePtr ref=golden.sema.atomicNativePtrReceiverMembers.$0.atomic[kind=vparam;origin=fixture]
+expr e@24:72#1 memberCall recv=e@24:72 callee=toString args=[] type=String call=kotlin.concurrent.atomics.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicNativePtr;params=;ret=String]
 expr e@24:12 stringTemplate[expr(e@24:14),lit(:),expr(e@24:22),lit(:),expr(e@24:33),lit(:),expr(e@24:43),lit(:),expr(e@24:53),lit(:),expr(e@24:62),lit(:),expr(e@24:72#1)] type=String
 expr e@24:5 return value=e@24:12 type=Nothing

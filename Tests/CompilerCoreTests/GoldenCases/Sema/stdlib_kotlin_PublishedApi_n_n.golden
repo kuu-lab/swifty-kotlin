@@ -1,3 +1,3 @@
-symbol fq=golden.sema.PublishedApiConstructorUse[kind=class] kind=class vis=internal flags=_
+symbol fq=golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture] kind=class vis=internal flags=_
 file fstdlib_kotlin_PublishedApi_n_n package=golden.sema
-  decl golden.sema.PublishedApiConstructorUse[kind=class] class PublishedApiConstructorUse sym=golden.sema.PublishedApiConstructorUse[kind=class]
+  decl golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture] class PublishedApiConstructorUse sym=golden.sema.PublishedApiConstructorUse[kind=class;origin=fixture]
