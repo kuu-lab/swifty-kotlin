@@ -7,6 +7,23 @@ import Testing
 /// Runtime link name involved: `kk_sequence_associateTo`.
 @Suite
 struct SequenceAssociateToFunctionTests {
+    @Test func testExplicitSequenceElementTypeWithoutYieldFlowsIntoAssociateTo() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val destination = mutableMapOf<Int, Int>()
+            try {
+                sequence<Int> { throw IllegalArgumentException("before yield") }
+                    .associateTo(destination) { it to it }
+            } catch (error: IllegalArgumentException) {
+                println(error.message)
+            }
+            println(destination)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testSequenceAssociateToResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         fun fillByLength(): MutableMap<Int, String> {
