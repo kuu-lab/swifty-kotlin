@@ -23,10 +23,13 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
         "Sema/stdlib_kotlin_collections_AbstractList_AbstractList_n.kt",
         "Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt",
+        "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
+        "Sema/stdlib_kotlin_coroutines_polymorphic_keys_source.kt",
+        "Sema/stdlib_kotlin_coroutines_polymorphic_keys_artifact.kt",
         "Sema/kotlinx_coroutines_completable.kt",
     ]
 
-    private static let requiredArtifactTargetedCases: Set<String> = [
+    private static let requiredArtifactCases: Set<String> = [
         "Sema/stdlib_kotlin_Any_n_n.kt",
         "Sema/stdlib_kotlin_Pair_n_n.kt",
         "Sema/stdlib_kotlin_Triple_Triple_n.kt",
@@ -36,7 +39,10 @@ struct GoldenHarnessInventoryTests {
         "Sema/stdlib_kotlin_collections_MutableList_n.kt",
         "Sema/stdlib_kotlin_collections_n_List_interface.kt",
         "Sema/stdlib_kotlin_collections_MutableMap_n_n.kt",
+        "Sema/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt",
+        "Sema/stdlib_kotlin_coroutines_polymorphic_keys_artifact.kt",
         "Sema/kotlinx_coroutines_completable.kt",
+        "Sema/kotlinx_io_bytestring_io_api.kt",
     ]
 
     private static let requiredTargetContracts: Set<String> = [
@@ -56,6 +62,12 @@ struct GoldenHarnessInventoryTests {
         "artifact|kotlin.collections.List[kind=iface;gen=1]",
         "artifact|kotlin.collections.MutableList[kind=iface;gen=1]",
         "artifact|kotlin.collections.MutableMap.MutableEntry[kind=iface;gen=2]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.get[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.interceptContinuation[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.Continuation<T0>;gen=1]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.minusKey[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.CoroutineContext.Key<*>]",
+        "artifact|kotlin.coroutines.ContinuationInterceptor.releaseInterceptedContinuation[kind=fun;recv=kotlin.coroutines.ContinuationInterceptor;params=kotlin.coroutines.Continuation<*>]",
+        "artifact|kotlin.coroutines.getPolymorphicElement[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1]",
+        "artifact|kotlin.coroutines.minusPolymorphicKey[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<*>]",
         "artifact|kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1]",
         "artifact|kotlinx.coroutines.CompletableJob[kind=iface]",
         "artifact|kotlinx.coroutines.Deferred[kind=iface;gen=1]",
@@ -63,6 +75,8 @@ struct GoldenHarnessInventoryTests {
         "source|kotlin.collections.AbstractList.lastIndexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]",
         "source|kotlin.collections.AbstractList.subList[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=Int,Int;gen=1]",
         "source|kotlin.sequences.Sequence.shuffled[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1]",
+        "source|kotlin.coroutines.getPolymorphicElement[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1]",
+        "source|kotlin.coroutines.minusPolymorphicKey[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<*>]",
     ]
 
     @Test
@@ -72,8 +86,8 @@ struct GoldenHarnessInventoryTests {
         #expect(inventory.caseCountBySuite.count == GoldenHarnessGoldenSuite.allCases.count)
         #expect(inventory.caseCount > 0)
         #expect(inventory.caseCountByProfile["implicit"] ?? 0 > 0)
-        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactTargetedCases.count)
-        #expect((inventory.caseCountByProfile["source"] ?? 0) == 2)
+        #expect((inventory.caseCountByProfile["artifact"] ?? 0) == Self.requiredArtifactCases.count)
+        #expect((inventory.caseCountByProfile["source"] ?? 0) == 3)
         #expect(inventory.targetedCaseKeys == Self.requiredTargetedCases)
         #expect(inventory.targetContracts == Self.requiredTargetContracts)
 
