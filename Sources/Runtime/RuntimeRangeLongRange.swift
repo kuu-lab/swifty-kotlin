@@ -297,6 +297,9 @@ func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> I
 /// by the interface's stable type ID instead of a fixed slot index.
 @_cdecl("kk_itable_lookup_dynamic")
 public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int {
+    if let nativeMethod = runtimeCoroutineNameElementMethod(receiver, interfaceTypeID, methodSlot) {
+        return nativeMethod
+    }
     if let nativeMethod = runtimeDispatcherInterceptorMethod(receiver, interfaceTypeID, methodSlot) {
         return nativeMethod
     }
