@@ -1670,7 +1670,7 @@ struct RuntimeStringArrayTests {
             ("%(012f", .nan, "         NaN"),
         ]
         for (template, value, expected) in cases {
-            let argument = kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+            let argument = kk_box_double_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
             let formatted = flatStringReturnValueNoThrow(
                 template,
                 intArg: makeRuntimeArray([argument]),
