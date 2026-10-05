@@ -492,8 +492,13 @@ extension OverloadResolver {
                     blameRange: blameRange, depth: depth + 1
                 )
             }
-            if case .functionType = supertypeKind,
+            if case let .functionType(superFunction) = supertypeKind,
                let function = typeSystem.nominalFunctionType(for: subtype)
+                   ?? nominalFunctionTypeThroughInheritance(
+                       subtype,
+                       matchingArityOf: superFunction,
+                       typeSystem: typeSystem
+                   )
             {
                 return decomposeSubtypeConstraintImpl(
                     subtype: typeSystem.make(.functionType(function)), supertype: supertype,
@@ -868,6 +873,28 @@ extension OverloadResolver {
             targetNullability: subtype.nullability,
             typeSystem: typeSystem
         )
+    }
+
+    /// KUU-1195: a nominal subtype that reaches `kotlin.Function.FunctionN`
+    /// through inheritance (e.g. `KProperty0<Int>` via its `() -> V` supertype
+    /// binding) decomposes against a variable-bearing function supertype the
+    /// same way a literal `FunctionN` does — otherwise `KProperty0<Int> <:
+    /// () -> R` would never bind `R`. Only the subtype side looks through
+    /// inheritance: a plain `() -> Int` is not a `KProperty0<Int>`, so the
+    /// supertype direction keeps the direct `nominalFunctionType` check.
+    private func nominalFunctionTypeThroughInheritance(
+        _ subtype: TypeID,
+        matchingArityOf function: FunctionType,
+        typeSystem: TypeSystem
+    ) -> FunctionType? {
+        guard case let .classType(subClass) = typeSystem.kind(of: subtype) else {
+            return nil
+        }
+        let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
+        guard let lifted = typeSystem.inheritedFunctionNClassType(of: subClass, arity: arity) else {
+            return nil
+        }
+        return typeSystem.nominalFunctionType(for: typeSystem.make(.classType(lifted)))
     }
 
     private func decomposeTypeArgConstraintImpl(

@@ -2691,9 +2691,36 @@ extension ExprTypeChecker {
             return inferredType
         }
         if case .functionType = sema.types.kind(of: expectedType) {
+            // A concrete function-type expectation is only safe to adopt when
+            // the reference's own `KPropertyN` type is a subtype of it via the
+            // `KPropertyN` → `FunctionN` inheritance path (KUU-1195). The
+            // previous unconditional trust accepted signature mismatches
+            // (`supply(Box::value)` for a `() -> Int` parameter, receiver or
+            // return-type mismatches) whose binaries then crashed at runtime
+            // on invoke. On a mismatch keep the real inferred type so the
+            // caller's own subtype check reports the failure. Expected types
+            // still mentioning type parameters keep the trusted behavior —
+            // they belong to a generic signature whose type arguments are
+            // bound from this very argument. A non-`KPropertyN` inferred type
+            // means `kotlin.reflect` was unavailable; keep trusting then too.
+            if !sema.types.typeContainsAnyTypeParam(expectedType),
+               isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
+               !sema.types.isSubtype(inferredType, expectedType)
+            {
+                return inferredType
+            }
             return expectedType
         }
-        if driver.helpers.samFunctionType(for: expectedType, sema: sema) != nil {
+        if let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema) {
+            // Same check against the SAM signature for a fun-interface
+            // expected type (`useSam(C::v)`): adopt the interface type only
+            // when the reference's function view matches the SAM.
+            if !sema.types.typeContainsAnyTypeParam(expectedType),
+               isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
+               !sema.types.isSubtype(inferredType, sema.types.make(.functionType(samFunctionType)))
+            {
+                return inferredType
+            }
             return expectedType
         }
         guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
