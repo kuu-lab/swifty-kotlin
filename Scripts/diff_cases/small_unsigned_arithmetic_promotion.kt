@@ -58,8 +58,6 @@ fun main() {
     println(tag(largeProduct + largeProduct))
     println(tag(d * d * two))
     println((c - a).toLong())
-    println((a * c).takeHighestOneBit())
-    println((d + one).countLeadingZeroBits())
     println((a + c).inv())
     println((d + one) shr 16)
     println((d + one) shl 32)
