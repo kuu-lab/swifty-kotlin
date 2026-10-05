@@ -192,15 +192,16 @@ extension CallTypeChecker {
                 if let currentReceiverType = ctx.implicitReceiverType,
                    let classSymbol = driver.helpers.nominalSymbol(of: currentReceiverType, types: sema.types)
                 {
-                    // Handle qualified super: super<Interface>
+                    // Handle qualified super: super<Type>
                     if let qualifier = interfaceQualifier {
                         let qualifierStr = ctx.interner.resolve(qualifier)
                         let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
 
-                        // Find the specified interface in direct supertypes
+                        // Find the specified class or interface in direct supertypes
                         for superID in directSupertypes {
                             guard let superSym = sema.symbols.symbol(superID) else { continue }
-                            if superSym.kind == .interface, superSym.name == qualifier {
+                            let isValidKind = superSym.kind == .interface || superSym.kind == .class || superSym.kind == .enumClass
+                            if isValidKind, superSym.name == qualifier {
                                 qualifiedSuperType = superID
                                 supertypeSymbols.insert(superID)
                                 break
