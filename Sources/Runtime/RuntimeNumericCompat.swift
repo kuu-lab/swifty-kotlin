@@ -362,7 +362,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // 64-bit `Int` (even with `&+`/`&*`) only happens to agree while the
     // running total stays inside Int32 range and silently diverges once a
     // longer collection or a large-hashCode element pushes it past that.
-    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+    if let listBox = runtimeListBox(from: value) {
         var hash: Int32 = 1
         for element in listBox.values {
             hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element.legacyRawValue))
