@@ -53,13 +53,16 @@ struct RuntimeFrozenListMutationTests {
             let raw = __kk_builder_list_new(2)
             _ = kk_mutable_list_add(raw, 1, nil)
             _ = kk_mutable_list_add(raw, 2, nil)
-            for view in [raw, kk_list_subList(raw, 0, 2, nil), kk_list_as_reversed(raw)] {
+            let iterators = [raw, kk_list_subList(raw, 0, 2, nil), kk_list_as_reversed(raw)].map { view in
                 let iterator = kk_list_iterator_at(view, 0, nil)
                 _ = kk_list_iterator_next(iterator, nil)
+                return iterator
+            }
+            _ = __kk_builder_list_freeze(raw)
+            for iterator in iterators {
                 let box = try #require(runtimeListIteratorBox(from: iterator))
                 let before = box.elements
                 let index = box.index
-                _ = __kk_builder_list_freeze(raw)
                 var thrown = 0
                 _ = mutation(iterator, &thrown)
                 let exception = try #require(runtimeThrowableBox(from: thrown))

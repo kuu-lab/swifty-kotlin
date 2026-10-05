@@ -5,6 +5,21 @@ import Testing
 
 @Suite(.serialized)
 struct CodegenBackendFrozenListAliasTests {
+    @Test(arguments: [true, false])
+    func checkedBridgesPropagateCustomOverrideExceptions(useArtifact: Bool) throws {
+        var root = URL(fileURLWithPath: #filePath)
+        for _ in 0 ..< 4 { root.deleteLastPathComponent() }
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kuu1158_throwing_collection_aliases.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ThrowingCollectionAliases",
+            expected: String(repeating: "add\naddAll\nremove\nclear\nremoveAll\nretainAll\n", count: 2),
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
     private static let mutations: [(String, String, String)] = [
         ("MutableList<String>", "root", "target.add(\"c\")"),
         ("MutableList<String>", "root", "target.remove(\"a\")"),

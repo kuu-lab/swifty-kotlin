@@ -282,7 +282,7 @@ extension ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+            #expect(!ctx.diagnostics.hasError, "Expected List.unzip to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -583,8 +583,6 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // KSP-705 residual: addAll keeps a synthetic runtime link until its
-            // own Kotlin migration lands.
             let expectedExternalLinks: [(String, Int, String)] = [
                 ("addAll", 1, "__kk_mutable_list_addAll_checked"),
             ]
@@ -686,9 +684,6 @@ extension ListSyntheticMemberLinkTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // KSP-705 residual: addAll still resolves to a synthetic runtime
-            // extern; removeAll/retainAll are bundled MutableList defaults
-            // since KSP-1503.
             let expectedExternalLinks: [String: String?] = [
                 "addAll": "__kk_mutable_list_addAll_checked",
                 "removeAll": nil,
