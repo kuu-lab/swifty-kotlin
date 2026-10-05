@@ -6,12 +6,8 @@ import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
 @KsSymbolName("__kk_map_is_empty")
-private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
-
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
-private external fun kk_unbox_float(value: Float): Float
-private external fun kk_unbox_double(value: Double): Double
+@PublishedApi
+internal external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
@@ -58,6 +54,15 @@ public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
     for (entry in this.entries) {
         action(entry)
+    }
+}
+
+/**
+ * Performs the given [action] on each key and value.
+ */
+public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
+    for (entry in this.entries) {
+        action(entry.key, entry.value)
     }
 }
 

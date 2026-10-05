@@ -71,6 +71,7 @@ public fun <E, R> ReceiveChannel<E>.onReceive(block: suspend (E) -> R) {
     }) { block(result!!.getOrThrow() as E) }
 }
 
+@Suppress("UNCHECKED_CAST")
 public fun <E, R> ReceiveChannel<E>.onReceiveCatching(block: suspend (ChannelResult<E>) -> R) {
     var result: ChannelResult<Any?>? = null
     currentSelectBuilder<R>().registerClause({

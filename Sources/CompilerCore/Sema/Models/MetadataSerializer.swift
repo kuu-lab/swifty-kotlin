@@ -21,6 +21,7 @@ package struct MetadataRecord {
     package let isOperator: Bool
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
+    package let isMemberExtension: Bool
     /// Nominal owner of a callable/property receiver. The indexed metadata
     /// path keeps this compact routing key available without decoding the
     /// declaration body, so synthetic stdlib overlap guards can run eagerly.
@@ -51,6 +52,7 @@ package struct MetadataRecord {
     /// from source, since `recordContractEffects` never runs against a decoded
     /// symbol's (nonexistent) AST body.
     package let valueParameterCallsInPlaceKinds: [InvocationKind?]
+    package let contractImplicationEffects: [ContractImplicationEffect]
     /// Per-parameter default-value flags for function/constructor signatures.
     package let valueParameterHasDefaultValues: [Bool]
     /// Whether the function/constructor is declared `throws`.
@@ -156,6 +158,7 @@ package struct MetadataRecord {
         isInline: Bool = false,
         isOperator: Bool = false,
         isOverride: Bool = false,
+        isMemberExtension: Bool = false,
         receiverOwnerFQName: String? = nil,
         typeSignature: String? = nil,
         typeParameterUpperBoundsSignatures: [[String]] = [],
@@ -165,6 +168,7 @@ package struct MetadataRecord {
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+        contractImplicationEffects: [ContractImplicationEffect] = [],
         canThrow: Bool = false,
         valueParameterNames: [String] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
@@ -214,6 +218,7 @@ package struct MetadataRecord {
         self.isInline = isInline
         self.isOperator = isOperator
         self.isOverride = isOverride
+        self.isMemberExtension = isMemberExtension
         self.receiverOwnerFQName = receiverOwnerFQName
         self.typeSignature = typeSignature
         self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
@@ -223,6 +228,7 @@ package struct MetadataRecord {
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+        self.contractImplicationEffects = contractImplicationEffects
         self.canThrow = canThrow
         self.valueParameterNames = valueParameterNames
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -719,6 +725,7 @@ package final class MetadataEncoder {
                 params: newParams,
                 returnType: newReturn,
                 isSuspend: functionType.isSuspend,
+                isCallableReference: functionType.isCallableReference,
                 nullability: functionType.nullability
             )))
 
@@ -908,7 +915,7 @@ package final class MetadataEncoder {
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
         var defaultStubExternalLinkName: String?
-        var externalLinkName: String?
+        var externalLinkName = symbols.externalLinkName(for: symbol.id)
         var abiReturnTypeSignature: String?
 
         if symbol.kind == .function || symbol.kind == .constructor, let signature = symbols.functionSignature(for: symbol.id) {
@@ -927,7 +934,11 @@ package final class MetadataEncoder {
                     callsInPlaceEffects.first { $0.parameterSymbol == paramSymbol }?.kind
                 }
             }
-            valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
+            // Auto-inlined HOF bodies still have ordinary Kotlin parameters:
+            // their callbacks may escape and must retain their closure values.
+            valueParameterAllowsNonLocalReturn = symbol.flags.contains(.inlineFunction)
+                ? signature.valueParameterAllowsNonLocalReturn
+                : Array(repeating: false, count: signature.parameterTypes.count)
             // KUU-655: an override with an inheritance link
             // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
             // flags copied from the overridden declaration in-memory
@@ -1093,7 +1104,8 @@ package final class MetadataEncoder {
             {
                 propertyGetterExternalLinkName = propertyLink
             }
-            if let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
+            if propertyGetterExternalLinkName == nil,
+               let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
                 propertyGetterExternalLinkName = linkName
             }
@@ -1267,6 +1279,7 @@ package final class MetadataEncoder {
             isInline: isInline,
             isOperator: isOperator,
             isOverride: isOverride,
+            isMemberExtension: symbol.flags.contains(.memberExtension),
             receiverOwnerFQName: receiverOwnerFQName,
             typeSignature: typeSignature,
             typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
@@ -1276,6 +1289,7 @@ package final class MetadataEncoder {
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterCallsInPlaceKinds: valueParameterCallsInPlaceKinds,
+            contractImplicationEffects: symbols.contractImplicationEffects(for: symbol.id),
             canThrow: canThrow,
             valueParameterNames: valueParameterNames,
             reifiedTypeParameterIndices: reifiedTypeParameterIndices,
@@ -1476,6 +1490,7 @@ package final class MetadataEncoder {
                 if record.isOverride {
                     fields.append("override=1")
                 }
+                if record.isMemberExtension { fields.append("memberExtension=1") }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -1503,6 +1518,12 @@ package final class MetadataEncoder {
                 if record.canThrow {
                     fields.append("canThrow=1")
                 }
+                if !record.contractImplicationEffects.isEmpty {
+                    let effects = record.contractImplicationEffects.map {
+                        "\($0.parameterIndex):\($0.returnCondition.rawValue):\($0.argumentCondition.rawValue)"
+                    }.joined(separator: ",")
+                    fields.append("contractImplies=\(effects)")
+                }
                 if !record.valueParameterNames.isEmpty {
                     fields.append("paramNames=\(record.valueParameterNames.joined(separator: ","))")
                 }
@@ -1527,12 +1548,12 @@ package final class MetadataEncoder {
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
                 }
-                if let linkName = record.externalLinkName, !linkName.isEmpty {
-                    fields.append("link=\(linkName)")
-                }
                 if let abiSig = record.abiReturnTypeSignature {
                     fields.append("abiSig=\(abiSig)")
                 }
+            }
+            if let linkName = record.externalLinkName, !linkName.isEmpty {
+                fields.append("link=\(linkName)")
             }
             if record.kind == .property || record.kind == .field {
                 if let sig = record.typeSignature {
@@ -1705,12 +1726,13 @@ package final class MetadataEncoder {
             fields.append("inline=\(record.isInline ? 1 : 0)")
             fields.append("operator=\(record.isOperator ? 1 : 0)")
             if record.isOverride { fields.append("override=1") }
+            if record.isMemberExtension { fields.append("memberExtension=1") }
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 fields.append("defaultLink=\(linkName)")
             }
-            if let linkName = record.externalLinkName, !linkName.isEmpty {
-                fields.append("link=\(linkName)")
-            }
+        }
+        if let linkName = record.externalLinkName, !linkName.isEmpty {
+            fields.append("link=\(linkName)")
         }
         if let receiverOwnerFQName = record.receiverOwnerFQName, !receiverOwnerFQName.isEmpty {
             fields.append("receiverFq=\(receiverOwnerFQName)")
@@ -1896,9 +1918,10 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
-            // ITable slot layout is part of the nominal type shape and must round-trip
-            // completely, even for synthetic or non-public interface supertypes.
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+            // Dependency interfaces are not re-exported, but their slots still belong to the layout.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID),
+               !symbol.flags.contains(.importedLibrary)
+            {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -2013,6 +2036,7 @@ final class MetadataDecoder {
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
+                isMemberExtension: rec.isMemberExtension,
                 receiverOwnerFQName: rec.receiverOwnerFQName,
                 typeSignature: rec.typeSignature,
                 typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
@@ -2022,6 +2046,7 @@ final class MetadataDecoder {
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
                 valueParameterCallsInPlaceKinds: rec.valueParameterCallsInPlaceKinds,
+                contractImplicationEffects: rec.contractImplicationEffects,
                 canThrow: rec.canThrow,
                 valueParameterNames: rec.valueParameterNames,
                 reifiedTypeParameterIndices: rec.reifiedTypeParameterIndices,
@@ -2077,6 +2102,7 @@ final class MetadataDecoder {
         var isInline: Bool = false
         var isOperator: Bool = false
         var isOverride: Bool = false
+        var isMemberExtension: Bool = false
         var receiverOwnerFQName: String?
         var typeSignature: String?
         var callableTypeParameterSignatures: [String] = []
@@ -2085,6 +2111,7 @@ final class MetadataDecoder {
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
         var valueParameterCallsInPlaceKinds: [InvocationKind?] = []
+        var contractImplicationEffects: [ContractImplicationEffect] = []
         var canThrow: Bool = false
         var valueParameterNames: [String] = []
         var reifiedTypeParameterIndices: Set<Int> = []
@@ -2150,6 +2177,8 @@ final class MetadataDecoder {
             record.isOperator = value == "1" || value == "true"
         case "override":
             record.isOverride = value == "1" || value == "true"
+        case "memberExtension":
+            record.isMemberExtension = value == "1" || value == "true"
         case "receiverFq":
             record.receiverOwnerFQName = value.isEmpty ? nil : value
         case "vararg":
@@ -2167,6 +2196,14 @@ final class MetadataDecoder {
                 case "U": .unknown
                 default: nil
                 }
+            }
+        case "contractImplies":
+            record.contractImplicationEffects = value.split(separator: ",").compactMap { item in
+                let parts = item.split(separator: ":")
+                guard parts.count == 3, let index = Int(parts[0]), index >= 0,
+                      let result = ContractReturnCondition(rawValue: String(parts[1])),
+                      let condition = ContractArgumentCondition(rawValue: String(parts[2])) else { return nil }
+                return ContractImplicationEffect(parameterIndex: index, returnCondition: result, argumentCondition: condition)
             }
         case "canThrow":
             record.canThrow = value == "1" || value == "true"

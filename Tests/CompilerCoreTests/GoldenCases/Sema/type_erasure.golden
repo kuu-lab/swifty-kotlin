@@ -1,21 +1,21 @@
-symbol fq=golden.sema.asRawList.$0.v[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.asRawList[kind=fun;params=Any] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=kotlin.collections.List<*>?
-symbol fq=golden.sema.isRawList.$1.v[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.isRawList[kind=fun;params=Any] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
-symbol fq=golden.sema.printSizeIfList.$2.v[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.printSizeIfList[kind=fun;params=Any] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Unit
+symbol fq=golden.sema.asRawList.$0.v[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.asRawList[kind=fun;params=Any;ret=kotlin.collections.List<*>?;names=[v];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=kotlin.collections.List<*>?
+symbol fq=golden.sema.isRawList.$1.v[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.isRawList[kind=fun;params=Any;ret=Boolean;names=[v];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
+symbol fq=golden.sema.printSizeIfList.$2.v[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.printSizeIfList[kind=fun;params=Any;ret=Unit;names=[v];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Unit
 file ftype_erasure package=golden.sema
-  decl golden.sema.isRawList[kind=fun;params=Any] fun isRawList sym=golden.sema.isRawList[kind=fun;params=Any]
-  decl golden.sema.asRawList[kind=fun;params=Any] fun asRawList sym=golden.sema.asRawList[kind=fun;params=Any]
-  decl golden.sema.printSizeIfList[kind=fun;params=Any] fun printSizeIfList sym=golden.sema.printSizeIfList[kind=fun;params=Any]
-expr e@4:34 name(v) type=Any ref=golden.sema.isRawList.$1.v[kind=vparam]
+  decl golden.sema.isRawList[kind=fun;params=Any;ret=Boolean;names=[v];origin=fixture] fun isRawList sym=golden.sema.isRawList[kind=fun;params=Any;ret=Boolean;names=[v];origin=fixture]
+  decl golden.sema.asRawList[kind=fun;params=Any;ret=kotlin.collections.List<*>?;names=[v];origin=fixture] fun asRawList sym=golden.sema.asRawList[kind=fun;params=Any;ret=kotlin.collections.List<*>?;names=[v];origin=fixture]
+  decl golden.sema.printSizeIfList[kind=fun;params=Any;ret=Unit;names=[v];origin=fixture] fun printSizeIfList sym=golden.sema.printSizeIfList[kind=fun;params=Any;ret=Unit;names=[v];origin=fixture]
+expr e@4:34 name(v) type=Any ref=golden.sema.isRawList.$1.v[kind=vparam;origin=fixture]
 expr e@4:34#1 isCheck expr=e@4:34 type=kotlin.collections.List<*> type=Boolean
-expr e@7:35 name(v) type=Any ref=golden.sema.asRawList.$0.v[kind=vparam]
+expr e@7:35 name(v) type=Any ref=golden.sema.asRawList.$0.v[kind=vparam;origin=fixture]
 expr e@7:35#1 asCast? expr=e@7:35 type=kotlin.collections.List<*> type=kotlin.collections.List<*>?
-expr e@10:9 name(v) type=Any ref=golden.sema.printSizeIfList.$2.v[kind=vparam]
+expr e@10:9 name(v) type=Any ref=golden.sema.printSizeIfList.$2.v[kind=vparam;origin=fixture]
 expr e@10:9#1 isCheck expr=e@10:9 type=kotlin.collections.List<*> type=Boolean
-expr e@11:17 name(v) type=kotlin.collections.List<*> ref=golden.sema.printSizeIfList.$2.v[kind=vparam]
-expr e@11:17#1 memberCall recv=e@11:17 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop]
-expr e@11:9 call callee=e@11:9#1 args=[_:e@11:17#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@11:17 name(v) type=kotlin.collections.List<*> ref=golden.sema.printSizeIfList.$2.v[kind=vparam;origin=fixture]
+expr e@11:17#1 memberCall recv=e@11:17 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
+expr e@11:9 call callee=e@11:9#1 args=[_:e@11:17#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@10:23 blockExpr stmts=[] trailing=e@11:9 type=Unit
 expr e@10:5 if cond=e@10:9#1 then=e@10:23 else=_ type=Unit

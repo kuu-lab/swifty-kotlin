@@ -231,9 +231,9 @@ extension ExprTypeChecker {
         // type-checked against the outer `ctx`/`locals`, not `objectScope`
         // below. Without this, `arg.expr` reaches KIR lowering with no type
         // binding or resolved symbol reference and lowers to a stray value.
-        for arg in objectDecl.superTypeConstructorArgs {
-            _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
-        }
+        driver.declChecker.bindObjectSuperConstructorCall(
+            objectDecl, symbol: objectSymbol, ctx: ctx, locals: &locals
+        )
 
         let propertySymbolsByDecl = registerLocalNominalMemberProperties(
             objectDecl.memberProperties,
@@ -729,7 +729,8 @@ extension ExprTypeChecker {
                 in: exprID,
                 ast: ast,
                 sema: sema,
-                outerSymbols: captureOuterSymbols
+                outerSymbols: captureOuterSymbols,
+                skipNestedClosures: false
             ))
         }
         return capturedSymbols

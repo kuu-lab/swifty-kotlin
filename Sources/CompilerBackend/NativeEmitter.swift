@@ -72,8 +72,10 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let moduleName: String
     let typeSystem: TypeSystem?
     let symbols: SymbolTable?
+    let externalFunctionSymbolsByLinkName: [String: SymbolID]
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -90,6 +92,7 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        moduleName: String = "main",
         typeSystem: TypeSystem? = nil,
         symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
@@ -104,8 +107,26 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.moduleName = moduleName
         self.typeSystem = typeSystem
         self.symbols = symbols
+        var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
+        var ambiguousLinkNames: Set<String> = []
+        for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
+            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+                  !linkName.isEmpty,
+                  !ambiguousLinkNames.contains(linkName)
+            else {
+                continue
+            }
+            if externalFunctionSymbolsByLinkName[linkName] != nil {
+                externalFunctionSymbolsByLinkName.removeValue(forKey: linkName)
+                ambiguousLinkNames.insert(linkName)
+            } else {
+                externalFunctionSymbolsByLinkName[linkName] = symbol.id
+            }
+        }
+        self.externalFunctionSymbolsByLinkName = externalFunctionSymbolsByLinkName
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
@@ -144,6 +165,10 @@ struct NativeEmitter {
         }
 
         let notNullCallee = interner.intern("kk_op_notnull")
+        let callableTagCallees: Set<InternedString> = [
+            interner.intern("kk_callable_ref_tag_kfunction"),
+            interner.intern("kk_callable_ref_tag_kproperty"),
+        ]
         let packedValueCallees: Set<InternedString> = [
             interner.intern("kk_array_set"),
             interner.intern("kk_coroutine_launcher_arg_set"),
@@ -159,7 +184,11 @@ struct NativeEmitter {
             guard case let .function(function) = declaration else {
                 continue
             }
-            let aliasSources = Self.valueAliasSources(in: function.body, notNullCallee: notNullCallee)
+            let aliasSources = Self.valueAliasSources(
+                in: function.body,
+                notNullCallee: notNullCallee,
+                callableTagCallees: callableTagCallees
+            )
             // A callback value can reach its sink through `!!`, local aliases and
             // if/when merge copies. Follow those back to the literal `symbolRef`
             // so the lambda gets the flat callback ABI that `kk_function_invoke_*`
@@ -251,10 +280,12 @@ struct NativeEmitter {
     }
 
     /// Maps each expression to the expressions whose value it may carry through
-    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`).
+    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`,
+    /// callable-reference metadata tags).
     private static func valueAliasSources(
         in body: [KIRInstruction],
-        notNullCallee: InternedString
+        notNullCallee: InternedString,
+        callableTagCallees: Set<InternedString>
     ) -> [KIRExprID: [KIRExprID]] {
         var sources: [KIRExprID: [KIRExprID]] = [:]
         for instruction in body {
@@ -266,6 +297,8 @@ struct NativeEmitter {
             case let .call(_, callee, arguments, result, _, _, _, _):
                 if callee == notNullCallee, arguments.count == 1, let result {
                     sources[result, default: []].append(arguments[0])
+                } else if callableTagCallees.contains(callee), let callable = arguments.first, let result {
+                    sources[result, default: []].append(callable)
                 }
             default:
                 continue
@@ -721,6 +754,7 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
@@ -948,6 +982,7 @@ struct NativeEmitter {
             let name = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )

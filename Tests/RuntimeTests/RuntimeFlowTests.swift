@@ -3,11 +3,19 @@ import Foundation
 import Testing
 
 private typealias RuntimeFlowEmitterEntry = @convention(c) (UnsafeMutablePointer<Int>?) -> Int
+private typealias RuntimeCapturingFlowEmitterEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 /// Non-suspend collector ABI: (closureRaw, value, outThrown)
 private typealias RuntimeFlowCollectorEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 /// Map/filter ABI: (closureRaw, elem, outThrown)
 private typealias RuntimeFlowUnaryEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
+
+@_cdecl("runtime_test_capturing_flow_emitter")
+private func runtime_test_capturing_flow_emitter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let value = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    _ = kk_flow_emit(0, value, 0, outThrown)
+    return kk_coroutine_state_exit(continuation, 0)
+}
 
 private enum RuntimeFlowTag: Int {
     case emit = 0
@@ -419,7 +427,7 @@ struct RuntimeFlowTests {
         let flowHandle = kk_flow_create(emitterPtr, 0)
         var thrown = 0
         _ = kk_flow_collect(flowHandle, throwingCollectorPtr, 0, 0, &thrown)
-        #expect(thrown == 1)
+        #expect(thrown == 1, "Collector failures must propagate through collect's thrown channel.")
 
         let snapshot = runtimeFlowTestState.snapshot()
         #expect(snapshot.values == [1], "Collector throw should stop subsequent emissions.")
@@ -496,6 +504,28 @@ struct RuntimeFlowTests {
         #expect(runtimeFlowTestState.snapshot().values == [])
     }
 
+    @Test(arguments: [0, 1, 3])
+    func testLoopBorrowingLeavesOnlyScopeOwnership(iterations: Int) {
+        let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_values_1_2_3_4 as RuntimeFlowEmitterEntry, to: Int.self)
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let handle = kk_flow_create(emitterPtr, 0)
+        let key = UInt(handle)
+
+        for _ in 0 ..< iterations {
+            let borrowed = __kk_flow_retain(handle)
+            runtimeFlowTestState.reset()
+            _ = kk_flow_collect(borrowed, collectorPtr, 0, 0)
+            #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3, 4])
+            _ = __kk_flow_release(borrowed)
+            #expect(runtimeStorage.withFlowLock { $0.flowRetainCounts[key] } == 1)
+            #expect(runtimeStorage.withFlowLock { $0.flowHandles[key] != nil })
+        }
+
+        _ = __kk_flow_release(handle)
+        #expect(runtimeStorage.withFlowLock { $0.flowRetainCounts[key] } == nil)
+        #expect(runtimeStorage.withFlowLock { $0.flowHandles[key] == nil })
+    }
+
     // MARK: - Cold stream semantics tests (STDLIB-088)
 
     @Test func testColdStreamReExecutesEmitterOnEachCollect() {
@@ -519,6 +549,22 @@ struct RuntimeFlowTests {
         let secondCollect = runtimeFlowTestState.snapshot().values
         #expect(secondCollect == [1, 2, 3, 4], "Cold stream should re-emit on each collect.")
         #expect(runtimeFlowEmitterCallCounter.count == 2, "Emitter should run again on second collect (cold stream).")
+    }
+
+    @Test func testCapturingColdStreamUsesFreshContinuationOnEachCollect() {
+        let emitter = unsafeBitCast(runtime_test_capturing_flow_emitter as RuntimeCapturingFlowEmitterEntry, to: Int.self)
+        let continuation = kk_coroutine_continuation_new(101)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 7)
+        let flow = kk_flow_create(emitter, continuation)
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        for _ in 0..<2 {
+            runtimeFlowTestState.reset()
+            var thrown = 0
+            _ = kk_flow_collect(flow, collectorPtr, 0, 0, &thrown)
+            #expect(thrown == 0)
+            #expect(runtimeFlowTestState.snapshot().values == [7])
+        }
+        _ = __kk_flow_release(flow)
     }
 
     @Test func testCapturedColdStreamReExecutesAfterContinuationCompletes() {
@@ -585,6 +631,13 @@ struct RuntimeFlowTests {
             callerState.thrownException = 0
             #expect(kk_flow_collect(handle, collector, 0, 0) == 42)
             #expect(callerState.thrownException == 42)
+            #expect(RuntimeContinuationState.current === callerState)
+
+            callerState.thrownException = 0
+            var thrown = 0
+            #expect(kk_flow_collect(handle, collector, 0, 0, &thrown) == 42)
+            #expect(thrown == 42)
+            #expect(callerState.thrownException == 0)
             #expect(RuntimeContinuationState.current === callerState)
         }
     }

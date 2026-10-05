@@ -4,16 +4,40 @@ struct VariableFlowState: Equatable {
     var isStable: Bool
 }
 
+struct DataFlowReference: Hashable {
+    let root: SymbolID
+    var properties: [SymbolID] = []
+}
+
 struct DataFlowState: Equatable {
     var variables: [SymbolID: VariableFlowState]
+    var members: [DataFlowReference: VariableFlowState] = [:]
 
     init(variables: [SymbolID: VariableFlowState] = [:]) {
         self.variables = variables
+    }
+
+    subscript(reference: DataFlowReference) -> VariableFlowState? {
+        get { reference.properties.isEmpty ? variables[reference.root] : members[reference] }
+        set {
+            if reference.properties.isEmpty {
+                variables[reference.root] = newValue
+            } else {
+                members[reference] = newValue
+            }
+        }
+    }
+
+    func includingMembers(from locals: LocalBindings) -> DataFlowState {
+        var state = self
+        state.members = locals.memberFlow
+        return state
     }
 }
 
 struct WhenBranchSummary {
     let coveredSymbols: Set<InternedString>
+    let coveredTypeSymbols: Set<SymbolID>
     let hasElse: Bool
     let hasNullCase: Bool
     let hasTrueCase: Bool
@@ -24,9 +48,11 @@ struct WhenBranchSummary {
         hasElse: Bool,
         hasNullCase: Bool = false,
         hasTrueCase: Bool? = nil,
-        hasFalseCase: Bool? = nil
+        hasFalseCase: Bool? = nil,
+        coveredTypeSymbols: Set<SymbolID> = []
     ) {
         self.coveredSymbols = coveredSymbols
+        self.coveredTypeSymbols = coveredTypeSymbols
         self.hasElse = hasElse
         self.hasNullCase = hasNullCase
         self.hasTrueCase = hasTrueCase ?? coveredSymbols.contains(InternedString(rawValue: 1))
@@ -40,6 +66,9 @@ struct ConditionBranch: Equatable {
 }
 
 final class DataFlowAnalyzer {
+    var stableMemberProperties: [SymbolID: Bool] = [:]
+    let localStability = LocalVariableStabilityAnalyzer()
+    var stableMutableReceivers: Set<SymbolID> = []
     init() {}
 
     private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
@@ -49,7 +78,7 @@ final class DataFlowAnalyzer {
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
@@ -59,6 +88,11 @@ final class DataFlowAnalyzer {
             return ConditionBranch(trueState: base, falseState: base)
         }
         switch conditionExpr {
+        case .call, .memberCall:
+            return ConditionBranch(
+                trueState: applyContractImplications(conditionID, result: .returnsTrue, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
+                falseState: applyContractImplications(conditionID, result: .returnsFalse, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+            )
         case let .binary(op, lhsID, rhsID, _):
             return branchOnBinary(
                 op: op, lhsID: lhsID, rhsID: rhsID,
@@ -86,17 +120,52 @@ final class DataFlowAnalyzer {
         }
     }
 
+    func applyContractImplications(
+        _ callID: ExprID,
+        result: ContractReturnCondition,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner,
+        scope: Scope
+    ) -> DataFlowState {
+        guard let binding = sema.bindings.callBinding(for: callID),
+              let expr = ast.arena.expr(callID) else { return base }
+        let args: [CallArgument]
+        switch expr {
+        case let .call(_, _, arguments, _), let .memberCall(_, _, _, arguments, _): args = arguments
+        default: return base
+        }
+        var state = base
+        for effect in sema.symbols.contractImplicationEffects(for: binding.chosenCallee) {
+            guard effect.returnCondition == .normally || effect.returnCondition == result
+                || (effect.returnCondition == .returnsNotNull && (result == .returnsTrue || result == .returnsFalse)),
+                let argumentIndex = binding.parameterMapping.first(where: { $0.value == effect.parameterIndex })?.key,
+                args.indices.contains(argumentIndex) else { continue }
+            let argument = args[argumentIndex].expr
+            switch effect.argumentCondition {
+            case .nonNull:
+                state = narrowNonNull(argument, base: state, locals: locals, ast: ast, sema: sema, interner: interner)
+            case .booleanTrue, .booleanFalse:
+                let branch = branchOnCondition(argument, base: state, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                state = effect.argumentCondition == .booleanTrue ? branch.trueState : branch.falseState
+            }
+        }
+        return state
+    }
+
     /// Narrows a stable local expression to its non-null type after a contract
     /// guarantees that the expression is non-null on normal return.
     func narrowNonNull(
         _ expressionID: ExprID,
         base: DataFlowState,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner
     ) -> DataFlowState {
-        guard let (symbol, currentType, isStable) = resolveLocalVariable(
+        guard let (symbol, currentType, isStable) = resolveStableReference(
             expressionID,
             locals: locals,
             ast: ast,
@@ -105,7 +174,7 @@ final class DataFlowAnalyzer {
         ), isStable else {
             return base
         }
-        let effectiveType: TypeID = if let baseState = base.variables[symbol],
+        let effectiveType: TypeID = if let baseState = base[symbol],
                                        baseState.possibleTypes.count == 1,
                                        let baseType = baseState.possibleTypes.first
         {
@@ -113,13 +182,13 @@ final class DataFlowAnalyzer {
         } else {
             currentType
         }
-        var variables = base.variables
+        var variables = base
         variables[symbol] = VariableFlowState(
             possibleTypes: [makeTypeNonNullable(effectiveType, types: sema.types)],
             nullability: .nonNull,
             isStable: true
         )
-        return DataFlowState(variables: variables)
+        return variables
     }
 
     private func branchOnBinary(
@@ -127,7 +196,7 @@ final class DataFlowAnalyzer {
         lhsID: ExprID,
         rhsID: ExprID,
         base: DataFlowState,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
@@ -135,6 +204,43 @@ final class DataFlowAnalyzer {
     ) -> ConditionBranch {
         switch op {
         case .equal, .notEqual, .identityEqual, .notIdentityEqual:
+            let testedCall: ExprID?
+            let trueResult: ContractReturnCondition
+            var falseResult: ContractReturnCondition
+            if isNullLiteral(rhsID, ast: ast, interner: interner) || isNullLiteral(lhsID, ast: ast, interner: interner) {
+                testedCall = isNullLiteral(rhsID, ast: ast, interner: interner) ? lhsID : rhsID
+                trueResult = .returnsNull
+                falseResult = .returnsNotNull
+            } else if let value = booleanLiteral(rhsID, ast: ast, interner: interner) {
+                testedCall = lhsID
+                trueResult = value ? .returnsTrue : .returnsFalse
+                falseResult = value ? .returnsFalse : .returnsTrue
+            } else if let value = booleanLiteral(lhsID, ast: ast, interner: interner) {
+                testedCall = rhsID
+                trueResult = value ? .returnsTrue : .returnsFalse
+                falseResult = value ? .returnsFalse : .returnsTrue
+            } else {
+                testedCall = nil
+                trueResult = .normally
+                falseResult = .normally
+            }
+            if let testedCall, sema.bindings.callBinding(for: testedCall) != nil {
+                if trueResult == .returnsTrue || trueResult == .returnsFalse,
+                   let resultType = sema.bindings.exprTypes[testedCall],
+                   makeTypeNonNullable(resultType, types: sema.types) != resultType
+                {
+                    // A nullable Boolean unequal to a literal may be null, not its opposite.
+                    falseResult = .normally
+                }
+                let branch = ConditionBranch(
+                    trueState: applyContractImplications(testedCall, result: trueResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope),
+                    falseState: applyContractImplications(testedCall, result: falseResult, base: base, locals: locals, ast: ast, sema: sema, interner: interner, scope: scope)
+                )
+                if op == .notEqual || op == .notIdentityEqual {
+                    return ConditionBranch(trueState: branch.falseState, falseState: branch.trueState)
+                }
+                return branch
+            }
             // `x === null` / `x !== null` narrow nullability exactly like `==`/`!=`
             // (identity comparison against the null literal is not overridable).
             let nullResult = branchOnNullComparison(
@@ -178,11 +284,24 @@ final class DataFlowAnalyzer {
         }
     }
 
+    private func booleanLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool? {
+        switch ast.arena.expr(id) {
+        case let .boolLiteral(value, _): return value
+        case let .nameRef(name, _):
+            switch interner.resolve(name) {
+            case "true": return true
+            case "false": return false
+            default: return nil
+            }
+        default: return nil
+        }
+    }
+
     private func branchOnNullComparison(
         lhsID: ExprID,
         rhsID: ExprID,
         base: DataFlowState,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner
@@ -195,12 +314,12 @@ final class DataFlowAnalyzer {
         } else {
             return nil
         }
-        guard let (symbol, currentType, isStable) = resolveLocalVariable(
+        guard let (symbol, currentType, isStable) = resolveStableReference(
             variableID, locals: locals, ast: ast, sema: sema, interner: interner
         ), isStable else {
             return nil
         }
-        let effectiveType: TypeID = if let baseState = base.variables[symbol], baseState.possibleTypes.count == 1,
+        let effectiveType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
                                        let baseType = baseState.possibleTypes.first
         {
             baseType
@@ -208,21 +327,21 @@ final class DataFlowAnalyzer {
             currentType
         }
         let nonNullType = makeTypeNonNullable(effectiveType, types: sema.types)
-        var trueVars = base.variables
+        var trueVars = base
         trueVars[symbol] = VariableFlowState(
             possibleTypes: [effectiveType],
             nullability: .nullable,
             isStable: true
         )
-        var falseVars = base.variables
+        var falseVars = base
         falseVars[symbol] = VariableFlowState(
             possibleTypes: [nonNullType],
             nullability: .nonNull,
             isStable: true
         )
         return ConditionBranch(
-            trueState: DataFlowState(variables: trueVars),
-            falseState: DataFlowState(variables: falseVars)
+            trueState: trueVars,
+            falseState: falseVars
         )
     }
 
@@ -230,13 +349,13 @@ final class DataFlowAnalyzer {
         exprID: ExprID,
         typeRefID: TypeRefID,
         base: DataFlowState,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
         interner: StringInterner,
         scope: Scope
     ) -> ConditionBranch {
-        guard let (symbol, currentType, isStable) = resolveLocalVariable(
+        guard let (symbol, currentType, isStable) = resolveStableReference(
             exprID, locals: locals, ast: ast, sema: sema, interner: interner
         ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
@@ -250,7 +369,7 @@ final class DataFlowAnalyzer {
         ) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
-        let priorType: TypeID = if let baseState = base.variables[symbol], baseState.possibleTypes.count == 1,
+        let priorType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
                                    let baseType = baseState.possibleTypes.first
         {
             baseType
@@ -263,7 +382,7 @@ final class DataFlowAnalyzer {
         let targetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
         let targetNullability = sema.types.nullability(of: targetType)
         // Use intersection with previous flow state type for chained is-checks (P5-97)
-        let narrowedType: TypeID = if let baseState = base.variables[symbol],
+        let narrowedType: TypeID = if let baseState = base[symbol],
                                       baseState.possibleTypes.count == 1,
                                       let existingType = baseState.possibleTypes.first
         {
@@ -280,33 +399,33 @@ final class DataFlowAnalyzer {
         } else {
             targetType
         }
-        var trueVars = base.variables
+        var trueVars = base
         trueVars[symbol] = VariableFlowState(
             possibleTypes: [narrowedType],
             nullability: targetNullability,
             isStable: true
         )
-        let falseType: TypeID = if let baseState = base.variables[symbol], baseState.possibleTypes.count == 1,
+        let falseType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
                                    let baseType = baseState.possibleTypes.first
         {
             baseType
         } else {
             currentType
         }
-        var falseVars = base.variables
+        var falseVars = base
         falseVars[symbol] = VariableFlowState(
             possibleTypes: [falseType],
-            nullability: base.variables[symbol]?.nullability ?? (makeTypeNonNullable(falseType, types: sema.types) != falseType ? .nullable : .nonNull),
+            nullability: base[symbol]?.nullability ?? (makeTypeNonNullable(falseType, types: sema.types) != falseType ? .nullable : .nonNull),
             isStable: true
         )
         return ConditionBranch(
-            trueState: DataFlowState(variables: trueVars),
-            falseState: DataFlowState(variables: falseVars)
+            trueState: trueVars,
+            falseState: falseVars
         )
     }
 
     func branchOnWhenSubject(
-        subjectSymbol: SymbolID,
+        subjectSymbol: DataFlowReference,
         subjectType: TypeID,
         subjectID: ExprID,
         conditionID: ExprID,
@@ -322,13 +441,13 @@ final class DataFlowAnalyzer {
         switch conditionExpr {
         case let .nameRef(name, _):
             if name == builtinTypeNames(interner: interner).null {
-                var vars = base.variables
+                var vars = base
                 vars[subjectSymbol] = VariableFlowState(
                     possibleTypes: [subjectType],
                     nullability: .nullable,
                     isStable: true
                 )
-                return DataFlowState(variables: vars)
+                return vars
             }
             guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                 return base
@@ -352,13 +471,13 @@ final class DataFlowAnalyzer {
         case .boolLiteral:
             if case .primitive(.boolean, _) = sema.types.kind(of: subjectType) {
                 let narrowed = sema.types.make(.primitive(.boolean, .nonNull))
-                var vars = base.variables
+                var vars = base
                 vars[subjectSymbol] = VariableFlowState(
                     possibleTypes: [narrowed],
                     nullability: .nonNull,
                     isStable: true
                 )
-                return DataFlowState(variables: vars)
+                return vars
             }
             return base
         case let .isCheck(exprID, typeRefID, negated, _):
@@ -374,7 +493,7 @@ final class DataFlowAnalyzer {
 
     private func narrowedStateForConditionSymbol(
         _ conditionSymbolID: SymbolID,
-        subjectSymbol: SymbolID,
+        subjectSymbol: DataFlowReference,
         subjectType: TypeID,
         base: DataFlowState,
         sema: SemaModule
@@ -392,11 +511,11 @@ final class DataFlowAnalyzer {
             let narrowed = sema.types.make(.classType(ClassType(
                 classSymbol: ownerID, args: [], nullability: .nonNull
             )))
-            var vars = base.variables
+            var vars = base
             vars[subjectSymbol] = VariableFlowState(
                 possibleTypes: [narrowed], nullability: .nonNull, isStable: true
             )
-            return DataFlowState(variables: vars)
+            return vars
         case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
             guard let subjectNominal = nominalSymbolID(of: subjectType, types: sema.types),
                   isNominalSubtype(conditionSymbolID, of: subjectNominal, symbols: sema.symbols)
@@ -409,11 +528,11 @@ final class DataFlowAnalyzer {
             // Same "no explicit type argument" narrowing gap as
             // narrowedStateForIsCheck -- see refineIsCheckTargetType.
             let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
-            var vars = base.variables
+            var vars = base
             vars[subjectSymbol] = VariableFlowState(
                 possibleTypes: [narrowed], nullability: .nonNull, isStable: true
             )
-            return DataFlowState(variables: vars)
+            return vars
         default:
             return base
         }
@@ -423,7 +542,7 @@ final class DataFlowAnalyzer {
         exprID: ExprID,
         typeRefID: TypeRefID,
         negated: Bool,
-        subjectSymbol: SymbolID,
+        subjectSymbol: DataFlowReference,
         subjectType: TypeID,
         subjectID: ExprID,
         conditionID _: ExprID,
@@ -454,15 +573,15 @@ final class DataFlowAnalyzer {
         // `List` -- see the matching fix in branchOnIsCheck/refineIsCheckTargetType.
         let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
         let narrowedNullability = sema.types.nullability(of: narrowed)
-        var vars = base.variables
+        var vars = base
         vars[subjectSymbol] = VariableFlowState(
             possibleTypes: [narrowed], nullability: narrowedNullability, isStable: true
         )
-        return DataFlowState(variables: vars)
+        return vars
     }
 
     func whenElseState(
-        subjectSymbol: SymbolID,
+        subjectSymbol: DataFlowReference,
         subjectType: TypeID,
         hasExplicitNullBranch: Bool,
         base: DataFlowState,
@@ -472,36 +591,43 @@ final class DataFlowAnalyzer {
             return base
         }
         let nonNullType = makeTypeNonNullable(subjectType, types: sema.types)
-        var vars = base.variables
+        var vars = base
         vars[subjectSymbol] = VariableFlowState(
             possibleTypes: [nonNullType],
             nullability: .nonNull,
             isStable: true
         )
-        return DataFlowState(variables: vars)
+        return vars
     }
 
     func whenNonNullBranchState(
-        subjectSymbol: SymbolID,
+        subjectSymbol: DataFlowReference,
         subjectType: TypeID,
         base: DataFlowState,
         sema: SemaModule
     ) -> DataFlowState {
         let nonNullType = makeTypeNonNullable(subjectType, types: sema.types)
-        var vars = base.variables
+        var vars = base
         vars[subjectSymbol] = VariableFlowState(
             possibleTypes: [nonNullType],
             nullability: .nonNull,
             isStable: true
         )
-        return DataFlowState(variables: vars)
+        return vars
     }
 
     func resolvedTypeFromFlowState(
         _ state: DataFlowState,
         symbol: SymbolID
     ) -> TypeID? {
-        guard let flowState = state.variables[symbol],
+        return resolvedTypeFromFlowState(state, reference: DataFlowReference(root: symbol))
+    }
+
+    func resolvedTypeFromFlowState(
+        _ state: DataFlowState,
+        reference: DataFlowReference
+    ) -> TypeID? {
+        guard let flowState = state[reference],
               flowState.possibleTypes.count == 1,
               let narrowed = flowState.possibleTypes.first
         else {
@@ -517,44 +643,6 @@ final class DataFlowAnalyzer {
             return false
         }
         return name == builtinTypeNames(interner: interner).null
-    }
-
-    private func resolveLocalVariable(
-        _ id: ExprID,
-        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
-        ast: ASTModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> (symbol: SymbolID, type: TypeID, isStable: Bool)? {
-        guard let expr = ast.arena.expr(id) else {
-            return nil
-        }
-        let local: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
-        switch expr {
-        case let .nameRef(name, _):
-            guard let resolved = locals[name] else { return nil }
-            local = resolved
-        case let .thisRef(label, _) where label == nil:
-            let thisName = interner.intern("this")
-            guard let resolved = locals[thisName] else { return nil }
-            local = resolved
-        default:
-            return nil
-        }
-        // Local `var`s are smart-cast candidates in Kotlin as well: only members
-        // and captured-and-modified locals are unstable. Narrowing is dropped
-        // again when the local is reassigned (LocalDeclTypeChecker.inferLocalAssignExpr).
-        let isStable: Bool = if let symbol = sema.symbols.symbol(local.symbol) {
-            switch symbol.kind {
-            case .valueParameter, .local:
-                true
-            default:
-                false
-            }
-        } else {
-            true
-        }
-        return (local.symbol, local.type, isStable)
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {
@@ -616,7 +704,16 @@ final class DataFlowAnalyzer {
                 isStable: lhsState.isStable && rhsState.isStable
             )
         }
-        return DataFlowState(variables: merged)
+        var result = DataFlowState(variables: merged)
+        for (reference, lhsState) in lhs.members {
+            guard let rhsState = rhs.members[reference] else { continue }
+            result.members[reference] = VariableFlowState(
+                possibleTypes: lhsState.possibleTypes.union(rhsState.possibleTypes),
+                nullability: lhsState.nullability == .nullable || rhsState.nullability == .nullable ? .nullable : .nonNull,
+                isStable: lhsState.isStable && rhsState.isStable
+            )
+        }
+        return result
     }
 
     func isWhenExhaustive(
@@ -685,15 +782,15 @@ final class DataFlowAnalyzer {
         else {
             return nil
         }
-        let subtypeNames = sealedSubtypeNames(for: classSymbol, sema: sema)
-        guard !subtypeNames.isEmpty else {
+        let subtypes = sealedSubtypeSymbols(for: classSymbol, sema: sema)
+        guard !subtypes.isEmpty else {
             return nil
         }
-        let missing = subtypeNames.filter { !branches.coveredSymbols.contains($0) }
+        let missing = subtypes.filter { !isSealedSubtypeCovered($0, branches: branches, sema: sema) }
         guard !missing.isEmpty else {
             return nil
         }
-        return Array(missing)
+        return Array(Set(missing.compactMap { sema.symbols.symbol($0)?.name }))
     }
 
     private func isClassWhenExhaustive(
@@ -719,11 +816,13 @@ final class DataFlowAnalyzer {
 
         default:
             if classSymbol.flags.contains(.sealedType) {
-                let subtypeNames = sealedSubtypeNames(for: classSymbol, sema: sema)
-                guard !subtypeNames.isEmpty else {
+                let subtypes = sealedSubtypeSymbols(for: classSymbol, sema: sema)
+                guard !subtypes.isEmpty else {
                     return false
                 }
-                let hasAllSealedSubtypes = subtypeNames.isSubset(of: branches.coveredSymbols)
+                let hasAllSealedSubtypes = subtypes.allSatisfy {
+                    isSealedSubtypeCovered($0, branches: branches, sema: sema)
+                }
                 if classType.nullability == .nullable {
                     return hasAllSealedSubtypes && branches.hasNullCase
                 }
@@ -733,17 +832,30 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// P5-78: Get sealed subtype names, using sealedSubclasses metadata for cross-module support,
+    private func isSealedSubtypeCovered(
+        _ subtype: SymbolID,
+        branches: WhenBranchSummary,
+        sema: SemaModule
+    ) -> Bool {
+        if let name = sema.symbols.symbol(subtype)?.name,
+           branches.coveredSymbols.contains(name)
+        {
+            return true
+        }
+        return branches.coveredTypeSymbols.contains {
+            isNominalSubtype(subtype, of: $0, symbols: sema.symbols)
+        }
+    }
+
+    /// P5-78: Get sealed subtype symbols, using sealedSubclasses metadata for cross-module support,
     /// falling back to directSubtypes for same-module sealed types.
-    private func sealedSubtypeNames(for classSymbol: SemanticSymbol, sema: SemaModule) -> Set<InternedString> {
+    private func sealedSubtypeSymbols(for classSymbol: SemanticSymbol, sema: SemaModule) -> [SymbolID] {
         // First try sealedSubclasses (populated from metadata for cross-module)
         if let sealedSubs = sema.symbols.sealedSubclasses(for: classSymbol.id) {
-            return Set(sealedSubs.compactMap { sema.symbols.symbol($0)?.name })
+            return sealedSubs
         }
         // Fall back to directSubtypes (same-module)
-        return Set(sema.symbols.directSubtypes(of: classSymbol.id).compactMap { subtype in
-            sema.symbols.symbol(subtype)?.name
-        })
+        return sema.symbols.directSubtypes(of: classSymbol.id)
     }
 
     /// Refines a raw `is` target type resolved with no explicit type argument

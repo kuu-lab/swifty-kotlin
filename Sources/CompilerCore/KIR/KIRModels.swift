@@ -80,6 +80,11 @@ public enum KIRDispatchKind: Equatable, Sendable {
     case itableDynamic(interfaceTypeID: Int64, methodSlot: Int)
 }
 
+public enum KIRReturnTarget: Hashable, Sendable {
+    case function(SymbolID)
+    case importedFunction(InternedString)
+}
+
 public enum KIRInstruction: Equatable, Sendable {
     case nop
     case beginBlock
@@ -104,9 +109,16 @@ public enum KIRInstruction: Equatable, Sendable {
     case returnUnit
     case returnValue(KIRExprID)
     /// Non-local return from a lambda passed to an inline function.
-    /// During inline expansion this is converted into a real return
-    /// from the enclosing (caller) function.
-    case nonLocalReturn(KIRExprID?)
+    /// The target identifies the lexical function, even after inline expansion.
+    case nonLocalReturn(KIRExprID?, target: KIRReturnTarget? = nil)
+    /// Lexical cleanup or function exit retained until inline expansion completes.
+    /// The value slot carries the original return representation without boxing.
+    case beginNonLocalReturnScope(value: KIRExprID, target: Int32, function: KIRReturnTarget? = nil)
+    case endNonLocalReturnScope
+    case resumeNonLocalReturn(KIRExprID)
+    /// Eager cleanup must not re-enter finally blocks already being executed.
+    case beginFinallyCleanup(skipping: Int)
+    case endFinallyCleanup
     /// Sentinel markers delimiting an already-wrapped finally guard region.
     /// `appendThrowAwareInstructions` passes instructions between these
     /// sentinels through verbatim to prevent double-wrapping.
@@ -480,6 +492,7 @@ public final class KIRModule {
     public private(set) var executedLowerings: [String]
     public private(set) var stage: KIRStage
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
+    package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
@@ -721,14 +734,24 @@ public final class KIRModule {
             return "returnUnit"
         case let .returnValue(value):
             return "return r\(value.rawValue)"
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, target):
             if let value {
-                return "nonLocalReturn r\(value.rawValue)"
+                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0)" } ?? "")
             } else {
-                return "nonLocalReturnUnit"
+                return "nonLocalReturnUnit" + (target.map { " target=\($0)" } ?? "")
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target, function):
+            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0)" } ?? "")
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn r\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
         }

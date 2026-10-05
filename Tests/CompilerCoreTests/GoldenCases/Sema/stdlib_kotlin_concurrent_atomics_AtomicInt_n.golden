@@ -1,37 +1,37 @@
-symbol fq=golden.sema.atomicIntDecrementAndFetch.$0.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt] ret=Int
-symbol fq=golden.sema.atomicIntIncrementAndFetch.$1.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt] ret=Int
-symbol fq=golden.sema.atomicIntMinusAssign.$2.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntMinusAssign.$2.delta[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,Int] ret=Unit
-symbol fq=golden.sema.atomicIntPlusAssign.$3.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntPlusAssign.$3.delta[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,Int] ret=Unit
-symbol fq=golden.sema.atomicIntUpdate.$4.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntUpdate.$4.transform[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntUpdateAndFetch.$5.atomic[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntUpdateAndFetch.$5.transform[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,(Int) -> Int] ret=Int
-symbol fq=golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,(Int) -> Int] ret=Unit
+symbol fq=golden.sema.atomicIntDecrementAndFetch.$0.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt] ret=Int
+symbol fq=golden.sema.atomicIntIncrementAndFetch.$1.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt] ret=Int
+symbol fq=golden.sema.atomicIntMinusAssign.$2.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntMinusAssign.$2.delta[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,Int] ret=Unit
+symbol fq=golden.sema.atomicIntPlusAssign.$3.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntPlusAssign.$3.delta[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,Int] ret=Unit
+symbol fq=golden.sema.atomicIntUpdate.$4.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntUpdate.$4.transform[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntUpdateAndFetch.$5.atomic[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntUpdateAndFetch.$5.transform[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Int;names=[atomic,transform];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,(Int) -> Int] ret=Int
+symbol fq=golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Unit;names=[atomic,transform];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicInt,(Int) -> Int] ret=Unit
 file fstdlib_kotlin_concurrent_atomics_AtomicInt_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
-  decl golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt] fun atomicIntIncrementAndFetch sym=golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt]
-  decl golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt] fun atomicIntDecrementAndFetch sym=golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt]
-  decl golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int] fun atomicIntPlusAssign sym=golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int]
-  decl golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int] fun atomicIntMinusAssign sym=golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int]
-  decl golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}] fun atomicIntUpdate sym=golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}]
-  decl golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}] fun atomicIntUpdateAndFetch sym=golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int}]
-expr e@7:58 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntIncrementAndFetch.$1.atomic[kind=vparam]
-expr e@7:58#1 memberCall recv=e@7:58 callee=incrementAndFetch args=[] type=Int call=kotlin.concurrent.atomics.incrementAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
-expr e@9:58 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntDecrementAndFetch.$0.atomic[kind=vparam]
-expr e@9:58#1 memberCall recv=e@9:58 callee=decrementAndFetch args=[] type=Int call=kotlin.concurrent.atomics.decrementAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=]
-expr e@12:15 name(delta) type=Int ref=golden.sema.atomicIntPlusAssign.$3.delta[kind=vparam]
-expr e@12:5 compoundAssign(plusAssign) name=atomic value=e@12:15 type=Unit ref=golden.sema.atomicIntPlusAssign.$3.atomic[kind=vparam] call=kotlin.concurrent.atomics.plusAssign[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int]
-expr e@16:15 name(delta) type=Int ref=golden.sema.atomicIntMinusAssign.$2.delta[kind=vparam]
-expr e@16:5 compoundAssign(minusAssign) name=atomic value=e@16:15 type=Unit ref=golden.sema.atomicIntMinusAssign.$2.atomic[kind=vparam] call=kotlin.concurrent.atomics.minusAssign[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int]
-expr e@22:11 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntUpdate.$4.atomic[kind=vparam]
-expr e@22:25 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntUpdate.$4.transform[kind=vparam]
-expr e@22:11#1 memberCall recv=e@22:11 callee=update args=[_:e@22:25] type=Unit call=kotlin.concurrent.atomics.update[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=fn{p=Int;ret=Int}]
-expr e@27:10 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntUpdateAndFetch.$5.atomic[kind=vparam]
-expr e@27:32 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntUpdateAndFetch.$5.transform[kind=vparam]
-expr e@27:10#1 memberCall recv=e@27:10 callee=updateAndFetch args=[_:e@27:32] type=Int call=kotlin.concurrent.atomics.updateAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=fn{p=Int;ret=Int}]
+  decl golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture] fun atomicIntIncrementAndFetch sym=golden.sema.atomicIntIncrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture]
+  decl golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture] fun atomicIntDecrementAndFetch sym=golden.sema.atomicIntDecrementAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt;ret=Int;names=[atomic];origin=fixture]
+  decl golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture] fun atomicIntPlusAssign sym=golden.sema.atomicIntPlusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture]
+  decl golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture] fun atomicIntMinusAssign sym=golden.sema.atomicIntMinusAssign[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,Int;ret=Unit;names=[atomic,delta];origin=fixture]
+  decl golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Unit;names=[atomic,transform];origin=fixture] fun atomicIntUpdate sym=golden.sema.atomicIntUpdate[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Unit;names=[atomic,transform];origin=fixture]
+  decl golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Int;names=[atomic,transform];origin=fixture] fun atomicIntUpdateAndFetch sym=golden.sema.atomicIntUpdateAndFetch[kind=fun;params=kotlin.concurrent.atomics.AtomicInt,fn{p=Int;ret=Int};ret=Int;names=[atomic,transform];origin=fixture]
+expr e@7:58 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntIncrementAndFetch.$1.atomic[kind=vparam;origin=fixture]
+expr e@7:58#1 memberCall recv=e@7:58 callee=incrementAndFetch args=[] type=Int call=kotlin.concurrent.atomics.incrementAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=;ret=Int]
+expr e@9:58 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntDecrementAndFetch.$0.atomic[kind=vparam;origin=fixture]
+expr e@9:58#1 memberCall recv=e@9:58 callee=decrementAndFetch args=[] type=Int call=kotlin.concurrent.atomics.decrementAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=;ret=Int]
+expr e@12:15 name(delta) type=Int ref=golden.sema.atomicIntPlusAssign.$3.delta[kind=vparam;origin=fixture]
+expr e@12:5 compoundAssign(plusAssign) name=atomic value=e@12:15 type=Unit ref=golden.sema.atomicIntPlusAssign.$3.atomic[kind=vparam;origin=fixture] call=kotlin.concurrent.atomics.plusAssign[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int;ret=Unit;names=[delta]]
+expr e@16:15 name(delta) type=Int ref=golden.sema.atomicIntMinusAssign.$2.delta[kind=vparam;origin=fixture]
+expr e@16:5 compoundAssign(minusAssign) name=atomic value=e@16:15 type=Unit ref=golden.sema.atomicIntMinusAssign.$2.atomic[kind=vparam;origin=fixture] call=kotlin.concurrent.atomics.minusAssign[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int;ret=Unit;names=[delta]]
+expr e@22:11 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntUpdate.$4.atomic[kind=vparam;origin=fixture]
+expr e@22:25 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntUpdate.$4.transform[kind=vparam;origin=fixture]
+expr e@22:11#1 memberCall recv=e@22:11 callee=update args=[_:e@22:25] type=Unit call=kotlin.concurrent.atomics.update[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=fn{p=Int;ret=Int};ret=Unit;names=[transform]]
+expr e@27:10 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=golden.sema.atomicIntUpdateAndFetch.$5.atomic[kind=vparam;origin=fixture]
+expr e@27:32 name(transform) type=(Int) -> Int ref=golden.sema.atomicIntUpdateAndFetch.$5.transform[kind=vparam;origin=fixture]
+expr e@27:10#1 memberCall recv=e@27:10 callee=updateAndFetch args=[_:e@27:32] type=Int call=kotlin.concurrent.atomics.updateAndFetch[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=fn{p=Int;ret=Int};ret=Int;names=[transform]]

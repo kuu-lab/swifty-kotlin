@@ -145,7 +145,7 @@ final class ObjectLiteralLowerer {
             )
             let initName = interner.intern("<init>")
             let ctorFQName = ownerFQName + [initName]
-            if let ctorSymbol = sema.symbols.lookupAll(fqName: ctorFQName).first(where: {
+            for ctorSymbol in sema.symbols.lookupAll(fqName: ctorFQName).filter({
                 sema.symbols.symbol($0)?.kind == .constructor
             }) {
                 let ctorDecls = driver.lowerConstructor(
@@ -489,7 +489,8 @@ final class ObjectLiteralLowerer {
             return
         }
         let candidates = sema.symbols.lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
-        guard let superCtorSymbol = driver.resolveObjectSuperConstructor(
+        let callBinding = sema.bindings.constructorDelegationCallBinding(for: objectSymbol)
+        guard let superCtorSymbol = callBinding?.chosenCallee ?? driver.resolveObjectSuperConstructor(
             candidates: candidates,
             argExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             sema: sema
@@ -517,23 +518,31 @@ final class ObjectLiteralLowerer {
             return
         }
 
-        var argIDs: [KIRExprID] = [objectValue]
+        var loweredArgs: [KIRExprID] = []
         for arg in objectDecl.superTypeConstructorArgs {
-            argIDs.append(driver.lowerExpr(
+            loweredArgs.append(driver.lowerExpr(
                 arg.expr, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             ))
         }
 
         let resultID = arena.appendTemporary(type: sema.types.unitType)
-        instructions.append(.call(
-            symbol: superCtorSymbol,
-            callee: interner.intern("<init>"),
-            arguments: argIDs,
+        var body = KIRLoweringEmitContext(instructions)
+        driver.emitDelegatedConstructorCall(
+            target: superCtorSymbol,
+            receiver: objectValue,
+            loweredArgs: loweredArgs,
+            spreadFlags: objectDecl.superTypeConstructorArgs.map(\.isSpread),
+            callBinding: callBinding,
+            sourceArgExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             result: resultID,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            shared: KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            ),
+            body: &body
+        )
+        instructions = body.instructions
     }
 
     /// KSP-CAP-001: re-establishes an object literal's captured outer values
@@ -608,6 +617,24 @@ final class ObjectLiteralLowerer {
     }
 
     func implicitReceiverExprID(forProperty symbol: SymbolID, sema: SemaModule) -> KIRExprID? {
+        let activeReceiverType = driver.ctx.activeImplicitReceiverSymbol().flatMap {
+            driver.ctx.localDeclaredType(for: $0)
+        } ?? driver.ctx.currentFunctionSymbol.flatMap {
+            sema.symbols.functionSignature(for: $0)?.receiverType
+        }
+        if let owner = sema.symbols.parentSymbol(for: symbol),
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = activeReceiverType,
+           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+           sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: owner)
+        {
+            return activeReceiver
+        }
+        if let owner = sema.symbols.parentSymbol(for: symbol),
+           let receiver = driver.ctx.capturedOuterReceiverExprID(for: owner)
+        {
+            return receiver
+        }
         guard let propertyOwner = sema.symbols.parentSymbol(for: symbol),
               let functionSymbol = driver.ctx.currentFunctionSymbol,
               let objectOwner = sema.symbols.parentSymbol(for: functionSymbol),

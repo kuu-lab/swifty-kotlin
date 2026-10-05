@@ -212,7 +212,8 @@ public final class CodegenPhase: CompilerPhase {
             target: ctx.options.target,
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            moduleName: ctx.options.moduleName
         )
     }
 
@@ -239,6 +240,7 @@ public final class CodegenPhase: CompilerPhase {
             info.functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: ctx.interner,
+                moduleName: ctx.options.moduleName,
                 symbols: sema.symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
@@ -277,8 +279,17 @@ public final class CodegenPhase: CompilerPhase {
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
-            let inlineBody = module.inlineBodiesBeforeCoroutineLowering[function.symbol] ?? function.body
-            let bodyLines = inlineBody.map { instruction in
+            let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
+                ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
+                ?? function.body
+            let readExpressions = Set(inlineBody.flatMap(inlineReadExpressions))
+            let bodyLines = inlineBody.filter { instruction in
+                // Expanded lambdas need no address, and their standalone bodies may not be exported.
+                if case let .constValue(result, .symbolRef(_)) = instruction {
+                    return readExpressions.contains(result)
+                }
+                return true
+            }.map { instruction in
                 serializeInlineInstruction(
                     instruction,
                     interner: ctx.interner,
@@ -298,6 +309,28 @@ public final class CodegenPhase: CompilerPhase {
             \(bodyLines)
             """
             try content.write(to: URL(fileURLWithPath: filePath), atomically: true, encoding: .utf8)
+        }
+    }
+
+    private func inlineReadExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
+        switch instruction {
+        case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):
+            [lhs, rhs]
+        case let .unary(_, operand, _), let .nullAssert(operand, _):
+            [operand]
+        case let .call(_, _, arguments, _, _, _, _, _):
+            arguments
+        case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
+            [receiver] + arguments
+        case let .jumpIfNotNull(value, _), let .copy(value, _), let .storeGlobal(value, _),
+             let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
+            [value]
+        case let .nonLocalReturn(value, _):
+            value.map { [$0] } ?? []
+        case .nop, .beginBlock, .endBlock, .label, .jump, .constValue, .loadGlobal, .returnUnit,
+             .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup,
+             .beginFinallyGuard, .endFinallyGuard:
+            []
         }
     }
 
@@ -399,16 +432,46 @@ public final class CodegenPhase: CompilerPhase {
             return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
         case let .rethrow(value):
             return "rethrow value=\(value.rawValue)"
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, target):
+            let targetField = target.flatMap {
+                inlineReturnTargetLink($0, interner: interner, functionLinkNames: functionLinkNames, symbols: symbols)
+            }.map { " targetB64=\(base64Encode($0))" } ?? ""
             if let value {
-                return "nonLocalReturn value=\(value.rawValue)"
+                return "nonLocalReturn value=\(value.rawValue)" + targetField
             } else {
-                return "nonLocalReturnUnit"
+                return "nonLocalReturnUnit" + targetField
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target, function):
+            let functionField = function.flatMap {
+                inlineReturnTargetLink($0, interner: interner, functionLinkNames: functionLinkNames, symbols: symbols)
+            }.map { " functionB64=\(base64Encode($0))" } ?? ""
+            return "beginNonLocalReturnScope value=\(value.rawValue) target=\(target)" + functionField
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn value=\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
+        }
+    }
+
+    private func inlineReturnTargetLink(
+        _ target: KIRReturnTarget,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        symbols: SymbolTable?
+    ) -> String? {
+        switch target {
+        case let .function(symbol):
+            functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol)
+        case let .importedFunction(link):
+            interner.resolve(link)
         }
     }
 
@@ -499,15 +562,7 @@ public final class CodegenPhase: CompilerPhase {
             .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
 
-        let excludeSourceFileIDs: Set<Int32>
-        let includeSynthetic: Bool
-        if ctx.options.stdlibOnly || ctx.options.stdlibLibraryPath != nil {
-            excludeSourceFileIDs = []
-            includeSynthetic = false
-        } else {
-            excludeSourceFileIDs = bundledFileIDs
-            includeSynthetic = bundledFileIDs.isEmpty
-        }
+        let excludeSourceFileIDs = ctx.options.stdlibOnly ? [] : bundledFileIDs
 
         let runtimeCallbackRawReturnSymbolIDs = NativeEmitter.collectRuntimeCallbackRawStringReturnSymbols(
             module: module,
@@ -550,7 +605,7 @@ public final class CodegenPhase: CompilerPhase {
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.stdlibOnly,
-            includeSynthetic: includeSynthetic,
+            includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,

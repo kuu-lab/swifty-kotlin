@@ -43,6 +43,9 @@ extension KIRLoweringDriver {
         sema: SemaModule,
         instructions: inout [KIRInstruction]
     ) {
+        if sema.symbols.externalLinkName(for: objectSymbol) != nil {
+            return
+        }
         let lazyInitSymbol: SymbolID
         let lazyInitName: InternedString
         if let lazyInit = ctx.objectLazyInit(for: objectSymbol) {
@@ -129,10 +132,11 @@ extension KIRLoweringDriver {
         let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let allocatedObj = arena.appendTemporary(type: objectType)
+        let externalLink = sema.symbols.externalLinkName(for: objectSymbol)
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_object_new"),
-            arguments: [slotCountExpr, classIDExpr],
+            callee: interner.intern(externalLink ?? "kk_object_new"),
+            arguments: externalLink == nil ? [slotCountExpr, classIDExpr] : [],
             result: allocatedObj,
             canThrow: false,
             thrownResult: nil
@@ -277,7 +281,7 @@ extension KIRLoweringDriver {
         // synthesizes its own lazy body (including its super delegation), and
         // an interface companion can still reach this function through the
         // nested-object path below.
-        if !objectDecl.modifiers.contains(.companion) {
+        if !objectDecl.modifiers.contains(.companion), externalLink == nil {
             declIDs.append(contentsOf: synthesizeObjectLazyInit(
                 objectDecl,
                 objectSymbol: objectSymbol,
@@ -341,6 +345,12 @@ extension KIRLoweringDriver {
             objectDecl,
             objectSymbol: objectSymbol,
             objectValue: objectHandleExpr,
+            shared: shared,
+            body: &body
+        )
+        emitClassDelegationInitializers(
+            ownerSymbol: objectSymbol,
+            receiverID: objectHandleExpr,
             shared: shared,
             body: &body
         )
@@ -451,6 +461,7 @@ extension KIRLoweringDriver {
             loweredArgs: loweredArgs,
             spreadFlags: superArgs.map(\.isSpread),
             callBinding: callBinding,
+            sourceArgExprs: superArgs.map(\.expr),
             result: resultID,
             shared: shared,
             body: &body
@@ -466,9 +477,8 @@ extension KIRLoweringDriver {
     /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
     /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
     /// omitted at the call site) rather than emitting no super call at all.
-    /// Named objects prefer the Sema call binding and only reach this
-    /// heuristic when none was recorded; object literals still rely on it
-    /// and do not expand omitted default arguments.
+    /// Objects prefer the Sema call binding and only reach this heuristic
+    /// when none was recorded.
     func resolveObjectSuperConstructor(
         candidates: [SymbolID],
         argExprs: [ExprID],

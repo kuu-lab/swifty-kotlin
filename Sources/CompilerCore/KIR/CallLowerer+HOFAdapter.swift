@@ -115,6 +115,15 @@ extension CallLowerer {
             callArguments.append(unboxedExpr)
         }
 
+        if !callableInfo.hasClosureParam,
+           functionType.receiver != nil,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+        {
+            let captureCount = callableInfo.captureArguments.count
+            callArguments = Array(callArguments.dropFirst(captureCount))
+                + Array(callArguments.prefix(captureCount))
+        }
+
         // `functionType.returnType` is the concrete lambda result, while an
         // erased HOF return slot is `Any`.
         let adapterReturnType: TypeID = {

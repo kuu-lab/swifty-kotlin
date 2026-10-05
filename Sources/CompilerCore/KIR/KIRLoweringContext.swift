@@ -47,6 +47,7 @@ final class KIRLoweringContext {
     /// parameter of an inline function. A label-free return in that body exits
     /// the caller rather than the lambda.
     var currentLambdaAllowsNonLocalReturn = false
+    var nonLocalReturnTarget: SymbolID?
     /// One-shot allowance installed by CallLowerer for the lambda argument it
     /// is about to lower. This prevents nested lambdas from inheriting the
     /// enclosing lambda's non-local-return permission.
@@ -148,6 +149,7 @@ final class KIRLoweringContext {
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
+        let nonLocalReturnTarget: SymbolID?
         let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
@@ -168,6 +170,7 @@ final class KIRLoweringContext {
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
+            nonLocalReturnTarget: nonLocalReturnTarget,
             pendingLambdaNonLocalReturnAllowance: pendingLambdaNonLocalReturnAllowance,
             loopControlStack: loopControlStack,
             finallyBlockStack: finallyBlockStack,
@@ -188,6 +191,7 @@ final class KIRLoweringContext {
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
+        nonLocalReturnTarget = snapshot.nonLocalReturnTarget
         pendingLambdaNonLocalReturnAllowance = snapshot.pendingLambdaNonLocalReturnAllowance
         loopControlStack = snapshot.loopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
@@ -221,6 +225,7 @@ final class KIRLoweringContext {
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
+        nonLocalReturnTarget = nil
         pendingLambdaNonLocalReturnAllowance = false
         loopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
@@ -488,13 +493,15 @@ final class KIRLoweringContext {
         symbol: SymbolID,
         callee: InternedString,
         captureArguments: [KIRExprID],
-        hasClosureParam: Bool = false
+        hasClosureParam: Bool = false,
+        unboxedSymbol: SymbolID? = nil
     ) {
         callableValueInfoByExprID[exprID] = KIRCallableValueInfo(
             symbol: symbol,
             callee: callee,
             captureArguments: captureArguments,
-            hasClosureParam: hasClosureParam
+            hasClosureParam: hasClosureParam,
+            unboxedSymbol: unboxedSymbol
         )
     }
 

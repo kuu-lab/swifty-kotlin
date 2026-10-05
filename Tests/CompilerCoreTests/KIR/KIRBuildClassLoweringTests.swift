@@ -4,6 +4,107 @@ import Testing
 
 @Suite
 struct KIRBuildClassLoweringTests {
+    @Test func testNestedGenericOverrideMatchingPreservesUnrelatedOverloads() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T>
+        interface Input {
+            fun <T> evaluate(value: Box<Box<T>>): Int = 1
+        }
+        class OverrideInput : Input {
+            fun evaluate(value: String): Int = 2
+            override fun <E> evaluate(value: Box<Box<E>>): Int = 3
+        }
+        class DefaultInput : Input {
+            fun evaluate(value: String): Int = 4
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let method = ctx.interner.intern("evaluate")
+        let input = ctx.interner.intern("Input")
+        let interfaceMethod = try #require(sema.symbols.lookup(fqName: [input, method]))
+        let overrideInput = ctx.interner.intern("OverrideInput")
+        let overrideClass = try #require(sema.symbols.lookup(fqName: [overrideInput]))
+        let overrideMethod = try #require(sema.symbols.lookupAll(fqName: [overrideInput, method]).first {
+            sema.symbols.symbol($0)?.flags.contains(.overrideMember) == true
+        })
+        let defaultClass = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("DefaultInput")]))
+
+        #expect(kirFindOverrideMethod(for: interfaceMethod, in: overrideClass, sema: sema, interner: ctx.interner) == overrideMethod)
+        #expect(kirFindOverrideMethod(for: interfaceMethod, in: defaultClass, sema: sema, interner: ctx.interner) == interfaceMethod)
+    }
+
+    @Test func testObjectDelegatedPropertyAccessUsesSynthesizedAccessors() throws {
+        let ctx = makeContextFromSource("""
+        interface Parent { var value: Int }
+        class Impl : Parent { override var value: Int = 7 }
+        object Delegated : Parent by Impl() {
+            fun localRead(): Int = value
+            fun localWrite(newValue: Int) { value = newValue }
+        }
+        class Outer {
+            object Nested : Parent by Impl()
+            companion object : Parent by Impl()
+        }
+        fun main() {
+            println(Delegated.value)
+            println(Outer.Nested.value)
+            println(Outer.value)
+            Delegated.value = 8
+            Outer.Nested.value = 9
+            Outer.value = 10
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let main = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "main"
+        })
+        let getters = main.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "get"
+            else { return nil }
+            return symbol
+        }
+        #expect(getters.count == 3, "Body: \(main.body)")
+        let setters = main.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "set"
+            else { return nil }
+            return symbol
+        }
+        #expect(setters.count == 3)
+        #expect(main.body.allSatisfy { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return true }
+            return ctx.interner.resolve(callee) != "value"
+        }, "Body: \(main.body)")
+        #expect((getters + setters).allSatisfy { accessor in
+            findAllKIRFunctions(in: module).contains { $0.symbol == accessor }
+        })
+        #expect(sema.symbols.allSymbols().contains { symbol in
+            sema.symbols.classDelegationForwardingPropertyInfo(for: symbol.id) != nil
+        })
+        let companionInitializer = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
+        })
+        #expect(companionInitializer.body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == "kk_object_register_itable_method"
+        })
+        for (functionName, accessorName) in [("localRead", "get"), ("localWrite", "set")] {
+            let function = try #require(findAllKIRFunctions(in: module).first {
+                ctx.interner.resolve($0.name) == functionName
+            })
+            #expect(function.body.contains { instruction in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+                return ctx.interner.resolve(callee) == accessorName && symbol != nil
+            })
+        }
+    }
+
     @Test func testBuildKIRPhaseThrowsInvalidInputWhenASTOrSemaMissing() {
         let ctx = makeCompilationContext(inputs: [])
 
@@ -85,6 +186,31 @@ struct KIRBuildClassLoweringTests {
             functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
             "Expected synthesized companion initializer, got: \(functionNames)"
         )
+    }
+
+    @Test func testCompanionInitializerRegistersInterfaceMethods() throws {
+        let ctx = makeContextFromSource("""
+        interface Factory<T> { fun create(): T }
+        class Widget {
+            companion object : Factory<Widget> {
+                override fun create(): Widget = Widget()
+            }
+        }
+        fun main() { val factory: Factory<Widget> = Widget; factory.create() }
+        """)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let initializer = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
+        })
+        let callees = initializer.body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+            return ctx.interner.resolve(callee)
+        }
+        #expect(callees.contains("kk_object_register_itable_iface"))
+        #expect(callees.contains("kk_object_register_itable_method"))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testCompanionInitializerDoesNotCallSyntheticAnyConstructor() throws {
@@ -273,7 +399,7 @@ struct KIRBuildClassLoweringTests {
             }
             return arguments.count
         }
-        #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
+        #expect(abortCallArgumentCounts == [0], "The backend supplies kk_abort_unreachable's outThrown channel.")
     }
 
     @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
@@ -335,6 +461,171 @@ struct KIRBuildClassLoweringTests {
             },
             "Expected delegation dispatch targets to exclude synthetic forwarding functions, got: \(delegateCallSymbols)"
         )
+    }
+
+    @Test(arguments: [false, true])
+    func testClassDelegationDispatchIncludesAnonymousOverrides(hasDefault: Bool) throws {
+        let source = """
+        interface Input {
+            fun evaluate(value: Int): Int \(hasDefault ? "= 1" : "")
+        }
+        class Box(delegate: Input) : Input by delegate
+        fun main(): Int {
+            val offset = 7
+            val input = object : Input {
+                fun evaluate(value: String): Int = 0
+                override fun evaluate(value: Int): Int = offset + value
+            }
+            return Box(input).evaluate(2)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let boxSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
+        let forwardingSymbol = try #require(
+            sema.symbols.classDelegationForwardingMethodSymbols(forClass: boxSymbol).first
+        )
+        let forwarder = try #require(findAllKIRFunctions(in: module).first { $0.symbol == forwardingSymbol })
+        let declaredMembers = sema.bindings.declSymbols.values.compactMap { sema.symbols.symbol($0) }.filter {
+            $0.kind == .function && $0.flags.contains(.synthetic)
+                && ctx.interner.resolve($0.name) == "evaluate"
+        }
+        let override = try #require(declaredMembers.first { $0.flags.contains(.overrideMember) })
+        let overload = try #require(declaredMembers.first { !$0.flags.contains(.overrideMember) })
+        let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
+
+        #expect(targets.contains(override.id))
+        #expect(!targets.contains(overload.id))
+        #expect(!targets.contains(forwardingSymbol))
+    }
+
+    @Test func testClassDelegationDispatchIncludesAnonymousPropertyAccessors() throws {
+        let source = """
+        interface Input {
+            val answer: Int get() = 1
+            var count: Int
+        }
+        class Box(delegate: Input) : Input by delegate
+        fun main(): Int {
+            val input = object : Input {
+                override val answer: Int get() = 7
+                override var count: Int = 2
+            }
+            val box = Box(input)
+            box.count = 9
+            return box.answer + box.count
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        let boxSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
+        let forwardingProperties = sema.symbols.classDelegationForwardingPropertySymbols(forClass: boxSymbol)
+        let inputSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Input")]))
+        let declaredProperties = sema.bindings.declSymbols.values.filter {
+            guard sema.bindings.isObjectLiteralPropertySymbol($0),
+                  let owner = sema.symbols.parentSymbol(for: $0)
+            else {
+                return false
+            }
+            return sema.symbols.directSupertypes(for: owner).contains(inputSymbol)
+        }
+        #expect(declaredProperties.count == 2)
+
+        for property in declaredProperties {
+            let propertySymbol = try #require(sema.symbols.symbol(property))
+            let forwardingProperty = try #require(forwardingProperties.first {
+                sema.symbols.symbol($0)?.name == propertySymbol.name
+            })
+            var accessorPairs = [(
+                SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingProperty),
+                SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+            )]
+            if propertySymbol.flags.contains(.mutable) {
+                accessorPairs.append((
+                    SyntheticSymbolScheme.propertySetterAccessorSymbol(for: forwardingProperty),
+                    SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property)
+                ))
+            }
+            for (forwardingAccessor, declaredAccessor) in accessorPairs {
+                let forwarder = try #require(findAllKIRFunctions(in: module).first {
+                    $0.symbol == forwardingAccessor
+                })
+                let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
+                #expect(targets.contains(declaredAccessor))
+                #expect(!targets.contains(forwardingAccessor))
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testInheritedGenericMethodMatchesNestedProjectedTypeParameters(covariant: Bool) throws {
+        let source = """
+        class Payload<\(covariant ? "out " : "")K, V>
+        interface Sink<K, V> {
+            fun accept(payload: Payload<out K, V>)
+        }
+        open class BaseSink<K, V> : Sink<K, V> {
+            override fun accept(payload: Payload<\(covariant ? "" : "out ")K, V>) {}
+        }
+        class StringSink : BaseSink<String, Int>()
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let inheritedMethod = try #require(sema.symbols.lookup(
+            fqName: ["BaseSink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("StringSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == inheritedMethod)
+    }
+
+    @Test func testIncompatibleNestedGenericArgumentsDoNotMatch() throws {
+        let source = """
+        class Payload<T>
+        interface Sink {
+            fun accept(payload: Payload<String>)
+        }
+        class IntSink {
+            fun accept(payload: Payload<Int>) {}
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let interfaceMethod = try #require(sema.symbols.lookup(
+            fqName: ["Sink", "accept"].map(ctx.interner.intern)
+        ))
+        let nominalSymbol = try #require(sema.symbols.lookup(
+            fqName: [ctx.interner.intern("IntSink")]
+        ))
+        #expect(kirFindOverrideMethod(
+            for: interfaceMethod,
+            in: nominalSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ) == nil)
     }
 
     @Test func testMapInterfaceDelegationResolvesDirectMembersAndMapDispatch() throws {

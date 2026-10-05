@@ -1,12 +1,18 @@
-symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=golden.sema.probe[kind=fun;params=;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=Any? suspend=1
+symbol fq=golden.sema.intercept.$0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.intercept.$0.continuation[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.intercept[kind=fun;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[continuation];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.Continuation<golden.sema.intercept.$0.T>] ret=kotlin.coroutines.Continuation<golden.sema.intercept.$0.T>
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.probe[kind=fun;params=;ret=Any?;susp;origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=Any? suspend=1
 file fstdlib_kotlin_coroutines_intrinsics_n_n package=golden.sema
-  decl golden.sema.probe[kind=fun;params=;susp] fun probe suspend=1 sym=golden.sema.probe[kind=fun;params=;susp]
-  decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
-expr e@7:45 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop]
-expr e@7:43 lambda params=[] body=e@7:45 label=suspendCoroutineUninterceptedOrReturn type=(kotlin.coroutines.Continuation<Any?>) -> Any?
-expr e@7:5 call callee=e@7:5#1 args=[_:e@7:43] type=Any? call=kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Any?};susp;gen=1] targs=[Any?]
-expr e@10:13 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop]
-expr e@10:37 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop]
-expr e@10:13#1 binary(identityEqual) lhs=e@10:13 rhs=e@10:37 type=Boolean
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+  decl golden.sema.probe[kind=fun;params=;ret=Any?;susp;origin=fixture] fun probe suspend=1 sym=golden.sema.probe[kind=fun;params=;ret=Any?;susp;origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+  decl golden.sema.intercept[kind=fun;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[continuation];origin=fixture] fun intercept sym=golden.sema.intercept[kind=fun;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[continuation];origin=fixture]
+expr e@9:45 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
+expr e@9:43 lambda params=[] body=e@9:45 label=suspendCoroutineUninterceptedOrReturn type=(kotlin.coroutines.Continuation<Any?>) -> Any?
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:43] type=Any? call=kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Any?};ret=T0;susp;gen=1;nonlocal=[0];names=[block]] targs=[Any?]
+expr e@12:13 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
+expr e@12:37 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED[kind=prop;type=Any]
+expr e@12:13#1 binary(identityEqual) lhs=e@12:13 rhs=e@12:37 type=Boolean
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@15:69 name(continuation) type=kotlin.coroutines.Continuation<golden.sema.intercept.$0.T> ref=golden.sema.intercept.$0.continuation[kind=vparam;origin=fixture]
+expr e@15:69#1 memberCall recv=e@15:69 callee=intercepted args=[] type=kotlin.coroutines.Continuation<golden.sema.intercept.$0.T> call=kotlin.coroutines.intrinsics.intercepted[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=;ret=kotlin.coroutines.Continuation<T0>;gen=1] targs=[golden.sema.intercept.$0.T]

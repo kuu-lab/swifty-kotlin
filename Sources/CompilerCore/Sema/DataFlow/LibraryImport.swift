@@ -112,6 +112,7 @@ extension DataFlowSemaPhase {
             if record.isOperator, record.kind == .function {
                 flags.insert(.operatorFunction)
             }
+            if record.isMemberExtension { flags.insert(.memberExtension) }
             // Overrides must stay marked so member lookup can shadow the
             // supertype declaration instead of reporting an ambiguity.
             if record.isOverride,
@@ -1224,6 +1225,7 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: signature.valueParameterSymbols,
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
+                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -1519,6 +1521,7 @@ extension DataFlowSemaPhase {
         let isInline: Bool
         let isOperator: Bool
         let isOverride: Bool
+        let isMemberExtension: Bool
         let receiverOwnerFQName: [InternedString]?
         let valueParameterIsVararg: [Bool]
         let valueParameterAllowsNonLocalReturn: [Bool]
@@ -1526,6 +1529,7 @@ extension DataFlowSemaPhase {
         /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect
         /// decoded from metadata, `nil` where the parameter has none.
         let valueParameterCallsInPlaceKinds: [InvocationKind?]
+        let contractImplicationEffects: [ContractImplicationEffect]
         let canThrow: Bool
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
@@ -1592,11 +1596,13 @@ extension DataFlowSemaPhase {
             isInline: Bool = false,
             isOperator: Bool = false,
             isOverride: Bool = false,
+            isMemberExtension: Bool = false,
             receiverOwnerFQName: [InternedString]? = nil,
             valueParameterIsVararg: [Bool] = [],
             valueParameterAllowsNonLocalReturn: [Bool] = [],
             valueParameterHasDefaultValues: [Bool] = [],
             valueParameterCallsInPlaceKinds: [InvocationKind?] = [],
+            contractImplicationEffects: [ContractImplicationEffect] = [],
             canThrow: Bool = false,
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
@@ -1652,11 +1658,13 @@ extension DataFlowSemaPhase {
             self.isInline = isInline
             self.isOperator = isOperator
             self.isOverride = isOverride
+            self.isMemberExtension = isMemberExtension
             self.receiverOwnerFQName = receiverOwnerFQName
             self.valueParameterIsVararg = valueParameterIsVararg
             self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
             self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
             self.valueParameterCallsInPlaceKinds = valueParameterCallsInPlaceKinds
+            self.contractImplicationEffects = contractImplicationEffects
             self.canThrow = canThrow
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
@@ -1952,7 +1960,8 @@ extension DataFlowSemaPhase {
             // ownership from the decoded receiver type so imported stdlib
             // extensions (for example Sequence.chunked/windowed) follow the
             // same resolution path as bundled source declarations.
-            if let receiverType = signature.receiverType,
+            if !record.isMemberExtension,
+               let receiverType = signature.receiverType,
                case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
                let receiverSymbol = symbols.symbol(receiverClassType.classSymbol),
                isNominalLayoutTargetSymbol(receiverSymbol.kind)
@@ -1966,16 +1975,32 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(defaultStubLink, for: stubSymbol)
                 let intType = types.intType
                 let reifiedCount = signature.reifiedTypeParameterIndices.count
-                let stubParameterTypes = signature.parameterTypes + Array(repeating: intType, count: reifiedCount) + [intType]
+                var stubReceiverType = signature.receiverType
+                var stubLeadingParameters: [TypeID] = []
+                if record.isMemberExtension,
+                   let owner = symbols.parentSymbol(for: symbol)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map { .invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    stubLeadingParameters.append(types.make(.classType(ClassType(
+                        classSymbol: owner, args: ownerArgs, nullability: .nonNull
+                    ))))
+                    stubLeadingParameters.append(contentsOf: [signature.receiverType].compactMap { $0 })
+                    stubReceiverType = nil
+                }
+                let stubParameterTypes = stubLeadingParameters + signature.parameterTypes
+                    + Array(repeating: intType, count: reifiedCount) + [intType]
                 symbols.setFunctionSignature(
                     FunctionSignature(
-                        receiverType: signature.receiverType,
+                        receiverType: stubReceiverType,
                         parameterTypes: stubParameterTypes,
                         returnType: signature.returnType,
                         isSuspend: false,
                         canThrow: signature.canThrow,
                         valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: signature.valueParameterIsVararg
+                        valueParameterIsVararg: Array(repeating: false, count: stubLeadingParameters.count)
+                            + signature.valueParameterIsVararg
                             + Array(repeating: false, count: reifiedCount + 1),
                         typeParameterSymbols: signature.typeParameterSymbols,
                         reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices

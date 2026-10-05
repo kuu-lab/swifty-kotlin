@@ -144,6 +144,104 @@ private func runtimePlainArrayBox(from rawValue: Int) -> RuntimeArrayBox? {
     return box
 }
 
+/// Renders one element of a tagged primitive array as its Kotlin value.
+/// Elements are raw machine words — IEEE 754 bit patterns for Double/Float,
+/// UTF-16 code units for Char, 0/1 for Boolean — so they must be decoded
+/// with the array's declared element kind instead of going through the
+/// generic (boxed/Any) element renderer, which can only print the raw word.
+private func runtimePrimitiveArrayElementToString(
+    _ raw: Int,
+    kind: RuntimePrimitiveArrayElementKind
+) -> String {
+    switch kind {
+    case .boolean:
+        return raw != 0 ? "true" : "false"
+    case .byte:
+        return "\(Int8(truncatingIfNeeded: raw))"
+    case .char:
+        return runtimeCharacterFromRaw(raw)
+    case .double:
+        return runtimeFormatFloatingPoint(kk_bits_to_double(raw))
+    case .float:
+        return runtimeFormatFloatingPoint(kk_bits_to_float(raw))
+    case .int:
+        return "\(Int32(truncatingIfNeeded: raw))"
+    case .long:
+        return "\(Int64(raw))"
+    case .short:
+        return "\(Int16(truncatingIfNeeded: raw))"
+    case .uByte:
+        return "\(UInt8(truncatingIfNeeded: raw))"
+    case .uShort:
+        return "\(UInt16(truncatingIfNeeded: raw))"
+    case .uInt:
+        return "\(UInt32(truncatingIfNeeded: raw))"
+    case .uLong:
+        return "\(UInt64(bitPattern: Int64(raw)))"
+    }
+}
+
+/// The canonical IEEE 754 bit pattern for a raw DoubleArray element:
+/// every NaN payload folds to `doubleToLongBits`' canonical NaN, matching
+/// `Arrays.equals(double[], double[])` / `Double.hashCode`.
+private func runtimeCanonicalDoubleBits(_ raw: Int) -> UInt64 {
+    let bits = UInt64(bitPattern: Int64(raw))
+    return Double(bitPattern: bits).isNaN ? 0x7FF8_0000_0000_0000 : bits
+}
+
+/// The canonical bit pattern for a raw FloatArray element, matching
+/// `floatToIntBits`' canonical NaN folding.
+private func runtimeCanonicalFloatBits(_ raw: Int) -> UInt32 {
+    let value = kk_bits_to_float(raw)
+    return value.isNaN ? 0x7FC0_0000 : value.bitPattern
+}
+
+/// `Arrays.hashCode(x[])` element hash for a primitive element word.
+/// Unsigned arrays hash their signed storage value (e.g. UByte(-56) -> -56),
+/// matching the JVM's signed primitive storage, while toString renders the
+/// unsigned value.
+private func runtimePrimitiveArrayElementHash(
+    _ raw: Int,
+    kind: RuntimePrimitiveArrayElementKind
+) -> Int {
+    switch kind {
+    case .boolean:
+        return raw != 0 ? 1231 : 1237
+    case .byte, .uByte:
+        return Int(Int8(truncatingIfNeeded: raw))
+    case .char:
+        return Int(UInt16(truncatingIfNeeded: raw))
+    case .double:
+        return runtimeXorFoldHashCode(Int64(bitPattern: runtimeCanonicalDoubleBits(raw)))
+    case .float:
+        return Int(Int32(bitPattern: runtimeCanonicalFloatBits(raw)))
+    case .int, .uInt:
+        return Int(Int32(truncatingIfNeeded: raw))
+    case .long, .uLong:
+        return runtimeXorFoldHashCode(Int64(raw))
+    case .short, .uShort:
+        return Int(Int16(truncatingIfNeeded: raw))
+    }
+}
+
+/// `Arrays.equals(x[], x[])` element equality for a primitive element word.
+/// Floating-point elements compare canonical-NaN bitwise so different NaN
+/// payloads are equal while -0.0 != 0.0, matching `Double.equals`.
+private func runtimePrimitiveArrayElementsEqual(
+    _ lhsRaw: Int,
+    _ rhsRaw: Int,
+    kind: RuntimePrimitiveArrayElementKind
+) -> Bool {
+    switch kind {
+    case .double:
+        return runtimeCanonicalDoubleBits(lhsRaw) == runtimeCanonicalDoubleBits(rhsRaw)
+    case .float:
+        return runtimeCanonicalFloatBits(lhsRaw) == runtimeCanonicalFloatBits(rhsRaw)
+    default:
+        return lhsRaw == rhsRaw
+    }
+}
+
 private func runtimeArrayBoxesDeepEqual(
     lhsRaw: Int,
     rhsRaw: Int,
@@ -152,6 +250,15 @@ private func runtimeArrayBoxesDeepEqual(
     visited: inout Set<RuntimeArrayDeepEqualityPair>
 ) -> Bool {
     guard lhs.count == rhs.count else {
+        return false
+    }
+    // `Arrays.deepEquals0` requires the same array kind on both sides:
+    // a DoubleArray is never deep-equal to a LongArray even when every
+    // element word is bit-identical, and a primitive array is never equal
+    // to a generic Array holding the same boxed values.
+    let lhsKind = runtimePrimitiveArrayElementKind(rawValue: lhsRaw)
+    let rhsKind = runtimePrimitiveArrayElementKind(rawValue: rhsRaw)
+    guard lhsKind == rhsKind else {
         return false
     }
     let pair = RuntimeArrayDeepEqualityPair(lhs: lhsRaw, rhs: rhsRaw)
@@ -163,8 +270,13 @@ private func runtimeArrayBoxesDeepEqual(
     let lhsElements = lhs.elements
     let rhsElements = rhs.elements
     for index in lhsElements.indices {
-        // swiftlint:disable:next for_where
-        if !runtimeValuesDeepEqual(lhsElements[index], rhsElements[index], visited: &visited) {
+        if let kind = lhsKind {
+            guard runtimePrimitiveArrayElementsEqual(
+                lhsElements[index], rhsElements[index], kind: kind
+            ) else {
+                return false
+            }
+        } else if !runtimeValuesDeepEqual(lhsElements[index], rhsElements[index], visited: &visited) {
             return false
         }
     }
@@ -221,6 +333,15 @@ private func runtimeArrayBoxDeepToString(
     }
     defer { visited.remove(raw) }
 
+    // A tagged primitive array renders its raw element words as Kotlin
+    // values (`Arrays.deepToString` recurses into primitive arrays with
+    // value semantics), e.g. `arrayOf(doubleArrayOf(1.0))` -> "[[1.0]]",
+    // not the raw IEEE 754 bit patterns.
+    if let kind = runtimePrimitiveArrayElementKind(rawValue: raw) {
+        return "[" + box.elements
+            .map { runtimePrimitiveArrayElementToString($0, kind: kind) }
+            .joined(separator: ", ") + "]"
+    }
     let rendered = box.elements
         .map { runtimeValueDeepToString($0, visited: &visited) }
         .joined(separator: ", ")
@@ -235,10 +356,7 @@ private func runtimeValueDeepToString(_ raw: Int, visited: inout Set<Int>) -> St
 }
 
 private func runtimeArrayStringPointer(_ value: String) -> UnsafeMutableRawPointer {
-    let utf8 = Array(value.utf8)
-    return utf8.withUnsafeBufferPointer { buffer in
-        kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count))
-    }
+    runtimeMakeStringPointer(value)
 }
 
 @_cdecl("__kk_array_contentDeepToString")
@@ -265,6 +383,12 @@ private func runtimeArrayBoxDeepHash(
     // 64-bit Int only agrees while the running total stays inside Int32
     // range and diverges on deep or long arrays.
     var result: Int32 = 1
+    if let kind = runtimePrimitiveArrayElementKind(rawValue: raw) {
+        for element in box.elements {
+            result = 31 &* result &+ Int32(truncatingIfNeeded: runtimePrimitiveArrayElementHash(element, kind: kind))
+        }
+        return Int(result)
+    }
     for element in box.elements {
         result = 31 &* result &+ Int32(truncatingIfNeeded: runtimeValueDeepHash(element, visited: &visited))
     }

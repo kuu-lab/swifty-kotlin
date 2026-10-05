@@ -211,7 +211,7 @@ final class KotlinLexer {
             return [scanBacktickedIdentifier(leadingTrivia: leadingTrivia, start: start)]
         }
 
-        if isDigit(ch) {
+        if isDigit(ch) || (ch == 0x2E && offset + 1 < byteCount() && isDigit(byte(at: offset + 1))) {
             return [scanNumber(leadingTrivia: leadingTrivia, start: start)]
         }
 

@@ -265,6 +265,9 @@ extension TypeSystem {
             return true
 
         case let (.functionType(leftFunction), .functionType(rightFunction)):
+            if rightFunction.isCallableReference && !leftFunction.isCallableReference {
+                return false
+            }
             guard leftFunction.contextReceivers.count == rightFunction.contextReceivers.count else {
                 return false
             }
@@ -304,10 +307,21 @@ extension TypeSystem {
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
-            // Function types are subtypes of the common `kotlin.Function<R>`
-            // interface as well as `kotlin.reflect.KFunction<R>`.
+            if leftFunction.isCallableReference, let kFunctionSymbol = kFunctionInterfaceSymbol {
+                let reflectiveType = make(.classType(ClassType(
+                    classSymbol: kFunctionSymbol,
+                    args: [.out(leftFunction.returnType)],
+                    nullability: leftFunction.nullability
+                )))
+                if isSubtype(reflectiveType, supertype) {
+                    return true
+                }
+            }
+            // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
-                || rightClass.classSymbol == kFunctionInterfaceSymbol
+                || (leftFunction.isCallableReference
+                    && (rightClass.classSymbol == kFunctionInterfaceSymbol
+                        || rightClass.classSymbol == kCallableInterfaceSymbol))
             else {
                 // KUU-1084: `(P1..PN) -> R` also conforms to the synthetic
                 // `kotlin.Function.FunctionN` interface of matching arity.
@@ -887,6 +901,33 @@ extension TypeSystem {
             return arity
         }
         return nil
+    }
+
+    func nominalFunctionType(for type: TypeID) -> FunctionType? {
+        guard case let .classType(classType) = kind(of: type),
+              let arity = functionNArity(of: classType.classSymbol),
+              classType.args.count == arity + 1
+        else {
+            return nil
+        }
+        let arguments = classType.args.enumerated().compactMap { index, argument -> TypeID? in
+            switch argument {
+            case let .invariant(type):
+                return type
+            case let .in(type) where index < arity:
+                return type
+            case let .out(type) where index == arity:
+                return type
+            default:
+                return nil
+            }
+        }
+        guard arguments.count == arity + 1 else { return nil }
+        return FunctionType(
+            params: Array(arguments.prefix(arity)),
+            returnType: arguments[arity],
+            nullability: classType.nullability
+        )
     }
 
     /// `(Q1..QN) -> S <: FunctionN<A1..AN, B>`: the receiver counts as the

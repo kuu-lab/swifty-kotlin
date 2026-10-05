@@ -24,7 +24,7 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testAtomicMigrationAliasesResolveInAtomicsPackage
+            // testCanonicalAtomicMethodsResolveInAtomicsPackage
             """
             package sample1
 
@@ -35,12 +35,12 @@ struct SemanticsAndUtilitiesRegressionTests {
 
                     fun main() {
                         val intValue = AtomicInt(1)
-                        val nextInt = intValue.incrementAndGet()
-                        val intAgain = intValue.get()
+                        val nextInt = intValue.incrementAndFetch()
+                        val intAgain = intValue.load()
 
                         val longValue = AtomicLong(3L)
-                        val nextLong = longValue.incrementAndGet()
-                        val longAgain = longValue.get()
+                        val nextLong = longValue.incrementAndFetch()
+                        val longAgain = longValue.load()
 
                         println(nextInt + intAgain)
                         println(nextLong + longAgain)
@@ -320,7 +320,7 @@ struct SemanticsAndUtilitiesRegressionTests {
                 _ = samplePath
                 #expect(
                     !(ctx.diagnostics.hasError),
-                    "Atomic migration aliases should resolve from kotlin.concurrent.atomics imports: \(ctx.diagnostics.diagnostics.map(\.message))"
+                    "Canonical atomic methods should resolve from kotlin.concurrent.atomics imports: \(ctx.diagnostics.diagnostics.map(\.message))"
                 )
             }
 
