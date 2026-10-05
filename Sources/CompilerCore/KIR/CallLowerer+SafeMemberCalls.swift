@@ -741,6 +741,20 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let invokeResult = tryLowerLexicalExtensionCallableInvocation(
+            exprID,
+            receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            shared: shared,
+            emit: &instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let primitiveCompareResult = tryLowerPrimitiveCompareTo(
             exprID,
             receiverExpr: receiverExpr,
@@ -1021,6 +1035,13 @@ extension CallLowerer {
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
                 finalArguments.insert(loweredReceiverID, at: 0)
             }
+        }
+
+        if let chosen,
+           let localValue = driver.ctx.localValue(for: chosen),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
 
         // Safe-call collection fallback can resolve the source-backed

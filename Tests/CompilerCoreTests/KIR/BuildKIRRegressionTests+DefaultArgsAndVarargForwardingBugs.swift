@@ -111,5 +111,42 @@ extension BuildKIRRegressionTests {
         }
         #expect(delegatesThroughStub, "Expected Derived's super call to use Base$default")
     }
+
+    @Test(arguments: [
+        "class Writer { fun write(value: Unit = run { args = Args(null) }) {} }; Writer().write()",
+        "class Writer(value: Unit = run { args = Args(null) }); Writer()",
+        "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; Writer()",
+    ])
+    func localClassDefaultStubRestoresCapturedCell(_ declaration: String) throws {
+        let source = """
+        class Args(val x: String?)
+        fun probe() {
+            var args = Args("hello")
+            \(declaration)
+            println(args.x)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let stub = try #require(findAllKIRFunctions(in: module).first {
+            let name = ctx.interner.resolve($0.name)
+            return name == "write$default" || name == "Writer$default"
+        })
+        #expect(stub.params.count == 3, "Expected receiver, value, and mask parameters")
+        let loads = stub.body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            else {
+                return nil
+            }
+            return result
+        }
+        #expect(loads.count == 1, "Expected the captured mutable cell to be restored from the receiver")
+        let sema = try #require(ctx.sema)
+        let cell = try #require(loads.first)
+        #expect(module.arena.exprType(cell) == sema.types.anyType)
+    }
 }
 #endif

@@ -213,7 +213,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     loweredBody.append(instruction)
 
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                     if let result, isFlowClassResultType(result) {
                         flowExprIDs.insert(result.rawValue)
                         activeFlowExpr = result
@@ -472,7 +472,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        isSuperCall: isSuperCall
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
                     ))
 
                 case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):

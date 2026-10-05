@@ -495,6 +495,26 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeText = calleeNameStr
+            if (calleeText == "start" || calleeText == "endInclusive"),
+               let runtimeGetter = closedRangeInterfaceRuntimeName(
+                   memberName: calleeText,
+                   receiverExpr: receiverExpr,
+                   receiverType: receiverType,
+                   chosenCallee: sema.bindings.callBindings[exprID]?.chosenCallee,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: runtimeGetter,
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
             // Property `.first`/`.last` keep the non-throwing getters. Explicit
             // `first()`/`last()` must throw `NoSuchElementException` on empty,
             // including `IntRange` (Sema binds those calls to the property).
@@ -2414,25 +2434,14 @@ extension CallLowerer {
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
 
-        // Extract qualified super type information for super<Interface> calls
+        // Sema binds super<T> to the selected direct supertype, not the enclosing class.
         var qualifiedSuperType: SymbolID?
-        if isSuperCall, case let .superRef(interfaceQualifier, _) = ast.arena.expr(receiverExpr) {
-            if let qualifier = interfaceQualifier {
-                // Find the interface symbol that matches the qualifier
-                if let currentReceiverType = sema.bindings.exprTypes[receiverExpr],
-                   let classType = resolveClassType(currentReceiverType, sema: sema) {
-                    let classSymbol = classType.classSymbol
-                    let directSupertypes = sema.symbols.directSupertypes(for: classSymbol)
-                    let qualifierStr = interner.resolve(qualifier)
-                    for superID in directSupertypes {
-                        guard let superSym = sema.symbols.symbol(superID) else { continue }
-                        if superSym.kind == SymbolKind.interface && interner.resolve(superSym.name) == qualifierStr {
-                            qualifiedSuperType = superID
-                            break
-                        }
-                    }
-                }
-            }
+        if isSuperCall,
+           case .superRef(.some, _) = ast.arena.expr(receiverExpr),
+           let receiverType = sema.bindings.exprTypes[receiverExpr],
+           let classType = resolveClassType(receiverType, sema: sema)
+        {
+            qualifiedSuperType = classType.classSymbol
         }
 
         let callBinding = recoverMemberCallBinding(
@@ -2442,18 +2451,6 @@ extension CallLowerer {
             argumentExprs: args.map(\.expr),
             sema: sema
         ) ?? sema.bindings.callBindings[exprID]
-        if qualifiedSuperType == nil,
-           isSuperCall,
-           case let .superRef(interfaceQualifier?, _) = ast.arena.expr(receiverExpr),
-           let chosenCallee = callBinding?.chosenCallee,
-           chosenCallee != .invalid,
-           let ownerSymbol = sema.symbols.parentSymbol(for: chosenCallee),
-           let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .interface,
-           interner.resolve(ownerInfo.name) == interner.resolve(interfaceQualifier)
-        {
-            qualifiedSuperType = ownerSymbol
-        }
         let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
             chosenCallee
         } else {

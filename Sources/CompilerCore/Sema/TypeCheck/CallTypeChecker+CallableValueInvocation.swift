@@ -154,7 +154,8 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
-        arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit
+        arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit,
+        extensionCallableExpr: ExprID? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -227,7 +228,8 @@ extension CallTypeChecker {
             binding: CallableValueCallBinding(
                 target: callableTarget,
                 functionType: nonNullCalleeType,
-                parameterMapping: parameterMapping
+                parameterMapping: parameterMapping,
+                extensionCallableExpr: extensionCallableExpr
             )
         )
         if let callableTarget {
@@ -243,5 +245,80 @@ extension CallTypeChecker {
             return nil
         }
         return nonNullType
+    }
+
+    func inferLexicalExtensionCallableInvocation(
+        _ request: MemberCallInferenceRequest,
+        receiverType: TypeID,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let ctx = request.ctx
+        let sema = ctx.sema
+        let name = request.calleeName
+        let candidateType: TypeID?
+        if let local = locals[name] {
+            candidateType = local.type
+        } else if let implicitReceiver = ctx.implicitReceiverType,
+                  let property = driver.helpers.lookupMemberProperty(
+                      named: name,
+                      receiverType: sema.types.makeNonNullable(implicitReceiver),
+                      sema: sema
+                  ) {
+            candidateType = property.type
+        } else {
+            candidateType = ctx.cachedScopeLookup(name).first(where: {
+                sema.symbols.symbol($0)?.kind == .property
+            }).flatMap { sema.symbols.propertyType(for: $0) }
+        }
+        guard let candidateType,
+              case let .functionType(candidateFunction) = sema.types.kind(of: candidateType),
+              candidateFunction.receiver != nil
+        else {
+            return nil
+        }
+
+        let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
+        let calleeType = driver.inferExpr(calleeExpr, ctx: ctx, locals: &locals)
+        guard case let .functionType(functionType) = sema.types.kind(of: calleeType),
+              functionType.receiver != nil
+        else {
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+        guard functionType.nullability == .nonNull, request.explicitTypeArgs.isEmpty else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Cannot invoke nullable or type-argument-qualified function value '\(ctx.interner.resolve(name))'.",
+                range: request.range
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+        let argumentTypes = request.args.enumerated().map { index, argument in
+            driver.inferExpr(
+                argument.expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: functionType.params.indices.contains(index) ? functionType.params[index] : nil
+            )
+        }
+        let result = inferCallableValueInvocation(
+            request.id,
+            calleeType: calleeType,
+            callableTarget: driver.helpers.callableTargetForCalleeExpr(calleeExpr, sema: sema),
+            args: [CallArgument(expr: request.receiverID)] + request.args,
+            argTypes: [request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType] + argumentTypes,
+            range: request.range,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: request.expectedType,
+            arityPolicy: .receiverRequiredExplicit,
+            extensionCallableExpr: calleeExpr
+        ) ?? sema.types.errorType
+        // Keep the lexical reference visible to lambda/local-class capture analysis.
+        if let symbol = sema.bindings.identifierSymbol(for: calleeExpr) {
+            sema.bindings.bindIdentifier(request.id, symbol: symbol)
+        }
+        let finalType = request.safeCall ? sema.types.makeNullable(result) : result
+        sema.bindings.bindExprType(request.id, type: finalType)
+        return finalType
     }
 }
