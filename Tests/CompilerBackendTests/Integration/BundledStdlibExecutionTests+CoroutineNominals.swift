@@ -53,6 +53,7 @@ extension BundledStdlibExecutionTests {
                 } catch (e: IllegalArgumentException) {
                     println(e.message)
                 }
+                Unit
             }
             """,
             expectedOutput: "23\n23\ncaptured\ntrue\n26\ncaptured\ntrue\n30\n11\n7\n11\ncaptured\ncaptured\n",

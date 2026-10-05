@@ -50,4 +50,5 @@ fun main() = runBlocking {
     } catch (e: IllegalArgumentException) {
         println(e.message)
     }
+    Unit
 }
