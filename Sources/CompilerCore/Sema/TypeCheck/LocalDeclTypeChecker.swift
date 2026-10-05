@@ -237,6 +237,7 @@ final class LocalDeclTypeChecker {
                     diagnostics: ctx.semaCtx.diagnostics
                 )
                 locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                locals.invalidateMembers(root: local.symbol)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {

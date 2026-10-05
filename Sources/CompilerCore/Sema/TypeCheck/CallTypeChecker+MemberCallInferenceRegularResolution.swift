@@ -812,7 +812,18 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-            let finalType = safeCall ? sema.types.makeNullable(propResult.type) : propResult.type
+            sema.bindings.bindExprType(id, type: propResult.type)
+            let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
+                id, locals: locals, ast: ast, sema: sema, interner: interner
+            ), reference.isStable {
+                ctx.dataFlow.resolvedTypeFromFlowState(
+                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                )
+            } else {
+                nil
+            }
+            let propertyType = narrowedType ?? propResult.type
+            let finalType = safeCall ? sema.types.makeNullable(propertyType) : propertyType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }

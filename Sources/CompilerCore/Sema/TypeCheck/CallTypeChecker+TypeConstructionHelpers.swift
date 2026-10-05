@@ -485,7 +485,7 @@ extension CallTypeChecker {
         if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -496,7 +496,7 @@ extension CallTypeChecker {
         } else {
             narrowedState = ctx.dataFlow.narrowNonNull(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,

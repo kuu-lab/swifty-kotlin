@@ -1463,6 +1463,24 @@ extension DataFlowSemaPhase {
                 for: symbol
             )
         }
+        for name in ["requireNotNull", "checkNotNull"] {
+            for symbolID in symbols.lookupAll(fqName: kotlinPkg + [interner.intern(name)]) {
+                guard let symbol = symbols.symbol(symbolID), symbol.kind == .function,
+                      !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                      let signature = symbols.functionSignature(for: symbolID),
+                      signature.receiverType == nil,
+                      (1 ... 2).contains(signature.parameterTypes.count),
+                      let parameterType = signature.parameterTypes.first,
+                      case let .typeParam(parameter) = types.kind(of: parameterType),
+                      parameter.nullability == .nullable,
+                      let parameterSymbol = signature.valueParameterSymbols.first
+                else { continue }
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(parameterSymbol: parameterSymbol, appliesOnAnyReturn: true),
+                    for: symbolID
+                )
+            }
+        }
     }
 
     func resolveNumberClassSymbol(
