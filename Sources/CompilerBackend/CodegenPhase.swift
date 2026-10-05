@@ -222,6 +222,11 @@ public final class CodegenPhase: CompilerPhase {
     private struct FunctionLinkInfo {
         var functionLinkNamesBySymbol: [SymbolID: String] = [:]
         var inlineFunctionSymbols: Set<SymbolID> = []
+        /// `isInlineOnly` declarations (e.g. lambdas carrying a non-local
+        /// return) are never emitted into an object file, so their link name
+        /// would be a dangling extern reference for a consumer of serialized
+        /// inline KIR. Codegen resolves references to them to `zeroValue`.
+        var unemittedFunctionSymbols: Set<SymbolID> = []
     }
 
     private func makeFunctionLinkInfo(
@@ -246,6 +251,9 @@ public final class CodegenPhase: CompilerPhase {
             )
             if function.isInline {
                 info.inlineFunctionSymbols.insert(function.symbol)
+            }
+            if function.isInlineOnly {
+                info.unemittedFunctionSymbols.insert(function.symbol)
             }
         }
         return info
@@ -294,6 +302,7 @@ public final class CodegenPhase: CompilerPhase {
                     instruction,
                     interner: ctx.interner,
                     functionLinkNames: functionLinkNamesBySymbol,
+                    unemittedFunctionSymbols: functionLinkInfo.unemittedFunctionSymbols,
                     parameterSymbols: parameterSymbols,
                     symbols: sema.symbols
                 )
@@ -338,6 +347,7 @@ public final class CodegenPhase: CompilerPhase {
         _ instruction: KIRInstruction,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
+        unemittedFunctionSymbols: Set<SymbolID>,
         parameterSymbols: Set<SymbolID>,
         symbols: SymbolTable?
     ) -> String {
@@ -355,7 +365,7 @@ public final class CodegenPhase: CompilerPhase {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) target=\(target)"
         case let .constValue(result, value):
-            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, parameterSymbols: parameterSymbols, symbols: symbols))"
+            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, unemittedFunctionSymbols: unemittedFunctionSymbols, parameterSymbols: parameterSymbols, symbols: symbols))"
         case let .binary(op, lhs, rhs, result):
             return "binary op=\(op) lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) result=\(result.rawValue)"
         case .returnUnit:
@@ -479,6 +489,7 @@ public final class CodegenPhase: CompilerPhase {
         _ value: KIRExprKind,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
+        unemittedFunctionSymbols: Set<SymbolID>,
         parameterSymbols: Set<SymbolID>,
         symbols: SymbolTable?
     ) -> String {
@@ -504,6 +515,11 @@ public final class CodegenPhase: CompilerPhase {
         case let .symbolRef(symbol):
             if parameterSymbols.contains(symbol) {
                 "symbol:\(symbol.rawValue)"
+            } else if unemittedFunctionSymbols.contains(symbol) {
+                // Bodies of `isInlineOnly` functions never reach an object
+                // file, so the link name would dangle in the consumer. Match
+                // codegen, which resolves the same `.symbolRef` to zero.
+                "temp:0"
             } else if let linkName = functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
                 "externB64:\(base64Encode(linkName))"
             } else if let fQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols) {

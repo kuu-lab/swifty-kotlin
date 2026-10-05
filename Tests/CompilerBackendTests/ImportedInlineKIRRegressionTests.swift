@@ -100,6 +100,19 @@ struct ImportedInlineKIRRegressionTests {
             let serialized = try artifacts.map { try String(contentsOf: $0, encoding: .utf8) }.joined()
             #expect(serialized.contains("targetB64="))
             #expect(serialized.contains("functionB64="))
+            // Lambdas carrying non-local returns are `isInlineOnly` and never
+            // reach an object file, so serializing their link name would leave
+            // a dangling extern reference in consumers (KUU-1207).
+            let externLinkNames = serialized
+                .split(whereSeparator: \.isWhitespace)
+                .compactMap { token -> String? in
+                    guard let range = token.range(of: "externB64:"),
+                          let data = Data(base64Encoded: String(token[range.upperBound...])),
+                          let name = String(data: data, encoding: .utf8)
+                    else { return nil }
+                    return name
+                }
+            #expect(externLinkNames.allSatisfy { !$0.hasPrefix("kk_fn_kk_lambda_") })
             let source = """
             import returntarget.value
             import returntarget.nested
