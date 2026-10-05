@@ -1188,16 +1188,20 @@ extension CallTypeChecker {
            index < signature.classTypeParameterCount {
             return parameterType
         }
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        // `T` captures the full receiver type; only `T?` strips nullability
+        // before substituting T (e.g. `nullable.also { it }` versus `T?.ext`).
+        let substitutionReceiverType = declaredReceiver == nonNullDeclaredReceiver
+            ? receiverType
+            : sema.types.makeNonNullable(receiverType)
         // Avoid circular substitution when the concrete receiver still references the same type parameter.
-        guard !sema.types.typeContainsTypeParam(nonNullReceiverType, symbol: receiverTypeParam.symbol) else {
+        guard !sema.types.typeContainsTypeParam(substitutionReceiverType, symbol: receiverTypeParam.symbol) else {
             return parameterType
         }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard let typeVar = typeVarBySymbol[receiverTypeParam.symbol] else {
             return parameterType
         }
-        let substitution: [TypeVarID: TypeID] = [typeVar: nonNullReceiverType]
+        let substitution: [TypeVarID: TypeID] = [typeVar: substitutionReceiverType]
         return sema.types.substituteTypeParameters(
             in: parameterType,
             substitution: substitution,
