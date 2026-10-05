@@ -2011,32 +2011,22 @@ extension ExprTypeChecker {
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
             } else {
-                if let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
-                {
-                    let propertyCandidates = sema.symbols.lookupAll(
-                        fqName: owner.fqName + [member]
-                    ).filter { symbolID in
-                        guard let symbol = ctx.cachedSymbol(symbolID) else {
-                            return false
-                        }
-                        // Member-extension properties are unreferenceable in
-                        // every `::` form, the same as member-extension
-                        // functions; `extensionPropertyReceiverType` is set
-                        // only when the member declares an extension receiver.
-                        return (symbol.kind == .property || symbol.kind == .field)
-                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
-                    }
-                    if let propertySymbol = propertyCandidates.first {
-                        return bindPropertyCallableRef(
-                            id,
-                            propertySymbol: propertySymbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
-                            isUnbound: unboundClassType != nil,
-                            expectedType: expectedType,
-                            sema: sema,
-                            interner: interner
-                        )
-                    }
+                // Property references use the same inheritance-aware lookup as
+                // ordinary member reads (for example MutableList<Int>::size).
+                if let property = driver.helpers.lookupMemberProperty(
+                    named: member,
+                    receiverType: nonNullReceiver,
+                    sema: sema
+                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                    return bindPropertyCallableRef(
+                        id,
+                        propertySymbol: property.symbol,
+                        ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                        isUnbound: unboundClassType != nil,
+                        expectedType: expectedType,
+                        sema: sema,
+                        interner: interner
+                    )
                 }
                 // REFL-EXTPROP: a package-level extension property (e.g. `val
                 // String.length: Int` in Stdlib/kotlin/String.kt) is registered
