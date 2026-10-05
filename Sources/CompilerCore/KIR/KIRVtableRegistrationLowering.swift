@@ -1413,7 +1413,8 @@ private func kirFindMatchingMethod(
         return nil
     }
 
-    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceSignature = sema.symbols.functionSignature(for: interfaceMethod)
+    let interfaceParameterTypes = interfaceSignature?.parameterTypes
     let interfaceParamCount = interfaceParameterTypes?.count
     let children = sema.symbols.children(ofFQName: ownerSym.fqName)
     var firstCandidate: SymbolID?
@@ -1433,14 +1434,26 @@ private func kirFindMatchingMethod(
         {
             continue
         }
-        let candidateParameterTypes = sema.symbols.functionSignature(for: candidate)?.parameterTypes
+        let candidateSignature = sema.symbols.functionSignature(for: candidate)
+        let candidateParameterTypes = candidateSignature?.parameterTypes
+        let alignedInterfaceParameterTypes = if let interfaceSignature, let candidateSignature {
+            kirAlignedOverrideParameterTypes(
+                interfaceSignature: interfaceSignature,
+                candidateSignature: candidateSignature,
+                interfaceOwner: sema.symbols.parentSymbol(for: interfaceMethod),
+                candidateOwner: nominal,
+                types: sema.types
+            )
+        } else {
+            interfaceParameterTypes
+        }
         // Prefer a full parameter-type match so same-arity overloads
         // (e.g. StringBuilder.append(Char) vs append(String)) land in
         // the correct itable slot. Type parameters are wildcards.
-        if let interfaceParameterTypes, let candidateParameterTypes,
+        if let alignedInterfaceParameterTypes, let candidateParameterTypes,
            kirOverrideParameterTypesMatch(
                candidateParameterTypes: candidateParameterTypes,
-               interfaceParameterTypes: interfaceParameterTypes,
+               interfaceParameterTypes: alignedInterfaceParameterTypes,
                types: sema.types
            )
         {
@@ -1462,6 +1475,42 @@ private func kirFindMatchingMethod(
         }
     }
     return arityMatch ?? firstCandidate
+}
+
+private func kirAlignedOverrideParameterTypes(
+    interfaceSignature: FunctionSignature,
+    candidateSignature: FunctionSignature,
+    interfaceOwner: SymbolID?,
+    candidateOwner: SymbolID,
+    types: TypeSystem
+) -> [TypeID] {
+    var parameterTypes = interfaceSignature.parameterTypes
+    if let interfaceOwner, interfaceSignature.classTypeParameterCount > 0 {
+        let candidateArgs = types.nominalTypeParameterSymbols(for: candidateOwner).map {
+            TypeArg.invariant(types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+        }
+        if let ownerArgs = types.liftedNominalSupertypeArgs(from: candidateOwner, childArgs: candidateArgs, to: interfaceOwner) {
+            parameterTypes = parameterTypes.map {
+                types.substituteNominalTypeParameters(in: $0, owner: interfaceOwner, ownerArgs: ownerArgs)
+            }
+        }
+    }
+    let interfaceMethodParameters = interfaceSignature.typeParameterSymbols.dropFirst(interfaceSignature.classTypeParameterCount)
+    let candidateMethodParameters = candidateSignature.typeParameterSymbols.dropFirst(candidateSignature.classTypeParameterCount)
+    guard !interfaceMethodParameters.isEmpty,
+          interfaceMethodParameters.count == candidateMethodParameters.count
+    else {
+        return parameterTypes
+    }
+    let typeVarBySymbol = types.makeTypeVarBySymbol(Array(interfaceMethodParameters))
+    var substitution: [TypeVarID: TypeID] = [:]
+    for (interfaceParameter, candidateParameter) in zip(interfaceMethodParameters, candidateMethodParameters) {
+        guard let typeVar = typeVarBySymbol[interfaceParameter] else { continue }
+        substitution[typeVar] = types.make(.typeParam(TypeParamType(symbol: candidateParameter, nullability: .nonNull)))
+    }
+    return parameterTypes.map {
+        types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+    }
 }
 
 /// A class implementing an interface can declare several overloads sharing
