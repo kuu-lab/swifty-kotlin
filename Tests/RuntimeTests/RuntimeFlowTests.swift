@@ -205,6 +205,35 @@ func runtime_test_flow_capturing_cold_emitter(_ continuation: Int, _ outThrown: 
     return kk_coroutine_state_exit(continuation, 0)
 }
 
+private let runtimeFlowSuspendingEmitterFunctionID = 9301
+
+/// State-machine body of a non-capturing `flow { }` emitter that suspends
+/// between emits (delay + resume label), matching the compiled builder shape.
+@_cdecl("runtime_test_flow_suspending_emitter_body")
+func runtime_test_flow_suspending_emitter_body(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if kk_coroutine_state_enter(continuation, runtimeFlowSuspendingEmitterFunctionID) == 0 {
+        _ = kk_flow_emit(0, 1, RuntimeFlowTag.emit.rawValue)
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        return kk_kxmini_delay(1, continuation)
+    }
+    _ = kk_flow_emit(0, 2, RuntimeFlowTag.emit.rawValue)
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
+/// Mirrors the compiler-emitted suspend wrapper for a non-capturing builder:
+/// a fresh continuation plus `kk_coroutine_call_suspend_wrapper`, which relays
+/// to the ambient continuation whenever one is installed.
+@_cdecl("runtime_test_flow_suspending_emitter_wrapper")
+func runtime_test_flow_suspending_emitter_wrapper(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let bodyRaw = unsafeBitCast(
+        runtime_test_flow_suspending_emitter_body as RuntimeCapturingFlowEmitterEntry,
+        to: Int.self
+    )
+    let continuation = kk_coroutine_continuation_new(runtimeFlowSuspendingEmitterFunctionID)
+    return kk_coroutine_call_suspend_wrapper(bodyRaw, continuation, outThrown)
+}
+
 @_cdecl("runtime_test_flow_map_throw_on_two")
 func runtime_test_flow_map_throw_on_two(_: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeFlowTestState.recordMapCall()
@@ -374,6 +403,33 @@ struct RuntimeFlowTests {
         let snapshot2 = runtimeFlowTestState.snapshot()
         #expect(snapshot2.values == [1, 2], "take counters should reset on each collect.")
         #expect(snapshot2.emitCalls <= 3, "Emitter should stop early on re-collect too.")
+    }
+
+    // A non-capturing `flow { }` emitter keeps the direct `(outThrown)` ABI and
+    // is invoked synchronously from collect. When its suspend wrapper relays
+    // COROUTINE_SUSPENDED into an ambient continuation (the collect caller's
+    // state, e.g. inside `runBlocking`), the sentinel surfaced as a normal
+    // result and the collection finished after the first suspension —
+    // `flow { emit(1); delay(1); emit(2) }` delivered only `1`.
+    @Test func testDirectEmitterSuspensionDeliversEveryValueInsideAmbientContinuation() {
+        let wrapperPtr = unsafeBitCast(
+            runtime_test_flow_suspending_emitter_wrapper as RuntimeFlowEmitterEntry,
+            to: Int.self
+        )
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let flowHandle = kk_flow_create(wrapperPtr, 0)
+
+        // Install an ambient continuation so the wrapper's suspend relay sees a
+        // caller, matching a `collect` invoked inside a running coroutine.
+        let caller = kk_coroutine_continuation_new(9302)
+        defer { _ = kk_coroutine_state_exit(caller, 0) }
+        let previousAmbient = RuntimeContinuationState.current
+        RuntimeContinuationState.current = runtimeContinuationState(from: caller)
+        defer { RuntimeContinuationState.current = previousAmbient }
+
+        _ = kk_flow_collect(flowHandle, collectorPtr, 0, 0)
+
+        #expect(runtimeFlowTestState.snapshot().values == [1, 2])
     }
 
     @Test func testMapThrowTerminatesFlowAndSkipsSubsequentEmits() {
