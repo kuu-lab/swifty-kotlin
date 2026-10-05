@@ -835,31 +835,26 @@ extension CallTypeChecker {
         var allCandidates: [SymbolID]
         if isClassNameReceiver {
             // Class-name receiver: only companion members are valid targets.
-            // Skip collectMemberFunctionCandidates which would find instance
-            // methods and shadow companion members of the same name.
+            // Search from the companion, rather than the owner class, so its
+            // inherited members are included without exposing owner instances.
             if let ownerNominal = classNameReceiverNominalSymbol,
-               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal),
-               let companionSym = sema.symbols.symbol(companionSymbol)
+               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
             {
-                let companionMemberFQName = companionSym.fqName + [calleeName]
+                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
                 // Try companion property access when no arguments are provided
                 // (e.g. Foo.MAX_COUNT).  When args are present this is a function
                 // call, so skip the property short-circuit to avoid shadowing a
                 // companion function of the same name.
                 if args.isEmpty {
-                    let propertyCandidate = sema.symbols.lookupAll(fqName: companionMemberFQName).first(where: { cid in
-                        guard let sym = sema.symbols.symbol(cid),
-                              sym.kind == .property,
-                              sema.symbols.parentSymbol(for: cid) == companionSymbol
-                        else {
-                            return false
-                        }
-                        return true
-                    })
-                    if let propSymbol = propertyCandidate,
-                       let propType = sema.symbols.propertyType(for: propSymbol)
+                    if let propResult = driver.helpers.lookupMemberProperty(
+                        named: calleeName,
+                        receiverType: companionTypeForExtensionLookup,
+                        sema: sema
+                    )
                     {
+                        let propSymbol = propResult.symbol
+                        let propType = propResult.type
                         // Check visibility before returning the property.
                         if let propSym = sema.symbols.symbol(propSymbol),
                            !ctx.visibilityChecker.isAccessible(
@@ -885,8 +880,7 @@ extension CallTypeChecker {
                             diagnostics: ctx.semaCtx.diagnostics
                         )
                         // Re-bind receiver to companion type for correct KIR lowering
-                        let compType = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
-                        sema.bindings.bindExprType(receiverID, type: compType)
+                        sema.bindings.bindExprType(receiverID, type: companionTypeForExtensionLookup)
                         sema.bindings.bindIdentifier(id, symbol: propSymbol)
                         sema.bindings.bindExprType(id, type: propType)
                         return propType
@@ -911,18 +905,12 @@ extension CallTypeChecker {
                 }
 
                 // Then try companion function candidates
-                var companionCandidates: [SymbolID] = []
-                for candidate in sema.symbols.lookupAll(fqName: companionMemberFQName) {
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          sema.symbols.parentSymbol(for: candidate) == companionSymbol,
-                          sema.symbols.functionSignature(for: candidate) != nil
-                    else {
-                        continue
-                    }
-                    companionCandidates.append(candidate)
-                }
-                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                var companionCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: companionTypeForExtensionLookup,
+                    sema: sema,
+                    interner: interner
+                )
                 // Precompiled library extensions are not inserted into
                 // file scopes, because their receiver is resolved during
                 // member-call inference. Recover those synthetic
@@ -949,7 +937,7 @@ extension CallTypeChecker {
                     // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
                     // written as Kotlin source at package scope. These are resolved
                     // via scope lookup (like ordinary extension functions), not the
-                    // direct-member FQName lookup above.
+                    // companion member lookup above.
                     companionCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
                         guard let symbol = ctx.cachedSymbol(candidate),
                               symbol.kind == .function,
