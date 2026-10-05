@@ -37,6 +37,75 @@ private func extractSuperCallFlagsAcrossOverrides(
 @Suite
 struct SuperCallAndQualifiedThisTests {
 
+    @Test(arguments: [false, true])
+    func testQualifiedClassAndInterfaceSuperCalls(fullyLowered: Bool) throws {
+        let ctx = makeContextFromSource("""
+        open class A1 { open fun f(): Int = 1 }
+        interface B1 { fun f(): Int = 2 }
+        class C1 : A1(), B1 {
+            override fun f(): Int = super<A1>.f() + super<B1>.f()
+        }
+        """)
+        if fullyLowered {
+            try runToLowering(ctx)
+        } else {
+            try runToKIR(ctx)
+        }
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let flags = findAllKIRFunctionBodies(named: "f", in: module, interner: ctx.interner)
+            .flatMap { extractSuperCallFlags(from: $0, interner: ctx.interner) }
+            .filter { $0.callee == "f" && $0.isSuperCall }
+        let qualifiers = flags.compactMap { flag in
+            flag.qualifiedSuperType.flatMap { sema.symbols.symbol($0) }
+                .map { ctx.interner.resolve($0.name) }
+        }
+        #expect(flags.count == 2)
+        #expect(Set(qualifiers) == ["A1", "B1"])
+        for body in findAllKIRFunctionBodies(named: "f", in: module, interner: ctx.interner) {
+            for instruction in body {
+                guard case let .call(symbol, _, _, _, _, _, true, qualifier?) = instruction else { continue }
+                let callee = try #require(symbol)
+                #expect(sema.symbols.parentSymbol(for: callee) == qualifier)
+            }
+        }
+    }
+
+    @Test func testQualifiedClassSuperCallWithArgument() throws {
+        let ctx = makeContextFromSource("""
+        open class Base { open fun f(x: Int): Int = x + 1 }
+        class Child : Base() {
+            override fun f(x: Int): Int = super<Base>.f(x) + 10
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let calls = findAllKIRFunctionBodies(named: "f", in: module, interner: ctx.interner)
+            .flatMap { extractSuperCallFlags(from: $0, interner: ctx.interner) }
+        let superCall = try #require(calls.first { $0.isSuperCall })
+        let qualifier = try #require(superCall.qualifiedSuperType)
+        let qualifierSymbol = try #require(sema.symbols.symbol(qualifier))
+        #expect(ctx.interner.resolve(qualifierSymbol.name) == "Base")
+    }
+
+    @Test(arguments: ["Root", "Other", "Missing"])
+    func testQualifiedSuperRejectsNonDirectSupertype(qualifier: String) throws {
+        let ctx = makeContextFromSource("""
+        open class Root { open fun f(): Int = 1 }
+        open class Base : Root()
+        open class Other { open fun f(): Int = 2 }
+        class Child : Base() {
+            override fun f(): Int = super<\(qualifier)>.f()
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0054", in: ctx)
+    }
+
     @Test func testSuperCallProducesIsSuperCallTrueInKIR() throws {
         let source = """
         open class Base {
