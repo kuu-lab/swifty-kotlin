@@ -230,7 +230,8 @@ final class LambdaLowerer {
             lambdaBodyExprID: bodyExpr,
             ast: ast,
             sema: sema,
-            hasExplicitReceiver: needsExplicitReceiver || sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] != nil
+            arena: arena,
+            receiverType: functionType?.receiver ?? sema.bindings.coroutineScopeLambdaReceiverTypes[exprID]
         )
 
         // Non-capturing lambda optimization: if no captures, use function pointer directly
@@ -333,6 +334,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
+                bindCapturedOuterLambdaReceiver(captureExpr, type: capture.param.type, sema: sema)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(captureExpr)
                 }
@@ -373,6 +375,7 @@ final class LambdaLowerer {
             bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
+                bindCapturedOuterLambdaReceiver(closureExpr, type: closureCapture.param.type, sema: sema)
                 if capturesRuntimeScopeReceiver {
                     driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(closureExpr)
                 }
@@ -401,6 +404,7 @@ final class LambdaLowerer {
                 bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
+                    bindCapturedOuterLambdaReceiver(loadedExpr, type: capture.param.type, sema: sema)
                     if capturesRuntimeScopeReceiver {
                         driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(loadedExpr)
                     }
@@ -603,6 +607,9 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
         driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+        if sema.symbols.symbol(capture.capturedSymbol)?.kind == .class {
+            bindCapturedOuterLambdaReceiver(capturedValue, type: capture.param.type, sema: sema)
+        }
         if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
            semanticSymbol.kind == .typeParameter,
            semanticSymbol.flags.contains(.reifiedTypeParameter)
@@ -611,6 +618,12 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
             driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
         }
+    }
+
+    private func bindCapturedOuterLambdaReceiver(_ receiver: KIRExprID, type: TypeID, sema: SemaModule) {
+        guard case let .classType(classType) = sema.types.kind(of: type) else { return }
+        driver.ctx.setCapturedOuterReceiver(receiver, for: classType.classSymbol)
+        driver.ctx.setLocalValue(receiver, for: classType.classSymbol)
     }
 
     private func materializeEscapingCallableValue(
