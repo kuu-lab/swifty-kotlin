@@ -1857,6 +1857,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
     /// Whether the producer has finished (either completed or threw).
     private var finished = false
+    private var failure: Int = 0
 
     /// Whether the coroutine producer has been initialized.
     private var started = false
@@ -1884,9 +1885,17 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         self.usesCPSProducer = usesCPSProducer
     }
 
+    func freshIterator() -> RuntimeSequenceCoroutine {
+        RuntimeSequenceCoroutine(fnPtr: fnPtr, closureRaw: closureRaw, functionID: functionID, usesCPSProducer: usesCPSProducer)
+    }
+
     /// Called by the producer to yield a value.
     func yieldValue(_ value: Int) -> Int {
         stateLock.lock()
+        guard failure == 0 else {
+            stateLock.unlock()
+            return 0
+        }
         pendingYieldedValues.append(value)
         stateLock.unlock()
 
@@ -1899,11 +1908,20 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     }
 
     /// Called by the producer when it finishes (normally or via exception).
-    func markFinished() {
+    func markFinished(thrown: Int = 0) {
         stateLock.lock()
+        if failure == 0 { failure = thrown }
         finished = true
         stateLock.unlock()
         consumerGate.signal()
+    }
+
+    // The retained yieldAll ABI has no outThrown slot; keep its delegated
+    // failure until the legacy callback completes and the consumer receives it.
+    func recordFailure(_ thrown: Int) {
+        stateLock.lock()
+        if failure == 0 { failure = thrown }
+        stateLock.unlock()
     }
 
     private func consumePendingValueLocked() -> Int? {
@@ -1964,11 +1982,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         )
         _ = fn(closureRaw, builderHandle, &thrown)
 
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-        }
-
-        markFinished()
+        markFinished(thrown: thrown)
     }
 
     /// Result type for `nextElement()`: either a value or end-of-sequence.
@@ -1987,8 +2001,13 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// elements have been consumed.
     private var consumptionIndex: Int = 0
 
-    func nextElement() -> NextResult {
+    func nextElement(outThrown: UnsafeMutablePointer<Int>? = nil) -> NextResult {
         stateLock.lock()
+        if failure != 0 {
+            outThrown?.pointee = failure
+            stateLock.unlock()
+            return .done
+        }
         if consumptionIndex < materializedElements.count {
             let elem = materializedElements[consumptionIndex]
             consumptionIndex += 1
@@ -2015,6 +2034,11 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         awaitProducerYield()
 
         stateLock.lock()
+        if failure != 0 {
+            outThrown?.pointee = failure
+            stateLock.unlock()
+            return .done
+        }
         if let value = consumePendingValueLocked() {
             materializedElements.append(value)
             consumptionIndex += 1
@@ -2163,10 +2187,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
                 entryPointRaw: fnPtr,
                 continuation: continuation,
                 onCompletion: { _, thrown in
-                    if thrown != 0 {
-                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: sequence lambda threw but no outThrown available")
-                    }
-                    coroutine.markFinished()
+                    coroutine.markFinished(thrown: thrown)
                 }
             )
             return
@@ -2273,6 +2294,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private var started = false
     private var cpsLoopStarted = false
     private var producerContinuationRaw: Int = 0
+    private var failure: Int = 0
+    private var failureReported = false
 
     /// The most recently yielded value, valid when `state == .hasValue`.
     private(set) var yieldedValue: Int = 0
@@ -2313,7 +2336,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         return 0
     }
 
-    func probeHasNext() -> Bool {
+    func probeHasNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Bool {
         stateLock.lock()
         let current = state
         stateLock.unlock()
@@ -2322,16 +2345,35 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case .hasValue:
             return true
         case .done:
+            stateLock.lock()
+            let thrown = failureForProbeLocked()
+            stateLock.unlock()
+            outThrown?.pointee = thrown
             return false
         case .initial:
             awaitProducerYield()
             stateLock.lock()
             defer { stateLock.unlock() }
+            let thrown = failureForProbeLocked()
+            outThrown?.pointee = thrown
             return state == .hasValue
         }
     }
 
-    func consumeNext() -> Int {
+    private func failureForProbeLocked() -> Int {
+        guard failure != 0 else { return 0 }
+        if failureReported {
+            return runtimeAllocateIllegalStateException(message: "Iterator has failed.")
+        }
+        failureReported = true
+        return failure
+    }
+
+    func consumeNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        guard probeHasNext(outThrown: outThrown) else {
+            if (outThrown?.pointee ?? 0) != 0 { return 0 }
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
         stateLock.lock()
         let current = state
         stateLock.unlock()
@@ -2405,11 +2447,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             closureRaw: builderHandle,
             outThrown: &thrown
         )
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-        }
-
         stateLock.lock()
+        failure = thrown
         state = .done
         stateLock.unlock()
         consumerGate.signal()
@@ -2438,10 +2477,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
                 entryPointRaw: fnPtr,
                 continuation: continuation,
                 onCompletion: { _, thrown in
-                    if thrown != 0 {
-                        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-                    }
                     box.stateLock.lock()
+                    box.failure = thrown
                     box.state = .done
                     box.stateLock.unlock()
                     box.consumerGate.signal()

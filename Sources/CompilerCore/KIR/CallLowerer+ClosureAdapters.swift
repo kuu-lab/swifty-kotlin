@@ -646,9 +646,11 @@ extension CallLowerer {
             else {
                 continue
             }
-            // Same-module inline expansion can consume raw symbols directly,
-            // but tagged callable references still cross the erased invoke ABI.
+            // Ordinary same-module inline callbacks consume raw symbols directly.
+            // Restricted callbacks may escape; tagged references use the erased ABI.
             if isInline, !isImported,
+               signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
+               signature.valueParameterAllowsNonLocalReturn[parameterIndex],
                case .symbolRef? = arena.expr(arguments[finalArgIndex])
             {
                 continue
@@ -955,6 +957,10 @@ extension CallLowerer {
             let fnPtr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
             instructions.append(.constValue(result: fnPtr, value: .symbolRef(adapterSymbol)))
             return (fnPtr, loweredArgID)
+        }
+        if let callableInfo {
+            fnPtr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
+            instructions.append(.constValue(result: fnPtr, value: .symbolRef(callableInfo.symbol)))
         }
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
