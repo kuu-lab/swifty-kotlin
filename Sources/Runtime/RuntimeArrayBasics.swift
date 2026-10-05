@@ -6,6 +6,22 @@
 
 // MARK: - Array Functions (STDLIB-001)
 
+private let runtimeArrayTypeNames: [(id: Int64, name: String)] = [
+    "BooleanArray", "ByteArray", "CharArray", "DoubleArray", "FloatArray",
+    "IntArray", "LongArray", "ShortArray", "UByteArray", "UShortArray",
+    "UIntArray", "ULongArray",
+].map { name in
+    let fqName = "kotlin.\(name)"
+    return (runtimeStableNominalTypeID(fqName: fqName), fqName)
+}
+
+func runtimeArrayIdentityToString(_ raw: Int) -> String {
+    let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
+    let typeName = runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"
+    let hash = UInt32(truncatingIfNeeded: kk_any_hashCode(raw, 0))
+    return "\(typeName)@\(String(hash, radix: 16))"
+}
+
 /// Creates a new array from existing elements (identity/tagging operation).
 /// The array is already allocated by `kk_array_new`; this function simply
 /// returns the handle so that the Swift runtime handles it consistently
