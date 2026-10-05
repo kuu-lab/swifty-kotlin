@@ -103,7 +103,7 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.objectLiteral(superTypes: superTypes, decl: declID, range: range))
     }
 
-    func parseCallableReference(receiver: ExprID? = nil) -> ExprID? {
+    func parseCallableReference(receiver: ExprID? = nil, receiverTypeRef: TypeRefID? = nil) -> ExprID? {
         guard let opToken = consume() else {
             return nil
         }
@@ -122,7 +122,11 @@ extension BuildASTPhase.ExpressionParser {
             start: receiver.flatMap { astArena.exprRange($0)?.start } ?? opToken.range.start,
             end: memberToken.range.end
         )
-        return astArena.appendExpr(.callableRef(receiver: receiver, member: memberName, range: range))
+        let reference = astArena.appendExpr(.callableRef(receiver: receiver, member: memberName, range: range))
+        if let receiverTypeRef {
+            astArena.setCallableRefReceiverTypeRef(reference, typeRef: receiverTypeRef)
+        }
+        return reference
     }
 
     /// Consumes tokens up to and including a closing brace matching a

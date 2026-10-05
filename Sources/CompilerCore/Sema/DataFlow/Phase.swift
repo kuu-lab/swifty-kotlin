@@ -494,6 +494,19 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
+        // Alias right-hand sides can reference nested types before their owners'
+        // signatures are collected, including owners in later input files.
+        for file in orderedFiles {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            for declID in file.topLevelDecls {
+                guard let symbol = predeclared[declID] else { continue }
+                predeclareNestedNominalTypeHeaders(
+                    declID: declID, ownerSymbol: symbol, sourceFileID: file.fileID,
+                    ast: ast, symbols: symbols, types: types, bindings: bindings,
+                    scope: fileScope, ctx: ctx
+                )
+            }
+        }
         // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,

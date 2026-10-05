@@ -59,6 +59,18 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testSchedulerClockUsesWordABI() throws {
+        let specs = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+        for name in ["kk_test_scope_current_time", "kk_test_scheduler_current_time"] {
+            let spec = try #require(specs[name])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == [.intptr])
+        }
+        let advance = try #require(specs["kk_test_scheduler_advance_time_by"])
+        #expect(advance.parameters.map(\.type) == [.intptr, .intptr])
+    }
+
+    @Test
     func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
         let expected: [(name: String, isThrowing: Bool)] = [
             ("kk_duration_parse", true),
@@ -69,6 +81,18 @@ struct ABIMismatchRuntimeExportParityTests {
             ("kk_sequence_contains", false),
             ("kk_sequence_elementAtOrNull", false),
             ("__kk_mutable_list_add", true),
+            ("__kk_mutable_collection_add", false),
+            ("__kk_mutable_collection_remove", false),
+            ("__kk_mutable_collection_clear", false),
+            ("__kk_mutable_collection_addAll", false),
+            ("__kk_mutable_collection_removeAll", false),
+            ("__kk_mutable_collection_retainAll", false),
+            ("__kk_mutable_collection_add_throwing", true),
+            ("__kk_mutable_collection_remove_throwing", true),
+            ("__kk_mutable_collection_clear_throwing", true),
+            ("__kk_mutable_collection_addAll_throwing", true),
+            ("__kk_mutable_collection_removeAll_throwing", true),
+            ("__kk_mutable_collection_retainAll_throwing", true),
             ("__kk_mutable_set_add", true),
             ("__kk_mutable_set_remove", true),
             ("__kk_mutable_map_put", true),

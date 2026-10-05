@@ -1,0 +1,19 @@
+symbol fq=golden.sema.lookup.$0.E[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.lookup.$0.element[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.lookup.$0.key[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.lookup[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;gen=1] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<golden.sema.lookup.$0.E>] ret=golden.sema.lookup.$0.E? bounds=[kotlin.coroutines.CoroutineContext.Element]
+symbol fq=golden.sema.remove.$1.element[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.remove.$1.key[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.remove[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>] ret=kotlin.coroutines.CoroutineContext
+file fstdlib_kotlin_coroutines_polymorphic_keys_source package=golden.sema annotations=[@file:OptIn(kotlin.ExperimentalStdlibApi::class)]
+  decl golden.sema.lookup[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;gen=1] fun lookup sym=golden.sema.lookup[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;gen=1]
+  decl golden.sema.remove[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>] fun remove sym=golden.sema.remove[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@12:9 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.lookup.$0.element[kind=vparam]
+expr e@12:39 name(key) type=kotlin.coroutines.CoroutineContext.Key<golden.sema.lookup.$0.E> ref=golden.sema.lookup.$0.key[kind=vparam]
+expr e@12:9#1 memberCall recv=e@12:9 callee=getPolymorphicElement args=[_:e@12:39] type=golden.sema.lookup.$0.E? call=kotlin.coroutines.getPolymorphicElement[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1] targs=[golden.sema.lookup.$0.E]
+expr e@15:5 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.remove.$1.element[kind=vparam]
+expr e@15:33 name(key) type=kotlin.coroutines.CoroutineContext.Key<*> ref=golden.sema.remove.$1.key[kind=vparam]
+expr e@15:5#1 memberCall recv=e@15:5 callee=minusPolymorphicKey args=[_:e@15:33] type=kotlin.coroutines.CoroutineContext call=kotlin.coroutines.minusPolymorphicKey[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<*>]
+section stdlib-targets
+target fq=kotlin.coroutines.getPolymorphicElement[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<T0>;gen=1] origin=bundledSource kind=function vis=public flags=_ sig=recv=kotlin.coroutines.CoroutineContext.Element params=[kotlin.coroutines.CoroutineContext.Key<kotlin.coroutines.getPolymorphicElement.$2.E>] ret=kotlin.coroutines.getPolymorphicElement.$2.E? bounds=[kotlin.coroutines.CoroutineContext.Element] tparams=[T0] annotations=[@SinceKotlin("1.3"),@ExperimentalStdlibApi,@Suppress("UNCHECKED_CAST")]
+target fq=kotlin.coroutines.minusPolymorphicKey[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<*>] origin=bundledSource kind=function vis=public flags=_ sig=recv=kotlin.coroutines.CoroutineContext.Element params=[kotlin.coroutines.CoroutineContext.Key<*>] ret=kotlin.coroutines.CoroutineContext annotations=[@SinceKotlin("1.3"),@ExperimentalStdlibApi]

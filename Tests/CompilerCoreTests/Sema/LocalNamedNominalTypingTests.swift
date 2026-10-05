@@ -128,6 +128,44 @@ struct LocalNamedNominalTypingTests {
         }
     }
 
+    @Test(arguments: [
+        "class Writer { fun write(value: Unit = run { args = Args(null) }) {} }; Writer().write()",
+        "class Writer(value: Unit = run { args = Args(null) }); Writer()",
+        "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; Writer()",
+        "class Writer(value: Unit) { constructor() : this(kotlin.run { args = Args(null) }) }; Writer()",
+        "class Writer { fun read(value: Int = run { args = Args(null); 4 }): Int = value }; Writer().read()",
+    ])
+    func testLocalClassDefaultAndDelegationCapture(_ declaration: String) throws {
+        let source = """
+        class Args(val x: String?)
+        fun probe() {
+            var args = Args("hello")
+            \(declaration)
+            println(args.x)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!diagnosticsForPath(paths[0], in: ctx).contains { $0.severity == .error },
+                    "Unexpected diagnostics: \(renderDiagnostics(ctx))")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let probe = try #require(topLevelFunction(named: "probe", in: ast, interner: ctx.interner))
+            guard case let .block(statements, _) = probe.body else {
+                Issue.record("Expected probe block body.")
+                return
+            }
+            let (_, declID) = try #require(localNominalDeclExpr(in: statements, ast: ast))
+            let owner = try #require(sema.bindings.declSymbol(for: declID))
+            let captures = sema.bindings.objectLiteralCaptureSymbols(for: owner)
+            let args = try #require(captures.first { sema.symbols.symbol($0)?.name == ctx.interner.intern("args") })
+            #expect(sema.symbols.symbol(args)?.flags.contains(.mutable) == true)
+            #expect(sema.symbols.nominalLayout(for: owner)?.fieldOffsets[args] != nil)
+            #expect(sema.bindings.capturedLocalType(for: args) != nil)
+        }
+    }
+
     // MARK: - Consolidated runSema clean tests
 
     @Test

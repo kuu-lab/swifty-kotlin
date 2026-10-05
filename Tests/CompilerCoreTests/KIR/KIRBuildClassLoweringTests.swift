@@ -87,6 +87,31 @@ struct KIRBuildClassLoweringTests {
         )
     }
 
+    @Test func testCompanionInitializerRegistersInterfaceMethods() throws {
+        let ctx = makeContextFromSource("""
+        interface Factory<T> { fun create(): T }
+        class Widget {
+            companion object : Factory<Widget> {
+                override fun create(): Widget = Widget()
+            }
+        }
+        fun main() { val factory: Factory<Widget> = Widget; factory.create() }
+        """)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let initializer = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
+        })
+        let callees = initializer.body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+            return ctx.interner.resolve(callee)
+        }
+        #expect(callees.contains("kk_object_register_itable_iface"))
+        #expect(callees.contains("kk_object_register_itable_method"))
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     @Test func testCompanionInitializerDoesNotCallSyntheticAnyConstructor() throws {
         let source = """
         class Host {
@@ -273,7 +298,7 @@ struct KIRBuildClassLoweringTests {
             }
             return arguments.count
         }
-        #expect(abortCallArgumentCounts == [1], "Expected kk_abort_unreachable to receive null outThrown.")
+        #expect(abortCallArgumentCounts == [0], "The backend supplies kk_abort_unreachable's outThrown channel.")
     }
 
     @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {
