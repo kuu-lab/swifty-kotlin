@@ -87,6 +87,58 @@ struct IntegerNarrowingPassTests {
 
     // MARK: - Char / small-width arithmetic
 
+    @Test(arguments: [PrimitiveType.ubyte, .ushort, .uint, .ulong, .int, .long])
+    func testInvResultIsNarrowedToItsPrimitiveWidth(primitive: PrimitiveType) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let type = sema.types.make(.primitive(primitive, .nonNull))
+        let value = arena.appendTemporary(type: type)
+        let result = arena.appendTemporary(type: type)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_inv"), arguments: [value], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let pass = IntegerNarrowingPass()
+
+        #expect(pass.shouldRun(module: module, ctx: ctx))
+        try pass.run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, invCallee, invArgs, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the inv call to be preserved"); return
+        }
+        #expect(interner.resolve(invCallee) == "kk_op_inv")
+        #expect(invArgs == [value])
+        let expectedNarrowCallee: String? = switch primitive {
+        case .ubyte: "kk_int_to_ubyte"
+        case .ushort: "kk_int_to_ushort"
+        case .uint: "kk_uint_narrow"
+        case .int: "kk_int_narrow"
+        default: nil
+        }
+        guard let expectedNarrowCallee else {
+            #expect(lowered.count == 2)
+            #expect(rawResult == result)
+            return
+        }
+        #expect(lowered.count == 3)
+        #expect(rawResult != result)
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, canThrow, _, _, _) = lowered[1] else {
+            Issue.record("Expected a narrowing call after inv"); return
+        }
+        #expect(interner.resolve(narrowCallee) == expectedNarrowCallee)
+        #expect(narrowArgs == [rawResult])
+        #expect(narrowResult == result)
+        #expect(arena.exprType(result) == type)
+        #expect(!canThrow)
+    }
+
     @Test(arguments: ["kk_op_add", "kk_op_sub"])
     func testCharPlusMinusIntResultIsWrappedToSixteenBits(calleeName: String) throws {
         let interner = StringInterner()

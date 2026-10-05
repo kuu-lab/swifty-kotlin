@@ -106,5 +106,4 @@ private fun Buffer.indexOfBytes(bytes: ByteArray, start: Long): Long {
         } while (segment != null && offset + bytes.size <= size)
         return -1L
     }
-    return -1L
 }
