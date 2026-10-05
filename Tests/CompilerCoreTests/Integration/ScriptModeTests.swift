@@ -66,7 +66,7 @@ struct ScriptModeTests {
 
             let localFunNamesInScriptBody: [String] = scriptFile.scriptBody.compactMap { exprID in
                 guard let expr = ast.arena.expr(exprID),
-                      case let .localFunDecl(name, _, _, _, _, _) = expr
+                      case let .localFunDecl(name, _, _, _, _, _, _) = expr
                 else {
                     return nil
                 }

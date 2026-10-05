@@ -4,6 +4,37 @@ import Testing
 
 @Suite
 struct CodegenBackendCoroutineDispatcherTests {
+    @Test(arguments: [(false, false), (false, true), (true, true)])
+    func nestedWithContextPreservesCapturedResults(
+        optimized: Bool,
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try assertKotlinOutput("""
+        import kotlinx.coroutines.*
+        fun main() {
+            runBlocking {
+                println(withContext(Dispatchers.Default) {
+                    withContext(Dispatchers.IO) { "nested" }
+                })
+                val prefix = "captured"
+                val value = 40
+                println(withContext(Dispatchers.Default) {
+                    withContext(Dispatchers.IO) {
+                        delay(1)
+                        "$prefix:${value + 2}"
+                    }
+                })
+                println("resumed")
+            }
+        }
+        """, moduleName: "NestedWithContext", expected: """
+        nested
+        captured:42
+        resumed
+
+        """, optLevel: optimized ? .O2 : .O0, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+    }
+
     @Test(arguments: [false, true])
     func aliasesPreserveDispatcherHandles(allowDefaultStdlibLibrary: Bool) throws {
         try assertKotlinOutput("""

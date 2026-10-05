@@ -1034,8 +1034,9 @@ struct RuntimeStringArrayTests {
         let arrayRaw = kk_array_new(2)
         _ = kk_array_set(arrayRaw, 0, 1, &thrown)
         _ = kk_array_set(arrayRaw, 1, 2, &thrown)
-        #expect(runtimeElementToString(arrayRaw) == "[1, 2]")
-        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) } == "[1, 2]")
+        let identity = "kotlin.Array@\(String(UInt32(truncatingIfNeeded: kk_any_hashCode(arrayRaw, 0)), radix: 16))"
+        #expect(runtimeElementToString(arrayRaw) == identity)
+        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) } == identity)
     }
 
     @Test
