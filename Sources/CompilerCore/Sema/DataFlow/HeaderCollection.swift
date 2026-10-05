@@ -1537,6 +1537,19 @@ extension DataFlowSemaPhase {
                     localTypeParameters: classLocalTypeParameters
                 )
             }
+            if symbols.symbol(symbol)?.flags.contains(.valueType) == true {
+                // Collect after explicit members so an override suppresses synthesis.
+                collectSyntheticToString(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    ownerType: classType,
+                    requireDataTypeFlag: false,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
+            }
             // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(

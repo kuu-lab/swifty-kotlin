@@ -65,6 +65,18 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
                 )
             }
+            if nominalSymbol.flags.contains(.valueType) {
+                let toStringName = ctx.interner.intern("toString")
+                let syntheticToString = sema.symbols.lookupAll(
+                    fqName: nominalSymbol.fqName + [toStringName]
+                ).first { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }
+                appendSyntheticDataClassToStringIfNeeded(
+                    name: toStringName, owner: nominalSymbol,
+                    properties: dataClassPropertySymbols(owner: nominalSymbol, symbols: sema.symbols),
+                    existingSymbol: syntheticToString, module: module, sema: sema,
+                    existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+                )
+            }
             if nominalSymbol.flags.contains(.dataType) {
                 synthesizeDataHelpers(
                     nominalSymbol: nominalSymbol,
