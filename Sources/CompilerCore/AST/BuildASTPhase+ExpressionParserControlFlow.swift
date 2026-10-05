@@ -267,7 +267,12 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { subTokens in
-                BuildASTPhase.ExpressionParser(tokens: subTokens, interner: self.interner, astArena: self.astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: subTokens,
+                    interner: self.interner,
+                    astArena: self.astArena,
+                    diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }
