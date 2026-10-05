@@ -100,6 +100,13 @@ extension TypeCheckHelpers {
               let parent = sema.symbols.symbol(parentID),
               parent.kind != .package
         else { return true }
+        // Receiver attachment does not change a top-level extension's package FQ name.
+        if let symbol = sema.symbols.symbol(symbolID),
+           symbol.flags.contains(.extensionMemberAlias)
+               || Array(symbol.fqName.dropLast()) != parent.fqName
+        {
+            return true
+        }
         let receiverNominals = allNominalSymbols(
             of: receiverType,
             types: sema.types,

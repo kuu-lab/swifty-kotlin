@@ -1378,6 +1378,18 @@ final class LambdaLowerer {
             }
         } else if !isUnbound,
                   !isSingletonOwnedPropertyRef,
+                  let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+                  let receiverValue = captureValueExpr(
+                      for: receiverSymbol,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            captureArguments.append(receiverValue)
+        } else if !isUnbound,
+                  !isSingletonOwnedPropertyRef,
                   sema.bindings.callableRefKind(for: exprID) == .propertyRef,
                   let targetSymbol,
                   let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
