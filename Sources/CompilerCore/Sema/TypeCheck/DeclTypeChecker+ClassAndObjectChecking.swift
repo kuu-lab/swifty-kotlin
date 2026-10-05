@@ -66,6 +66,10 @@ extension DeclTypeChecker {
                 enclosingClassSymbol: symbol
             )
 
+        if let companionDeclID = classDecl.companionObject {
+            typeCheckNestedObjectDecl(companionDeclID, ctx: classCtx, solver: solver, diagnostics: diagnostics)
+        }
+
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,
             ctx: classCtx,
@@ -97,7 +101,7 @@ extension DeclTypeChecker {
             memberFunctions: classDecl.memberFunctions,
             memberProperties: classDecl.memberProperties,
             nestedClasses: classDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
+            nestedObjects: classDecl.nestedObjects,
             ctx: classCtx,
             propertyInitializerLocals: primaryCtorLocals,
             solver: solver,
@@ -385,6 +389,10 @@ extension DeclTypeChecker {
                 enclosingClassSymbol: symbol
             )
 
+        if let companionDeclID = interfaceDecl.companionObject {
+            typeCheckNestedObjectDecl(companionDeclID, ctx: interfaceCtx, solver: solver, diagnostics: diagnostics)
+        }
+
         validateClassLikeHeaderOptInTypes(
             symbol: symbol,
             ctx: interfaceCtx,
@@ -395,7 +403,7 @@ extension DeclTypeChecker {
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
             nestedClasses: interfaceDecl.nestedClasses,
-            nestedObjects: allNestedObjects,
+            nestedObjects: interfaceDecl.nestedObjects,
             ctx: interfaceCtx,
             solver: solver,
             diagnostics: diagnostics
@@ -490,20 +498,29 @@ extension DeclTypeChecker {
         }
 
         for declID in nestedObjects {
-            guard let decl = ast.arena.decl(declID),
-                  case let .objectDecl(objectDecl) = decl,
-                  let symbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
-            }
-            typeCheckObjectDecl(
-                objectDecl,
-                symbol: symbol,
-                ctx: ctx.with(currentDeclSymbol: symbol),
-                solver: solver,
-                diagnostics: diagnostics
-            )
+            typeCheckNestedObjectDecl(declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
         }
+    }
+
+    private func typeCheckNestedObjectDecl(
+        _ declID: DeclID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard let decl = ctx.ast.arena.decl(declID),
+              case let .objectDecl(objectDecl) = decl,
+              let symbol = ctx.sema.bindings.declSymbols[declID]
+        else {
+            return
+        }
+        typeCheckObjectDecl(
+            objectDecl,
+            symbol: symbol,
+            ctx: ctx.with(currentDeclSymbol: symbol),
+            solver: solver,
+            diagnostics: diagnostics
+        )
     }
 
     private func memberDeclStartOffset(_ declID: DeclID, ast: ASTModule) -> Int? {
@@ -562,8 +579,21 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ClassMemberScope {
         let sema = ctx.sema
+        let companionScope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
+           let companion = sema.symbols.symbol(companionSymbol)
+        {
+            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
+                guard let member = sema.symbols.symbol(memberSymbol),
+                      member.kind == .property || member.kind == .field || member.kind == .function
+                else {
+                    continue
+                }
+                companionScope.insert(memberSymbol)
+            }
+        }
         let classScope = ClassMemberScope(
-            parent: ctx.scope,
+            parent: companionScope,
             symbols: sema.symbols,
             ownerSymbol: ownerSymbol,
             thisType: ownerType
@@ -580,22 +610,6 @@ extension DeclTypeChecker {
         for declID in memberFunctions + memberProperties + nestedClasses + nestedObjects {
             if let symbol = sema.bindings.declSymbols[declID] {
                 classScope.insert(symbol)
-            }
-        }
-
-        // Make companion properties available as unqualified names inside the
-        // owning class/interface scope (e.g. `MAX_COUNT` instead of
-        // `Companion.MAX_COUNT`).
-        if let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerSymbol),
-           let companion = sema.symbols.symbol(companionSymbol)
-        {
-            for memberSymbol in sema.symbols.children(ofFQName: companion.fqName) {
-                guard let member = sema.symbols.symbol(memberSymbol),
-                      member.kind == .property || member.kind == .field
-                else {
-                    continue
-                }
-                classScope.insert(memberSymbol)
             }
         }
 

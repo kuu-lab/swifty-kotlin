@@ -2795,7 +2795,17 @@ final class CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? callImplicitReceiverType
+            }?.type ?? candidates.lazy.compactMap { candidate -> TypeID? in
+                guard let owner = sema.symbols.parentSymbol(for: candidate),
+                      let containingClass = sema.symbols.parentSymbol(for: owner),
+                      sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+                      let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner
+                else {
+                    return nil
+                }
+                return receiverType
+            }.first ?? callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
