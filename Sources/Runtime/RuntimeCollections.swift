@@ -103,8 +103,8 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
     }
     if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
         hasher.combine(3)
-        hasher.combine(stringBox.value.utf16.count)
-        for codeUnit in stringBox.value.utf16 {
+        hasher.combine(stringBox.utf16Length)
+        for codeUnit in stringBox.utf16CodeUnits {
             hasher.combine(codeUnit)
         }
         return
@@ -734,10 +734,7 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
         runtimeElementToString(elem)
     }
     let str = "[" + parts.joined(separator: ", ") + "]"
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
+    return runtimeMakeStringPointer(str)
 }
 
 // MARK: - List toMap (STDLIB-200)

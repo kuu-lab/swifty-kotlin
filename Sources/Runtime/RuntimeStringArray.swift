@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
     guard raw != runtimeNullSentinelInt,
@@ -418,19 +419,19 @@ public func __kk_throwable_toString(
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(message, terminator: "")
+    Swift.print(KotlinStringSurrogateEncoding.unicodeString(message), terminator: "")
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(message, terminator: "\n")
+    Swift.print(KotlinStringSurrogateEncoding.unicodeString(message), terminator: "\n")
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-    FileHandle.standardError.write(Data(message.utf8))
+    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.unicodeString(message).utf8))
     return 0
 }
 
@@ -824,7 +825,7 @@ public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
 public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> UnsafeMutableRawPointer {
     let count = max(0, Int(len))
     let buffer = UnsafeBufferPointer(start: ptr, count: count)
-    let string = String(decoding: buffer, as: UTF8.self)
+    let string = KotlinStringSurrogateEncoding.encode(String(decoding: buffer, as: UTF8.self))
     let box = RuntimeStringBox(string)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -2626,10 +2627,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return String(UInt(bitPattern: ulongBox.value))
     }
     if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
-        if let scalar = UnicodeScalar(charBox.value) {
-            return String(Character(scalar))
-        }
-        return "?"
+        return runtimeCharacterFromRaw(charBox.value)
     }
     if let throwableString = runtimeThrowableToString(value) {
         return throwableString
