@@ -98,6 +98,25 @@ struct RuntimeNonCancellableTests {
         #expect(thrown == 0)
     }
 
+    @Test func forwardedCancellationRespectsChildShield() {
+        let caller = RuntimeContinuationState(functionID: 1087)
+        let child = RuntimeContinuationState(functionID: 1088)
+        let loop = RuntimeEventLoop()
+        child.eventLoop = loop
+        let resumed = RuntimeCompletionFlag()
+        caller.bindSuspendedCallChild(child)
+        child.beginCancellationShield()
+        child.installResumeContinuation { resumed.set() }
+        caller.signalResume(isCancellation: true)
+        let cancelled = loop.run(until: { resumed.isSet }, deadline: Date().addingTimeInterval(0.01))
+        #expect(!cancelled)
+        caller.signalResume()
+        let completed = loop.run(until: { resumed.isSet }, deadline: Date().addingTimeInterval(1))
+        #expect(completed)
+        child.endCancellationShield()
+        caller.unbindSuspendedCallChild(child)
+    }
+
     @Test(arguments: [false, true])
     func withContextUsesDistinctBlockJobAndRestoresCancelledCaller(fullContext: Bool) throws {
         let continuation = kk_coroutine_continuation_new(1087)
