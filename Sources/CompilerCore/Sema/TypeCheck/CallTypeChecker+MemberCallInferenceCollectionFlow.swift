@@ -3077,16 +3077,7 @@ extension CallTypeChecker {
                 }
 
             case "contains":
-                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
-                    return nil
-                }
-                guard args.count == 1 else {
-                    sema.bindings.bindExprType(id, type: sema.types.booleanType)
-                    return sema.types.booleanType
-                }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
-                resultType = sema.types.booleanType
-                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                return nil
 
             case "containsAll":
                 guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {

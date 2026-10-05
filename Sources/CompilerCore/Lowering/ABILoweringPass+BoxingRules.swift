@@ -313,9 +313,8 @@ extension ABILoweringPass {
             if classType.nullability == .nonNull, sym.kind == .enumClass {
                 return false
             }
-            // Exclude value classes — they are unboxed to their underlying
-            // primitive.
-            if sym.flags.contains(.valueType) {
+            // Nullable value classes carry a box or the null sentinel.
+            if classType.nullability == .nonNull, sym.flags.contains(.valueType) {
                 return false
             }
         }

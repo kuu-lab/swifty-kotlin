@@ -8,6 +8,10 @@ import Foundation
 
 // MARK: - CoroutineContext Elements (STDLIB-CORO-077)
 
+private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.CoroutineContext"
+)
+
 /// A coroutine context is a keyed collection of context elements.
 /// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler.
 /// Contexts compose via the `+` operator (right-hand side wins for same key).
@@ -163,6 +167,26 @@ public func kk_context_get(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     return 0
 }
 
+@_cdecl("__kk_context_get_dispatch")
+public func __kk_context_get_dispatch(
+    _ contextRaw: Int,
+    _ keyRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let result = runtimeSourceInterfaceCall1(
+        contextRaw, keyRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 0,
+        context: "CoroutineContext.get dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    let result = kk_context_get(contextRaw, keyRaw)
+    return result == 0 ? runtimeNullSentinelInt : result
+}
+
 /// Fold the known coroutine context elements from left to right.
 @_cdecl("kk_context_fold")
 public func kk_context_fold(
@@ -193,6 +217,25 @@ public func kk_context_minusKey(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let resolved = resolveToCoroutineContext(contextRaw)
     let reduced = runtimeCoroutineContextRemovingElement(for: keyRaw, from: resolved)
     return runtimeRegisterObject(reduced)
+}
+
+@_cdecl("__kk_context_minusKey_dispatch")
+public func __kk_context_minusKey_dispatch(
+    _ contextRaw: Int,
+    _ keyRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let result = runtimeSourceInterfaceCall1(
+        contextRaw, keyRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 3,
+        context: "CoroutineContext.minusKey dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    return kk_context_minusKey(contextRaw, keyRaw)
 }
 
 /// Extract the dispatcher from a CoroutineContext.

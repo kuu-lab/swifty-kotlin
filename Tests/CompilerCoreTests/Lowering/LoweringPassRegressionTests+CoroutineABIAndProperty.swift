@@ -32,8 +32,8 @@ extension LoweringPassRegressionTests {
 
     // MARK: - Coroutine Launcher Arg Tests
 
-    @Test
-    func testCoroutineLauncherWithArgBearingSuspendFunctionGeneratesThunk() throws {
+    @Test(arguments: [true, false])
+    func testCoroutineLauncherWithArgBearingSuspendFunctionGeneratesThunk(routesThrows: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -45,6 +45,7 @@ extension LoweringPassRegressionTests {
         let funcRefExpr = arena.appendExpr(.symbolRef(suspendSymbol))
         let argExpr = arena.appendExpr(.intLiteral(42))
         let launcherResult = arena.appendExpr(.temporary(2))
+        let thrownResult = routesThrows ? arena.appendTemporary(type: types.nullableAnyType) : nil
 
         let mainFn = KIRFunction(
             symbol: mainSymbol,
@@ -59,7 +60,7 @@ extension LoweringPassRegressionTests {
                     arguments: [funcRefExpr, argExpr],
                     result: launcherResult,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ),
                 .returnValue(launcherResult),
             ],
@@ -102,6 +103,15 @@ extension LoweringPassRegressionTests {
         #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
         #expect(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
         #expect(!mainCallees.contains("runBlocking"))
+
+        let blockingCall = try #require(loweredMain.body.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return interner.resolve(callee) == "kk_kxmini_run_blocking_with_cont"
+        })
+        if case let .call(_, _, _, _, canThrow, loweredThrownResult, _, _) = blockingCall {
+            #expect(canThrow)
+            #expect(loweredThrownResult == thrownResult)
+        }
 
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }

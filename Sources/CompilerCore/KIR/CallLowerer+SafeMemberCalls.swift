@@ -893,6 +893,29 @@ extension CallLowerer {
             return result
         }
 
+        // Keep the member's non-null primitive result separate from the safe-call
+        // merge slot so ABI lowering boxes sentinel-colliding payloads.
+        let memberResultType: TypeID = {
+            let resultType = arena.exprType(result) ?? sema.types.nullableAnyType
+            let memberSymbol = sema.bindings.identifierSymbol(for: exprID) ?? chosen
+            let declaredType = memberSymbol.flatMap {
+                sema.symbols.propertyType(for: $0) ?? sema.symbols.functionSignature(for: $0)?.returnType
+            }
+            guard let declaredType,
+                  case let .primitive(declaredPrimitive, .nonNull) = resolveValueClassKind(
+                      sema.types.kind(of: declaredType), types: sema.types, symbols: sema.symbols
+                  ),
+                  case let .primitive(resultPrimitive, .nonNull) = resolveValueClassKind(
+                      sema.types.kind(of: sema.types.makeNonNullable(resultType)),
+                      types: sema.types, symbols: sema.symbols
+                  ),
+                  declaredPrimitive == resultPrimitive
+            else { return resultType }
+            return sema.types.makeNonNullable(resultType)
+        }()
+        let memberResult = arena.exprType(result) == memberResultType
+            ? result : arena.appendTemporary(type: memberResultType)
+
         // External member property read (e.g. Duration?.inWholeNanoseconds →
         // kk_duration_inWholeNanoseconds).
         // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
@@ -913,10 +936,13 @@ extension CallLowerer {
                 symbol: propSym,
                 callee: interner.intern(extLink),
                 arguments: [loweredReceiverID],
-                result: result,
+                result: memberResult,
                 canThrow: false,
                 thrownResult: nil
             ))
+            if memberResult != result {
+                instructions.append(.copy(from: memberResult, to: result))
+            }
             instructions.append(.label(endLabel))
             return result
         }
@@ -925,15 +951,18 @@ extension CallLowerer {
             exprID,
             loweredReceiverID: loweredReceiverID,
             receiverExpr: receiverExpr,
-            result: result,
+            result: memberResult,
             args: args,
             ast: ast,
             sema: sema,
             interner: interner,
             instructions: &instructions.instructions
         ) {
+            if accessorRead != result {
+                instructions.append(.copy(from: accessorRead, to: result))
+            }
             instructions.append(.label(endLabel))
-            return accessorRead
+            return result
         }
 
         // Stored (field-backed) member property read, e.g. `w?.value` on a
@@ -952,6 +981,7 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
+            resultTypeOverride: memberResultType,
             instructions: &instructions.instructions
         ) {
             instructions.append(.copy(from: storedRead, to: result))
@@ -1112,7 +1142,7 @@ extension CallLowerer {
                 symbol: stubSym,
                 callee: stubName,
                 arguments: finalArguments,
-                result: result,
+                result: memberResult,
                 canThrow: false,
                 thrownResult: nil,
                 isSuperCall: isSuperCall
@@ -1246,7 +1276,7 @@ extension CallLowerer {
                     callee: virtualCalleeName,
                     receiver: loweredReceiverID,
                     arguments: vcArguments,
-                    result: result,
+                    result: memberResult,
                     canThrow: false,
                     thrownResult: nil,
                     dispatch: dispatchKind
@@ -1256,12 +1286,15 @@ extension CallLowerer {
                     symbol: chosen,
                     callee: resolvedCalleeName,
                     arguments: finalArguments,
-                    result: result,
+                    result: memberResult,
                     canThrow: false,
                     thrownResult: nil,
                     isSuperCall: isSuperCall
                 ))
             }
+        }
+        if memberResult != result {
+            instructions.append(.copy(from: memberResult, to: result))
         }
         instructions.append(.label(endLabel))
         return result

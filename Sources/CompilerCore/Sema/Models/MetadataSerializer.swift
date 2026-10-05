@@ -929,7 +929,11 @@ package final class MetadataEncoder {
                     callsInPlaceEffects.first { $0.parameterSymbol == paramSymbol }?.kind
                 }
             }
-            valueParameterAllowsNonLocalReturn = signature.valueParameterAllowsNonLocalReturn
+            // Auto-inlined HOF bodies still have ordinary Kotlin parameters:
+            // their callbacks may escape and must retain their closure values.
+            valueParameterAllowsNonLocalReturn = symbol.flags.contains(.inlineFunction)
+                ? signature.valueParameterAllowsNonLocalReturn
+                : Array(repeating: false, count: signature.parameterTypes.count)
             // KUU-655: an override with an inheritance link
             // (`overrideDefaultsBaseSymbol`) has its *effective* defaults
             // flags copied from the overridden declaration in-memory

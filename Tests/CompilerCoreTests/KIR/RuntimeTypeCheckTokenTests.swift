@@ -87,6 +87,13 @@ struct RuntimeTypeCheckTokenTests {
         )))
         let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
         #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
+        #expect(!descriptor.nullable)
+        guard case let .function(arity, isSuspend) = descriptor.category else {
+            Issue.record("Expected .function category for function type")
+            return
+        }
+        #expect(arity == 1)
+        #expect(!isSuspend)
     }
 
     @Test func testEncodeConsistencyWithClassify() {
