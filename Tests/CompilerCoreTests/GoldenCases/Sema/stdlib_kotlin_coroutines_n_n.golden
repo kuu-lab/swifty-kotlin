@@ -41,7 +41,7 @@ expr e@27:90 blockExpr stmts=[] trailing=_ type=Unit
 expr e@27:89 lambda params=[_] body=e@27:90 label=Continuation type=(kotlin.Result<Int>) -> Unit
 expr e@27:48 call callee=e@27:48#1 args=[_:e@27:66,_:e@27:89] type=kotlin.coroutines.Continuation<Int> call=kotlin.coroutines.Continuation[kind=fun;params=kotlin.coroutines.CoroutineContext,fn{p=kotlin.Result<T0>;ret=Unit};ret=kotlin.coroutines.Continuation<T0>;gen=1;names=[context,resumeWith];origin=unknown] targs=[Int]
 expr e@33:5 name(continuation) type=kotlin.coroutines.Continuation<Int> ref=s-0
-expr e@33:29 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@33:29 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@33:44 int(42) type=Int
 expr e@33:29#1 memberCall recv=e@33:29 callee=success args=[_:e@33:44] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@33:5#1 memberCall recv=e@33:5 callee=resumeWith args=[_:e@33:29#1] type=Unit call=kotlin.coroutines.Continuation.resumeWith[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]

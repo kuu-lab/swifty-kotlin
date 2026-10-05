@@ -39,7 +39,7 @@ expr e@10:35 name(EmptyCoroutineContext) type=kotlin.coroutines.EmptyCoroutineCo
 expr e@10:13#2 binary(identityEqual) lhs=e@10:13#1 rhs=e@10:35 type=Boolean
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@11:5 name(immediate) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_1.immediate[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
-expr e@11:26 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@11:26 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@11:41 int(42) type=Int
 expr e@11:26#1 memberCall recv=e@11:26 callee=success args=[_:e@11:41] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@11:5#1 memberCall recv=e@11:5 callee=resumeWith args=[_:e@11:26#1] type=Unit call=kotlin.coroutines.SafeContinuation.resumeWith[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -47,7 +47,7 @@ expr e@12:13 name(immediate) type=kotlin.coroutines.SafeContinuation<Int> ref=__
 expr e@12:13#1 memberCall recv=e@12:13 callee=getOrThrow args=[] type=Any? call=kotlin.coroutines.SafeContinuation.getOrThrow[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=;ret=Any?;gen=1;classGen=1] targs=[Int]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@13:11 name(immediate) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_1.immediate[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
-expr e@13:32 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@13:32 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@13:47 int(43) type=Int
 expr e@13:32#1 memberCall recv=e@13:32 callee=success args=[_:e@13:47] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@13:11#1 memberCall recv=e@13:11 callee=resumeWith args=[_:e@13:32#1] type=Unit call=kotlin.coroutines.SafeContinuation.resumeWith[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -66,7 +66,7 @@ expr e@16:40 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics
 expr e@16:13#2 binary(identityEqual) lhs=e@16:13#1 rhs=e@16:40 type=Boolean
 expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@17:5 name(suspended) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_2.suspended[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
-expr e@17:26 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@17:26 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@17:41 int(9) type=Int
 expr e@17:26#1 memberCall recv=e@17:26 callee=success args=[_:e@17:41] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@17:5#1 memberCall recv=e@17:5 callee=resumeWith args=[_:e@17:26#1] type=Unit call=kotlin.coroutines.SafeContinuation.resumeWith[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -76,7 +76,7 @@ expr e@18:40 name(COROUTINE_SUSPENDED) type=Any ref=kotlin.coroutines.intrinsics
 expr e@18:13#2 binary(identityEqual) lhs=e@18:13#1 rhs=e@18:40 type=Boolean
 expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@19:11 name(suspended) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_2.suspended[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
-expr e@19:32 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@19:32 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@19:47 int(10) type=Int
 expr e@19:32#1 memberCall recv=e@19:32 callee=success args=[_:e@19:47] type=kotlin.Result<Int> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Int]
 expr e@19:11#1 memberCall recv=e@19:11 callee=resumeWith args=[_:e@19:32#1] type=Unit call=kotlin.coroutines.SafeContinuation.resumeWith[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Int]
@@ -90,7 +90,7 @@ expr e@21:35 name(completion) type=kotlin.coroutines.Continuation<Int> ref=__loc
 expr e@21:18 call callee=e@21:18#1 args=[_:e@21:35] type=kotlin.coroutines.SafeContinuation<Int> call=kotlin.coroutines.SafeContinuation.<init>[kind=ctor;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.SafeContinuation<T0>;gen=1;classGen=1;names=[delegate]] targs=[Int]
 expr e@21:5 localDecl failed mutable=0 type=_ init=e@21:18 type=Unit ref=__local_3.failed[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
 expr e@22:5 name(failed) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_3.failed[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
-expr e@22:23 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@22:23 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@22:65 string(failed-before-suspension) type=String
 expr e@22:43 call callee=e@22:43#1 args=[_:e@22:65] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?;ret=kotlin.IllegalStateException;names=[message]]
 expr e@22:23#1 memberCall recv=e@22:23 callee=failure args=[_:e@22:43] type=kotlin.Result<Int> call=kotlin.failure[kind=fun;recv=kotlin.Result.Companion;params=kotlin.Throwable;ret=kotlin.Result<T0>;gen=1;names=[exception]] targs=[Int]
@@ -112,7 +112,7 @@ expr e@25:37 call callee=e@25:37#1 args=[_:e@25:59,_:e@25:82] type=kotlin.corout
 expr e@25:20 call callee=e@25:20#1 args=[_:e@25:37] type=kotlin.coroutines.SafeContinuation<String?> call=kotlin.coroutines.SafeContinuation.<init>[kind=ctor;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.SafeContinuation<T0>;gen=1;classGen=1;names=[delegate]] targs=[String?]
 expr e@25:5 localDecl nullable mutable=0 type=_ init=e@25:20 type=Unit ref=__local_4.nullable[kind=local;type=kotlin.coroutines.SafeContinuation<String?>;origin=fixture]
 expr e@26:5 name(nullable) type=kotlin.coroutines.SafeContinuation<String?> ref=__local_4.nullable[kind=local;type=kotlin.coroutines.SafeContinuation<String?>;origin=fixture]
-expr e@26:25 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[i];type=kotlin.Result<T0>]
+expr e@26:25 name(Result) type=kotlin.Result.Companion ref=kotlin.Result[kind=class;gen=1;variance=[o];type=kotlin.Result<T0>]
 expr e@26:40 name(null) type=Nothing?
 expr e@26:25#1 memberCall recv=e@26:25 callee=success args=[_:e@26:40] type=kotlin.Result<Nothing?> call=kotlin.success[kind=fun;recv=kotlin.Result.Companion;params=T0;ret=kotlin.Result<T0>;gen=1;names=[value]] targs=[Nothing?]
 expr e@26:5#1 memberCall recv=e@26:5 callee=resumeWith args=[_:e@26:25#1] type=Unit call=kotlin.coroutines.SafeContinuation.resumeWith[kind=fun;recv=kotlin.coroutines.SafeContinuation<T0>;params=kotlin.Result<T0>;ret=Unit;gen=1;classGen=1;names=[result]] targs=[Nothing?]

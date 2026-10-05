@@ -67,7 +67,7 @@ public class Buffer : Source, Sink {
     }
 
     override fun request(byteCount: Long): Boolean {
-        checkByteCount(byteCount)
+        if (byteCount < 0L) throw IllegalArgumentException("byteCount: $byteCount < 0")
         return size >= byteCount
     }
 

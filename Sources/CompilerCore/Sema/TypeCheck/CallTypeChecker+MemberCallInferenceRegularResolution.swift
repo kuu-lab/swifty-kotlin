@@ -2090,10 +2090,20 @@ extension CallTypeChecker {
                 extensionCandidates = receiverMatchingExtensions(ctx.scope.lookupMergingChain(calleeName))
             }
             if !extensionCandidates.isEmpty {
+                let extensionArgs = prepareCallArguments(
+                    args: args,
+                    candidates: extensionCandidates,
+                    preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
+                    contextualCallResultType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    receiverType: effectiveReceiverType,
+                    ctx: ctx,
+                    locals: &locals
+                )
                 let retried = resolveCallRespectingLambdaReturnType(
                     candidates: extensionCandidates,
                     args: args,
-                    argTypes: preparedArgs.argTypes,
+                    argTypes: extensionArgs.argTypes,
                     range: range,
                     calleeName: calleeName,
                     explicitTypeArgs: explicitTypeArgs,
@@ -2560,6 +2570,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
         // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
@@ -3302,6 +3313,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
             chosen: chosen,
