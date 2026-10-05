@@ -12,6 +12,9 @@ extension BuildASTPhase.ExpressionParser {
         switch token.kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral:
             return parsePrimaryNumericOrChar(token)
+        case .keyword(.null):
+            _ = consume()
+            return astArena.appendExpr(.nullLiteral(token.range))
         case .keyword(.true):
             _ = consume()
             return astArena.appendExpr(.boolLiteral(true, token.range))

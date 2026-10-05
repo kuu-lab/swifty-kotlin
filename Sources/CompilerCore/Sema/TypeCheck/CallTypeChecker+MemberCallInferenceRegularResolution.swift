@@ -1434,8 +1434,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
-            name == knownNames.null
+        let isNullLiteralReceiver = if case .nullLiteral = ast.arena.expr(receiverID) {
+            true
         } else {
             false
         }
@@ -2978,8 +2978,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
-            name == knownNames.null
+        let isNullLiteralReceiver = if case .nullLiteral = ast.arena.expr(receiverID) {
+            true
         } else {
             false
         }

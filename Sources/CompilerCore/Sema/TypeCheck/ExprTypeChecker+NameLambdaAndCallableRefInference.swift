@@ -828,10 +828,6 @@ extension ExprTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        if name == knownNames.null {
-            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
-            return sema.types.nullableNothingType
-        }
         if name == knownNames.thisName,
            let receiverType = ctx.implicitReceiverType
         {

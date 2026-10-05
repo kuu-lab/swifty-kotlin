@@ -203,10 +203,8 @@ extension KIRLoweringDriver {
     private func isPureLiteralExpr(_ exprID: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
         switch ast.arena.expr(exprID) {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral,
-             .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral:
+             .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nullLiteral:
             true
-        case let .nameRef(name, _):
-            interner.resolve(name) == "null"
         case let .unaryExpr(_, operand, _):
             isPureLiteralExpr(operand, ast: ast, interner: interner)
         default:

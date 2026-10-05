@@ -135,19 +135,18 @@ extension ExprLowerer {
             }
             return accumulated
 
+        case .nullLiteral:
+            let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
+            instructions.append(.constValue(result: id, value: .null))
+            return id
+
         case let .nameRef(name, _):
-            let nullID = interner.intern("null")
             let thisID = interner.intern("this")
             // Resolve lambda param by name (handles collection HOF fallback where identifierSymbols may be unbound).
             if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
                let localValue = driver.ctx.localValue(for: paramSymbol)
             {
                 return localValue
-            }
-            if name == nullID {
-                let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                instructions.append(.constValue(result: id, value: .null))
-                return id
             }
             if name == thisID,
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()

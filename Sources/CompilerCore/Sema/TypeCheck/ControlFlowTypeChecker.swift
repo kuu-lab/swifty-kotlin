@@ -607,7 +607,7 @@ final class ControlFlowTypeChecker {
             return false
         case .lambdaLiteral, .localFunDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
             return false
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
             return false
         @unknown default:
             return false

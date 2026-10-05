@@ -808,7 +808,7 @@ public final class CompilerDriver {
         }
 
         switch expr {
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
              .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
              .stringLiteral, .breakExpr, .continueExpr, .thisRef:
             break

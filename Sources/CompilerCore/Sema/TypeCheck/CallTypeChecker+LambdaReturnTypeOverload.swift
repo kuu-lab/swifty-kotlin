@@ -1807,11 +1807,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> Bool {
         guard case let .lambdaLiteral(_, body, _, _) = ctx.ast.arena.expr(lambdaExprID),
-              case let .nameRef(name, _) = ctx.ast.arena.expr(body)
+              case .nullLiteral = ctx.ast.arena.expr(body)
         else {
             return false
         }
-        return name == ctx.interner.intern("null")
+        return true
     }
 
     // A no-arrow lambda only has an unresolvable implicit parameter when its
@@ -1946,7 +1946,7 @@ extension CallTypeChecker {
                 rootExprs = []
             }
             return rootExprs.contains(where: visit)
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
              .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
              .stringLiteral, .breakExpr, .continueExpr,
              .superRef, .thisRef:
