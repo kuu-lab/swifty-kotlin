@@ -5,6 +5,40 @@ import Testing
 
 @Suite
 struct ResultSourceMigrationTests {
+    @Test(arguments: [
+        ("fun probe() = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(-2)", "Int"),
+        ("fun probe(): Int = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(-2)", "Int"),
+        ("fun probe() = runCatching { throw IllegalStateException(\"x\") }.getOrDefault(\"fallback\")", "String"),
+        ("fun probe() = runCatching { 42 }.getOrDefault(-2)", "Int"),
+        ("fun probe() = runCatching { 42 }.getOrDefault(null)", "Int?"),
+        ("fun probe() = runCatching { null }.getOrDefault(-2)", "Int?"),
+        ("fun probe(result: Result<Nothing>?) = result?.getOrDefault(-2)", "Int?"),
+        ("fun probe(result: Result<Any>) = result.getOrDefault(-2)", "Any"),
+        ("fun probe(result: Result<Int>, fallback: Any) = result.getOrDefault(fallback)", "Any"),
+    ])
+    func testResultGetOrDefaultInfersFallbackType(source: String, expectedTypeName: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = memberCallExprIDs(named: "getOrDefault", in: ast, path: path, ctx: ctx, interner: ctx.interner)
+            #expect(!calls.isEmpty)
+            let expectedType = switch expectedTypeName {
+            case "Int": sema.types.intType
+            case "Int?": sema.types.makeNullable(sema.types.intType)
+            case "String": sema.types.stringType
+            default: sema.types.anyType
+            }
+            for call in calls {
+                #expect(sema.bindings.exprType(for: call) == expectedType)
+                try expectCallUsesBundledResultSource(call, expectedExternalLink: nil, sema: sema, ctx: ctx)
+            }
+        }
+    }
+
     @Test func testResultAPISymbolsComeFromBundledKotlinSource() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
