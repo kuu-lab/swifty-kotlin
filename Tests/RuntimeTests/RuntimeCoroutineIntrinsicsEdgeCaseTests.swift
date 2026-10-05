@@ -45,6 +45,18 @@ private func coro_intrinsics_dispatcher_tag(_ continuation: Int, _ outThrown: Un
     return kk_coroutine_state_exit(continuation, RuntimeDispatcher.current?.tag ?? 0)
 }
 
+private func coro_intrinsics_nested_throw(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, 8823)
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        let entry = unsafeBitCast(coro_intrinsics_throw_immediately as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let child = kk_coroutine_continuation_new(entry)
+        return kk_coroutine_call_direct_suspend(entry, child, continuation)
+    }
+    outThrown?.pointee = kk_coroutine_state_get_thrown_exception(continuation)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 //   • runtimeResultRunCatching + cancellation-exception propagation through Result
 
 @Suite(.serialized, .runtimeIsolation(.all))
@@ -175,6 +187,25 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     }
 
     // MARK: - intercepted() — bypass semantics
+
+    @Test func generatedCoroutineDeliversImmediateChildFailureSynchronously() throws {
+        let completion = kk_coroutine_continuation_new(8824)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let state = try #require(runtimeContinuationState(from: completion))
+        let entry = unsafeBitCast(coro_intrinsics_nested_throw as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, completion)
+        kk_coroutine_continuation_resume(coroutine, 0)
+        #expect(state.thrownException != 0)
+    }
+
+    @Test func startCoroutineReturnsImmediateChildFailureWithoutSuspending() {
+        let entry = unsafeBitCast(coro_intrinsics_nested_throw as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, 0)
+        var thrown = 0
+        let result = kk_start_coroutine_unintercepted_or_return(entry, coroutine, &thrown)
+        #expect(result == 0)
+        #expect(thrown != 0)
+    }
 
     @Test(arguments: [kk_dispatcher_default(), kk_dispatcher_io(), kk_dispatcher_main()])
     func generatedCoroutineCachesDispatcherWrapperAndResumes(dispatcher: Int) throws {

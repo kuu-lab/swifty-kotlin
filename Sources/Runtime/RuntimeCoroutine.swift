@@ -565,6 +565,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         stateLock.unlock()
     }
 
+    func consumePendingExceptionalResume() -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard resumeSignalPending, thrownException != 0 else {
+            return false
+        }
+        resumeSignalPending = false
+        hasResumed = false
+        return true
+    }
+
     func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
         stateLock.lock()
         cancellableDelivery = continuation
@@ -2362,8 +2373,15 @@ private func startCoroutineUninterceptedOrReturn(
         RuntimeJobHandle.current = outerJob
     }
 
+    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     var thrownValue = 0
-    let result = entryPoint(continuation, &thrownValue)
+    var result: Int
+    repeat {
+        thrownValue = 0
+        result = entryPoint(continuation, &thrownValue)
+        // Immediate child failures return the sentinel to reach the caller's catch label.
+        // Deliver that pending exception inline instead of manufacturing a suspension.
+    } while thrownValue == 0 && result == suspendedToken && state.consumePendingExceptionalResume()
     if thrownValue != 0 {
         outThrown?.pointee = thrownValue
         state.thrownException = thrownValue
@@ -2371,7 +2389,6 @@ private func startCoroutineUninterceptedOrReturn(
         return 0
     }
 
-    let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
     if result != suspendedToken {
         outThrown?.pointee = 0
         return result
@@ -4105,33 +4122,33 @@ public func kk_test_scope_scheduler(_ scopeHandle: Int) -> Int {
 /// `TestScope.currentTime`: the scope's scheduler's virtual clock, lazily
 /// minting the scheduler on first read.
 @_cdecl("kk_test_scope_current_time")
-public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int64 {
+public func kk_test_scope_current_time(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         return 0
     }
     guard let scheduler = resolveLiveRuntimeHandle(scope.schedulerForTest(), as: RuntimeTestScheduler.self) else {
         return 0
     }
-    return scheduler.currentTimeMillis
+    return Int(scheduler.currentTimeMillis)
 }
 
 @_cdecl("kk_test_scheduler_current_time")
-public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int64 {
+public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
         return 0
     }
-    return scheduler.currentTimeMillis
+    return Int(scheduler.currentTimeMillis)
 }
 
 /// `advanceTimeBy(delayTimeMillis)`: bumps the virtual clock. With no
 /// virtual-time task queue there is nothing to schedule, so the call is a
 /// pure counter advance.
 @_cdecl("kk_test_scheduler_advance_time_by")
-public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int64) -> Int {
+public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
         return 0
     }
-    scheduler.advanceTimeBy(delayTimeMillis)
+    scheduler.advanceTimeBy(Int64(delayTimeMillis))
     return 0
 }
 
