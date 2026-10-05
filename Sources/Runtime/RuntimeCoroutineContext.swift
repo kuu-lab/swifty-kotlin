@@ -212,9 +212,17 @@ public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
     return 0
 }
 
-/// Intercept a continuation using its dispatcher-backed context, if any.
+/// Intercept compiler-created states, leaving ordinary source continuations untouched.
 @_cdecl("__kk_continuation_intercepted")
-public func __kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
+public func __kk_continuation_intercepted(
+    _ continuationRaw: Int,
+    _ interceptorKey: Int = 0,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    if let state = runtimeContinuationState(from: continuationRaw) {
+        return state.intercepted(continuationRaw: continuationRaw, interceptorKey: interceptorKey, outThrown: outThrown)
+    }
     guard continuationRaw != 0,
           isRegisteredRuntimeObjectPointer(continuationRaw),
           let ptr = UnsafeMutableRawPointer(bitPattern: continuationRaw)
@@ -233,6 +241,65 @@ public func __kk_continuation_intercepted(_ continuationRaw: Int) -> Int {
     return runtimeRegisterObject(interceptedObject)
 }
 
+func runtimeContinuationInterceptor(context: Int, key: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let getRaw = kk_itable_lookup_dynamic(
+        context, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext")), 0
+    )
+    if getRaw != 0, key != 0 {
+        let get = unsafeBitCast(getRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        let result = get(context, key, outThrown)
+        return result == runtimeNullSentinelInt ? 0 : result
+    }
+    return kk_context_get_dispatcher(context)
+}
+
+private final class RuntimeGeneratedContinuation: KKContinuation, @unchecked Sendable {
+    let state: RuntimeContinuationState
+    let raw: Int
+
+    init(state: RuntimeContinuationState, raw: Int) {
+        self.state = state
+        self.raw = raw
+    }
+
+    var context: UnsafeMutableRawPointer? {
+        UnsafeMutableRawPointer(bitPattern: __kk_coroutine_continuation_context(raw))
+    }
+
+    func resumeWith(_ result: UnsafeMutableRawPointer?) {
+        __kk_coroutine_continuation_resume_with(raw, Int(bitPattern: result))
+    }
+}
+
+func runtimeInterceptGeneratedContinuation(interceptor: Int, continuation: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard interceptor != 0 else {
+        return continuation
+    }
+    let interceptRaw = kk_itable_lookup_dynamic(
+        interceptor, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")), 0
+    )
+    guard interceptRaw != 0 else {
+        return continuation
+    }
+    let intercept = unsafeBitCast(interceptRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    return intercept(interceptor, continuation, outThrown)
+}
+
+func runtimeReleaseInterceptedContinuation(interceptor: Int, continuation: Int) {
+    let releaseRaw = kk_itable_lookup_dynamic(
+        interceptor, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor")), 1
+    )
+    guard releaseRaw != 0 else {
+        return
+    }
+    let release = unsafeBitCast(releaseRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    _ = release(interceptor, continuation, &thrown)
+    if thrown != 0 {
+        _ = kk_native_processUnhandledException(thrown, nil)
+    }
+}
+
 /// Intercept a continuation using an explicit interceptor object.
 @_cdecl("kk_continuation_interceptor_intercept_continuation")
 public func kk_continuation_interceptor_intercept_continuation(
@@ -246,13 +313,20 @@ public func kk_continuation_interceptor_intercept_continuation(
     else {
         return continuationRaw
     }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    guard let continuation = object as? KKContinuation else {
-        return continuationRaw
+    let continuation: KKContinuation
+    if let state = runtimeContinuationState(from: continuationRaw) {
+        continuation = RuntimeGeneratedContinuation(state: state, raw: continuationRaw)
+    } else {
+        guard isRegisteredRuntimeObjectPointer(continuationRaw),
+              let native = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKContinuation
+        else {
+            return continuationRaw
+        }
+        continuation = native
     }
     let intercepted = runtimeInterceptedContinuation(using: dispatcherTag, continuation: continuation)
     let interceptedObject = intercepted as AnyObject
-    if interceptedObject === object {
+    if interceptedObject === continuation as AnyObject {
         return continuationRaw
     }
     return runtimeRegisterObject(interceptedObject)
@@ -473,7 +547,7 @@ private func isDispatcherTag(_ raw: Int) -> Bool {
     raw == RuntimeDispatcherTag.mainDispatcher
 }
 
-private func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
+func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return false
     }

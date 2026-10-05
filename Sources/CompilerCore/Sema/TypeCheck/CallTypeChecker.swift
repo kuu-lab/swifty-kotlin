@@ -24,6 +24,8 @@ final class CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
+        defer { recordFlowBuilderEmitAll(id, args: args, ctx: ctx) }
+
         let calleeExpr = ast.arena.expr(calleeID)
         let calleeName: InternedString? = if case let .nameRef(name, _) = calleeExpr {
             name
@@ -616,6 +618,10 @@ final class CallTypeChecker {
             }
             var flowBuilderCtx = ctx.with(implicitReceiverType: sema.types.anyType)
             flowBuilderCtx.isFlowBuilderLambdaScope = true
+            let flowInference = FlowBuilderInferenceSession(
+                expectedElementType: explicitTypeArgs.first ?? flowBuilderElementType(expectedType, ctx: ctx)
+            )
+            flowBuilderCtx.flowBuilderInference = flowInference
             let flowLambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [],
                 returnType: sema.types.unitType,
@@ -629,20 +635,8 @@ final class CallTypeChecker {
                 expectedType: flowLambdaExpectedType
             )
             sema.bindings.markFlowExpr(id)
-            if let explicitElementType = explicitTypeArgs.first {
-                sema.bindings.bindFlowElementType(explicitElementType, forExpr: id)
-            } else if let expectedType,
-                      case let .classType(classType) = sema.types.kind(of: expectedType),
-                      let firstArg = classType.args.first
-            {
-                switch firstArg {
-                case let .invariant(type), let .in(type), let .out(type):
-                    sema.bindings.bindFlowElementType(type, forExpr: id)
-                case .star:
-                    break
-                }
-            }
-            let flowElementType = sema.bindings.flowElementType(forExpr: id) ?? sema.types.anyType
+            let flowElementType = flowInference.elementType(types: sema.types)
+            sema.bindings.bindFlowElementType(flowElementType, forExpr: id)
             let flowExprType = driver.helpers.makeFlowType(
                 elementType: flowElementType, sema: sema, interner: interner
             ) ?? sema.types.anyType
@@ -665,9 +659,14 @@ final class CallTypeChecker {
            calleeName == knownNames.emit,
            args.count == 1,
            ctx.cachedScopeLookup(calleeName).isEmpty,
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           !flowBuilderEmitHasReceiverMember(ctx: ctx)
         {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let emittedType = driver.inferExpr(
+                args[0].expr, ctx: ctx, locals: &locals,
+                expectedType: ctx.flowBuilderInference?.expectedElementType
+            )
+            recordFlowBuilderEmission(emittedType, range: ast.arena.exprRange(args[0].expr), ctx: ctx)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
         }
@@ -1656,11 +1655,10 @@ final class CallTypeChecker {
                 lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
                     ?? sema.types.nullableAnyType
             } else {
-                lambdaReturnType = expectedType ?? sema.types.anyType
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
             }
             coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: calleeName == knownNames.coroutineScope || calleeName == knownNames.supervisorScope
-                    ? nil : coroutineScopeType(sema: sema, interner: interner),
+                receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
                 returnType: lambdaReturnType,
                 isSuspend: true,
@@ -1699,7 +1697,7 @@ final class CallTypeChecker {
             sema.types.make(.functionType(FunctionType(
                 receiver: coroutineScopeType(sema: sema, interner: interner),
                 params: [],
-                returnType: expectedType ?? sema.types.anyType,
+                returnType: expectedType ?? sema.types.nullableAnyType,
                 isSuspend: true,
                 nullability: .nonNull
             )))
@@ -2192,8 +2190,8 @@ final class CallTypeChecker {
         // lambda argument is inferred. Without this, `val xs: List<(Int) ->
         // Int> = listOf({ it + 1 }, ...)` leaves every vararg slot's expected
         // type as the bare, unsubstituted `T`, so a lambda argument's implicit
-        // `it` never resolves. Scoped to lambda-literal arguments only, since
-        // other argument kinds already have their own contextual inference.
+        // `it` never resolves. Nested generic calls need the same context before
+        // checking their own lambdas, e.g. `nullsFirst(compareBy { it.k })`.
         // An explicit call-site type argument (`Array<Int>(3) { it }`) always
         // wins over the expected type (`Array<out Any>` here), matching
         // Kotlin's own precedence -- skip this substitution when one is given.
@@ -2229,11 +2227,17 @@ final class CallTypeChecker {
                     else {
                         continue
                     }
-                    substitution[typeVar] = expectedArgType
+                    substitution[typeVar] = returnTypeParam.nullability == .nonNull
+                        ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
                 for index in args.indices {
-                    guard case .lambdaLiteral = ast.arena.expr(args[index].expr),
+                    let isLambda: Bool = if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
+                        true
+                    } else {
+                        false
+                    }
+                    guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
                           let parameterType = parameterTypeForArgument(at: index, in: signature)
                     else {
                         continue
@@ -2759,7 +2763,7 @@ final class CallTypeChecker {
             }
         }
         if !candidates.isEmpty {
-            // Synthetic builders erase their result type. Resolve arguments first,
+            // Coroutine builders erase their result type. Resolve arguments first,
             // then recover the actual block result instead of constraining Any.
             let coroutineBuilderNames: Set<String> = [
                 "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
@@ -2770,6 +2774,9 @@ final class CallTypeChecker {
                 return externalLinkName == "kk_coroutine_scope_async"
                     || externalLinkName == "kk_with_timeout"
                     || externalLinkName == "kk_with_timeout_or_null"
+                    || sema.symbols.isSourceBackedSymbol(candidate)
+                    && (symbol.name == knownNames.coroutineScope || symbol.name == knownNames.supervisorScope)
+                    && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     && coroutineBuilderNames.contains(interner.resolve(symbol.name))
@@ -2795,7 +2802,17 @@ final class CallTypeChecker {
                 return candidates.contains { candidate in
                     sema.symbols.parentSymbol(for: candidate) == outerClass
                 }
-            }?.type ?? callImplicitReceiverType
+            }?.type ?? candidates.lazy.compactMap { candidate -> TypeID? in
+                guard let owner = sema.symbols.parentSymbol(for: candidate),
+                      let containingClass = sema.symbols.parentSymbol(for: owner),
+                      sema.symbols.companionObjectSymbol(for: containingClass) == owner,
+                      let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner
+                else {
+                    return nil
+                }
+                return receiverType
+            }.first ?? callImplicitReceiverType
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -2950,6 +2967,7 @@ final class CallTypeChecker {
                 )
             }
             applyContractEffects(
+                id: id,
                 chosen: chosen,
                 args: args,
                 ctx: ctx,
@@ -3125,6 +3143,7 @@ final class CallTypeChecker {
                 if let chosen = resolved.chosenCallee {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     applyContractEffects(
+                        id: id,
                         chosen: chosen,
                         args: args,
                         ctx: ctx,

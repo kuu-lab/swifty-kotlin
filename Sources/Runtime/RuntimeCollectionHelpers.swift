@@ -95,6 +95,10 @@ private let mapEntryRuntimeTypeID: Int64 = {
     return payload == 0 ? 1 : payload
 }()
 
+private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.MutableMap.MutableEntry"
+)
+
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
 private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64, linkedHashMap: Int64) = {
@@ -612,6 +616,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
+    runtimeRegisterMutableMapEntryMethods(raw)
     return raw
 }
 
@@ -625,6 +630,7 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
     }
     runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
     runtimeRegisterMapEntryGetters(raw)
+    runtimeRegisterMutableMapEntryMethods(raw)
     return raw
 }
 
@@ -645,6 +651,16 @@ private func runtimeRegisterMapEntryGetters(_ raw: Int) {
     _ = kk_object_register_itable_iface(raw, Int(mapEntryRuntimeTypeID), 0)
     _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeMapEntryKeyGetter, to: Int.self))
     _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeMapEntryValueGetter, to: Int.self))
+}
+
+private let runtimeMutableMapEntrySetValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, value, outThrown in
+    kk_mutable_map_entry_setValue(raw, value, outThrown)
+}
+
+private func runtimeRegisterMutableMapEntryMethods(_ raw: Int) {
+    // MutableEntry owns setValue (slot 0); inherited getters stay on Map.Entry.
+    _ = kk_object_register_itable_iface(raw, Int(mutableMapEntryRuntimeTypeID), 1)
+    _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(runtimeMutableMapEntrySetValue, to: Int.self))
 }
 
 @inline(__always)
@@ -1547,7 +1563,7 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsDuration = tryCast(lhsPtr, to: RuntimeDurationBox.self),
        let rhsDuration = tryCast(rhsPtr, to: RuntimeDurationBox.self)
     {
-        return lhsDuration.nanoseconds == rhsDuration.nanoseconds
+        return lhsDuration.rawValue == rhsDuration.rawValue
     }
     if let lhsInstant = tryCast(lhsPtr, to: RuntimeInstantBox.self),
        let rhsInstant = tryCast(rhsPtr, to: RuntimeInstantBox.self)
@@ -1963,8 +1979,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "\(runtimeFormatFloatingPoint(rangeBox.first))\(separator)\(runtimeFormatFloatingPoint(rangeBox.last))"
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.values.map { runtimeElementToString($0) }
-        return "[" + parts.joined(separator: ", ") + "]"
+        return runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue

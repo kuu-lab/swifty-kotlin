@@ -16,8 +16,16 @@ struct BoxingCalleeTable {
 
     private static let primitiveCalleeRules: [PrimitiveCalleeRule] = [
         PrimitiveCalleeRule(
-            primitives: [.int, .byte, .short],
+            primitives: [.int],
             names: PrimitiveCalleeNames(box: "kk_box_int", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.byte],
+            names: PrimitiveCalleeNames(box: "kk_box_byte", unbox: "kk_unbox_int")
+        ),
+        PrimitiveCalleeRule(
+            primitives: [.short],
+            names: PrimitiveCalleeNames(box: "kk_box_short", unbox: "kk_unbox_int")
         ),
         PrimitiveCalleeRule(
             primitives: [.uint],
@@ -105,6 +113,8 @@ struct BoxingCalleeTable {
     /// the legacy callees above.
     private static let staticPrimitiveBoxCalleeNamesByPrimitive: [PrimitiveType: String] = [
         .int: "kk_box_int_static",
+        .byte: "kk_box_byte_static",
+        .short: "kk_box_short_static",
         .uint: "kk_box_uint_static",
         .ubyte: "kk_box_ubyte_static",
         .ushort: "kk_box_ushort_static",
@@ -118,6 +128,8 @@ struct BoxingCalleeTable {
 
     private static let staticPrimitiveUnboxCalleeNamesByPrimitive: [PrimitiveType: String] = [
         .int: "kk_unbox_int_static",
+        .byte: "kk_unbox_int_static",
+        .short: "kk_unbox_int_static",
         .uint: "kk_unbox_int_static",
         .ubyte: "kk_unbox_int_static",
         .ushort: "kk_unbox_int_static",

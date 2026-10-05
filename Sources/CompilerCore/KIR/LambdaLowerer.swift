@@ -13,7 +13,7 @@ final class LambdaLowerer {
         self.driver = driver
     }
 
-    private func normalizeHOFPrimitiveParameter(
+    func normalizeHOFPrimitiveParameter(
         _ exprID: KIRExprID,
         type: TypeID,
         sema: SemaModule,
@@ -326,6 +326,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
         for capture in functionCaptureBindings {
@@ -636,7 +637,8 @@ final class LambdaLowerer {
             driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
         } else if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
                   semanticSymbol.kind == .local,
-                  semanticSymbol.flags.contains(.mutable)
+                  (semanticSymbol.flags.contains(.mutable)
+                      || sema.bindings.isContractCallsInPlaceInitializedSymbol(capture.capturedSymbol))
         {
             driver.ctx.setMutableCaptureCell(capturedValue, for: capture.capturedSymbol)
         } else {
@@ -673,13 +675,27 @@ final class LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // The kk_function_create_N ABI has no receiver slot, so a receiver-bearing
-        // callable (e.g. `DeepRecursiveScope<T, R>.(T) -> R`) cannot be boxed here
-        // without dropping the receiver. Keep the raw lambda instead: call sites
-        // that consume such callables adapt them through
-        // makeCollectionHOFCallableAdapter, which forwards the receiver explicitly.
-        guard functionType.receiver == nil else {
-            return nil
+        if functionType.receiver != nil {
+            // Generic receiver callbacks already use the callee's erased return ABI.
+            guard lambdaReturnType == functionType.returnType else { return nil }
+            let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
+            instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
+            driver.ctx.registerCallableValue(
+                callable,
+                symbol: lambdaSymbol,
+                callee: syntheticLambdaName(for: exprID, interner: interner),
+                captureArguments: captureArguments,
+                hasClosureParam: false
+            )
+            return driver.callLowerer.materializeFunctionValueArgument(
+                loweredArgID: callable,
+                argExprID: exprID,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         let createCallee: InternedString
         switch functionType.params.count {
@@ -1400,6 +1416,7 @@ final class LambdaLowerer {
         }()
         var captureArguments: [KIRExprID] = []
         if let receiverExpr,
+           !isUnbound,
            targetSymbol.flatMap({ sema.symbols.symbol($0)?.kind }) != .constructor
         {
             let loweredReceiver = driver.lowerExpr(
@@ -1971,6 +1988,15 @@ final class LambdaLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+            if case let .functionType(functionType) = sema.types.kind(of: callableType) {
+                registerCallableReflection(
+                    value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
+                    targetSymbol: targetSymbol, parameterTypes: functionType.params, returnType: functionType.returnType,
+                    captures: captureArguments,
+                    receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+            }
             if let callableInfo = driver.ctx.callableValueInfo(for: callableValue) {
                 driver.ctx.registerCallableValue(
                     taggedExpr,
@@ -2349,6 +2375,7 @@ final class LambdaLowerer {
         defer { driver.ctx.restoreScope(scopeSnapshot) }
         driver.ctx.resetScopeForFunction()
         driver.ctx.currentLambdaAllowsNonLocalReturn = allowsNonLocalReturn
+        driver.ctx.nonLocalReturnTarget = scopeSnapshot.nonLocalReturnTarget ?? scopeSnapshot.currentFunctionSymbol
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
 

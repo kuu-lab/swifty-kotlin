@@ -31,21 +31,11 @@ private fun timeSourceDurationCompare(lhs: Duration, rhs: Duration): Int =
 
 private fun timeSourceDurationZero(): Duration = __kk_duration_zero()
 
-private fun timeSourceUnitScale(unit: DurationUnit): Long = when (unit) {
-    DurationUnit.NANOSECONDS -> 1L
-    DurationUnit.MICROSECONDS -> 1_000L
-    DurationUnit.MILLISECONDS -> 1_000_000L
-    DurationUnit.SECONDS -> 1_000_000_000L
-    DurationUnit.MINUTES -> 60_000_000_000L
-    DurationUnit.HOURS -> 3_600_000_000_000L
-    DurationUnit.DAYS -> 86_400_000_000_000L
-}
-
 private fun timeSourceDurationToLong(duration: Duration, unit: DurationUnit): Long {
     if (timeSourceDurationIsInfinite(duration)) {
         return if (timeSourceDurationIsNegative(duration)) Long.MIN_VALUE else Long.MAX_VALUE
     }
-    return duration.inWholeNanoseconds / timeSourceUnitScale(unit)
+    return duration.toLong(unit)
 }
 
 private fun timeSourceTruncateTo(duration: Duration, unit: DurationUnit): Duration =

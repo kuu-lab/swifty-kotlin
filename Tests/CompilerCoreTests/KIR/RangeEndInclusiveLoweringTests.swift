@@ -43,5 +43,25 @@ struct RangeEndInclusiveLoweringTests {
         #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for LongRange.endInclusive, got: \(names)")
         #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
     }
+
+    @Test func testFloatingPointRangeBoundsUseTypedRuntimeGetters() throws {
+        for (type, suffix, prefix) in [("Double", "", "double"), ("Float", "f", "float")] {
+            let names = try callNames(
+                in: """
+                fun bounds(): \(type) {
+                    val range = -1.25\(suffix)..2.5\(suffix)
+                    val start: \(type) = range.start
+                    val end: \(type) = range.endInclusive
+                    return end - start
+                }
+                """,
+                function: "bounds"
+            )
+            #expect(names.contains("__kk_\(prefix)_range_start"))
+            #expect(names.contains("__kk_\(prefix)_range_endInclusive"))
+            #expect(!names.contains("__kk_range_first"))
+            #expect(!names.contains("__kk_range_last"))
+        }
+    }
 }
 #endif

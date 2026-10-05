@@ -28,6 +28,11 @@ final class CallSupportLowerer {
                 collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
             }
         }
+        for expr in ast.arena.snapshot().expressions {
+            if case let .localNominalDecl(declID, _) = expr {
+                collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
+            }
+        }
         return mapping
     }
 
@@ -203,6 +208,14 @@ final class CallSupportLowerer {
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: originalSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
 
         for capture in captures {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
@@ -649,6 +662,18 @@ final class CallSupportLowerer {
         for paramIndex in 0 ..< parameterCount {
             if let argIndices = argIndicesByParameter[paramIndex] {
                 if isVararg[paramIndex] {
+                    for argIndex in argIndices
+                        where sourceArgExprs.indices.contains(argIndex)
+                        && (!spreadFlags.indices.contains(argIndex) || !spreadFlags[argIndex])
+                    {
+                        boxedArguments[argIndex] = driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            providedArguments[argIndex],
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        )
+                    }
                     let primitiveArrayType = primitiveVarargArrayType(
                         elementType: signature.parameterTypes[paramIndex],
                         sema: sema,
@@ -681,7 +706,18 @@ final class CallSupportLowerer {
                     )
                     normalized.append(packed)
                 } else if let argIndex = argIndices.first {
-                    normalized.append(providedArguments[argIndex])
+                    let argument = providedArguments[argIndex]
+                    if sourceArgExprs.indices.contains(argIndex) {
+                        normalized.append(driver.callLowerer.adaptSuspendFunctionValueArgument(
+                            argument,
+                            sourceExpr: sourceArgExprs[argIndex],
+                            parameterType: signature.parameterTypes[paramIndex],
+                            sema: sema, arena: arena, interner: interner,
+                            instructions: &instructions
+                        ))
+                    } else {
+                        normalized.append(argument)
+                    }
                 }
                 continue
             }
