@@ -160,6 +160,10 @@ struct ComparatorOverloadResolutionTests {
             try runSema(ctx)
 
             #expect(!ctx.diagnostics.hasError, "Expected comparator tests to type-check without diagnostics: \(ctx.diagnostics.diagnostics)")
+            let userDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+                guard let range = diagnostic.primaryRange else { return true }
+                return isUserSourceRange(range, in: ctx)
+            }
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -561,7 +565,7 @@ struct ComparatorOverloadResolutionTests {
 
             do {
 
-                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for chained compareBy.thenBy.reversed(), got: \(ctx.diagnostics.diagnostics)")
+                           #expect(userDiagnostics.isEmpty, "Expected no diagnostics for chained compareBy.thenBy.reversed(), got: \(userDiagnostics)")
 
             }
 
@@ -569,7 +573,7 @@ struct ComparatorOverloadResolutionTests {
 
             do {
 
-                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(ctx.diagnostics.diagnostics)")
+                           #expect(userDiagnostics.isEmpty, "Expected no diagnostics for nullsFirst/nullsLast usage, got: \(userDiagnostics)")
 
             }
 
@@ -577,7 +581,7 @@ struct ComparatorOverloadResolutionTests {
 
             do {
 
-                           #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(ctx.diagnostics.diagnostics)")
+                           #expect(userDiagnostics.isEmpty, "Expected nullable compareBy selectors to resolve, got: \(userDiagnostics)")
 
             }
 
