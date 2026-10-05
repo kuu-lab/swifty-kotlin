@@ -396,6 +396,22 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - CoroutineContext element retrieval
 
+    @Test func testContextDispatchBridgesPreserveNativeFallback() {
+        let nameBox = RuntimeStringBox("Native")
+        let nameElem = kk_coroutine_name_create(runtimeRegisterStringBox(nameBox))
+        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9919))
+        let ctx = kk_context_plus(emptyCtx, nameElem)
+        var thrown = 42
+        let retrieved = __kk_context_get_dispatch(ctx, nameElem, &thrown)
+        #expect(runtimeStringBoxValue(kk_coroutine_name_get(retrieved)) == "Native")
+        #expect(thrown == 0)
+        #expect(__kk_context_get_dispatch(emptyCtx, nameElem, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown == 0)
+        let reduced = __kk_context_minusKey_dispatch(ctx, nameElem, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_context_get(reduced, nameElem) == 0)
+    }
+
     /// kk_context_get returns 0 for a key not present in the context.
     @Test func testContextGetAbsentKeyReturnsZero() {
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9916))
