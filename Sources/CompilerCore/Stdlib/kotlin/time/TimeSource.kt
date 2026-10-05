@@ -32,7 +32,7 @@ public interface TimeSource {
         public override fun markNow(): ValueTimeMark =
             ValueTimeMark(__kk_time_source_monotonic_mark_now(0L))
 
-        public override fun toString(): String = "Monotonic"
+        public override fun toString(): String = "TimeSource(System.nanoTime())"
 
         @JvmInline
         public value class ValueTimeMark internal constructor(internal val reading: Long) : ComparableTimeMark {
