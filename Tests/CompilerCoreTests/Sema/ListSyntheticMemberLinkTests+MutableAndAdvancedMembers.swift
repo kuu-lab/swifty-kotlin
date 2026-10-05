@@ -2299,11 +2299,11 @@ extension ListSyntheticMemberLinkTests {
         #expect(try interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "Map")
         guard classType.args.count == 2,
               case let .out(keyType) = classType.args[0],
-              case let .out(valueType) = classType.args[1],
+              case let .invariant(valueType) = classType.args[1],
               case .typeParam = sema.types.kind(of: keyType),
               case .typeParam = sema.types.kind(of: valueType)
         else {
-            Issue.record("Expected MutableMap.putAll parameter to use projected Map<K, V>"); return
+            Issue.record("Expected MutableMap.putAll parameter to use Map<out K, V>"); return
         }
     }
 
