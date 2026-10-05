@@ -1028,6 +1028,28 @@ extension CallLowerer {
             return loweredArguments
         }
 
+        if externalLinkName == "__kk_job_invoke_on_completion", loweredArguments.count == 4 {
+            let handler = loweredArguments[3]
+            if driver.ctx.callableValueInfo(for: handler) != nil {
+                return Array(loweredArguments.prefix(3)) + makeCollectionHOFExpandedArguments(
+                    loweredArgID: handler,
+                    argExprID: originalArgs[3].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let (fnPtr, closureRaw) = splitCallableLambdaArgument(
+                handler,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return Array(loweredArguments.prefix(3)) + [fnPtr, closureRaw]
+        }
+
         if externalLinkName == "kk_suspend_coroutine", loweredArguments.count == 1 {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],
