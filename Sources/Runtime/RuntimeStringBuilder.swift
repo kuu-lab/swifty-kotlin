@@ -439,33 +439,6 @@ public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
     return sb.units.count
 }
 
-@_cdecl("__kk_string_builder_append_range")
-public func __kk_string_builder_append_range(
-    _ sbRaw: Int,
-    _ valueRaw: Int,
-    _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let stringRaw = valueRaw == runtimeNullSentinelInt ? runtimeMakeStringRaw("null") : valueRaw
-    guard let source = runtimeStringFromRaw(stringRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
-    }
-    let utf16 = runtimeStringUTF16CodeUnits(stringRaw)
-    let length = utf16.count
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(length)"
-        )
-        return sbRaw
-    }
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.ensureCapacity(sb.units.count + endIndex - startIndex)
-    sb.units.append(contentsOf: utf16[startIndex ..< endIndex])
-    return sbRaw
-}
-
 @_cdecl("__kk_string_builder_append_obj_flat")
 public func __kk_string_builder_append_obj_flat(
     _ sbRaw: Int,

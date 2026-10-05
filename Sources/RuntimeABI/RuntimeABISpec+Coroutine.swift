@@ -1524,18 +1524,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_job_invoke_on_completion",
-            parameters: [
-                RuntimeABIParameter(name: "jobHandle", type: .intptr),
-                RuntimeABIParameter(name: "onCancelling", type: .intptr),
-                RuntimeABIParameter(name: "handlerFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "handlerClosureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_job_invoke_on_completion",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
@@ -1568,16 +1556,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_job_dispose_handle",
-            parameters: [
-                RuntimeABIParameter(name: "jobHandle", type: .intptr),
-                RuntimeABIParameter(name: "handlerID", type: .intptr),
-            ],
-            returnType: .void,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_job_dispose_completion_handler",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
                 RuntimeABIParameter(name: "handlerID", type: .intptr),
