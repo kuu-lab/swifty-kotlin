@@ -11,7 +11,14 @@ fun prefer(value: Int): Int = value + 1
 class Box<T> {
     fun <R> transform(value: R): R = value
 }
+class UnboundBox {
+    fun <T> transform(value: T): T = value
+}
 fun <T> T.copy(): T = this
+fun interface IntOp {
+    fun apply(value: Int): Int
+}
+fun useOp(op: IntOp): Int = op.apply(42)
 
 fun main() {
     val ref: (Int) -> Int = ::identity
@@ -36,11 +43,14 @@ fun main() {
     val box = Box<String>()
     val bound: (Int) -> Int = box::transform
     println(bound(12))
-    val unbound: (Box<String>, Int) -> Int = Box<String>::transform
-    println(unbound(box, 13))
+    val unbound: (UnboundBox, Int) -> Int = UnboundBox::transform
+    println(unbound(UnboundBox(), 13))
     val extension: (String) -> String = String::copy
     println(extension("extension"))
     val value = "bound"
     val boundExtension: () -> String = value::copy
     println(boundExtension())
+    val listRef: (List<Int>) -> List<Int> = ::identity
+    println(listRef(listOf(21, 22)))
+    println(useOp(::identity))
 }

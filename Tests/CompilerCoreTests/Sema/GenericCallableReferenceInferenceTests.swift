@@ -45,7 +45,11 @@ struct GenericCallableReferenceInferenceTests {
         "class Box { fun <T> identity(value: T): T = value }; val ref: (Box, Int) -> Int = Box::identity",
         "fun <T> T.copy(): T = this; val ref: (String) -> String = String::copy",
         "fun <T> T.copy(): T = this; fun ref(value: String) { val f: () -> String = value::copy }",
-        "fun interface IntOp { fun apply(value: Int): Int }; fun use(op: IntOp): Int = op.apply(42); fun main() { use(::identity) }",
+        """
+        fun interface IntOp { fun apply(value: Int): Int }
+        fun useOp(op: IntOp): Int = op.apply(42)
+        fun main() { useOp(::identity) }
+        """,
     ])
     func supportsOtherCallableContexts(declaration: String) throws {
         let ctx = makeContextFromSource("""
@@ -62,8 +66,9 @@ struct GenericCallableReferenceInferenceTests {
         "fun <T : String> identity(value: T): T = value; val ref: (Int) -> Int = ::identity",
         "fun <T : Any> identity(value: T): T = value; val ref: (Int?) -> Int? = ::identity",
         "fun <T> identity(value: T): T = value; val ref: (Int, Int) -> Int = ::identity",
-        "fun <T> identity(value: T): T = value; val ref: suspend (Int) -> Int = ::identity",
+        "suspend fun <T> identity(value: T): T = value; val ref: (Int) -> Int = ::identity",
         "fun <T> unused(value: Int): Int = value; val ref: (Int) -> Int = ::unused",
+        "fun <T> T.echo(value: T): T = value; fun ref(value: String) { val f: (Int) -> Int = value::echo }",
     ])
     func rejectsInvalidReference(source: String) throws {
         let ctx = makeContextFromSource(source)

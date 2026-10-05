@@ -1817,7 +1817,11 @@ extension ExprTypeChecker {
                     else {
                         return false
                     }
-                    return sema.types.isSubtype(nonNullReceiver, declaredReceiver)
+                    return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: nonNullReceiver,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
                 }
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
