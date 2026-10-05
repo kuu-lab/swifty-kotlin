@@ -299,7 +299,7 @@ struct StdlibArtifactRegressionTests {
         import kotlinx.coroutines.*
         import kotlinx.coroutines.flow.*
 
-        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+        fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
             source.collect(action)
         }
 
