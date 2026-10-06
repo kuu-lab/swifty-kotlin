@@ -2390,8 +2390,16 @@ final class CallTypeChecker {
                         substitution: substitution,
                         typeVarBySymbol: typeVarBySymbol
                     )
+                    // Enclosing type parameters are valid contextual evidence,
+                    // e.g. G<T, T> in `fun <T> make(t: T): W<T> = W(G(t))`.
+                    // Only unresolved variables owned by this candidate prevent
+                    // contextualizing its nested arguments.
                     guard substitutedType != parameterType,
-                          !typeMentionsTypeParameter(substitutedType, sema: sema)
+                          !ctx.resolver.containsTypeVariable(
+                              substitutedType,
+                              typeVarBySymbol: typeVarBySymbol,
+                              typeSystem: sema.types
+                          )
                     else {
                         continue
                     }
