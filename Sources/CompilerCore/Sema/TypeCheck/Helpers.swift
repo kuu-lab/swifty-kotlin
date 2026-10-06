@@ -442,7 +442,7 @@ struct TypeCheckHelpers {
 
     /// Element type lifted from the `kotlin.collections.Iterable<T>` supertype of
     /// a class, or nil when the class does not implement `Iterable`.
-    private func iterableSupertypeElementType(
+    func iterableSupertypeElementType(
         for iterableType: TypeID,
         sema: SemaModule,
         interner: StringInterner

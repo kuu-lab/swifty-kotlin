@@ -3593,8 +3593,11 @@ final class CallTypeChecker {
                             break
                         }
                     }
-                    return driver.inferExpr(
+                    let inferredType = driver.inferExpr(
                         argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    )
+                    return sourceLevelRangeArgumentType(
+                        argument.expr, inferredType: inferredType, ctx: ctx
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
