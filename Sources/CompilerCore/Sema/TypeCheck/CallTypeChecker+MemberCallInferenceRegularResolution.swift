@@ -2733,6 +2733,7 @@ extension CallTypeChecker {
         // synthetic extension functions (e.g. Double.pow).
         if scopeCandidates.isEmpty, !requiresScopedBitwiseExtension {
             let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
+            let scopedCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
             scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -2760,6 +2761,14 @@ extension CallTypeChecker {
                 let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
                 guard !symbol.flags.contains(.localFunction),
                       symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
+                    return false
+                }
+                // Recover user extensions only from the lexical/import scope;
+                // a global short-name match must not expose another package.
+                if let file = symbol.declSite?.start.file,
+                   driver.sourceManager?.origin(of: file) == .user,
+                   !scopedCandidates.contains(candidate)
+                {
                     return false
                 }
                 // A member extension declared in a companion is
