@@ -128,7 +128,14 @@ extension CoroutineLoweringPass {
             assertionFailure("Internal compiler error: CoroutineScope.async launcher entry missing")
             return [call.instruction]
         }
-        let scopeSlot = receiverFirst ? 0 : max(0, suspendParamCount - 1)
+        // The receiver slot is the first slot after the captures: it coincides
+        // with an explicit receiver param's index for `[cap0..capN, receiver]`
+        // layouts, and sits past the last capture (unread by the thunk) for
+        // coroutineScope-receiver lambdas that carry no receiver param. Using
+        // `suspendParamCount - 1` clobbered the last capture for the latter
+        // (KUU-1400).
+        let scopeSlot = receiverFirst ? 0
+            : (leadingCaptureParamCount(for: symbol, using: rewrite) ?? captures.count)
 
         let functionIDExpr = arena.appendExpr(
             .intLiteral(Int64(lowered.symbol.rawValue)), type: rewrite.intType
