@@ -12,6 +12,10 @@ private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
 )
 
+private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.EmptyCoroutineContext"
+)
+
 /// A coroutine context is a keyed collection of context elements.
 /// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler.
 /// Contexts compose via the `+` operator (right-hand side wins for same key).
@@ -219,6 +223,15 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
 /// a RuntimeCoroutineNameBox, or a RuntimeExceptionHandlerBox.
 @_cdecl("kk_context_plus")
 public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
+    // The source-backed empty singleton is the identity on either side.
+    // Preserve the operand itself before converting to the runtime's closed
+    // element representation, which cannot retain arbitrary source Elements.
+    if runtimeObjectTypeID(rawValue: rightRaw) == runtimeEmptyCoroutineContextTypeID {
+        return leftRaw
+    }
+    if runtimeObjectTypeID(rawValue: leftRaw) == runtimeEmptyCoroutineContextTypeID {
+        return rightRaw
+    }
     let leftCtx = resolveToCoroutineContext(leftRaw)
     let rightCtx = resolveToCoroutineContext(rightRaw)
     let merged = leftCtx.plus(rightCtx)
