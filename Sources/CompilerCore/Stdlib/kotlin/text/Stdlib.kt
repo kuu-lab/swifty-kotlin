@@ -55,7 +55,6 @@ public fun <T : Appendable> T.appendRange(value: CharSequence, startIndex: Int, 
 /**
  * Builds a [HexFormat] with the given [builderAction].
  */
-@ExperimentalStdlibApi
 public inline fun HexFormat(builderAction: HexFormat.Builder.() -> Unit): HexFormat =
     HexFormat.Builder().apply(builderAction).build()
 

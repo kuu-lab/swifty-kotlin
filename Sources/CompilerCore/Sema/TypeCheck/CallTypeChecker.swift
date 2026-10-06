@@ -1786,8 +1786,12 @@ final class CallTypeChecker {
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                 )
+                // Imported library declarations also carry the synthetic flag.
+                // Include them before argument inference so receiver lambdas on
+                // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
-                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                    sema.symbols.isSourceBackedSymbol($0)
+                        || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {

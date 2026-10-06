@@ -297,18 +297,21 @@ extension AnnotationSemanticTests {
             """
             package sample27
                     @OptIn(ExperimentalStdlibApi::class)
-                    fun hex(): String = 255.toHexString()
+                    fun hex(): String = experimentalApi()
+
+                    @ExperimentalStdlibApi
+                    fun experimentalApi(): String = "ff"
 
             """,
 
-            // testExperimentalStdlibApiWithoutOptInEmitsDiagnostic
+            // testStableHexApiWithoutOptIn
             """
             package sample28
                     fun hex(): String = 255.toHexString()
 
             """,
 
-            // testExperimentalStdlibApiWithDefaultPropertyWithoutOptInEmitsDiagnostic
+            // testStableHexApiWithDefaultPropertyWithoutOptIn
             """
             package sample29
                     fun hex(): String = 42.toHexString(HexFormat.Default)
@@ -427,7 +430,10 @@ extension AnnotationSemanticTests {
             package sample38
                     @file:OptIn(ExperimentalStdlibApi::class)
 
-                    fun hex(): Int = "ff".hexToInt()
+                    fun hex(): Int = experimentalApi()
+
+                    @ExperimentalStdlibApi
+                    fun experimentalApi(): Int = 255
 
             """,
 
@@ -460,7 +466,10 @@ extension AnnotationSemanticTests {
             """
             package sample41
                     @Suppress("OPT_IN_USAGE")
-                    fun hex(): String = 255.toHexString()
+                    fun hex(): String = experimentalApi()
+
+                    @ExperimentalStdlibApi
+                    fun experimentalApi(): String = "ff"
 
             """
         ]
@@ -779,29 +788,21 @@ extension AnnotationSemanticTests {
 
                 let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
 
-                #expect(diagnostics.isEmpty, "Expected opt-in annotated function to use HexFormat API without diagnostics, got: \(sampleDiags)")
+                #expect(diagnostics.isEmpty, "Expected opt-in annotated function to use experimental API without diagnostics, got: \(sampleDiags)")
             }
-            // testExperimentalStdlibApiWithoutOptInEmitsDiagnostic
+            // testStableHexApiWithoutOptIn
             do {
                 let samplePath = paths[28]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
-                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-
-                #expect(diagnostics.count == 1, "Expected one opt-in diagnostic for toHexString(), got: \(sampleDiags)")
-                let v35 = diagnostics.allSatisfy(isError)
-                #expect(v35, "Opt-in diagnostics should be errors")
+                #expect(sampleDiags.isEmpty, "Expected stable toHexString() to need no opt-in, got: \(sampleDiags)")
             }
-            // testExperimentalStdlibApiDefaultPropertyWithoutOptInEmitsDiagnostic
+            // testStableHexApiWithDefaultPropertyWithoutOptIn
             do {
                 let samplePath = paths[29]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
-                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
-
-                #expect(diagnostics.count == 1, "Expected one opt-in diagnostic for toHexString() with HexFormat.Default, got: \(sampleDiags)")
-                let v36 = diagnostics.allSatisfy(isError)
-                #expect(v36, "Opt-in diagnostics should be errors")
+                #expect(sampleDiags.isEmpty, "Expected stable HexFormat.Default to need no opt-in, got: \(sampleDiags)")
             }
             // testExperimentalVersionOverloadingAnnotationRequiresOptIn
             do {
@@ -893,7 +894,7 @@ extension AnnotationSemanticTests {
 
                 let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
 
-                #expect(diagnostics.isEmpty, "Expected file-level opt-in to suppress HexFormat diagnostics, got: \(sampleDiags)")
+                #expect(diagnostics.isEmpty, "Expected file-level opt-in to suppress experimental API diagnostics, got: \(sampleDiags)")
             }
             // testExperimentalAssociatedObjectsMarkerRequiresOptIn
             do {
@@ -1437,9 +1438,35 @@ extension AnnotationSemanticTests {
     }
 
 
+    @Test func testStableHexUnsignedArrayStillRequiresUnsignedOptIn() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            fun decode() = "ff".hexToUByteArray()
+            """
+        )
+        let optInDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+        #expect(!optInDiagnostics.isEmpty)
+        #expect(optInDiagnostics.allSatisfy { $0.message.contains("ExperimentalUnsignedTypes") })
+    }
+
+    @Test func testExperimentalStdlibApiStillRequiresOptIn() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            @ExperimentalStdlibApi
+            fun experimentalApi(): String = "ff"
+            fun caller(): String = experimentalApi()
+            """
+        )
+        let optInDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+        #expect(optInDiagnostics.count == 1)
+        #expect(optInDiagnostics.first?.message.contains("ExperimentalStdlibApi") == true)
+    }
+
     @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {
         let source = """
-        fun hex(): String = 255.toHexString()
+        @ExperimentalStdlibApi
+        fun experimentalApi(): String = "ff"
+        fun hex(): String = experimentalApi()
         """
 
         let ctx = runSemaCollectingDiagnostics(
