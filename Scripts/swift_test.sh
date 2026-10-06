@@ -71,6 +71,10 @@ declare -a command=(swift test)
 # products (swiftbuild) and their compilation cache are reused.
 kswiftk_append_build_system_flag command
 
+# Same reasoning: build and test must share compiler flags or the incremental
+# cache is invalidated.
+kswiftk_append_testing_plugin_path command
+
 # When running a single test target product (required with swiftbuild's
 # per-test-target products), tell `swift test` which product to load. Without
 # this `swift test --skip-build` looks for the all-in-one PackageTests bundle.
