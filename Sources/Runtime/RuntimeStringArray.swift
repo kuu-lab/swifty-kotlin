@@ -1324,6 +1324,17 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
+        // KUU-1386: coroutine job-family handles (launch/async tasks, Job()/
+        // SupervisorJob() handles, ChildHandle boxes) are raw runtime objects
+        // with no object type ID — recover the kotlinx nominal they answer
+        // `is`/`as`/`as?` as (AbstractCoroutine/DeferredCoroutine/JobImpl/...).
+        if let jobFamilyTypeID = runtimeJobFamilyNominalTypeID(rawValue: value) {
+            registerJobFamilyTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: jobFamilyTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
         let throwable = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeThrowableBox.self)
