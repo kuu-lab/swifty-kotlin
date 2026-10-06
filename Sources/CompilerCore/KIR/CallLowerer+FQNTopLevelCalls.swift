@@ -18,6 +18,14 @@ extension CallLowerer {
             return nil
         }
 
+        // kotlin.Unit is a namespace-qualified builtin value, not a nominal
+        // object handle. Use the same representation as bare Unit literals.
+        if symbolID == sema.types.unitClassSymbol {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: symbolID)
             ?? sema.types.anyType
