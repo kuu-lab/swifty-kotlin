@@ -9,6 +9,28 @@ import Testing
 /// continuation's launcher-arg slot 0 (otherwise the entry reads garbage: SIGBUS).
 @Suite
 struct UninterceptedStartCapturedClosureLoweringTests {
+    @Test
+    func testStandaloneStartMarkersIncludeUnusedContextSlot() throws {
+        let ctx = makeContextFromSource("fun main() { println(\"hello\") }", emit: .object)
+        try runToLowering(ctx)
+        let module = try #require(ctx.kir)
+        let expectedArities = [
+            "kk_start_coroutine_unintercepted_or_return_no_receiver": 3,
+            "kk_start_coroutine_unintercepted_or_return_with_receiver": 4,
+        ]
+        var seen = Set<String>()
+        for declaration in module.arena.declarations {
+            guard case let .function(function) = declaration else { continue }
+            for instruction in function.body {
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      let expectedArity = expectedArities[ctx.interner.resolve(callee)] else { continue }
+                seen.insert(ctx.interner.resolve(callee))
+                #expect(arguments.count == expectedArity)
+            }
+        }
+        #expect(seen == Set(expectedArities.keys))
+    }
+
     private func mainCallees(for source: String) throws -> [String] {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
@@ -41,9 +63,12 @@ struct UninterceptedStartCapturedClosureLoweringTests {
     }
 
     @Test
-    func testCapturedVarThreadsClosureStateForStartCoroutine() throws {
+    func testCapturedStartCoroutinePreservesBoxedCallableForSourceBuilder() throws {
         let callees = try mainCallees(for: program(capturing: true, call: "startCoroutine"))
-        #expect(callees.contains("kk_coroutine_launcher_arg_set"))
+        // The non-inline source builder receives the boxed callable; the
+        // runtime create bridge transfers its closure state into the launcher.
+        #expect(callees.contains("startCoroutine"))
+        #expect(callees.contains("kk_suspend_function_create"))
     }
 
     @Test

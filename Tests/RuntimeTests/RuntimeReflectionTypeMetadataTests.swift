@@ -33,6 +33,23 @@ struct RuntimeReflectionTypeMetadataTests {
         }
     }
 
+    @Test func boundClassReferencesUseThrowableIdentityInsteadOfCatchType() throws {
+        let exceptions: [(RuntimeThrowableBox, String)] = [
+            (RuntimeIllegalArgumentExceptionBox(message: "argument"), "java.lang.IllegalArgumentException"),
+            (RuntimeIllegalStateExceptionBox(message: "state"), "java.lang.IllegalStateException"),
+        ]
+        let fallback = nominalToken(runtimeStableNominalTypeID(fqName: "kotlin.Exception"))
+        for (exception, displayName) in exceptions {
+            let value = registerRuntimeObject(exception)
+            let klass = __kk_kclass_of(value, fallback, makeRuntimeString("Exception"))
+            let expectedToken = nominalToken(runtimeStableNominalTypeID(fqName: exception.exceptionFQName))
+            #expect(try #require(runtimeKClassBox(from: klass)).typeToken == expectedToken)
+            #expect(klass == __kk_kclass_create(expectedToken, 0))
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_simple_name(klass)) == displayName.split(separator: ".").last.map(String.init))
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == displayName)
+        }
+    }
+
     @Test func boundClassReferencesUseBoxedPrimitiveIdentity() throws {
         let values: [(Int, Int64)] = [
             (kk_box_int(1), RuntimeTypeTokenEncoding.intBase),

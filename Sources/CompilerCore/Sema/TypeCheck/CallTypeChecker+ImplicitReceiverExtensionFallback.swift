@@ -307,7 +307,8 @@ extension CallTypeChecker {
                 range: range,
                 calleeName: calleeName,
                 args: resolvedArgs,
-                explicitTypeArgs: explicitTypeArgs
+                explicitTypeArgs: explicitTypeArgs,
+                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: expectedType,
             implicitReceiverType: nonNullReceiver,
@@ -439,7 +440,8 @@ extension CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: group.receiverType,

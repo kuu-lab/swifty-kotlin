@@ -12,6 +12,10 @@ private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
 )
 
+private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.EmptyCoroutineContext"
+)
+
 /// A coroutine context is a keyed collection of context elements.
 /// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler.
 /// Contexts compose via the `+` operator (right-hand side wins for same key).
@@ -219,10 +223,43 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
 /// a RuntimeCoroutineNameBox, or a RuntimeExceptionHandlerBox.
 @_cdecl("kk_context_plus")
 public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
+    // The source-backed empty singleton is the identity on either side.
+    // Preserve the operand itself before converting to the runtime's closed
+    // element representation, which cannot retain arbitrary source Elements.
+    if runtimeObjectTypeID(rawValue: rightRaw) == runtimeEmptyCoroutineContextTypeID {
+        return leftRaw
+    }
+    if runtimeObjectTypeID(rawValue: leftRaw) == runtimeEmptyCoroutineContextTypeID {
+        return rightRaw
+    }
     let leftCtx = resolveToCoroutineContext(leftRaw)
     let rightCtx = resolveToCoroutineContext(rightRaw)
     let merged = leftCtx.plus(rightCtx)
     return runtimeRegisterObject(merged)
+}
+
+/// Preserve Kotlin overrides while retaining native context composition.
+@_cdecl("__kk_context_plus_dispatch")
+public func __kk_context_plus_dispatch(
+    _ contextRaw: Int,
+    _ otherRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    // An Element without a plus override inherits this bodyless bridge.
+    // Its itable entry must use native composition rather than re-enter us.
+    let bridge: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = __kk_context_plus_dispatch
+    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 2)
+    if method != unsafeBitCast(bridge, to: Int.self), let result = runtimeSourceInterfaceCall1(
+        contextRaw, otherRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 2,
+        context: "CoroutineContext.plus dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    return kk_context_plus(contextRaw, otherRaw)
 }
 
 /// Fetch a context element by key.
@@ -266,6 +303,21 @@ public func kk_context_fold(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
+    // Source methods receive a Kotlin function value, whereas the bridge ABI
+    // receives the callback entry point and its captured environment separately.
+    if kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1) != 0 {
+        let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
+        if let result = runtimeSourceInterfaceCall2(
+            contextRaw, initial, operation,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 1,
+            context: "CoroutineContext.fold dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+    }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     let ctx = resolveToCoroutineContext(contextRaw)
     var acc = initial

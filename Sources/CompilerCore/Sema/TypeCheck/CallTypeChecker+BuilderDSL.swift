@@ -1132,7 +1132,10 @@ extension CallTypeChecker {
             return nil
         }
 
-        let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        let inferredArgumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        let argumentType = sourceLevelRangeArgumentType(
+            args[0].expr, inferredType: inferredArgumentType, ctx: ctx
+        )
         let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
         let candidates = driver.helpers.collectMemberFunctionCandidates(
             named: calleeName,
@@ -1747,7 +1750,7 @@ extension CallTypeChecker {
                   inferredType != sema.types.errorType
             else { continue }
             if let elementType = sequenceBuilderCollectionElementType(
-                inferredType,
+                sourceLevelRangeArgumentType(exprID, inferredType: inferredType, ctx: ctx),
                 sema: sema,
                 interner: interner
             ) {
@@ -1818,7 +1821,11 @@ extension CallTypeChecker {
                 break
             }
         }
-        return nil
+        // Non-generic ranges and progressions carry their element type in the
+        // Iterable<T> supertype rather than in their own type arguments.
+        return driver.helpers.iterableSupertypeElementType(
+            for: nonNullType, sema: sema, interner: interner
+        )
     }
 
     private func collectSequenceBuilderYieldExprs(

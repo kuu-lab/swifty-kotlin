@@ -9,6 +9,27 @@ import Testing
 @Suite
 struct CodegenBackendSequenceLazyEdgeCasesTests {
 
+    // KUU-1073: infer non-null elements from nullable no-argument callbacks.
+    @Test(arguments: [false, true])
+    func testNullableGenerateSequenceLambdaInference(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun main() {
+            val b = generateSequence { if (true) 1 else null }
+            println(b.take(3).toList())
+            var i = 0
+            val c = generateSequence { i = i + 1; if (i <= 3) i else null }
+            println(c.toList())
+            println(generateSequence { 1 as Int? }.take(2).toList())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableGenerateSequenceLambdaInference",
+            expected: "[1, 1, 1]\n[1, 2, 3]\n[1, 1]\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KUU-1325: both stdlib modes must preserve the callback's value argument
     // and terminate on null, including lambdas without a closure parameter.
     @Test(arguments: [false, true])

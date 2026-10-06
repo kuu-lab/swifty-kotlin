@@ -271,7 +271,11 @@ extension TypeSystem {
             guard leftFunction.contextReceivers.count == rightFunction.contextReceivers.count else {
                 return false
             }
-            guard leftFunction.params.count == rightFunction.params.count else {
+            // Kotlin treats a receiver as the leading function parameter,
+            // including for unbound suspend callable references.
+            let leftParams = (leftFunction.receiver.map { [$0] } ?? []) + leftFunction.params
+            let rightParams = (rightFunction.receiver.map { [$0] } ?? []) + rightFunction.params
+            guard leftParams.count == rightParams.count else {
                 return false
             }
             guard leftFunction.isSuspend == rightFunction.isSuspend else {
@@ -286,14 +290,7 @@ extension TypeSystem {
                     return false
                 }
             }
-            if let lReceiver = leftFunction.receiver, let rReceiver = rightFunction.receiver {
-                if !isSubtype(rReceiver, lReceiver) {
-                    return false
-                }
-            } else if leftFunction.receiver != nil || rightFunction.receiver != nil {
-                return false
-            }
-            for (leftParam, rightParam) in zip(leftFunction.params, rightFunction.params) where !isSubtype(rightParam, leftParam) {
+            for (leftParam, rightParam) in zip(leftParams, rightParams) where !isSubtype(rightParam, leftParam) {
                 return false
             }
             // Kotlin allows a lambda literal wherever a Unit-returning function type

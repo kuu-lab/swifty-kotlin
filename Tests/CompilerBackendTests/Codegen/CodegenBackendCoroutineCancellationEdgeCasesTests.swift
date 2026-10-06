@@ -7,6 +7,90 @@ import Testing
 @Suite
 struct CodegenBackendCoroutineCancellationEdgeCasesTests {
 
+    @Test func testTimeoutOrNullUnitResultPreservesNullThroughBoxing() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlin.time.Duration.Companion.milliseconds
+
+        fun main() = runBlocking {
+            println(withTimeoutOrNull(1) { delay(5000) })
+            println(withTimeoutOrNull(1L) { delay(5000) })
+            println(withTimeoutOrNull(1.milliseconds) { delay(5000) })
+            println(withTimeoutOrNull(0) { Unit })
+            println(withTimeoutOrNull(-1L) { Unit })
+            val expired = withTimeoutOrNull(1) { delay(5000) }
+            println(expired == null)
+            val erased: Any? = expired
+            println(erased)
+            println("result=$expired")
+            val block: suspend CoroutineScope.() -> Unit = { delay(5000) }
+            println(withTimeoutOrNull(1L, block))
+            println(withTimeoutOrNull(5000) { Unit })
+            println(withTimeoutOrNull(5000L) { delay(1) })
+            println(withTimeoutOrNull(5000.milliseconds) { Unit })
+            println(withTimeoutOrNull(1) { delay(5000); "late" })
+            try {
+                withTimeout(1) { delay(5000) }
+            } catch (e: TimeoutCancellationException) {
+                println("timeout")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TimeoutOrNullUnitBoxing",
+            expected: """
+            null
+            null
+            null
+            null
+            null
+            true
+            null
+            result=null
+            null
+            kotlin.Unit
+            kotlin.Unit
+            kotlin.Unit
+            null
+            timeout
+
+            """
+        )
+    }
+
+    // Duration construction in source-injection mode is tracked separately as KUU-1341.
+    @Test func testTimeoutOrNullUnitResultPreservesNullFromStdlibSource() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        fun main() = runBlocking {
+            println(withTimeoutOrNull(1) { delay(5000) })
+            val expired = withTimeoutOrNull(1L) { delay(5000) }
+            println(expired == null)
+            val erased: Any? = expired
+            println(erased)
+            println("result=$expired")
+            println(withTimeoutOrNull(5000) { delay(1) })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TimeoutOrNullUnitBoxingSource",
+            expected: """
+            null
+            true
+            null
+            result=null
+            kotlin.Unit
+
+            """,
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
     @Test func testCodegenCompilesCoroutineCancellationEdgeCases() throws {
         let source = """
         import kotlinx.coroutines.*

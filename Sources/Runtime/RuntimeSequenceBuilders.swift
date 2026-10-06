@@ -41,6 +41,26 @@ public func __kk_sequence_builder_yieldAll_checked(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
+    // Iterable ranges need an iterator before delegating to the builder. Their
+    // handles are objects, not scalar Int/Long values or iterator handles.
+    if runtimeRangeBox(from: collectionRaw) != nil,
+       runtimeCoroutineBuilderProxy(from: builderRaw) != nil
+           || runtimeSequenceBuilderBox(from: builderRaw) != nil
+    {
+        var thrown = 0
+        let iterator = kk_iterable_iterator(collectionRaw, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        while kk_iterator_hasNext(iterator, &thrown) != 0, thrown == 0 {
+            let value = kk_iterator_next(iterator, &thrown)
+            if thrown != 0 { break }
+            _ = __kk_sequence_builder_yield(builderRaw, value)
+        }
+        outThrown?.pointee = thrown
+        return 0
+    }
     guard let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) else {
         return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
     }

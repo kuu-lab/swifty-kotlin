@@ -80,6 +80,10 @@ extension CallTypeChecker {
                 interner: interner
             ) == .ulongRange
             && driver.callChecker.isContextualizableUnsignedIntegerLiteral(args[0].expr, ast: ast)
+        contextualizeArrayComparatorArgument(
+            calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
+            args: args, ctx: ctx, locals: &locals
+        )
         let argTypes = args.map { arg -> TypeID in
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
@@ -228,7 +232,23 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let memberLookupType = rangeSourceMemberLookupType ?? lookupReceiverType
+        // Inferred primitive ranges retain a scalar handle type for lowering.
+        // Restore their nominal receiver for ordinary member/extension lookup
+        // and overload inference as well as the named bundled range fallbacks.
+        // Leave explicitly typed receivers intact, including their nullability.
+        let rangeExtensionLookupType: TypeID? = if !isSuperCall,
+                                                  case .primitive = sema.types.kind(of: lookupReceiverType)
+        {
+            sourceLevelRangeMemberLookupType(
+                receiverExpr: receiverID,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
 
         // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
         // ULongRange expression. Prefer the exact bundled ULongRange source
@@ -1904,7 +1924,7 @@ extension CallTypeChecker {
             else { return nil }
             return sema.types.make(.classType(ClassType(classSymbol: superclass.classSymbol, args: arguments)))
         }()
-        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
@@ -2769,6 +2789,12 @@ extension CallTypeChecker {
                    driver.sourceManager?.origin(of: file) == .user,
                    !scopedCandidates.contains(candidate)
                 {
+                    return false
+                }
+                // Member extensions require a dispatch receiver in lexical scope.
+                // The scope and dispatch-member paths above already collect them;
+                // global short-name recovery must not make them callable outside it.
+                guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil else {
                     return false
                 }
                 // A member extension declared in a companion is

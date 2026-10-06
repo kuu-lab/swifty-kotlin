@@ -447,7 +447,7 @@ final class ExprTypeChecker {
 
         case let .asCast(exprID, typeRefID, isSafe, range):
             let sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            let targetType = driver.helpers.resolveTypeRef(
+            var targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
                 sema: sema,
@@ -457,6 +457,25 @@ final class ExprTypeChecker {
                 inferenceContext: ctx,
                 usageRange: range
             )
+            // A bare generic cast recovers arguments from the source's known
+            // nominal type, just as a bare `is` check does. Explicit arguments
+            // (including star projections) must keep their declared meaning.
+            if case let .classType(targetClass) = sema.types.kind(of: targetType),
+               targetClass.args.isEmpty,
+               !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
+               case let .classType(sourceClass) = sema.types.kind(of: sema.types.makeNonNullable(sourceType)),
+               let inferredArgs = sema.types.narrowedSubtypeArgs(
+                   forSubtype: targetClass.classSymbol,
+                   givenSupertype: sourceClass.classSymbol,
+                   supertypeArgs: sourceClass.args
+               )
+            {
+                targetType = sema.types.make(.classType(ClassType(
+                    classSymbol: targetClass.classSymbol,
+                    args: inferredArgs,
+                    nullability: targetClass.nullability
+                )))
+            }
             let type: TypeID = if isSafe {
                 sema.types.makeNullable(targetType)
             } else {

@@ -1721,8 +1721,12 @@ final class CallTypeChecker {
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                 )
+                // Imported library declarations also carry the synthetic flag.
+                // Include them before argument inference so receiver lambdas on
+                // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
-                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                    sema.symbols.isSourceBackedSymbol($0)
+                        || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
@@ -3366,7 +3370,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: invokeName,
                         args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: callableCalleeType,
@@ -3593,8 +3598,11 @@ final class CallTypeChecker {
                             break
                         }
                     }
-                    return driver.inferExpr(
+                    let inferredType = driver.inferExpr(
                         argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    )
+                    return sourceLevelRangeArgumentType(
+                        argument.expr, inferredType: inferredType, ctx: ctx
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
@@ -3607,7 +3615,8 @@ final class CallTypeChecker {
                             range: range,
                             calleeName: calleeName,
                             args: resolvedArgs,
-                            explicitTypeArgs: explicitTypeArgs
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
@@ -3713,7 +3722,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         args: resolvedOuterArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: outerReceiver.type,
@@ -3733,7 +3743,8 @@ final class CallTypeChecker {
                                 range: range,
                                 calleeName: calleeName,
                                 args: resolvedOuterArgs,
-                                explicitTypeArgs: explicitTypeArgs
+                                explicitTypeArgs: explicitTypeArgs,
+                                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                             ),
                             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                             implicitReceiverType: receiverType,

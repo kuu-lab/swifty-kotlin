@@ -47,6 +47,44 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
+    func importedCompanionExtensionPropertyCarriesSingletonReceiver() throws {
+        let ctx = makeContextFromSources([
+            """
+            package factories
+            class Factory {
+                companion object {
+                    val Int.score: Int get() = this + 10
+                }
+            }
+            """,
+            """
+            import factories.Factory.Companion.score
+            fun main() { println(2.score) }
+            """,
+        ])
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let getter = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "get"
+                && sema.symbols.memberExtensionOwnerSymbol(for: $0.symbol) != nil
+        })
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let call = try #require(body.first {
+            if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                return symbol == getter.symbol
+            }
+            return false
+        })
+        if case let .call(_, _, arguments, _, _, _, _, _) = call {
+            #expect(arguments.count == getter.params.count)
+            #expect(arguments.count == 2)
+            let receiver = try #require(arguments.first)
+            #expect(module.arena.exprType(receiver) == getter.params[0].type)
+        }
+    }
+
+    @Test
     func memberExtensionPropertyAccessorsCarryBothReceivers() throws {
         let ctx = makeContextFromSource("""
         class C(private val offset: Int) {

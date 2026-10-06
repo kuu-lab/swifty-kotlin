@@ -770,3 +770,185 @@ public fun List<ULong>.toULongArray(): ULongArray {
     }
     return result
 }
+
+public fun <T> Array<T>.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun <T> Array<out T>.reversed(): List<T> = this.toList().reversed()
+
+public fun IntArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun IntArray.reversed(): List<Int> = this.toList().reversed()
+
+public fun LongArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun LongArray.reversed(): List<Long> = this.toList().reversed()
+
+public fun ShortArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun ShortArray.reversed(): List<Short> = this.toList().reversed()
+
+public fun ByteArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun ByteArray.reversed(): List<Byte> = this.toList().reversed()
+
+public fun CharArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun CharArray.reversed(): List<Char> = this.toList().reversed()
+
+public fun BooleanArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun BooleanArray.reversed(): List<Boolean> = this.toList().reversed()
+
+public fun DoubleArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun DoubleArray.reversed(): List<Double> = this.toList().reversed()
+
+public fun FloatArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun FloatArray.reversed(): List<Float> = this.toList().reversed()
+
+public fun UByteArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun UByteArray.reversed(): List<UByte> = this.toList().reversed()
+
+public fun UShortArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun UShortArray.reversed(): List<UShort> = this.toList().reversed()
+
+public fun UIntArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun UIntArray.reversed(): List<UInt> = this.toList().reversed()
+
+public fun ULongArray.reverse() {
+    var left = 0
+    var right = this.size - 1
+    while (left < right) {
+        val element = this[left]
+        this[left] = this[right]
+        this[right] = element
+        left += 1
+        right -= 1
+    }
+}
+
+public fun ULongArray.reversed(): List<ULong> = this.toList().reversed()

@@ -4,6 +4,39 @@ import Testing
 
 @Suite
 struct WhenStatementContextTests {
+    @Test func testCallAndIndexSubjectsInStatementPosition() throws {
+        let source = """
+        const val SUCCESS: Int = 1
+        const val FAILURE: Int = 2
+        class N { fun tryIt(): Int = SUCCESS }
+        fun methodSubject(n: N) {
+            while (true) {
+                when (n.tryIt()) {
+                    SUCCESS -> return
+                    FAILURE -> return
+                }
+            }
+        }
+        fun number(): Int = 1
+        fun callSubject() { when (number()) { 1 -> println(1) } }
+        fun stringIndexSubject(query: String, index: Int) {
+            when (query[index]) { '&' -> println(index) }
+        }
+        fun stringIndexInLoop(query: String) {
+            for (index in 0 until query.length) {
+                when (query[index]) { '&' -> continue }
+                println(index)
+            }
+        }
+        fun arrayIndexSubject(values: IntArray, index: Int) {
+            when (values[index]) { 1 -> println(index) }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testIssueReproductionAndLoopBodies() throws {
         let source = """
         private const val LF: Byte = 10
@@ -89,6 +122,10 @@ struct WhenStatementContextTests {
 
     @Test func testValueContextsStillRequireExhaustiveness() throws {
         let sources = [
+            "fun number(): Int = 1\nfun test(): Int = when (number()) { 1 -> 1 }",
+            "class N { fun tryIt(): Int = 1 }\nfun test(n: N) { val value = when (n.tryIt()) { 1 -> 1 } }",
+            "fun test(query: String): Int = when (query[0]) { '&' -> 1 }",
+            "fun test(values: IntArray): Int = when (values[0]) { 1 -> 1 }",
             "fun test(n: Byte): Int = when (n) { 1.toByte() -> 1 }",
             "fun test(flag: Boolean): Int { return when { flag -> 1 } }",
             "fun test(flag: Boolean) { val value = when { flag -> 1 } }",
@@ -120,6 +157,10 @@ struct WhenStatementContextTests {
             "enum class E { A, B }\nfun test(e: E?) { when { true -> when (e) { E.A -> println(1); E.B -> println(2) } } }",
             "sealed interface S\nclass A : S\nclass B : S\nfun test(s: S) { if (true) { when (s) { is A -> println(1) } } }",
             "sealed interface S\nclass A : S\nfun test(s: S?) { val action: () -> Unit = { when (s) { is A -> println(1) } } }",
+            "fun flag(): Boolean = true\nfun test() { when (flag()) { true -> println(1) } }",
+            "fun test(flags: BooleanArray) { when (flags[0]) { true -> println(1) } }",
+            "enum class E { A, B }\nfun entry(): E = E.A\nfun test() { when (entry()) { E.A -> println(1) } }",
+            "sealed interface S\nclass A : S\nclass B : S\nfun subject(): S = A()\nfun test() { when (subject()) { is A -> println(1) } }",
         ]
         let packagedSources = sources.enumerated().map { "package closed\($0.offset)\n\($0.element)" }
         try withTemporaryFiles(contents: packagedSources) { paths in
@@ -127,7 +168,7 @@ struct WhenStatementContextTests {
             try runSema(ctx)
             for (index, path) in paths.enumerated() {
                 let diagnostics = diagnosticsForPath(path, in: ctx)
-                let code = index == 4 ? "KSWIFTK-SEMA-0071" : "KSWIFTK-SEMA-0004"
+                let code = index == 4 || index == 9 ? "KSWIFTK-SEMA-0071" : "KSWIFTK-SEMA-0004"
                 #expect(diagnostics.contains { $0.code == code })
             }
         }

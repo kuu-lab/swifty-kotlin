@@ -80,6 +80,9 @@ internal external fun kkSupervisorScopeNew(): CoroutineScope
 @KsSymbolName("kk_coroutine_scope_cancel")
 internal external fun kkCoroutineScopeCancel(scope: Any)
 
+@KsSymbolName("kk_coroutine_scope_fail")
+internal external fun kkCoroutineScopeFail(scope: Any, exception: Throwable)
+
 @KsSymbolName("kk_coroutine_scope_wait")
 internal external fun kkCoroutineScopeWait(scope: Any): Throwable?
 
@@ -92,8 +95,11 @@ public suspend fun coroutineScope(block: suspend CoroutineScope.() -> Any?): Any
     try {
         result = block(scope)
     } catch (e: Throwable) {
-        kkCoroutineScopeCancel(scope)
-        kkCoroutineScopeWait(scope)
+        kkCoroutineScopeFail(scope, e)
+        val failure = kkCoroutineScopeWait(scope)
+        if (failure != null && failure !is CancellationException) {
+            throw failure
+        }
         throw e
     }
     val failure = kkCoroutineScopeWait(scope)
