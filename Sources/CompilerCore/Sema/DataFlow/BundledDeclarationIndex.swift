@@ -1324,6 +1324,7 @@ struct BundledDeclarationIndex: Sendable {
             [kotlin, io],
             [kotlin],
             [kotlin, reflect],
+            [kotlin, interner.intern("jvm")],
             [interner.intern("java"), interner.intern("lang")],
         ]
 
