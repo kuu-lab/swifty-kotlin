@@ -2906,7 +2906,17 @@ extension CallTypeChecker {
                     let didBindListSource = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, nonNullableDestinationType]
                     )
-                    let didBindIterableSource = !didBindListSource && isIterableReceiver
+                    // KUU-1389: Set/Collection-family receivers inherit these
+                    // declarations from Iterable<T> upstream. Gating on
+                    // isIterableReceiver admitted only nominal Iterable types,
+                    // so a Set receiver bound a result type with no callee and
+                    // lowered to a phantom `_filterTo`-style symbol. Mirror the
+                    // mapTo arm below: bind the bundled Iterable declaration
+                    // for every collection receiver (the per-candidate nominal
+                    // subtype check keeps Map and Array out).
+                    let didBindIterableSource = !didBindListSource
+                        && !isArrayReceiver
+                        && !isMapReceiver
                         && bindBundledIterableSourceFunction(
                             typeArguments: [collectionElementType, nonNullableDestinationType]
                         )
