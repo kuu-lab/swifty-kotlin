@@ -201,7 +201,7 @@ extension BuildASTPhase {
             guard minPrecedence <= 130 else { return nil }
             _ = consume()
             let isSafe = consumeIf(.symbol(.question)) != nil
-            guard let typeRef = parseTypeReference(token.range) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.asCast(expr: lhs, type: typeRef, isSafe: isSafe, range: range))
         }

@@ -76,6 +76,31 @@ struct DirectLambdaLabelBindingTests {
         assertNoErrors(in: ctx)
     }
 
+    /// KUU-1429: `as`/`as?` are infix casts, not postfix suffixes, so a label
+    /// on the operand lambda still denotes the lambda itself — `return@foo`
+    /// inside must resolve (and the whole call must type-check).
+    @Test func asCastLabeledLambdaKeepsFunctionLabel() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            println(foo@{ return@foo 7 } as () -> Int)
+        }
+        """)
+
+        try runSema(ctx)
+        assertNoErrors(in: ctx)
+    }
+
+    @Test func asQuestionCastLabeledLambdaKeepsFunctionLabel() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            println(foo@{ return@foo 7 } as? () -> Int)
+        }
+        """)
+
+        try runSema(ctx)
+        assertNoErrors(in: ctx)
+    }
+
     @Test func storedLabeledLambdaKeepsFunctionLabel() throws {
         let ctx = makeContextFromSource("""
         fun main() {
