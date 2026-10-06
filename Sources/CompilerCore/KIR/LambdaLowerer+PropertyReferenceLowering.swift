@@ -267,7 +267,7 @@ extension LambdaLowerer {
             targetSymbol: accessor.propertySymbol,
             parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
             returnType: accessor.propertyType, captures: [wrapperValue], receiverCount: shape.arity,
-            setterSymbol: setterMethodSymbol, sema: sema, arena: arena, interner: interner,
+            setterSymbol: setterMethodSymbol, ast: ast, sema: sema, arena: arena, interner: interner,
             instructions: &instructions
         )
         _ = isUnbound

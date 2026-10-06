@@ -65,6 +65,33 @@ struct RuntimeCallableInvocationTests {
         #expect(thrown == 0)
     }
 
+    @Test func callableAnnotationsPreserveRecordsThroughBoxing() throws {
+        let (source, _) = function()
+        _ = __kk_kcallable_register_single_annotation(
+            source, runtimeMakeStringRaw("sample.Marker"), runtimeMakeStringRaw("value=7"), 1
+        )
+        _ = __kk_kcallable_register_single_annotation(
+            source, runtimeMakeStringRaw("kotlin.Metadata"), runtimeMakeStringRaw(""), 0
+        )
+        let wrapper = registerRuntimeObject(RuntimeFunctionValueBox(fnPtr: 1, closureRaw: 0, arity: 2))
+        __kk_function_copy_description(source, wrapper)
+        for raw in [source, wrapper] {
+            let annotations = try #require(runtimeReflectionObject(
+                from: __kk_kcallable_get_metadata(raw, 12), as: RuntimeListBox.self
+            ))
+            #expect(annotations.elements.count == 1)
+            let annotationRaw = try #require(annotations.elements.first)
+            let annotation = try #require(runtimeReflectionObject(from: annotationRaw, as: RuntimeAnnotationBox.self))
+            #expect(annotation.annotationFQName == "sample.Marker")
+            #expect(annotation.arguments == ["value=7"])
+        }
+        let (plain, _) = function()
+        let empty = try #require(runtimeReflectionObject(
+            from: __kk_kcallable_get_metadata(plain, 12), as: RuntimeListBox.self
+        ))
+        #expect(empty.elements.isEmpty)
+    }
+
     @Test func invalidArityAndMissingRequiredArgumentsThrow() {
         let (raw, _) = function()
         var thrown = 0
