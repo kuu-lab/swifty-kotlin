@@ -376,6 +376,24 @@ final class RuntimeOutOfMemoryErrorBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeStackOverflowErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.StackOverflowError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.StackOverflowError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("StackOverflowError", message)
+    }
+}
+
 final class RuntimeNotImplementedErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.NotImplementedError"
@@ -693,6 +711,16 @@ func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
 /// Allocates an `OutOfMemoryError` with the given message.
 func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeOutOfMemoryErrorBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates a `StackOverflowError` with the given message.
+func runtimeAllocateStackOverflowError(message: String?, cause: Int = 0) -> Int {
+    let throwable = RuntimeStackOverflowErrorBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -1261,6 +1289,32 @@ public func kk_out_of_memory_error_new() -> Int {
 @_cdecl("__kk_out_of_memory_error_new_message")
 public func kk_out_of_memory_error_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateOutOfMemoryError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_stack_overflow_error_new")
+public func kk_stack_overflow_error_new() -> Int {
+    runtimeAllocateStackOverflowError(message: nil)
+}
+
+@_cdecl("__kk_stack_overflow_error_new_message")
+public func kk_stack_overflow_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_stack_overflow_error_new_message_cause")
+public func kk_stack_overflow_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_stack_overflow_error_new_cause")
+public func kk_stack_overflow_error_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
 }
 
 @_cdecl("__kk_not_implemented_error_new")

@@ -359,6 +359,56 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        // Bridge-only allocation entry points for the bundled Kotlin
+        // `kotlin.StackOverflowError` declaration (KUU-1384).
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_message_cause",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_cause",
+            parameters: [
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        // Per-frame stack guard invoked by generated function prologues:
+        // returns 0 while the caller's stack marker sits above the current
+        // thread's overflow bound, or a StackOverflowError handle once it
+        // drops below it (KUU-1384).
+        RuntimeABIFunctionSpec(
+            name: "kk_stack_overflow_check",
+            parameters: [
+                RuntimeABIParameter(name: "marker", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_assertion_error_new",
             parameters: [],
