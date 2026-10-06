@@ -178,6 +178,8 @@ public struct FunctionSignature: Hashable, Sendable {
     /// Whether a function parameter may carry non-local returns from a lambda
     /// argument. `crossinline` and `noinline` parameters are false.
     public let valueParameterAllowsNonLocalReturn: [Bool]
+    /// False for legacy imported signatures whose inline permissions were inferred.
+    public let hasExplicitInlineParameterMetadata: Bool
     public let typeParameterSymbols: [SymbolID]
     public let reifiedTypeParameterIndices: Set<Int>
     public let typeParameterUpperBounds: [TypeID?]
@@ -199,6 +201,7 @@ public struct FunctionSignature: Hashable, Sendable {
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
+        hasExplicitInlineParameterMetadata: Bool = true,
         typeParameterSymbols: [SymbolID] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
         typeParameterUpperBounds: [TypeID?] = [],
@@ -215,6 +218,7 @@ public struct FunctionSignature: Hashable, Sendable {
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
+        self.hasExplicitInlineParameterMetadata = hasExplicitInlineParameterMetadata
         self.typeParameterSymbols = typeParameterSymbols
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         let normalizedUpperBoundsList: [[TypeID]] = if !typeParameterUpperBoundsList.isEmpty {

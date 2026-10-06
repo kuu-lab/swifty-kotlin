@@ -750,12 +750,15 @@ extension CallLowerer {
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported
-            // Suspend callbacks need the callable ABI unless a non-local
-            // return requires their raw body to stay visible for inlining.
+            // Ordinary inline callbacks retain their positional captures,
+            // including lambdas whose suspension comes from a nested inline
+            // call. Boxing them hides the body and its coroutine context.
+            // Imported parameter metadata excludes escaping callbacks.
             if isInline,
                case .symbolRef? = arena.expr(arguments[finalArgIndex]),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                (!isImported || (!callable.hasClosureParam && callable.captureArguments.isEmpty)
+                   || (signature.hasExplicitInlineParameterMetadata && allowsRawInlineArgument && !callable.hasClosureParam)
                    || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (!functionType.isSuspend || arena.function(for: callable.symbol)?.isInlineOnly == true),
                (allowsRawInlineArgument

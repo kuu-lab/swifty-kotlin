@@ -306,6 +306,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )
@@ -382,6 +383,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )

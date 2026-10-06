@@ -595,35 +595,6 @@ extension CallLowerer {
             && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
     }
 
-    func resultRuntimeHOFMemberCalleeName(
-        memberName: String,
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> String? {
-        guard isKotlinResultType(receiverType, sema: sema, interner: interner) else {
-            return nil
-        }
-        switch memberName {
-        case "getOrElse":
-            return "kk_result_getOrElse"
-        case "map":
-            return "kk_result_map"
-        case "fold":
-            return "kk_result_fold"
-        case "onSuccess":
-            return "kk_result_onSuccess"
-        case "onFailure":
-            return "kk_result_onFailure"
-        case "recover":
-            return "kk_result_recover"
-        case "recoverCatching":
-            return "kk_result_recoverCatching"
-        default:
-            return nil
-        }
-    }
-
     func isKotlinResultType(
         _ type: TypeID,
         sema: SemaModule,

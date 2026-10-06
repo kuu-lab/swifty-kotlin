@@ -197,4 +197,51 @@ struct SuspendCallContextTests {
         """)
         #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 4, "\(result.diagnostics)")
     }
+    @Test
+    func resultInlineLambdasInheritSuspension() throws {
+        let result = try diagnostics("""
+        class Ch {
+            suspend fun flush() {}
+            suspend fun flushAndClose() { runCatching { flush() } }
+        }
+        suspend fun sf(): Int = 7
+        suspend fun good(result: Result<Int>, channel: Ch) {
+            runCatching { channel.flushAndClose() }
+            channel.runCatching { flush() }
+            result.getOrElse { sf() }
+            result.map { sf() }
+            result.mapCatching { sf() }
+            result.fold({ sf() }, { sf() })
+            result.onSuccess { sf() }
+            result.onFailure { sf() }
+            result.recover { sf() }
+            result.recoverCatching { sf() }
+        }
+        """, includeStdlib: true)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
+    func resultInlineLambdasStillRequireSuspensionContext() throws {
+        let result = try diagnostics("""
+        suspend fun sf(): Int = 7
+        fun bad(result: Result<Int>) {
+            runCatching { sf() }
+            result.runCatching { sf() }
+            result.getOrElse { sf() }
+            result.map { sf() }
+            result.mapCatching { sf() }
+            result.fold({ sf() }, { sf() })
+            result.onSuccess { sf() }
+            result.onFailure { sf() }
+            result.recover { sf() }
+            result.recoverCatching { sf() }
+        }
+        suspend fun stored() { val block = { runCatching { sf() } } }
+        """, includeStdlib: true)
+        let errors = result.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 12, "\(result.diagnostics)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" })
+    }
+
 }

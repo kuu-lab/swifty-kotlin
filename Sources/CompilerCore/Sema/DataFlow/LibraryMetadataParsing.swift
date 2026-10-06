@@ -304,7 +304,8 @@ extension DataFlowSemaPhase {
         let fallback = FunctionSignature(
             parameterTypes: Array(repeating: platformAny, count: max(0, record.arity)),
             returnType: platformAny,
-            isSuspend: record.isSuspend
+            isSuspend: record.isSuspend,
+            hasExplicitInlineParameterMetadata: false
         )
         guard let encodedSignature = record.typeSignature else {
             return fallback
@@ -564,6 +565,7 @@ extension DataFlowSemaPhase {
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
+            hasExplicitInlineParameterMetadata: record.valueParameterAllowsNonLocalReturn.count == functionType.params.count,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
             typeParameterUpperBoundsList: typeParameterUpperBoundsList,
