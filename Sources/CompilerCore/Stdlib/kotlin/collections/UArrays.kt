@@ -3,6 +3,7 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
+import kotlin.random.Random
 
 // KSP-660
 // Array signed/unsigned view conversions.
@@ -130,3 +131,78 @@ public fun UShortArray.asList(): List<UShort> = __kkUShortArrayAsList(this)
 public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)
 @ExperimentalUnsignedTypes
 public fun ULongArray.asList(): List<ULong> = __kkULongArrayAsList(this)
+
+// KUU-1392: unsigned-array random/randomOrNull, matching the signed primitive
+// overloads in PrimitiveArraySliceAndAccess.kt.
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.random(): UByte = random(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.random(random: Random): UByte {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.randomOrNull(): UByte? = randomOrNull(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.randomOrNull(random: Random): UByte? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.random(): UShort = random(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.random(random: Random): UShort {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.randomOrNull(): UShort? = randomOrNull(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.randomOrNull(random: Random): UShort? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.random(): UInt = random(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.random(random: Random): UInt {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.randomOrNull(): UInt? = randomOrNull(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.randomOrNull(random: Random): UInt? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.random(): ULong = random(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.random(random: Random): ULong {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.randomOrNull(): ULong? = randomOrNull(Random.Default)
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.randomOrNull(random: Random): ULong? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
