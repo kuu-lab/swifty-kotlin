@@ -324,6 +324,8 @@ final class DeclTypeChecker {
             if kClassType.nullability == .nullable {
                 emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
             }
+        case .nullableUnit:
+            emitLateinitMustBeNonNullDiagnostic(for: property, diagnostics: diagnostics)
         case .error, .unit, .intersection:
             break
         }

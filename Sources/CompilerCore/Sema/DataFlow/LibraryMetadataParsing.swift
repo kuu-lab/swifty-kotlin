@@ -641,7 +641,7 @@ extension DataFlowSemaPhase {
                 visit(kc.argument)
             case let .intersection(parts):
                 for part in parts { visit(part) }
-            case .nothing, .any, .primitive, .unit, .error, .stringStruct:
+            case .nothing, .any, .primitive, .unit, .nullableUnit, .error, .stringStruct:
                 break
             }
         }
@@ -1244,7 +1244,7 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
-            case .stringStruct:
+            case .unit, .nullableUnit, .stringStruct:
                 types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(

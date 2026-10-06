@@ -654,10 +654,10 @@ extension DataFlowSemaPhase {
             return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
-        case .any, .unit, .nothing:
+        case .any, .unit, .nullableUnit, .nothing:
             let nullable = types.makeNullable(typeID)
             // If makeNullable is a no-op: either the type is already nullable (keep it)
-            // or makeNullable genuinely can't apply (e.g. Unit) — fall back to Any?
+            // or makeNullable genuinely can't apply (e.g. an intersection) — fall back to Any?
             if nullable == typeID {
                 return types.isSubtype(types.nullableNothingType, typeID) ? typeID : types.nullableAnyType
             }
@@ -860,7 +860,7 @@ extension DataFlowSemaPhase {
             )
             if newArg == kc.argument { return typeID }
             return types.make(.kClassType(KClassType(argument: newArg, nullability: kc.nullability)))
-        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nullableUnit, .nothing, .error:
             return typeID
         case let .intersection(parts):
             let newParts = parts.map {
