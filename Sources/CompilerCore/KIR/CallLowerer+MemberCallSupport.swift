@@ -270,10 +270,12 @@ extension CallLowerer {
     // unresolvedCollectionMemberNames because those names also exist on
     // collections). These names are Flow-specific, so a Flow receiver with an
     // unresolved chosenCallee still needs its receiver argument inserted here.
+    // KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` are not
+    // kotlinx-coroutines Flow operators and stay unresolved.
     static let unresolvedFlowMemberNames: Set<String> = [
-        "buffer", "conflate", "collectLatest", "debounce", "sample", "delayEach", "flowOn",
+        "buffer", "conflate", "collectLatest", "debounce", "sample", "flowOn",
         "transform", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-        "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume", "single",
+        "catch", "retry", "retryWhen", "single",
     ]
 
     enum PrimitiveCompareABIKind: Int32 {

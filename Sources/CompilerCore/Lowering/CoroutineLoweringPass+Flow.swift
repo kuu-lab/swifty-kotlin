@@ -9,8 +9,9 @@ enum RuntimeFlowTag: Int64 {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    case onErrorReturn = 9
-    case onErrorResume = 10
+    // KUU-1351: tags 9/10 (onErrorReturn/onErrorResume) and 19 (delayEach)
+    // backed Flow operators that do not exist in kotlinx-coroutines; the
+    // values stay retired so no lowering emits them.
     case transform = 11
     case takeWhile = 12
     case dropWhile = 13
@@ -19,7 +20,6 @@ enum RuntimeFlowTag: Int64 {
     case flowOn = 16
     case debounce = 17
     case sample = 18
-    case delayEach = 19
 }
 
 struct FlowLoweringNames {
@@ -45,12 +45,9 @@ struct FlowLoweringNames {
     let flowOn: InternedString
     let debounce: InternedString
     let sample: InternedString
-    let delayEach: InternedString
     let catchHandler: InternedString
     let retry: InternedString
     let retryWhen: InternedString
-    let onErrorReturn: InternedString
-    let onErrorResume: InternedString
     let toList: InternedString
     let first: InternedString
     let kkFlowCreate: InternedString
@@ -113,12 +110,9 @@ extension CoroutineLoweringPass {
         let flowOnName = ctx.interner.intern("flowOn")
         let debounceName = ctx.interner.intern("debounce")
         let sampleName = ctx.interner.intern("sample")
-        let delayEachName = ctx.interner.intern("delayEach")
         let catchName = ctx.interner.intern("catch")
         let retryName = ctx.interner.intern("retry")
         let retryWhenName = ctx.interner.intern("retryWhen")
-        let onErrorReturnName = ctx.interner.intern("onErrorReturn")
-        let onErrorResumeName = ctx.interner.intern("onErrorResume")
         let toListName = ctx.interner.intern("toList")
         let firstName = ctx.interner.intern("first")
 
@@ -225,9 +219,8 @@ extension CoroutineLoweringPass {
             takeName, transformName, takeWhileName, dropWhileName,
             flatMapConcatName, flatMapMergeName, flatMapLatestName,
             combineName, zipName, mergeName, bufferName, conflateName,
-            flowOnName, debounceName, sampleName, delayEachName,
+            flowOnName, debounceName, sampleName,
             catchName, retryName, retryWhenName,
-            onErrorReturnName, onErrorResumeName,
             ctx.interner.intern("onEach"),
             ctx.interner.intern("onEmpty"),
             kkFlowCreateName, kkChannelFlowCreateName, kkCallbackFlowCreateName,
@@ -484,12 +477,9 @@ extension CoroutineLoweringPass {
                       tagValue == RuntimeFlowTag.flowOn.rawValue ||
                       tagValue == RuntimeFlowTag.debounce.rawValue ||
                       tagValue == RuntimeFlowTag.sample.rawValue ||
-                      tagValue == RuntimeFlowTag.delayEach.rawValue ||
                       tagValue == RuntimeFlowTag.catchHandler.rawValue ||
                       tagValue == RuntimeFlowTag.retry.rawValue ||
-                      tagValue == RuntimeFlowTag.retryWhen.rawValue ||
-                      tagValue == RuntimeFlowTag.onErrorReturn.rawValue ||
-                      tagValue == RuntimeFlowTag.onErrorResume.rawValue
+                      tagValue == RuntimeFlowTag.retryWhen.rawValue
                 else {
                     return false
                 }
@@ -551,8 +541,7 @@ extension CoroutineLoweringPass {
                         }
                         if isFlowRewriteCandidate(symbol, callee),
                            callee == mapName || callee == filterName || callee == takeName ||
-                            callee == catchName || callee == retryName || callee == retryWhenName ||
-                            callee == onErrorReturnName || callee == onErrorResumeName,
+                            callee == catchName || callee == retryName || callee == retryWhenName,
                            arguments.count == 2 ||
                             ((callee == mapName || callee == filterName || callee == catchName ||
                                 callee == retryWhenName) && arguments.count == 3),
@@ -563,7 +552,7 @@ extension CoroutineLoweringPass {
                             continue
                         }
                         if isFlowRewriteCandidate(symbol, callee),
-                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName, delayEachName].contains(callee),
+                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName].contains(callee),
                            arguments.count >= 2,
                            let flowHandleArg = arguments.first,
                            flowExprIDs.contains(flowHandleArg.rawValue)
@@ -620,8 +609,7 @@ extension CoroutineLoweringPass {
                         }
                         if isFlowRewriteCandidate(symbol, callee),
                            callee == mapName || callee == filterName || callee == takeName ||
-                            callee == catchName || callee == retryName || callee == retryWhenName ||
-                            callee == onErrorReturnName || callee == onErrorResumeName,
+                            callee == catchName || callee == retryName || callee == retryWhenName,
                            arguments.count == 1,
                            flowExprIDs.contains(receiver.rawValue)
                         {
@@ -629,7 +617,7 @@ extension CoroutineLoweringPass {
                             continue
                         }
                         if isFlowRewriteCandidate(symbol, callee),
-                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName, delayEachName].contains(callee),
+                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName].contains(callee),
                            arguments.count == 1,
                            flowExprIDs.contains(receiver.rawValue)
                         {
@@ -692,7 +680,7 @@ extension CoroutineLoweringPass {
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
                         callee == combineName || callee == zipName || callee == mergeName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
-                        callee == debounceName || callee == sampleName || callee == delayEachName ||
+                        callee == debounceName || callee == sampleName ||
                         callee == toListName || callee == firstName || callee == singleName ||
                         callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName ||
                         callee == kkFlowCollectLatestName ||
@@ -704,9 +692,8 @@ extension CoroutineLoweringPass {
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
-                        callee == debounceName || callee == sampleName || callee == delayEachName ||
+                        callee == debounceName || callee == sampleName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName ||
                         callee == toListName || callee == firstName || callee == singleName
                 default:
                     false
@@ -729,8 +716,7 @@ extension CoroutineLoweringPass {
                 case let .call(symbol, callee, arguments, _, _, _, _, _):
                     if isFlowRewriteCandidate(symbol, callee),
                    callee == mapName || callee == filterName || callee == takeName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 2 ||
                         ((callee == mapName || callee == filterName || callee == catchName ||
                             callee == retryWhenName) && arguments.count == 3)
@@ -760,7 +746,7 @@ extension CoroutineLoweringPass {
                     if isFlowRewriteCandidate(symbol, callee),
                    callee == mapName || callee == filterName || callee == takeName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName || callee == collectName ||
+                        callee == collectName ||
                         callee == collectLatestName,
                        arguments.count == 1
                     {
@@ -799,12 +785,9 @@ extension CoroutineLoweringPass {
                 flowOn: flowOnName,
                 debounce: debounceName,
                 sample: sampleName,
-                delayEach: delayEachName,
                 catchHandler: catchName,
                 retry: retryName,
                 retryWhen: retryWhenName,
-                onErrorReturn: onErrorReturnName,
-                onErrorResume: onErrorResumeName,
                 toList: toListName,
                 first: firstName,
                 kkFlowCreate: kkFlowCreateName,

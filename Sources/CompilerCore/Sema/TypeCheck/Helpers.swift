@@ -728,7 +728,7 @@ struct TypeCheckHelpers {
              interner.intern("transform"), interner.intern("takeWhile"), interner.intern("dropWhile"),
              interner.intern("flatMapConcat"), interner.intern("flatMapMerge"), interner.intern("flatMapLatest"),
              interner.intern("buffer"), interner.intern("conflate"), interner.intern("flowOn"),
-             interner.intern("debounce"), interner.intern("sample"), interner.intern("delayEach"),
+             interner.intern("debounce"), interner.intern("sample"),
              interner.intern("zip"), interner.intern("combine"), interner.intern("merge"):
             guard argumentCount == 1 || argumentCount == 2 else { return nil }
             return sema.types.nullableAnyType
