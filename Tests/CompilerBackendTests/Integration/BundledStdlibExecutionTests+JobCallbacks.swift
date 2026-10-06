@@ -79,5 +79,41 @@ extension BundledStdlibExecutionTests {
             expectedOutput: "true\n1\nAB\n1\ntrue\ntrue\nNonDisposableHandle\ntrue\ntrue\n0\ntrue\ntrue\n42\ntrue\n"
         )
     }
+
+    /// KUU-1419: `Job.cancel(message, cause)` resolves to the bundled
+    /// extension that wraps the diagnostic message in a CancellationException.
+    /// The catch-block call shape mirrors the ktor-io sites that hit
+    /// SEMA-0002, and the `launch{...}.apply{invokeOnCompletion{...}}` chain
+    /// pins the resolution cascade the ticket describes.
+    @Test(arguments: [true, false])
+    func testJobCancelMessageCauseExtension(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlin.coroutines.EmptyCoroutineContext
+
+            fun CoroutineScope.g() {
+                launch(EmptyCoroutineContext) {
+                    val nested = Job()
+                    try { throw IllegalStateException("root") } catch (cause: Throwable) {
+                        nested.cancel("boom", cause)
+                    }
+                    println("nested=${nested.isCancelled}")
+                }.apply { invokeOnCompletion { println("handler") } }
+            }
+
+            fun main() = runBlocking {
+                g()
+                val second = Job()
+                second.cancel("only message")
+                println("second=${second.isCancelled}")
+                println("done")
+            }
+            """,
+            expectedOutput: "second=true\ndone\nnested=true\nhandler\n",
+            moduleName: "KUU1419JobCancelMessage",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
 #endif
