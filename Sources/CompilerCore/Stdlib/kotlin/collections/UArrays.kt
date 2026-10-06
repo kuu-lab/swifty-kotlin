@@ -130,3 +130,12 @@ public fun UShortArray.asList(): List<UShort> = __kkUShortArrayAsList(this)
 public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)
 @ExperimentalUnsignedTypes
 public fun ULongArray.asList(): List<ULong> = __kkULongArrayAsList(this)
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.toSet(): Set<UByte> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UShortArray.toSet(): Set<UShort> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UIntArray.toSet(): Set<UInt> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun ULongArray.toSet(): Set<ULong> = asList().toSet()

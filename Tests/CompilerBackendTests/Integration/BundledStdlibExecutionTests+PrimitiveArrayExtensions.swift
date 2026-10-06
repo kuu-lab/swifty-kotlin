@@ -459,4 +459,338 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    // KUU-1383: getOrNull/elementAtOrElse/elementAt/single/singleOrNull/
+    // indexOfFirst/indexOfLast/toSet for every primitive array type.
+    @Test(arguments: [true, false])
+    func testPrimitiveArrayMissingExtensions(allowDefaultStdlibLibrary: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/primitive_array_missing_extensions.kt"
+        ), encoding: .utf8)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: """
+            Int
+            2
+            1
+            null
+            null
+            2
+            9
+            -1
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Long
+            2
+            1
+            null
+            null
+            2
+            9
+            -1
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Byte
+            2
+            1
+            null
+            null
+            2
+            9
+            -1
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Short
+            2
+            1
+            null
+            null
+            2
+            9
+            -1
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Char
+            b
+            a
+            null
+            null
+            b
+            q
+            z
+            e
+            e
+            null
+            null
+            b
+            b
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [c, a, b]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Boolean
+            false
+            false
+            null
+            null
+            false
+            true
+            false
+            true
+            true
+            null
+            null
+            false
+            false
+            null
+            null
+            1
+            -1
+            0
+            -1
+            [true, false]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Float
+            2.0
+            1.0
+            null
+            null
+            2.0
+            9.0
+            -1.0
+            5.0
+            5.0
+            null
+            null
+            2.0
+            2.0
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3.0, 1.0, 2.0]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            Double
+            2.0
+            1.0
+            null
+            null
+            2.0
+            9.0
+            -1.0
+            5.0
+            5.0
+            null
+            null
+            2.0
+            2.0
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3.0, 1.0, 2.0]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            UInt
+            2
+            1
+            null
+            null
+            2
+            9
+            0
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            ULong
+            2
+            1
+            null
+            null
+            2
+            9
+            0
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            UByte
+            2
+            1
+            null
+            null
+            2
+            9
+            9
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+            UShort
+            2
+            1
+            null
+            null
+            2
+            9
+            9
+            5
+            5
+            null
+            null
+            2
+            2
+            null
+            null
+            2
+            -1
+            3
+            -1
+            [3, 1, 2]
+            elementAt-oob
+            NSEE:Array is empty.
+            IAE:Array has more than one element.
+            IAE-p:Array contains more than one matching element.
+            NSEE-p:Array contains no element matching the predicate.
+
+            """,
+            moduleName: "KUU1383PrimitiveArrayMissingExtensions",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
