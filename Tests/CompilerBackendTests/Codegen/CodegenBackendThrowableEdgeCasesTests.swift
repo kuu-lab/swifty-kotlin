@@ -25,6 +25,38 @@ struct CodegenBackendThrowableEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "ThrowableSuppressedExceptionsRuntime", expected: "2\nsuppressed1\nsuppressed2\n")
     }
 
+    @Test(arguments: [true, false])
+    func testCodegenThrowableSuppressedArrayProperty(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun main() {
+            val primary: Throwable = RuntimeException("primary")
+            val empty: Array<Throwable> = primary.suppressed
+            println(empty.size)
+            val first = IllegalStateException("first")
+            primary.addSuppressed(first)
+            val snapshot: Array<Throwable> = primary.suppressed
+            println(snapshot.size)
+            println(snapshot[0] === first)
+            snapshot[0] = Exception("replacement")
+            println(primary.suppressed[0].message)
+            primary.addSuppressed(IllegalArgumentException("second"))
+            println(snapshot.size)
+            println(primary.suppressed.size)
+            println(primary.suppressed[1].message)
+            println(primary.getSuppressed().size)
+            println(primary.suppressedExceptions.size)
+            println(RuntimeException("subtype").suppressed.size)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ThrowableSuppressedArrayProperty",
+            expected: "0\n1\ntrue\nfirst\n1\n2\nsecond\n2\n2\n0\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // Regression test: string template interpolation ("$e") and the `+` concatenation
     // operator lower to kk_any_to_string, which used to fall through to printing the
     // raw pointer bit pattern for a caught Throwable instead of matching println(e)'s

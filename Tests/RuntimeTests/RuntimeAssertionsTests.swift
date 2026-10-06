@@ -493,6 +493,24 @@ struct RuntimeAssertionsTests {
             "Expected typed NoWhenBranchMatchedException runtime boxes"
         )
 
+        let noArgBox = try #require(
+            runtimeBox(from: noArg, as: RuntimeNoWhenBranchMatchedExceptionBox.self)
+        )
+        #expect(noArgBox.message == nil)
+        #expect(noArgBox.cause == 0)
+        #expect(causeOnlyBox.message == "kotlin.NoWhenBranchMatchedException")
+        for nullRaw in [0, runtimeNullSentinelInt] {
+            let nullMessage = kk_no_when_branch_matched_exception_new_message(nullRaw)
+            let nullWithCause = kk_no_when_branch_matched_exception_new_message_cause(nullRaw, noArg)
+            let nullCause = kk_no_when_branch_matched_exception_new_cause(nullRaw)
+            let nullBoth = kk_no_when_branch_matched_exception_new_message_cause(nullRaw, nullRaw)
+            for (raw, expectedCause) in [(nullMessage, 0), (nullWithCause, noArg), (nullCause, 0), (nullBoth, 0)] {
+                let box = try #require(runtimeBox(from: raw, as: RuntimeNoWhenBranchMatchedExceptionBox.self))
+                #expect(box.message == nil)
+                #expect(box.cause == expectedCause)
+            }
+        }
+
         #expect(messageOnlyBox.message == "missing")
         #expect(withCauseBox.message == "missing")
         #expect(withCauseBox.cause == noArg)
