@@ -2491,6 +2491,7 @@ extension CallLowerer {
             callBinding: callBinding,
             chosenCallee: chosen,
             spreadFlags: args.map(\.isSpread),
+            argumentLabels: args.map(\.label),
             ast: ast,
             sema: sema,
             arena: arena,

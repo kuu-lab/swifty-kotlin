@@ -25,6 +25,7 @@ extension CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> NormalizedCallResult {
@@ -33,6 +34,7 @@ extension CallSupportLowerer {
             callBinding: callBinding,
             chosenCallee: chosenCallee,
             spreadFlags: spreadFlags,
+            argumentLabels: argumentLabels,
             ast: shared.ast,
             sema: shared.sema,
             arena: shared.arena,

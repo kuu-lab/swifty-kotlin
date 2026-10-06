@@ -276,11 +276,6 @@ extension BuildASTPhase.ExpressionParser {
 
     func parseCallArgument(implicitLambdaLabel: InternedString? = nil) -> CallArgument? {
         var isSpread = false
-        if matches(.symbol(.star)) {
-            _ = consume()
-            isSpread = true
-        }
-
         var label: InternedString?
         if let first = current(),
            let second = peek(1),
@@ -290,6 +285,12 @@ extension BuildASTPhase.ExpressionParser {
             label = tokenText(first)
             _ = consume()
             _ = consume()
+        }
+
+        // Kotlin places the spread operator after the optional argument label.
+        if matches(.symbol(.star)) {
+            _ = consume()
+            isSpread = true
         }
 
         let expr: ExprID?
