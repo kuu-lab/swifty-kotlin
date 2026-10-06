@@ -739,17 +739,32 @@ final class RuntimeContinuationState: @unchecked Sendable {
         // canonicalizer lookup below is allocation-free on a hit: the
         // builder's dispatcher/name/handler win when present (KUU-1387).
         let builderDispatcher = builder?.dispatcher ?? 0
+        let mergedName = (builder?.name ?? inherited?.name) ?? scope?.name
+        let mergedDispatcher = builderDispatcher != 0 ? builderDispatcher : (inherited?.dispatcher ?? 0)
+        let mergedHandler = builder?.exceptionHandler ?? inherited?.exceptionHandler
+        // KUU-1405: carry source-defined elements through; builder extras win
+        // per key over inherited ones, and any extras claiming a built-in key
+        // lose to the merged built-in field (e.g. the coroutine's own Job).
+        let mergedExtras = runtimeMergedContextExtras(
+            inherited: inherited?.extras ?? [],
+            override: builder?.extras ?? [],
+            jobPresent: jobRaw != 0,
+            namePresent: mergedName != nil,
+            dispatcherPresent: mergedDispatcher != 0,
+            handlerPresent: mergedHandler != nil
+        )
         return runtimeCanonicalCoroutineContext(
-            dispatcher: builderDispatcher != 0 ? builderDispatcher : (inherited?.dispatcher ?? 0),
+            dispatcher: mergedDispatcher,
             dispatcherHandleRaw: builderDispatcher != 0
                 ? (builder?.dispatcherHandleRaw ?? 0)
                 : (inherited?.dispatcherHandleRaw ?? 0),
-            name: (builder?.name ?? inherited?.name) ?? scope?.name,
+            name: mergedName,
             nameHandleRaw: builder?.name != nil
                 ? (builder?.nameHandleRaw ?? 0)
                 : (inherited?.nameHandleRaw ?? 0),
-            exceptionHandler: builder?.exceptionHandler ?? inherited?.exceptionHandler,
-            jobHandleRaw: jobRaw
+            exceptionHandler: mergedHandler,
+            jobHandleRaw: jobRaw,
+            extras: mergedExtras
         )
     }
 
@@ -5818,7 +5833,20 @@ public func kk_job_key_get(_ receiver: Int) -> Int {
     case .job, .task:
         return kk_job_key()
     case .other:
-        return runtimeNullSentinelInt
+        // KUU-1405: `Job by ...` delegates bind no runtime job on the wrapper
+        // box, yet `Job.key` on JVM still answers Job.Key — the interface's
+        // `key` default is independent of job binding. Keep the null sentinel
+        // only for receivers that are not Job-typed at all.
+        guard object is RuntimeObjectBox,
+              let sourceID = runtimeObjectTypeID(rawValue: receiver),
+              runtimeIsAssignable(
+                  sourceTypeID: sourceID,
+                  targetTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.Job")
+              )
+        else {
+            return runtimeNullSentinelInt
+        }
+        return kk_job_key()
     }
 }
 
@@ -6601,4 +6629,19 @@ public func kk_suspend_function_invoke_5(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], continuation: continuation, outThrown: outThrown)
+}
+
+@_silgen_name("kk_suspend_function_invoke_6")
+public func kk_suspend_function_invoke_6(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], continuation: continuation, outThrown: outThrown)
 }

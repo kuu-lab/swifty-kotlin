@@ -75,6 +75,8 @@ extension CallTypeChecker {
         "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
         "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
         "partition", "groupBy", "associate", "associateBy",
+        "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
+        "indexOfFirst", "indexOfLast", "toSet",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [

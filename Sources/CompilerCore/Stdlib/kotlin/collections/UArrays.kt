@@ -206,3 +206,12 @@ public fun ULongArray.randomOrNull(random: Random): ULong? {
     if (size == 0) return null
     return this[random.nextInt(size)]
 }
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.toSet(): Set<UByte> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UShortArray.toSet(): Set<UShort> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UIntArray.toSet(): Set<UInt> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun ULongArray.toSet(): Set<ULong> = asList().toSet()

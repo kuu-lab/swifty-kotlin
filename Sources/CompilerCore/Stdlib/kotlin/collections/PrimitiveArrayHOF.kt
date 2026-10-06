@@ -226,6 +226,41 @@ public fun IntArray.lastOrNull(predicate: (Int) -> Boolean): Int? {
     return null
 }
 
+public fun IntArray.single(): Int {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun IntArray.singleOrNull(): Int? = if (this.size == 1) this[0] else null
+
+public inline fun IntArray.single(predicate: (Int) -> Boolean): Int {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun IntArray.singleOrNull(predicate: (Int) -> Boolean): Int? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun IntArray.any(): Boolean = this.size != 0
 
 public fun IntArray.any(predicate: (Int) -> Boolean): Boolean {
@@ -520,6 +555,41 @@ public fun LongArray.lastOrNull(predicate: (Long) -> Boolean): Long? {
         i--
     }
     return null
+}
+
+public fun LongArray.single(): Long {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun LongArray.singleOrNull(): Long? = if (this.size == 1) this[0] else null
+
+public inline fun LongArray.single(predicate: (Long) -> Boolean): Long {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun LongArray.singleOrNull(predicate: (Long) -> Boolean): Long? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
 }
 
 public fun LongArray.any(): Boolean = this.size != 0
@@ -818,6 +888,41 @@ public fun ByteArray.lastOrNull(predicate: (Byte) -> Boolean): Byte? {
     return null
 }
 
+public fun ByteArray.single(): Byte {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun ByteArray.singleOrNull(): Byte? = if (this.size == 1) this[0] else null
+
+public inline fun ByteArray.single(predicate: (Byte) -> Boolean): Byte {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun ByteArray.singleOrNull(predicate: (Byte) -> Boolean): Byte? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun ByteArray.any(): Boolean = this.size != 0
 
 public fun ByteArray.any(predicate: (Byte) -> Boolean): Boolean {
@@ -1114,6 +1219,41 @@ public fun ShortArray.lastOrNull(predicate: (Short) -> Boolean): Short? {
     return null
 }
 
+public fun ShortArray.single(): Short {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun ShortArray.singleOrNull(): Short? = if (this.size == 1) this[0] else null
+
+public inline fun ShortArray.single(predicate: (Short) -> Boolean): Short {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun ShortArray.singleOrNull(predicate: (Short) -> Boolean): Short? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun ShortArray.any(): Boolean = this.size != 0
 
 public fun ShortArray.any(predicate: (Short) -> Boolean): Boolean {
@@ -1192,11 +1332,35 @@ public fun ShortArray.joinToString(
 
 public fun UIntArray.elementAt(index: Int): UInt = this[index]
 
+public fun UIntArray.getOrNull(index: Int): UInt? =
+    if (index >= 0 && index < size) this[index] else null
+
+public inline fun UIntArray.elementAtOrElse(index: Int, defaultValue: (Int) -> UInt): UInt =
+    if (index >= 0 && index < size) this[index] else defaultValue(index)
+
 public fun UIntArray.indexOf(element: UInt): Int {
     var i = 0
     while (i < this.size) {
         if (this[i] == element) return i
         i++
+    }
+    return -1
+}
+
+public inline fun UIntArray.indexOfFirst(predicate: (UInt) -> Boolean): Int {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun UIntArray.indexOfLast(predicate: (UInt) -> Boolean): Int {
+    var i = this.size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
     }
     return -1
 }
@@ -1453,6 +1617,41 @@ public fun UIntArray.lastOrNull(predicate: (UInt) -> Boolean): UInt? {
     return null
 }
 
+public fun UIntArray.single(): UInt {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun UIntArray.singleOrNull(): UInt? = if (this.size == 1) this[0] else null
+
+public inline fun UIntArray.single(predicate: (UInt) -> Boolean): UInt {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun UIntArray.singleOrNull(predicate: (UInt) -> Boolean): UInt? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun UIntArray.any(): Boolean = this.size != 0
 
 public fun UIntArray.any(predicate: (UInt) -> Boolean): Boolean {
@@ -1528,6 +1727,32 @@ public fun UIntArray.joinToString(
 }
 
 // --- ULongArray ---
+
+public fun ULongArray.elementAt(index: Int): ULong = this[index]
+
+public fun ULongArray.getOrNull(index: Int): ULong? =
+    if (index >= 0 && index < size) this[index] else null
+
+public inline fun ULongArray.elementAtOrElse(index: Int, defaultValue: (Int) -> ULong): ULong =
+    if (index >= 0 && index < size) this[index] else defaultValue(index)
+
+public inline fun ULongArray.indexOfFirst(predicate: (ULong) -> Boolean): Int {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun ULongArray.indexOfLast(predicate: (ULong) -> Boolean): Int {
+    var i = this.size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
+    }
+    return -1
+}
 
 public fun <R> ULongArray.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
@@ -1747,6 +1972,41 @@ public fun ULongArray.lastOrNull(predicate: (ULong) -> Boolean): ULong? {
         i--
     }
     return null
+}
+
+public fun ULongArray.single(): ULong {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun ULongArray.singleOrNull(): ULong? = if (this.size == 1) this[0] else null
+
+public inline fun ULongArray.single(predicate: (ULong) -> Boolean): ULong {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun ULongArray.singleOrNull(predicate: (ULong) -> Boolean): ULong? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
 }
 
 public fun ULongArray.any(): Boolean = this.size != 0
@@ -2045,6 +2305,41 @@ public fun DoubleArray.lastOrNull(predicate: (Double) -> Boolean): Double? {
     return null
 }
 
+public fun DoubleArray.single(): Double {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun DoubleArray.singleOrNull(): Double? = if (this.size == 1) this[0] else null
+
+public inline fun DoubleArray.single(predicate: (Double) -> Boolean): Double {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun DoubleArray.singleOrNull(predicate: (Double) -> Boolean): Double? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun DoubleArray.any(): Boolean = this.size != 0
 
 public fun DoubleArray.any(predicate: (Double) -> Boolean): Boolean {
@@ -2339,6 +2634,41 @@ public fun FloatArray.lastOrNull(predicate: (Float) -> Boolean): Float? {
         i--
     }
     return null
+}
+
+public fun FloatArray.single(): Float {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun FloatArray.singleOrNull(): Float? = if (this.size == 1) this[0] else null
+
+public inline fun FloatArray.single(predicate: (Float) -> Boolean): Float {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun FloatArray.singleOrNull(predicate: (Float) -> Boolean): Float? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
 }
 
 public fun FloatArray.any(): Boolean = this.size != 0
@@ -2637,6 +2967,41 @@ public fun BooleanArray.lastOrNull(predicate: (Boolean) -> Boolean): Boolean? {
     return null
 }
 
+public fun BooleanArray.single(): Boolean {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun BooleanArray.singleOrNull(): Boolean? = if (this.size == 1) this[0] else null
+
+public inline fun BooleanArray.single(predicate: (Boolean) -> Boolean): Boolean {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun BooleanArray.singleOrNull(predicate: (Boolean) -> Boolean): Boolean? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun BooleanArray.any(): Boolean = this.size != 0
 
 public fun BooleanArray.any(predicate: (Boolean) -> Boolean): Boolean {
@@ -2933,6 +3298,41 @@ public fun CharArray.lastOrNull(predicate: (Char) -> Boolean): Char? {
     return null
 }
 
+public fun CharArray.single(): Char {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun CharArray.singleOrNull(): Char? = if (this.size == 1) this[0] else null
+
+public inline fun CharArray.single(predicate: (Char) -> Boolean): Char {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun CharArray.singleOrNull(predicate: (Char) -> Boolean): Char? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun CharArray.any(): Boolean = this.size != 0
 
 public fun CharArray.any(predicate: (Char) -> Boolean): Boolean {
@@ -3008,6 +3408,32 @@ public fun CharArray.joinToString(
 }
 
 // --- UByteArray ---
+
+public fun UByteArray.elementAt(index: Int): UByte = this[index]
+
+public fun UByteArray.getOrNull(index: Int): UByte? =
+    if (index >= 0 && index < size) this[index] else null
+
+public inline fun UByteArray.elementAtOrElse(index: Int, defaultValue: (Int) -> UByte): UByte =
+    if (index >= 0 && index < size) this[index] else defaultValue(index)
+
+public inline fun UByteArray.indexOfFirst(predicate: (UByte) -> Boolean): Int {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun UByteArray.indexOfLast(predicate: (UByte) -> Boolean): Int {
+    var i = this.size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
+    }
+    return -1
+}
 
 public fun <R> UByteArray.map(transform: (UByte) -> R): List<R> {
     val result = mutableListOf<R>()
@@ -3229,6 +3655,41 @@ public fun UByteArray.lastOrNull(predicate: (UByte) -> Boolean): UByte? {
     return null
 }
 
+public fun UByteArray.single(): UByte {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun UByteArray.singleOrNull(): UByte? = if (this.size == 1) this[0] else null
+
+public inline fun UByteArray.single(predicate: (UByte) -> Boolean): UByte {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun UByteArray.singleOrNull(predicate: (UByte) -> Boolean): UByte? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
+}
+
 public fun UByteArray.any(): Boolean = this.size != 0
 
 public fun UByteArray.any(predicate: (UByte) -> Boolean): Boolean {
@@ -3304,6 +3765,32 @@ public fun UByteArray.joinToString(
 }
 
 // --- UShortArray ---
+
+public fun UShortArray.elementAt(index: Int): UShort = this[index]
+
+public fun UShortArray.getOrNull(index: Int): UShort? =
+    if (index >= 0 && index < size) this[index] else null
+
+public inline fun UShortArray.elementAtOrElse(index: Int, defaultValue: (Int) -> UShort): UShort =
+    if (index >= 0 && index < size) this[index] else defaultValue(index)
+
+public inline fun UShortArray.indexOfFirst(predicate: (UShort) -> Boolean): Int {
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun UShortArray.indexOfLast(predicate: (UShort) -> Boolean): Int {
+    var i = this.size - 1
+    while (i >= 0) {
+        if (predicate(this[i])) return i
+        i--
+    }
+    return -1
+}
 
 public fun <R> UShortArray.map(transform: (UShort) -> R): List<R> {
     val result = mutableListOf<R>()
@@ -3523,6 +4010,41 @@ public fun UShortArray.lastOrNull(predicate: (UShort) -> Boolean): UShort? {
         i--
     }
     return null
+}
+
+public fun UShortArray.single(): UShort {
+    if (this.size == 0) throw NoSuchElementException("Array is empty.")
+    if (this.size != 1) throw IllegalArgumentException("Array has more than one element.")
+    return this[0]
+}
+
+public fun UShortArray.singleOrNull(): UShort? = if (this.size == 1) this[0] else null
+
+public inline fun UShortArray.single(predicate: (UShort) -> Boolean): UShort {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) throw IllegalArgumentException("Array contains more than one matching element.")
+            matchIndex = i
+        }
+        i++
+    }
+    if (matchIndex >= 0) return this[matchIndex]
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
+public inline fun UShortArray.singleOrNull(predicate: (UShort) -> Boolean): UShort? {
+    var matchIndex = -1
+    var i = 0
+    while (i < this.size) {
+        if (predicate(this[i])) {
+            if (matchIndex >= 0) return null
+            matchIndex = i
+        }
+        i++
+    }
+    return if (matchIndex >= 0) this[matchIndex] else null
 }
 
 public fun UShortArray.any(): Boolean = this.size != 0

@@ -1469,8 +1469,50 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(coroutineExceptionHandlerType, for: coroutineExceptionHandlerSymbol)
-        symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
-        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
+        // KUU-1405: CoroutineExceptionHandler is a CoroutineContext.Element
+        // (kotlinx declares `interface CoroutineExceptionHandler :
+        // CoroutineContext.Element`), which its companion Key must satisfy
+        // for `ctx[CoroutineExceptionHandler]` to type-check.
+        symbols.setDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
+        types.setNominalDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
+
+        // KUU-1405: `companion object Key : CoroutineContext.Key<CoroutineExceptionHandler>`
+        // — materializes the `kk_exception_handler_key` singleton so
+        // `ctx[CoroutineExceptionHandler]` / `minusKey` resolve like Job.Key.
+        if symbols.companionObjectSymbol(for: coroutineExceptionHandlerSymbol) == nil {
+            let keyName = interner.intern("Key")
+            let keyFQName = coroutinesPkg
+                + [interner.intern("CoroutineExceptionHandler"), keyName]
+            let cehKeySymbol = symbols.lookup(fqName: keyFQName) ?? symbols.define(
+                kind: .object,
+                name: keyName,
+                fqName: keyFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(coroutineExceptionHandlerSymbol, for: cehKeySymbol)
+            symbols.setCompanionObjectSymbol(cehKeySymbol, for: coroutineExceptionHandlerSymbol)
+            symbols.setDirectSupertypes([coroutineContextKeySymbol], for: cehKeySymbol)
+            types.setNominalDirectSupertypes([coroutineContextKeySymbol], for: cehKeySymbol)
+            symbols.setSupertypeTypeArgs(
+                [.invariant(coroutineExceptionHandlerType)],
+                for: cehKeySymbol,
+                supertype: coroutineContextKeySymbol
+            )
+            types.setNominalSupertypeTypeArgs(
+                [.invariant(coroutineExceptionHandlerType)],
+                for: cehKeySymbol,
+                supertype: coroutineContextKeySymbol
+            )
+            let cehKeyType = types.make(.classType(ClassType(
+                classSymbol: cehKeySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            symbols.setPropertyType(cehKeyType, for: cehKeySymbol)
+            symbols.setExternalLinkName("kk_exception_handler_key", for: cehKeySymbol)
+        }
 
         // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
         if !symbols.isSourceBackedSymbol(dispatcherSymbol) {

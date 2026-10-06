@@ -127,3 +127,51 @@ public fun <T> Flow<T>.runningReduce(operation: suspend (T, T) -> T): Flow<T> {
         }
     }
 }
+
+public fun <T> Flow<T>.chunked(size: Int): Flow<List<T>> {
+    require(size >= 1) { "Expected positive chunk size, but got $size" }
+    val source = this
+    return flow {
+        var result: ArrayList<T>? = null
+        source.collect { value ->
+            val acc = result ?: ArrayList<T>(size).also { result = it }
+            acc.add(value)
+            if (acc.size == size) {
+                emit(acc)
+                result = null
+            }
+        }
+        result?.let { emit(it) }
+    }
+}
+
+// KSwiftK compatibility surface: `windowed` is not a kotlinx-coroutines Flow
+// operator (1.10.2) — upstream only defines it on Iterable/Sequence. It is
+// provided here because tracked user code calls it; semantics match
+// kotlin.collections.Iterable.windowed, applied eagerly at collection start.
+public fun <T> Flow<T>.windowed(
+    size: Int,
+    step: Int = 1,
+    partialWindows: Boolean = false
+): Flow<List<T>> {
+    val source = this
+    return flow {
+        for (window in source.toList().windowed(size, step, partialWindows)) {
+            emit(window)
+        }
+    }
+}
+
+public fun <T, R> Flow<T>.windowed(
+    size: Int,
+    step: Int = 1,
+    partialWindows: Boolean = false,
+    transform: suspend (List<T>) -> R
+): Flow<R> {
+    val source = this
+    return flow {
+        for (window in source.toList().windowed(size, step, partialWindows)) {
+            emit(transform(window))
+        }
+    }
+}

@@ -1709,18 +1709,25 @@ extension CallTypeChecker {
                 interner.intern("flow"),
                 calleeName,
             ]
-            if isCollectionReceiver,
+            if isCollectionReceiver || isSequenceReceiver,
                let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
                          sema.symbols.isSourceBackedSymbol(candidate),
                          let signature = sema.symbols.functionSignature(for: candidate),
                          signature.parameterTypes.isEmpty,
-                         signature.receiverType != nil
+                         let declaredReceiver = signature.receiverType
                    else {
                        return false
                    }
-                   return true
+                   // Multiple bundled `asFlow` overloads exist (Iterable,
+                   // Sequence, Array, primitive arrays, function types); pick
+                   // the one whose declared receiver fits this call site.
+                   return extensionSyntheticFallbackReceiverMatches(
+                       callSiteReceiver: receiverType,
+                       declaredReceiver: declaredReceiver,
+                       sema: sema
+                   )
                })
             {
                 sema.bindings.bindCall(id, binding: CallBinding(
@@ -2906,7 +2913,17 @@ extension CallTypeChecker {
                     let didBindListSource = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, nonNullableDestinationType]
                     )
-                    let didBindIterableSource = !didBindListSource && isIterableReceiver
+                    // KUU-1389: Set/Collection-family receivers inherit these
+                    // declarations from Iterable<T> upstream. Gating on
+                    // isIterableReceiver admitted only nominal Iterable types,
+                    // so a Set receiver bound a result type with no callee and
+                    // lowered to a phantom `_filterTo`-style symbol. Mirror the
+                    // mapTo arm below: bind the bundled Iterable declaration
+                    // for every collection receiver (the per-candidate nominal
+                    // subtype check keeps Map and Array out).
+                    let didBindIterableSource = !didBindListSource
+                        && !isArrayReceiver
+                        && !isMapReceiver
                         && bindBundledIterableSourceFunction(
                             typeArguments: [collectionElementType, nonNullableDestinationType]
                         )
