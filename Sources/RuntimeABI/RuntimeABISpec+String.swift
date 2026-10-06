@@ -553,10 +553,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
             section: "String",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_format_locale_flat",
@@ -570,10 +571,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
             section: "String",
-            isThrowing: false
+            isThrowing: true
         ),
         // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
         RuntimeABIFunctionSpec(
@@ -1665,6 +1667,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "String"

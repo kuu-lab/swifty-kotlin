@@ -31,6 +31,9 @@ private external fun __kkStringPlus(receiver: String?, other: Any?): String
 
 public fun String.format(vararg args: Any?): String = __kkStringFormat(args)
 
+public fun String.format(locale: java.util.Locale?, vararg args: Any?): String =
+    __kkStringFormatLocaleCompanion(locale, this, args)
+
 public fun String.Companion.format(format: String, vararg args: Any?): String =
     __kkStringFormatCompanion(format, args)
 

@@ -210,14 +210,14 @@ extension NativeEmitter {
                 stringArgumentCount: 1,
                 extraArgumentCount: 1,
                 stringArgumentPositions: [0],
-                canThrow: false
+                canThrow: true
             ),
             "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
                 flatName: "__kk_string_format_locale_flat",
                 stringArgumentCount: 1,
                 extraArgumentCount: 2,
                 stringArgumentPositions: [1],
-                canThrow: false
+                canThrow: true
             ),
         ]
         for spec in Array(specs.values)
