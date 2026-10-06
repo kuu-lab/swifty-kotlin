@@ -58,7 +58,7 @@ public fun <T> Array<out T>?.contentHashCode(): Int {
     return result
 }
 
-public fun <T> Array<out T>?.contentDeepEquals(other: Array<out T>?): Boolean {
+public infix fun <T> Array<out T>?.contentDeepEquals(other: Array<out T>?): Boolean {
     val array = this ?: return other == null
     val otherArray = other ?: return false
     return __arrayContentDeepEquals(array, otherArray)
