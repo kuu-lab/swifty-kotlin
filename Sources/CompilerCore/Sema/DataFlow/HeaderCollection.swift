@@ -1537,6 +1537,23 @@ extension DataFlowSemaPhase {
                     localTypeParameters: classLocalTypeParameters
                 )
             }
+            if declaration.kind == .annotationClass {
+                collectSyntheticHashCode(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+                collectSyntheticToString(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+                collectSyntheticEquals(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+            }
             if symbols.symbol(symbol)?.flags.contains(.valueType) == true {
                 // Collect after explicit members so an override suppresses synthesis.
                 collectSyntheticToString(

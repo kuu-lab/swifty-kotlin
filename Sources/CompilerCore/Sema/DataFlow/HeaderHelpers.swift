@@ -692,7 +692,8 @@ extension DataFlowSemaPhase {
             fqName: toStringFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
@@ -752,7 +753,8 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")
@@ -820,7 +822,8 @@ extension DataFlowSemaPhase {
             fqName: hashCodeFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
