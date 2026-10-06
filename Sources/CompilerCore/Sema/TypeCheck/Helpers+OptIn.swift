@@ -137,7 +137,7 @@ extension TypeCheckHelpers {
         }
 
         switch ctx.sema.types.kind(of: type) {
-        case .unit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
+        case .unit, .nullableUnit, .any, .stringStruct, .primitive, .typeParam, .nothing, .error:
             return
 
         case let .classType(classType):

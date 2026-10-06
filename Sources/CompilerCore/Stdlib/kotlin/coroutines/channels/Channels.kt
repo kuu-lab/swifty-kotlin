@@ -24,6 +24,9 @@ private external fun <T> __kkChannelCreate(capacity: Int): Channel<T>
 
 // Channel() is a rendezvous channel (capacity 0); Channel(capacity) is buffered.
 // Two explicit overloads mirror the previous synthetic factory bridges.
+// Negative `Channel.Factory` sentinels (CONFLATED -1, BUFFERED -2) keep their
+// kotlinx semantics: the runtime resolves them inside kk_channel_create.
+// Capacity < -2 throws IllegalArgumentException like upstream (KUU-1403).
 public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 
 // Upstream `Channel(capacity)` is `Channel(capacity, BufferOverflow.SUSPEND)`:

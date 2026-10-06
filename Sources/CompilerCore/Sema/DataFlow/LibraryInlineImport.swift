@@ -493,6 +493,11 @@ extension DataFlowSemaPhase {
             } else {
                 nil
             }
+            let thrownResult: KIRExprID? = if let raw = pairs["thrownResult"], raw != "_" {
+                Int32(raw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
             let canThrowRaw = pairs["canThrow"] ?? "0"
             let canThrow = canThrowRaw == "1" || canThrowRaw == "true"
             let isSuperCallRaw = pairs["isSuperCall"] ?? "0"
@@ -524,7 +529,7 @@ extension DataFlowSemaPhase {
                 arguments: args,
                 result: result,
                 canThrow: canThrow,
-                thrownResult: nil,
+                thrownResult: thrownResult,
                 isSuperCall: isSuperCall
             )
         case "virtualCall":

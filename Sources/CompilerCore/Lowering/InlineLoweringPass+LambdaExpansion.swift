@@ -361,6 +361,7 @@ extension InlineLoweringPass {
                             lambdaExpansion,
                             callThrownResult: thrownResult,
                             localExprMap: localExprMap,
+                            labels: &labels,
                             callAncestries: &callAncestries,
                             into: &lowered
                         )
@@ -531,6 +532,7 @@ extension InlineLoweringPass {
         _ lambdaExpansion: InlineExpansion,
         callThrownResult: KIRExprID?,
         localExprMap: [KIRExprID: KIRExprID],
+        labels: inout InlineLabelAllocator,
         callAncestries: inout [Int: [SymbolID]],
         into lowered: inout KIRLoweringEmitContext
     ) {
@@ -540,13 +542,27 @@ extension InlineLoweringPass {
         if let routedSlot {
             lowered.append(.constValue(result: routedSlot, value: .null))
         }
-        let outputStart = lowered.instructions.count
-        lowered.append(contentsOf: InlineThrowRerouting.routeUnprotectedThrowsToSlot(
+        // Stop at the first uncaught throw. Continuing through the expanded
+        // lambda can overwrite the slot before the original invoke's catch
+        // dispatch observes it (for example recover inside runCatching).
+        let dispatchLabel = routedSlot == nil ? nil : labels.allocateScratchLabel()
+        let routed = InlineThrowRerouting.rerouteUnprotectedThrows(
             in: lambdaExpansion.instructions,
-            thrownSlot: routedSlot
-        ))
-        for (offset, path) in lambdaExpansion.callAncestries {
-            callAncestries[outputStart + offset] = path
+            callerThrownResult: routedSlot,
+            labels: &labels,
+            dispatchLabel: dispatchLabel
+        )
+        let paths = lambdaExpansion.callPaths
+        var callIndex = 0
+        for instruction in routed.instructions {
+            if case .call = instruction {
+                callAncestries[lowered.instructions.count] = paths[callIndex]
+                callIndex += 1
+            }
+            lowered.append(instruction)
+        }
+        if let label = routed.throwDispatchLabel {
+            lowered.append(.label(label))
         }
     }
 }

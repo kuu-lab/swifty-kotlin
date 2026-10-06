@@ -41,8 +41,11 @@ public inline fun <T, R> T.run(block: T.() -> R): R {
 }
 
 public inline fun <T, R> T.runCatching(block: T.() -> R): Result<R> {
-    val receiver = this
-    return __kkRuntimeResultRunCatching { receiver.run { block() } }
+    return try {
+        Result.success(block())
+    } catch (exception: Throwable) {
+        Result.failure(exception)
+    }
 }
 
 @OptIn(ExperimentalContracts::class)

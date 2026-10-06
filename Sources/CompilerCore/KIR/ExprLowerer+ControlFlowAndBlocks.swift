@@ -1779,6 +1779,9 @@ extension ExprLowerer {
                             ?? initializerType
                             ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                         driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
+                        // Nullable Unit also needs its declared slot type: a null
+                        // initializer must not leave storage typed as Nothing? after
+                        // later writes of the raw Unit value.
                         // Reference-like declared locals need a slot typed to the
                         // declaration rather than an alias to the initializer. This
                         // keeps later assignments (e.g. String -> Int in Any) in the
@@ -1789,7 +1792,7 @@ extension ExprLowerer {
                         // leave sentinel-equal bits in the `Long?` slot, which
                         // every null check then reads as `null` (KUU-854).
                         let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-                        case .any, .classType, .functionType, .typeParam:
+                        case .nullableUnit, .any, .classType, .functionType, .typeParam:
                             true
                         default:
                             false

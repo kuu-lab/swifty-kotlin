@@ -235,7 +235,7 @@ struct BoxingCalleeTable {
         requireNonNull: Bool,
         preferStaticPrimitive: Bool = false
     ) -> InternedString? {
-        if case .unit = kind {
+        if kind == .unit || kind == .nullableUnit {
             return unitCallee
         }
         if requireNonNull, Self.isNonNullableStringStruct(kind) {

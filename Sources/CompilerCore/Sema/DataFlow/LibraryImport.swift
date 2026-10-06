@@ -1357,6 +1357,7 @@ extension DataFlowSemaPhase {
                     valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
                     valueParameterIsVararg: signature.valueParameterIsVararg,
                     valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                    hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
                     typeParameterSymbols: normalizedTypeParameterSymbols,
                     reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: normalizedUpperBoundsList,
@@ -1918,7 +1919,7 @@ extension DataFlowSemaPhase {
             }
         case let .kClassType(kc):
             collectSyntheticTypeParamsRecursive(kc.argument, types: types, base: base, into: &collected)
-        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nullableUnit, .nothing, .error:
             break
         }
     }

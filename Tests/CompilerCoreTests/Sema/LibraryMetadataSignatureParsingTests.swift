@@ -55,8 +55,8 @@ struct LibraryMetadataSignatureParsingTests {
         }
     }
 
-    @Test(arguments: [false, true])
-    func importedInlineParameterReturnPermissionsSurviveNormalization(indexed: Bool) throws {
+    @Test(arguments: [false, true], [false, true])
+    func importedInlineParameterReturnPermissionsSurviveNormalization(indexed: Bool, explicit: Bool) throws {
         let fm = FileManager.default
         let libDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kklib")
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
@@ -73,7 +73,7 @@ struct LibraryMetadataSignatureParsingTests {
             isSuspend: false,
             isInline: true,
             typeSignature: "F3<F0<I>,F0<I>,F0<I>,I>",
-            valueParameterAllowsNonLocalReturn: [false, false, true]
+            valueParameterAllowsNonLocalReturn: explicit ? [false, false, true] : []
         )
         let encoder = MetadataEncoder()
         let metadata = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
@@ -96,11 +96,13 @@ struct LibraryMetadataSignatureParsingTests {
                 importedInlineFunctions: ImportedInlineFunctionStore()
             )
             let symbol = try #require(symbols.lookup(fqName: ["permissions", "apply"].map(interner.intern)))
-            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == [false, false, true])
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == (explicit ? [false, false, true] : [true, true, true]))
+            #expect(symbols.functionSignature(for: symbol)?.hasExplicitInlineParameterMetadata == explicit)
             phase.normalizeImportedLibraryMemberSignatures(
                 work, symbols: symbols, types: types, diagnostics: diagnostics, interner: interner
             )
-            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == [false, false, true])
+            #expect(symbols.functionSignature(for: symbol)?.valueParameterAllowsNonLocalReturn == (explicit ? [false, false, true] : [true, true, true]))
+            #expect(symbols.functionSignature(for: symbol)?.hasExplicitInlineParameterMetadata == explicit)
             #expect(!diagnostics.hasError)
         }
     }

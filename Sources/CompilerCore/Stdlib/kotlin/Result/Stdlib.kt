@@ -40,8 +40,10 @@ public class Result<out T> {
     public fun getOrDefault(defaultValue: @UnsafeVariance T): T =
         if (resultIsSuccess(this)) getOrThrow() else defaultValue
 
-    @KsSymbolName("kk_runtime_result_get_or_else")
-    public external fun getOrElse(failureTransform: (Throwable) -> @UnsafeVariance T): T
+    public inline fun getOrElse(failureTransform: (Throwable) -> @UnsafeVariance T): T {
+        val exception = exceptionOrNull()
+        return if (exception == null) getOrThrow() else failureTransform(exception)
+    }
 
     public fun getOrThrow(): T =
         __kkRuntimeResultGetOrThrow(this)
@@ -49,28 +51,37 @@ public class Result<out T> {
     public fun exceptionOrNull(): Throwable? =
         __kkRuntimeResultExceptionOrNull(this)
 
-    @KsSymbolName("kk_runtime_result_map")
-    public external fun <R> map(transform: (T) -> R): Result<R>
+    public inline fun <R> map(transform: (T) -> R): Result<R> =
+        if (isSuccess) Result.success(transform(getOrThrow())) else this as Result<R>
 
-    // A failed receiver rethrows its stored exception from getOrThrow(), so
-    // runCatching re-wraps the same throwable, matching Kotlin's mapCatching.
-    public fun <R> mapCatching(transform: (T) -> R): Result<R> =
-        runCatching { transform(getOrThrow()) }
+    public inline fun <R> mapCatching(transform: (T) -> R): Result<R> =
+        if (isSuccess) runCatching { transform(getOrThrow()) } else this as Result<R>
 
-    @KsSymbolName("kk_runtime_result_fold")
-    public external fun <R> fold(successTransform: (T) -> R, failureTransform: (Throwable) -> R): R
+    public inline fun <R> fold(successTransform: (T) -> R, failureTransform: (Throwable) -> R): R {
+        val exception = exceptionOrNull()
+        return if (exception == null) successTransform(getOrThrow()) else failureTransform(exception)
+    }
 
-    @KsSymbolName("kk_runtime_result_on_success")
-    public external fun onSuccess(action: (T) -> Unit): Result<T>
+    public inline fun onSuccess(action: (T) -> Unit): Result<T> {
+        if (isSuccess) action(getOrThrow())
+        return this
+    }
 
-    @KsSymbolName("kk_runtime_result_on_failure")
-    public external fun onFailure(action: (Throwable) -> Unit): Result<T>
+    public inline fun onFailure(action: (Throwable) -> Unit): Result<T> {
+        val exception = exceptionOrNull()
+        if (exception != null) action(exception)
+        return this
+    }
 
-    @KsSymbolName("kk_runtime_result_recover")
-    public external fun <R> recover(transform: (Throwable) -> R): Result<R>
+    public inline fun <R> recover(transform: (Throwable) -> R): Result<R> {
+        val exception = exceptionOrNull()
+        return if (exception == null) this as Result<R> else Result.success(transform(exception))
+    }
 
-    @KsSymbolName("kk_runtime_result_recover_catching")
-    public external fun <R> recoverCatching(transform: (Throwable) -> R): Result<R>
+    public inline fun <R> recoverCatching(transform: (Throwable) -> R): Result<R> {
+        val exception = exceptionOrNull()
+        return if (exception == null) this as Result<R> else runCatching { transform(exception) }
+    }
 
     public companion object {}
 }
@@ -81,4 +92,4 @@ public inline fun <T> Result.Companion.success(value: T): Result<T> =
 
 /** Returns a failed [Result] containing [exception]. */
 public inline fun <T> Result.Companion.failure(exception: Throwable): Result<T> =
-    runCatching<T> { throw exception }
+    __kkRuntimeResultRunCatching<T> { throw exception }

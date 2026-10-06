@@ -12,6 +12,8 @@ extension TypeSystem {
         if case .nothing(.nullable) = lhs {
             // Nothing? is subtype of all nullable and platform types, Any?, and Nothing? itself
             switch rhs {
+            case .nullableUnit:
+                return true
             case .error:
                 return true
             case let .any(n):
@@ -35,6 +37,9 @@ extension TypeSystem {
             default:
                 return false
             }
+        }
+        if lhs == .unit, rhs == .nullableUnit {
+            return true
         }
         // Subtype of intersection: C <: A & B if C <: all parts
         // (must come before LHS decomposition so that intersection-vs-intersection
@@ -500,6 +505,10 @@ extension TypeSystem {
         if let charClassSymbol, classType.classSymbol == charClassSymbol {
             return (withNullability(nullability, for: charType), .primitive(.char, nullability))
         }
+        if let unitClassSymbol, classType.classSymbol == unitClassSymbol {
+            let canonical = withNullability(nullability, for: unitType)
+            return (canonical, self.kind(of: canonical))
+        }
         if let anyClassSymbol, classType.classSymbol == anyClassSymbol {
             return (withNullability(nullability, for: anyType), .any(nullability))
         }
@@ -535,7 +544,7 @@ extension TypeSystem {
             let nullable = makeNullable(result)
             // makeNullable returns the same ID for two reasons:
             // (a) the type is already nullable (e.g. Int?) — keep it as-is
-            // (b) makeNullable is a genuine no-op (e.g. Unit) — fall back to Any?
+            // (b) makeNullable is a genuine no-op (e.g. an intersection) — fall back to Any?
             if nullable == result {
                 if isSubtype(nullableNothingType, result) {
                     return result // already nullable, Nothing? <: result

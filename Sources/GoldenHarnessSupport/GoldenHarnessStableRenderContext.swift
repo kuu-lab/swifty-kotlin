@@ -468,7 +468,7 @@ final class StableRenderContext {
             collectTypeSymbols(kc.argument, into: &queue)
         case let .intersection(parts):
             for part in parts { collectTypeSymbols(part, into: &queue) }
-        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
+        case .error, .unit, .nullableUnit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
@@ -792,6 +792,8 @@ private final class StableSemanticKeyComputer {
             result = "err"
         case .unit:
             result = "Unit"
+        case .nullableUnit:
+            result = "Unit?"
         case let .nothing(nullability):
             result = "Nothing\(Self.nullabilityMark(nullability))"
         case let .any(nullability):

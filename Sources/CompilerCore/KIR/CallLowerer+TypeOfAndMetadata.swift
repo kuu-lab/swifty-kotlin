@@ -75,6 +75,8 @@ extension CallLowerer {
         func makeNullabilityExpr(for type: TypeID) -> KIRExprID {
             let isNullable: Int64 = {
                 switch sema.types.kind(of: type) {
+                case .nullableUnit:
+                    return 1
                 case let .primitive(_, nullability):
                     return nullability == .nullable ? 1 : 0
                 case let .classType(ct):
