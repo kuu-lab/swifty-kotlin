@@ -396,14 +396,6 @@ extension CallLowerer {
             if !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: chosenCallee)) {
                 return true
             }
-            if resultRuntimeHOFMemberCalleeName(
-                memberName: calleeNameStr,
-                receiverType: sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
-                sema: sema,
-                interner: interner
-            ) != nil {
-                return true
-            }
             return !sema.symbols.isSourceBackedSymbol(chosenCallee)
         }()
         let normalizedArgIDs: [KIRExprID] = {
