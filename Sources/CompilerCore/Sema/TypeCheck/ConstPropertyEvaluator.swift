@@ -105,6 +105,10 @@ final class ConstPropertyEvaluator {
     private func canFoldMemberCall(_ expr: ExprID) -> Bool {
         guard case let .memberCall(receiver, callee, _, args, _) = ast.arena.expr(expr) else { return false }
         let name = interner.resolve(callee)
+        if name == "inv" {
+            guard args.isEmpty, let receiverType = sema.bindings.exprType(for: receiver) else { return false }
+            return receiverType == sema.types.intType || receiverType == sema.types.longType
+        }
         guard ["and", "or", "xor", "shl", "shr", "ushr"].contains(name) else { return true }
         guard args.count == 1,
               let receiverType = sema.bindings.exprType(for: receiver),
