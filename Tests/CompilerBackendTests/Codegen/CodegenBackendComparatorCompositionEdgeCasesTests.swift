@@ -8,6 +8,25 @@ import Testing
 struct CodegenBackendComparatorCompositionEdgeCasesTests {
 
     @Test(arguments: [0, 2], [false, true])
+    func testBundledComparatorFactoriesPreserveFunctionCaptures(optimization: Int, stdlibFromSource: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_1283_comparator_factories.kt"
+        ), encoding: .utf8)
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BundledComparatorFactories",
+            expected: "made\n-1\n[1, 2, 3]\n[3, 2, 1]\n[3, 2, 1]\n"
+                + "[2, 4, 1, 3]\n[4, 2, 3, 1]\n[2, 4, 1, 3]\n-1\n-1\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: !stdlibFromSource
+        )
+    }
+
+    @Test(arguments: [0, 2], [false, true])
     func testThenComparingBinaryLambda(optimization: Int, stdlibFromSource: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
