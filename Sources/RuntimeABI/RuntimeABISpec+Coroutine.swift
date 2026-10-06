@@ -1738,14 +1738,25 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_job_get_child_cancellation_cause",
+            parameters: [
+                RuntimeABIParameter(name: "jobHandle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_job_parent_cancelled",
             parameters: [
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
                 RuntimeABIParameter(name: "parentHandle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_child_cancelled",
