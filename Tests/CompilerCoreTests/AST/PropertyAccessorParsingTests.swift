@@ -18,6 +18,7 @@ struct PropertyAccessorParsingTests {
 
         let property = try #require(memberProperty(named: "f", ofClass: "T", in: ast, interner: ctx.interner))
         #expect(property.isVar)
+        #expect(property.initializer == nil, "The getter body must not become a property initializer")
         #expect(property.getter != nil, "The inline getter must not be lost when the setter is a child node")
         #expect(property.setter != nil)
         #expect(property.getter?.body != .unit)
