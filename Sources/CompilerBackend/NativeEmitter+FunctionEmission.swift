@@ -2136,6 +2136,64 @@ extension NativeEmitter {
         )
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
+        // Per-frame stack guard (KUU-1384): every emitted function prologue
+        // passes a marker address inside its own frame to
+        // `kk_stack_overflow_check`. Once the current thread's stack drops
+        // below the runtime's overflow bound the call returns a
+        // StackOverflowError handle which this prologue propagates through the
+        // ordinary outThrown channel, so deep recursion becomes a catchable
+        // exception instead of a SIGSEGV.
+        func emitStackOverflowGuard() {
+            guard let checkFunction = declareExternalFunction(
+                named: "kk_stack_overflow_check",
+                argumentCount: 1,
+                appendThrownChannel: false
+            ),
+                  let markerSlot = buildEntrySlot(name: "soe_marker"),
+                  let markerValue = bindings.buildPtrToInt(
+                      builder,
+                      value: markerSlot,
+                      type: int64Type,
+                      name: "soe_marker"
+                  ),
+                  let throwBlock = bindings.appendBasicBlock(
+                      context: context,
+                      function: llvmFunction.value,
+                      name: "soe_throw"
+                  ),
+                  let okBlock = bindings.appendBasicBlock(
+                      context: context,
+                      function: llvmFunction.value,
+                      name: "soe_ok"
+                  ),
+                  let errorHandle = bindings.buildCall(
+                      builder,
+                      functionType: checkFunction.type,
+                      callee: checkFunction.value,
+                      arguments: [markerValue],
+                      name: "soe_handle"
+                  ),
+                  let overflowed = buildThrownSlotCondition(from: errorHandle, name: "soe_threw")
+            else {
+                return
+            }
+
+            _ = bindings.buildCondBr(
+                builder,
+                condition: overflowed,
+                thenBlock: throwBlock,
+                elseBlock: okBlock
+            )
+
+            bindings.positionBuilder(builder, at: throwBlock)
+            storeOutThrownIfNonNull(errorHandle, suffix: "soe")
+            _ = bindings.buildRet(builder, value: zeroReturnValue)
+
+            currentBlock = okBlock
+            bindings.positionBuilder(builder, at: okBlock)
+        }
+        emitStackOverflowGuard()
+
         func emitBuiltinCall(
             calleeName: String,
             argumentValues: [LLVMCAPIBindings.LLVMValueRef],
