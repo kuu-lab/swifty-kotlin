@@ -382,6 +382,8 @@ package final class MetadataEncoder {
     package init() {}
 
     /// Build metadata records from the compiler's semantic state.
+    /// Public and protected declarations form the cross-module API;
+    /// `includeNonPublic` additionally includes internal and private declarations.
     package func buildRecords(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -401,7 +403,7 @@ package final class MetadataEncoder {
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
-                if !includeNonPublic && symbol.visibility != .public {
+                if !includeNonPublic && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
                 }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
