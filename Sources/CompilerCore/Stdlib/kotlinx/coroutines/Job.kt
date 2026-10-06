@@ -5,9 +5,25 @@ import kotlin.internal.KsSymbolName
 import kotlin.sequences.asSequence
 
 public interface Job : CoroutineContext.Element {
+    // KUU-1386: `Job`/`Job.Key` evaluates to a runtime key singleton (same
+    // pattern as CoroutineName.Key), so `job.key == Job` is true and
+    // `ctx[Job]`/`ctx.minusKey(Job)` resolve the context's stored job handle.
+    @KsSymbolName("kk_job_key")
     public companion object Key : CoroutineContext.Key<Job>
 
-    public override val key: CoroutineContext.Key<*> get() = Key
+    // KUU-1386: raw coroutine handles (launch/async results) have no vtable for
+    // the Kotlin `key`/Element defaults — bridge them like CoroutineName does.
+    @KsSymbolName("kk_job_key_get")
+    public override val key: CoroutineContext.Key<*>
+
+    @KsSymbolName("kk_context_get")
+    public override operator fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E?
+
+    @KsSymbolName("kk_context_fold")
+    public override fun <R> fold(initial: R, operation: (R, CoroutineContext.Element) -> R): R
+
+    @KsSymbolName("kk_context_minusKey")
+    public override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext
 
     @KsSymbolName("kk_job_is_active")
     public val isActive: Boolean
@@ -38,18 +54,33 @@ public interface Job : CoroutineContext.Element {
 
     @KsSymbolName("kk_job_complete_exceptionally")
     public fun completeExceptionally(exception: Any?): Boolean
+
+    // KUU-1386: kotlinx Job declares this @InternalCoroutinesApi member and
+    // JobSupport inherits it; raw coroutine handles resolve it through the
+    // same kk_* bridges as the other members so `j as JobSupport` receivers
+    // keep working end to end.
+    @KsSymbolName("kk_job_attach_child")
+    public fun attachChild(child: ChildJob): ChildHandle
 }
 
 public interface ChildJob : Job {
+    @KsSymbolName("kk_job_parent_cancelled")
     public fun parentCancelled(parentJob: ParentJob)
 }
 
 public interface ParentJob : Job {
+    @KsSymbolName("kk_job_get_cancellation_exception")
     public fun getChildJobCancellationCause(): CancellationException
 }
 
 public interface ChildHandle : DisposableHandle {
+    @KsSymbolName("kk_child_handle_parent")
     public val parent: Job?
+
+    @KsSymbolName("kk_child_handle_dispose")
+    public override fun dispose()
+
+    @KsSymbolName("kk_child_handle_child_cancelled")
     public fun childCancelled(cause: Throwable): Boolean
 }
 
@@ -58,6 +89,9 @@ internal external fun __kkJobNew(): Job
 
 @KsSymbolName("kk_supervisor_job_new")
 internal external fun __kkSupervisorJobNew(): Job
+
+@KsSymbolName("__kk_job_attach_to_parent")
+internal external fun __kkJobAttachToParent(job: Job, parent: Job?)
 
 @KsSymbolName("kk_job_cancel_with_cause")
 internal external fun __kkJobCancel(job: Job, cause: CancellationException?)

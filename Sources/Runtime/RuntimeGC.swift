@@ -64,6 +64,9 @@ struct MetadataState {
     /// Same idea, for the range/progression nominal edges
     /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
     var rangeTypeEdgesRegistered = false
+    /// Same idea, for the coroutine job-family nominal edges
+    /// `registerJobFamilyTypeEdgesOnce` installs (KUU-1386).
+    var jobFamilyTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     /// Bitmask of object slot indices holding primary-constructor properties, per data class.
     /// Absent entries mean "every stored slot participates" (legacy registration).
@@ -558,6 +561,7 @@ func kk_runtime_reset_metadata() {
         state.reflectionTypeEdgesRegistered = false
         state.primitiveTypeEdgesRegistered = false
         state.rangeTypeEdgesRegistered = false
+        state.jobFamilyTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.dataClassFieldMasks.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)

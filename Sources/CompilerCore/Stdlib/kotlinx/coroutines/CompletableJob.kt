@@ -22,20 +22,9 @@ public interface CompletableJob : Job {
     public fun completeExceptionally(exception: Throwable): Boolean
 }
 
-internal class CompletableJobImpl(backingJob: Job, parent: Job?) : CompletableJob {
-    private val job: Job = __kkJobBindWrapper(this, backingJob, parent)
-
-    override val isActive: Boolean get() = job.isActive
-    override val isCompleted: Boolean get() = job.isCompleted
-    override val isCancelled: Boolean get() = job.isCancelled
-
-    override val key: CoroutineContext.Key<*>
-        get() = Job.Key
-
-    override fun complete(): Boolean = __kkJobComplete(job, Unit)
-
-    override fun completeExceptionally(exception: Throwable): Boolean =
-        __kkJobCompleteExceptionally(job, exception)
-}
+// KUU-1386: real kotlinx shapes Job() / SupervisorJob() results as JobImpl,
+// a JobSupport subclass; the bound runtime job keeps the delegation identical
+// to the previous explicit overrides.
+internal class CompletableJobImpl(backingJob: Job, parent: Job?) : JobImpl(parent, backingJob), CompletableJob
 
 public fun CompletableJob(parent: Job? = null): CompletableJob = Job(parent)

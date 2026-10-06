@@ -73,6 +73,18 @@ final class RuntimeCoroutineNameBox: @unchecked Sendable {
 private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
 private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
 
+/// KUU-1386: singleton backing `Job.Key` (`kk_job_key`). Mirroring
+/// CoroutineName's key, `Job`/`Job.Key` expressions evaluate to this object so
+/// `job.key == Job` is true and `ctx[Job]`/`ctx.minusKey(Job)` resolve the
+/// context's stored job handle.
+private final class RuntimeJobKey: @unchecked Sendable {}
+private let runtimeJobKeyRaw = runtimeRegisterObject(RuntimeJobKey())
+
+@_cdecl("kk_job_key")
+public func kk_job_key() -> Int {
+    runtimeJobKeyRaw
+}
+
 @_cdecl("kk_coroutine_name_key")
 public func kk_coroutine_name_key() -> Int {
     runtimeCoroutineNameKeyRaw
@@ -510,8 +522,10 @@ func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
 
 @_cdecl("__kk_job_is_runtime")
 public func kk_job_is_runtime(_ receiver: Int) -> Int {
-    // Source wrappers also resolve to a Job, but have their own getter slots.
-    return resolveLiveRuntimeHandle(receiver, as: RuntimeJobHandle.self) != nil
+    // runtimeJobHandle unwraps bound JobSupport-wrapper boxes (Job(),
+    // CompletableDeferred(), ...), so `keyOf(job)` reaches `Job.Key` for them
+    // too; unbound source elements fall through to their own `key` getter.
+    return runtimeJobHandle(from: receiver) != nil
         || runtimeAsyncTask(from: receiver) != nil ? 1 : 0
 }
 
@@ -577,7 +591,15 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
     {
         return ctx.exceptionHandler.map { Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained($0).toOpaque())) }
     }
+    if keyRaw == runtimeJobKeyRaw {
+        // KUU-1386: `ctx[Job]` — the Job.Key singleton maps to the stored job.
+        return ctx.jobHandleRaw != 0 ? ctx.jobHandleRaw : nil
+    }
     if runtimeJobHandle(from: keyRaw) != nil {
+        guard ctx.jobHandleRaw == keyRaw else { return nil }
+        return keyRaw
+    }
+    if runtimeAsyncTask(from: keyRaw) != nil {
         guard ctx.jobHandleRaw == keyRaw else { return nil }
         return keyRaw
     }
@@ -651,6 +673,11 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         if next.exceptionHandler === handler {
             next.exceptionHandler = nil
         }
+        return next
+    }
+    if keyRaw == runtimeJobKeyRaw {
+        // KUU-1386: `ctx.minusKey(Job)` — drop the stored job element.
+        next.jobHandleRaw = 0
         return next
     }
     if runtimeJobHandle(from: keyRaw) != nil {
@@ -775,6 +802,16 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return RuntimeCoroutineContext()
+    }
+    // KUU-1386: job/task handles live in the runtime's weak live-handle
+    // registry, not `objectPointers` — resolve them before the GC-object
+    // check or a lone `Job` receiver would collapse into a dispatcher
+    // context and `job.get`/`job.minusKey`/`job.fold` would misbehave.
+    if runtimeJobHandle(from: raw) != nil {
+        return RuntimeCoroutineContext(jobHandleRaw: raw)
+    }
+    if runtimeAsyncTask(from: raw) != nil {
+        return RuntimeCoroutineContext(jobHandleRaw: raw)
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
