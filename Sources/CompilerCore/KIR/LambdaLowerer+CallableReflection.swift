@@ -42,12 +42,19 @@ extension LambdaLowerer {
                     : parameterSymbol.flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) }
                 let optional = valueIndex >= 0 && valueIndex < (signature?.valueParameterHasDefaultValues.count ?? 0)
                     && signature?.valueParameterHasDefaultValues[valueIndex] == true
+                // RuntimeKParameterFlags: bit0 = isOptional, bit1 = isVararg.
+                let vararg = valueIndex >= 0 && valueIndex < (signature?.valueParameterIsVararg.count ?? 0)
+                    && signature?.valueParameterIsVararg[valueIndex] == true
+                let parameterFlags = (optional ? 1 : 0) | (vararg ? 2 : 0)
+                let parameterKind = index < receiverCount
+                    ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
+                    : 2 // VALUE
                 let args = [integer(index), name.map(string) ?? {
                     let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                     instructions.append(.constValue(result: null, value: .null))
                     return null
                 }(), string(sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)),
-                integer(optional ? 1 : 0), integer(index < receiverCount ? 0 : 2),
+                integer(parameterFlags), integer(parameterKind),
                 integer(Int(RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner))),
                 integer(Int((targetSymbol ?? callableSymbol).rawValue) * 2 + (isSetter ? 1 : 0) + 1)]
                 let result = arena.appendTemporary(type: sema.types.anyType)
@@ -136,6 +143,36 @@ extension LambdaLowerer {
                 annotations: runtimeCallableAnnotations(for: targetSymbol, ast: ast, sema: sema, interner: interner)
             )
         }
+    }
+
+    /// Internal `RuntimeKParameterBox.kind` for a leading receiver slot:
+    /// 0 = INSTANCE (dispatch receiver), 1 = EXTENSION_RECEIVER,
+    /// 3 = CONTEXT. `FunctionSignature.receiverType` conflates explicit
+    /// extension receivers with the owning-class dispatch receiver, so
+    /// the declared owner is recovered from the target's FQ name:
+    /// top-level extensions keep the package owner (KSP-INF-011
+    /// reparenting only changes parentSymbol), while member functions
+    /// resolve to a nominal owner. Member-extension callables cannot be
+    /// referenced in Kotlin, so a single receiver slot suffices.
+    private func callableReceiverParameterKind(
+        targetSymbol: SymbolID?,
+        signature: FunctionSignature?,
+        sema: SemaModule
+    ) -> Int {
+        guard let targetSymbol, let info = sema.symbols.symbol(targetSymbol) else { return 0 }
+        if let receiverType = signature?.receiverType,
+           signature?.contextReceiverTypes.contains(receiverType) == true {
+            return 3
+        }
+        if sema.symbols.extensionPropertyReceiverType(for: targetSymbol) != nil {
+            return 1
+        }
+        if let ownerSymbol = sema.symbols.lookup(fqName: Array(info.fqName.dropLast())),
+           let owner = sema.symbols.symbol(ownerSymbol),
+           [.class, .interface, .object, .enumClass, .annotationClass].contains(owner.kind) {
+            return 0
+        }
+        return 1
     }
 
     private func runtimeCallableAnnotations(

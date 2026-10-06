@@ -209,6 +209,16 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 companionMemberNames: ["entries", "valueOf"],
                 checksExprTypes: true
             ),
+            // KUU-1364: nested `KParameter.Kind` — `p.kind` produces a
+            // Kind-typed expression without referencing a member symbol, so
+            // checksExprTypes must treat the type itself as a reference.
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "reflect", "KParameter", "Kind"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
             BundledEnumSpec(
                 pathSegments: ["kotlin", "native", "CpuArchitecture"],
                 requiresSourceBacked: true,

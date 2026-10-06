@@ -104,10 +104,23 @@ func resolveEnumOrdinalToNameCallee(
     guard case let .classType(classType) = sema.types.kind(of: type),
           classType.nullability == .nonNull,
           let symbol = sema.symbols.symbol(classType.classSymbol),
-          symbol.kind == .enumClass,
-          !symbol.flags.contains(.synthetic)
+          symbol.kind == .enumClass
     else {
         return nil
+    }
+    // `.synthetic` header-only enum classes (Platform.OsFamily, RegexOption,
+    // …) never get a `$enumOrdinalToName` helper, so a bare-name call would
+    // not resolve. Enums imported from a `.kklib` are `.synthetic`-flagged
+    // too, but their helper is serialized with the artifact — keep those
+    // when the helper symbol is actually present (KUU-1364: `p.kind`).
+    if symbol.flags.contains(.synthetic) {
+        let probeName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+        let helperExists = sema.symbols.lookupAll(fqName: symbol.fqName + [probeName]).contains { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        guard helperExists else {
+            return nil
+        }
     }
     // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
     // the default bare-name rendering, so string interpolation on an

@@ -1039,6 +1039,7 @@ extension DataFlowSemaPhase {
             interner.intern("KDeclarationContainer"),
             interner.intern("KFunction"),
             interner.intern("KMutableProperty"),
+            interner.intern("KParameter"),
             interner.intern("KProperty"),
             interner.intern("KTypeParameter"),
         ]

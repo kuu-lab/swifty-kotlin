@@ -52,7 +52,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            kotlinReflectPkg: kotlinReflectPkg
+            kotlinReflectPkg: kotlinReflectPkg,
+            bundledIndex: bundledIndex
         )
 
         // Keep synthetic members only when no source-backed KCallable declaration
@@ -1193,13 +1194,24 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinReflectPkg: [InternedString]
+        kotlinReflectPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex
     ) {
         let kParameterSymbol = ensureInterfaceSymbol(
             named: "KParameter", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
 
-        guard let kParameterInfo = symbols.symbol(kParameterSymbol) else { return }
+        // KUU-1364: the bundled kotlin/reflect/KParameter.kt declaration owns
+        // the interface members and the nested `Kind` enum (Kotlin 2.3.10
+        // declares INSTANCE, CONTEXT, EXTENSION_RECEIVER, VALUE). The
+        // synthetic members below remain only for --no-stdlib compilations.
+        let kParameterFQName = kotlinReflectPkg + [interner.intern("KParameter")]
+        let hasSourceBackedKParameter = bundledIndex.containsNominal(fqName: kParameterFQName)
+            || symbols.isSourceBackedSymbol(kParameterSymbol)
+        guard !hasSourceBackedKParameter, let kParameterInfo = symbols.symbol(kParameterSymbol) else {
+            return
+        }
+
         let kTypeSymbol = ensureInterfaceSymbol(
             named: "KType", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -1209,12 +1221,56 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        let kindName = interner.intern("Kind")
+        let kindFQName = kParameterInfo.fqName + [kindName]
+        let kindSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: kindFQName) {
+            kindSymbol = existing
+        } else {
+            kindSymbol = symbols.define(
+                kind: .enumClass,
+                name: kindName,
+                fqName: kindFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(kParameterSymbol, for: kindSymbol)
+        }
+        let kindType = types.make(.classType(ClassType(
+            classSymbol: kindSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        if !symbols.isSourceBackedSymbol(kindSymbol) {
+            for entry in ["INSTANCE", "CONTEXT", "EXTENSION_RECEIVER", "VALUE"] {
+                let entryName = interner.intern(entry)
+                let entryFQName = kindFQName + [entryName]
+                let entrySymbol: SymbolID
+                if let existing = symbols.lookup(fqName: entryFQName) {
+                    entrySymbol = existing
+                } else {
+                    entrySymbol = symbols.define(
+                        kind: .field,
+                        name: entryName,
+                        fqName: entryFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(kindSymbol, for: entrySymbol)
+                }
+                symbols.setPropertyType(kindType, for: entrySymbol)
+            }
+        }
+
         let propertySpecs: [(name: String, type: TypeID, externalLinkName: String)] = [
             ("index", types.intType, "__kk_kparameter_get_index"),
             ("name", types.makeNullable(types.stringType), "__kk_kparameter_get_name"),
             ("type", kTypeType, "__kk_kparameter_get_type"),
             ("isOptional", types.booleanType, "__kk_kparameter_is_optional"),
-            ("kind", types.intType, "__kk_kparameter_get_kind"),
+            ("kind", kindType, "__kk_kparameter_get_kind"),
+            ("isVararg", types.booleanType, "__kk_kparameter_is_vararg"),
         ]
         for spec in propertySpecs {
             registerSyntheticKParameterProperty(

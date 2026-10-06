@@ -250,22 +250,25 @@ private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
 ///   - index: 0-based parameter index.
 ///   - nameRaw: KKString for the parameter name (0 if unnamed).
 ///   - typeRaw: KKString for the parameter type name.
-///   - isOptional: 1 if the parameter has a default value.
-///   - kind: 0 = INSTANCE, 1 = EXTENSION_RECEIVER, 2 = VALUE.
+///   - flags: RuntimeKParameterFlags bitmask — bit0 = isOptional
+///     (has a default value), bit1 = isVararg.
+///   - kind: internal kind encoding — 0 = INSTANCE, 1 = EXTENSION_RECEIVER,
+///     2 = VALUE (see RuntimeKParameterBox.kind).
 @_cdecl("__kk_kparameter_create")
 public func __kk_kparameter_create(
     _ index: Int,
     _ nameRaw: Int,
     _ typeRaw: Int,
-    _ isOptional: Int,
+    _ flags: Int,
     _ kind: Int
 ) -> Int {
     let box = RuntimeKParameterBox(
         index: index,
         nameRaw: nameRaw,
         typeRaw: typeRaw,
-        isOptional: isOptional != 0,
-        kind: kind
+        isOptional: flags & RuntimeKParameterFlags.isOptional != 0,
+        kind: kind,
+        isVararg: flags & RuntimeKParameterFlags.isVararg != 0
     )
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box, typeID: kParameterRuntimeTypeID)
@@ -286,9 +289,9 @@ private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
 
 @_cdecl("__kk_kparameter_create_typed")
 public func __kk_kparameter_create_typed(
-    _ index: Int, _ nameRaw: Int, _ typeRaw: Int, _ isOptional: Int, _ kind: Int, _ typeToken: Int, _ callableOwner: Int = 0
+    _ index: Int, _ nameRaw: Int, _ typeRaw: Int, _ flags: Int, _ kind: Int, _ typeToken: Int, _ callableOwner: Int = 0
 ) -> Int {
-    let raw = __kk_kparameter_create(index, nameRaw, typeRaw, isOptional, kind)
+    let raw = __kk_kparameter_create(index, nameRaw, typeRaw, flags, kind)
     runtimeKParameterBox(from: raw)?.typeToken = typeToken
     runtimeKParameterBox(from: raw)?.callableOwner = callableOwner
     return raw
@@ -326,12 +329,29 @@ public func __kk_kparameter_is_optional(_ raw: Int) -> Int {
     return box.isOptional ? 1 : 0
 }
 
+@_cdecl("__kk_kparameter_is_vararg")
+public func __kk_kparameter_is_vararg(_ raw: Int) -> Int {
+    guard let box = runtimeKParameterBox(from: raw) else {
+        return 0
+    }
+    return box.isVararg ? 1 : 0
+}
+
 @_cdecl("__kk_kparameter_get_kind")
 public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
-    guard let box = runtimeKParameterBox(from: raw) else {
-        return 2 // VALUE by default
+    // RuntimeKParameterBox.kind keeps the runtime's own ordering
+    // (0 = INSTANCE, 1 = EXTENSION_RECEIVER, 2 = VALUE, 3 = CONTEXT);
+    // Kotlin 2.3.10 declares KParameter.Kind as INSTANCE, CONTEXT,
+    // EXTENSION_RECEIVER, VALUE, so the internal ordinals are
+    // translated to the Kotlin declaration ordinals here at the ABI
+    // boundary — the same split __kk_ktypeprojection_get_variance
+    // uses for KVariance.
+    switch runtimeKParameterBox(from: raw)?.kind ?? 2 {
+    case 0: return 0  // INSTANCE
+    case 1: return 2  // EXTENSION_RECEIVER
+    case 3: return 1  // CONTEXT
+    default: return 3 // VALUE
     }
-    return box.kind
 }
 
 // MARK: - KFunction Factory (STDLIB-REFLECT-063)

@@ -179,7 +179,7 @@ public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: Un
     // Kotlin ignores map entries that do not correspond to this callable.
     var values: [Int] = []
     var mask = 0
-    let receiverCount = parameters.prefix { __kk_kparameter_get_kind($0) != 2 }.count
+    let receiverCount = parameters.prefix { runtimeKParameterInternalKind($0) != 2 }.count
     for (index, parameter) in parameters.enumerated() {
         if let entry = map.index(ofRawKey: parameter) ?? map.keys.firstIndex(where: { callableParameterMatches($0, parameter) }) {
             values.append(map.values[entry])
@@ -192,6 +192,13 @@ public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: Un
         }
     }
     return invokeCallable(metadata, values: values, mask: mask, outThrown: outThrown)
+}
+
+/// Internal `RuntimeKParameterBox.kind` ordinal (2 = VALUE). Unlike
+/// `__kk_kparameter_get_kind`, this does not translate to the Kotlin
+/// `KParameter.Kind` declaration ordinals.
+private func runtimeKParameterInternalKind(_ raw: Int) -> Int {
+    runtimeReflectionObject(from: raw, as: RuntimeKParameterBox.self)?.kind ?? 2
 }
 
 private func callableParameterMatches(_ lhs: Int, _ rhs: Int) -> Bool {
@@ -208,7 +215,7 @@ private func invokeCallable(_ metadata: RuntimeCallableRefMetadata, values: [Int
         return runtimeNullSentinelInt
     }
     if let parameters = callableArguments(metadata.parameters) {
-        let receiverCount = parameters.prefix { __kk_kparameter_get_kind($0) != 2 }.count
+        let receiverCount = parameters.prefix { runtimeKParameterInternalKind($0) != 2 }.count
         for (index, raw) in parameters.enumerated() where index < values.count {
             let valueIndex = index - receiverCount
             if valueIndex >= 0, valueIndex < Int.bitWidth - 1, mask & (1 << valueIndex) != 0 { continue }
