@@ -1454,7 +1454,11 @@ extension ExprTypeChecker {
         }
 
         var bodyCtx: TypeInferenceContext = if let label {
-            ctx.withLambdaLabel(label)
+            // `foo@{ ... }()` binds `foo` to the postfix expression rather
+            // than the lambda literal, so the label does not denote a function
+            // as a `return@foo` target (kotlinc rejects with "target label
+            // does not denote a function").
+            ctx.withLambdaLabel(label, denotesFunction: !ast.arena.isNonFunctionLambdaLabel(id))
         } else {
             ctx
         }

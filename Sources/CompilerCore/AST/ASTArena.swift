@@ -13,6 +13,7 @@ public struct ASTArenaSnapshot: Codable {
     public let infixFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
+    public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
 
     private enum CodingKeys: String, CodingKey {
@@ -28,6 +29,7 @@ public struct ASTArenaSnapshot: Codable {
         case infixFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
+        case nonFunctionLambdaLabels
         case incrementDecrementCachedValues
     }
 
@@ -44,6 +46,7 @@ public struct ASTArenaSnapshot: Codable {
         infixFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
+        nonFunctionLambdaLabels: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:]
     ) {
         self.declarations = declarations
@@ -58,6 +61,7 @@ public struct ASTArenaSnapshot: Codable {
         self.infixFunctionExpressions = infixFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
+        self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
     }
 
@@ -82,6 +86,10 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
+        ) ?? []
+        nonFunctionLambdaLabels = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .nonFunctionLambdaLabels
         ) ?? []
         incrementDecrementCachedValues = try container.decodeIfPresent(
             [ExprID: ExprID].self,
@@ -167,6 +175,12 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
+    /// Tracks lambda literals whose leading `label@` is bound to a following
+    /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
+    /// expression, so `foo@{ ... }()` labels the invocation rather than the
+    /// lambda — `return@foo` inside then targets a label that does not denote
+    /// a function and must be rejected.
+    private var _nonFunctionLambdaLabels: Set<ExprID> = []
     private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
 
     public var decls: [Decl] {
@@ -196,6 +210,7 @@ public final class ASTArena: @unchecked Sendable {
         _infixFunctionExpressions = snapshot.infixFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
+        _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
     }
 
@@ -215,6 +230,7 @@ public final class ASTArena: @unchecked Sendable {
             infixFunctionExpressions: _infixFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
+            nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
             incrementDecrementCachedValues: _incrementDecrementCachedValues
         )
     }
@@ -490,6 +506,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _incrementDecrementExpressions.contains(exprID)
+    }
+
+    public func markNonFunctionLambdaLabel(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _nonFunctionLambdaLabels.insert(exprID)
+    }
+
+    public func isNonFunctionLambdaLabel(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _nonFunctionLambdaLabels.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {

@@ -241,10 +241,14 @@ extension BuildASTPhase.ExpressionParser {
                     return parseDoWhileExpression(label: name, start: start)
                 }
                 if matches(.symbol(.lBrace)) {
+                    let labelBindsToPostfixExpression = labeledLambdaBindsToPostfixExpression()
                     if let lambda = parseLambdaLiteral(
                         label: name,
                         start: start
                     ) {
+                        if labelBindsToPostfixExpression {
+                            astArena.markNonFunctionLambdaLabel(lambda)
+                        }
                         return lambda
                     }
                 }
