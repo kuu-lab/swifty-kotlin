@@ -469,6 +469,7 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
         if modifiers.contains(.inline) { value.insert(.inlineFunction) }
         if modifiers.contains(.operator) { value.insert(.operatorFunction) }
+        if modifiers.contains(.infix) { value.insert(.infixFunction) }
     }
 
     private func insertTypeFlags(
@@ -1126,7 +1127,10 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         isInline: Bool,
         diagnostics: DiagnosticEngine,
-        enclosingTypeParameters: [InternedString: SymbolID] = [:]
+        enclosingTypeParameters: [InternedString: SymbolID] = [:],
+        relativeOwnerFQName: [InternedString]? = nil,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = []
     ) -> (typeParameterSymbols: [SymbolID], localTypeParameters: [InternedString: SymbolID], reifiedIndices: Set<Int>) {
         var typeParameterSymbols: [SymbolID] = []
         var localTypeParameters: [InternedString: SymbolID] = [:]
@@ -1164,6 +1168,10 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     localTypeParameters: boundTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
                     usageRange: declSite
                 )
             }

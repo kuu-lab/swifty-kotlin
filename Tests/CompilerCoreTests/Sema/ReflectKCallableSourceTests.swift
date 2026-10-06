@@ -8,7 +8,7 @@ struct ReflectKCallableSourceTests {
     @Test func bundledContractHasSourceBackedMembers() throws {
         let (sema, interner) = try Self.fixture.shared()
         let owner = ["kotlin", "reflect", "KCallable"].map(interner.intern)
-        for name in ["call", "callBy", "parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend"] {
+        for name in ["call", "callBy", "parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend", "annotations"] {
             let member = try #require(sema.symbols.lookup(fqName: owner + [interner.intern(name)]))
             #expect(sema.symbols.isSourceBackedSymbol(member))
             #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == false)

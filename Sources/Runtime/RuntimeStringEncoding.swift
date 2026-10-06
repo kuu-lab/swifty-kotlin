@@ -426,7 +426,7 @@ public func __kk_byteArray_toKString(
 }
 
 // STDLIB-574: ByteArray.decodeToString(charset)
-// Charset IDs follow CharsetTag: 0 = UTF-8, 1 = ISO-8859-1 (Latin-1), 2 = US-ASCII
+// Charset IDs follow CharsetTag: UTF-8, Latin-1, ASCII, and endian-aware UTF-16/32.
 @_cdecl("__kk_bytearray_decodeToString_charset")
 public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
@@ -443,6 +443,66 @@ public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: In
     case 2: // Charsets.US_ASCII
         // ASCII: bytes > 127 become replacement character U+FFFD
         decoded = String(bytes.map { $0 <= 127 ? Character(Unicode.Scalar($0)) : "\u{FFFD}" })
+    case 3, 4, 5: // UTF-16, UTF-16BE, UTF-16LE
+        var littleEndian = charsetId == 5
+        var offset = 0
+        if charsetId == 3, bytes.count >= 2 {
+            if bytes[0] == 0xff, bytes[1] == 0xfe {
+                littleEndian = true
+                offset = 2
+            } else if bytes[0] == 0xfe, bytes[1] == 0xff {
+                offset = 2
+            }
+        }
+        var units: [UInt16] = []
+        func unit(at index: Int) -> UInt16 {
+            let first = UInt16(bytes[index])
+            let second = UInt16(bytes[index + 1])
+            return littleEndian ? first | (second << 8) : (first << 8) | second
+        }
+        while offset + 1 < bytes.count {
+            let first = unit(at: offset)
+            offset += 2
+            if (0xd800...0xdbff).contains(first) {
+                // JVM UTF-16 decoders replace an invalid surrogate pair as one malformed unit.
+                guard offset + 1 < bytes.count else {
+                    units.append(0xfffd)
+                    offset = bytes.count
+                    break
+                }
+                let second = unit(at: offset)
+                offset += 2
+                if (0xdc00...0xdfff).contains(second) {
+                    units.append(contentsOf: [first, second])
+                } else {
+                    units.append(0xfffd)
+                }
+            } else {
+                units.append((0xdc00...0xdfff).contains(first) ? 0xfffd : first)
+            }
+        }
+        if offset < bytes.count { units.append(0xfffd) }
+        decoded = String(decoding: units, as: UTF16.self)
+    case 6, 7, 8: // UTF-32, UTF-32BE, UTF-32LE
+        var littleEndian = charsetId == 8
+        var offset = 0
+        if bytes.count >= 4 {
+            if charsetId != 8, bytes[0...3].elementsEqual([0, 0, 0xfe, 0xff]) {
+                offset = 4
+            } else if charsetId != 7, bytes[0...3].elementsEqual([0xff, 0xfe, 0, 0]) {
+                littleEndian = true
+                offset = 4
+            }
+        }
+        var units: [UInt32] = []
+        while offset + 3 < bytes.count {
+            let part = bytes[offset...offset + 3]
+            let ordered = littleEndian ? Array(part.reversed()) : Array(part)
+            units.append(ordered.reduce(0) { ($0 << 8) | UInt32($1) })
+            offset += 4
+        }
+        if offset < bytes.count { units.append(0xfffd) }
+        decoded = String(decoding: units, as: UTF32.self)
     default:
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString_charset unsupported charset ID \(charsetId)")
     }

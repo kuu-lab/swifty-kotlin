@@ -218,6 +218,7 @@ extension KIRLoweringDriver {
                 receiver: receiverID,
                 loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
                 spreadFlags: superArgs.map(\.isSpread),
+                argumentLabels: superArgs.map(\.label),
                 callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
                 shared: shared,
                 body: &body
@@ -260,6 +261,7 @@ extension KIRLoweringDriver {
             receiver: receiverID,
             loweredArgs: loweredSuperArgs,
             spreadFlags: superArgs.map(\.isSpread),
+            argumentLabels: superArgs.map(\.label),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             sourceArgExprs: superArgs.map(\.expr),
             result: resultID,
@@ -293,6 +295,7 @@ extension KIRLoweringDriver {
         receiver: KIRExprID,
         loweredArgs: [KIRExprID],
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         callBinding: CallBinding?,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
@@ -357,6 +360,7 @@ extension KIRLoweringDriver {
                 callBinding: callBinding,
                 chosenCallee: superCtorSymbol,
                 spreadFlags: spreadFlags,
+                argumentLabels: argumentLabels,
                 shared: shared,
                 emit: &body
             ).arguments

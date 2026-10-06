@@ -672,6 +672,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // default flags, so ordering relative to it doesn't matter).
         inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
         inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
+        inheritInfixModifierForOverrides(symbols: symbols, types: types)
         synthesizeNominalLayouts(
             symbols: symbols, types: types,
             interner: ctx.interner, diagnostics: ctx.diagnostics

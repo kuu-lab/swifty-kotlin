@@ -33,7 +33,21 @@ extension ControlFlowLowerer {
             if let loweredSubject = subjectID,
                let subjectSymbol = sema.bindings.identifierSymbols[exprID]
             {
-                driver.ctx.setLocalValue(loweredSubject, for: subjectSymbol)
+                if ast.arena.whenSubjectTypeRef(for: exprID) != nil,
+                   let declaredType = sema.symbols.propertyType(for: subjectSymbol)
+                {
+                    // Copy into declared storage so ABI lowering applies widening/boxing.
+                    let slot = arena.appendTemporary(type: declaredType)
+                    instructions.append(.copy(from: loweredSubject, to: slot))
+                    subjectID = slot
+                    driver.ctx.setLocalDeclaredType(declaredType, for: subjectSymbol)
+                    driver.ctx.setLocalValue(slot, for: subjectSymbol)
+                    if let callableInfo = driver.ctx.callableValueInfo(for: loweredSubject) {
+                        driver.ctx.callableValueInfoByExprID[slot] = callableInfo
+                    }
+                } else {
+                    driver.ctx.setLocalValue(loweredSubject, for: subjectSymbol)
+                }
             }
         }
         let endLabel = driver.ctx.makeLoopLabel()

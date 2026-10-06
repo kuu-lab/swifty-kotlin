@@ -20,7 +20,7 @@ extension ABILoweringPass {
         var result: [InternedString: [Int]] = [:]
         let checkedBridges: Set<String> = [
             "__kk_list_check_modification", "__kk_list_get", "kk_list_iterator_at", "kk_list_subList",
-            "__kk_list_as_reversed",
+            "__kk_list_as_reversed", "__kk_mutable_list_as_reversed",
             "__kk_mutable_list_set", "__kk_mutable_list_add", "__kk_mutable_list_add_at",
             "__kk_mutable_list_addAll_at", "__kk_mutable_list_removeAt",
         ]

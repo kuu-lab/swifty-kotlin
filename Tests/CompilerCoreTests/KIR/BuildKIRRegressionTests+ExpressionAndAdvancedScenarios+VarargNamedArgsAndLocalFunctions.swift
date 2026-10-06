@@ -110,6 +110,22 @@ extension BuildKIRRegressionTests {
     private func sharedVarargLoweringCtx() throws -> CompilationContext {
         try Self._sharedVarargLoweringCtx.get()
     }
+    @Test func testNamedVarargArrayUsesSpreadPacking() throws {
+        let ctx = makeContextFromSource("""
+        fun collect(vararg xs: Int, y: Int = 9): Int = xs.size + y
+        fun namedArray(xs: IntArray): Int = collect(xs = xs)
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "namedArray", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        // A single spread array is passed through rather than packed as one element.
+        #expect(!callees.contains("kk_array_new"))
+        #expect(!callees.contains("kk_array_set"))
+        #expect(callees.contains("collect$default"))
+    }
+
     @Test
     func testVarargNamedArgSkipsToVarargParameter() throws {
         let ctx = try sharedVarargCtx()

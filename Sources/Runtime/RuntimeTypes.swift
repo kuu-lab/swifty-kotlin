@@ -562,6 +562,7 @@ struct RuntimeCallableRefMetadata {
     var setterInvoker: Int = 0
     var setterParameters: Int = 0
     var property: Int = 0
+    var annotations: [RuntimeAnnotationRecord] = []
 }
 
 final class RuntimeFunctionValueBox {

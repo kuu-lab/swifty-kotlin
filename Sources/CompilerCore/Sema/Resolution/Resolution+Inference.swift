@@ -81,6 +81,7 @@ extension OverloadResolver {
         signature: FunctionSignature,
         substitution: [TypeVarID: TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
+        starProjectedReceiverParameters: Set<SymbolID> = [],
         range: SourceRange,
         ctx: SemaModule
     ) -> Diagnostic? {
@@ -97,6 +98,9 @@ extension OverloadResolver {
         }
 
         for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            // A read-only receiver's star denotes an existential type constrained by its declaration.
+            // Its readable approximation cannot be rechecked as a concrete F-bounded type argument.
+            if starProjectedReceiverParameters.contains(typeParamSymbol) { continue }
             let signatureUpperBounds: [TypeID] = if index < signature.typeParameterUpperBoundsList.count {
                 signature.typeParameterUpperBoundsList[index]
             } else {

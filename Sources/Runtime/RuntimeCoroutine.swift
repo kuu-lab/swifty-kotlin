@@ -740,7 +740,8 @@ final class RuntimeContinuationState: @unchecked Sendable {
             name: context.name ?? scope?.name,
             exceptionHandler: context.exceptionHandler,
             jobHandleRaw: jobRaw,
-            nameHandleRaw: context.nameHandleRaw
+            nameHandleRaw: context.nameHandleRaw,
+            dispatcherHandleRaw: context.dispatcherHandleRaw
         )
     }
 

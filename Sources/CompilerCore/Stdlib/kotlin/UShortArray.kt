@@ -6,9 +6,11 @@ import kotlin.internal.KsSymbolName
 // primitive-array representation cannot declare a Kotlin class constructor, so
 // keep the same internal source-backed overload as a runtime view bridge.
 @KsSymbolName("__kk_shortArray_asUShortArray")
+@ExperimentalUnsignedTypes
 @PublishedApi
 internal external fun UShortArray(storage: ShortArray): UShortArray
 
+@ExperimentalUnsignedTypes
 public inline fun UShortArray(size: Int, init: (Int) -> UShort): UShortArray {
     val result = UShortArray(size)
     var index = 0

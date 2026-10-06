@@ -75,6 +75,40 @@ struct NestedClassReferenceTests {
         }
     }
 
+    @Test(arguments: ["class", "interface"])
+    func nestedInterfaceClassLiteralResolves(ownerKind: String) throws {
+        try withTemporaryFile(contents: """
+        package sample
+        \(ownerKind) Owner { interface Entry }
+        fun literal() = Owner.Entry::class
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let ref = try #require(firstExprID(in: ast) { _, expr in
+                if case .callableRef = expr { return true }
+                return false
+            })
+            let target = try #require(sema.bindings.classRefTargetType(for: ref))
+            let owner = try #require(resolveClassType(target, sema: sema))
+            let symbol = try #require(sema.symbols.symbol(owner.classSymbol))
+            #expect(symbol.fqName.map(ctx.interner.resolve) == ["sample", "Owner", "Entry"])
+            #expect(!sema.bindings.boundClassRefExprs.contains(ref))
+        }
+    }
+
+    @Test func nestedInterfaceCannotBeConstructed() throws {
+        try withTemporaryFile(contents: """
+        class Owner { interface Entry }
+        fun construct() = Owner.Entry()
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
     @Test(arguments: ["", "companion object", "companion object Named"], ["Outer", "sample.Outer"])
     func nestedClassifierIsNotABoundClassReference(companion: String, qualifier: String) throws {
         let source = """

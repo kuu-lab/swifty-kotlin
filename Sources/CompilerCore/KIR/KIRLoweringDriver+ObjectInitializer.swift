@@ -427,6 +427,7 @@ extension KIRLoweringDriver {
                 receiver: objectValue,
                 loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
                 spreadFlags: superArgs.map(\.isSpread),
+                argumentLabels: superArgs.map(\.label),
                 callBinding: callBinding,
                 shared: shared,
                 body: &body
@@ -460,6 +461,7 @@ extension KIRLoweringDriver {
             receiver: objectValue,
             loweredArgs: loweredArgs,
             spreadFlags: superArgs.map(\.isSpread),
+            argumentLabels: superArgs.map(\.label),
             callBinding: callBinding,
             sourceArgExprs: superArgs.map(\.expr),
             result: resultID,

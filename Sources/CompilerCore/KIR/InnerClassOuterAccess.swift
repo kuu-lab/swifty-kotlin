@@ -390,6 +390,7 @@ extension CallLowerer {
             callBinding: sema.bindings.callBindings[exprID],
             chosenCallee: chosenCtor,
             spreadFlags: args.map(\.isSpread),
+            argumentLabels: args.map(\.label),
             sourceArgExprs: args.map(\.expr),
             ast: ast,
             sema: sema,

@@ -68,6 +68,7 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
     case 9: return runtimePropertyAccessor(raw, isSetter: false)
     case 10: return runtimePropertyAccessor(raw, isSetter: true)
     case 11: return metadata?.property ?? runtimeNullSentinelInt
+    case 12: return runtimeAnnotationList(metadata?.annotations ?? [])
     default: return runtimeNullSentinelInt
     }
 }

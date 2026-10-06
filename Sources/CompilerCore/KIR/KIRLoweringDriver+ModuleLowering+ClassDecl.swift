@@ -947,6 +947,7 @@ extension KIRLoweringDriver {
                 receiver: receiver,
                 loweredArgs: loweredArgs,
                 spreadFlags: delegation.args.map(\.isSpread),
+                argumentLabels: delegation.args.map(\.label),
                 callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
                 shared: shared,
                 body: &body
@@ -958,6 +959,7 @@ extension KIRLoweringDriver {
             receiver: ctx.activeImplicitReceiverExprID(),
             loweredArgs: loweredArgs,
             spreadFlags: delegation.args.map(\.isSpread),
+            argumentLabels: delegation.args.map(\.label),
             callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
             sourceArgExprs: delegation.args.map(\.expr),
             result: delegationResultID,
@@ -975,6 +977,7 @@ extension KIRLoweringDriver {
         receiver: KIRExprID?,
         loweredArgs: [KIRExprID],
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         callBinding: CallBinding?,
         sourceArgExprs: [ExprID],
         result: KIRExprID,
@@ -994,6 +997,7 @@ extension KIRLoweringDriver {
                 callBinding: callBinding,
                 chosenCallee: target,
                 spreadFlags: spreadFlags,
+                argumentLabels: argumentLabels,
                 shared: shared,
                 emit: &body
             )

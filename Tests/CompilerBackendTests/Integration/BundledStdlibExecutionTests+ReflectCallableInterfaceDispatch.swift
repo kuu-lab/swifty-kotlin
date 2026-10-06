@@ -11,14 +11,31 @@ extension BundledStdlibExecutionTests {
             import kotlin.reflect.KCallable
             import kotlin.reflect.KProperty
             import kotlin.reflect.KType
+            import kotlin.reflect.KParameter
+            import kotlin.reflect.KTypeParameter
+            import kotlin.reflect.KVisibility
 
-            class CallableImpl(override val name: String) : KCallable<Int> {
+            abstract class CallableMetadata : KCallable<Int> {
+                override val annotations = emptyList<Annotation>()
+                override val parameters = emptyList<KParameter>()
+                override val typeParameters = emptyList<KTypeParameter>()
+                override val visibility = KVisibility.PUBLIC
+                override val isFinal = true
+                override val isOpen = false
+                override val isAbstract = false
+                override val isSuspend = false
                 override val returnType: KType
                     get() = throw UnsupportedOperationException()
+                override fun call(vararg args: Any?): Int = throw UnsupportedOperationException()
+                override fun callBy(args: Map<KParameter, Any?>): Int = throw UnsupportedOperationException()
             }
 
-            class PropertyImpl(override val name: String) : KProperty<Int> {
-                override val returnType: KType
+            class CallableImpl(override val name: String) : CallableMetadata()
+
+            class PropertyImpl(override val name: String) : CallableMetadata(), KProperty<Int> {
+                override val isLateinit = false
+                override val isConst = false
+                override val getter: KProperty.Getter<Int>
                     get() = throw UnsupportedOperationException()
             }
 
