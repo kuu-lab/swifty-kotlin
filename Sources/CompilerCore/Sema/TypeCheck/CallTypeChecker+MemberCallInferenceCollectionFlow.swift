@@ -5252,6 +5252,28 @@ extension CallTypeChecker {
                         sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                     }
                 } else {
+                    // KUU-1358: upstream exposes only the
+                    // Int/Long/Double/UInt/ULong selector overloads, so a
+                    // selector return type outside that family (Float,
+                    // String, Any, ...) has no viable overload and upstream
+                    // rejects the call. Arity-matching the first (Int)
+                    // List.sumOf overload instead silently accumulated the
+                    // boxed selector result as Int bits and printed garbage.
+                    if isListSumOf,
+                       !selectorHasIterableSumOfOverload,
+                       selectorType != sema.types.errorType
+                    {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0024",
+                            "No viable overload found for call.",
+                            range: ast.arena.exprRange(id)
+                        )
+                        let failedType = safeCall
+                            ? sema.types.makeNullable(sema.types.errorType)
+                            : sema.types.errorType
+                        sema.bindings.bindExprType(id, type: failedType)
+                        return failedType
+                    }
                     resultType = isListSumOf && selectorHasIterableSumOfOverload
                         ? selectorType
                         : sema.types.intType
