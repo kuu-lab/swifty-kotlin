@@ -522,6 +522,74 @@ import TestStdlibCache
     }
 
 
+    @Test func testInterfaceMemberCannotBeProtected() throws {
+        let sources: [String] = [
+            // protected member function
+            """
+            interface Iface {
+                protected fun hidden(): String = "h"
+            }
+            """,
+            // protected member property
+            """
+            interface Iface {
+                protected val value: Int get() = 1
+            }
+            """,
+            // protected nested class
+            """
+            interface Iface {
+                protected class Nested
+            }
+            """,
+            // protected nested interface
+            """
+            interface Iface {
+                protected interface Nested
+            }
+            """,
+            // protected nested object
+            """
+            interface Iface {
+                protected object Obj
+            }
+            """,
+            // protected companion object
+            """
+            interface Iface {
+                protected companion object
+            }
+            """,
+            // protected nested typealias
+            """
+            interface Iface {
+                protected typealias Alias = String
+            }
+            """,
+            // control: protected members inside classes stay legal
+            """
+            open class Base {
+                protected fun hidden(): String = "h"
+                protected val value: Int = 1
+                protected class Nested
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for index in 0..<7 {
+                let sampleDiags = diagnosticsForPath(paths[index], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+            }
+            let controlDiags = diagnosticsForPath(paths[7], in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: controlDiags)
+            #expect(!controlDiags.hasError)
+        }
+    }
+
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {

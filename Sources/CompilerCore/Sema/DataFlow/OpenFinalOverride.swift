@@ -92,6 +92,10 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
+
+        if case let .interfaceDecl(interfaceDecl) = decl {
+            validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
+        }
     }
 
     // MARK: - DATA-CTOR: data class primary constructor parameter validation
@@ -491,6 +495,69 @@ extension DataFlowSemaPhase {
                 range: memberMeta.range
             )
         }
+    }
+
+    // MARK: - Check: 'protected' is not applicable inside 'interface'
+
+    private func validateInterfaceProtectedMembers(
+        _ interfaceDecl: InterfaceDecl,
+        ctx: OpenFinalOverrideContext
+    ) {
+        // Kotlin rejects 'protected' on every member kind declared directly in
+        // an interface body: functions, properties, nested types, objects,
+        // companion objects, and type aliases. Member functions and properties
+        // cannot reuse the MemberMeta path because nested type declarations
+        // never reach validateMemberOverrides.
+        var memberDeclIDs = interfaceDecl.memberFunctions + interfaceDecl.memberProperties
+            + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+        if let companionObject = interfaceDecl.companionObject {
+            memberDeclIDs.append(companionObject)
+        }
+        for memberDeclID in memberDeclIDs {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  let range = protectedDeclRange(memberDecl)
+            else { continue }
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: range
+            )
+        }
+        for typeAlias in interfaceDecl.nestedTypeAliases where typeAlias.modifiers.contains(.protected) {
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: typeAlias.range
+            )
+        }
+    }
+
+    private func protectedDeclRange(_ decl: Decl) -> SourceRange? {
+        let modifiers: Modifiers
+        let range: SourceRange
+        switch decl {
+        case let .classDecl(classDecl):
+            modifiers = classDecl.modifiers
+            range = classDecl.range
+        case let .interfaceDecl(interfaceDecl):
+            modifiers = interfaceDecl.modifiers
+            range = interfaceDecl.range
+        case let .funDecl(funDecl):
+            modifiers = funDecl.modifiers
+            range = funDecl.range
+        case let .propertyDecl(propertyDecl):
+            modifiers = propertyDecl.modifiers
+            range = propertyDecl.range
+        case let .objectDecl(objectDecl):
+            modifiers = objectDecl.modifiers
+            range = objectDecl.range
+        case let .typeAliasDecl(typeAliasDecl):
+            modifiers = typeAliasDecl.modifiers
+            range = typeAliasDecl.range
+        case .enumEntryDecl:
+            return nil
+        }
+        return modifiers.contains(.protected) ? range : nil
     }
 
     // MARK: - Check 5: override openness validation
