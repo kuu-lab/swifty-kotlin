@@ -342,7 +342,7 @@ extension CallTypeChecker {
         )
     }
 
-    private func sourceLevelRangeArgumentType(
+    func sourceLevelRangeArgumentType(
         _ expr: ExprID,
         inferredType: TypeID,
         ctx: TypeInferenceContext
