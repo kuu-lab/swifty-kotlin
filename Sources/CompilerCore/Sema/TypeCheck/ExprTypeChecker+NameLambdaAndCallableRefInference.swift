@@ -503,6 +503,16 @@ extension ExprTypeChecker {
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         })
         if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
+            let (_, invisible) = ctx.filterByVisibility([propSymbol.id])
+            if let property = invisible.first {
+                driver.helpers.emitVisibilityError(
+                    for: property,
+                    name: interner.resolve(name),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             if implicitReceiverMember != nil {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
