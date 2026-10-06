@@ -17,7 +17,31 @@ extension ControlFlowTypeChecker {
         let boolType = sema.types.booleanType
 
         if let subjectID {
-            let subjectType = driver.inferExpr(subjectID, ctx: ctx, locals: &locals)
+            let declaredType = ast.arena.whenSubjectTypeRef(for: id).map {
+                driver.helpers.resolveTypeRef(
+                    $0, ast: ast, sema: sema, interner: interner,
+                    scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: ctx, usageRange: range
+                )
+            }
+            if declaredType != nil {
+                sema.bindings.markSourceDeclaredExpectedType(subjectID)
+            }
+            let initializerType = driver.inferExpr(
+                subjectID, ctx: ctx, locals: &locals, expectedType: declaredType
+            )
+            if let declaredType {
+                driver.emitSubtypeConstraint(
+                    left: initializerType, right: declaredType,
+                    range: ast.arena.exprRange(subjectID), solver: ConstraintSolver(),
+                    sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
+            let subjectType = declaredType ?? initializerType
+            var ctx = ctx
+            if declaredType != nil {
+                ctx.whenSubjectTypes[subjectID] = subjectType
+            }
 
             // Register `when (val x = expr)` subject variable into locals so
             // that branch bodies and guards can reference it.
@@ -33,6 +57,7 @@ extension ControlFlowTypeChecker {
                     visibility: .private,
                     flags: []
                 )
+                sema.symbols.setPropertyType(subjectType, for: subjectVarSymbol)
                 locals[subjectVarName] = (subjectType, subjectVarSymbol, false, true)
                 sema.bindings.bindIdentifier(id, symbol: subjectVarSymbol)
             }
