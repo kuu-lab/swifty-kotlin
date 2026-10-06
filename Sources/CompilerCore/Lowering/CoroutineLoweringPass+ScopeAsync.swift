@@ -1,5 +1,6 @@
 extension CoroutineLoweringPass {
-    /// Rewrites `kk_coroutine_scope_async(scope, context, start, block, captures...)`.
+    /// Rewrites receiver-bearing async/launch builders with the shared
+    /// `(scope, context, start, block, captures...)` source argument layout.
     ///
     /// The bundled `CoroutineScope.async` contract is
     /// `block: suspend CoroutineScope.() -> T` — the block's `this` binds to
@@ -175,7 +176,11 @@ extension CoroutineLoweringPass {
         instructions.append(.constValue(result: entryExpr, value: .symbolRef(entrySymbol)))
         instructions.append(.call(
             symbol: nil,
-            callee: rewrite.ctx.interner.intern("kk_coroutine_scope_async_with_cont"),
+            callee: rewrite.ctx.interner.intern(
+                rewrite.ctx.interner.resolve(call.callee) == "__kk_coroutine_scope_launch_context"
+                    ? "__kk_coroutine_scope_launch_context_with_cont"
+                    : "kk_coroutine_scope_async_with_cont"
+            ),
             arguments: Array(arguments.prefix(3)) + [entryExpr, continuationExpr, scopeSlotExpr],
             result: call.result,
             canThrow: call.canThrow,

@@ -850,61 +850,66 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType,
-                params: [],
-                returnType: types.unitType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-072: Dispatcher-aware overload: launch(context, block)
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "context", type: dispatcherType),
-                (name: "block", type: types.make(.functionType(FunctionType(
+        // Bundled launch owns the CoroutineContext/start/receiver contract.
+        // Retain legacy launcher declarations only for --no-stdlib builds.
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameterName: "block",
+                parameterType: types.make(.functionType(FunctionType(
                     receiver: coroutineScopeType,
                     params: [],
                     returnType: types.unitType,
                     isSuspend: true,
                     nullability: .nonNull
-                )))),
-            ],
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "start", type: coroutineStartType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    receiver: coroutineScopeType,
-                    params: [],
-                    returnType: types.unitType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
-        // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
-        // first argument's type: CoroutineDispatcher goes to the dispatcher-
-        // aware runtime, CoroutineStart goes to the lazy-start runtime.
+                ))),
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-072: Dispatcher-aware overload: launch(context, block)
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameters: [
+                    (name: "context", type: dispatcherType),
+                    (name: "block", type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))),
+                ],
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameters: [
+                    (name: "start", type: coroutineStartType),
+                    (name: "block", type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))),
+                ],
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
+            // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
+            // first argument's type: CoroutineDispatcher goes to the dispatcher-
+            // aware runtime, CoroutineStart goes to the lazy-start runtime.
+
+        }
 
         registerSyntheticCoroutineMember(
             ownerSymbol: dispatcherSymbol,
@@ -1949,25 +1954,27 @@ extension DataFlowSemaPhase {
         // it through rewriteCoroutineScopeLaunchCall, which threads the receiver through
         // to a dedicated `kk_coroutine_scope_launch(scopeHandle, entryPointRaw,
         // functionID)` runtime entry point.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineScopeSymbol,
-            ownerType: coroutineScopeType,
-            name: "launch",
-            externalLinkName: "kk_coroutine_scope_launch",
-            returnType: jobType,
-            parameters: [(
-                name: "block",
-                type: types.make(.functionType(FunctionType(
-                    receiver: coroutineScopeType,
-                    params: [],
-                    returnType: types.unitType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineScopeSymbol,
+                ownerType: coroutineScopeType,
+                name: "launch",
+                externalLinkName: "kk_coroutine_scope_launch",
+                returnType: jobType,
+                parameters: [(
+                    name: "block",
+                    type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))
+                )],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("cancel"), arity: 1) {
             registerSyntheticCoroutineMember(
                 ownerSymbol: coroutineScopeSymbol,

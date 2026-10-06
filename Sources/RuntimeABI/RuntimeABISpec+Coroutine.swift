@@ -1188,6 +1188,29 @@ public extension RuntimeABISpec {
             returnType: .intptr, section: "Coroutine", isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_coroutine_scope_launch_context",
+            parameters: [
+                RuntimeABIParameter(name: "scope", type: .intptr),
+                RuntimeABIParameter(name: "context", type: .intptr),
+                RuntimeABIParameter(name: "start", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr, section: "Coroutine", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_coroutine_scope_launch_context_with_cont",
+            parameters: [
+                RuntimeABIParameter(name: "scope", type: .intptr),
+                RuntimeABIParameter(name: "context", type: .intptr),
+                RuntimeABIParameter(name: "start", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "scopeSlot", type: .intptr),
+            ],
+            returnType: .intptr, section: "Coroutine", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_new",
             parameters: [],
             returnType: .intptr,
