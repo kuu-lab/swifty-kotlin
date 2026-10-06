@@ -160,29 +160,11 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
 ]
 
-private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
-    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
-        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
-    })
-}()
-
 private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
     Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
         (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
     })
 }()
-
-private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
-    // Nominal type tokens use the same payload as classID, with the nominal
-    // base and nullability bit encoded around it. KClass metadata therefore
-    // provides the source name for user-defined throwable classes as well.
-    let payloadMask: UInt64 = (1 << 55) - 1
-    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
-    let typeToken = Int(truncatingIfNeeded: tokenBits)
-    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
-        ?? runtimeSourceThrowableSimpleNames[classID]
-        ?? "Throwable"
-}
 
 func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
     // Nominal type tokens use the same payload as classID, with the nominal
@@ -221,17 +203,8 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox, raw: Int) -> String {
-    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
-        return typeName
-    }
-    return "\(typeName): \(message)"
-}
-
-/// Raw stack-frame strings for a single throwable. The runtime only provides
-/// the class-specific header line here; Kotlin-side formatting walks cause and
-/// suppressed chains and adds prefixes (KSP-655).
+/// Header and saved native frames for a single throwable. Kotlin-side
+/// formatting walks cause and suppressed chains and adds their prefixes.
 private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
@@ -240,10 +213,12 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return []
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        return [throwable.renderedMessage]
+        let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+        return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object, raw: throwableRaw)]
+        let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+        return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
     return []
 }
@@ -404,7 +379,7 @@ public func __kk_throwable_toString(
             return tryCast(ptr, to: RuntimeObjectBox.self)
         }
         if let object {
-            typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
+            typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
             message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
