@@ -27,13 +27,10 @@ private enum RuntimeFlowTag: Int {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    case onErrorReturn = 9
-    case onErrorResume = 10
     case buffer = 14
     case conflate = 15
     case debounce = 17
     case sample = 18
-    case delayEach = 19
 }
 
 private final class RuntimeFlowTestState: @unchecked Sendable {
@@ -363,14 +360,6 @@ func runtime_test_flow_retry_when_allow_once(_: Int, _ failure: Int, _ attempt: 
     runtimeFlowErrorTestState.recordRetryWhenAttempt(attempt)
     outThrown?.pointee = 0
     return attempt < 1 ? 1 : 0
-}
-
-@_cdecl("runtime_test_flow_emitter_fail_for_fallback")
-func runtime_test_flow_emitter_fail_for_fallback(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeFlowTestState.recordEmitCall()
-    _ = kk_flow_emit(0, 5, RuntimeFlowTag.emit.rawValue)
-    outThrown?.pointee = 903
-    return 0
 }
 
 @_cdecl("runtime_test_flow_flat_map_to_pair_flow")
@@ -885,21 +874,6 @@ struct RuntimeFlowTests {
         #expect(runtimeFlowTestState.snapshot().values == [3], "conflate should keep the latest value from a same-timestamp burst.")
     }
 
-    @Test func testDelayEachDelaysDeliveryButPreservesValues() {
-        let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_burst_1_2_3 as RuntimeFlowEmitterEntry, to: Int.self)
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let flowHandle = kk_flow_create(emitterPtr, 0)
-        let delayed = kk_flow_emit(flowHandle, 1, RuntimeFlowTag.delayEach.rawValue)
-
-        let startedAt = Date()
-        _ = kk_flow_collect(delayed, collectorPtr, 0, 0)
-        let elapsedMs = Date().timeIntervalSince(startedAt) * 1_000.0
-
-        #expect(runtimeFlowTestState.snapshot().values == [1, 2, 3], "delayEach should preserve values.")
-        #expect(elapsedMs >= 1.0, "delayEach should delay collection by at least the requested interval.")
-    }
-
     // KSP-676: MutableStateFlow / StateFlow / Flow.stateIn are bundled Kotlin
     // source now; behavior is covered by Scripts/diff_cases/state_flow_kotlin.kt
     // and StdlibArtifactRegressionTests instead of runtime-handle tests.
@@ -947,32 +921,6 @@ struct RuntimeFlowTests {
         #expect(runtimeFlowTestState.snapshot().values == [7, 7])
         #expect(errorSnapshot.alwaysFailEmitterInvocations == 2)
         #expect(errorSnapshot.retryWhenAttempts == [0, 1])
-    }
-
-    @Test func testOnErrorReturnEmitsFallbackValue() {
-        let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_fail_for_fallback as RuntimeFlowEmitterEntry, to: Int.self)
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let flowHandle = kk_flow_create(emitterPtr, 0)
-        let recovered = kk_flow_emit(flowHandle, 99, RuntimeFlowTag.onErrorReturn.rawValue)
-
-        _ = kk_flow_collect(recovered, collectorPtr, 0, 0)
-
-        #expect(runtimeFlowTestState.snapshot().values == [5, 99])
-    }
-
-    @Test func testOnErrorResumeSwitchesToFallbackFlow() {
-        let emitterPtr = unsafeBitCast(runtime_test_flow_emitter_fail_for_fallback as RuntimeFlowEmitterEntry, to: Int.self)
-        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
-
-        let fallbackFlow = runtimeFlowOf([42, 43])
-
-        let flowHandle = kk_flow_create(emitterPtr, 0)
-        let resumed = kk_flow_emit(flowHandle, fallbackFlow, RuntimeFlowTag.onErrorResume.rawValue)
-
-        _ = kk_flow_collect(resumed, collectorPtr, 0, 0)
-
-        #expect(runtimeFlowTestState.snapshot().values == [5, 42, 43])
     }
 
     // MARK: - TEST-CORO-003: advanced coroutine flow sources

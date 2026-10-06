@@ -313,13 +313,6 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.delayEach, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
-                   flowExprIDs.contains(arguments[0].rawValue)
-                {
-                    emitFlowTransformCall(handleExpr: arguments[0], lambdaExpr: arguments[1], tag: .delayEach, result: result, isSuperCall: isSuperCall)
-                    continue
-                }
-
                 if callee == names.conflate, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx),
                    flowExprIDs.contains(arguments[0].rawValue)
                 {
@@ -395,26 +388,6 @@ extension CoroutineLoweringPass {
                     emitFlowTransformCall(
                         handleExpr: arguments[0], lambdaExpr: arguments[1],
                         tag: .retryWhen, result: result, isSuperCall: isSuperCall
-                    )
-                    continue
-                }
-
-                if callee == names.onErrorReturn, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
-                   flowExprIDs.contains(arguments[0].rawValue)
-                {
-                    emitFlowTransformCall(
-                        handleExpr: arguments[0], lambdaExpr: arguments[1],
-                        tag: .onErrorReturn, result: result, isSuperCall: isSuperCall
-                    )
-                    continue
-                }
-
-                if callee == names.onErrorResume, arguments.count == 2, !hasRealDeclaration(symbol, in: ctx),
-                   flowExprIDs.contains(arguments[0].rawValue)
-                {
-                    emitFlowTransformCall(
-                        handleExpr: arguments[0], lambdaExpr: arguments[1],
-                        tag: .onErrorResume, result: result, isSuperCall: isSuperCall
                     )
                     continue
                 }
@@ -672,13 +645,6 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.delayEach, arguments.count == 1,
-                   flowExprIDs.contains(receiver.rawValue)
-                {
-                    emitFlowTransformCall(handleExpr: receiver, lambdaExpr: arguments[0], tag: .delayEach, result: result)
-                    continue
-                }
-
                 if callee == names.conflate, arguments.isEmpty,
                    flowExprIDs.contains(receiver.rawValue)
                 {
@@ -754,26 +720,6 @@ extension CoroutineLoweringPass {
                     emitFlowTransformCall(
                         handleExpr: receiver, lambdaExpr: arguments[0],
                         tag: .retryWhen, result: result
-                    )
-                    continue
-                }
-
-                if callee == names.onErrorReturn, arguments.count == 1,
-                   flowExprIDs.contains(receiver.rawValue)
-                {
-                    emitFlowTransformCall(
-                        handleExpr: receiver, lambdaExpr: arguments[0],
-                        tag: .onErrorReturn, result: result
-                    )
-                    continue
-                }
-
-                if callee == names.onErrorResume, arguments.count == 1,
-                   flowExprIDs.contains(receiver.rawValue)
-                {
-                    emitFlowTransformCall(
-                        handleExpr: receiver, lambdaExpr: arguments[0],
-                        tag: .onErrorResume, result: result
                     )
                     continue
                 }

@@ -705,8 +705,8 @@ bundled declaration が存在する operator call を name/provenance intrinsic 
 
 **Flow (b) 移行の前提条件（KSP-499 で解決）**: `Sources/CompilerCore/Lowering/CoroutineLoweringPass+Flow.swift`
 の `lowerFlowExpressions` は `map`/`filter`/`take`/`transform`/`single`/`takeWhile`/`dropWhile`/`flatMapConcat`/`flatMapMerge`/
-`flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`delayEach`/`catch`/`retry`/`retryWhen`/
-`onErrorReturn`/`onErrorResume`/`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
+`flatMapLatest`/`combine`/`zip`/`merge`/`buffer`/`conflate`/`flowOn`/`debounce`/`sample`/`catch`/`retry`/`retryWhen`/
+`toList`/`first` の呼び出しを、**Sema が解決した callee symbol を参照せず**、
 「レシーバが flow 由来の式かどうか（`flowExprIDs`/`flowGlobalSymbols` による provenance 追跡）」+「呼び出し名の文字列一致」
 だけで `kk_flow_*` へ KIR 構造的に書き換える。したがって、これらの名前を持つ Kotlin 実装を bundled stdlib に追加しても
 **Lowering 段階で無条件に上書きされ、呼ばれない**（`FlowLoweringNames` 構造体・その初期化コードに列挙された名前が対象）。

@@ -33,8 +33,9 @@ private enum RuntimeFlowTag: Int {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    case onErrorReturn = 9
-    case onErrorResume = 10
+    // KUU-1351: tags 9/10 (onErrorReturn/onErrorResume) and 19 (delayEach) are
+    // retired — they backed Flow operators that do not exist in
+    // kotlinx-coroutines, and the compiler no longer emits them.
     case transform = 11
     case takeWhile = 12
     case dropWhile = 13
@@ -43,7 +44,6 @@ private enum RuntimeFlowTag: Int {
     case flowOn = 16
     case debounce = 17
     case sample = 18
-    case delayEach = 19
     case onCompletion = 20
 }
 
@@ -110,8 +110,6 @@ private enum RuntimeFlowErrorHandlerKind {
     case catchHandler(Int)
     case retry(Int)
     case retryWhen(Int)
-    case onErrorReturn(Int)
-    case onErrorResume(Int)
 }
 
 private struct RuntimeFlowStage {
@@ -325,7 +323,7 @@ private func runtimeFlowSortEvents(_ events: [RuntimeFlowEvent]) -> [RuntimeFlow
 
 private func runtimeFlowIsStreamLevelOp(_ kind: RuntimeFlowTag) -> Bool {
     switch kind {
-    case .conflate, .flowOn, .debounce, .sample, .delayEach, .buffer:
+    case .conflate, .flowOn, .debounce, .sample, .buffer:
         return true
     default:
         return false
@@ -406,59 +404,6 @@ private func runtimeFlowApplyStreamOps(
             currentEvents = runtimeFlowApplyDebounce(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
         case .sample:
             currentEvents = runtimeFlowApplySample(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
-        case .delayEach:
-            let intervalMs = max(0, runtimeFlowMaybeUnbox(op.argument))
-            let intervalNs = UInt64(intervalMs) * 1_000_000
-            var delayed: [RuntimeFlowEvent] = []
-            delayed.reserveCapacity(currentEvents.count)
-
-            // 遅延がある場合は実際に待機する
-            if intervalMs > 0 {
-                let group = DispatchGroup()
-
-                // ThreadSafeなコンテナを使用
-                class DelayedEventsContainer: @unchecked Sendable {
-                    private var events: [RuntimeFlowEvent] = []
-                    private let lock = NSLock()
-
-                    func append(_ event: RuntimeFlowEvent) {
-                        lock.lock()
-                        events.append(event)
-                        lock.unlock()
-                    }
-
-                    func getAll() -> [RuntimeFlowEvent] {
-                        lock.lock()
-                        let result = events
-                        lock.unlock()
-                        return result
-                    }
-                }
-
-                let container = DelayedEventsContainer()
-
-                // 並列実行で各イベントの遅延を計算
-                for (index, event) in currentEvents.enumerated() {
-                    group.enter()
-                    DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(intervalMs * index)) {
-                        let delayedEvent = RuntimeFlowEvent(
-                            value: event.value,
-                            timestamp: event.timestamp + intervalNs * UInt64(index + 1)
-                        )
-                        container.append(delayedEvent)
-                        group.leave()
-                    }
-                }
-                group.wait()
-
-                // 並列実行が完了したら、結果をメインのdelayedにコピー
-                delayed = container.getAll()
-            } else {  // 遅延がない場合はタイムスタンプのみ操作
-                for event in currentEvents {
-                    delayed.append(RuntimeFlowEvent(value: event.value, timestamp: event.timestamp + intervalNs))
-                }
-            }
-            currentEvents = delayed
         case .buffer, .flowOn, .emit:
             continue
         default:
@@ -507,10 +452,6 @@ private func runtimeFlowErrorHandler(for op: RuntimeFlowOp) -> RuntimeFlowErrorH
         return .retry(op.argument)
     case .retryWhen:
         return .retryWhen(op.argument)
-    case .onErrorReturn:
-        return .onErrorReturn(op.argument)
-    case .onErrorResume:
-        return .onErrorResume(op.argument)
     default:
         return nil
     }
@@ -685,14 +626,14 @@ private func runtimeFlowApplyOpsLazy(
                 return .filtered
             }
 
-        case .catchHandler, .retry, .retryWhen, .onErrorReturn, .onErrorResume:
+        case .catchHandler, .retry, .retryWhen:
             continue
 
         case .onCompletion:
             // onCompletion is a completion-only handler; pass elements through unchanged.
             continue
 
-        case .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
+        case .buffer, .conflate, .flowOn, .debounce, .sample:
             continue
         }
     }
@@ -915,20 +856,6 @@ private func runtimeFlowApplyErrorHandler(
             values: current.values,
             failure: runtimeFlowInvokeCatchHandler(handlerFnPtr, failure: initialFailure)
         )
-
-    case .onErrorReturn(let fallbackValue):
-        var values = current.values
-        values.append(runtimeFlowMaybeUnbox(fallbackValue))
-        return RuntimeFlowExecutionResult(values: values, failure: nil)
-
-    case .onErrorResume(let fallbackFlowHandle):
-        var values = current.values
-        guard let fallbackFlow = runtimeFlowHandle(from: fallbackFlowHandle) else {
-            return current
-        }
-        let resumed = runtimeFlowEvaluate(flow: fallbackFlow)
-        values.append(contentsOf: resumed.values)
-        return RuntimeFlowExecutionResult(values: values, failure: resumed.failure)
 
     case .retry(let retryCountRaw):
         let retryCount = max(0, runtimeFlowMaybeUnbox(retryCountRaw))

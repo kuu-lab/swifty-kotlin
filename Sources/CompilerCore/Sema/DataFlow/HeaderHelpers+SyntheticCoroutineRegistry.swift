@@ -717,26 +717,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            registerSyntheticCoroutineMember(
-                ownerSymbol: flowInterfaceSymbol,
-                ownerType: flowRawType,
-                name: "onErrorReturn",
-                externalLinkName: "",
-                returnType: flowRawType,
-                parameters: [(name: "fallback", type: types.anyType)],
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticCoroutineMember(
-                ownerSymbol: flowInterfaceSymbol,
-                ownerType: flowRawType,
-                name: "onErrorResume",
-                externalLinkName: "",
-                returnType: flowRawType,
-                parameters: [(name: "fallback", type: flowRawType)],
-                symbols: symbols,
-                interner: interner
-            )
+            // KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` do not exist
+            // on `kotlinx.coroutines.flow.Flow`; no synthetic members are
+            // registered for them so calls stay unresolved like on the JVM.
         }
 
         let suspendIntrinsicName = interner.intern("suspendCoroutineUninterceptedOrReturn")

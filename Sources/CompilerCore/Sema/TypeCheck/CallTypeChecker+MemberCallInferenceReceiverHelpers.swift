@@ -526,12 +526,16 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
         let memberName = ctx.interner.resolve(calleeName)
+        // KUU-1351: this set must stay within the real kotlinx-coroutines Flow
+        // surface; `onErrorReturn`/`onErrorResume`/`delayEach` are not kotlinx
+        // Flow operators, so admitting them here would accept code that kotlinc
+        // rejects as unresolved.
         let flowMembers: Set = [
             "map", "filter", "take", "collect", "collectLatest", "toList", "first",
             "single",
             "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce", "delayEach",
-            "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume",
+            "buffer", "conflate", "flowOn", "debounce",
+            "catch", "retry", "retryWhen",
         ]
         guard flowMembers.contains(memberName) else {
             return nil
@@ -577,7 +581,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
 
-        case "take", "buffer", "debounce", "delayEach", "flowOn":
+        case "take", "buffer", "debounce", "flowOn":
             guard args.count == 1 else {
                 return nil
             }
@@ -626,7 +630,7 @@ extension CallTypeChecker {
 
         case "map", "filter", "collect", "collectLatest", "transform", "takeWhile", "dropWhile",
              "flatMapConcat", "flatMapMerge", "flatMapLatest",
-             "catch", "retryWhen", "onErrorReturn", "onErrorResume":
+             "catch", "retryWhen":
             guard args.count == 1 else {
                 return nil
             }
@@ -655,7 +659,7 @@ extension CallTypeChecker {
                 sema.types.anyType
             }
             let lambdaParameterTypes: [TypeID] = switch memberName {
-            case "catch", "onErrorResume":
+            case "catch":
                 [sema.types.anyType]
             case "retryWhen":
                 [sema.types.anyType, sema.types.longType]

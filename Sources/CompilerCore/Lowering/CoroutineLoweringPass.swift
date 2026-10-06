@@ -56,7 +56,6 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("flowOn"),
             ctx.interner.intern("debounce"),
             ctx.interner.intern("sample"),
-            ctx.interner.intern("delayEach"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
