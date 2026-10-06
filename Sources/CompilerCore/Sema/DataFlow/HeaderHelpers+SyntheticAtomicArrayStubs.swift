@@ -1,7 +1,6 @@
 
 /// Array-shaped atomic surfaces (`AtomicIntArray`/`AtomicLongArray`/
-/// `AtomicArray<T>`) and their `atomicArrayOf`/`atomicArrayOfNulls`
-/// factories, extracted from the Atomic residual registration surface.
+/// `AtomicArray<T>`), extracted from the Atomic residual registration surface.
 extension DataFlowSemaPhase {
     func registerAtomicArrayFamily(
         packageFQName: [InternedString],
@@ -12,6 +11,7 @@ extension DataFlowSemaPhase {
         unitType: TypeID,
         prefix: String,
         includeArithmetic: Bool,
+        includeIndexOperators: Bool = true,
         includeIncrementAndGetAlias: Bool = false,
         includeGetAndIncrementAlias: Bool = false,
         includeGetAndDecrementAlias: Bool = false,
@@ -74,28 +74,30 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "get",
-            externalLinkName: "\(prefix)_loadAt",
-            returnType: valueType,
-            parameters: [(name: "index", type: types.intType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "set",
-            externalLinkName: "\(prefix)_storeAt",
-            returnType: unitType,
-            parameters: [(name: "index", type: types.intType), (name: "value", type: valueType)],
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
+        if includeIndexOperators {
+            registerAtomicMember(
+                ownerSymbol: symbol,
+                ownerType: ownerType,
+                name: "get",
+                externalLinkName: "\(prefix)_loadAt",
+                returnType: valueType,
+                parameters: [(name: "index", type: types.intType)],
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+            registerAtomicMember(
+                ownerSymbol: symbol,
+                ownerType: ownerType,
+                name: "set",
+                externalLinkName: "\(prefix)_storeAt",
+                returnType: unitType,
+                parameters: [(name: "index", type: types.intType), (name: "value", type: valueType)],
+                flags: [.synthetic, .operatorFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerAtomicMember(
             ownerSymbol: symbol,
             ownerType: ownerType,
@@ -325,18 +327,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.invariant], for: symbol)
         symbols.setPropertyType(ownerType, for: symbol)
 
-        // constructor(size: Int)
-        registerAtomicConstructor(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            externalLinkName: "kk_atomic_ref_array_new",
-            paramType: types.intType,
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-
         // size: Int
         registerAtomicReadOnlyProperty(
             ownerSymbol: symbol,
@@ -388,19 +378,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "getAndSet",
-            externalLinkName: "kk_atomic_ref_array_exchangeAt",
-            returnType: typeParamType,
-            parameters: [(name: "index", type: types.intType), (name: "newValue", type: typeParamType)],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-
         // compareAndSetAt(index: Int, expect: T, update: T): Boolean
         registerAtomicMember(
             ownerSymbol: symbol,
@@ -435,107 +412,6 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: 1,
             symbols: symbols,
             interner: interner
-        )
-
-        // get operator alias (index: Int): T
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "get",
-            externalLinkName: "kk_atomic_ref_array_loadAt",
-            returnType: typeParamType,
-            parameters: [(name: "index", type: types.intType)],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // set operator alias (index: Int, value: T): Unit
-        registerAtomicMember(
-            ownerSymbol: symbol,
-            ownerType: ownerType,
-            name: "set",
-            externalLinkName: "kk_atomic_ref_array_storeAt",
-            returnType: unitType,
-            parameters: [(name: "index", type: types.intType), (name: "value", type: typeParamType)],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            flags: [.synthetic, .operatorFunction],
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    func registerAtomicArrayOfFactory(
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner,
-        types: TypeSystem
-    ) {
-        let functionName = interner.intern("atomicArrayOf")
-        let functionFQName = packageFQName + [functionName]
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == nil
-                && signature.parameterTypes.count == 1
-                && signature.typeParameterSymbols.count == 1
-                && signature.valueParameterIsVararg.first == true
-        }) {
-            symbols.setExternalLinkName("kk_atomic_ref_array_of", for: existing)
-            return
-        }
-
-        guard let atomicArraySymbol = symbols.lookup(fqName: packageFQName + [interner.intern("AtomicArray")]) else {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName("kk_atomic_ref_array_of", for: functionSymbol)
-
-        let typeParamName = interner.intern("T")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: functionFQName + [typeParamName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        let typeParamType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: .nonNull)))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: atomicArraySymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: nil,
-                parameterTypes: [typeParamType],
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [true],
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
         )
     }
 }

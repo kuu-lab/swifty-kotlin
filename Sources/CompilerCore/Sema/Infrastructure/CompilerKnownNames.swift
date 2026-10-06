@@ -320,7 +320,6 @@ package struct KnownCompilerNames {
     let compareByDescending: InternedString
     let compareValuesBy: InternedString
     let delay: InternedString
-    let atomicArrayOf: InternedString
     let atomicIntArray: InternedString
     let atomicLongArray: InternedString
     let collections: InternedString
@@ -730,7 +729,6 @@ package struct KnownCompilerNames {
         compareByDescending = interner.intern("compareByDescending")
         compareValuesBy = interner.intern("compareValuesBy")
         delay = interner.intern("delay")
-        atomicArrayOf = interner.intern("atomicArrayOf")
         atomicIntArray = interner.intern("AtomicIntArray")
         atomicLongArray = interner.intern("AtomicLongArray")
         collections = interner.intern("collections")

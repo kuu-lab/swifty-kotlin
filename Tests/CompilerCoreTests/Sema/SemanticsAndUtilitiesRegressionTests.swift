@@ -198,11 +198,11 @@ struct SemanticsAndUtilitiesRegressionTests {
 
                     fun main() {
                         val ints = AtomicIntArray(2)
-                        ints[0] = 5
-                        ints[1] = ints[0] + 1
+                        ints.storeAt(0, 5)
+                        ints.storeAt(1, ints.loadAt(0) + 1)
                         val longs = AtomicLongArray(1)
-                        longs[0] = 9L
-                        println(ints[0] + ints[1] + longs[0])
+                        longs.storeAt(0, 9L)
+                        println(ints.loadAt(0) + ints.loadAt(1) + longs.loadAt(0))
                     }
 
             """,

@@ -1,5 +1,29 @@
 
 extension LocalDeclTypeChecker {
+    /// `kotlin.concurrent.atomics`' array classes have no `operator get`/`set`
+    /// on the real (JVM/common) API surface; index access must not fall
+    /// through to the built-in array path (KUU-1365). The legacy
+    /// `kotlin.concurrent` arrays keep their bundled `get`/`set` extensions
+    /// and never reach this check.
+    func isCanonicalAtomicArrayReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let atomicsPrefix: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("concurrent"),
+            interner.intern("atomics"),
+        ]
+        guard symbol.fqName.starts(with: atomicsPrefix) else { return false }
+        return symbol.name == interner.intern("AtomicIntArray")
+            || symbol.name == interner.intern("AtomicLongArray")
+            || symbol.name == interner.intern("AtomicArray")
+    }
+
     /// When the sole shape-matching get()/set() candidate expects a non-Int
     /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
     /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
@@ -246,6 +270,15 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.charType)
             return sema.types.charType
         }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'get'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let elementType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
         ) ?? sema.types.anyType
@@ -450,6 +483,15 @@ extension LocalDeclTypeChecker {
 
         // Fallback: built-in array assign (single Int index only)
         guard indices.count == 1 else {
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'set'.",
+                range: range
+            )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }

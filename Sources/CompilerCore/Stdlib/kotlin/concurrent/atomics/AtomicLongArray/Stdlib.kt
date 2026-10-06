@@ -28,7 +28,7 @@ public fun AtomicLongArray(array: LongArray): AtomicLongArray {
     val result = AtomicLongArray(array.size)
     var index = 0
     while (index < array.size) {
-        result[index] = array[index]
+        result.storeAt(index, array[index])
         index++
     }
     return result
@@ -43,7 +43,7 @@ public fun AtomicLongArray(array: LongArray): AtomicLongArray {
 public inline fun AtomicLongArray(size: Int, init: (Int) -> Long): AtomicLongArray {
     val result = AtomicLongArray(size)
     for (index in 0 until size) {
-        result[index] = init(index)
+        result.storeAt(index, init(index))
     }
     return result
 }

@@ -145,6 +145,9 @@ extension DataFlowSemaPhase {
         // the receiver members runtime-backed until the sibling tickets
         // migrate them. The atomics -> kotlin.concurrent typealiases are
         // removed: upstream declares real classes in this package.
+        // KUU-1365: the canonical atomics package matches the JVM/common
+        // API surface — no `value` property (Native-only; rejected by the
+        // JVM reference kotlinc the diff harness checks against).
         registerAtomicScalarFamily(
             packageFQName: atomicsPkg,
             className: "AtomicInt",
@@ -154,6 +157,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "__kk_atomic_int",
             includeArithmetic: true,
+            includeValueProperty: false,
             compareAndSetLinkName: "kk_atomic_int_compareAndSet",
             symbols: symbols,
             interner: interner,
@@ -168,6 +172,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "__kk_atomic_long",
             includeArithmetic: true,
+            includeValueProperty: false,
             compareAndSetLinkName: "kk_atomic_long_compareAndSet",
             symbols: symbols,
             interner: interner,
@@ -183,6 +188,7 @@ extension DataFlowSemaPhase {
             prefix: "__kk_atomic_bool",
             includeArithmetic: false,
             includeCompareAndSet: false,
+            includeValueProperty: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -194,7 +200,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             constructorLinkName: "kk_atomic_ref_create",
-            externalLinkPrefix: "__kk_atomic_ref"
+            externalLinkPrefix: "__kk_atomic_ref",
+            includeValueProperty: false
         )
         registerAtomicNativePtrSurface(
             packageFQName: atomicsPkg,
@@ -233,6 +240,10 @@ extension DataFlowSemaPhase {
             types: types
         )
 
+        // KUU-1365: canonical atomics arrays keep the JVM/common `*At`
+        // surface only — no operator get/set, no `length`, and none of the
+        // Native/Java alias methods (getAndSet / getAndAdd / addAndGet /
+        // *AndGet / *AndIncrement / *AndDecrement).
         registerAtomicArrayFamily(
             packageFQName: atomicsPkg,
             className: "AtomicIntArray",
@@ -242,13 +253,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_int_array",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeIndexOperators: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -262,13 +267,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_long_array",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeIndexOperators: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -284,13 +283,9 @@ extension DataFlowSemaPhase {
         )
         // `atomicArrayOfNulls` is source-backed by
         // Stdlib/kotlin/concurrent/atomics/Stdlib.kt (KSP-1100) and links
-        // `kk_atomic_ref_array_new` directly; no synthetic factory remains.
-        registerAtomicArrayOfFactory(
-            packageFQName: atomicsPkg,
-            symbols: symbols,
-            interner: interner,
-            types: types
-        )
+        // `kk_atomic_ref_array_new` directly. `atomicArrayOf` was a phantom
+        // factory with no counterpart in the real API (KUU-1365); it is no
+        // longer registered.
 
         // Lock.withLock is source-backed; retain only its synthetic type shell.
         let lockSymbol = ensureClassSymbol(

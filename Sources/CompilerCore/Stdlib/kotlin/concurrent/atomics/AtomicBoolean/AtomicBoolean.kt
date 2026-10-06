@@ -59,22 +59,3 @@ public fun AtomicBoolean.store(value: Boolean): Unit {
 public fun AtomicBoolean.toString(): String =
     __kkAtomicBoolLoad().toString()
 
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicBoolean.fetchAndUpdate(transform: (Boolean) -> Boolean): Boolean {
-    while (true) {
-        val old = load()
-        val newValue = transform(old)
-        if (compareAndSet(old, newValue)) return old
-    }
-}
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public inline fun AtomicBoolean.updateAndFetch(transform: (Boolean) -> Boolean): Boolean {
-    while (true) {
-        val old = load()
-        val newValue = transform(old)
-        if (compareAndSet(old, newValue)) return newValue
-    }
-}

@@ -23,6 +23,7 @@ extension DataFlowSemaPhase {
         includeDecrementAndGetAlias: Bool = false,
         includeAddAndGetAlias: Bool = false,
         includeCompareAndSet: Bool = true,
+        includeValueProperty: Bool = true,
         compareAndSetLinkName: String? = nil,
         symbols: SymbolTable,
         interner: StringInterner,
@@ -50,13 +51,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerAtomicValueProperty(
-            ownerSymbol: symbol,
-            valueType: valueType,
-            getterLinkName: "\(prefix)_load",
-            symbols: symbols,
-            interner: interner
-        )
+        if includeValueProperty {
+            registerAtomicValueProperty(
+                ownerSymbol: symbol,
+                valueType: valueType,
+                getterLinkName: "\(prefix)_load",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicCoreMethods(
             ownerSymbol: symbol,
@@ -233,7 +236,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         constructorLinkName: String,
         externalLinkPrefix: String,
-        includeGetAndSetAlias: Bool = false
+        includeGetAndSetAlias: Bool = false,
+        includeValueProperty: Bool = true
     ) {
         let atomicRefSymbol = ensureClassSymbol(
             named: "AtomicReference",
@@ -283,13 +287,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerAtomicValueProperty(
-            ownerSymbol: atomicRefSymbol,
-            valueType: typeParamType,
-            getterLinkName: "\(externalLinkPrefix)_load",
-            symbols: symbols,
-            interner: interner
-        )
+        if includeValueProperty {
+            registerAtomicValueProperty(
+                ownerSymbol: atomicRefSymbol,
+                valueType: typeParamType,
+                getterLinkName: "\(externalLinkPrefix)_load",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         registerAtomicCoreMethods(
             ownerSymbol: atomicRefSymbol,

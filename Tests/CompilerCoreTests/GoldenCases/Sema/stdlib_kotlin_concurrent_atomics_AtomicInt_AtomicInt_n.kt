@@ -14,6 +14,6 @@ fun atomicIntReceiverMembers(): String {
     val oldIncrement = atomic.fetchAndIncrement()
     val oldDecrement = atomic.fetchAndDecrement()
     val compared = atomic.compareAndExchange(15, 16)
-    val current = atomic.value
+    val current = atomic.load()
     return "$loaded:$exchanged:$added:$oldAdded:$oldIncrement:$oldDecrement:$compared:$current:${atomic.toString()}"
 }
