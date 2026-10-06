@@ -487,13 +487,17 @@ extension CallLowerer {
         {
             hasStringSignature = concreteType.params.contains(where: sema.types.isString)
                 || sema.types.isString(concreteType.returnType)
-            if case .classType = sema.types.kind(of: functionType.returnType) {
+            // The erased ABI applies to `Any`/`Any?` reference returns and to
+            // type-parameter returns (`(T) -> R` style `transform` params): in
+            // both cases the thunk must deliver a boxed value.
+            switch sema.types.kind(of: functionType.returnType) {
+            case .classType, .typeParam:
                 needsReturnBoxing = functionValueBoxedReturnType(
                     concreteReturnType: concreteType.returnType,
                     expectedReturnType: functionType.returnType,
                     sema: sema
                 ) != nil
-            } else {
+            default:
                 needsReturnBoxing = false
             }
         } else {

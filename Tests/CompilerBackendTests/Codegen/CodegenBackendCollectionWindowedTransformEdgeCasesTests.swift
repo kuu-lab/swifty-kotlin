@@ -80,6 +80,44 @@ struct CodegenBackendCollectionWindowedTransformEdgeCasesTests {
     }
 
     @Test
+    func testCodegenWindowChunkTransformKeepsBooleanCharTypeTag() throws {
+        // KUU-1434: a transform returning a concrete Boolean/Char crosses the
+        // erased `R` boundary of the __kk_list_*_transform bridges and of the
+        // function-value ABI; without boxing it prints as 0/1 or a code point.
+        let source = """
+        fun main() {
+            val numbers = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+            println(numbers.chunked(3) { chunk -> chunk.map { it % 2 == 0 } })
+            println(numbers.chunked(3) { it.size == 3 })
+            println(numbers.windowed(3) { it.sum() > 10 })
+            println(listOf(1, 3, 2).zipWithNext { a, b -> a < b })
+            println(listOf(1, 2, 3).zip(listOf(3, 2, 1)) { a, b -> a < b })
+            println(listOf('a', 'b', 'c').windowed(2) { it[1] })
+            println(numbers.asSequence().chunked(3) { it.size == 3 }.toList())
+            val pred: (List<Int>) -> Boolean = { it.size == 2 }
+            println(listOf(1, 2, 3, 4).chunked(2, pred))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WindowChunkTransformBooleanCharTag",
+            expected:
+                """
+                [[false, true, false], [true, false, true], [false, true, false], [true]]
+                [true, true, true, false]
+                [false, false, true, true, true, true, true, true]
+                [true, false]
+                [true, false, false]
+                [b, c]
+                [true, true, true, false]
+                [true, true]
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testCodegenCollectionWindowedRejectsNonPositiveArguments() throws {
         let source = """
         fun main() {
