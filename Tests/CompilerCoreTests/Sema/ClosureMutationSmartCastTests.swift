@@ -5,6 +5,42 @@ import Testing
 
 @Suite
 struct ClosureMutationSmartCastTests {
+    @Test func narrowsBufferInSuspendFinallyBeforeAppend() throws {
+        let ctx = makeContextFromSource("""
+        class Buf { fun readString(): String = "" }
+        suspend fun f(out: Appendable) {
+            var outBuffer: Buf? = null
+            fun bufferBytes(count: Long) {
+                if (outBuffer == null) { outBuffer = Buf() }
+            }
+            try { bufferBytes(1) } finally {
+                if (outBuffer != null) out.append(outBuffer.readString())
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "fun fill() { if (buf == null) buf = Buf() }; fill(); if (buf != null) buf.readString()",
+        "fun fill() { buf = Buf() }; try { fill() } finally { if (buf != null) buf.readString() }",
+        "val fill = { buf = Buf() }; fill(); if (buf != null) buf.readString()",
+        "fun fill() { buf = Buf() }; if (buf != null) { fill(); buf.readString() }",
+        "fun fill() { buf = Buf() }; fill(); if (buf is Buf) buf.readString()"
+    ])
+    func narrowsOuterNullableWithNonNullClosureWrites(body: String) throws {
+        let ctx = makeNullableCaptureContext("""
+        class Buf { fun readString(): String = "ok" }
+        suspend fun f() {
+            var buf: Buf? = null
+            \(body)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "if (buf == null) { buf = Buf() }; buf.write(count)",
         "if (buf == null) buf = Buf(); buf.write(count)",
@@ -41,7 +77,12 @@ struct ClosureMutationSmartCastTests {
         "fun g() { buf = Buf(); for (n in 0..1) { buf = null }; buf.write(1L) }",
         "fun g(flag: Boolean) { buf = Buf(); do { buf = null } while (flag); buf.write(1L) }",
         "fun g(flag: Boolean) { buf = Buf(); when { flag -> buf = null }; buf.write(1L) }",
-        "fun g() { buf = Buf(); try { buf = null } finally {}; buf.write(1L) }"
+        "fun g() { buf = Buf(); try { buf = null } finally {}; buf.write(1L) }",
+        "fun clear() { buf = null }; if (buf != null) { clear(); buf.write(1L) }",
+        "val clear = { buf = null }; if (buf != null) buf.write(1L)",
+        "fun maybe(): Buf? = null; fun fill() { buf = maybe() }; if (buf != null) buf.write(1L)",
+        "var other: Buf? = null; other = Buf(); val fill = { buf = other }; other = null; if (buf != null) { fill(); buf.write(1L) }",
+        "var other: Buf? = null; other = Buf(); val fill = { val snapshot = other; buf = snapshot }; other = null; if (buf != null) { fill(); buf.write(1L) }"
     ])
     func rejectsUnsafeCapturedNullableNarrowing(body: String) throws {
         let ctx = makeNullableCaptureContext("""
@@ -55,6 +96,19 @@ struct ClosureMutationSmartCastTests {
         #expect(ctx.diagnostics.diagnostics.contains {
             $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0022"
         }, "Expected a nullable receiver diagnostic, got: \(ctx.diagnostics.diagnostics.map(\.code))")
+    }
+
+    @Test func rejectsNullableCompoundClosureWrite() throws {
+        let ctx = makeNullableCaptureContext("""
+        operator fun Any?.plus(i: Int): Any? = null
+        fun f() {
+            var x: Any? = "hi"
+            fun clear() { x += 1 }
+            if (x != null) { clear(); val y: Any = x }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected the nullable compound write to prevent narrowing")
     }
 
     private func makeNullableCaptureContext(_ source: String) -> CompilationContext {

@@ -4,7 +4,9 @@ extension DataFlowAnalyzer {
         locals: LocalBindings,
         ast: ASTModule,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        narrowingType: TypeID? = nil,
+        narrowingToNonNull: Bool = false
     ) -> (symbol: DataFlowReference, type: TypeID, isStable: Bool)? {
         guard let expr = ast.arena.expr(id) else { return nil }
         let local: LocalBindings.Value
@@ -53,8 +55,16 @@ extension DataFlowAnalyzer {
         } else {
             true
         }
-        let mutatedInClosure = localDeclarations[local.symbol].map {
-            localStability.isMutatedInClosure($0, sema: sema)
+        let targetType = narrowingType ?? (narrowingToNonNull ? sema.types.makeNonNullable(local.type) : nil)
+        let mutatedInClosure = localDeclarations[local.symbol].map { declaration in
+            guard localStability.isMutatedInClosure(declaration, sema: sema) else { return false }
+            guard let targetType else { return true }
+            // localDeclarations tracks mutable locals only; immutable aliases
+            // must also be excluded from this conservative value proof.
+            let localSymbols = Set(sema.symbols.allSymbols().filter { $0.kind == .local }.map(\.id))
+            return !localStability.closureWritesPreserve(
+                declaration, type: targetType, ast: ast, sema: sema, localSymbols: localSymbols
+            )
         } ?? false
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
     }
