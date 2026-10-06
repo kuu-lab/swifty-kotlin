@@ -49,6 +49,55 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1301: chunked transforms escape into nested sequence/iterator objects.
+    /// Exercise both source injection and imported stdlib callback ABIs.
+    @Test(arguments: [false, true])
+    func testSequenceChunkedTransformCaptures(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/sequence_chunked_transform_capture.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "SequenceChunkedTransformCaptures",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            [3, 7, 5]
+            [[1, 2], [3, 4], [5]]
+            [3, 7, 5]
+            [103, 107, 105]
+            [chunk:1+2, chunk:3+4, chunk:5]
+            [[1, 2], [3, 4], [5]]
+            []
+            0
+            [3]
+            1
+            [3, 7, 5]
+            4
+            transform
+            size 0 must be greater than zero.
+
+            """)
+        }
+    }
+
     /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
     @Test
     func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
