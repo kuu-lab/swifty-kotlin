@@ -101,7 +101,7 @@ expr e@40:5 return value=e@40:12 type=Nothing
 expr e@43:41 name(s) type=String? ref=safeCallExample.$11.s[kind=vparam;origin=fixture]
 expr e@43:41#1 safeMemberCall recv=e@43:41 callee=hashCode args=[] type=Int? call=kotlin.Any.hashCode[kind=fun;recv=kotlin.Any;params=;ret=Int]
 expr e@46:24 int(3) type=Int
-expr e@46:15 call callee=e@46:15#1 args=[_:e@46:24] type=kotlin.IntArray
+expr e@46:15 call callee=e@46:15#1 args=[_:e@46:24] type=kotlin.IntArray call=kotlin.IntArray[kind=fun;params=Int;ret=kotlin.IntArray;names=[size]]
 expr e@46:5 localDecl arr mutable=1 type=_ init=e@46:15 type=Unit ref=__local_5.arr[kind=local;type=kotlin.IntArray;mutable;origin=fixture]
 expr e@47:5 name(arr) type=kotlin.IntArray ref=__local_5.arr[kind=local;type=kotlin.IntArray;mutable;origin=fixture]
 expr e@47:9 int(0) type=Int

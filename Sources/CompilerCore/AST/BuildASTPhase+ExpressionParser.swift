@@ -140,7 +140,17 @@ extension BuildASTPhase {
         func parseExpression(minPrecedence: Int) -> ExprID? {
             defer { leaveRecursion() }
             guard enterRecursion() else { return nil }
-            guard var lhs = parsePrefixUnary() else { return nil }
+            guard let lhs = parsePrefixUnary() else { return nil }
+            return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
+        }
+
+        /// Continues an already-parsed operand with the infix operator chain
+        /// (`is`/`in`/`as`, binary ops, infix calls). Call-argument lambdas
+        /// re-enter here after their postfix suffixes so that an argument
+        /// that starts with `{` still parses as a full expression
+        /// (`foo({ 5 }() + { 6 }())`), matching `parseExpression`.
+        func parseInfixOperators(lhs initialLHS: ExprID, minPrecedence: Int) -> ExprID {
+            var lhs = initialLHS
             while true {
                 if let next = tryParseIsCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
                 if let next = tryParseInCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }

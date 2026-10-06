@@ -12,7 +12,7 @@ expr e@9:16#1 memberCall recv=e@9:16 callee=Monotonic args=[] type=kotlin.time.T
 expr e@9:16#2 memberCall recv=e@9:16#1 callee=markNow args=[] type=kotlin.time.TimeSource.Monotonic.ValueTimeMark call=kotlin.time.TimeSource.Monotonic.markNow[kind=fun;recv=kotlin.time.TimeSource.Monotonic;params=;ret=kotlin.time.TimeSource.Monotonic.ValueTimeMark]
 expr e@9:5 localDecl mark mutable=0 type=_ init=e@9:16#2 type=Unit ref=__local_0.mark[kind=local;type=kotlin.time.TimeSource.Monotonic.ValueTimeMark;origin=fixture]
 expr e@10:16 name(mark) type=kotlin.time.TimeSource.Monotonic.ValueTimeMark ref=__local_0.mark[kind=local;type=kotlin.time.TimeSource.Monotonic.ValueTimeMark;origin=fixture]
-expr e@10:23 name(Duration) type=kotlin.time.Duration.Companion ref=kotlin.time.Duration[kind=class;underlying=Long]
+expr e@10:23 name(Duration) type=kotlin.time.Duration.Companion ref=kotlin.time.Duration[kind=class]
 expr e@10:23#1 memberCall recv=e@10:23 callee=ZERO args=[] type=kotlin.time.Duration call=kotlin.time.ZERO.$get[kind=fun;recv=kotlin.time.Duration.Companion;params=;ret=kotlin.time.Duration]
 expr e@10:16#1 binary(add) lhs=e@10:16 rhs=e@10:23#1 type=kotlin.time.TimeSource.Monotonic.ValueTimeMark call=kotlin.time.TimeSource.Monotonic.ValueTimeMark.plus[kind=fun;recv=kotlin.time.TimeSource.Monotonic.ValueTimeMark;params=kotlin.time.Duration;ret=kotlin.time.TimeSource.Monotonic.ValueTimeMark;names=[duration]]
 expr e@10:5 localDecl copy mutable=0 type=_ init=e@10:16#1 type=Unit ref=__local_1.copy[kind=local;type=kotlin.time.TimeSource.Monotonic.ValueTimeMark;origin=fixture]

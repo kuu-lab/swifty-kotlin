@@ -63,7 +63,7 @@ expr e@21:13#1 binary(equal) lhs=e@21:13 rhs=e@21:22 type=Boolean
 expr e@21:37 name(accumulator) type=Int ref=s-11
 expr e@21:51 int(1) type=Int
 expr e@21:37#1 binary(add) lhs=e@21:37 rhs=e@21:51 type=Int
-expr e@21:30 return value=e@21:37#1 type=Nothing
+expr e@21:30 return value=e@21:37#1 type=Nothing ref=golden.sema.directNonLocalFold[kind=fun;params=kotlin.CharSequence,Char;ret=Int;names=[source,target];origin=fixture]
 expr e@21:9 if cond=e@21:13#1 then=e@21:30 else=_ type=Unit
 expr e@22:9 name(accumulator) type=Int ref=s-11
 expr e@22:23 int(1) type=Int
@@ -82,7 +82,7 @@ expr e@29:13#1 binary(equal) lhs=e@29:13 rhs=e@29:22 type=Boolean
 expr e@29:37 name(accumulator) type=Int ref=s-13
 expr e@29:51 int(1) type=Int
 expr e@29:37#1 binary(add) lhs=e@29:37 rhs=e@29:51 type=Int
-expr e@29:30 return value=e@29:37#1 type=Nothing
+expr e@29:30 return value=e@29:37#1 type=Nothing ref=golden.sema.safeNonLocalFold[kind=fun;params=kotlin.CharSequence?,Char;ret=Int;names=[source,target];origin=fixture]
 expr e@29:9 if cond=e@29:13#1 then=e@29:30 else=_ type=Unit
 expr e@30:9 name(accumulator) type=Int ref=s-13
 expr e@30:23 int(1) type=Int

@@ -45,9 +45,20 @@ extension BuildASTPhase.ExpressionParser {
 
     func parsePostfixOrPrimary() -> ExprID? {
         let receiverStartIndex = index
-        guard var expr = parsePrimary() else {
+        guard let expr = parsePrimary() else {
             return nil
         }
+        return parsePostfixSuffixes(expr, receiverStartIndex: receiverStartIndex)
+    }
+
+    /// Applies the postfix-unary suffix chain (call parens, trailing lambdas,
+    /// indexing, `!!`, `::`, member navigation) to an already-parsed primary
+    /// expression. Call-argument lambdas re-enter here so that Kotlin's
+    /// `{ ... }(...)` direct-invocation form parses: a `lambdaLiteral` is a
+    /// `primaryExpression` and takes the same `postfixUnarySuffix` chain as
+    /// any other primary.
+    private func parsePostfixSuffixes(_ initialExpr: ExprID, receiverStartIndex: Int) -> ExprID {
+        var expr = initialExpr
         while true {
             if matches(.symbol(.lessThan)) {
                 if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
@@ -295,7 +306,19 @@ extension BuildASTPhase.ExpressionParser {
 
         let expr: ExprID?
         if matches(.symbol(.lBrace)) {
-            expr = parseLambdaLiteral(label: implicitLambdaLabel)
+            let lambdaStart = index
+            if let lambda = parseLambdaLiteral(label: implicitLambdaLabel) {
+                // A lambda literal is a primary expression: `foo({ 42 }())`
+                // invokes the literal directly, and `foo({ 5 }() + { 6 }())`
+                // continues into an infix expression — both postfix and infix
+                // chains must keep going past the closing `}`.
+                expr = parseInfixOperators(
+                    lhs: parsePostfixSuffixes(lambda, receiverStartIndex: lambdaStart),
+                    minPrecedence: 0
+                )
+            } else {
+                expr = nil
+            }
         } else if matches(.symbol(.lParen)) {
             let savedIndex = index
             _ = consume()
@@ -304,7 +327,10 @@ extension BuildASTPhase.ExpressionParser {
                matches(.symbol(.rParen))
             {
                 _ = consume()
-                expr = lambdaExpr
+                expr = parseInfixOperators(
+                    lhs: parsePostfixSuffixes(lambdaExpr, receiverStartIndex: savedIndex),
+                    minPrecedence: 0
+                )
             } else {
                 index = savedIndex
                 expr = parseExpression(minPrecedence: 0)

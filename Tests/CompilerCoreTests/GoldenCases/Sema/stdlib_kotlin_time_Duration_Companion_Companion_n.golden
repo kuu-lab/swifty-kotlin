@@ -49,7 +49,7 @@ expr e@13:5 localDecl values mutable=0 type=_ init=e@13:18 type=Unit ref=__local
 expr e@23:13 name(values) type=kotlin.collections.List<out kotlin.time.Duration> ref=__local_0.values[kind=local;type=kotlin.collections.List<out kotlin.time.Duration>;origin=fixture]
 expr e@23:13#1 memberCall recv=e@23:13 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
 expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@24:13 name(Duration) type=kotlin.time.Duration ref=kotlin.time.Duration[kind=class;underlying=Long]
+expr e@24:13 name(Duration) type=kotlin.time.Duration ref=kotlin.time.Duration[kind=class]
 expr e@24:13#1 memberCall recv=e@24:13 callee=Companion args=[] type=kotlin.time.Duration.Companion ref=kotlin.time.Duration.Companion[kind=obj]
 expr e@24:40 double(1.5) type=Double
 expr e@24:45 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]

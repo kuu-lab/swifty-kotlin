@@ -59,6 +59,6 @@ expr e@19:44 name(list) type=kotlin.collections.List<Int> ref=groupFamily.$0.lis
 expr e@19:59 name(it) type=Int ref=s-7
 expr e@19:64 int(2) type=Int
 expr e@19:59#1 binary(modulo) lhs=e@19:59 rhs=e@19:64 type=Int
-expr e@19:57 lambda params=[] body=e@19:59#1 label=groupBy type=(Int) -> Any?
+expr e@19:57 lambda params=[] body=e@19:59#1 label=groupBy type=(Int) -> Int
 expr e@19:44#1 memberCall recv=e@19:44 callee=groupBy args=[_:e@19:57] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>> call=kotlin.collections.groupBy[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Map<T1,kotlin.collections.List<T0>>;gen=2;nonlocal=[0];names=[keySelector]] targs=[Int,Int]
 expr e@19:5 localDecl listGrouped mutable=0 type=Map<Int,List<Int>> init=e@19:44#1 type=Unit ref=__local_5.listGrouped[kind=local;type=kotlin.collections.Map<Int,kotlin.collections.List<Int>>;origin=fixture]

@@ -32,7 +32,7 @@ expr e@6:33#1 binary(greaterThan) lhs=e@6:33 rhs=e@6:38 type=Boolean
 expr e@6:41 string(hit) type=String
 expr e@6:52 name(null) type=Nothing?
 expr e@6:29 if cond=e@6:33#1 then=e@6:41 else=e@6:52 type=String?
-expr e@6:27 lambda params=[] body=e@6:29 label=firstNotNullOf type=(Int) -> Any?
+expr e@6:27 lambda params=[] body=e@6:29 label=firstNotNullOf type=(Int) -> String?
 expr e@6:5#1 memberCall recv=e@6:5 callee=firstNotNullOf args=[_:e@6:27] type=String call=kotlin.collections.firstNotNullOf[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=T1;gen=2;bounds=[_,Any];names=[transform]]
 expr e@9:5 name(values) type=kotlin.collections.Iterable<Int> ref=firstNotNullValueOrNull.$3.values[kind=vparam;origin=fixture]
 expr e@9:39 name(it) type=Int ref=s-2
@@ -41,7 +41,7 @@ expr e@9:39#1 binary(greaterThan) lhs=e@9:39 rhs=e@9:44 type=Boolean
 expr e@9:47 string(hit) type=String
 expr e@9:58 name(null) type=Nothing?
 expr e@9:35 if cond=e@9:39#1 then=e@9:47 else=e@9:58 type=String?
-expr e@9:33 lambda params=[] body=e@9:35 label=firstNotNullOfOrNull type=(Int) -> Any?
+expr e@9:33 lambda params=[] body=e@9:35 label=firstNotNullOfOrNull type=(Int) -> String?
 expr e@9:5#1 memberCall recv=e@9:5 callee=firstNotNullOfOrNull args=[_:e@9:33] type=String? call=kotlin.collections.firstNotNullOfOrNull[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1?};ret=T1?;gen=2;bounds=[_,Any];names=[transform]]
 expr e@11:53 name(values) type=kotlin.collections.Iterable<Int> ref=firstValueOrNull.$5.values[kind=vparam;origin=fixture]
 expr e@11:53#1 memberCall recv=e@11:53 callee=firstOrNull args=[] type=Int? call=kotlin.collections.firstOrNull[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=T0?;gen=1] targs=[Int]

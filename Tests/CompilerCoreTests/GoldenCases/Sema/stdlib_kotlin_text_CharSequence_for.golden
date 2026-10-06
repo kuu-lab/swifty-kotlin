@@ -42,7 +42,7 @@ expr e@12:26 name(it) type=Char ref=s-1
 expr e@12:32 name(target) type=Char ref=golden.sema.directNonLocal.$3.target[kind=vparam;origin=fixture]
 expr e@12:26#1 binary(equal) lhs=e@12:26 rhs=e@12:32 type=Boolean
 expr e@12:47 name(it) type=Char ref=s-1
-expr e@12:40 return value=e@12:47 type=Nothing
+expr e@12:40 return value=e@12:47 type=Nothing ref=golden.sema.directNonLocal[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,target];origin=fixture]
 expr e@12:22 if cond=e@12:26#1 then=e@12:40 else=_ type=Unit
 expr e@12:20 lambda params=[] body=e@12:22 label=forEach type=(Char) -> Unit
 expr e@12:5#1 memberCall recv=e@12:5 callee=forEach args=[_:e@12:20] type=Unit call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
@@ -53,7 +53,7 @@ expr e@17:27 name(it) type=Char ref=s-2
 expr e@17:33 name(target) type=Char ref=golden.sema.safeNonLocal.$6.target[kind=vparam;origin=fixture]
 expr e@17:27#1 binary(equal) lhs=e@17:27 rhs=e@17:33 type=Boolean
 expr e@17:48 name(it) type=Char ref=s-2
-expr e@17:41 return value=e@17:48 type=Nothing
+expr e@17:41 return value=e@17:48 type=Nothing ref=golden.sema.safeNonLocal[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,target];origin=fixture]
 expr e@17:23 if cond=e@17:27#1 then=e@17:41 else=_ type=Unit
 expr e@17:21 lambda params=[] body=e@17:23 label=forEach type=(Char) -> Unit
 expr e@17:5#1 safeMemberCall recv=e@17:5 callee=forEach args=[_:e@17:21] type=Unit call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
@@ -66,7 +66,7 @@ expr e@23:26 name(it) type=Char ref=s-3
 expr e@23:32 name(expected) type=Char ref=__local_0.expected[kind=local;type=Char;origin=fixture]
 expr e@23:26#1 binary(equal) lhs=e@23:26 rhs=e@23:32 type=Boolean
 expr e@23:49 name(it) type=Char ref=s-3
-expr e@23:42 return value=e@23:49 type=Nothing
+expr e@23:42 return value=e@23:49 type=Nothing ref=golden.sema.capturedNonLocal[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,target];origin=fixture]
 expr e@23:22 if cond=e@23:26#1 then=e@23:42 else=_ type=Unit
 expr e@23:20 lambda params=[] body=e@23:22 label=forEach type=(Char) -> Unit
 expr e@23:5#1 memberCall recv=e@23:5 callee=forEach args=[_:e@23:20] type=Unit call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
@@ -77,7 +77,7 @@ expr e@28:35 name(it) type=Char ref=s-4
 expr e@28:41 name(target) type=Char ref=golden.sema.namedNonLocal.$5.target[kind=vparam;origin=fixture]
 expr e@28:35#1 binary(equal) lhs=e@28:35 rhs=e@28:41 type=Boolean
 expr e@28:56 name(it) type=Char ref=s-4
-expr e@28:49 return value=e@28:56 type=Nothing
+expr e@28:49 return value=e@28:56 type=Nothing ref=golden.sema.namedNonLocal[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,target];origin=fixture]
 expr e@28:31 if cond=e@28:35#1 then=e@28:49 else=_ type=Unit
 expr e@28:29 lambda params=[] body=e@28:31 label=forEach type=(Char) -> Unit
 expr e@28:5#1 memberCall recv=e@28:5 callee=forEach args=[action:e@28:29] type=Unit call=kotlin.text.forEach[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Unit};ret=Unit;names=[action]]
@@ -88,7 +88,7 @@ expr e@33:58 name(index) type=Int ref=s-5
 expr e@33:67 int(1) type=Int
 expr e@33:58#1 binary(equal) lhs=e@33:58 rhs=e@33:67 type=Boolean
 expr e@33:77 name(value) type=Char ref=s-6
-expr e@33:70 return value=e@33:77 type=Nothing
+expr e@33:70 return value=e@33:77 type=Nothing ref=golden.sema.namedIndexedNonLocal[kind=fun;params=kotlin.CharSequence;ret=Char;names=[source];origin=fixture]
 expr e@33:54 if cond=e@33:58#1 then=e@33:70 else=_ type=Unit
 expr e@33:36 lambda params=[index,value] body=e@33:54 label=forEachIndexed type=(Int, Char) -> Unit
 expr e@33:5#1 memberCall recv=e@33:5 callee=forEachIndexed args=[action:e@33:36] type=Unit call=kotlin.text.forEachIndexed[kind=fun;recv=kotlin.CharSequence;params=fn{p=Int,Char;ret=Unit};ret=Unit;names=[action]]
