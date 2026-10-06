@@ -3266,7 +3266,8 @@ extension ExprLowerer {
                 // into a pointer bit-pattern) or 0 when no name is available.
                 // We always use intType here to stay consistent with the ABI.
                 let nameHintExpr: KIRExprID
-                if let name = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
+                if let name = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+                    ?? RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
                     let internedName = interner.intern(name)
                     nameHintExpr = arena.appendExpr(.stringLiteral(internedName), type: intType)
                     instructions.append(.constValue(result: nameHintExpr, value: .stringLiteral(internedName)))

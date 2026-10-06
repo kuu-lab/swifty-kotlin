@@ -1517,8 +1517,13 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
-    // If a compiler-provided name hint is available, use it directly.
+    // Class literals carry the qualified name so reflection works even when
+    // no class metadata has been registered. Keep simpleName unqualified.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
+           let name = hint.split(separator: ".").last {
+            return runtimeMakeStringRaw(String(name))
+        }
         return nameHint
     }
     let name = switch base {
@@ -1564,11 +1569,17 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
     }
 }
 
+private func runtimeKClassQualifiedName(_ name: String) -> String {
+    // This Kotlin platform classifier is a JVM typealias. Keep the Kotlin
+    // type identity in metadata, but expose the JVM reflection name.
+    name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+}
+
 /// Returns the qualified name of the type encoded in the given type token.
 /// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
 /// For nominal (user-defined) types registered metadata takes precedence over
-/// the compiler-supplied name hint, which can carry only the simple name.
+/// the compiler-supplied qualified name hint.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -1608,7 +1619,13 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     if base == RuntimeTypeTokenEncoding.nominalBase,
        let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
     {
-        return runtimeMakeStringRaw(metadata.qualifiedName)
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
+    }
+    if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)) {
+            return runtimeMakeStringRaw(runtimeKClassQualifiedName(hint))
+        }
+        return nameHint
     }
     return __kk_type_token_simple_name(typeToken, nameHint)
 }
@@ -1727,7 +1744,7 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
     if let metadata = box.metadata {
-        return runtimeMakeStringRaw(metadata.qualifiedName)
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }

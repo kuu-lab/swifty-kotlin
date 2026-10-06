@@ -139,6 +139,31 @@ struct RuntimeKClassMetadataTests {
 
     // MARK: - __kk_kclass_register_metadata C API
 
+    @Test func qualifiedHintPreservesPackageWithoutMetadata() {
+        let token = Int((Int64(1303) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        let klass = __kk_kclass_create(token, makeRuntimeString("kotlin.collections.List"))
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == "kotlin.collections.List")
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(klass)) == "List")
+    }
+
+    @Test func platformExceptionMappingDoesNotAffectUserClasses() {
+        for (index, name, expected) in [
+            (0, "kotlin.RuntimeException", "java.lang.RuntimeException"),
+            (1, "sample.RuntimeException", "sample.RuntimeException"),
+        ] {
+            let token = Int((Int64(1310 + index) << RuntimeTypeTokenEncoding.payloadShift)
+                | RuntimeTypeTokenEncoding.nominalBase)
+            let hint = makeRuntimeString(name)
+            let klass = __kk_kclass_create(token, hint)
+            #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == expected)
+            _ = __kk_kclass_register_metadata(
+                token, hint, makeRuntimeString("RuntimeException"), 0, 0, 0, 0, 1
+            )
+            #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == expected)
+        }
+    }
+
     @Test func qualifiedNameUsesMetadataInsteadOfSimpleNameHint() {
         let typeToken = Int((Int64(1234) << RuntimeTypeTokenEncoding.payloadShift)
             | RuntimeTypeTokenEncoding.nominalBase)

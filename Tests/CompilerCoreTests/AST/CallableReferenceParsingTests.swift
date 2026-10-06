@@ -5,6 +5,25 @@ import Testing
 
 @Suite
 struct CallableReferenceParsingTests {
+    @Test(arguments: ["Array<Int>?::class", "Array<Int>? ::class"])
+    func nullableTypeReceiverPreservesQuestionMark(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let parser = BuildASTPhase.ExpressionParser(
+            tokens: lexed.tokens.dropLast(), interner: lexed.interner,
+            astArena: arena, diagnostics: lexed.diagnostics
+        )
+        let expr = try #require(parser.parse())
+        let ref = try #require(arena.callableRefReceiverTypeRef(for: expr))
+        guard case let .named(_, _, nullable) = arena.typeRef(ref) else {
+            Issue.record("Expected a named type receiver")
+            return
+        }
+        #expect(nullable)
+        #expect(parser.current() == nil)
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
+    }
+
     @Test(arguments: [
         "Box<String>::echo", "pkg.Box<String>::echo", "Outer.Box<List<String?>>::echo",
         "Box<*>::echo", "Box<out String>::echo", "Box<(Int) -> String>::echo",
