@@ -1568,14 +1568,18 @@ extension ExprTypeChecker {
         // store the underlying function type so KIR lowering can generate
         // the correct callable.
         if samConversion, let expectedType, let expectedFunctionType {
-            driver.emitSubtypeConstraint(
-                left: inferredBodyType,
-                right: expectedFunctionType.returnType,
-                range: ast.arena.exprRange(body),
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
+            // Unit-returning SAM lambdas discard the body's value, just like
+            // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
+            if expectedFunctionType.returnType != sema.types.unitType {
+                driver.emitSubtypeConstraint(
+                    left: inferredBodyType,
+                    right: expectedFunctionType.returnType,
+                    range: ast.arena.exprRange(body),
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             sema.bindings.markSamConversion(id)
             let underlyingFuncType = sema.types.make(.functionType(expectedFunctionType))
             sema.bindings.bindSamUnderlyingFunctionType(id, type: underlyingFuncType)
