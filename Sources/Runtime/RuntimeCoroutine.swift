@@ -741,18 +741,35 @@ final class RuntimeContinuationState: @unchecked Sendable {
         // handle-only dispatcher element (the event loop, or one propagated
         // by a withContext merge) occupies the slot the same way a tag does.
         let builderHasDispatcher = (builder?.dispatcherElementHandle ?? 0) != 0
+        let mergedName = (builder?.name ?? inherited?.name) ?? scope?.name
         let mergedDispatcher = builderHasDispatcher
             ? (builder?.dispatcher ?? 0)
             : (inherited?.dispatcher ?? 0)
         var mergedDispatcherHandle = builderHasDispatcher
             ? (builder?.dispatcherHandleRaw ?? 0)
             : (inherited?.dispatcherHandleRaw ?? 0)
+        let mergedHandler = builder?.exceptionHandler ?? inherited?.exceptionHandler
+        // KUU-1405: carry source-defined elements through; builder extras win
+        // per key over inherited ones, and any extras claiming a built-in key
+        // lose to the merged built-in field (e.g. the coroutine's own Job).
+        let mergedExtras = runtimeMergedContextExtras(
+            inherited: inherited?.extras ?? [],
+            override: builder?.extras ?? [],
+            jobPresent: jobRaw != 0,
+            namePresent: mergedName != nil,
+            dispatcherPresent: mergedDispatcher != 0 || mergedDispatcherHandle != 0,
+            handlerPresent: mergedHandler != nil
+        )
         // KUU-1395: a coroutine bound to a runBlocking event loop exposes the
         // loop's element as its `ContinuationInterceptor` — the runtime
         // analogue of kotlinx's BlockingEventLoop — whenever nothing else
         // occupies the dispatcher slot (an explicit dispatcher wins on JVM
         // too).
         if mergedDispatcher == 0 && mergedDispatcherHandle == 0,
+           !mergedExtras.contains(where: {
+               $0.key == kk_continuation_interceptor_key()
+                   || $0.key == kk_coroutine_dispatcher_key()
+           }),
            let elementRaw = eventLoop?.elementHandle()
         {
             mergedDispatcherHandle = elementRaw
@@ -760,12 +777,13 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return runtimeCanonicalCoroutineContext(
             dispatcher: mergedDispatcher,
             dispatcherHandleRaw: mergedDispatcherHandle,
-            name: (builder?.name ?? inherited?.name) ?? scope?.name,
+            name: mergedName,
             nameHandleRaw: builder?.name != nil
                 ? (builder?.nameHandleRaw ?? 0)
                 : (inherited?.nameHandleRaw ?? 0),
-            exceptionHandler: builder?.exceptionHandler ?? inherited?.exceptionHandler,
-            jobHandleRaw: jobRaw
+            exceptionHandler: mergedHandler,
+            jobHandleRaw: jobRaw,
+            extras: mergedExtras
         )
     }
 
@@ -6629,4 +6647,19 @@ public func kk_suspend_function_invoke_5(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], continuation: continuation, outThrown: outThrown)
+}
+
+@_silgen_name("kk_suspend_function_invoke_6")
+public func kk_suspend_function_invoke_6(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], continuation: continuation, outThrown: outThrown)
 }

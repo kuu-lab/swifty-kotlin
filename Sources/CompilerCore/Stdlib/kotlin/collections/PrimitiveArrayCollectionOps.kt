@@ -6,6 +6,8 @@ public fun IntArray.toHashSet(): HashSet<Int> = asList().toHashSet()
 
 public fun IntArray.toMutableSet(): MutableSet<Int> = asList().toMutableSet()
 
+public fun IntArray.toSet(): Set<Int> = asList().toSet()
+
 public fun <C : MutableCollection<in Int>> IntArray.toCollection(destination: C): C =
     asList().toCollection(destination)
 
@@ -171,6 +173,8 @@ public inline fun <R, V> IntArray.zip(other: Iterable<R>, transform: (Int, R) ->
 public fun LongArray.toHashSet(): HashSet<Long> = asList().toHashSet()
 
 public fun LongArray.toMutableSet(): MutableSet<Long> = asList().toMutableSet()
+
+public fun LongArray.toSet(): Set<Long> = asList().toSet()
 
 public fun <C : MutableCollection<in Long>> LongArray.toCollection(destination: C): C =
     asList().toCollection(destination)
@@ -338,6 +342,8 @@ public fun ByteArray.toHashSet(): HashSet<Byte> = asList().toHashSet()
 
 public fun ByteArray.toMutableSet(): MutableSet<Byte> = asList().toMutableSet()
 
+public fun ByteArray.toSet(): Set<Byte> = asList().toSet()
+
 public fun <C : MutableCollection<in Byte>> ByteArray.toCollection(destination: C): C =
     asList().toCollection(destination)
 
@@ -503,6 +509,8 @@ public inline fun <R, V> ByteArray.zip(other: Iterable<R>, transform: (Byte, R) 
 public fun ShortArray.toHashSet(): HashSet<Short> = asList().toHashSet()
 
 public fun ShortArray.toMutableSet(): MutableSet<Short> = asList().toMutableSet()
+
+public fun ShortArray.toSet(): Set<Short> = asList().toSet()
 
 public fun <C : MutableCollection<in Short>> ShortArray.toCollection(destination: C): C =
     asList().toCollection(destination)
@@ -670,6 +678,8 @@ public fun CharArray.toHashSet(): HashSet<Char> = asList().toHashSet()
 
 public fun CharArray.toMutableSet(): MutableSet<Char> = asList().toMutableSet()
 
+public fun CharArray.toSet(): Set<Char> = asList().toSet()
+
 public fun <C : MutableCollection<in Char>> CharArray.toCollection(destination: C): C =
     asList().toCollection(destination)
 
@@ -835,6 +845,8 @@ public inline fun <R, V> CharArray.zip(other: Iterable<R>, transform: (Char, R) 
 public fun BooleanArray.toHashSet(): HashSet<Boolean> = asList().toHashSet()
 
 public fun BooleanArray.toMutableSet(): MutableSet<Boolean> = asList().toMutableSet()
+
+public fun BooleanArray.toSet(): Set<Boolean> = asList().toSet()
 
 public fun <C : MutableCollection<in Boolean>> BooleanArray.toCollection(destination: C): C =
     asList().toCollection(destination)
@@ -1002,6 +1014,8 @@ public fun FloatArray.toHashSet(): HashSet<Float> = asList().toHashSet()
 
 public fun FloatArray.toMutableSet(): MutableSet<Float> = asList().toMutableSet()
 
+public fun FloatArray.toSet(): Set<Float> = asList().toSet()
+
 public fun <C : MutableCollection<in Float>> FloatArray.toCollection(destination: C): C =
     asList().toCollection(destination)
 
@@ -1167,6 +1181,8 @@ public inline fun <R, V> FloatArray.zip(other: Iterable<R>, transform: (Float, R
 public fun DoubleArray.toHashSet(): HashSet<Double> = asList().toHashSet()
 
 public fun DoubleArray.toMutableSet(): MutableSet<Double> = asList().toMutableSet()
+
+public fun DoubleArray.toSet(): Set<Double> = asList().toSet()
 
 public fun <C : MutableCollection<in Double>> DoubleArray.toCollection(destination: C): C =
     asList().toCollection(destination)

@@ -46,6 +46,80 @@ struct LateinitKIRTests {
                       "Expected kk_lateinit_is_initialized in ready body, got: \(callees)")
     }
 
+    /// `c::name.isInitialized` on a bound receiver inside the declaring class
+    /// must read the backing field directly like `this::name`/`::name` do —
+    /// materializing the KProperty0 wrapper instead would invoke the stdlib
+    /// `isInitialized` stub (which throws) and, for String properties, a
+    /// dangling bridge callee that failed to link (KUU-1391).
+    @Test func testBoundReceiverLateinitIsInitializedEmitsRuntimeCheck() throws {
+        let source = """
+        class C {
+            lateinit var name: String
+            fun probe(other: C): Boolean = other::name.isInitialized
+        }
+        lateinit var top: String
+        fun main() {
+            println(::top.isInitialized)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        #expect(!(ctx.diagnostics.hasError),
+                       "bound lateinit isInitialized should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let module = try #require(ctx.kir)
+        let probeCallees = extractCallees(
+            from: try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner),
+            interner: ctx.interner
+        )
+        #expect(probeCallees.contains("kk_lateinit_is_initialized"),
+                "Expected kk_lateinit_is_initialized in probe body, got: \(probeCallees)")
+        let mainCallees = extractCallees(
+            from: try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner),
+            interner: ctx.interner
+        )
+        #expect(mainCallees.contains("kk_lateinit_is_initialized"),
+                "Expected kk_lateinit_is_initialized in main body, got: \(mainCallees)")
+    }
+
+    /// `c::name.isInitialized` outside the declaring class has no access to
+    /// the private backing field — kotlinc rejects it, so SEMA must too.
+    @Test func testBoundReceiverLateinitIsInitializedRejectsForeignScope() throws {
+        let source = """
+        class C { lateinit var name: String }
+        fun main() {
+            val c = C()
+            println(c::name.isInitialized)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(
+            ctx.diagnostics.diagnostics.contains { diagnostic in
+                diagnostic.code == "KSWIFTK-SEMA-LATEINIT"
+                    && diagnostic.message.contains("not accessible")
+            },
+            "c::name.isInitialized outside C should reject: \(ctx.diagnostics.diagnostics.map { $0.message })"
+        )
+    }
+
+    /// `C::name.isInitialized` is an unbound KProperty1 reference; kotlinc
+    /// reports `isInitialized` as unresolved (it exists only on KProperty0),
+    /// so SEMA must not accept it through the special-case either.
+    @Test func testUnboundLateinitIsInitializedIsRejected() throws {
+        let source = """
+        class C { lateinit var name: String }
+        fun check(): Boolean = C::name.isInitialized
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError,
+                "unbound C::name.isInitialized should be rejected: \(ctx.diagnostics.diagnostics.map { $0.message })")
+    }
+
     @Test func testKProperty0IsInitializedRejectsValueReceiver() throws {
         let source = """
         import kotlin.reflect.KProperty0
