@@ -1208,9 +1208,9 @@ extension CallLowerer {
            let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee),
            let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
-           isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+           isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
         {
-            // KUU-1256: Array zip and user Array extensions use their selected
+            // Array and primitive-array zip extensions use their selected
             // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }

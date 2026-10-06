@@ -659,6 +659,7 @@ final class RuntimeListBox {
         case .char: return RuntimeValue(raw: kk_box_char(raw))
         case .float: return RuntimeValue(raw: kk_box_float(raw))
         case .double: return RuntimeValue(raw: kk_box_double_nonnull(raw))
+        case .long: return RuntimeValue(raw: kk_box_long_nonnull(raw))
         default: return value
         }
     }
@@ -671,6 +672,7 @@ final class RuntimeListBox {
         case .char: return RuntimeValue(raw: kk_unbox_char_static(raw))
         case .float: return RuntimeValue(raw: kk_unbox_float_static(raw))
         case .double: return RuntimeValue(raw: kk_unbox_double_nonnull_static(raw))
+        case .long: return RuntimeValue(raw: kk_unbox_long(raw))
         default: return value
         }
     }

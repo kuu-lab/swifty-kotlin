@@ -69,6 +69,12 @@ extension CallTypeChecker {
         "contentEquals", "contentHashCode", "contentToString",
         "copyOf", "copyOfRange", "copyInto",
         "indices", "lastIndex", "iterator", "withIndex", "sort",
+        "average", "min", "max", "minOrNull", "maxOrNull",
+        "slice", "zip", "drop", "dropLast", "take", "takeLast",
+        "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
+        "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
+        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
+        "partition", "groupBy", "associate", "associateBy",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [
@@ -83,6 +89,7 @@ extension CallTypeChecker {
         "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
+        "indexOf", "lastIndexOf", "fill", "sortedBy", "sortedWith",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

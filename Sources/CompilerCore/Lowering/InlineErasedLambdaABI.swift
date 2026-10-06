@@ -123,13 +123,22 @@ enum InlineErasedLambdaABI {
 
     static func importedLambdaInvokeReturnType(
         inlineTarget: KIRFunction,
+        invokedParameter: SymbolID?,
         typeSubstitution: InlineTypeSubstitution?,
         ctx: KIRContext
     ) -> TypeID? {
         guard let types = ctx.sema?.types else { return nil }
-        for parameter in inlineTarget.params {
+        let functionParameters = inlineTarget.params.filter {
+            if case .functionType = types.kind(of: $0.type) { return true }
+            return false
+        }
+        // Multi-callback HOFs can return different types from each callback.
+        // Restore the invoked parameter's type, never the first selector's.
+        let parameter = functionParameters.first { $0.symbol == invokedParameter }
+            ?? (functionParameters.count == 1 ? functionParameters.first : nil)
+        if let parameter {
             guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
-                continue
+                return nil
             }
             return typeSubstitution?.applying(to: functionType.returnType, in: ctx) ?? functionType.returnType
         }
