@@ -74,5 +74,34 @@ struct BundledStdlibDiagnosticsTests {
             #expect(bundledDiagnostics.isEmpty, "Unexpected stdlib diagnostics: \(bundledDiagnostics)")
         }
     }
+
+    /// Deprecated ERROR-level compatibility stubs in the bundled
+    /// kotlinx.coroutines.flow sources must reject call sites with
+    /// KSWIFTK-SEMA-DEPRECATED, matching kotlinc's behavior for the same APIs.
+    @Test
+    func testDeprecatedFlowStubsEmitErrorDiagnostics() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+
+        fun main() = kotlinx.coroutines.runBlocking {
+            val outer = flowOf(flowOf(1))
+            outer.merge()
+            outer.flatten()
+            flowOf(1, 2, 3).scanReduce { a, b -> a + b }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let deprecatedErrors = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-DEPRECATED" && $0.severity == .error
+            }
+            #expect(
+                deprecatedErrors.count == 3,
+                "Expected 3 deprecation errors for merge/flatten/scanReduce stubs: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
 }
 #endif

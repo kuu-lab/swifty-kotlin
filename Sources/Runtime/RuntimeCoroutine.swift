@@ -6648,3 +6648,18 @@ public func kk_suspend_function_invoke_5(
 ) -> Int {
     runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], continuation: continuation, outThrown: outThrown)
 }
+
+@_silgen_name("kk_suspend_function_invoke_6")
+public func kk_suspend_function_invoke_6(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeSuspendFunction(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], continuation: continuation, outThrown: outThrown)
+}
