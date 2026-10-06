@@ -594,6 +594,12 @@ package struct KnownCompilerNames {
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinCollectionsIterableFQName: [InternedString]
+    let javaUtilSortedSetFQName: [InternedString]
+    let javaUtilNavigableSetFQName: [InternedString]
+    let javaUtilTreeSetFQName: [InternedString]
+    let javaUtilSortedMapFQName: [InternedString]
+    let javaUtilNavigableMapFQName: [InternedString]
+    let javaUtilTreeMapFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
@@ -825,6 +831,12 @@ package struct KnownCompilerNames {
         let javaAtomicIntegerName = interner.intern("AtomicInteger")
         let java = interner.intern("java")
         let util = interner.intern("util")
+        javaUtilSortedSetFQName = [java, util, interner.intern("SortedSet")]
+        javaUtilNavigableSetFQName = [java, util, interner.intern("NavigableSet")]
+        javaUtilTreeSetFQName = [java, util, interner.intern("TreeSet")]
+        javaUtilSortedMapFQName = [java, util, interner.intern("SortedMap")]
+        javaUtilNavigableMapFQName = [java, util, interner.intern("NavigableMap")]
+        javaUtilTreeMapFQName = [java, util, interner.intern("TreeMap")]
         let javaConcurrent = interner.intern("concurrent")
         let javaAtomic = interner.intern("atomic")
         atomicScalarFactoryFQNames = [
@@ -1282,6 +1294,12 @@ package struct KnownCompilerNames {
             // symbol), not a MutableMap typealias resolving straight through
             // to the mutableMap check above.
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
+            // KUU-1361: sorted map types are MutableMap subtypes backed by a
+            // sorted RuntimeMapBox; calls through any static receiver type
+            // must reach the __kk map bridges.
+            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
+            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
+            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
@@ -1289,6 +1307,9 @@ package struct KnownCompilerNames {
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashMapFQName)
+            || symbolMatches(symbol, fqName: javaUtilSortedMapFQName)
+            || symbolMatches(symbol, fqName: javaUtilNavigableMapFQName)
+            || symbolMatches(symbol, fqName: javaUtilTreeMapFQName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
@@ -1296,6 +1317,9 @@ package struct KnownCompilerNames {
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
     }
 
     func isSetLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
@@ -1303,6 +1327,9 @@ package struct KnownCompilerNames {
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsHashSetFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsLinkedHashSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilSortedSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilNavigableSetFQName)
+            || symbolMatches(symbol, fqName: javaUtilTreeSetFQName)
         {
             return true
         }

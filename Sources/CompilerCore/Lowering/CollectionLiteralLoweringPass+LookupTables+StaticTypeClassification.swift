@@ -26,6 +26,7 @@ struct StaticTypeClassificationNames {
         let kotlinPackage = [interner.intern("kotlin")]
         let collectionsPackage = kotlinPackage + [interner.intern("collections")]
         let sequencesPackage = kotlinPackage + [interner.intern("sequences")]
+        let javaUtilPackage = [interner.intern("java"), interner.intern("util")]
 
         var byName: [InternedString: Entry] = [:]
         for name in [
@@ -42,6 +43,14 @@ struct StaticTypeClassificationNames {
             "Map", "MutableMap", "HashMap", "LinkedHashMap", "AbstractMap", "AbstractMutableMap",
         ] {
             byName[interner.intern(name)] = Entry(kind: .map, package: collectionsPackage)
+        }
+        // java.util sorted collections are RuntimeSetBox/RuntimeMapBox-backed —
+        // KUU-1361.
+        for name in ["SortedSet", "NavigableSet", "TreeSet"] {
+            byName[interner.intern(name)] = Entry(kind: .set, package: javaUtilPackage)
+        }
+        for name in ["SortedMap", "NavigableMap", "TreeMap"] {
+            byName[interner.intern(name)] = Entry(kind: .map, package: javaUtilPackage)
         }
         for name in [
             "Array", "IntArray", "LongArray", "DoubleArray", "FloatArray",

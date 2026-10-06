@@ -360,6 +360,95 @@ extension CollectionLiteralConstructionLoweringPass {
         // would have broken at runtime. `MapCountLoweringRoutingTests` pins
         // the routing.
 
+        // `java.util.TreeSet()` / `TreeSet(comparator)` / `TreeSet(collection)`
+        // / `TreeSet(sortedSet)` -> a sorted RuntimeSetBox. The comparator form
+        // forwards its object handle raw (0 means natural ordering).
+        if isTreeSetConstructor(
+            callee: callee, symbol: symbol, result: result,
+            module: module, lookup: lookup, ctx: ctx
+        ) {
+            switch treeSetConstructorKind(
+                symbol: symbol, arguments: arguments, module: module,
+                state: state, ctx: ctx
+            ) {
+            case .emptyOrComparator:
+                var callArguments: [KIRExprID] = []
+                // `arguments[0]` is the allocated `this`; a second element is
+                // the comparator argument when present.
+                if let argument = arguments.last, arguments.count >= 2 {
+                    callArguments = [argument]
+                } else {
+                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    callArguments = [zeroExpr]
+                }
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeSetNewName,
+                    arguments: callArguments, result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            case .collection:
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeSetNewCollectionName,
+                    arguments: Array(arguments.suffix(1)), result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            case .sortedSet:
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeSetNewSortedSetName,
+                    arguments: Array(arguments.suffix(1)), result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            }
+            if let result {
+                state.setExprIDs.insert(result.rawValue)
+            }
+            return true
+        }
+
+        // `java.util.TreeMap()` / `TreeMap(comparator)` / `TreeMap(map)`
+        // / `TreeMap(sortedMap)` -> a sorted RuntimeMapBox.
+        if isTreeMapConstructor(
+            callee: callee, symbol: symbol, result: result,
+            module: module, lookup: lookup, ctx: ctx
+        ) {
+            switch treeMapConstructorKind(
+                symbol: symbol, arguments: arguments, module: module,
+                state: state, ctx: ctx
+            ) {
+            case .emptyOrComparator:
+                var callArguments: [KIRExprID] = []
+                if let argument = arguments.last, arguments.count >= 2 {
+                    callArguments = [argument]
+                } else {
+                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    callArguments = [zeroExpr]
+                }
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeMapNewName,
+                    arguments: callArguments, result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            case .map:
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeMapNewMapName,
+                    arguments: Array(arguments.suffix(1)), result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            case .sortedMap:
+                loweredBody.append(.call(
+                    symbol: nil, callee: lookup.kkTreeMapNewSortedMapName,
+                    arguments: Array(arguments.suffix(1)), result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+            }
+            if let result {
+                state.mapExprIDs.insert(result.rawValue)
+            }
+            return true
+        }
+
         // --- Rewrite set factories to runtime helpers. ---
         if lookup.setFactoryNames.contains(callee),
            isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {

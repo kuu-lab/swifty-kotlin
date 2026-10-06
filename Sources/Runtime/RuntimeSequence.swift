@@ -3528,7 +3528,12 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
         }
         return lhs.offset < rhs.offset
     }.map(\.element)
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(sorted)))
+    // KUU-1361: the result is a real sorted box so SortedSet members
+    // (first/last/comparator) work on it; `SortedSet` remains the declared
+    // Kotlin return type.
+    let box = RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(sorted))
+    box.enableSorted(comparatorRaw: 0)
+    return registerRuntimeObject(box, typeID: treeSetRuntimeTypeID)
 }
 
 @_cdecl("kk_sequence_toMap")

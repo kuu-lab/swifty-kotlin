@@ -146,6 +146,11 @@ struct CollectionLiteralLookupTables {
     var emptySetName: InternedString { setLookup.emptySetName }
     var hashSetName: InternedString { setLookup.hashSetName }
     var linkedHashSetName: InternedString { setLookup.linkedHashSetName }
+    var treeSetName: InternedString { setLookup.treeSetName }
+    var sortedSetOfName: InternedString { setLookup.sortedSetOfName }
+    var kkTreeSetNewName: InternedString { setLookup.kkTreeSetNewName }
+    var kkTreeSetNewCollectionName: InternedString { setLookup.kkTreeSetNewCollectionName }
+    var kkTreeSetNewSortedSetName: InternedString { setLookup.kkTreeSetNewSortedSetName }
     var kkEmptySetName: InternedString { setLookup.kkEmptySetName }
     var kkSetOfName: InternedString { setLookup.kkSetOfName }
     var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
@@ -171,6 +176,11 @@ struct CollectionLiteralLookupTables {
     var emptyMapName: InternedString { mapLookup.emptyMapName }
     var hashMapName: InternedString { mapLookup.hashMapName }
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
+    var treeMapName: InternedString { mapLookup.treeMapName }
+    var sortedMapOfName: InternedString { mapLookup.sortedMapOfName }
+    var kkTreeMapNewName: InternedString { mapLookup.kkTreeMapNewName }
+    var kkTreeMapNewMapName: InternedString { mapLookup.kkTreeMapNewMapName }
+    var kkTreeMapNewSortedMapName: InternedString { mapLookup.kkTreeMapNewSortedMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
