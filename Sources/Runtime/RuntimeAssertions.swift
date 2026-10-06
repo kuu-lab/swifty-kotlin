@@ -875,20 +875,20 @@ private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
 
 @_cdecl("__kk_no_when_branch_matched_exception_new")
 public func kk_no_when_branch_matched_exception_new() -> Int {
-    runtimeAllocateNoWhenBranchMatchedException(message: "No when branch matched")
+    runtimeAllocateNoWhenBranchMatchedException(message: nil)
 }
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_message")
 public func kk_no_when_branch_matched_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_message_cause")
 public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched"),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -896,7 +896,7 @@ public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: 
 @_cdecl("__kk_no_when_branch_matched_exception_new_cause")
 public func kk_no_when_branch_matched_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: "No when branch matched",
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
