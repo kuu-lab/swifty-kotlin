@@ -441,31 +441,19 @@ func runtimeConsoleString(_ value: String) -> String {
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-<<<<<<< HEAD
-    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
-=======
     Swift.print(runtimeConsoleString(message), terminator: "")
->>>>>>> origin/master
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-<<<<<<< HEAD
-    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
-=======
     Swift.print(runtimeConsoleString(message), terminator: "\n")
->>>>>>> origin/master
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-<<<<<<< HEAD
-    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
-=======
     FileHandle.standardError.write(Data(runtimeConsoleString(message).utf8))
->>>>>>> origin/master
     return 0
 }
 
