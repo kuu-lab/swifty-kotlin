@@ -401,6 +401,10 @@ extension BuildASTPhase {
             }
         }
 
+        func labelNameFromToken(_ token: Token) -> InternedString? {
+            token.kind.isLabelName ? tokenText(token) : nil
+        }
+
         func identifierFromToken(_ token: Token) -> InternedString? {
             switch token.kind {
             case let .identifier(name), let .backtickedIdentifier(name):

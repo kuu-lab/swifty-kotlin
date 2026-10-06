@@ -422,7 +422,7 @@ extension BuildASTPhase.ExpressionParser {
         var end = returnToken.range.end
         if let atToken = current(), atToken.kind == .symbol(.at),
            let labelToken = peek(1),
-           let labelName = tokenText(labelToken)
+           let labelName = labelNameFromToken(labelToken)
         {
             _ = consume()
             _ = consume()
@@ -710,7 +710,7 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var catchClauses: [CatchClause] = []
-        while matches(.keyword(.catch)) {
+        while matches(.keyword(.catch)), peek(1)?.kind != .symbol(.at) {
             let catchToken = consume()!
             let (paramName, paramType) = parseCatchParameter()
             if let catchExpr = parseControlFlowBodyExpression() {
@@ -723,7 +723,7 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var finallyExpr: ExprID?
-        if matches(.keyword(.finally)) {
+        if matches(.keyword(.finally)), peek(1)?.kind != .symbol(.at) {
             _ = consume()
             finallyExpr = parseControlFlowBodyExpression()
         }

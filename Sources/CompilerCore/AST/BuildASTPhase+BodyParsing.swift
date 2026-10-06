@@ -154,7 +154,11 @@ extension BuildASTPhase {
         guard let last = previousTail.last else {
             return false
         }
-        if isStatementContinuationAtLineEnd(last.kind)
+        let lastIndex = previousTail.index(before: previousTail.endIndex)
+        let endsWithLabelReference = last.kind.isLabelName
+            && lastIndex > previousTail.startIndex
+            && previousTail[previousTail.index(before: lastIndex)].kind == .symbol(.at)
+        if (!endsWithLabelReference && isStatementContinuationAtLineEnd(last.kind))
             || last.kind == .symbol(.lParen)
             || last.kind == .symbol(.comma)
         {
@@ -172,6 +176,10 @@ extension BuildASTPhase {
             return true
         }
         guard let first = nextHead.first else {
+            return false
+        }
+        if first.kind.isLabelName,
+           nextHead.dropFirst().first?.kind == .symbol(.at) {
             return false
         }
         if ParserBoundaryPolicy.continuesExpressionBeforeNewline(first.kind)
