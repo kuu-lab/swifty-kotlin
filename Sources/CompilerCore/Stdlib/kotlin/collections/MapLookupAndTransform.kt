@@ -114,6 +114,23 @@ public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
 }
 
+/**
+ * Removes the entry for the specified key only if it is currently
+ * mapped to the specified value.
+ *
+ * @return `true` if the entry was removed.
+ */
+@SinceKotlin("1.1")
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> MutableMap<out K, out V>.remove(key: K, value: V): Boolean {
+    val map = this as MutableMap<K, V>
+    val current = map[key]
+    if (current != value || (current == null && !map.containsKey(key))) return false
+    map.remove(key)
+    return true
+}
+
 public inline operator fun <V, V1 : V> MutableMap<in String, out V>.getValue(
     thisRef: Any?,
     property: kotlin.reflect.KProperty<*>
