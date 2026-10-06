@@ -1622,6 +1622,8 @@ final class CallLowerer {
                 return interner.intern("kk_suspend_function_invoke_4")
             case 5:
                 return interner.intern("kk_suspend_function_invoke_5")
+            case 6:
+                return interner.intern("kk_suspend_function_invoke_6")
             default:
                 return nil
             }
@@ -1640,6 +1642,8 @@ final class CallLowerer {
             return interner.intern("kk_function_invoke_4")
         case 5:
             return interner.intern("kk_function_invoke_5")
+        case 6:
+            return interner.intern("kk_function_invoke_6")
         default:
             return nil
         }

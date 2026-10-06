@@ -234,6 +234,11 @@ public fun <T> Flow<T>.conflate(): Flow<T> = this
 
 public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
 
+// KSwiftK compatibility surface: `flowWith` was removed from kotlinx-coroutines
+// (~1.4.x; absent in 1.10.2). In the sequential cold-flow model the context it
+// would introduce is inert, so it reduces to the same pass-through as flowOn.
+public fun <T> Flow<T>.flowWith(flowContext: kotlin.coroutines.CoroutineContext): Flow<T> = this
+
 // `cancellable` is the exception to the pass-throughs above: it composes the
 // retained collect/emit core with `ensureActive`, so a collector running in a
 // cancelled coroutine stops between elements instead of draining the upstream
