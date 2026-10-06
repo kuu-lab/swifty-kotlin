@@ -38,6 +38,9 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 /// recursive calls (e.g. `inferExpr` → `inferCallExpr` → `inferExpr`) can be
 /// dispatched through the driver rather than sharing a single fat class instance.
 final class TypeCheckDriver {
+    /// Lexical boundaries retained until overload and lambda inference finish.
+    var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
@@ -111,6 +114,9 @@ final class TypeCheckDriver {
         isStatementContext: Bool = false
     ) -> TypeID {
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if !suspendingCallNames(for: id).isEmpty {
+            callSuspensionContexts[id] = ctx.suspensionContext
+        }
         checkInlineCallVisibility(id, ctx: ctx)
         return type
     }

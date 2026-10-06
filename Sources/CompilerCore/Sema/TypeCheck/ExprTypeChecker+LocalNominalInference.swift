@@ -289,7 +289,7 @@ extension ExprTypeChecker {
         for ctorSymbol in constructorSymbols {
             classScope.insert(ctorSymbol)
         }
-        let classCtx = ctx.withOuterReceiver(
+        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
             label: classDecl.name,
             type: classType
         ).copying(

@@ -12,6 +12,11 @@ final class LambdaReturnInferenceScope {
     }
 }
 
+struct SuspensionContext {
+    var function: SymbolID?
+    var lambdas: [ExprID] = []
+}
+
 struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
     let sema: SemaModule
@@ -35,6 +40,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// against the surrounding named function's return type rather than the
     /// lambda's predicate/result type.
     var lambdaDepth: Int = 0
+    /// Independent of return targets: initializers cannot inherit suspension.
+    var suspensionContext = SuspensionContext()
     /// Return type of the nearest named function body. This remains unchanged
     /// while entering lambda literals so non-local return values are checked
     /// against the actual return target.
@@ -132,6 +139,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         var copy = self
         copy.lambdaDepth += 1
         copy.enclosingLambdaExprIDs.append(exprID)
+        copy.suspensionContext.lambdas.append(exprID)
         // Lambda bodies open a new control-flow scope, like local function
         // bodies do: a `break`/`continue` written directly in a lambda cannot
         // reach a loop enclosing the lambda, because non-local break/continue
@@ -142,6 +150,12 @@ struct TypeInferenceContext: CustomStringConvertible {
         // `run { while (true) { ... break } }` keeps compiling.
         copy.loopDepth = 0
         copy.loopLabelStack = []
+        return copy
+    }
+
+    func withoutSuspensionContext() -> TypeInferenceContext {
+        var copy = self
+        copy.suspensionContext = SuspensionContext()
         return copy
     }
 

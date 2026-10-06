@@ -153,6 +153,7 @@ extension ControlFlowTypeChecker {
                     signature: signature,
                     sema: sema
                 )
+                sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
             } else if isDataClassType(elementType, sema: sema) {
                 // Data class componentN() is synthesized during lowering; fall back to Any
                 componentType = sema.types.anyType

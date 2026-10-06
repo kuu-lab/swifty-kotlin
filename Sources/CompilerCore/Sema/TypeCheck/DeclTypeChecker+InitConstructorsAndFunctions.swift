@@ -57,6 +57,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let ctx = ctx.withoutSuspensionContext()
         let sema = ctx.sema
         var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -752,6 +753,7 @@ extension DeclTypeChecker {
             enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )
+        functionCtx.suspensionContext = SuspensionContext(function: symbol)
         if !signature.contextReceiverTypes.isEmpty {
             functionCtx = functionCtx.with(
                 contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes

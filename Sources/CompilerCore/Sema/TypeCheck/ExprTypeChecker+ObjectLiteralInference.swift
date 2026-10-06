@@ -300,7 +300,7 @@ extension ExprTypeChecker {
             }
             objectOuterReceiverTypes[index].symbol = classSymbol.id
         }
-        let objectCtx = ctx.copying(
+        let objectCtx = ctx.withoutSuspensionContext().copying(
             scope: objectScope,
             implicitReceiverType: objectType,
             enclosingClassSymbol: objectSymbol,

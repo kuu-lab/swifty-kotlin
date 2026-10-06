@@ -57,7 +57,7 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let classCtx = ctx
+        let classCtx = ctx.withoutSuspensionContext()
             .withOuterReceiver(label: classLabel, type: classType)
             .copying(
                 scope: classScope,
@@ -291,7 +291,7 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let objectCtx = ctx
+        let objectCtx = ctx.withoutSuspensionContext()
             .withOuterReceiver(label: objectLabel, type: objectType)
             .copying(
                 scope: objectScope,
