@@ -371,6 +371,19 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
+        // A smart-cast intersection (e.g. `R & List<*>` after
+        // `x != null && x is List<*>`) is a subtype of each of its parts,
+        // so an extension whose declared receiver matches any single part
+        // is applicable to the whole intersection.
+        if case let .intersection(parts) = sema.types.kind(of: actual),
+           parts.contains(where: {
+               extensionSyntheticFallbackReceiverMatches(
+                   callSiteReceiver: $0, declaredReceiver: declared, sema: sema
+               )
+           })
+        {
+            return true
+        }
         // Builtin nominal shells (notably String's Companion) may be recreated
         // while bundled source headers are collected.  Their SymbolIDs differ,
         // but they still denote the same FQName; accept that identity for

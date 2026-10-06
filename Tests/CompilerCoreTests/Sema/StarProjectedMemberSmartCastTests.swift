@@ -105,6 +105,43 @@ struct StarProjectedMemberSmartCastTests {
         #expect(ctx.diagnostics.hasError)
     }
 
+    // KUU-1371: `x != null && x is List<*>` narrows a type-parameter member
+    // property `R?` to the intersection `R & List<*>`; extension member calls
+    // on the receiver must resolve against the `List` part.
+    @Test func typeParameterPropertyNarrowsToIntersectionAndResolvesExtension() throws {
+        let ctx = makeContextFromSource("""
+        class D<R>(val defaultValue: R?)
+        fun <R> check(d: D<R>): Boolean =
+            d.defaultValue != null && (d.defaultValue is List<*> && d.defaultValue.isNotEmpty() || d.defaultValue !is List<*>)
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(memberCallExprIDs(
+            named: "isNotEmpty",
+            in: ast,
+            path: ctx.options.inputs[0],
+            ctx: ctx,
+            interner: ctx.interner
+        ).first)
+        #expect(sema.bindings.callBinding(for: call)?.chosenCallee != nil)
+        #expect(sema.bindings.exprType(for: call) == sema.types.booleanType)
+        guard case let .memberCall(receiverID, _, _, _, _) = ast.arena.expr(call),
+              let receiverType = sema.bindings.exprType(for: receiverID),
+              case let .intersection(parts) = sema.types.kind(of: receiverType)
+        else {
+            Issue.record("expected intersection-narrowed receiver for isNotEmpty()")
+            return
+        }
+        #expect(parts.contains { part in
+            guard case let .classType(classType) = sema.types.kind(of: part),
+                  let symbol = sema.symbols.symbol(classType.classSymbol)
+            else { return false }
+            return symbol.fqName.last == ctx.interner.intern("List")
+        })
+    }
+
     @Test(arguments: [
         "class Holder(var origin: Any?)",
         "class Holder { val origin: Any? get() = null }"
