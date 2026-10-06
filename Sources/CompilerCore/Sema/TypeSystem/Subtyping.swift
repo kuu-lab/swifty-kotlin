@@ -679,8 +679,11 @@ extension TypeSystem {
         switch useSite {
         case let .invariant(type): .in(type)
         case let .in(type):
-            // in × in = out (double contravariance = covariance)
-            .out(type)
+            // A use-site `in` projection on an `in`-declared parameter is
+            // redundant: `Sink<in X>` behaves like `Sink<X>` and admits
+            // `Sink<S>` whenever `X <: S` (KUU-1381). Composing to `.out`
+            // flipped the bound and rejected every argument.
+            .in(type)
         case .star: .star
         case .out: .invalid
         }

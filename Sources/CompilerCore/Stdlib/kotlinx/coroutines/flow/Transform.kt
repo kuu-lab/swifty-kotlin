@@ -54,17 +54,6 @@ public fun <T> Flow<T>.onEach(action: suspend (T) -> Unit): Flow<T> {
     }
 }
 
-public fun <T> Flow<T>.drop(count: Int): Flow<T> {
-    require(count >= 0) { "Drop count must be non-negative" }
-    val source = this
-    return flow {
-        var skipped = 0
-        source.collect { value ->
-            if (skipped < count) skipped += 1 else emit(value)
-        }
-    }
-}
-
 public fun <T> Flow<T>.dropWhile(predicate: suspend (T) -> Boolean): Flow<T> {
     val source = this
     return flow {

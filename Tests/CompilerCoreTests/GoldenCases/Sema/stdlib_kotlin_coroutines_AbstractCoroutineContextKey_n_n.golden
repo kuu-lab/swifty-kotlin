@@ -9,6 +9,6 @@ file fstdlib_kotlin_coroutines_AbstractCoroutineContextKey_n_n package=golden.se
   decl golden.sema.DerivedElement[kind=iface;origin=fixture] interface DerivedElement sym=golden.sema.DerivedElement[kind=iface;origin=fixture]
   decl golden.sema.DerivedKey[kind=class;origin=fixture] class DerivedKey sym=golden.sema.DerivedKey[kind=class;origin=fixture]
 expr e@15:5 call callee=e@15:5#1 args=[] type=golden.sema.BaseKey call=golden.sema.BaseKey.<init>[kind=ctor;recv=golden.sema.BaseKey;params=;ret=golden.sema.BaseKey;origin=fixture]
-expr e@16:18 name(element) type=Any ref=s-0
+expr e@16:18 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=s-0
 expr e@16:18#1 asCast? expr=e@16:18 type=golden.sema.DerivedElement type=golden.sema.DerivedElement?
-expr e@16:5 lambda params=[element] body=e@16:18#1 type=(Any) -> golden.sema.DerivedElement?
+expr e@16:5 lambda params=[element] body=e@16:18#1 type=(kotlin.coroutines.CoroutineContext.Element) -> golden.sema.DerivedElement?
