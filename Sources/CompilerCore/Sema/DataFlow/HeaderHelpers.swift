@@ -469,6 +469,7 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
         if modifiers.contains(.inline) { value.insert(.inlineFunction) }
         if modifiers.contains(.operator) { value.insert(.operatorFunction) }
+        if modifiers.contains(.infix) { value.insert(.infixFunction) }
     }
 
     private func insertTypeFlags(

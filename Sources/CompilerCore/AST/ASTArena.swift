@@ -9,6 +9,8 @@ public struct ASTArenaSnapshot: Codable {
     public let whenSubjectTypeRefs: [ExprID: TypeRefID]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
+    public let infixCallExpressions: Set<ExprID>
+    public let infixFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
@@ -22,6 +24,8 @@ public struct ASTArenaSnapshot: Codable {
         case whenSubjectTypeRefs
         case lambdaParamTypeRefs
         case callableRefReceiverTypeRefs
+        case infixCallExpressions
+        case infixFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
         case incrementDecrementCachedValues
@@ -36,6 +40,8 @@ public struct ASTArenaSnapshot: Codable {
         whenSubjectTypeRefs: [ExprID: TypeRefID] = [:],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
         callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
+        infixCallExpressions: Set<ExprID> = [],
+        infixFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
         incrementDecrementCachedValues: [ExprID: ExprID] = [:]
@@ -48,6 +54,8 @@ public struct ASTArenaSnapshot: Codable {
         self.whenSubjectTypeRefs = whenSubjectTypeRefs
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
+        self.infixCallExpressions = infixCallExpressions
+        self.infixFunctionExpressions = infixFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
@@ -68,6 +76,8 @@ public struct ASTArenaSnapshot: Codable {
             [ExprID: TypeRefID].self,
             forKey: .callableRefReceiverTypeRefs
         ) ?? [:]
+        infixCallExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixCallExpressions) ?? []
+        infixFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixFunctionExpressions) ?? []
         explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -151,6 +161,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks member-call expressions written with parentheses so zero-argument
     /// function calls remain distinct from bare property access in the AST.
     private var _explicitCallExpressions: Set<ExprID> = []
+    /// Preserves infix syntax independently of ordinary member calls.
+    private var _infixCallExpressions: Set<ExprID> = []
+    private var _infixFunctionExpressions: Set<ExprID> = []
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
@@ -179,6 +192,8 @@ public final class ASTArena: @unchecked Sendable {
         _whenSubjectTypeRefs = snapshot.whenSubjectTypeRefs
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
         _callableRefReceiverTypeRefs = snapshot.callableRefReceiverTypeRefs
+        _infixCallExpressions = snapshot.infixCallExpressions
+        _infixFunctionExpressions = snapshot.infixFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
@@ -196,6 +211,8 @@ public final class ASTArena: @unchecked Sendable {
             whenSubjectTypeRefs: _whenSubjectTypeRefs,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
             callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
+            infixCallExpressions: _infixCallExpressions,
+            infixFunctionExpressions: _infixFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
             incrementDecrementCachedValues: _incrementDecrementCachedValues
@@ -416,6 +433,30 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _lambdaParamTypeRefs[exprID]
+    }
+
+    public func markInfixFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _infixFunctionExpressions.insert(exprID)
+    }
+
+    public func isInfixFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _infixFunctionExpressions.contains(exprID)
+    }
+
+    public func markInfixCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _infixCallExpressions.insert(exprID)
+    }
+
+    public func isInfixCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _infixCallExpressions.contains(exprID)
     }
 
     public func markExplicitCall(_ exprID: ExprID) {

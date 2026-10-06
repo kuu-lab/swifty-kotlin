@@ -12,6 +12,7 @@ extension BuildASTPhase {
 
         var startIndex = 0
         var isSuspend = false
+        var isInfix = false
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(keyword)
@@ -19,6 +20,7 @@ extension BuildASTPhase {
             if keyword == .suspend {
                 isSuspend = true
             }
+            if keyword == .infix { isInfix = true }
             startIndex += 1
         }
 
@@ -110,7 +112,7 @@ extension BuildASTPhase {
             statementTokens.last?.range.end ?? head.range.end
         }
         let range = SourceRange(start: head.range.start, end: end)
-        return astArena.appendExpr(.localFunDecl(
+        let declaration = astArena.appendExpr(.localFunDecl(
             name: name,
             receiverType: receiverType,
             valueParams: valueParams,
@@ -119,6 +121,8 @@ extension BuildASTPhase {
             isSuspend: isSuspend,
             range: range
         ))
+        if isInfix { astArena.markInfixFunction(declaration) }
+        return declaration
     }
 
     private func parseReturnTypeAnnotation(
