@@ -558,6 +558,10 @@ package struct KnownCompilerNames {
     let mutableListOnlyMembers: Set<InternedString>
     let mutableCollectionMembers: Set<InternedString>
     let mapOnlyMembers: Set<InternedString>
+    /// Names that resolve on a `Map` (or `MutableMap`) receiver. Map is not
+    /// an Iterable in Kotlin, so Iterable/Collection-only members must not be
+    /// admitted for a Map receiver.
+    let mapMembers: Set<InternedString>
     let collectionReturningMembers: Set<InternedString>
     let intReturningMembers: Set<InternedString>
     let boolReturningMembers: Set<InternedString>
@@ -1045,6 +1049,23 @@ package struct KnownCompilerNames {
         mutableListOnlyMembers = Set(["sort", "sortBy", "sortByDescending"].map { interner.intern($0) })
         mutableCollectionMembers = Set(["add", "addAll", "remove", "removeAll", "retainAll", "clear"].map { interner.intern($0) })
         mapOnlyMembers = Set(["containsKey", "containsValue", "getValue", "getOrDefault", "plus"].map { interner.intern($0) })
+        // KUU-1362: names that may be admitted on a `Map`/`MutableMap` receiver
+        // by the legacy collection-member fallback. This is `collectionMembers`
+        // intersected with the real Map surface (Map is not an Iterable in
+        // Kotlin, so Iterable-only names like filterNotNull/fold/first must be
+        // declined and rejected as SEMA-0024), plus the Map names admitted by
+        // dedicated branches above so the arity check accepts them too.
+        // Everything else — including source-backed Map members like toMap or
+        // forEach — stays on regular overload resolution, which binds the
+        // bundled declarations and their exact result types.
+        mapMembers = Set([
+            "size", "isEmpty", "contains", "count", "iterator", "filter",
+            "firstNotNullOf", "firstNotNullOfOrNull",
+            "asSequence", "asIterable", "toList",
+            "plus", "minus", "getOrElse",
+            "containsKey", "containsValue", "getValue", "getOrDefault",
+            "getOrPut", "putAll",
+        ].map { interner.intern($0) })
         collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "toMutableList", "minusElement"].map { interner.intern($0) })
         intReturningMembers = Set(["size", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
         boolReturningMembers = Set(["isEmpty", "contains", "containsAll", "containsKey", "containsValue", "add", "addAll", "remove", "removeAll", "retainAll"].map { interner.intern($0) })

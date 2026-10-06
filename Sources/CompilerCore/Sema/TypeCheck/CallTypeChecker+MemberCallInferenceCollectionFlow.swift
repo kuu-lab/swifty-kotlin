@@ -28,6 +28,28 @@ extension CallTypeChecker {
 
     private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
     private static let mapOnlyCollectionHOFNames: Set<String> = ["mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues"]
+
+    /// Members the collection fast path may claim for a `Map` receiver.
+    /// `Map<K, V>` is not an `Iterable` in Kotlin, so Iterable/Collection-only
+    /// members (filterNotNull, fold, first, groupBy, ...) must not be claimed:
+    /// they fall through to regular overload resolution which reports
+    /// SEMA-0024, instead of binding a result type with no callee that lowers
+    /// to an undefined symbol (LINK-0001). `forEach` and the destination
+    /// overloads (`flatMapTo`) stay on regular resolution for lambda arity
+    /// and Iterable/Sequence-return overload selection.
+    private static let mapCollectionHOFNames: Set<String> = [
+        "map", "mapNotNull", "mapKeys", "mapValues", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo",
+        "filter", "filterNot", "filterKeys", "filterValues", "filterTo", "filterNotTo",
+        "flatMap", "any", "none", "all", "count", "contains", "asSequence",
+        "onEach", "onEachIndexed",
+        "maxBy", "minBy", "maxByOrNull", "minByOrNull",
+        "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
+        "maxWith", "minWith", "maxWithOrNull", "minWithOrNull",
+        "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
+    ]
+
+    /// Iterable filter-family names that also exist on the `Map` surface.
+    private static let mapFilterFamilyHOFNames: Set<String> = ["filter", "filterNot", "filterTo", "filterNotTo"]
     private static let mutableListOnlyCollectionHOFNames: Set<String> = ["sort", "sortBy", "sortByDescending", "sortWith"]
 
     private static let iterableMaxFamilyNames: Set<String> = [
@@ -254,15 +276,12 @@ extension CallTypeChecker {
             activeCollectionHOFNames.remove("minOfWithOrNull")
         }
         if isMapReceiver {
-            activeCollectionHOFNames.formUnion(Self.mapOnlyCollectionHOFNames)
-            // The entry and key/value forEach overloads require contextual
-            // lambda arity resolution, not the single-entry fast path.
-            activeCollectionHOFNames.remove("forEach")
-            // Map.flatMapTo has Iterable- and Sequence-return overloads. Let
-            // the source-backed declarations reach regular overload
-            // resolution instead of the collection fast path, which assumes
-            // a single Collection<R>-returning lambda shape.
-            activeCollectionHOFNames.remove("flatMapTo")
+            // KUU-1362: Map<K, V> is not an Iterable in Kotlin. Only names on
+            // the bundled Map surface may take the collection fast path;
+            // anything else (filterNotNull, fold, first, groupBy, ...) falls
+            // through to regular overload resolution and reports SEMA-0024
+            // instead of lowering to a phantom callee (LINK-0001).
+            activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
         if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
@@ -292,6 +311,7 @@ extension CallTypeChecker {
             "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance", "filterIsInstanceTo",
             "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         ].contains(calleeStr)
+            && (!isMapReceiver || Self.mapFilterFamilyHOFNames.contains(calleeStr))
         let isCollectionHOF = (activeCollectionHOFNames.contains(calleeStr) || isIterableFilterFamilyHOF)
             && (isCollectionReceiver
                 || isSequenceReceiver
@@ -1664,6 +1684,7 @@ extension CallTypeChecker {
 
         if interner.resolve(calleeName) == "asFlow",
            args.isEmpty,
+           !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
         {
             let elementType = if isCollectionReceiver {
@@ -1724,6 +1745,7 @@ extension CallTypeChecker {
         if interner.resolve(calleeName) == "zip",
            !isSequenceReceiver,
            isCollectionReceiver,
+           !isMapReceiver,
            !args.isEmpty
         {
             let collectionElementType = resolvedCollectionElementType(
@@ -1794,6 +1816,7 @@ extension CallTypeChecker {
         // filterIsInstance<R>() — reified type parameter, returns List<R> or Sequence<R>
         if interner.resolve(calleeName) == "filterIsInstance",
            args.isEmpty,
+           !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let filterType = explicitTypeArgs.first ?? sema.types.anyType
@@ -1872,6 +1895,7 @@ extension CallTypeChecker {
 
         if interner.resolve(calleeName) == "toCollection",
            args.count == 1,
+           !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
         {
             let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
@@ -1883,6 +1907,7 @@ extension CallTypeChecker {
 
         if interner.resolve(calleeName) == "filterIsInstanceTo",
            args.count == 1,
+           !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
@@ -1921,6 +1946,7 @@ extension CallTypeChecker {
         // filterNotNull() — bundled Kotlin source implementation with sequence runtime fallback.
         if interner.resolve(calleeName) == "filterNotNull",
            args.isEmpty,
+           !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let receiverElementType = resolvedCollectionElementType(
@@ -1987,6 +2013,7 @@ extension CallTypeChecker {
         // filterNotNullTo(destination) — no lambda, returns destination type (STDLIB-SEQ-021)
         if interner.resolve(calleeName) == "filterNotNullTo",
            args.count == 1,
+           !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)

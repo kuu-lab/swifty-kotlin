@@ -1769,6 +1769,13 @@ extension CallTypeChecker {
         if memberName == knownNames.requireNoNulls {
             return isIterableReceiver || isListReceiver || isSetReceiver || isSequenceReceiver
         }
+        // KUU-1362: Map is not an Iterable in Kotlin. Iterable/Collection-only
+        // members (filterNotNull, first, fold, distinct, ...) must not be
+        // admitted for a Map receiver — they previously bound a result type
+        // with no callee and lowered to undefined symbols (LINK-0001).
+        if isMapReceiver {
+            return knownNames.mapMembers.contains(memberName)
+        }
         return collectionMembers.contains(memberName)
     }
 
@@ -1843,6 +1850,10 @@ extension CallTypeChecker {
         }
         if isSetReturningCollectionBinaryMember(memberName, interner: interner) {
             return (isListReceiver || isSetReceiver) && argCount == 1
+        }
+        // KUU-1362: same Map/Iterable split as isSupportedCollectionFallbackMember.
+        if isMapReceiver, !knownNames.mapMembers.contains(memberName) {
+            return false
         }
         switch memberName {
         case knownNames.size, knownNames.isEmpty, knownNames.iterator, knownNames.asSequence,
