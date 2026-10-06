@@ -1345,3 +1345,20 @@ public inline fun <R, V> DoubleArray.zip(other: Iterable<R>, transform: (Double,
     }
     return result
 }
+// KUU-1361: primitive-array `toSortedSet` overloads (JVM parity — natural
+// ordering only; comparator overloads exist only on Array<out T> upstream).
+public fun IntArray.toSortedSet(): java.util.SortedSet<Int> = asList().toSortedSet()
+
+public fun LongArray.toSortedSet(): java.util.SortedSet<Long> = asList().toSortedSet()
+
+public fun ByteArray.toSortedSet(): java.util.SortedSet<Byte> = asList().toSortedSet()
+
+public fun ShortArray.toSortedSet(): java.util.SortedSet<Short> = asList().toSortedSet()
+
+public fun FloatArray.toSortedSet(): java.util.SortedSet<Float> = asList().toSortedSet()
+
+public fun DoubleArray.toSortedSet(): java.util.SortedSet<Double> = asList().toSortedSet()
+
+public fun BooleanArray.toSortedSet(): java.util.SortedSet<Boolean> = asList().toSortedSet()
+
+public fun CharArray.toSortedSet(): java.util.SortedSet<Char> = asList().toSortedSet()

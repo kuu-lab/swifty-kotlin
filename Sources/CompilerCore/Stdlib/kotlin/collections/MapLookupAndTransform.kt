@@ -229,6 +229,20 @@ public fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> {
     return this!!
 }
 
+// KUU-1361: JVM `Map.toSortedMap` returns `java.util.SortedMap` — the
+// concrete instance is a TreeMap ordered by natural or supplied comparator.
+public fun <K : Comparable<K>, V> Map<out K, V>.toSortedMap(): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>()
+    result.putAll(this)
+    return result
+}
+
+public fun <K, V> Map<out K, V>.toSortedMap(comparator: Comparator<in K>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>(comparator)
+    result.putAll(this)
+    return result
+}
+
 public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> =
     __kk_map_withDefault(this, defaultValue)
 

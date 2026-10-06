@@ -171,10 +171,24 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
                     || callee == lookup.kkLinkedHashSetOfName
-                    || callee == lookup.kkSetOfNotNullName {
+                    || callee == lookup.kkSetOfNotNullName
+                    // java.util.TreeSet construction and the sortedSetOf factory
+                    // produce RuntimeSetBox results — KUU-1361.
+                    || callee == lookup.treeSetName
+                    || callee == lookup.sortedSetOfName
+                    || callee == lookup.kkTreeSetNewName
+                    || callee == lookup.kkTreeSetNewCollectionName
+                    || callee == lookup.kkTreeSetNewSortedSetName {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
-                    || callee == lookup.kkMapOfName {
+                    || callee == lookup.kkMapOfName
+                    // java.util.TreeMap construction and the sortedMapOf
+                    // factory produce RuntimeMapBox results — KUU-1361.
+                    || callee == lookup.treeMapName
+                    || callee == lookup.sortedMapOfName
+                    || callee == lookup.kkTreeMapNewName
+                    || callee == lookup.kkTreeMapNewMapName
+                    || callee == lookup.kkTreeMapNewSortedMapName {
             state.mapExprIDs.insert(result.rawValue)
         } else if lookup.arrayOfFactoryNames.contains(callee)
             || callee == lookup.kkArrayNewName
