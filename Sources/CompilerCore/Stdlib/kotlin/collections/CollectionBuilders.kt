@@ -65,14 +65,14 @@ internal inline fun <E> buildSetInternal(capacity: Int, builderAction: MutableSe
 }
 
 @PublishedApi
-internal inline fun <K, V> buildMapInternal(builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+internal inline fun <K, V> buildMapInternal(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> {
     val result = __kkBuilderMapNew<K, V>(0)
     result.builderAction()
     return __kkBuilderMapFreeze(result)
 }
 
 @PublishedApi
-internal inline fun <K, V> buildMapInternal(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+internal inline fun <K, V> buildMapInternal(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> {
     require(capacity >= 0) { "capacity must be non-negative." }
     val result = __kkBuilderMapNew<K, V>(capacity)
     result.builderAction()
@@ -102,9 +102,9 @@ public inline fun <E> buildSet(capacity: Int, builderAction: MutableSet<E>.() ->
 // ─── buildMap ─────────────────────────────────────────────────────────────────
 
 @kotlin.experimental.ExperimentalTypeInference
-public inline fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> =
+public inline fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> =
     buildMapInternal(builderAction)
 
 @kotlin.experimental.ExperimentalTypeInference
-public inline fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> =
+public inline fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> =
     buildMapInternal(capacity, builderAction)

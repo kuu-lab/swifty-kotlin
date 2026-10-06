@@ -108,7 +108,7 @@ struct AdvancedTypeInferenceTests {
     @Test(arguments: [
         ("MutableList<T>", "List<T>", "buildList<T>(action)", "add(1); add(2)", "xs[0]"),
         ("MutableSet<T>", "Set<T>", "buildSet<T>(action)", "add(1); add(2)", "xs.first()"),
-        ("MutableMap<String, T>", "Map<String, T>", "TODO()", "put(\"one\", 1)", "xs.getValue(\"one\")"),
+        ("MutableMap<String, T>", "Map<String, T>", "buildMap<String, T>(action)", "put(\"one\", 1)", "xs.getValue(\"one\")"),
     ])
     func testGenericCollectionBuildersUseMutationInference(
         receiver: String, result: String, implementation: String, body: String, access: String
