@@ -90,3 +90,10 @@ public fun <T> Array<out T>.random(random: Random): T {
     if (size == 0) throw NoSuchElementException("Array is empty.")
     return this[random.nextInt(size)]
 }
+
+public fun <T> Array<out T>.randomOrNull(): T? = randomOrNull(Random.Default)
+
+public fun <T> Array<out T>.randomOrNull(random: Random): T? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}

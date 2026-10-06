@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.random.Random
+
 // KUU-1105: primitive-array overloads keep their exact element types.
 
 public fun IntArray.take(n: Int): List<Int> = asList().take(n)
@@ -49,6 +51,20 @@ public fun IntArray.fill(value: Int, fromIndex: Int = 0, toIndex: Int = size) {
     }
 }
 
+public fun IntArray.random(): Int = random(Random.Default)
+
+public fun IntArray.random(random: Random): Int {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun IntArray.randomOrNull(): Int? = randomOrNull(Random.Default)
+
+public fun IntArray.randomOrNull(random: Random): Int? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
 public fun LongArray.take(n: Int): List<Long> = asList().take(n)
 
 public fun LongArray.takeLast(n: Int): List<Long> = asList().takeLast(n)
@@ -94,6 +110,20 @@ public fun LongArray.fill(value: Long, fromIndex: Int = 0, toIndex: Int = size) 
         this[index] = value
         index++
     }
+}
+
+public fun LongArray.random(): Long = random(Random.Default)
+
+public fun LongArray.random(random: Random): Long {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun LongArray.randomOrNull(): Long? = randomOrNull(Random.Default)
+
+public fun LongArray.randomOrNull(random: Random): Long? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
 }
 
 public fun ByteArray.take(n: Int): List<Byte> = asList().take(n)
@@ -143,6 +173,20 @@ public fun ByteArray.fill(value: Byte, fromIndex: Int = 0, toIndex: Int = size) 
     }
 }
 
+public fun ByteArray.random(): Byte = random(Random.Default)
+
+public fun ByteArray.random(random: Random): Byte {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun ByteArray.randomOrNull(): Byte? = randomOrNull(Random.Default)
+
+public fun ByteArray.randomOrNull(random: Random): Byte? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
 public fun ShortArray.take(n: Int): List<Short> = asList().take(n)
 
 public fun ShortArray.takeLast(n: Int): List<Short> = asList().takeLast(n)
@@ -188,6 +232,20 @@ public fun ShortArray.fill(value: Short, fromIndex: Int = 0, toIndex: Int = size
         this[index] = value
         index++
     }
+}
+
+public fun ShortArray.random(): Short = random(Random.Default)
+
+public fun ShortArray.random(random: Random): Short {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun ShortArray.randomOrNull(): Short? = randomOrNull(Random.Default)
+
+public fun ShortArray.randomOrNull(random: Random): Short? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
 }
 
 public fun CharArray.take(n: Int): List<Char> = asList().take(n)
@@ -237,6 +295,20 @@ public fun CharArray.fill(value: Char, fromIndex: Int = 0, toIndex: Int = size) 
     }
 }
 
+public fun CharArray.random(): Char = random(Random.Default)
+
+public fun CharArray.random(random: Random): Char {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun CharArray.randomOrNull(): Char? = randomOrNull(Random.Default)
+
+public fun CharArray.randomOrNull(random: Random): Char? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
 public fun BooleanArray.take(n: Int): List<Boolean> = asList().take(n)
 
 public fun BooleanArray.takeLast(n: Int): List<Boolean> = asList().takeLast(n)
@@ -284,6 +356,20 @@ public fun BooleanArray.fill(value: Boolean, fromIndex: Int = 0, toIndex: Int = 
     }
 }
 
+public fun BooleanArray.random(): Boolean = random(Random.Default)
+
+public fun BooleanArray.random(random: Random): Boolean {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun BooleanArray.randomOrNull(): Boolean? = randomOrNull(Random.Default)
+
+public fun BooleanArray.randomOrNull(random: Random): Boolean? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
 public fun FloatArray.take(n: Int): List<Float> = asList().take(n)
 
 public fun FloatArray.takeLast(n: Int): List<Float> = asList().takeLast(n)
@@ -327,6 +413,20 @@ public fun FloatArray.fill(value: Float, fromIndex: Int = 0, toIndex: Int = size
     }
 }
 
+public fun FloatArray.random(): Float = random(Random.Default)
+
+public fun FloatArray.random(random: Random): Float {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun FloatArray.randomOrNull(): Float? = randomOrNull(Random.Default)
+
+public fun FloatArray.randomOrNull(random: Random): Float? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
+}
+
 public fun DoubleArray.take(n: Int): List<Double> = asList().take(n)
 
 public fun DoubleArray.takeLast(n: Int): List<Double> = asList().takeLast(n)
@@ -368,4 +468,18 @@ public fun DoubleArray.fill(value: Double, fromIndex: Int = 0, toIndex: Int = si
         this[index] = value
         index++
     }
+}
+
+public fun DoubleArray.random(): Double = random(Random.Default)
+
+public fun DoubleArray.random(random: Random): Double {
+    if (size == 0) throw NoSuchElementException("Array is empty.")
+    return this[random.nextInt(size)]
+}
+
+public fun DoubleArray.randomOrNull(): Double? = randomOrNull(Random.Default)
+
+public fun DoubleArray.randomOrNull(random: Random): Double? {
+    if (size == 0) return null
+    return this[random.nextInt(size)]
 }
