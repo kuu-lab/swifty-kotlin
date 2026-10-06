@@ -89,6 +89,7 @@ final class SemaCacheContext {
         let explicitTypeArgs: [TypeID]
         let expectedType: TypeID?
         let implicitReceiverType: TypeID?
+        let dispatchReceiverTypes: [TypeID]
 
         var description: String {
             return "\(calleeName):\(candidates.count)"
@@ -136,7 +137,8 @@ final class SemaCacheContext {
             unsignedIntegerLiterals: call.args.map(\.unsignedIntegerLiteral),
             explicitTypeArgs: call.explicitTypeArgs,
             expectedType: expectedType,
-            implicitReceiverType: implicitReceiverType
+            implicitReceiverType: implicitReceiverType,
+            dispatchReceiverTypes: call.dispatchReceiverTypes
         )
     }
 

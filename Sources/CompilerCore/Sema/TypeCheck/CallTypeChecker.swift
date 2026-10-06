@@ -3327,7 +3327,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: invokeName,
                         args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: callableCalleeType,
@@ -3568,7 +3569,8 @@ final class CallTypeChecker {
                             range: range,
                             calleeName: calleeName,
                             args: resolvedArgs,
-                            explicitTypeArgs: explicitTypeArgs
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
@@ -3674,7 +3676,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         args: resolvedOuterArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: outerReceiver.type,
@@ -3694,7 +3697,8 @@ final class CallTypeChecker {
                                 range: range,
                                 calleeName: calleeName,
                                 args: resolvedOuterArgs,
-                                explicitTypeArgs: explicitTypeArgs
+                                explicitTypeArgs: explicitTypeArgs,
+                                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                             ),
                             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                             implicitReceiverType: receiverType,

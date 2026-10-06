@@ -397,7 +397,8 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             args: resolvedArgs,
-            explicitTypeArgs: explicitTypeArgs
+            explicitTypeArgs: explicitTypeArgs,
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
         )
 
         let hasRefinementAnnotation = candidates.contains(where: {
