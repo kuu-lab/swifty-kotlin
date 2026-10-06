@@ -628,6 +628,7 @@ extension LocalDeclTypeChecker {
             flowState: DataFlowState(),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
+        bodyCtx.suspensionContext = SuspensionContext(function: funSymbol)
         if let receiverType {
             let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: funSymbol)
             bodyLocals[interner.intern("this")] = (receiverType, receiverSymbol, false, true)

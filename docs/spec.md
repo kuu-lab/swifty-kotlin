@@ -1139,6 +1139,8 @@ public func kk_coroutine_suspended() -> UnsafeMutableRawPointer
 
 ## J17.2 `suspend fun` の lowering（固定アルゴリズム）
 
+Sema は overload 解決とラムダ型推論の完了後、suspend 関数・suspend 関数値の呼び出し文脈を検査する。非 suspend 文脈からの呼び出しは `KSWIFTK-SEMA-0307` で拒否する。suspend 関数・suspend ラムダは呼び出しを許可し、通常のラムダは inline 引数（noinline / crossinline を除く）の場合だけ外側の文脈を継承する。名前付き関数、デフォルト引数、クラス・object の初期化処理はそれぞれ独立した文脈を持つ。関数参照の取得自体は suspension point ではない。
+
 ### 入力
 
 KIR で `isSuspend = true` の関数。

@@ -92,7 +92,9 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
-        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+        let inlineLambdaArguments = collectInlineLambdaArguments(ast: ast, sema: sema)
+        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+        driver.validateSuspensionContexts(inlineLambdaArguments: inlineLambdaArguments)
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
@@ -137,9 +139,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         )
     }
 
-    private func validateReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
-        guard !sema.bindings.functionReturnLambdaPaths.isEmpty
-            || !sema.bindings.lambdaReturnLambdaPaths.isEmpty else { return }
+    private func collectInlineLambdaArguments(ast: ASTModule, sema: SemaModule) -> Set<ExprID> {
         var inlineLambdaArguments: Set<ExprID> = []
         func recordInlineLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
             guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
@@ -184,6 +184,12 @@ final class TypeCheckSemaPhase: CompilerPhase {
             guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
             recordInlineLambdaArguments([value], binding: binding.call)
         }
+        return inlineLambdaArguments
+    }
+
+    private func validateReturnLambdaPaths(
+        ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine, inlineLambdaArguments: Set<ExprID>
+    ) {
         let returnPaths = sema.bindings.functionReturnLambdaPaths.merging(
             sema.bindings.lambdaReturnLambdaPaths, uniquingKeysWith: { _, lambdaPath in lambdaPath }
         )
