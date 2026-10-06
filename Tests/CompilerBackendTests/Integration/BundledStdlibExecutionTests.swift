@@ -9,6 +9,33 @@ import Testing
 @Suite
 struct BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testAnnotationClass(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            annotation class A(val v: Int = 1)
+            annotation class B
+            @A
+            class Tagged
+            fun show(annotation: Annotation) {
+                println(annotation.annotationClass)
+                println(annotation.annotationClass.simpleName)
+            }
+            fun main() {
+                println(A().annotationClass)
+                show(A())
+                show(B())
+                val annotation: Annotation? = B()
+                println(annotation?.annotationClass?.simpleName)
+                println(Tagged::class.annotations[0].annotationClass)
+            }
+            """,
+            expectedOutput: "class A\nclass A\nA\nclass B\nB\nB\nclass A\n",
+            moduleName: "KUU1317AnnotationClass",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testCoroutineContextSourceElementBaseDispatch(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """

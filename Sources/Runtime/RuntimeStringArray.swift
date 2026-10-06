@@ -1652,6 +1652,19 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 // Metadata / memory representation: bound literals inspect the boxed value's classifier.
 @_cdecl("__kk_kclass_of")
 public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       let annotation = tryCast(ptr, to: RuntimeAnnotationBox.self) {
+        if annotation.annotationClassRaw != 0 {
+            return annotation.annotationClassRaw
+        }
+        // Reflected annotations are metadata boxes rather than nominal objects.
+        // Recover their declared class identity instead of the static Annotation bound.
+        let typeID = runtimeStableNominalTypeID(fqName: annotation.annotationFQName)
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
+    }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
             | RuntimeTypeTokenEncoding.nominalBase

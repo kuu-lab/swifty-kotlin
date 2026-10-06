@@ -14,6 +14,25 @@ struct RuntimeReflectionTypeMetadataTests {
         Int(truncatingIfNeeded: (typeID << 9) | 6)
     }
 
+    @Test func reflectedAnnotationClassUsesDeclaredIdentity() throws {
+        let fqName = "sample.KUU1317Marker"
+        let token = nominalToken(runtimeStableNominalTypeID(fqName: fqName))
+        _ = __kk_kclass_register_metadata(
+            token, makeRuntimeString(fqName), makeRuntimeString("KUU1317Marker"),
+            0, 1 << 6, 0, 0, 0
+        )
+        let expected = __kk_kclass_create(token, 0)
+        for cachedClass in [0, expected] {
+            let value = registerRuntimeObject(RuntimeAnnotationBox(
+                annotationFQName: fqName, arguments: [], annotationClassRaw: cachedClass
+            ))
+            let klass = __kk_kclass_of(value, Int(RuntimeTypeTokenEncoding.anyBase), makeRuntimeString("Any"))
+            #expect(klass == expected)
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_simple_name(klass)) == "KUU1317Marker")
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == fqName)
+        }
+    }
+
     @Test func boundClassReferencesUseBoxedPrimitiveIdentity() throws {
         let values: [(Int, Int64)] = [
             (kk_box_int(1), RuntimeTypeTokenEncoding.intBase),
