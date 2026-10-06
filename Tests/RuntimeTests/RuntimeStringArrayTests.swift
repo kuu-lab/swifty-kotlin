@@ -2192,16 +2192,24 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
-    func testThrowableRawStackFramesReturnsMessageHeader() {
+    func testThrowableRawStackFramesReturnsQualifiedHeaderAndSavedFrames() throws {
         let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("print me")))
 
         let frames = __kk_throwable_rawStackFrames(throwable)
-        #expect(kk_array_size(frames) == 1)
+        let box = try #require(throwableBox(from: throwable))
+        #expect(kk_array_size(frames) == box.stackTraceAddresses.count + 1)
 
         var thrown = 0
         let frameRaw = kk_array_get(frames, 0, &thrown)
         #expect(thrown == 0)
-        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)) == "print me")
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)) == "java.lang.Throwable: print me")
+        let savedLines = runtimeThrowableStackFrameLines(box.stackTraceAddresses)
+        #expect(!savedLines.isEmpty)
+        for (index, savedLine) in savedLines.enumerated() {
+            let raw = kk_array_get(frames, index + 1, &thrown)
+            #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) == savedLine)
+            #expect(savedLine.hasPrefix("\tat "))
+        }
     }
 
     @Test

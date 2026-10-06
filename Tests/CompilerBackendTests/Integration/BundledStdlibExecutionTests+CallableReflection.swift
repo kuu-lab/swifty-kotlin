@@ -71,6 +71,68 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func functionReferenceCallableMembers(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KCallable
+            fun add(a: Int, b: Int) = a + b
+            private fun hidden() = 1
+            suspend fun suspended() = 2
+            fun main() {
+                val r = ::add
+                println(r.parameters.size)
+                println(r.callBy(mapOf(r.parameters[0] to 1, r.parameters[1] to 2)))
+                println(r.returnType)
+                println(r.isSuspend)
+                println(r.annotations)
+                println(r.visibility)
+                val callable: KCallable<Int> = r
+                println(callable.parameters.size)
+                println(callable.callBy(mapOf(callable.parameters[1] to 4, callable.parameters[0] to 3)))
+                println(callable.returnType)
+                println(callable.isSuspend)
+                println(callable.annotations)
+                println(callable.visibility)
+                println(::hidden.visibility)
+                println(::suspended.isSuspend)
+            }
+            """,
+            expectedOutput: "2\n3\nkotlin.Int\nfalse\n[]\nPUBLIC\n2\n7\nkotlin.Int\nfalse\n[]\nPUBLIC\nPRIVATE\ntrue\n",
+            moduleName: "KUU1309CallableMembers",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func functionReferenceAnnotations(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KCallable
+            import kotlin.annotation.Retention as Keep
+            import kotlin.annotation.AnnotationRetention.SOURCE as SourceRetention
+            annotation class Marker
+            @Keep(value = SourceRetention) annotation class SourceMarker
+            @kotlin.annotation.Retention(AnnotationRetention.BINARY) annotation class BinaryMarker
+            @Keep(AnnotationRetention.RUNTIME) annotation class RuntimeMarker
+            @Marker @SourceMarker @BinaryMarker @RuntimeMarker fun marked() = 1
+            fun plain() = 2
+            fun main() {
+                val ref = ::marked
+                println(ref.annotations.size)
+                println(ref.annotations.size)
+                val callable: KCallable<Int> = ref
+                println(callable.annotations.size)
+                println(::marked.annotations.size)
+                println(::plain.annotations.size)
+            }
+            """,
+            expectedOutput: "2\n2\n2\n2\n0\n",
+            moduleName: "KUU1309CallableAnnotations",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test func userCallableImplementationsKeepSourceDispatch() throws {
         try compileAndRunKotlin(
             """
@@ -81,6 +143,8 @@ extension BundledStdlibExecutionTests {
             import kotlin.reflect.typeOf
 
             class UserCallable : KCallable<Int> {
+                override val annotations: List<Annotation>
+                    get() = throw IllegalStateException("user annotations")
                 override val name = "user"
                 override val parameters = emptyList<KParameter>()
                 override val returnType = typeOf<Int>()
@@ -102,9 +166,10 @@ extension BundledStdlibExecutionTests {
                 println(callable.parameters.size)
                 println(callable.isOpen)
                 println(callable.visibility)
+                try { callable.annotations } catch (e: IllegalStateException) { println(e.message) }
             }
             """,
-            expectedOutput: "99\n98\nuser\n0\ntrue\nPRIVATE\n",
+            expectedOutput: "99\n98\nuser\n0\ntrue\nPRIVATE\nuser annotations\n",
             moduleName: "CallableSourceDispatch"
         )
     }

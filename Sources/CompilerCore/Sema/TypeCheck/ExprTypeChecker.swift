@@ -446,7 +446,7 @@ final class ExprTypeChecker {
             return boolType
 
         case let .asCast(exprID, typeRefID, isSafe, range):
-            _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            let sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
@@ -463,9 +463,13 @@ final class ExprTypeChecker {
                 targetType
             }
             sema.bindings.bindCastTargetType(id, type: targetType)
+            // Nothing? only contains null, so nullable casts have no erased value to check.
+            let isNullToNullableCast = sourceType == sema.types.nullableNothingType
+                && sema.types.nullability(of: targetType) == .nullable
             if let typeRef = ast.arena.typeRef(typeRefID),
                case let .named(_, argRefs, _) = typeRef,
-               !argRefs.isEmpty
+               !argRefs.isEmpty,
+               !isNullToNullableCast
             {
                 let hasNonStarArg = argRefs.contains { arg in
                     if case .star = arg {
@@ -602,9 +606,10 @@ final class ExprTypeChecker {
                 for (name, outerLocal) in locals {
                     if let blockLocal = blockLocals[name],
                        blockLocal.symbol == outerLocal.symbol,
-                       !outerLocal.isInitialized, blockLocal.isInitialized
+                       (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable)
+                           || (!outerLocal.isInitialized && blockLocal.isInitialized)
                     {
-                        locals[name] = (outerLocal.type, outerLocal.symbol, outerLocal.isMutable, true)
+                        locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
             }

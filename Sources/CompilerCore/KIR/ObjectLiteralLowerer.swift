@@ -542,6 +542,7 @@ final class ObjectLiteralLowerer {
             receiver: objectValue,
             loweredArgs: loweredArgs,
             spreadFlags: objectDecl.superTypeConstructorArgs.map(\.isSpread),
+            argumentLabels: objectDecl.superTypeConstructorArgs.map(\.label),
             callBinding: callBinding,
             sourceArgExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             result: resultID,
@@ -630,6 +631,18 @@ final class ObjectLiteralLowerer {
             driver.ctx.localDeclaredType(for: $0)
         } ?? driver.ctx.currentFunctionSymbol.flatMap {
             sema.symbols.functionSignature(for: $0)?.receiverType
+        }
+        // An extension property's bare reference uses the extension receiver;
+        // the enclosing instance is a separate leading accessor argument.
+        if let extensionType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = activeReceiverType,
+           sema.types.isSubtype(
+               sema.types.makeNonNullable(receiverType),
+               sema.types.makeNonNullable(extensionType)
+           )
+        {
+            return activeReceiver
         }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),

@@ -86,6 +86,31 @@ struct PrimitiveBitFunctionTypeTests {
     }
 
     @Test
+    func testNarrowRotationsPreserveReceiverType() throws {
+        let source = """
+        fun probe(b: Byte, s: Short, ub: UByte, us: UShort, count: Int) {
+            val leftByte: Byte = b.rotateLeft(count)
+            val rightByte: Byte = b.rotateRight(count)
+            val leftShort: Short = s.rotateLeft(count)
+            val rightShort: Short = s.rotateRight(count)
+            val leftUByte: UByte = ub.rotateLeft(count)
+            val rightUByte: UByte = ub.rotateRight(count)
+            val leftUShort: UShort = us.rotateLeft(count)
+            val rightUShort: UShort = us.rotateRight(count)
+            val safeByte: Byte? = (b as Byte?)?.rotateLeft(count)
+            val safeShort: Short? = (s as Short?)?.rotateRight(count)
+            val safeUByte: UByte? = (ub as UByte?)?.rotateRight(count)
+            val safeUShort: UShort? = (us as UShort?)?.rotateLeft(count)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testPhantomOneBitMembersAreRejected() throws {
         let source = """
         fun rejected(i: Int, l: Long) {
