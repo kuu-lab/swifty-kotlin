@@ -725,6 +725,18 @@ public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> 
 // sumOf resolves on the selector's concrete return type. The sibling Int and
 // Double sumOf overloads already live in SequenceAggregateHOF.kt
 // (kotlin.collections), and Sequence<Int>.sum() lives there too.
+public fun Sequence<Byte>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Short>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
 public fun Sequence<Double>.sum(): Double {
     var sum = 0.0
     for (element in this) sum += element
@@ -796,4 +808,69 @@ public inline fun <T> Sequence<T>.sumOf(selector: (T) -> ULong): ULong {
     var sum = 0uL
     for (element in this) sum += selector(element)
     return sum
+}
+
+// KUU-1413: Sequence numeric averages complete the stdlib family. They
+// mirror the Iterable counterparts in Iterables.kt — Double accumulation and
+// NaN for empty input — while iterating lazily instead of materializing.
+// Sequence<Int>.average() lives in SequenceAggregateHOF.kt
+// (kotlin.collections) alongside the Int sum decl.
+private fun checkSequenceAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+public fun Sequence<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+public fun Sequence<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkSequenceAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
 }

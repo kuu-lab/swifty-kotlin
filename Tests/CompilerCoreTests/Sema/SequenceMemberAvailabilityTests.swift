@@ -20,6 +20,16 @@ struct SequenceMemberAvailabilityTests {
             "s.zip(other) { a, b -> b }",
             "s.zip(nullable)",
             "s?.reversed()",
+            // KUU-1413: kotlin.sequences has no reduceRight family — kotlinc
+            // rejects all four as unresolved references on a Sequence.
+            "sequenceOf(1, 2, 3).reduceRight { a, b -> a - b }",
+            "sequenceOf(1, 2, 3).reduceRightOrNull { a, b -> a - b }",
+            "sequenceOf(1, 2, 3).reduceRightIndexed { i, a, b -> a - b - i }",
+            "sequenceOf(1, 2, 3).reduceRightIndexedOrNull { i, a, b -> a - b - i }",
+            "s.reduceRight { a, b -> a - b }",
+            "s.reduceRightOrNull { a, b -> a - b }",
+            "s.reduceRightIndexed { i, a, b -> a - b - i }",
+            "s.reduceRightIndexedOrNull { i, a, b -> a - b - i }",
         ]
         let sources = expressions.enumerated().map { index, expression in
             """
@@ -59,6 +69,12 @@ struct SequenceMemberAvailabilityTests {
             val eagerTail = s.toList().takeLast(2)
             val eagerSuffix = s.toList().takeLastWhile { it > 1 }
             val eagerReverse = s.toList().reversed()
+            // KUU-1413: the one-pass reduce family stays available on Sequence;
+            // only the right-fold variants were removed.
+            val reduced: Int = s.reduce { acc, v -> acc + v }
+            val reducedOrNull: Int? = s.reduceOrNull { acc, v -> acc + v }
+            val reducedIndexed: Int = s.reduceIndexed { i, acc, v -> acc + v + i }
+            val reducedIndexedOrNull: Int? = s.reduceIndexedOrNull { i, acc, v -> acc + v + i }
         }
         """
         try withTemporaryFile(contents: source) { path in

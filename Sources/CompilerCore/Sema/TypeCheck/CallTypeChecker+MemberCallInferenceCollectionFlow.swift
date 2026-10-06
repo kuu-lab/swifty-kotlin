@@ -252,6 +252,14 @@ extension CallTypeChecker {
             // These eager operations are unavailable on Kotlin Sequence.
             activeCollectionHOFNames.remove("takeLastWhile")
             activeCollectionHOFNames.remove("reversed")
+            // KUU-1413: kotlin.sequences has no reduceRight family — a
+            // one-pass Sequence cannot fold from the right. Skip the fast
+            // path so regular overload resolution reports SEMA-0024 like
+            // kotlinc's unresolved reference.
+            activeCollectionHOFNames.remove("reduceRight")
+            activeCollectionHOFNames.remove("reduceRightIndexed")
+            activeCollectionHOFNames.remove("reduceRightOrNull")
+            activeCollectionHOFNames.remove("reduceRightIndexedOrNull")
             // Sequence.flatMapTo/flatMapIndexedTo have Iterable- and
             // Sequence-return overloads. Let regular overload resolution use
             // the lambda return type instead of the single-shape destination
@@ -6144,9 +6152,10 @@ extension CallTypeChecker {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
             }
 
-            // Sequence.sum()/average() currently have only the Int source
-            // overloads. Do not let an unsupported concrete element type fall
-            // through to the raw runtime bridge with the wrong ABI shape.
+            // Sequence.sum()/average() only have the monomorphic numeric
+            // source overloads (Byte/Short/Int/Long/Float/Double/unsigned).
+            // Do not let an unsupported concrete element type fall through to
+            // the raw runtime bridge with the wrong ABI shape.
             if isSequenceReceiver,
                sema.bindings.callBindings[id] == nil,
                ["sum", "average"].contains(calleeStr)
