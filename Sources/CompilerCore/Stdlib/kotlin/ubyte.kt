@@ -5,6 +5,7 @@ package kotlin
 internal inline fun UByte(value: Byte): UByte = value.toInt().toUByte()
 
 // KSP-789: Keep the primitive UByteArray factory source-backed.
+@ExperimentalUnsignedTypes
 public inline fun ubyteArrayOf(vararg elements: UByte): UByteArray {
     val result = UByteArray(elements.size)
     var index = 0

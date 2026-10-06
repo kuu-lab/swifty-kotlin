@@ -40,6 +40,41 @@ func runtime_test_dispatcher_observe_entry(
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeDispatcherTests {
+    @Test func dispatcherNamesPreserveNumericValues() {
+        for (kind, name, tag) in [
+            (0, "Dispatchers.Default", kk_dispatcher_default()),
+            (1, "Dispatchers.IO", kk_dispatcher_default()),
+            (2, "Dispatchers.Unconfined", kk_dispatcher_default()),
+        ] {
+            let handle = kk_dispatcher_named(kind)
+            #expect(handle == kk_dispatcher_named(kind))
+            #expect(runtimeElementToString(handle) == name)
+            #expect(runtimeRenderAnyForPrint(handle) == name)
+            #expect(extractString(from: kk_any_to_string(handle, 1)) == name)
+            #expect(kk_context_get_dispatcher(handle) == tag)
+            #expect(resolveToCoroutineContext(handle).dispatcher == tag)
+            #expect(resolveToCoroutineContext(handle).dispatcherElementHandle == handle)
+            let state = RuntimeContinuationState(functionID: 1300)
+            state.builderContext = resolveToCoroutineContext(handle)
+            #expect(state.makeContinuationContext().dispatcherElementHandle == handle)
+            let combined = kk_context_plus(kk_dispatcher_named(0), handle)
+            #expect(resolveToCoroutineContext(combined).dispatcherElementHandle == handle)
+            #expect(kk_context_get(combined, handle) == handle)
+            #expect(resolveToCoroutineContext(kk_context_minusKey(combined, handle)).dispatcherElementHandle == 0)
+            #expect(runtimeResolveDispatcher(from: handle).tag == tag)
+            #expect(kk_is_native_dispatcher(handle) == 1)
+            #expect(kk_object_release(handle) == 0)
+        }
+        #expect(Set((0...2).map(kk_dispatcher_named)).count == 3)
+        for number in [0x4B4B_4401, 0x4B4B_4402, 0x4B4B_4404] {
+            #expect(extractString(from: kk_any_to_string(number, 1)) == String(number))
+            #expect(runtimeElementToString(number) == String(number))
+            #expect(runtimeRenderAnyForPrint(number) == String(number))
+            let boxed = kk_box_int(number)
+            #expect(runtimeElementToString(boxed) == String(number))
+        }
+    }
+
     // MARK: - Dispatcher tag identity
 
     @Test func defaultDispatcherReturnsKnownTag() {

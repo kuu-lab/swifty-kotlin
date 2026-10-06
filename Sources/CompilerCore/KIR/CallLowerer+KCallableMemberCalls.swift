@@ -46,7 +46,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let calleeStr = interner.resolve(calleeName)
-        guard ["name", "returnType", "parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend"].contains(calleeStr) else { return nil }
+        guard ["name", "returnType", "parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend", "annotations"].contains(calleeStr) else { return nil }
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
            let property = sema.bindings.identifierSymbol(for: exprID),

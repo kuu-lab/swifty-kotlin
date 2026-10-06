@@ -195,11 +195,16 @@ extension KotlinParser {
     }
 
     func shouldStopStatementBefore(_ token: Token, inBlock: Bool) -> Bool {
-        ParserBoundaryPolicy.shouldStopStatementBefore(
+        if isLabelStart { return false }
+        return ParserBoundaryPolicy.shouldStopStatementBefore(
             token,
             inBlock: inBlock,
             hasLeadingNewline: hasLeadingNewline(token)
         )
+    }
+
+    var isLabelStart: Bool {
+        stream.peek().kind.isLabelName && stream.peek(1).kind == .symbol(.at)
     }
 
     static func isDeclarationModifierKeyword(_ keyword: Keyword) -> Bool {

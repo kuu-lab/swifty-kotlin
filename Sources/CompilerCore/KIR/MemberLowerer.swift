@@ -6,6 +6,42 @@ final class MemberLowerer {
         self.driver = driver
     }
 
+    private func synthesizeNestedCompanionInitializers(
+        _ declIDs: [DeclID],
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        var initializers: [KIRDeclID] = []
+        for declID in declIDs {
+            guard let decl = shared.ast.arena.decl(declID),
+                  let symbol = shared.sema.bindings.declSymbols[declID]
+            else { continue }
+            let companionDeclID: DeclID?
+            var nestedDecls: [DeclID]
+            switch decl {
+            case let .classDecl(nested):
+                companionDeclID = nested.companionObject
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            case let .interfaceDecl(nested):
+                companionDeclID = nested.companionObject
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            case let .objectDecl(nested):
+                companionDeclID = nil
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            default: continue
+            }
+            if let companionDeclID { nestedDecls.append(companionDeclID) }
+            initializers.append(contentsOf: synthesizeNestedCompanionInitializers(nestedDecls, shared: shared))
+            guard let companionDeclID,
+                  let companionSymbol = shared.sema.bindings.declSymbols[companionDeclID],
+                  driver.ctx.objectLazyInit(for: companionSymbol) == nil
+            else { continue }
+            initializers.append(contentsOf: driver.synthesizeCompanionInitializerIfNeeded(
+                companionDeclID: companionDeclID, ownerSymbol: symbol, shared: shared
+            ))
+        }
+        return initializers
+    }
+
     func lowerMemberDecls(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
@@ -21,6 +57,16 @@ final class MemberLowerer {
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         var directMembers: [KIRDeclID] = []
         var allDecls: [KIRDeclID] = []
+
+        // Enclosing function bodies can access nested types' companions. Register
+        // their lazy initializers before lowering those accesses, as for top-level types.
+        allDecls.append(contentsOf: synthesizeNestedCompanionInitializers(
+            nestedClasses + nestedObjects,
+            shared: KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+        ))
 
         for declID in memberFunctions {
             lowerSingleMemberFunction(

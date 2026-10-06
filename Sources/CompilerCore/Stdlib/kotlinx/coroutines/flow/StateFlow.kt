@@ -18,7 +18,7 @@ public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
 }
 
-public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<T> {
+public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedFlow<T> {
     private var _value: T = initialValue
     private var subscribers: MutableStateFlow<Int>? = null
 
@@ -31,7 +31,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<
             if (_value != value) _value = value
         }
 
-    public val subscriptionCount: StateFlow<Int>
+    override val subscriptionCount: StateFlow<Int>
         get() = subscriptionCounter()
 
     private fun subscriptionCounter(): MutableStateFlow<Int> {
@@ -42,7 +42,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<
         return counter
     }
 
-    public fun tryEmit(value: T): Boolean {
+    override fun tryEmit(value: T): Boolean {
         this.value = value
         return true
     }
@@ -57,7 +57,7 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, FlowCollector<
         tryEmit(value)
     }
 
-    public fun resetReplayCache() {
+    override fun resetReplayCache() {
         throw UnsupportedOperationException("MutableStateFlow does not support resetReplayCache")
     }
 

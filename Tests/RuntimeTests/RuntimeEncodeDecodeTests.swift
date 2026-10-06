@@ -6,6 +6,24 @@ import Testing
 
 @Suite
 struct RuntimeEncodeDecodeTests {
+    @Test(arguments: [
+        (3, [0xff, 0xfe, 0x41, 0], "A"),
+        (3, [0xfe, 0xff, 0, 0x41], "A"),
+        (4, [0, 0x41, 0xd8, 0x3d, 0xde, 0], "A😀"),
+        (5, [0x41, 0, 0x3d, 0xd8, 0, 0xde], "A😀"),
+        (5, [0, 0xd8, 0x41, 0], "\u{FFFD}"),
+        (4, [0xd8, 0, 0xff], "\u{FFFD}"),
+        (5, [0x41], "\u{FFFD}"),
+        (6, [0xff, 0xfe, 0, 0, 0x41, 0, 0, 0], "A"),
+        (7, [0, 0, 0xfe, 0xff, 0, 0, 0, 0x41], "A"),
+        (8, [0, 0xf6, 1, 0], "😀"),
+        (7, [0, 0, 0xd8, 0], "\u{FFFD}"),
+        (8, [0x41, 0], "\u{FFFD}"),
+    ])
+    func testDecodeToStringUnicodeCharsets(sample: (Int, [Int], String)) {
+        let result = __kk_bytearray_decodeToString_charset(makeListRaw(sample.1), sample.0)
+        #expect(extractSwiftString(result) == sample.2)
+    }
 
     // MARK: - Helpers
 

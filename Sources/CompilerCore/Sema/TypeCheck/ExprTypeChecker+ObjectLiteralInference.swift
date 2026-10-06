@@ -1065,6 +1065,13 @@ extension ExprTypeChecker {
                 ),
                 for: memberSymbol
             )
+            // Resolve the exact overridden signature before inheriting infix;
+            // another overload with the same name and arity may lack it.
+            if DataFlowSemaPhase().nearestOverriddenFunctionCandidates(
+                of: memberSymbol, symbols: sema.symbols, types: sema.types
+            ).contains(where: { sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }) {
+                sema.symbols.insertFlags(.infixFunction, for: memberSymbol)
+            }
             result[functionDeclID] = memberSymbol
         }
 
@@ -1088,6 +1095,7 @@ extension ExprTypeChecker {
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }
         if functionDecl.isInline { flags.insert(.inlineFunction) }
         if functionDecl.modifiers.contains(.operator) { flags.insert(.operatorFunction) }
+        if functionDecl.modifiers.contains(.infix) { flags.insert(.infixFunction) }
         if functionDecl.modifiers.contains(.override) { flags.insert(.overrideMember) }
         if functionDecl.modifiers.contains(.abstract) { flags.insert(.abstractType) }
         if functionDecl.modifiers.contains(.open) { flags.insert(.openType) }

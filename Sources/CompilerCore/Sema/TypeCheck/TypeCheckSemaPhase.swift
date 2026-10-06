@@ -75,7 +75,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
         let fileScopes = driver.scopeBuilder.buildFileScopes(
             ast: ast,
             sema: sema,
-            interner: ctx.interner
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
         )
 
         // Expression type inference recurses with large per-frame contexts

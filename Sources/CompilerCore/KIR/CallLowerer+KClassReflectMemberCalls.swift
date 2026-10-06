@@ -86,7 +86,8 @@ extension CallLowerer {
         }
 
         let nameHintExpr: KIRExprID
-        if let name = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
+        if let name = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
             let internedName = interner.intern(name)
             nameHintExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
             instructions.append(.constValue(result: nameHintExpr, value: .stringLiteral(internedName)))
@@ -272,12 +273,14 @@ extension CallLowerer {
             return
         }
 
-        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let fqName = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
         let fqNameInterned = interner.intern(fqName)
         let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
         instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
 
-        let simpleNameStr = interner.resolve(symbol.name)
+        let simpleNameStr = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? interner.resolve(symbol.name)
         let simpleInterned = interner.intern(simpleNameStr)
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleInterned), type: intType)
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleInterned)))

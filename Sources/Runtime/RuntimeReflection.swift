@@ -100,8 +100,12 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 
+    return runtimeAnnotationList(metadata.annotations)
+}
+
+func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord]) -> Int {
     var annotationHandles: [Int] = []
-    for record in metadata.annotations where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
+    for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
         let box = RuntimeAnnotationBox(
             annotationFQName: record.annotationFQName,
             arguments: record.arguments,
@@ -110,6 +114,22 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
         annotationHandles.append(registerRuntimeObject(box))
     }
     return registerRuntimeObject(RuntimeListBox(elements: annotationHandles))
+}
+
+/// Attaches declaration annotation metadata to a compiler-generated callable.
+@_cdecl("__kk_kcallable_register_single_annotation")
+public func __kk_kcallable_register_single_annotation(
+    _ callableRaw: Int, _ fqNameRaw: Int, _ argsEncodedRaw: Int, _ argCount: Int
+) -> Int {
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    guard runtimeShouldExposeAnnotation(fqName: fqName) else { return 0 }
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let arguments = argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : []
+    let record = RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments)
+    runtimeStorage.withDelegateLock { state in
+        state.callableRefMetadataByValue[callableRaw]?.annotations.append(record)
+    }
+    return 0
 }
 
 /// Searches for an annotation by its simple or qualified name on a KClass.

@@ -52,6 +52,30 @@ struct RuntimeReflectionTypeMetadataTests {
         #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == "sample.Derived")
     }
 
+    @Test func kclassToStringUsesQualifiedNamesAcrossRenderers() {
+        let cases: [(Int, String)] = [
+            (Int(RuntimeTypeTokenEncoding.stringBase), "kotlin.String"),
+            (Int(RuntimeTypeTokenEncoding.intBase), "kotlin.Int"),
+        ]
+        for (token, name) in cases {
+            let klass = __kk_kclass_create(token, makeRuntimeString("IgnoredHint"))
+            let expected = "class \(name)"
+            #expect(runtimeElementToString(klass) == expected)
+            #expect(runtimeRenderAnyForPrint(klass) == expected)
+            #expect(extractString(from: kk_any_to_string(klass, 0)) == expected)
+        }
+
+        let token = nominalToken(73002)
+        let klass = __kk_kclass_create(token, makeRuntimeString("Sample"))
+        _ = __kk_kclass_register_metadata(
+            token, makeRuntimeString("sample.Sample"), makeRuntimeString("Sample"),
+            0, 0, 0, 0, 0
+        )
+        #expect(runtimeElementToString(klass) == "class sample.Sample")
+        #expect(runtimeRenderAnyForPrint(klass) == "class sample.Sample")
+        #expect(extractString(from: kk_any_to_string(klass, 0)) == "class sample.Sample")
+    }
+
     @Test func reflectionBoxesCarryNominalHierarchyAndSharedNameDispatch() {
         registerReflectionRuntimeTypeMetadata()
 

@@ -2,6 +2,12 @@ extension KotlinLexer {
     func symbolKind() -> Symbol? {
         guard offset < byteCount() else { return nil }
         let ch = byte(at: offset)
+        // Preserve the double colon after a nullable callable-reference type;
+        // `?::` is a question mark followed by `::`, not Elvis plus a colon.
+        if starts(with: [0x3F, 0x3A, 0x3A], at: offset) {
+            offset += 1
+            return .question
+        }
         // Multi-character symbols: check longest first for correct greedy matching
         for candidate in Self.symbolsByFirstByte[ch] ?? [] where starts(with: candidate.bytes, at: offset) {
             offset += candidate.bytes.count

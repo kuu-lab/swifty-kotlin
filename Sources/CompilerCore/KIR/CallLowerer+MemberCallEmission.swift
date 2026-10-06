@@ -53,6 +53,39 @@ extension CallLowerer {
             ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
     }
 
+    /// Supply the dispatch receiver shared by getter, setter and compound updates.
+    func propertyAccessorArguments(
+        for accessor: SymbolID,
+        arguments: [KIRExprID],
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard let owner = memberExtensionOwnerSymbol(for: accessor, sema: sema) else {
+            return arguments
+        }
+        if let receiver = memberExtensionDispatchReceiver(
+            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        ) {
+            return [receiver] + arguments
+        }
+        if sema.symbols.symbol(owner)?.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return [receiver] + arguments
+        }
+        return arguments
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -1002,6 +1035,7 @@ extension CallLowerer {
             callArguments = []
         }
         if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            chosenCallee: chosenCallee,
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
@@ -1147,6 +1181,7 @@ extension CallLowerer {
     ]
 
     private func listWindowChunkMemberSourceBridgeCall(
+        chosenCallee: SymbolID?,
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
@@ -1161,6 +1196,17 @@ extension CallLowerer {
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         let knownNames = KnownCompilerNames(interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if calleeName == knownNames.zip,
+           let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+        {
+            // KUU-1256: Array zip and user Array extensions use their selected
+            // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }
 
