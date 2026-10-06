@@ -4174,7 +4174,11 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
 /// launcher-marked (receiver-first) literals, `params.count - 1` for
 /// unmarked (captures-first) suspend values — and the receiver scope lands
 /// there so `this` inside the block binds to a real RuntimeCoroutineScope,
-/// the same convention `kk_test_run_blocking_with_cont` uses.
+/// the same convention `kk_test_run_blocking_with_cont` uses. A
+/// launcher-marked literal with no receiver parameter (the bare
+/// implicit-scope `launch {}`/`async {}` form, `this` bound through
+/// `state.scope` below) passes `params.count` so this write lands in a
+/// slot the launcher thunk never reads.
 @_cdecl("kk_coroutine_scope_async_with_cont")
 public func kk_coroutine_scope_async_with_cont(
     _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
