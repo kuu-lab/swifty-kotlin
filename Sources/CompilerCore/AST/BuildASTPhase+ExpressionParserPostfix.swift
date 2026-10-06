@@ -290,4 +290,48 @@ extension BuildASTPhase.ExpressionParser {
             false
         }
     }
+
+    /// True when `kind` can begin a postfix-unary suffix applied by the loop
+    /// in `parsePostfixOrPrimary`: call parens, a trailing lambda, indexing,
+    /// `!!`, `::`, `++`/`--`, member navigation, or an explicit-type-argument
+    /// call attempt.
+    func isPostfixSuffixStart(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.lParen), .symbol(.lBrace), .symbol(.lBracket),
+             .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.bangBang),
+             .symbol(.doubleColon), .symbol(.dot), .symbol(.questionDot),
+             .symbol(.lessThan):
+            true
+        default:
+            false
+        }
+    }
+
+    /// Scans forward from the `{` at `index` to its matching `}` and reports
+    /// whether a postfix suffix follows. Pure lookahead — `index` is unchanged.
+    ///
+    /// In Kotlin a `name@` label is a unary prefix on the whole postfix-unary
+    /// expression, so `foo@{ ... }()` labels the invocation rather than the
+    /// lambda literal. `return@foo` inside such a lambda resolves to a label
+    /// that does not denote a function (kotlinc rejects it).
+    func labeledLambdaBindsToPostfixExpression() -> Bool {
+        var depth = 0
+        var scan = index
+        while scan < tokens.endIndex {
+            switch tokens[scan].kind {
+            case .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rBrace):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0 {
+                let next = scan + 1
+                return next < tokens.endIndex && isPostfixSuffixStart(tokens[next].kind)
+            }
+            scan += 1
+        }
+        return false
+    }
 }

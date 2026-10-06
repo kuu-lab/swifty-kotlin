@@ -10,9 +10,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     var implicitReceiverType: TypeID?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
-    /// Stack of labels attached to enclosing lambda literals.
-    /// Used by `return@label` to verify that the label references a valid lambda.
-    var lambdaLabelStack: [InternedString]
+    /// Stack of labels attached to enclosing lambda literals, paired with
+    /// whether the label denotes a function. `return@label` uses it to verify
+    /// that the label references a valid lambda. A label written on a lambda
+    /// that is immediately consumed by a postfix suffix (`foo@{ ... }()`)
+    /// binds to the postfix expression in Kotlin, so it is tracked here as
+    /// visible but not function-denoting.
+    var lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]
     /// Number of lambda bodies enclosing the expression currently being inferred.
     /// An unlabeled return inside such a body is a non-local return and is checked
     /// against the surrounding named function's return type rather than the
@@ -98,9 +102,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         ast.sortedFiles.first { $0.fileID == currentFileID }
     }
 
-    func withLambdaLabel(_ label: InternedString) -> TypeInferenceContext {
+    func withLambdaLabel(_ label: InternedString, denotesFunction: Bool = true) -> TypeInferenceContext {
         var copy = self
-        copy.lambdaLabelStack = lambdaLabelStack + [label]
+        copy.lambdaLabelStack = lambdaLabelStack + [(label: label, denotesFunction: denotesFunction)]
         return copy
     }
 
@@ -120,8 +124,26 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
+    /// The function-denoting status of the nearest enclosing label named
+    /// `label`, or nil when no enclosing label matches. The nearest match wins:
+    /// a non-function label (`foo@{ ... }()`) shadows outer same-named labels
+    /// without becoming a valid `return@` target itself.
+    func lambdaLabelDenotesFunction(_ label: InternedString) -> Bool? {
+        for entry in lambdaLabelStack.reversed() where entry.label == label {
+            return entry.denotesFunction
+        }
+        return nil
+    }
+
     func hasLambdaLabel(_ label: InternedString) -> Bool {
-        lambdaLabelStack.contains(label)
+        lambdaLabelDenotesFunction(label) == true
+    }
+
+    /// Whether `label` matches an enclosing label that does not denote a
+    /// function — used to phrase `return@label` diagnostics like kotlinc's
+    /// "target label does not denote a function".
+    func hasNonFunctionLambdaLabel(_ label: InternedString) -> Bool {
+        lambdaLabelDenotesFunction(label) == false
     }
 
     func with(currentDeclSymbol newSymbol: SymbolID?) -> TypeInferenceContext {
@@ -137,7 +159,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         implicitReceiverType: TypeID?? = nil,
         loopDepth: Int? = nil,
         loopLabelStack: [InternedString]? = nil,
-        lambdaLabelStack: [InternedString]? = nil,
+        lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]? = nil,
         lambdaDepth: Int? = nil,
         enclosingFunctionReturnType: TypeID?? = nil,
         exportBlockLocalsForExpr: ExprID?? = nil,

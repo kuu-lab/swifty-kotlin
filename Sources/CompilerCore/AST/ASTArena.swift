@@ -9,6 +9,7 @@ public struct ASTArenaSnapshot: Codable {
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
+    public let nonFunctionLambdaLabels: Set<ExprID>
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -19,6 +20,7 @@ public struct ASTArenaSnapshot: Codable {
         case lambdaParamTypeRefs
         case explicitCallExpressions
         case incrementDecrementExpressions
+        case nonFunctionLambdaLabels
     }
 
     public init(
@@ -29,7 +31,8 @@ public struct ASTArenaSnapshot: Codable {
         whenSubjectVarNames: [ExprID: InternedString],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
         explicitCallExpressions: Set<ExprID> = [],
-        incrementDecrementExpressions: Set<ExprID> = []
+        incrementDecrementExpressions: Set<ExprID> = [],
+        nonFunctionLambdaLabels: Set<ExprID> = []
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -39,6 +42,7 @@ public struct ASTArenaSnapshot: Codable {
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
+        self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
     }
 
     public init(from decoder: Decoder) throws {
@@ -53,6 +57,10 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
             forKey: .incrementDecrementExpressions
+        ) ?? []
+        nonFunctionLambdaLabels = try container.decodeIfPresent(
+            Set<ExprID>.self,
+            forKey: .nonFunctionLambdaLabels
         ) ?? []
     }
 }
@@ -127,6 +135,12 @@ public final class ASTArena: @unchecked Sendable {
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
+    /// Tracks lambda literals whose leading `label@` is bound to a following
+    /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
+    /// expression, so `foo@{ ... }()` labels the invocation rather than the
+    /// lambda — `return@foo` inside then targets a label that does not denote
+    /// a function and must be rejected.
+    private var _nonFunctionLambdaLabels: Set<ExprID> = []
 
     public var decls: [Decl] {
         lock.lock()
@@ -151,6 +165,7 @@ public final class ASTArena: @unchecked Sendable {
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
+        _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -164,7 +179,8 @@ public final class ASTArena: @unchecked Sendable {
             whenSubjectVarNames: _whenSubjectVarNames,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
             explicitCallExpressions: _explicitCallExpressions,
-            incrementDecrementExpressions: _incrementDecrementExpressions
+            incrementDecrementExpressions: _incrementDecrementExpressions,
+            nonFunctionLambdaLabels: _nonFunctionLambdaLabels
         )
     }
 
@@ -380,6 +396,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _incrementDecrementExpressions.contains(exprID)
+    }
+
+    public func markNonFunctionLambdaLabel(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _nonFunctionLambdaLabels.insert(exprID)
+    }
+
+    public func isNonFunctionLambdaLabel(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _nonFunctionLambdaLabels.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {

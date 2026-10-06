@@ -179,7 +179,9 @@ final class ExprTypeChecker {
                 let labelName = interner.resolve(label)
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0042",
-                    "'return@\(labelName)' does not reference a valid enclosing lambda.",
+                    ctx.hasNonFunctionLambdaLabel(label)
+                        ? "Target label '\(labelName)' does not denote a function."
+                        : "'return@\(labelName)' does not reference a valid enclosing lambda.",
                     range: range
                 )
             }
