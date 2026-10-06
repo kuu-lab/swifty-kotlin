@@ -98,6 +98,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     let useProperTypeInferenceConstraintsProcessing: Bool
     /// Marker annotations accepted through compiler-wide `-opt-in=<fqName>`.
     let globalOptInMarkerNames: [String]
+    /// Opt-ins granted only inside the current accessor body.
+    var accessorOptInMarkers: Set<SymbolID> = []
     /// Set of DslMarker annotation FQ names active on the current implicit receiver.
     /// When a nested lambda introduces a receiver whose class carries the same
     /// DslMarker annotation as an outer receiver, the outer receiver is hidden

@@ -3,11 +3,30 @@ extension KotlinParser {
     /// (`get()` or `set(...)` followed by `=` or `{`). Used to absorb
     /// newline-separated accessor lines into the property declaration CST node.
     func isPropertyAccessorStart(_ token: Token) -> Bool {
-        switch token.kind {
+        var offset = 0
+        // Skip annotations without consuming them: an annotation on the next
+        // declaration must not be absorbed into the preceding property.
+        while stream.peek(offset).kind == .symbol(.at) {
+            offset += 1
+            if isAnnotationUseSiteTarget(stream.peek(offset)),
+               stream.peek(offset + 1).kind == .symbol(.colon) {
+                offset += 2
+            }
+            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
+            offset += 1
+            while stream.peek(offset).kind == .symbol(.dot),
+                  isIdentifierLike(stream.peek(offset + 1).kind) {
+                offset += 2
+            }
+            if stream.peek(offset).kind == .symbol(.lParen) {
+                offset = offsetPastBalancedGroup(from: offset, open: .symbol(.lParen), close: .symbol(.rParen))
+            }
+        }
+        switch stream.peek(offset).kind {
         case .softKeyword(.get), .softKeyword(.set):
-            isAccessorHeaderFollowedByBody()
+            return isAccessorHeaderFollowedByBody(at: offset)
         default:
-            false
+            return false
         }
     }
 
@@ -27,13 +46,13 @@ extension KotlinParser {
 
     /// Checks whether the tokens starting at `stream.peek(1)` form a
     /// well-formed accessor header `(...)` followed by `=` or `{`.
-    private func isAccessorHeaderFollowedByBody() -> Bool {
-        guard stream.peek(1).kind == .symbol(.lParen) else {
+    private func isAccessorHeaderFollowedByBody(at start: Int) -> Bool {
+        guard stream.peek(start + 1).kind == .symbol(.lParen) else {
             return false
         }
-        var offset = 1
+        var offset = start + 1
         var parenDepth = 0
-        let maxLookahead = 64
+        let maxLookahead = start + 64
         while offset <= maxLookahead {
             let nextToken = stream.peek(offset)
             switch nextToken.kind {
