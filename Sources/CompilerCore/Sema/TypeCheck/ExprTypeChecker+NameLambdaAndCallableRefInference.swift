@@ -1307,6 +1307,9 @@ extension ExprTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?
     ) -> TypeID {
+        let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
+        ctx.dataFlow.localStability.currentLocalFunctionScope = nil
+        defer { ctx.dataFlow.localStability.currentLocalFunctionScope = previousFunctionScope }
         let ast = ctx.ast
         let sema = ctx.sema
 

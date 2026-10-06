@@ -112,6 +112,7 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
 
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         let elementType = inferLoopElementType(
             exprID: id,
             iterableExpr: iterableExpr,
