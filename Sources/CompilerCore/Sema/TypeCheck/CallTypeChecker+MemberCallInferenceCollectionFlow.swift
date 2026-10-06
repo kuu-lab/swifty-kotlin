@@ -5745,7 +5745,11 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[args.count - 1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
-                _ = bindBundledListBinarySearchSource(elementType: collectionElementType)
+                if bindBundledListBinarySearchSource(elementType: collectionElementType) {
+                    // The bundled selector returns an erased K, so use the
+                    // Kotlin function-value ABI rather than a raw HOF callback.
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[args.count - 1].expr)
+                }
 
             case "distinctBy":
                 guard args.count == 1 else {
