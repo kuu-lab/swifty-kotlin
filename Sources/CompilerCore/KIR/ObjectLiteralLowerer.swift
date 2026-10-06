@@ -778,7 +778,12 @@ final class ObjectLiteralLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // Reflection reports Kotlin modality, not the internal inheritance flags.
+        let isSealed = symbol.flags.contains(.sealedType)
+        let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
+        if isAbstract { flags |= 1 << 7 }
+        if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
+        if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
         if symbol.kind == .object {

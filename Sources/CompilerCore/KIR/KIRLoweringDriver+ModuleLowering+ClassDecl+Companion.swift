@@ -122,6 +122,30 @@ extension KIRLoweringDriver {
             )
         }
 
+
+        let globalDeclID = arena.appendDecl(.global(KIRGlobal(
+            symbol: companionSymbol,
+            type: companionType
+        )))
+        var declIDs: [KIRDeclID] = [globalDeclID]
+        declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
+        ctx.clearImplicitReceiver()
+
+        declIDs.append(contentsOf: synthesizeCompanionLazyInit(
+            companionDecl,
+            companionSymbol: companionSymbol,
+            companionType: companionType,
+            needsDispatchObject: needsDispatchObject,
+            shared: shared
+        ))
+        if let lazyInit = ctx.objectLazyInit(for: companionSymbol) {
+            appendKClassObjectRegistration(
+                objectSymbol: companionSymbol, objectType: companionType,
+                ensureInitSymbol: lazyInit.ensureInitSymbol, shared: shared,
+                instructions: &body.instructions
+            )
+        }
+
         body.append(.returnUnit)
         body.append(.endBlock)
 
@@ -140,22 +164,7 @@ extension KIRLoweringDriver {
             )
         )
         ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
-
-        let globalDeclID = arena.appendDecl(.global(KIRGlobal(
-            symbol: companionSymbol,
-            type: companionType
-        )))
-        var declIDs: [KIRDeclID] = [globalDeclID, initDeclID]
-        declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
-        ctx.clearImplicitReceiver()
-
-        declIDs.append(contentsOf: synthesizeCompanionLazyInit(
-            companionDecl,
-            companionSymbol: companionSymbol,
-            companionType: companionType,
-            needsDispatchObject: needsDispatchObject,
-            shared: shared
-        ))
+        declIDs.insert(initDeclID, at: 0)
         return declIDs
     }
 
