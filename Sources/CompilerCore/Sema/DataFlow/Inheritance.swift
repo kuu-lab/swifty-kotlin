@@ -552,6 +552,17 @@ extension DataFlowSemaPhase {
                     nullability: nullability
                 )))
             }
+            // Qualified Kotlin builtins use the same representation as their
+            // unqualified names, including inside inherited type arguments.
+            // Looking up kotlin.Boolean as a nominal class here would record
+            // ArgType<Class#Boolean> instead of ArgType<Boolean>.
+            if path.count == 2, path[0] == interner.intern("kotlin"),
+               let builtinType = resolveBuiltinTypeNameForInheritance(
+                   path[1], interner: interner, nullability: nullability, types: types
+               )
+            {
+                return builtinType
+            }
             let candidatePaths = inheritanceCandidatePaths(
                 for: path,
                 currentPackage: currentPackage,
