@@ -89,24 +89,12 @@ public fun CharSequence.toSet(): Set<Char> {
     return result
 }
 
-public fun CharSequence.toSortedSet(): MutableSet<Char> {
-    val sorted = mutableListOf<Char>()
-    var index = 0
-    val length = __kk_string_struct_get_length(this)
-    while (index < length) {
-        val element = this[index]
-        var insertAt = sorted.size
-        while (insertAt > 0 && sorted[insertAt - 1].compareTo(element) > 0) {
-            insertAt--
-        }
-        if (insertAt == sorted.size || sorted[insertAt] != element) {
-            sorted.add(insertAt, element)
-        }
-        index++
-    }
-
-    val result = mutableSetOf<Char>()
-    for (element in sorted) result.add(element)
+// KUU-1361: CharSequence.toSortedSet joins the sorted-collection family —
+// the TreeSet performs the same insertion-order dedup the manual list used
+// to do.
+public fun CharSequence.toSortedSet(): java.util.SortedSet<Char> {
+    val result = java.util.TreeSet<Char>()
+    for (element in this) result.add(element)
     return result
 }
 

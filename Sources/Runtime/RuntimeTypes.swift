@@ -389,6 +389,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var coroutineJobHandle: Int = 0
     var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
+    var backingMapBox: RuntimeMapBox?
     var throwableMessage: String?
     var throwableCause: Int
     var throwableStackTraceAddresses: [Int]?
@@ -398,6 +399,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.classID = classID
         self.backingListBox = nil
         self.backingSetBox = nil
+        self.backingMapBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0
         self.throwableStackTraceAddresses = nil
@@ -976,20 +978,75 @@ final class RuntimeSetBox {
     /// materializing a disconnected snapshot.
     private let backingMapRaw: Int?
     private let backingMapViewKind: MapViewKind
+    /// KUU-1361: `NavigableSet.descendingSet()` shares a parent box —
+    /// reads and mutations forward to it while iteration presents the
+    /// elements reversed.
+    private let viewParent: RuntimeSetBox?
+    /// KUU-1361: java.util.TreeSet ordering — `sorted` selects comparator
+    /// order over insertion order, `comparatorRaw` holds the user
+    /// `Comparator` object (0 = natural `Comparable` order), and
+    /// `invertCompare` flips it for descending views.
+    private(set) var sorted: Bool
+    private(set) var comparatorRaw: Int
+    private(set) var invertCompare: Bool
     private(set) var isReadOnly = false
     private var directModCount: Int = 0
 
     /// Structural-modification counter. An entries view has no storage of
     /// its own, so it forwards to the backing map's counter.
     var modCount: Int {
+        if let viewParent {
+            return viewParent.modCount
+        }
         if let backingMapRaw, let map = runtimeMapBox(from: backingMapRaw) {
             return map.modCount
         }
         return directModCount
     }
 
+    /// Marks the box as comparator-ordered (java.util.TreeSet). A `0` or
+    /// `null`-sentinel comparator selects natural `Comparable` order;
+    /// `invertCompare` flips the order for descending views.
+    func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
+        sorted = true
+        self.comparatorRaw = comparatorRaw == runtimeNullSentinelInt ? 0 : comparatorRaw
+        self.invertCompare = invertCompare
+    }
+
+    /// Ordering used by sorted boxes: the stored `Comparator` object when
+    /// one was supplied, else `Comparable` natural order. Descending views
+    /// flip the sign.
+    func sortedCompare(_ lhs: Int, _ rhs: Int) -> Int {
+        let base = comparatorRaw != 0
+            ? runtimeInvokeComparator(comparatorRaw, lhs, rhs)
+            : runtimeCompareValues(lhs, rhs)
+        return invertCompare ? -base : base
+    }
+
+    /// Binary search over sorted storage — the element's position when
+    /// `found`, else the insertion index preserving comparator order.
+    private func sortedSearch(for rawValue: Int) -> (found: Bool, index: Int) {
+        var low = 0
+        var high = storage.count - 1
+        while low <= high {
+            let mid = low + (high - low) / 2
+            let comparison = sortedCompare(storage[mid].legacyRawValue, rawValue)
+            if comparison < 0 {
+                low = mid + 1
+            } else if comparison > 0 {
+                high = mid - 1
+            } else {
+                return (true, mid)
+            }
+        }
+        return (false, low)
+    }
+
     var values: [RuntimeValue] {
         get {
+            if let viewParent {
+                return viewParent.values.reversed()
+            }
             if let backingMapRaw,
                let map = runtimeMapBox(from: backingMapRaw) {
                 switch backingMapViewKind {
@@ -1008,8 +1065,11 @@ final class RuntimeSetBox {
             return storage
         }
         set {
-            guard backingMapRaw == nil, !isReadOnly else { return }
+            guard viewParent == nil, backingMapRaw == nil, !isReadOnly else { return }
             storage = newValue
+            if sorted {
+                storage.sort { sortedCompare($0.legacyRawValue, $1.legacyRawValue) < 0 }
+            }
             rebuildIndex()
         }
     }
@@ -1019,8 +1079,11 @@ final class RuntimeSetBox {
             values.map(\.legacyRawValue)
         }
         set {
-            guard backingMapRaw == nil, !isReadOnly else { return }
+            guard viewParent == nil, backingMapRaw == nil, !isReadOnly else { return }
             storage = newValue.map { RuntimeValue(raw: $0) }
+            if sorted {
+                storage.sort { sortedCompare($0.legacyRawValue, $1.legacyRawValue) < 0 }
+            }
             rebuildIndex()
         }
     }
@@ -1030,6 +1093,10 @@ final class RuntimeSetBox {
         self.index = [:]
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
+        self.viewParent = nil
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
         rebuildIndex()
     }
 
@@ -1038,6 +1105,10 @@ final class RuntimeSetBox {
         self.index = [:]
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
+        self.viewParent = nil
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
         rebuildIndex()
     }
 
@@ -1046,6 +1117,10 @@ final class RuntimeSetBox {
         self.index = [:]
         self.backingMapRaw = mapRaw
         self.backingMapViewKind = .entries
+        self.viewParent = nil
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
     }
 
     init(mapKeysOf mapRaw: Int) {
@@ -1053,9 +1128,30 @@ final class RuntimeSetBox {
         self.index = [:]
         self.backingMapRaw = mapRaw
         self.backingMapViewKind = .keys
+        self.viewParent = nil
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
+    }
+
+    /// `descendingSet()` view — delegates to the parent box while presenting
+    /// elements reversed. Mutations write through, so the view and parent
+    /// share contents.
+    init(descendingViewOf parent: RuntimeSetBox) {
+        self.storage = []
+        self.index = [:]
+        self.backingMapRaw = nil
+        self.backingMapViewKind = .entries
+        self.viewParent = parent
+        self.sorted = true
+        self.comparatorRaw = parent.comparatorRaw
+        self.invertCompare = !parent.invertCompare
     }
 
     var count: Int {
+        if let viewParent {
+            return viewParent.count
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             return map.count
@@ -1064,6 +1160,9 @@ final class RuntimeSetBox {
     }
 
     var isEmpty: Bool {
+        if let viewParent {
+            return viewParent.isEmpty
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             return map.isEmpty
@@ -1086,6 +1185,12 @@ final class RuntimeSetBox {
     /// Returns an element in insertion order without materializing the set.
     /// Map-entry views retain their existing materialized entry representation.
     func rawValue(at index: Int) -> Int? {
+        if let viewParent {
+            guard index >= 0, index < viewParent.count else {
+                return nil
+            }
+            return viewParent.rawValue(at: viewParent.count - 1 - index)
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             switch backingMapViewKind {
@@ -1112,6 +1217,9 @@ final class RuntimeSetBox {
     }
 
     func contains(rawValue: Int) -> Bool {
+        if let viewParent {
+            return viewParent.contains(rawValue: rawValue)
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             switch backingMapViewKind {
@@ -1129,10 +1237,16 @@ final class RuntimeSetBox {
                 return map.index(ofRawKey: rawValue) != nil
             }
         }
+        if sorted {
+            return sortedSearch(for: rawValue).found
+        }
         return index[RuntimeElementKey(value: rawValue)] != nil
     }
 
     var isEffectivelyReadOnly: Bool {
+        if let viewParent {
+            return viewParent.isEffectivelyReadOnly
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             return map.isEffectivelyReadOnly
@@ -1147,7 +1261,19 @@ final class RuntimeSetBox {
 
     @discardableResult
     func insert(value: RuntimeValue) -> Bool {
+        if let viewParent {
+            return viewParent.insert(value: value)
+        }
         guard backingMapRaw == nil, !isReadOnly else { return false }
+        if sorted {
+            let position = sortedSearch(for: value.legacyRawValue)
+            guard !position.found else {
+                return false
+            }
+            storage.insert(value, at: position.index)
+            directModCount += 1
+            return true
+        }
         let key = RuntimeElementKey(runtimeValue: value)
         guard index[key] == nil else {
             return false
@@ -1161,6 +1287,9 @@ final class RuntimeSetBox {
 
     @discardableResult
     func remove(rawValue: Int) -> Bool {
+        if let viewParent {
+            return viewParent.remove(rawValue: rawValue)
+        }
         if let backingMapRaw {
             guard !isEffectivelyReadOnly, let map = runtimeMapBox(from: backingMapRaw) else {
                 return false
@@ -1184,6 +1313,16 @@ final class RuntimeSetBox {
                 return true
             }
         }
+        if sorted {
+            guard !isReadOnly else { return false }
+            let position = sortedSearch(for: rawValue)
+            guard position.found else {
+                return false
+            }
+            storage.remove(at: position.index)
+            directModCount += 1
+            return true
+        }
         guard !isReadOnly, let index = index[RuntimeElementKey(value: rawValue)] else {
             return false
         }
@@ -1195,6 +1334,9 @@ final class RuntimeSetBox {
 
     @discardableResult
     func removeAll(keepingCapacity: Bool = false) -> Bool {
+        if let viewParent {
+            return viewParent.removeAll(keepingCapacity: keepingCapacity)
+        }
         if let backingMapRaw,
            let map = runtimeMapBox(from: backingMapRaw) {
             guard !map.isEffectivelyReadOnly else {
@@ -1218,6 +1360,13 @@ final class RuntimeSetBox {
         guard !isEffectivelyReadOnly else {
             return false
         }
+        if viewParent != nil {
+            var removed = false
+            for entry in values where try shouldRemove(entry) {
+                removed = remove(rawValue: entry.legacyRawValue) || removed
+            }
+            return removed
+        }
         if backingMapRaw != nil {
             var removed = false
             for entry in values where try shouldRemove(entry) {
@@ -1236,6 +1385,7 @@ final class RuntimeSetBox {
     }
 
     private func rebuildIndex() {
+        guard !sorted else { return }
         index.removeAll(keepingCapacity: true)
         index.reserveCapacity(storage.count)
         for (offset, value) in storage.enumerated() {
@@ -1253,6 +1403,10 @@ final class RuntimeSetBox {
         self.index = [:]
         self.backingMapRaw = nil
         self.backingMapViewKind = .entries
+        self.viewParent = nil
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
         self.storage.reserveCapacity(max(0, capacity))
         self.index.reserveCapacity(max(0, capacity))
     }
@@ -1271,8 +1425,53 @@ final class RuntimeMapBox {
     private var keyIndex: [RuntimeElementKey: Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
+    /// KUU-1361: java.util.TreeMap ordering — `sorted` selects comparator key
+    /// order over insertion order, `comparatorRaw` holds the user
+    /// `Comparator` object (0 = natural `Comparable` order), and
+    /// `invertCompare` flips it for `descendingMap()` views.
+    private(set) var sorted: Bool
+    private(set) var comparatorRaw: Int
+    private(set) var invertCompare: Bool
     private(set) var isReadOnly = false
     private var directModCount: Int = 0
+
+    /// Marks the box as comparator-ordered (java.util.TreeMap). A `0` or
+    /// `null`-sentinel comparator selects natural `Comparable` order;
+    /// `invertCompare` flips the order for descending views.
+    func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
+        sorted = true
+        self.comparatorRaw = comparatorRaw == runtimeNullSentinelInt ? 0 : comparatorRaw
+        self.invertCompare = invertCompare
+    }
+
+    /// Key ordering used by sorted boxes: the stored `Comparator` object
+    /// when one was supplied, else `Comparable` natural order. Descending
+    /// views flip the sign.
+    func sortedCompare(_ lhs: Int, _ rhs: Int) -> Int {
+        let base = comparatorRaw != 0
+            ? runtimeInvokeComparator(comparatorRaw, lhs, rhs)
+            : runtimeCompareValues(lhs, rhs)
+        return invertCompare ? -base : base
+    }
+
+    /// Binary search over sorted key storage — the key's position when
+    /// `found`, else the insertion index preserving comparator order.
+    private func sortedKeySearch(for rawKey: Int) -> (found: Bool, index: Int) {
+        var low = 0
+        var high = keyStorage.count - 1
+        while low <= high {
+            let mid = low + (high - low) / 2
+            let comparison = sortedCompare(keyStorage[mid].legacyRawValue, rawKey)
+            if comparison < 0 {
+                low = mid + 1
+            } else if comparison > 0 {
+                high = mid - 1
+            } else {
+                return (true, mid)
+            }
+        }
+        return (false, low)
+    }
 
     var isEffectivelyReadOnly: Bool {
         backingMap?.isEffectivelyReadOnly ?? isReadOnly
@@ -1288,7 +1487,10 @@ final class RuntimeMapBox {
 
     var keyValues: [RuntimeValue] {
         get {
-            backingMap?.keyValues ?? keyStorage
+            if let backingMap {
+                return invertCompare ? backingMap.keyValues.reversed() : backingMap.keyValues
+            }
+            return keyStorage
         }
         set {
             if let backingMap {
@@ -1296,6 +1498,12 @@ final class RuntimeMapBox {
             } else {
                 guard !isReadOnly else { return }
                 keyStorage = newValue
+                if sorted {
+                    let pairs = zip(keyStorage, valueStorage)
+                        .sorted { sortedCompare($0.0.legacyRawValue, $1.0.legacyRawValue) < 0 }
+                    keyStorage = pairs.map(\.0)
+                    valueStorage = pairs.map(\.1)
+                }
                 rebuildKeyIndex()
             }
         }
@@ -1303,7 +1511,10 @@ final class RuntimeMapBox {
 
     var entryValues: [RuntimeValue] {
         get {
-            backingMap?.entryValues ?? valueStorage
+            if let backingMap {
+                return invertCompare ? backingMap.entryValues.reversed() : backingMap.entryValues
+            }
+            return valueStorage
         }
         set {
             if let backingMap {
@@ -1346,7 +1557,24 @@ final class RuntimeMapBox {
         self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
         rebuildKeyIndex()
+    }
+
+    /// `descendingMap()` view — delegates reads and mutations to the parent
+    /// box while `invertCompare` reverses key/entry presentation.
+    init(descendingViewOf parent: RuntimeMapBox) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.backingMap = parent
+        self.keyIndex = [:]
+        self.defaultValueFnPtr = 0
+        self.defaultValueClosureRaw = 0
+        self.sorted = true
+        self.comparatorRaw = parent.comparatorRaw
+        self.invertCompare = !parent.invertCompare
     }
 
     var count: Int {
@@ -1360,6 +1588,10 @@ final class RuntimeMapBox {
     func index(ofRawKey key: Int) -> Int? {
         if let backingMap {
             return backingMap.index(ofRawKey: key)
+        }
+        if sorted {
+            let position = sortedKeySearch(for: key)
+            return position.found ? position.index : nil
         }
         return keyIndex[RuntimeElementKey(value: key)]
     }
@@ -1411,6 +1643,17 @@ final class RuntimeMapBox {
             return
         }
         guard !isReadOnly else { return }
+        if sorted {
+            let position = sortedKeySearch(for: key.legacyRawValue)
+            if position.found {
+                updateValue(at: position.index, value: value)
+                return
+            }
+            keyStorage.insert(key, at: position.index)
+            valueStorage.insert(value, at: position.index)
+            directModCount += 1
+            return
+        }
         let newIndex = keyStorage.count
         keyStorage.append(key)
         valueStorage.append(value)
@@ -1432,6 +1675,18 @@ final class RuntimeMapBox {
             return backingMap.put(key: key, value: value)
         }
         guard !isReadOnly else { return nil }
+        if sorted {
+            let position = sortedKeySearch(for: key.legacyRawValue)
+            if position.found {
+                let previous = runtimeValue(at: position.index)
+                updateValue(at: position.index, value: value)
+                return previous
+            }
+            keyStorage.insert(key, at: position.index)
+            valueStorage.insert(value, at: position.index)
+            directModCount += 1
+            return nil
+        }
         let runtimeKey = RuntimeElementKey(runtimeValue: key)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
@@ -1470,6 +1725,7 @@ final class RuntimeMapBox {
     }
 
     private func rebuildKeyIndex() {
+        guard !sorted else { return }
         keyIndex.removeAll(keepingCapacity: true)
         keyIndex.reserveCapacity(keyStorage.count)
         for (offset, key) in keyStorage.enumerated() {
@@ -1492,6 +1748,9 @@ final class RuntimeMapBox {
         self.keyIndex.reserveCapacity(max(0, capacity))
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+        self.sorted = false
+        self.comparatorRaw = 0
+        self.invertCompare = false
     }
 
     func freeze() {

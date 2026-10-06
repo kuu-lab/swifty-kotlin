@@ -138,6 +138,21 @@ public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     return result
 }
 
+// KUU-1361: JVM `toSortedSet` returns `java.util.SortedSet` — the concrete
+// instance is a TreeSet, which keeps ordering and deduplication inside the
+// runtime box.
+public fun <T : Comparable<T>> Iterable<T>.toSortedSet(): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>()
+    for (element in this) result.add(element)
+    return result
+}
+
+public fun <T> Iterable<T>.toSortedSet(comparator: Comparator<in T>): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
+    for (element in this) result.add(element)
+    return result
+}
+
 @IgnorableReturnValue
 public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination: C): C {
     for (element in this) destination.add(element)

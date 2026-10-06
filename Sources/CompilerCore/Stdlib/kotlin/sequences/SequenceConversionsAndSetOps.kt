@@ -300,9 +300,18 @@ public fun <T> Sequence<T>.toMutableSet(): MutableSet<T> {
 @KsSymbolName("kk_sequence_toHashSet")
 public fun <T> Sequence<T>.toHashSet(): MutableSet<T> = toMutableSet()
 
+// KUU-1361: `kk_sequence_toSortedSet` now produces a sorted runtime box
+// carrying the java.util.TreeSet identity, so the declared return type can
+// match JVM (`SortedSet`).
 @KsSymbolName("kk_sequence_toSortedSet")
-public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> =
-    LinkedHashSet(toMutableList().sorted())
+public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): java.util.SortedSet<T> =
+    java.util.TreeSet(toMutableList())
+
+public fun <T> Sequence<T>.toSortedSet(comparator: Comparator<in T>): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
+    for (element in this) result.add(element)
+    return result
+}
 
 public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val list1 = mutableListOf<T>()

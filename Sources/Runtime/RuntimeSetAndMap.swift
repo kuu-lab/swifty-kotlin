@@ -784,14 +784,22 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
 
 @_cdecl("__kk_map_keys")
 public func kk_map_keys(_ mapRaw: Int) -> Int {
-    guard runtimeMapBox(from: mapRaw) != nil else {
+    guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMapKeys(mapRaw)
             ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
     // MutableMap.keys is a mutable, write-through view (mirrors .entries
     // above): removing through it removes the key from the map, and later
     // map mutations are visible through this same set handle.
-    return registerRuntimeObject(RuntimeSetBox(mapKeysOf: mapRaw))
+    let view = RuntimeSetBox(mapKeysOf: mapRaw)
+    if map.sorted {
+        // KUU-1361: java.util.TreeMap.keySet() is a NavigableSet — the view
+        // already iterates in key order, so enabling sorted state makes the
+        // navigable members correct too.
+        view.enableSorted(comparatorRaw: map.comparatorRaw, invertCompare: map.invertCompare)
+        return registerRuntimeObject(view, typeID: navigableSetRuntimeTypeID)
+    }
+    return registerRuntimeObject(view)
 }
 
 @_cdecl("__kk_map_values")

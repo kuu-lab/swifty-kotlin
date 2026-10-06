@@ -71,6 +71,8 @@ struct MetadataState {
     /// nominal edges `registerCoroutineDispatcherTypeEdgesOnce` installs
     /// (KUU-1395).
     var coroutineDispatcherTypeEdgesRegistered = false
+    /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
+    var sortedCollectionTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
     /// Bitmask of object slot indices holding primary-constructor properties, per data class.
     /// Absent entries mean "every stored slot participates" (legacy registration).
@@ -567,6 +569,7 @@ func kk_runtime_reset_metadata() {
         state.rangeTypeEdgesRegistered = false
         state.jobFamilyTypeEdgesRegistered = false
         state.coroutineDispatcherTypeEdgesRegistered = false
+        state.sortedCollectionTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.dataClassFieldMasks.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
