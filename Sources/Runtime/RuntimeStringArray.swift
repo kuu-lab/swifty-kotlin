@@ -3056,6 +3056,12 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard let raw = UnsafeMutableRawPointer(bitPattern: value) else {
         return String(value)
     }
+    // KUU-1352: coroutine job/task handles live in the liveness registry, not
+    // objectPointers — render kotlinx's `Name{State}@hex` before the
+    // pointer-type gate drops them into the numeric fallback.
+    if let rendered = runtimeJobHandleDebugString(value) {
+        return rendered
+    }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: raw))
     }
@@ -3164,6 +3170,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
         return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
+    }
+    // KUU-1352: a bound Job wrapper box (Job()/SupervisorJob()/
+    // CompletableDeferred/JobSupport subclass) renders Name{State}@hex.
+    if let rendered = runtimeJobWrapperDebugString(value) {
+        return rendered
     }
     return "<object \(raw)>"
 }
