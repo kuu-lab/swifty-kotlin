@@ -77,6 +77,12 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
                 )
             }
+            if nominalSymbol.kind == .annotationClass {
+                synthesizeAnnotationHelpers(
+                    nominalSymbol: nominalSymbol, module: module, sema: sema,
+                    existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
+                )
+            }
             if nominalSymbol.flags.contains(.dataType) {
                 synthesizeDataHelpers(
                     nominalSymbol: nominalSymbol,

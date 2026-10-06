@@ -496,7 +496,7 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let nominalKind = sema.symbols.symbol(nominalSymbol)?.kind,
-          nominalKind == .class || nominalKind == .object,
+          nominalKind == .class || nominalKind == .object || nominalKind == .annotationClass,
           let implementation = resolveClassToStringSymbol(
               for: nominalSymbol,
               sema: sema,
