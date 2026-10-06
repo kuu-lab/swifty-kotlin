@@ -2457,6 +2457,7 @@ extension CallLowerer {
                         anyType: sema.types.nullableAnyType,
                         types: sema.types,
                         symbols: sema.symbols,
+                        sema: sema,
                         instructions: &instructions
                     )
                 }
