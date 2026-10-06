@@ -756,13 +756,20 @@ public final class SymbolTable {
         declSite: SourceRange?,
         visibility: Visibility,
         flags: SymbolFlags = [],
-        isExtensionProperty: Bool = false
+        isExtensionProperty: Bool = false,
+        topLevelFileID: FileID? = nil
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
 
         if let existing = byFQName[fqName], !existing.isEmpty {
-            let existingSymbols = existing.compactMap { symbol($0) }
+            // File-private callables in other files do not occupy this declaration's scope.
+            let existingSymbols = existing.compactMap { symbol($0) }.filter { existing in
+                guard let topLevelFileID else { return true }
+                return !canCoexistAsFilePrivateTopLevelCallable(
+                    kind: kind, visibility: visibility, fileID: topLevelFileID, existing: existing
+                )
+            }
 
             let shouldCoexist = canCoexistAsOverload(
                 kind: kind,
@@ -789,7 +796,7 @@ public final class SymbolTable {
                let matching = existingSymbols.first(where: { $0.kind == kind }) {
                 return matching.id
             }
-            return existing[0]
+            return existingSymbols.first?.id ?? existing[0]
         }
         let id = appendNewSymbol(
             kind: kind,
@@ -833,6 +840,24 @@ public final class SymbolTable {
             byDeclSite[site, default: []].append(id)
         }
         return id
+    }
+
+    /// Only top-level callables have distinct file facades; classifiers still
+    /// occupy the package namespace even when declared private.
+    func canCoexistAsFilePrivateTopLevelCallable(
+        kind: SymbolKind,
+        visibility: Visibility,
+        fileID: FileID,
+        existing: SemanticSymbol
+    ) -> Bool {
+        guard kind == .property || kind == .function,
+              existing.kind == .property || existing.kind == .function,
+              visibility == .private,
+              existing.visibility == .private,
+              parentSymbol(for: existing.id) == nil,
+              let existingFile = sourceFileID(for: existing.id) ?? existing.declSite?.start.file
+        else { return false }
+        return existingFile != fileID
     }
 
     private func canCoexistAsOverload(

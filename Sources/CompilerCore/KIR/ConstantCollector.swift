@@ -43,6 +43,7 @@ struct ConstantCollector {
                     let related = sema.symbols.lookupAll(fqName: propertySymbol.fqName)
                     for relatedID in related {
                         guard let relatedSymbol = sema.symbols.symbol(relatedID),
+                              !areDistinctFilePrivateProperties(propertySymbol, relatedSymbol, symbols: sema.symbols),
                               sema.symbols.extensionPropertyReceiverType(for: relatedID)
                                   == sema.symbols.extensionPropertyReceiverType(for: symbol)
                         else {
@@ -68,6 +69,7 @@ struct ConstantCollector {
                 let related = sema.symbols.lookupAll(fqName: propertySymbol.fqName)
                 for relatedID in related {
                     guard let relatedSymbol = sema.symbols.symbol(relatedID),
+                          !areDistinctFilePrivateProperties(propertySymbol, relatedSymbol, symbols: sema.symbols),
                           sema.symbols.extensionPropertyReceiverType(for: relatedID)
                               == sema.symbols.extensionPropertyReceiverType(for: symbol)
                     else {
@@ -95,6 +97,20 @@ struct ConstantCollector {
         default:
             break
         }
+    }
+
+    private func areDistinctFilePrivateProperties(
+        _ property: SemanticSymbol,
+        _ related: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Matching FQNs do not imply shared storage for file-private declarations.
+        guard symbols.parentSymbol(for: property.id) == nil,
+              let fileID = symbols.sourceFileID(for: property.id) ?? property.declSite?.start.file
+        else { return false }
+        return symbols.canCoexistAsFilePrivateTopLevelCallable(
+            kind: property.kind, visibility: property.visibility, fileID: fileID, existing: related
+        )
     }
 
     func inlineGetterConstantExpr(
