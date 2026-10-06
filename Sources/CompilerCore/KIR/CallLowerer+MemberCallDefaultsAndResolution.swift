@@ -696,6 +696,15 @@ extension CallLowerer {
                         ? "__kk_float_range_isEmpty"
                         : "__kk_double_range_isEmpty"
                 )
+            case "lessThanOrEquals":
+                // KUU-763: tracked floating-point range receivers lower the
+                // IEEE-754 `a <= b` comparison through the typed runtime bridge;
+                // interface-typed receivers use the `_or_null` probe instead.
+                return interner.intern(
+                    floatingPointElementType == sema.types.floatType
+                        ? "__kk_float_range_lessThanOrEquals"
+                        : "__kk_double_range_lessThanOrEquals"
+                )
             default:
                 break
             }

@@ -3834,7 +3834,24 @@ extension ExprLowerer {
                    interner: interner
                )
             {
-                instructions.append(virtualInstruction)
+                // KUU-763: an interface-typed `ClosedRange`/`ClosedFloatingPointRange`
+                // receiver holding a floating-point range box has no itable —
+                // probe the runtime representation before dispatching.
+                if let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
+                    chosenCallee: callBinding.chosenCallee,
+                    receiverID: containerID,
+                    arguments: [containerID, elementID],
+                    result: resultID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    instructions.append(virtualInstruction)
+                    instructions.append(.label(probeEndLabel))
+                } else {
+                    instructions.append(virtualInstruction)
+                }
                 return
             }
             instructions.append(.call(
