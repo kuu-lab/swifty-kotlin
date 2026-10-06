@@ -64,6 +64,7 @@ final class KotlinParser {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         var sawTopLevelStatement = false
+        var sawFileBody = false
         // Scripts (kotlinc -script / .kts) allow any declaration kind at top
         // level alongside bare statements, but never a `package` declaration.
         var sawPackageHeader = false
@@ -113,10 +114,6 @@ final class KotlinParser {
                 sawPackageHeader = true
             case .keyword(.import):
                 node = parseImportHeader()
-                pendingImports.append(.node(node))
-                importRange.append(arena.node(node).range)
-                range.append(arena.node(node).range)
-                continue
             case _ where isDeclarationStart(token.kind):
                 if isAmbiguousDeclarationPrefix(token),
                    declarationPrefixVerdict(at: 0) == .overBudget {
@@ -131,6 +128,24 @@ final class KotlinParser {
                 node = parseDeclaration()
             default:
                 node = parseTopLevelStatement()
+            }
+
+            let nodeKind = arena.node(node).kind
+            if nodeKind == .importHeader {
+                if sawFileBody {
+                    diagnostics.error(
+                        "KSWIFTK-PARSE-0016",
+                        "Imports are only allowed in the beginning of file.",
+                        range: token.range
+                    )
+                }
+                pendingImports.append(.node(node))
+                importRange.append(arena.node(node).range)
+                range.append(arena.node(node).range)
+                continue
+            }
+            if nodeKind != .packageHeader {
+                sawFileBody = true
             }
 
             flushPendingImportsIfNeeded()
