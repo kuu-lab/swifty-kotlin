@@ -64,12 +64,20 @@ public interface Job : CoroutineContext.Element {
 }
 
 public interface ChildJob : Job {
+    // KUU-1386: kotlinx's JobSupport.parentCancelled is `cancelImpl(parentJob)`
+    // — the cause resolves lazily through ParentJob.getChildJobCancellationCause
+    // inside the runtime, so an active parent throws IllegalStateException
+    // before the child is cancelled.
     @KsSymbolName("kk_job_parent_cancelled")
     public fun parentCancelled(parentJob: ParentJob)
 }
 
 public interface ParentJob : Job {
-    @KsSymbolName("kk_job_get_cancellation_exception")
+    // KUU-1386: kotlinx's JobSupport.getChildJobCancellationCause throws
+    // IllegalStateException while the job is still active (Incomplete); only a
+    // finishing or completed job has a child-cancellation cause. The throwing
+    // bridge reports that through the outThrown channel.
+    @KsSymbolName("kk_job_get_child_cancellation_cause")
     public fun getChildJobCancellationCause(): CancellationException
 }
 

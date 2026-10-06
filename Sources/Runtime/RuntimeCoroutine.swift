@@ -5659,9 +5659,12 @@ public func __kk_job_parent(_ jobHandle: Int) -> Int {
 /// Runtime box behind `Job.attachChild`'s ChildHandle result: a parent job +
 /// the raw child handle that `dispose()` un-registers.
 final class RuntimeChildHandleBox: @unchecked Sendable {
-    let parent: RuntimeJobHandle
+    /// nil parent == kotlinx's NonDisposableHandle (attachChild /
+    /// invokeOnCompletion on a completed job): `parent` reads null, dispose()
+    /// is a no-op, and childCancelled reports false (nothing was cancelled).
+    let parent: RuntimeJobHandle?
     let childHandle: Int
-    init(parent: RuntimeJobHandle, childHandle: Int) {
+    init(parent: RuntimeJobHandle?, childHandle: Int) {
         self.parent = parent
         self.childHandle = childHandle
     }
@@ -5792,39 +5795,109 @@ public func kk_job_key_get(_ receiver: Int) -> Int {
     }
 }
 
+/// KUU-1386: kotlinx `ParentJob.getChildJobCancellationCause` — a Finishing
+/// job's rootCause or a CompletedExceptionally cause (wrapped in a
+/// CancellationException when the stored cause is not one), and a reported
+/// error for a still-active (Incomplete) job or one that completed normally
+/// without a cause.
+private func runtimeChildJobCancellationCause(of job: RuntimeJobHandle) -> (cause: Int, error: Int) {
+    let cause = job.cancellationCauseSnapshot()
+    if cause != 0, cause != runtimeNullSentinelInt {
+        if kk_is_cancellation_exception(cause) != 0 {
+            return (cause, 0)
+        }
+        return (runtimeAllocateCancellationException(
+            message: "Parent job is Cancelling", cause: cause), 0)
+    }
+    if !job.completedSnapshot() {
+        return (0, runtimeAllocateIllegalStateException(
+            message: "Cannot be cancelling child in this state"))
+    }
+    return (runtimeAllocateCancellationException(message: "Parent job is completed"), 0)
+}
+
+/// KUU-1386: `ParentJob.getChildJobCancellationCause()` backing — throwing
+/// bridge (outThrown channel) matching kotlinx's IllegalStateException on an
+/// active job.
+@_cdecl("kk_job_get_child_cancellation_cause")
+public func kk_job_get_child_cancellation_cause(
+    _ jobHandle: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let job = runtimeJobHandle(from: jobHandle)
+        ?? runtimeAsyncTask(from: jobHandle)?.completionJob else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(
+            message: "Cannot be cancelling child in this state")
+        return 0
+    }
+    let (cause, error) = runtimeChildJobCancellationCause(of: job)
+    if error != 0 {
+        outThrown?.pointee = error
+        return 0
+    }
+    return cause
+}
+
 /// KUU-1386: `ChildJob.parentCancelled(parentJob)` backing — kotlinx's
-/// JobSupport implementation cancels itself with the parent's cancellation
-/// exception. For coroutine handles this resolves to the same cancel state as
-/// a direct `cancel(cause)`.
+/// JobSupport implementation is `cancelImpl(parentJob)`, which resolves the
+/// cancellation cause lazily through `ParentJob.getChildJobCancellationCause`
+/// — an active parent therefore throws IllegalStateException before the child
+/// is cancelled.
 @_cdecl("kk_job_parent_cancelled")
-public func kk_job_parent_cancelled(_ jobHandle: Int, _ parentHandle: Int) -> Int {
+public func kk_job_parent_cancelled(
+    _ jobHandle: Int,
+    _ parentHandle: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let parentJob = runtimeJobHandle(from: parentHandle)
+        ?? runtimeAsyncTask(from: parentHandle)?.completionJob else {
+        outThrown?.pointee = runtimeAllocateIllegalStateException(
+            message: "Cannot be cancelling child in this state")
+        return 0
+    }
+    let (cause, error) = runtimeChildJobCancellationCause(of: parentJob)
+    if error != 0 {
+        outThrown?.pointee = error
+        return 0
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else { return 0 }
-    let parentJob = runtimeJobHandle(from: parentHandle)
-        ?? runtimeAsyncTask(from: parentHandle)?.completionJob
-    let parentCause = parentJob?.cancellationCauseSnapshot() ?? 0
-    let resolvedCause = (parentCause != 0 && parentCause != runtimeNullSentinelInt)
-        ? parentCause
-        : runtimeAllocateCancellationException(message: "Parent job is cancelled")
     let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(object) {
     case .job(let job):
         if job !== runtimeNonCancellableJob {
-            _ = job.cancel(message: "Parent job is cancelled", cause: resolvedCause)
+            _ = job.cancel(message: "Parent job is cancelled", cause: cause)
         }
     case .task(let task):
-        task.cancel(cause: resolvedCause)
+        task.cancel(cause: cause)
     case .other:
         break
     }
     return 0
 }
 
+/// KUU-1386: kotlinx `JobImpl.handlesException` — a JobImpl never handles its
+/// own failures; it reports true only when its `parentHandle` chain reaches a
+/// job that does (a JobSupport whose own handlesException is true). Runtime
+/// equivalent: walk `parentJob` — a real coroutine job (nominal 0, the
+/// StandaloneCoroutine/AbstractCoroutine claim) is a handler, while
+/// JobImpl-family factory jobs and bound wrappers (Job()/SupervisorJob()/
+/// CompletableDeferred()) delegate upward.
+private func runtimeJobHandlesException(_ job: RuntimeJobHandle) -> Bool {
+    var cur = job.parentSnapshot()
+    while let parent = cur {
+        if parent.nominalJobTypeID == 0 { return true }
+        cur = parent.parentSnapshot()
+    }
+    return false
+}
+
 /// KUU-1386: `JobSupport.childCancelled(cause)` backing — kotlinx semantics:
 /// a CancellationException reports as already-handled without touching the
 /// job; otherwise the job transitions to cancelled (cancelImpl) and the
-/// result is `handlesException` — true only for root jobs
-/// (`parentHandle == null`), so a parented Job() reports false even though
-/// it did cancel.
+/// result is `handlesException`, so a root `Job()` reports false even though
+/// it did cancel, while a job parented to a coroutine reports true.
 @_cdecl("kk_job_child_cancelled")
 public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
     if cause != 0, cause != runtimeNullSentinelInt,
@@ -5838,11 +5911,11 @@ public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
         guard job !== runtimeNonCancellableJob else { return 0 }
         // `handlesException` is evaluated before the transition: a completed
         // job's parent handle reads as detached, so check the parent first.
-        let handlesException = job.parentSnapshot() == nil
+        let handlesException = runtimeJobHandlesException(job)
         guard job.cancel(cause: cause) else { return 0 }
         return handlesException ? 1 : 0
     case .task(let task):
-        let handlesException = task.completionJob.parentSnapshot() == nil
+        let handlesException = runtimeJobHandlesException(task.completionJob)
         task.cancel(cause: cause)
         return handlesException ? 1 : 0
     case .other:
@@ -5851,12 +5924,18 @@ public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
 }
 
 /// KUU-1386: `Job.attachChild(child)` backing — register the child and hand
-/// back a ChildHandle box whose `dispose()` removes that registration.
+/// back a ChildHandle box whose `dispose()` removes that registration. On an
+/// already-completed job kotlinx's invokeOnCompletion yields
+/// NonDisposableHandle instead: a dead handle with `parent == null`.
 @_cdecl("kk_job_attach_child")
 public func kk_job_attach_child(_ jobHandle: Int, _ childHandle: Int) -> Int {
     guard let parent = runtimeJobHandle(from: jobHandle)
         ?? runtimeAsyncTask(from: jobHandle)?.completionJob
     else { return 0 }
+    if parent.completedSnapshot() {
+        return runtimeRegisterObject(
+            RuntimeChildHandleBox(parent: nil, childHandle: childHandle))
+    }
     parent.registerChild(childHandle)
     return runtimeRegisterObject(RuntimeChildHandleBox(parent: parent, childHandle: childHandle))
 }
@@ -5864,22 +5943,24 @@ public func kk_job_attach_child(_ jobHandle: Int, _ childHandle: Int) -> Int {
 @_cdecl("kk_child_handle_parent")
 public func kk_child_handle_parent(_ handleRaw: Int) -> Int {
     guard let box = runtimeChildHandleBox(from: handleRaw) else { return runtimeNullSentinelInt }
-    return box.parent.sourceIdentityHandle
+    return box.parent?.sourceIdentityHandle ?? runtimeNullSentinelInt
 }
 
 @_cdecl("kk_child_handle_dispose")
 public func kk_child_handle_dispose(_ handleRaw: Int) -> Int {
     guard let box = runtimeChildHandleBox(from: handleRaw) else { return 0 }
-    box.parent.detachChild(box.childHandle)
+    box.parent?.detachChild(box.childHandle)
     return 0
 }
 
 @_cdecl("kk_child_handle_child_cancelled")
 public func kk_child_handle_child_cancelled(_ handleRaw: Int, _ cause: Int) -> Int {
-    guard let box = runtimeChildHandleBox(from: handleRaw) else { return 0 }
+    guard let box = runtimeChildHandleBox(from: handleRaw), let parent = box.parent else {
+        return 0
+    }
     // kotlinx's ChildHandle delegates to the parent's JobSupport.childCancelled.
     return kk_job_child_cancelled(
-        Int(bitPattern: Unmanaged.passUnretained(box.parent).toOpaque()),
+        Int(bitPattern: Unmanaged.passUnretained(parent).toOpaque()),
         cause
     )
 }
