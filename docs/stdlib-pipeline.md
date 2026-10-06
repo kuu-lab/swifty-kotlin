@@ -188,7 +188,12 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
    `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
 2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
    ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
-   `stdlib-only` build を一度だけ生成する。生成中はcross-process lockを保持し、完成後にatomic moveする。
+   `stdlib-only` build を一度だけ生成する。cache root は `KSWIFTK_STDLIB_CACHE_DIR` で
+   上書きできる（sandbox・テスト分離用）。生成中はcross-process lockを保持し、build は
+   試行ごとの `.building-<pid>-<uuid>` staging に行い、検証済みの完成品だけを move するため、
+   中断・失敗したコンパイルは `.lock` と残骸 staging だけを残し、cache を破損しない。
+   破損・不完全な artifact（manifest が参照する inline-KIR blob の欠落を含む）は
+   次回 resolve 時に検出されて自動再生成される。
 3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
    暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
 
