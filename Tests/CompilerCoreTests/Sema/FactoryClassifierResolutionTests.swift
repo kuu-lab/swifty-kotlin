@@ -480,4 +480,62 @@ struct FactoryClassifierResolutionTests {
             #expect(parameter.classSymbol == sink)
         }
     }
+
+    @Test(arguments: [false, true])
+    func explicitImportClassifierShadowsSamePackageClassifier(separateFile: Bool) throws {
+        // Kotlin resolves an explicit (single-type) import ahead of same-package
+        // classifier declarations, so `Sink` in the importing file must be
+        // lib.Sink even though package pkg declares its own Sink (KUU-1423).
+        let declarations = """
+        package lib
+        interface Sink { fun marker(): Int }
+        """
+        let uses = """
+        class Buffer : Sink { override fun marker(): Int = 9 }
+        fun use(value: Sink): Int {
+            val typed: Sink = value
+            return typed.marker()
+        }
+        fun check(x: Any): Boolean = x is Sink
+        fun make(): Sink = Buffer()
+        """
+        let sources = separateFile
+            ? [declarations,
+               "package pkg\ninterface Sink { fun other(): Int }",
+               "package pkg\nimport lib.Sink\n" + uses]
+            : [declarations,
+               "package pkg\nimport lib.Sink\ninterface Sink { fun other(): Int }\n" + uses]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let sink = try #require(sema.symbols.lookup(
+                fqName: ["lib", "Sink"].map { ctx.interner.intern($0) }
+            ))
+            func signature(of name: String) throws -> FunctionSignature {
+                let function = try #require(sema.symbols.lookup(
+                    fqName: ["pkg", name].map { ctx.interner.intern($0) }
+                ))
+                return try #require(sema.symbols.functionSignature(for: function))
+            }
+            func expectSink(_ type: TypeID, _ label: String) {
+                guard case let .classType(nominal) = sema.types.kind(of: type) else {
+                    Issue.record("Expected imported Sink in \(label)")
+                    return
+                }
+                #expect(nominal.classSymbol == sink, "Expected lib.Sink in \(label)")
+            }
+            expectSink(try signature(of: "use").parameterTypes[0], "use parameter")
+            expectSink(try signature(of: "make").returnType, "make return type")
+            let buffer = try #require(sema.symbols.lookup(
+                fqName: ["pkg", "Buffer"].map { ctx.interner.intern($0) }
+            ))
+            #expect(
+                sema.symbols.directSupertypes(for: buffer).contains(sink),
+                "Expected lib.Sink supertype on Buffer"
+            )
+        }
+    }
 }

@@ -255,22 +255,23 @@ extension DataFlowSemaPhase {
         }
 
         if path.count == 1 {
-            // Keep same-package lookup ahead of imports, matching the existing
-            // inheritance behavior. Explicit imports must still precede the
-            // root-package fallback, which is not visible from a packaged file.
-            if !currentPackage.isEmpty {
-                append(currentPackage + path)
-            }
-
+            // Kotlin ranks explicit (single-type and alias) imports above
+            // same-package declarations in the classifier namespace, so they
+            // are expanded before the package path (KUU-1423). Wildcard and
+            // member-contributing imports stay below the package tier.
             let simpleName = path[0]
             for importDecl in imports {
                 if let alias = importDecl.alias {
                     if alias == simpleName {
                         append(importDecl.path)
                     }
-                } else if importDecl.path.last == simpleName {
+                } else if !importDecl.isWildcard, importDecl.path.last == simpleName {
                     append(importDecl.path)
                 }
+            }
+
+            if !currentPackage.isEmpty {
+                append(currentPackage + path)
             }
 
             // `extractQualifiedPath` removes the `*` from wildcard imports.

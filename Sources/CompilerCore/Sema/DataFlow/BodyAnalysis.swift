@@ -104,6 +104,7 @@ extension DataFlowSemaPhase {
                 let relativeRoots = resolveRelativeNominalCandidates(
                     named: path[0],
                     relativeTo: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
                     symbols: symbols
                 )
                 let relativeCandidates = path.count == 1 ? relativeRoots : relativeRoots.flatMap { root in
@@ -414,6 +415,7 @@ extension DataFlowSemaPhase {
     private func resolveRelativeNominalCandidates(
         named shortName: InternedString,
         relativeTo ownerFQName: [InternedString],
+        currentPackageFQName: [InternedString]?,
         symbols: SymbolTable
     ) -> [SemanticSymbol] {
         guard !ownerFQName.isEmpty else {
@@ -424,6 +426,12 @@ extension DataFlowSemaPhase {
         var seen: Set<SymbolID> = []
         var current = ownerFQName
         while !current.isEmpty {
+            // The package segment is not a lexical owner scope: names at that
+            // tier rank below explicit imports (KUU-1423), so stop before it
+            // and let the caller's import-aware candidate list order them.
+            if let currentPackageFQName, current == currentPackageFQName {
+                break
+            }
             if current.last == shortName {
                 for symbolID in symbols.lookupAll(fqName: current) where seen.insert(symbolID).inserted {
                     if let symbol = symbols.symbol(symbolID) {
@@ -458,16 +466,11 @@ extension DataFlowSemaPhase {
         var candidatePaths: [[InternedString]] = {
             var paths: [[InternedString]] = []
             if path.count == 1 {
-                if let currentPackageFQName,
-                   !currentPackageFQName.isEmpty || symbols.lookupAll(fqName: path).contains(where: { symbolID in
-                       guard let symbol = symbols.symbol(symbolID) else { return false }
-                       return isNominalTypeSymbol(symbol.kind) && !symbol.flags.contains(.synthetic)
-                   })
-                {
-                    paths.append(currentPackageFQName + path)
-                }
                 if let shortName = path.first {
                     var wildcardPaths: [[InternedString]] = []
+                    // Kotlin's classifier tier order puts explicit (single-type
+                    // and alias) imports above same-package declarations, so
+                    // they are expanded first here (KUU-1423).
                     for importDecl in imports {
                         if let alias = importDecl.alias, alias == shortName {
                             paths.append(importDecl.path)
@@ -485,6 +488,14 @@ extension DataFlowSemaPhase {
                         {
                             paths.append(importDecl.path)
                         }
+                    }
+                    if let currentPackageFQName,
+                       !currentPackageFQName.isEmpty || symbols.lookupAll(fqName: path).contains(where: { symbolID in
+                           guard let symbol = symbols.symbol(symbolID) else { return false }
+                           return isNominalTypeSymbol(symbol.kind) && !symbol.flags.contains(.synthetic)
+                       })
+                    {
+                        paths.append(currentPackageFQName + path)
                     }
                     // Wildcard imports rank below same-package and explicit
                     // imports, matching Kotlin's unqualified-name precedence.
@@ -513,39 +524,37 @@ extension DataFlowSemaPhase {
                 // alias with the same short name (KSP-1150).
                 paths.append(path)
             } else {
-                paths = [path]
+                // The qualifier of a nested-type reference resolves like an
+                // unqualified classifier name: explicit/alias imports outrank
+                // same-package declarations, and both outrank wildcard and
+                // root-package fallbacks (KUU-1423).
+                var wildcardQualifiedPaths: [[InternedString]] = []
+                for importDecl in imports {
+                    let tail = Array(path.dropFirst())
+                    if let alias = importDecl.alias, alias == path[0] {
+                        paths.append(importDecl.path + tail)
+                    } else if importDecl.alias == nil,
+                              importDecl.isWildcard
+                    {
+                        wildcardQualifiedPaths.append(importDecl.path + path)
+                    } else if importDecl.alias == nil,
+                              importDecl.path.last == path[0]
+                    {
+                        paths.append(importDecl.path + tail)
+                    }
+                }
+                if let currentPackageFQName, !currentPackageFQName.isEmpty {
+                    paths.append(currentPackageFQName + path)
+                }
+                paths.append(path)
+                paths.append(contentsOf: wildcardQualifiedPaths)
             }
             return paths
         }()
 
-        // For qualified nested-type references within the current package (e.g. a
-        // Companion-scoped extension "Duration.Companion.ZERO" written in the same
-        // file/package as "class Duration"), try the path prefixed by the current
-        // package FQName before falling back to import expansion.
-        if path.count > 1,
-           let currentPackageFQName,
-           !currentPackageFQName.isEmpty
-        {
-            candidatePaths.append(currentPackageFQName + path)
-        }
-
-        // For qualified nested-type references (e.g. "KMutableProperty.Setter"), expand
-        // the first component via imports and append the remaining tail.
-        if path.count > 1, let firstComponent = path.first {
-            let tail = Array(path.dropFirst())
-            for importDecl in imports {
-                if let alias = importDecl.alias, alias == firstComponent {
-                    candidatePaths.append(importDecl.path + tail)
-                } else if importDecl.alias == nil,
-                          importDecl.isWildcard
-                {
-                    candidatePaths.append(importDecl.path + path)
-                } else if importDecl.alias == nil,
-                          importDecl.path.last == firstComponent
-                {
-                    candidatePaths.append(importDecl.path + tail)
-                }
-            }
+        if path.count > 1 {
+            // Package-only paths (and `a.b.*` wildcards) contribute members,
+            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
             for importDecl in imports where importDecl.alias == nil {
                 if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     candidatePaths.append(importDecl.path + path)

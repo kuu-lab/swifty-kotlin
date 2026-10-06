@@ -28,7 +28,7 @@ struct TypeCheckScopeBuilder {
 
         for file in ast.sortedFiles {
             let wildcardImportScope = ImportScope(parent: defaultImportScope, symbols: sema.symbols)
-            let explicitImportScope = ImportScope(parent: wildcardImportScope, symbols: sema.symbols)
+            let explicitImportScope = ExplicitImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
                 for: file,
                 sema: sema,
