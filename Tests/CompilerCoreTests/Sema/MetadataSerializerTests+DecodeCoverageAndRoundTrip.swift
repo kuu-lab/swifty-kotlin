@@ -4,6 +4,14 @@ import Foundation
 import Testing
 
 extension MetadataSerializerTests {
+    @Test func testInfixModifierRoundTrip() throws {
+        let record = MetadataRecord(kind: .function, fqName: "test.combine", isInfix: true)
+        let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(decoded.isInfix)
+        let legacy = try #require(MetadataDecoder().decode("symbols=1\nfunction _KK fq=test.legacy schema=v1\n").first)
+        #expect(!legacy.isInfix)
+    }
+
     @Test func testContractImplicationsRoundTrip() throws {
         let effects = [
             ContractImplicationEffect(parameterIndex: 2, returnCondition: .returnsFalse, argumentCondition: .isType,

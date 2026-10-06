@@ -19,6 +19,7 @@ package struct MetadataRecord {
     package let isSuspend: Bool
     package let isInline: Bool
     package let isOperator: Bool
+    package let isInfix: Bool
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
     package let isMemberExtension: Bool
@@ -157,6 +158,7 @@ package struct MetadataRecord {
         isSuspend: Bool = false,
         isInline: Bool = false,
         isOperator: Bool = false,
+        isInfix: Bool = false,
         isOverride: Bool = false,
         isMemberExtension: Bool = false,
         receiverOwnerFQName: String? = nil,
@@ -217,6 +219,7 @@ package struct MetadataRecord {
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isOperator = isOperator
+        self.isInfix = isInfix
         self.isOverride = isOverride
         self.isMemberExtension = isMemberExtension
         self.receiverOwnerFQName = receiverOwnerFQName
@@ -901,6 +904,7 @@ package final class MetadataEncoder {
         var isSuspend = false
         var isInline = false
         var isOperator = false
+        var isInfix = false
         var isOverride = false
         var receiverOwnerFQName: String?
         var typeSignature: String?
@@ -926,6 +930,7 @@ package final class MetadataEncoder {
             // no KIR body, and those must not try to load a missing inline-kir file.
             isInline = inlineFunctionSymbols.contains(symbol.id)
             isOperator = symbol.flags.contains(.operatorFunction)
+            isInfix = symbol.flags.contains(.infixFunction)
             isOverride = symbol.flags.contains(.overrideMember)
             valueParameterIsVararg = signature.valueParameterIsVararg
             let callsInPlaceEffects = symbols.contractCallsInPlaceEffects(for: symbol.id)
@@ -1278,6 +1283,7 @@ package final class MetadataEncoder {
             isSuspend: isSuspend,
             isInline: isInline,
             isOperator: isOperator,
+            isInfix: isInfix,
             isOverride: isOverride,
             isMemberExtension: symbol.flags.contains(.memberExtension),
             receiverOwnerFQName: receiverOwnerFQName,
@@ -1494,6 +1500,7 @@ package final class MetadataEncoder {
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
                 fields.append("inline=\(record.isInline ? 1 : 0)")
                 fields.append("operator=\(record.isOperator ? 1 : 0)")
+                fields.append("infix=\(record.isInfix ? 1 : 0)")
                 if record.isOverride {
                     fields.append("override=1")
                 }
@@ -1733,6 +1740,7 @@ package final class MetadataEncoder {
             fields.append("suspend=\(record.isSuspend ? 1 : 0)")
             fields.append("inline=\(record.isInline ? 1 : 0)")
             fields.append("operator=\(record.isOperator ? 1 : 0)")
+            fields.append("infix=\(record.isInfix ? 1 : 0)")
             if record.isOverride { fields.append("override=1") }
             if record.isMemberExtension { fields.append("memberExtension=1") }
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
@@ -2043,6 +2051,7 @@ final class MetadataDecoder {
                 isSuspend: rec.isSuspend,
                 isInline: rec.isInline,
                 isOperator: rec.isOperator,
+                isInfix: rec.isInfix,
                 isOverride: rec.isOverride,
                 isMemberExtension: rec.isMemberExtension,
                 receiverOwnerFQName: rec.receiverOwnerFQName,
@@ -2109,6 +2118,7 @@ final class MetadataDecoder {
         var isSuspend: Bool = false
         var isInline: Bool = false
         var isOperator: Bool = false
+        var isInfix: Bool = false
         var isOverride: Bool = false
         var isMemberExtension: Bool = false
         var receiverOwnerFQName: String?
@@ -2181,6 +2191,8 @@ final class MetadataDecoder {
             record.isSuspend = value == "1" || value == "true"
         case "inline":
             record.isInline = value == "1" || value == "true"
+        case "infix":
+            record.isInfix = value == "1" || value == "true"
         case "operator":
             record.isOperator = value == "1" || value == "true"
         case "override":
