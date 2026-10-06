@@ -9,6 +9,36 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func sourceInjectedHelloUsesCoroutineMarkerABI(optimization: Int) throws {
+        try assertOutput(
+            "fun main() { println(\"hello\") }",
+            moduleName: "SourceInjectedHelloCoroutineABI",
+            expected: "hello\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibFromSource: true
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func sourceInjectedCompanionDurationGettersUseDispatchReceiver(optimization: Int) throws {
+        try assertOutput(
+            """
+            import kotlin.time.Duration.Companion.nanoseconds
+            import kotlin.time.Duration.Companion.microseconds
+            fun main() {
+                println(7.nanoseconds.inWholeNanoseconds)
+                println(5L.microseconds.inWholeMicroseconds)
+                println(1.5.microseconds.inWholeNanoseconds)
+            }
+            """,
+            moduleName: "SourceInjectedCompanionDurationABI",
+            expected: "7\n5\n1500\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibFromSource: true
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func replaceFirstCharImportedBuilderAddressesUseDeclaredABI(optimization: Int) throws {
         let source = """
         fun main() {
