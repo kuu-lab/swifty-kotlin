@@ -1716,15 +1716,11 @@ extension ExprTypeChecker {
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
-           ast.arena.callableRefReceiverTypeRef(for: id) != nil
+           let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id)
         {
-            ctx.semaCtx.diagnostics.error(
-                "KSWIFTK-SEMA-0022",
-                "Type arguments are not allowed on the left-hand side of '::class'.",
-                range: range
+            return inferExplicitArrayClassRef(
+                id, receiverTypeRef: receiverTypeRef, range: range, ctx: ctx
             )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
         }
 
         if member == KnownCompilerNames(interner: interner).className,

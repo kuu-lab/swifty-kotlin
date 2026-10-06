@@ -575,7 +575,7 @@ extension CallTypeChecker {
                     return false
                 }
                 switch symbol.kind {
-                case .class, .enumClass, .object, .annotationClass:
+                case .class, .interface, .enumClass, .object, .annotationClass:
                     return true
                 default:
                     return false
@@ -590,7 +590,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .enumClass, .object, .annotationClass:
+                    case .class, .interface, .enumClass, .object, .annotationClass:
                         return true
                     default:
                         return false
@@ -615,7 +615,7 @@ extension CallTypeChecker {
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass || nestedOwnerKind == .object
-                   || ((nestedOwnerKind == .class || nestedOwnerKind == .annotationClass)
+                   || ((nestedOwnerKind == .class || nestedOwnerKind == .interface || nestedOwnerKind == .annotationClass)
                        && !ast.arena.isExplicitCall(id))
             {
                 if let nestedSymbol = sema.symbols.symbol(nestedOwner),
