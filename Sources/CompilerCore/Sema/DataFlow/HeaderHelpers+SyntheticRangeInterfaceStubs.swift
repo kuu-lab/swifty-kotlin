@@ -210,6 +210,15 @@ extension DataFlowSemaPhase {
             for: typeParamSymbol
         )
 
+        // KUU-763: bundled `ClosedFloatingPointRange/ClosedFloatingPointRange.kt`
+        // declares `contains`/`isEmpty`/`lessThanOrEquals` in Kotlin source and
+        // inherits `start`/`endInclusive` from `ClosedRange`, so the synthetic
+        // member surface is only needed when the bundled source is absent
+        // (e.g. `--no-stdlib`).
+        if BundledSyntheticStubRegistration.bundledIndex.contains(owner: interfaceFQName, name: interner.intern("contains"), arity: 1) {
+            return
+        }
+
         registerRangeInterfaceProperty(
             named: "start",
             ownerSymbol: interfaceSymbol,

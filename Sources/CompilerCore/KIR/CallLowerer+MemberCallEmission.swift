@@ -1025,7 +1025,25 @@ extension CallLowerer {
                result: result, sema: sema, arena: arena, interner: interner
            )
         {
-            instructions.append(inst)
+            // KUU-763: floating-point range boxes carry no itable, so
+            // interface-typed `ClosedFloatingPointRange`/`ClosedRange` member
+            // calls probe the runtime representation before dispatching.
+            if let probeEndLabel = emitFloatingPointRangeMemberProbe(
+                chosenCallee: chosenCallee,
+                receiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
+                sourceReceiverID: receiver.loweredID,
+                arguments: finalArguments,
+                result: result,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                instructions.append(inst)
+                instructions.append(.label(probeEndLabel))
+            } else {
+                instructions.append(inst)
+            }
             return
         }
         var callArguments = finalArguments

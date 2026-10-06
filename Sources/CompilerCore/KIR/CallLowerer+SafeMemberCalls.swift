@@ -1323,7 +1323,7 @@ extension CallLowerer {
                 let virtualCalleeName = usesIteratorRuntimeVirtualBridge
                     ? (sema.symbols.symbol(chosen)?.name ?? resolvedCalleeName)
                     : resolvedCalleeName
-                instructions.append(.virtualCall(
+                let virtualInstruction: KIRInstruction = .virtualCall(
                     symbol: chosen,
                     callee: virtualCalleeName,
                     receiver: dispatchReceiver ?? loweredReceiverID,
@@ -1332,7 +1332,26 @@ extension CallLowerer {
                     canThrow: false,
                     thrownResult: nil,
                     dispatch: dispatchKind
-                ))
+                )
+                // KUU-763: floating-point range boxes carry no itable, so a
+                // safe-call on an interface-typed range receiver probes the
+                // runtime representation before dispatching.
+                if let probeEndLabel = emitFloatingPointRangeMemberProbe(
+                    chosenCallee: chosen,
+                    receiverID: dispatchReceiver ?? loweredReceiverID,
+                    sourceReceiverID: loweredReceiverID,
+                    arguments: finalArguments,
+                    result: memberResult,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                ) {
+                    instructions.append(virtualInstruction)
+                    instructions.append(.label(probeEndLabel))
+                } else {
+                    instructions.append(virtualInstruction)
+                }
             } else {
                 instructions.append(.call(
                     symbol: chosen,

@@ -16,13 +16,11 @@ package kotlin.ranges
 // KSP-1311 moved the `OpenEndRange` declaration and its `start`/`endExclusive`/
 // `contains`/`isEmpty` members into `OpenEndRange/OpenEndRange.kt` (runtime
 // `__kk_range_*` links retained — the range boxes have no interface itables).
-// ClosedFloatingPointRange members remain compiler residuals.
+// KUU-763 moved the `ClosedFloatingPointRange` declaration and its
+// `contains`/`isEmpty`/`lessThanOrEquals` members into
+// `ClosedFloatingPointRange/ClosedFloatingPointRange.kt` (runtime
+// `__kk_floating_range_*` probes retained — floating-point range boxes have no
+// interface itables).
 // Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
 // CharRange.kt; unsigned range shells are source-backed by
 // UIntRange/Stdlib.kt and ULongRange/Stdlib.kt (KSP-709).
-
-/**
- * Represents a range of floating point numbers, where `lessThanOrEquals` keeps the
- * IEEE 754 ordering of the bounds.
- */
-public interface ClosedFloatingPointRange<T : Comparable<T>> : ClosedRange<T>
