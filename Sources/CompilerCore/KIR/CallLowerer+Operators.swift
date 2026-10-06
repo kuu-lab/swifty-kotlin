@@ -91,6 +91,23 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        // Sema's builtin context + path has no call binding. Emit the bridge
+        // before try lowering so thrown overrides reach the enclosing catch.
+        if op == .add,
+           sema.bindings.callBindings[exprID] == nil,
+           let boundType,
+           isCoroutineContextReceiverType(boundType, sema: sema, interner: interner)
+        {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_context_plus_dispatch"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+            return result
+        }
         if (op == .rangeTo || op == .rangeUntil),
            let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
         {

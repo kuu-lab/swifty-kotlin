@@ -13,6 +13,37 @@ import TestStdlibCache
 struct StdlibArtifactRegressionTests {
 
     private static let sharedArtifactLock = NSLock()
+
+    /// KUU-1022: interface bridges must preserve source overrides and captures.
+    @Test(arguments: [false, true])
+    func testCoroutineContextOverrideDispatch(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/coroutine_context_override_dispatch.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "CoroutineContextOverrideDispatch",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "0\ntrue\ntrue\ntrue\ntrue\n13\ntrue\ntrue\ninherited plus\n16\ntrue\ntrue\ntrue\ntrue\nstart:item:item\nfold override\nplus override\nplus override\nplus override\ntrue\n")
+        }
+    }
     nonisolated(unsafe) private static var sharedArtifactPath: String?
 
     private static func buildStdlibArtifact() throws -> String {

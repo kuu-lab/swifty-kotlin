@@ -907,6 +907,14 @@ Native jobs/tasks return `Job.Key` and scheduler handles return
 raw job/task objects, excluding Kotlin wrappers with their own getter slots.
 ### Coroutine nominal/master integration
 
+`CoroutineContext.get`, `fold`, `plus`, and `minusKey` preserve source-defined
+overrides through the stable context itable slots (0–3), falling back to the
+native fixed-key representation for runtime handles. `fold` converts its split
+callback ABI into a Kotlin function value before invoking a source override.
+`__kk_context_plus_dispatch` adds one internal MEMORY_REPRESENTATION bridge
+for this boundary; the `+` and `+=` operators use the same throwing dispatch
+as `plus`, emitted before try/catch lowering.
+
 `__kk_dispatcher_immediate` bridges the memory representation of scheduler tags
 (`Dispatchers.Main`) and source-defined `MainCoroutineDispatcher` objects. The
 compiler passes the generated getter slot; tags return themselves and Kotlin
