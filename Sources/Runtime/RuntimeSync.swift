@@ -16,9 +16,12 @@ import Glibc
 final class RuntimeMutexHandle: @unchecked Sendable {
     private let lock = NSLock()
     private var isHeld = false
+    /// Owner token recorded by `lock(owner)`/`tryLock` (`0` = anonymous lock).
+    /// `null` reaching the ABI as `runtimeNullSentinelInt` is normalized to 0.
+    private var owner: Int = 0
     private enum Waiter {
-        case blocking(DispatchSemaphore)
-        case coroutine(Int)
+        case blocking(DispatchSemaphore, owner: Int)
+        case coroutine(Int, owner: Int)
     }
     private var waiters = RuntimeFIFOQueue<Waiter>()
 
@@ -37,6 +40,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             return false
         }
         isHeld = true
+        owner = 0
         return true
     }
 
@@ -53,15 +57,34 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     /// If the lock is held and `continuation == 0`, the caller is treated as a
     /// blocking waiter and sleeps until ownership transfers.
     func lockSync(continuation: Int) -> Int {
+        lockSync(continuation: continuation, owner: 0, outThrown: nil)
+    }
+
+    /// `lock(owner)` overload (KUU-1356). On acquisition the owner token is
+    /// recorded so `unlock(owner)` can validate it. When the mutex is already
+    /// held by the same `owner`, this writes an `IllegalStateException` into
+    /// `outThrown` and returns 0, matching kotlinx.coroutines `lock(owner)`
+    /// which fails fast instead of deadlocking on same-owner re-acquisition.
+    func lockSync(continuation: Int, owner: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
         lock.lock()
         if !isHeld && waiters.isEmpty {
             isHeld = true
+            self.owner = owner
             lock.unlock()
+            return 0
+        }
+        if isHeld, owner != 0, self.owner == owner {
+            lock.unlock()
+            if let outThrown {
+                outThrown.pointee = runtimeAllocateIllegalStateException(
+                    message: "This mutex is already locked by the specified owner"
+                )
+            }
             return 0
         }
         if continuation == 0 {
             let sema = DispatchSemaphore(value: 0)
-            waiters.enqueue(.blocking(sema))
+            waiters.enqueue(.blocking(sema, owner: owner))
             lock.unlock()
             // A blocking (non-suspend-context) acquisition may be running on a
             // runBlocking event loop, where the holder that will release is
@@ -70,7 +93,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             runtimeWaitDrainingEventLoop(sema)
             return 0
         }
-        waiters.enqueue(.coroutine(continuation))
+        waiters.enqueue(.coroutine(continuation, owner: owner))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
@@ -82,29 +105,49 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     /// `IllegalStateException` handle, matching kotlinx.coroutines `Mutex.unlock`.
     @discardableResult
     func unlock() -> Int {
+        unlock(expectedOwner: 0)
+    }
+
+    /// `unlock(owner)` overload (KUU-1356). When `expectedOwner != 0` the
+    /// recorded owner must match (upstream compares by identity); on mismatch
+    /// the lock stays held and an `IllegalStateException` handle is returned.
+    @discardableResult
+    func unlock(expectedOwner: Int) -> Int {
         lock.lock()
         guard isHeld else {
             lock.unlock()
             return runtimeAllocateIllegalStateException(message: "This mutex is not locked")
         }
+        if expectedOwner != 0, owner != expectedOwner {
+            lock.unlock()
+            return runtimeAllocateIllegalStateException(
+                message: "This mutex is locked by a different owner"
+            )
+        }
         while let waiter = waiters.dequeue() {
+            let waiterOwner: Int
             switch waiter {
-            case let .blocking(sema):
+            case let .blocking(sema, owner):
+                waiterOwner = owner
                 // Keep isHeld = true — ownership transfers to the blocking waiter.
+                self.owner = waiterOwner
                 lock.unlock()
                 sema.signal()
                 return 0
-            case let .coroutine(continuation):
+            case let .coroutine(continuation, owner):
                 if runtimeSyncContinuationIsCancelled(continuation) {
                     continue
                 }
+                waiterOwner = owner
                 // Keep the mutex held — ownership transfers to the resumed waiter.
+                self.owner = waiterOwner
                 lock.unlock()
                 runtimeSyncResume(continuation)
                 return 0
             }
         }
         isHeld = false
+        owner = 0
         lock.unlock()
         return 0
     }
@@ -265,6 +308,55 @@ public func kk_mutex_unlock(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
     let thrown = mutex.unlock()
+    if thrown != 0 {
+        runtimeSetThrown(outThrown, thrown)
+    }
+    return 0
+}
+
+/// Normalizes an `Any?` owner token crossing the ABI: Kotlin `null` may
+/// arrive as 0 or the `runtimeNullSentinelInt` placeholder; both mean
+/// "no owner" and disable the identity check, matching kotlinx.coroutines.
+private func runtimeMutexNormalizeOwner(_ owner: Int) -> Int {
+    owner == runtimeNullSentinelInt ? 0 : owner
+}
+
+// KUU-1356: owner-token overloads of Mutex.lock/unlock
+// (`suspend fun lock(owner: Any?)` / `fun unlock(owner: Any?)` upstream).
+// The lock bridge mirrors kk_mutex_lock's blocking/continuation ABI plus a
+// trailing outThrown slot; a mutex already held by the same owner reports an
+// IllegalStateException instead of deadlocking.
+@_cdecl("__kk_mutex_lock_owner")
+public func __kk_mutex_lock_owner(
+    _ handle: Int,
+    _ owner: Int,
+    _ continuation: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_lock_owner received invalid mutex handle")
+    }
+    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return mutex.lockSync(
+        continuation: continuation,
+        owner: runtimeMutexNormalizeOwner(owner),
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("__kk_mutex_unlock_owner")
+public func __kk_mutex_unlock_owner(
+    _ handle: Int,
+    _ owner: Int,
+    _ outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int {
+    outThrown?.pointee = 0
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_unlock_owner received invalid mutex handle")
+    }
+    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+    let thrown = mutex.unlock(expectedOwner: runtimeMutexNormalizeOwner(owner))
     if thrown != 0 {
         runtimeSetThrown(outThrown, thrown)
     }

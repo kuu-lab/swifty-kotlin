@@ -1493,6 +1493,7 @@ final class CallLowerer {
             } else if loweredCalleeName == interner.intern("kk_channel_send")
                 || loweredCalleeName == interner.intern("kk_channel_receive")
                 || loweredCalleeName == interner.intern("kk_mutex_lock")
+                || loweredCalleeName == interner.intern("__kk_mutex_lock_owner")
                 || loweredCalleeName == interner.intern("kk_semaphore_acquire")
             {
                 // Implicit-receiver calls (e.g. `send(x)` inside a `produce { }`
@@ -1691,6 +1692,8 @@ final class CallLowerer {
             "kk_sequence_elementAt",
             "kk_iterable_iterator",
             "kk_mutex_unlock",
+            "__kk_mutex_lock_owner",
+            "__kk_mutex_unlock_owner",
             "kk_semaphore_release",
             "__kk_file_readText",
             "__kk_buffered_reader_useLines",
@@ -1790,6 +1793,8 @@ final class CallLowerer {
             "__kk_mutable_map_putAll",
             "__kk_list_get",
             "kk_mutex_unlock",
+            "__kk_mutex_lock_owner",
+            "__kk_mutex_unlock_owner",
             "kk_semaphore_release",
             "kk_sequence_elementAt",
             "kk_iterator_next",

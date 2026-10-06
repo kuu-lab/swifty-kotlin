@@ -2239,6 +2239,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KUU-1356: upstream `suspend fun lock(owner: Any? = null)` —
+        // the owner-token overload bridges to __kk_mutex_lock_owner, which
+        // records the token and rejects same-owner re-acquisition.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: mutexSymbol,
+            ownerType: mutexType,
+            name: "lock",
+            externalLinkName: "__kk_mutex_lock_owner",
+            returnType: types.unitType,
+            parameters: [(name: "owner", type: types.nullableAnyType)],
+            isSuspend: true,
+            symbols: symbols,
+            interner: interner
+        )
+
         // Mutex.unlock()
         registerSyntheticCoroutineMember(
             ownerSymbol: mutexSymbol,
@@ -2246,6 +2261,20 @@ extension DataFlowSemaPhase {
             name: "unlock",
             externalLinkName: "kk_mutex_unlock",
             returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // KUU-1356: upstream `fun unlock(owner: Any? = null)` — the owner
+        // overload validates the token by identity and throws
+        // IllegalStateException on mismatch.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: mutexSymbol,
+            ownerType: mutexType,
+            name: "unlock",
+            externalLinkName: "__kk_mutex_unlock_owner",
+            returnType: types.unitType,
+            parameters: [(name: "owner", type: types.nullableAnyType)],
             symbols: symbols,
             interner: interner
         )
