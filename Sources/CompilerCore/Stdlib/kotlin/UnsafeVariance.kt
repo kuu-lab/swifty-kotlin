@@ -11,5 +11,6 @@ package kotlin
  * Suppresses a variance conflict for a type parameter used in an unsafe position.
  */
 @kotlin.annotation.Target(AnnotationTarget.TYPE)
-@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.Retention(AnnotationRetention.SOURCE)
+@kotlin.annotation.MustBeDocumented
 public annotation class UnsafeVariance

@@ -192,4 +192,33 @@ struct VarianceCheckTests {
             assertNoDiagnostic("KSWIFTK-SEMA-VARIANCE", in: ctx)
         }
     }
+
+    // kotlin.UnsafeVariance targets AnnotationTarget.TYPE in Kotlin 2.3.10, so
+    // placing it on a value parameter is rejected with an annotation-target
+    // error and the variance violation is reported unsuppressed — matching
+    // kotlinc, which emits both diagnostics for the same source.
+    @Test
+    func unsafeVarianceOnValueParameterIsRejected() throws {
+        let source = """
+        package sample
+
+        class Box<out T> {
+            fun accept(@UnsafeVariance value: T): T = value
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let targetErrors = ctx.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+            }
+            #expect(targetErrors.count == 1, "\(ctx.diagnostics.diagnostics)")
+            let varianceErrors = ctx.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-VARIANCE"
+            }
+            #expect(varianceErrors.count == 1, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
