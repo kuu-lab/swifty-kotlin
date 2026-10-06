@@ -24,10 +24,15 @@ import kotlin.internal.__valuesEqual
 //   Sources/Runtime/RuntimeSequenceAssociation.swift
 //   Sources/Runtime/RuntimeSequenceFoldScan.swift
 //
-// Migrated: reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
-//           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
+// Migrated: scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
 //           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
 //           groupBy, Sequence.toMap
+//
+// KUU-1413: Sequence reduceRight/reduceRightOrNull/reduceRightIndexed/
+// reduceRightIndexedOrNull were removed — kotlin.sequences has no such
+// overloads (a one-pass Sequence cannot fold from the right), and kotlinc
+// rejects them as unresolved references. The Iterable/List counterparts stay
+// in Iterables.kt / ListAggregateHOF.kt.
 //
 // reduce/reduceOrNull/reduceIndexed/reduceIndexedOrNull moved to
 // SequenceConversionsAndSetOps.kt (package kotlin.sequences) with the canonical
@@ -38,54 +43,6 @@ import kotlin.internal.__valuesEqual
 //
 // Implementations materialize through toList() before looping so they reuse the
 // stable list indexing path instead of the still-limited Sequence for-loop path.
-
-public fun <T> Sequence<T>.reduceRight(operation: (T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[elements.size - 1]
-    var i = elements.size - 2
-    while (i >= 0) {
-        accumulator = operation(elements[i], accumulator)
-        i -= 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceRightOrNull(operation: (T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[elements.size - 1]
-    var i = elements.size - 2
-    while (i >= 0) {
-        accumulator = operation(elements[i], accumulator)
-        i -= 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceRightIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
-    var accumulator = elements[elements.size - 1]
-    var i = elements.size - 2
-    while (i >= 0) {
-        accumulator = operation(i, elements[i], accumulator)
-        i -= 1
-    }
-    return accumulator
-}
-
-public fun <T> Sequence<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T): T? {
-    val elements = this.toList()
-    if (elements.isEmpty()) return null
-    var accumulator = elements[elements.size - 1]
-    var i = elements.size - 2
-    while (i >= 0) {
-        accumulator = operation(i, elements[i], accumulator)
-        i -= 1
-    }
-    return accumulator
-}
 
 public fun <T, R> Sequence<T>.scan(initial: R, operation: (R, T) -> R): Sequence<R> {
     val elements = this.toList()
@@ -948,15 +905,16 @@ public fun Sequence<Int>.sum(): Int {
     return sum
 }
 
+// KUU-1413: accumulate in Double like the Iterable counterpart (and the other
+// Sequence averages in SequenceConversionsAndSetOps.kt) so large Int inputs do
+// not overflow the running sum before the division.
 public fun Sequence<Int>.average(): Double {
-    val elements = this.toList()
-    val sz = elements.size
-    if (sz == 0) return 0.0 / 0.0
-    var sum = 0
-    var i = 0
-    while (i < sz) {
-        sum += elements[i]
-        i += 1
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        if (count < 0) throw ArithmeticException("Count overflow has happened.")
     }
-    return sum.toDouble() / sz
+    return if (count == 0) Double.NaN else sum / count
 }

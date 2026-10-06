@@ -1709,6 +1709,17 @@ extension CallTypeChecker {
         if isSequenceReceiver, memberName == knownNames.reversed || memberName == knownNames.zip {
             return false
         }
+        // KUU-1413: kotlin.sequences has no reduceRight family (a one-pass
+        // Sequence cannot fold from the right), so the legacy collection
+        // fallback must not admit these names for a Sequence receiver either.
+        if isSequenceReceiver,
+           memberName == knownNames.reduceRight
+               || memberName == knownNames.reduceRightIndexed
+               || memberName == knownNames.reduceRightOrNull
+               || memberName == knownNames.reduceRightIndexedOrNull
+        {
+            return false
+        }
         let surfaceOwnerKinds = stdlibSurfaceOwnerKindsForCollectionFallback(
             isIterableReceiver: isIterableReceiver,
             isListReceiver: isListReceiver,
