@@ -20,7 +20,9 @@ private let cpsSequenceBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<I
 
 private let cpsIteratorBuilderFunctionID = 730_002
 private let cpsIteratorBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { continuation, _ in
-    let builderRaw = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    // Suspend-entry launcher ABI: slot 0 is the closure environment, slot 1
+    // the SequenceScope receiver (KUU-1359).
+    let builderRaw = Int(kk_coroutine_launcher_arg_get(continuation, 1))
     switch kk_coroutine_state_enter(continuation, cpsIteratorBuilderFunctionID) {
     case 0:
         _ = kk_coroutine_state_set_label(continuation, 1)

@@ -2917,8 +2917,12 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
 
         if usesCPSProducer {
             let continuation = kk_coroutine_continuation_new(functionID)
-            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(builderHandle))
-            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(closureRaw))
+            // Suspend-entry launcher ABI is (closureRaw, receiver): the launcher
+            // thunk binds slot 0 to the builder lambda's closure environment and
+            // slot 1 to the SequenceScope receiver, matching
+            // RuntimeSequenceCoroutine and runtimeInvokeSuspendFunction.
+            _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(closureRaw))
+            _ = kk_coroutine_launcher_arg_set(continuation, 1, Int64(builderHandle))
             stateLock.lock()
             producerContinuationRaw = continuation
             stateLock.unlock()

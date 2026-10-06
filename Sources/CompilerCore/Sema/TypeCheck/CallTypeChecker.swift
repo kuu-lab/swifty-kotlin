@@ -314,6 +314,12 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             }
+            // KUU-1359: the iterator {} block is a receiver lambda invoked by
+            // the runtime builder through the (closureRaw, receiver) suspend
+            // entry ABI, same as sequence {}. Mark it so KIR lowering keeps the
+            // raw lambda + captures instead of boxing a suspend function value
+            // whose closure environment the build rewrite cannot recover.
+            sema.bindings.markCollectionHOFLambdaExpr(argumentExprID)
             sema.bindings.bindExprType(id, type: refinedReturnType)
             return refinedReturnType
         }
