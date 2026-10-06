@@ -1001,6 +1001,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     }
 
     private func finish(result: Int, exception: Int) {
+        let jobCause = completionJob.cancellationCauseSnapshot()
+        let failure = jobCause != 0 && jobCause != runtimeNullSentinelInt
+            && kk_is_cancellation_exception(jobCause) == 0 ? jobCause : exception
         lock.lock()
         guard !isCompleted else {
             lock.unlock()
@@ -1008,8 +1011,8 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         }
         self.result = isCancelled ? 0 : result
         let cancellationCause = thrownException
-        if !isCancelled || (exception != 0 && kk_is_cancellation_exception(exception) == 0) {
-            thrownException = exception
+        if !isCancelled || (failure != 0 && kk_is_cancellation_exception(failure) == 0) {
+            thrownException = failure
         }
         isCompleted = true
         let snapshotResult = self.result
@@ -1321,6 +1324,9 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// `Job()` in the context apart from a `SupervisorJob()`, so the constructed scope gets
     /// the right sibling-failure-isolation semantics.
     var isSupervisorMarker = false
+    /// Scoped builders report failures through their caller's throw channel.
+    var propagatesFailureToParent = true
+    private var childFailureObservers: [@Sendable (Int) -> Void] = []
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
@@ -1446,7 +1452,9 @@ final class RuntimeJobHandle: @unchecked Sendable {
         let childJob = runtimeJobHandle(from: childHandle) ?? runtimeAsyncTask(from: childHandle)?.completionJob
         childJob?.attachParent(self)
         lock.lock()
-        childJobHandles.append(childHandle)
+        if !childJobHandles.contains(childHandle) {
+            childJobHandles.append(childHandle)
+        }
         let shouldCancelImmediately = state.isCancelled || state.isCompleted
         lock.unlock()
         if shouldCancelImmediately {
@@ -1599,7 +1607,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
             // The coroutine body has finished executing (including catch/finally blocks)
             // after observing cancellation. Transition to fully cancelled so that
             // join() can return. The cancelCause is preserved from when cancel() was called.
-            state = .cancelled
+            if successState == .failed, failureValue != 0, kk_is_cancellation_exception(failureValue) == 0 {
+                failure = cancelCause != 0 && kk_is_cancellation_exception(cancelCause) == 0
+                    ? cancelCause : failureValue
+                state = .failed
+            } else {
+                state = .cancelled
+            }
             return true
         case .completed, .cancelled, .failed:
             return false
@@ -1643,8 +1657,12 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
         let terminal = shouldSignal ? terminalValueLocked() : 0
         let cause = shouldSignal ? completionCauseLocked() : 0
+        let parent = shouldSignal && propagatesFailureToParent ? parentJob : nil
         lock.unlock()
         if shouldSignal {
+            if exception != 0, kk_is_cancellation_exception(exception) == 0 {
+                parent?.childFailed(with: exception)
+            }
             completionSemaphore.signal()
             for resumer in resumers {
                 resumer(terminal)
@@ -1656,13 +1674,33 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return shouldSignal
     }
 
+    /// Notify ancestors before waking awaiters, so caught await failures still
+    /// leave ordinary parents and siblings cancelled. Supervisors stop the chain.
+    private func childFailed(with exception: Int) {
+        guard !isSupervisorMarker else { return }
+        lock.lock()
+        let parent = propagatesFailureToParent ? parentJob : nil
+        let observers = childFailureObservers
+        lock.unlock()
+        for observer in observers { observer(exception) }
+        _ = cancel(cause: exception)
+        parent?.childFailed(with: exception)
+    }
+
+    func addChildFailureObserver(_ observer: @escaping @Sendable (Int) -> Void) {
+        lock.lock()
+        childFailureObservers.append(observer)
+        lock.unlock()
+    }
+
     func cancel(cause: Int = 0) -> Bool {
         cancel(message: defaultCancellationMessage, cause: cause)
     }
 
     @discardableResult
     func cancel(message: String, cause: Int = 0) -> Bool {
-        let resolvedCause = cause != 0 ? cause : runtimeAllocateCancellationException(message: message)
+        let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
+            ? cause : runtimeAllocateCancellationException(message: message)
         // If the dispatch work item has not begun executing, cancel it now so
         // the body never runs. The state update below is the authoritative
         // completion signal if cancellation already lost the race.
@@ -1852,6 +1890,7 @@ private enum RuntimeJobOrTask {
 final class RuntimeCoroutineScope: @unchecked Sendable {
     private let lock = NSLock()
     private var children: [Int] = [] // opaque handles (RuntimeJobHandle or RuntimeAsyncTask)
+    private var firstChildFailure = 0
     private(set) var isCancelled = false
     /// Cancellation message stored when cancel(message:cause:) is called on this scope.
     private(set) var cancellationMessage: String = "CancellationException"
@@ -1959,6 +1998,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     @discardableResult
     func installJob(defaultCancellationMessage: String = "CancellationException") -> RuntimeJobHandle {
         let scopeJob = RuntimeJobHandle(defaultCancellationMessage: defaultCancellationMessage)
+        scopeJob.propagatesFailureToParent = false
         scopeJob.isSupervisorMarker = isSupervisor
         scopeJob.markStarted()
         job = scopeJob
@@ -1988,13 +2028,51 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     /// before it started) may tear the scope down; a normal completion must
     /// not cancel the scope's children.
     private func installJobCancellationLink(_ scopeJob: RuntimeJobHandle) {
-        _ = scopeJob.addCompletionHandler(onCancelling: true) { [weak self, weak scopeJob] _ in
+        scopeJob.addChildFailureObserver { [weak self] exception in
+            self?.recordChildFailure(exception)
+        }
+        _ = scopeJob.addCompletionHandler(onCancelling: true) { [weak self, weak scopeJob] cause in
             guard scopeJob?.cancellationSnapshot() == true else { return }
-            self?.cancel()
+            self?.recordChildFailure(cause)
+            self?.cancel(cause: cause)
         }
     }
 
+    func childFailureSnapshot() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return firstChildFailure
+    }
+
+    func recordBodyFailure(_ exception: Int) {
+        recordChildFailure(exception)
+    }
+
+    private func recordChildFailure(_ exception: Int) {
+        guard !isSupervisor, exception != 0, exception != runtimeNullSentinelInt,
+              kk_is_cancellation_exception(exception) == 0 else { return }
+        lock.lock()
+        if firstChildFailure == 0 { firstChildFailure = exception }
+        lock.unlock()
+    }
+
+    private func cancel(cause: Int) {
+        cancel(message: "CancellationException", cause: cause)
+    }
+
     func registerChild(_ handle: Int) {
+        let childJob = runtimeJobHandle(from: handle) ?? runtimeAsyncTask(from: handle)?.completionJob
+        if let job {
+            job.registerChild(handle)
+        } else {
+            // ContextScope without an explicit Job still owns its children.
+            _ = childJob?.addCompletionHandler(onCancelling: false) { [weak self] cause in
+                guard let self, !self.isSupervisor, cause != 0, cause != runtimeNullSentinelInt,
+                      kk_is_cancellation_exception(cause) == 0 else { return }
+                self.recordChildFailure(cause)
+                self.cancel(cause: cause)
+            }
+        }
         // Take an additional retain so the scope keeps the child alive
         // even if user code calls takeRetainedValue (e.g. kk_kxmini_async_await)
         if let ptr = UnsafeMutableRawPointer(bitPattern: handle) {
@@ -2055,23 +2133,27 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         while true {
             lock.lock()
             let currentChildren = children
-            children.removeAll()
+            let recordedFailure = firstChildFailure
             lock.unlock()
+            if recordedFailure != 0 { firstFailure = recordedFailure }
             if currentChildren.isEmpty {
                 return firstFailure
             }
             for (index, child) in currentChildren.enumerated() {
                 let childResult = runtimeJoinChild(child)
+                let observedFailure = childFailureSnapshot()
+                if observedFailure != 0 { firstFailure = observedFailure }
                 // Cancelling one child Job is not a failure of its parent
                 // scope. Parent-scope cancellation is tracked separately by
                 // `isCancelled`; either way, a child's terminal
                 // CancellationException must not escape from the scope join.
                 let shouldIgnoreChildCancellation = runtimeCoroutineIsCancellationResult(childResult)
-                if firstFailure == 0,
+                if !isSupervisor, firstFailure == 0,
                    runtimeCoroutineIsThrowableResult(childResult),
                    !shouldIgnoreChildCancellation
                 {
-                    firstFailure = childResult
+                    recordChildFailure(childResult)
+                    firstFailure = childFailureSnapshot()
                     if !isSupervisor, !cancelledRemainingChildren {
                         cancelledRemainingChildren = true
                         cancel()
@@ -2080,6 +2162,11 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                         }
                     }
                 }
+            }
+            lock.lock()
+            children.removeFirst(currentChildren.count)
+            lock.unlock()
+            for child in currentChildren {
                 if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
                     // Check the per-handle flag to see if user code already consumed the passRetained.
                     // This is scope-independent: the flag lives on the handle object itself,
@@ -3864,6 +3951,18 @@ public func kk_coroutine_scope_cancel(_ scopeHandle: Int) -> Int {
     return 0
 }
 
+/// Records a scoped builder's body failure before cancelling and joining its
+/// children, preserving the first non-cancellation cause across cleanup.
+@_cdecl("kk_coroutine_scope_fail")
+public func kk_coroutine_scope_fail(_ scopeHandle: Int, _ exception: Int) -> Int {
+    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+        runtimeStructuredPanic("kk_coroutine_scope_fail received an invalid scope handle")
+    }
+    scope.recordBodyFailure(exception)
+    scope.cancel(message: "CancellationException", cause: exception)
+    return 0
+}
+
 /// Waits for all children in the scope to complete, then pops/releases the scope.
 @_cdecl("kk_coroutine_scope_wait")
 public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
@@ -4137,9 +4236,14 @@ private func runtimeScopeLaunch(
     let childScope = RuntimeCoroutineScope(context: context)
     let childHandle = runtimeRegisterObject(childScope)
     let finish: @Sendable (RuntimeAsyncTask, Int, Int) -> Void = { task, _, thrown in
+        let priorChildFailure = childScope.childFailureSnapshot()
         if thrown != 0 { childScope.cancel(message: "launch failed", cause: thrown) }
         let childFailure = childScope.waitForChildren()
-        let failure = thrown != 0 ? thrown : childFailure
+        // A descendant failure can cancel the body before its completion.
+        // Report the original failure rather than the resulting cancellation.
+        let failure = priorChildFailure != 0 ? priorChildFailure
+            : (childFailure != 0 && (thrown == 0 || runtimeCoroutineIsCancellationResult(thrown))
+                ? childFailure : thrown)
         if failure != 0 && !runtimeCoroutineIsCancellationResult(failure) {
             task.completeExceptionally(with: failure)
             if let parent, !parent.isSupervisorMarker {
@@ -5114,17 +5218,12 @@ public func kk_with_timeout_or_null_throwing(
 
 /// Cancel a child handle (RuntimeJobHandle or RuntimeAsyncTask).
 func runtimeCancelChild(_ handle: Int) {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return
-    }
-    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    switch RuntimeJobOrTask(obj) {
-    case .job(let job):
+    // Completed children can have been released by their scope while an
+    // ancestor still holds the raw hierarchy entry. Resolve liveness first.
+    if let job = runtimeJobHandle(from: handle) {
         _ = job.cancel()
-    case .task(let task):
+    } else if let task = runtimeAsyncTask(from: handle) {
         task.cancel()
-    case .other:
-        break
     }
 }
 
@@ -5711,13 +5810,18 @@ func runtimeRunBlockingOnEventLoop(
     loop.run(until: { outcome.isFinished })
 
     let (result, bodyThrown) = outcome.snapshot()
+    // A child can fail first and cause the body to throw during cancellation.
+    // Keep that original failure even if a catch/finally throws another error.
+    let priorChildFailure = ownedScope?.childFailureSnapshot() ?? 0
     if bodyThrown != 0 {
         ownedScope?.cancel()
     }
     // Job/Deferred values may escape through the block's result or captures.
     // Joining only consumes the scope's retain, not the live Kotlin handle.
     let childThrown = ownedScope?.waitForChildren(releaseOriginalHandles: false) ?? 0
-    let thrown = bodyThrown != 0 ? bodyThrown : childThrown
+    let thrown = priorChildFailure != 0 ? priorChildFailure
+        : (childThrown != 0 && (bodyThrown == 0 || kk_is_cancellation_exception(bodyThrown) != 0)
+            ? childThrown : bodyThrown)
     // Same contract as the previous synchronous path: report the failure
     // through `outThrown` and hand back 0 as the value.
     outThrown?.pointee = thrown
