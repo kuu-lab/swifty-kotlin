@@ -718,6 +718,12 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_dispatcher_named",
+            parameters: [RuntimeABIParameter(name: "kind", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_dispatcher_immediate",
             parameters: [
                 RuntimeABIParameter(name: "dispatcher", type: .intptr),

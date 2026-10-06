@@ -907,3 +907,12 @@ slots. Kotlin receivers retain their resolved overrides and thrown channels.
 for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
 new `__kk_*` entries are memory-representation bridges: native schedulers have
 no source-object layout, and neither bridge implements context-key semantics.
+
+`__kk_dispatcher_named` exposes Default, IO, and Unconfined as named runtime
+objects (KUU-1300), preserving identity after erasure to `Any` without confusing
+integer values with scheduler tags. This adds one internal bridge with reason
+`MEMORY_REPRESENTATION`: native dispatchers have no Kotlin object layout or
+`toString` vtable. Objects resolve to the existing scheduler tags for coroutine
+context operations, retaining the object handle for element identity and fold.
+IO and Unconfined retain their existing Default scheduler compatibility;
+this bridge does not implement a separate IO pool or an unconfined event loop.

@@ -2744,6 +2744,10 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard isObjectPointer else {
         return String(value)
     }
+    if let dispatcher = tryCast(raw, to: RuntimeDispatcher.self),
+       let name = dispatcher.displayName {
+        return name
+    }
     if runtimeIsUnitBox(value) {
         return "kotlin.Unit"
     }
