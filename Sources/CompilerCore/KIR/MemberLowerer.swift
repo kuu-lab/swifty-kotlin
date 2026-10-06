@@ -783,7 +783,8 @@ final class MemberLowerer {
         }
 
         for param in params where param.symbol != driver.ctx.activeImplicitReceiverSymbol() {
-            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            let paramExpr = driver.ctx.localValue(for: param.symbol)
+                ?? arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: param.symbol)
         }

@@ -3128,6 +3128,26 @@ final class CallTypeChecker {
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
             }
+            // Scope lookup can resolve an inherited outer member before the
+            // receiver tower fallback runs. Preserve the actual enclosing
+            // instance for capture analysis even when its class differs from
+            // the member's declaring class.
+            if sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+               sema.symbols.functionSignature(for: chosen)?.receiverType != nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let activeType = ctx.implicitReceiverType,
+               resolveClassType(activeType, sema: sema).map({
+                   sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
+               }) != true,
+               let outerReceiver = ctx.outerReceiverTypes.reversed().first(where: { receiver in
+                   receiver.symbol != nil && resolveClassType(receiver.type, sema: sema).map {
+                       sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
+                   } == true
+               }),
+               let receiverSymbol = outerReceiver.symbol
+            {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+            }
             let adjustedReturnType: TypeID = if let calleeName,
                 let blockArgument = args.first(where: { $0.label == interner.intern("block") }) ?? args.last,
                 isCoroutineBuilderCandidate(chosen)

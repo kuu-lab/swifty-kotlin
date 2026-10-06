@@ -12,6 +12,43 @@ import Testing
 @Suite
 struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
 
+    @Test(arguments: ["make", "inherited", "local"])
+    func testMemberExtensionLocalNominalsCaptureInheritedDispatchOwner(_ method: String) throws {
+        let source = """
+        open class OBase(protected val off: Int) {
+            protected fun helper(): Int = 3
+        }
+        class ODerived : OBase(10) {
+            fun Int.make(): Int {
+                val o = object {
+                    fun read(): Int = off
+                    fun read2(): Int = helper()
+                }
+                return this + o.read() + o.read2()
+            }
+            fun Int.inherited(): Int {
+                val o = object : OBase(1) {
+                    fun read(): Int = off + this@ODerived.off
+                }
+                return this + o.read()
+            }
+            fun Int.local(): Int {
+                class Local { fun read(): Int = off + helper() }
+                return this + Local().read()
+            }
+            fun use() {
+                println(2.\(method)())
+            }
+        }
+        fun main() { ODerived().use() }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberExtensionLocalNominalDispatchOwner",
+            expected: method == "inherited" ? "13\n" : "15\n"
+        )
+    }
+
     @Test
     func testCodegenObjectLiteralPropertyInitializerResolvesQualifiedOuterThis() throws {
         let source = """

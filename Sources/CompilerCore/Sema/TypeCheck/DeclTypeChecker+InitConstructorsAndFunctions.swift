@@ -773,6 +773,18 @@ extension DeclTypeChecker {
                 )
             }
         }
+        // A member extension's dispatch receiver is distinct from bare `this`.
+        // Keep its owner symbol on the tower so nested local nominals capture
+        // the enclosing instance rather than the extension receiver.
+        if function.receiverType != nil, let owner = ctx.enclosingClassSymbol {
+            var outerReceivers = functionCtx.outerReceiverTypes
+            for index in outerReceivers.indices where outerReceivers[index].symbol == nil {
+                if driver.helpers.nominalSymbol(of: outerReceivers[index].type, types: sema.types) == owner {
+                    outerReceivers[index].symbol = owner
+                }
+            }
+            functionCtx = functionCtx.copying(outerReceiverTypes: outerReceivers)
+        }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
         // extension receiver from inside a lambda with its own receiver.
