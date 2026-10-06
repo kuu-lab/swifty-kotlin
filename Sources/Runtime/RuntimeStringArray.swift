@@ -205,7 +205,9 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
 
 /// Header and saved native frames for a single throwable. Kotlin-side
 /// formatting walks cause and suppressed chains and adds their prefixes.
-private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
+/// Also used by the uncaught coroutine-exception reporter
+/// (`runtimeHandleUncaughtCoroutineException` in RuntimeCoroutine.swift).
+func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
     }
@@ -1252,6 +1254,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return 1
         }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
+            registerSortedCollectionTypeEdgesOnce()
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {

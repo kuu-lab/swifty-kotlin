@@ -126,6 +126,68 @@ let linkedHashSetRuntimeTypeID: Int64 = {
     return id
 }()
 
+/// KUU-1361: java.util sorted-collection nominal identities. Boxes are
+/// tagged `treeSetRuntimeTypeID`/`treeMapRuntimeTypeID`; the interface IDs
+/// carry the assignability edges that let `is SortedSet<*>` /
+/// `is NavigableMap<*, *>` answer true on those tags.
+let sortedSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedSet")
+
+let navigableSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableSet")
+
+/// Nominal identity for `java.util.TreeSet`. Source-allocated subclasses
+/// arrive as RuntimeObjectBox instances; runtimeSetBox lazily attaches a
+/// sorted backing box the same way LinkedHashSet subclasses attach theirs.
+let treeSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeSet")
+
+let sortedMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedMap")
+
+let navigableMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableMap")
+
+/// Nominal identity for `java.util.TreeMap`; see `treeSetRuntimeTypeID` for
+/// the lazy-attach path that relies on this ID.
+let treeMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeMap")
+
+/// Installs the `java.util` sorted-collection supertype edges:
+/// `TreeSet : NavigableSet : SortedSet : MutableSet/Set` and
+/// `TreeMap : NavigableMap : SortedMap : MutableMap`, plus the
+/// AbstractMutableSet/AbstractMutableMap edges Kotlin source declares.
+/// Mirrors `registerRangeTypeEdgesOnce`, including its resettability:
+/// `kk_runtime_reset_metadata` clears `typeParents` and
+/// `sortedCollectionTypeEdgesRegistered` together, so the edges re-register
+/// on the next `is` check or lazy-attach after a metadata reset.
+func registerSortedCollectionTypeEdgesOnce() {
+    // Resolve every type-ID global *before* taking the metadata lock: the
+    // collection ID initializers (setRuntimeTypeID, mapRuntimeTypeIDs) call
+    // runtimeRegisterTypeEdge, which acquires the same non-recursive lock.
+    // Referencing them inside the closure deadlocks on first use.
+    let sortedSet = sortedSetRuntimeTypeID
+    let navigableSet = navigableSetRuntimeTypeID
+    let treeSet = treeSetRuntimeTypeID
+    let sortedMap = sortedMapRuntimeTypeID
+    let navigableMap = navigableMapRuntimeTypeID
+    let treeMap = treeMapRuntimeTypeID
+    let mutableSet = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+    let abstractMutableSet = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableSet")
+    let abstractMutableMap = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableMap")
+    let set = setRuntimeTypeID
+    let mutableMap = mutableMapRuntimeTypeID
+    runtimeStorage.withMetadataLock { state in
+        if state.sortedCollectionTypeEdgesRegistered {
+            return
+        }
+        state.typeParents[sortedSet, default: []].insert(mutableSet)
+        state.typeParents[sortedSet, default: []].insert(set)
+        state.typeParents[navigableSet, default: []].insert(sortedSet)
+        state.typeParents[treeSet, default: []].insert(navigableSet)
+        state.typeParents[treeSet, default: []].insert(abstractMutableSet)
+        state.typeParents[sortedMap, default: []].insert(mutableMap)
+        state.typeParents[navigableMap, default: []].insert(sortedMap)
+        state.typeParents[treeMap, default: []].insert(navigableMap)
+        state.typeParents[treeMap, default: []].insert(abstractMutableMap)
+        state.sortedCollectionTypeEdgesRegistered = true
+    }
+}
+
 private let mapEntryRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
     for byte in "kotlin.collections.Map.Entry".utf8 {
@@ -142,6 +204,8 @@ private let mutableMapEntryRuntimeTypeID = runtimeStableNominalTypeID(
 )
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+
+private let comparatorRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparator")
 
 private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64, linkedHashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
@@ -754,7 +818,29 @@ func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
     guard isObjectPointer else {
         return nil
     }
-    return tryCast(ptr, to: RuntimeMapBox.self)
+    if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
+        return mapBox
+    }
+    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        if let backingMapBox = objectBox.backingMapBox {
+            return backingMapBox
+        }
+        if let objectTypeID = runtimeObjectTypeID(rawValue: rawValue) {
+            registerSortedCollectionTypeEdgesOnce()
+            if runtimeIsAssignable(
+                sourceTypeID: objectTypeID,
+                targetTypeID: treeMapRuntimeTypeID
+            ) {
+                // KUU-1361: TreeMap subclasses attach a naturally-ordered
+                // backing on first access (treeSetRuntimeTypeID precedent).
+                let backingMapBox = RuntimeMapBox(keys: [], values: [])
+                backingMapBox.enableSorted(comparatorRaw: 0)
+                objectBox.backingMapBox = backingMapBox
+                return backingMapBox
+            }
+        }
+    }
+    return nil
 }
 
 func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
@@ -774,14 +860,27 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
         if let backingSetBox = objectBox.backingSetBox {
             return backingSetBox
         }
-        if let objectTypeID = runtimeObjectTypeID(rawValue: rawValue),
-           runtimeIsAssignable(
-               sourceTypeID: objectTypeID,
-               targetTypeID: linkedHashSetRuntimeTypeID
-           ) {
-            let backingSetBox = RuntimeSetBox(elements: [])
-            objectBox.backingSetBox = backingSetBox
-            return backingSetBox
+        if let objectTypeID = runtimeObjectTypeID(rawValue: rawValue) {
+            registerSortedCollectionTypeEdgesOnce()
+            if runtimeIsAssignable(
+                sourceTypeID: objectTypeID,
+                targetTypeID: linkedHashSetRuntimeTypeID
+            ) {
+                let backingSetBox = RuntimeSetBox(elements: [])
+                objectBox.backingSetBox = backingSetBox
+                return backingSetBox
+            }
+            if runtimeIsAssignable(
+                sourceTypeID: objectTypeID,
+                targetTypeID: treeSetRuntimeTypeID
+            ) {
+                // KUU-1361: TreeSet subclasses whose init interception didn't
+                // run attach a naturally-ordered backing on first access.
+                let backingSetBox = RuntimeSetBox(elements: [])
+                backingSetBox.enableSorted(comparatorRaw: 0)
+                objectBox.backingSetBox = backingSetBox
+                return backingSetBox
+            }
         }
     }
     return nil
@@ -2436,6 +2535,30 @@ func runtimeCompareComparableValues(lhs: Int, rhs: Int) -> Int? {
     let result = compareToFn(lhs, rhs, &thrown)
     if thrown != 0 {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Comparable.compareTo threw during a runtime comparison")
+    }
+    return maybeUnbox(result)
+}
+
+/// KUU-1361: dynamic `Comparator.compare(a, b)` invocation for sorted
+/// collections — same itable mechanism as `runtimeCompareComparableValues`,
+/// with `compare` occupying slot 0 of the `kotlin.Comparator` itable. Falls
+/// back to natural ordering for objects without a registered Comparator
+/// itable (e.g. raw closure boxes), and `comparatorRaw == 0` means no
+/// comparator was supplied at all.
+func runtimeInvokeComparator(_ comparatorRaw: Int, _ lhs: Int, _ rhs: Int) -> Int {
+    guard comparatorRaw != 0 else { return runtimeCompareValues(lhs, rhs) }
+    let compareFnPtr = kk_itable_lookup_dynamic(comparatorRaw, Int(comparatorRuntimeTypeID), 0)
+    guard compareFnPtr != 0 else {
+        return runtimeCompareValues(lhs, rhs)
+    }
+    let compareFn = unsafeBitCast(
+        compareFnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = compareFn(comparatorRaw, lhs, rhs, &thrown)
+    if thrown != 0 {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Comparator.compare threw during a sorted-collection comparison")
     }
     return maybeUnbox(result)
 }
