@@ -484,7 +484,11 @@ extension ControlFlowTypeChecker {
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -619,7 +623,11 @@ extension ControlFlowTypeChecker {
             mergeNullableBranchAssignments(
                 completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
             )
-            let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         }
