@@ -54,6 +54,9 @@ extension CallLowerer {
         {
             return receiver
         }
+        // Imported object/companion extensions have no enclosing dispatch
+        // receiver. Their source bodies still require the singleton before
+        // the extension receiver, including primitive property getters.
         // Imported companion extensions can bind as ordinary member calls,
         // including property getters. They still need the singleton dispatch
         // receiver even when no lexical receiver is active.
