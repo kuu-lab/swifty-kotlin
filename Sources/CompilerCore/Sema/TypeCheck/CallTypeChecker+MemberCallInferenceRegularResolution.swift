@@ -80,6 +80,10 @@ extension CallTypeChecker {
                 interner: interner
             ) == .ulongRange
             && driver.callChecker.isContextualizableUnsignedIntegerLiteral(args[0].expr, ast: ast)
+        contextualizeArrayComparatorArgument(
+            calleeName: calleeName, receiverID: receiverID, receiverType: receiverType,
+            args: args, ctx: ctx, locals: &locals
+        )
         let argTypes = args.map { arg -> TypeID in
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {

@@ -38,6 +38,42 @@ public fun <T : Comparable<T>> Array<out T>.sort() {
     (this as Array<T>).stableSortWith(naturalOrder<T>())
 }
 
+// KUU-1248: list-returning sorts preserve the input array and stable ties.
+public fun <T : Comparable<T>> Array<out T>.sorted(): List<T> = sortedWith(naturalOrder<T>())
+
+public fun <T : Comparable<T>> Array<out T>.sortedDescending(): List<T> = sortedWith(reverseOrder<T>())
+
+public fun <T> Array<out T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = this.toList().toMutableList()
+    result.stableSortWith(comparator)
+    return result
+}
+
+public fun <T, R : Comparable<R>> Array<out T>.sortedBy(selector: (T) -> R?): List<T> {
+    val result = this.toList().toMutableList()
+    result.stableSortBySelector(selector, false)
+    return result
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val array = this as Array<T>
+    val sorted = array.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortWith(naturalOrder<T>())
+    var index = 0
+    while (index < sorted.size) {
+        array[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sortDescending() {
+    (this as Array<T>).stableSortWith(reverseOrder<T>())
+}
+
 public fun <T : Comparable<T>> Array<T>.sortedArray(): Array<T> {
     return sortedArrayWith(naturalOrder<T>())
 }
@@ -459,3 +495,25 @@ public fun ULongArray.binarySearch(element: ULong, fromIndex: Int = 0, toIndex: 
     }
     return -(low + 1)
 }
+
+public fun IntArray.sortedDescending(): List<Int> = sortedArrayDescending().toList()
+
+public fun LongArray.sortedDescending(): List<Long> = sortedArrayDescending().toList()
+
+public fun ShortArray.sortedDescending(): List<Short> = sortedArrayDescending().toList()
+
+public fun ByteArray.sortedDescending(): List<Byte> = sortedArrayDescending().toList()
+
+public fun CharArray.sortedDescending(): List<Char> = sortedArrayDescending().toList()
+
+public fun DoubleArray.sortedDescending(): List<Double> = sortedArrayDescending().toList()
+
+public fun FloatArray.sortedDescending(): List<Float> = sortedArrayDescending().toList()
+
+public fun UByteArray.sortedDescending(): List<UByte> = sortedArrayDescending().toList()
+
+public fun UShortArray.sortedDescending(): List<UShort> = sortedArrayDescending().toList()
+
+public fun UIntArray.sortedDescending(): List<UInt> = sortedArrayDescending().toList()
+
+public fun ULongArray.sortedDescending(): List<ULong> = sortedArrayDescending().toList()
