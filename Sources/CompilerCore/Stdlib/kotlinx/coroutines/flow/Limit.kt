@@ -12,6 +12,21 @@ import kotlin.time.DurationUnit
 import kotlin.time.inWholeMilliseconds
 import kotlin.time.toDuration
 
+public fun <T> Flow<T>.drop(count: Int): Flow<T> {
+    require(count >= 0) { "Drop count should be non-negative, but had $count" }
+    val source = this
+    return flow {
+        var skipped = 0
+        source.collect { value ->
+            if (skipped < count) {
+                skipped += 1
+            } else {
+                emit(value)
+            }
+        }
+    }
+}
+
 // KSP-1581: no ticker in the sequential cold-flow model; sample emits only
 // the last upstream value on completion, including a null value.
 @Suppress("UNCHECKED_CAST")
