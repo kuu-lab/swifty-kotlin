@@ -427,6 +427,16 @@ public protocol Scope: AnyObject {
     /// lookup hides — e.g. a `kotlin.text` String extension shadowed by a
     /// same-named extension declared in the current package.
     func lookupMergingChain(_ name: InternedString) -> [SymbolID]
+    /// Classifier-namespace lookup with Kotlin's import tier order. The
+    /// physical chain places a file's package scope above its explicit-import
+    /// scope. For the classifier namespace Kotlin instead ranks an explicit
+    /// single-type or alias import above same-package declarations, while
+    /// wildcard and default imports still rank below them, so this promotes
+    /// the explicit-import tier ahead of the file/package tiers. Scopes
+    /// nested inside the file scope (locals, member and type-parameter
+    /// scopes) keep innermost priority. Returns the matching bindings of the
+    /// winning tier only, like `lookup(_:matching:)`.
+    func lookupClassifier(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
     func insert(_ sym: SymbolID)
 }
 
@@ -468,6 +478,31 @@ open class BaseScope: Scope {
         return result
     }
 
+    open func lookupClassifier(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        var current: BaseScope? = self
+        var reachedFileScope = false
+        var fileLevelMatches: [SymbolID] = []
+        while let scope = current {
+            let matches = (scope.locals[name] ?? []).filter(predicate)
+            if !reachedFileScope && !(scope is FileScope) {
+                if !matches.isEmpty {
+                    return matches
+                }
+            } else {
+                reachedFileScope = true
+                if scope is ExplicitImportScope {
+                    if !matches.isEmpty {
+                        return matches
+                    }
+                } else if fileLevelMatches.isEmpty {
+                    fileLevelMatches = matches
+                }
+            }
+            current = scope.parent as? BaseScope
+        }
+        return fileLevelMatches
+    }
+
     open func insert(_ sym: SymbolID) {
         guard let symbol = symbols.symbol(sym) else {
             return
@@ -490,7 +525,11 @@ open class BaseScope: Scope {
 
 final class FileScope: BaseScope {}
 final class PackageScope: BaseScope {}
-final class ImportScope: BaseScope {}
+class ImportScope: BaseScope {}
+/// The scope holding a file's single-type and alias imports. Kotlin ranks
+/// this tier above same-package declarations for classifier lookup, so
+/// `lookupClassifier` needs to tell it apart from wildcard/default scopes.
+final class ExplicitImportScope: ImportScope {}
 
 final class ClassMemberScope: BaseScope {
     private let ownerSymbol: SymbolID

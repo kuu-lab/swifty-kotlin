@@ -819,16 +819,16 @@ struct TypeCheckHelpers {
                     }
                 }
                 // Prefer the lexically-scoped candidate (which encodes import
-                // priority: explicit imports > wildcard imports > default
-                // imports, same as expression name resolution) for unqualified
-                // references. Without this, an unrelated same-named
-                // declaration from a non-imported package (e.g.
+                // priority: explicit imports > same-package declarations >
+                // wildcard imports > default imports for classifiers, KUU-1423)
+                // for unqualified references. Without this, an unrelated
+                // same-named declaration from a non-imported package (e.g.
                 // `kotlin.properties.Lazy` vs. the in-scope `kotlin.Lazy`)
                 // could shadow the correct symbol merely by having a lower
                 // internal ID, since the short-name fallback below has no
                 // notion of scope.
                 let scopeCandidates: [SymbolID] = if path.count == 1, let scope {
-                    scope.lookup(shortName, matching: isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
+                    scope.lookupClassifier(shortName, matching: isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
                 } else {
                     []
                 }
@@ -838,7 +838,7 @@ struct TypeCheckHelpers {
                 // imported outer symbol before falling back to short-name lookup.
                 let qualifiedScopeCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else { return [] }
-                    var current = scope.lookup(path[0], matching: isTypeLikeSymbol)
+                    var current = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
                         .sorted(by: { $0.rawValue < $1.rawValue })
                     for component in path.dropFirst() {
                         current = current.flatMap { ownerID -> [SymbolID] in
@@ -863,7 +863,7 @@ struct TypeCheckHelpers {
                     guard path.count > 1, let scope else {
                         return []
                     }
-                    let rootCandidates = scope.lookup(path[0], matching: isTypeLikeSymbol)
+                    let rootCandidates = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
                     return rootCandidates.flatMap { rootSymbol -> [SymbolID] in
                         guard let rootInfo = sema.symbols.symbol(rootSymbol) else {
                             return []

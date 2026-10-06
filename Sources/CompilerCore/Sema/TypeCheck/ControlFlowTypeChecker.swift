@@ -882,7 +882,7 @@ final class ControlFlowTypeChecker {
             return true
         }
         let scope = ctx.scope
-        var current = scope.lookup(path[0]).filter(isTypeLike)
+        var current = scope.lookupClassifier(path[0], matching: isTypeLike)
         for component in path.dropFirst() {
             current = current.flatMap { ownerID -> [SymbolID] in
                 guard let owner = sema.symbols.symbol(ownerID) else { return [] }

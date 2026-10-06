@@ -17,6 +17,27 @@ func resolveAnnotationSymbol(
     }
 
     let shortName = interner.intern(parts.last ?? rawName)
+
+    // Kotlin ranks explicit (single-type and alias) imports above same-package
+    // declarations in the classifier namespace, so they are checked first
+    // (KUU-1423).
+    for importDecl in file.imports where !importDecl.isWildcard {
+        if let alias = importDecl.alias, alias == shortName {
+            if let symbol = symbols.lookup(fqName: importDecl.path),
+               symbols.symbol(symbol)?.kind == .annotationClass
+            {
+                return symbol
+            }
+        }
+        if importDecl.path.last == shortName {
+            if let symbol = symbols.lookup(fqName: importDecl.path),
+               symbols.symbol(symbol)?.kind == .annotationClass
+            {
+                return symbol
+            }
+        }
+    }
+
     let samePackageFQName = file.packageFQName + [shortName]
     if let symbol = symbols.lookup(fqName: samePackageFQName),
        symbols.symbol(symbol)?.kind == .annotationClass
