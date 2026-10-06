@@ -1719,6 +1719,7 @@ final class CallLowerer {
             "__kk_reader_copyTo_default",
             "kk_iterator_next",
             "kk_list_iterator_next",
+            "kk_array_of_nulls",
         ].contains(name)
     }
 
@@ -1794,6 +1795,7 @@ final class CallLowerer {
             "kk_sequence_elementAt",
             "kk_iterator_next",
             "kk_list_iterator_next",
+            "kk_array_of_nulls",
         ].contains(interner.resolve(calleeName))
     }
 

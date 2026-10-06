@@ -2292,17 +2292,39 @@ struct RuntimeStringArrayTests {
 
     @Test
     func testArrayOfNullsCreatesNullableSlots() {
-        let array = kk_array_of_nulls(3)
+        var thrown = 0
+        let array = kk_array_of_nulls(3, &thrown)
+        #expect(thrown == 0)
         #expect(array != 0)
         #expect(kk_array_size(array) == 3)
 
-        var thrown = 0
         #expect(kk_array_get(array, 0, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
         #expect(kk_array_get(array, 1, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
         #expect(kk_array_get(array, 2, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
+    }
+
+    @Test
+    func testArrayOfNullsNegativeSizeThrowsNegativeArraySizeException() throws {
+        var thrown = 0
+        let array = kk_array_of_nulls(-1, &thrown)
+
+        #expect(array == 0)
+        #expect(thrown != 0)
+        let ptr = try #require(
+            UnsafeMutableRawPointer(bitPattern: thrown),
+            "negative arrayOfNulls must return a throwable"
+        )
+        let box = try #require(
+            tryCast(ptr, to: RuntimeThrowableBox.self),
+            "negative arrayOfNulls must return a RuntimeThrowableBox"
+        )
+        #expect(
+            box.exceptionHierarchyFQNames.contains("kotlin.NegativeArraySizeException"),
+            "negative arrayOfNulls must throw NegativeArraySizeException"
+        )
     }
 
     // MARK: - kk_array_get / kk_array_set

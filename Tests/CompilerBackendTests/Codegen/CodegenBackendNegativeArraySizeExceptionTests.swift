@@ -77,5 +77,26 @@ struct CodegenBackendNegativeArraySizeExceptionTests {
 
         try assertKotlinOutput(source, moduleName: "ByteArrayPositiveSizeRegression", expected: "0, 1, 2\n")
     }
+
+    @Test
+    func testCodegenArrayOfNullsThrowsNegativeArraySizeExceptionForNegativeSize() throws {
+        let source = """
+        fun main() {
+            try {
+                val a = arrayOfNulls<String>(-1)
+                println("no throw, size=${a.size}")
+            } catch (e: NegativeArraySizeException) {
+                println("threw: ${e.message}")
+            }
+            println(arrayOfNulls<String>(0).size)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayOfNullsNegativeSize",
+            expected: "threw: -1\n0\n"
+        )
+    }
 }
 #endif
