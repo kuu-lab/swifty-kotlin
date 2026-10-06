@@ -452,7 +452,6 @@ final class LambdaLowerer {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
 
-
         let loweredBody = driver.lowerExpr(
             bodyExpr,
             ast: ast,
@@ -2447,7 +2446,6 @@ final class LambdaLowerer {
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
-
 
         // Lower the body
         let loweredBody = driver.lowerExpr(
