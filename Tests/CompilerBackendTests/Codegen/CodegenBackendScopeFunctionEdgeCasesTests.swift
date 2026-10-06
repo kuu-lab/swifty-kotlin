@@ -79,6 +79,41 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
+        let source = """
+        fun main() {
+            val r = run { return@run 9 }
+            println(r)
+            println(run { return@run 9 })
+            println(run(foo@{ return@foo 7 }))
+            println(run { return@run "tail" })
+            println(run<Int?> { return@run null })
+            println(run { return@run 2147483648L })
+            println("x".let { return@let 4 })
+            println(with(0) { return@with "w" })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TailLabeledReturnValue",
+            expected:
+                """
+                9
+                9
+                7
+                tail
+                null
+                2147483648
+                4
+                w
+                """
+                + "\n",
+            allowDefaultStdlibLibrary: defaultStdlib
+        )
+    }
+
     @Test
     func testCodegenCompilesContextHelper() throws {
         let source = """
