@@ -609,9 +609,9 @@ extension CallTypeChecker {
             // declarations have no constructor at all, so a nested enum/object
             // reference must be the bare type/nested-owner (needed e.g. for
             // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
-            // further static member access). Parenthesis-less nested classes
-            // and annotation classes are likewise classifiers, including on
-            // the left of `::class`; only explicit calls construct instances.
+            // further static member access). Parenthesis-less nested classes,
+            // interfaces and annotation classes are likewise classifiers,
+            // including on the left of `::class`; only explicit calls construct instances.
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass || nestedOwnerKind == .object
