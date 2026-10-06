@@ -99,6 +99,8 @@ extension DataFlowSemaPhase {
             {
                 // Resolve the lexical root before walking a qualified nested name.
                 // For example, Slot.Task inside Ch refers to Ch.Slot.Task.
+                // Qualified type annotations can start at a lexically enclosing
+                // declaration, such as Slot.Closed inside the class owning Slot.
                 let relativeRoots = resolveRelativeNominalCandidates(
                     named: path[0],
                     relativeTo: relativeOwnerFQName,
@@ -121,8 +123,10 @@ extension DataFlowSemaPhase {
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
-                    } else {
+                    } else if path.count == 1 {
                         candidates = symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }
+                    } else {
+                        candidates = []
                     }
                 }
             } else {
