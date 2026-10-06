@@ -228,7 +228,23 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let memberLookupType = rangeSourceMemberLookupType ?? lookupReceiverType
+        // Inferred primitive ranges retain a scalar handle type for lowering.
+        // Restore their nominal receiver for ordinary member/extension lookup
+        // and overload inference as well as the named bundled range fallbacks.
+        // Leave explicitly typed receivers intact, including their nullability.
+        let rangeExtensionLookupType: TypeID? = if !isSuperCall,
+                                                  case .primitive = sema.types.kind(of: lookupReceiverType)
+        {
+            sourceLevelRangeMemberLookupType(
+                receiverExpr: receiverID,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        let memberLookupType = rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
 
         // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
         // ULongRange expression. Prefer the exact bundled ULongRange source
@@ -1904,7 +1920,7 @@ extension CallTypeChecker {
             else { return nil }
             return sema.types.make(.classType(ClassType(classSymbol: superclass.classSymbol, args: arguments)))
         }()
-        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? lookupReceiverType
+        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
