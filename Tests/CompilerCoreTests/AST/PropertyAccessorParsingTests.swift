@@ -97,6 +97,78 @@ struct PropertyAccessorParsingTests {
         #expect(ast.arena.expr(exprID) != nil)
     }
 
+    @Test
+    func expressionGetterKeepsMemberGetCall() throws {
+        // KUU-1363: `this.get()` inside an expression-bodied getter is a member
+        // call, not a second accessor header. The body-extent scan must not
+        // truncate the body at `get(` when the soft keyword follows `.`/`?.`/`::`.
+        let (ast, ctx) = try buildASTModule(from: """
+        class Box(val v: String) {
+            fun get(): String = v
+            val direct: String get() = this.get()
+        }
+        val Box.ext: String get() = this.get()
+        val Box.nested: String get() = this.v.get(0).toString()
+        """, includeStdlib: false)
+
+        for (property, label) in [
+            (try #require(memberProperty(named: "direct", ofClass: "Box", in: ast, interner: ctx.interner)), "direct"),
+            (try #require(topLevelProperty(named: "ext", in: ast, interner: ctx.interner)), "ext"),
+        ] {
+            guard case let .expr(exprID, _) = property.getter?.body,
+                  case let .memberCall(receiverID, callee, _, args, _) = ast.arena.expr(exprID),
+                  case .thisRef = ast.arena.expr(receiverID)
+            else {
+                Issue.record("\(label) getter body must be the full this.get() member call")
+                continue
+            }
+            #expect(ctx.interner.resolve(callee) == "get")
+            #expect(args.isEmpty)
+        }
+
+        // A `get` call nested inside the body is not an accessor boundary either.
+        let nested = try #require(topLevelProperty(named: "nested", in: ast, interner: ctx.interner))
+        guard case let .expr(nestedID, _) = nested.getter?.body,
+              case let .memberCall(_, nestedCallee, _, _, _) = ast.arena.expr(nestedID)
+        else {
+            Issue.record("nested getter body must keep the outermost member call")
+            return
+        }
+        #expect(ctx.interner.resolve(nestedCallee) == "toString")
+    }
+
+    @Test
+    func expressionGetterStillSplitsAtFollowingAccessorHeader() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class C {
+            var backing = 0
+            var p: Int get() = backing + 1; set(v) { backing = v }
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
+        #expect(property.setter != nil)
+        #expect(property.setter?.parameterName.map { ctx.interner.resolve($0) } == "v")
+    }
+
+    @Test
+    func expressionSetterKeepsMemberSetCall() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Sink { fun set(v: Int) {} }
+        class C {
+            val sink = Sink()
+            var p: Int set(v) = sink.set(v)
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case let .expr(exprID, _) = property.setter?.body,
+              case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID)
+        else {
+            Issue.record("Setter body must keep the sink.set(v) member call")
+            return
+        }
+        #expect(ctx.interner.resolve(callee) == "set")
+    }
+
     @Test(arguments: ["\n", " ", "; "])
     func expressionSetterPreservesElvisLambdaOrder(separator: String) throws {
         let (ast, ctx) = try buildASTModule(from: """

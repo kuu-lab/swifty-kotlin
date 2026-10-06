@@ -390,13 +390,26 @@ extension BuildASTPhase {
                remaining[afterParen].kind == .symbol(.assign)
             {
                 // Find extent of body expression: up to the next get/set keyword or end.
+                // A `get`/`set` soft keyword only opens the next accessor when it
+                // starts an accessor header: at top level, followed by `(`, and
+                // not preceded by a navigation operator. Member-call tokens like
+                // `this.get()` or a `get(` nested inside call arguments or a
+                // lambda are part of the body expression, not a boundary.
                 let exprStart = afterParen + 1
                 var exprEnd = remaining.endIndex
+                var bodyDepth = BracketDepth()
                 for i in exprStart ..< remaining.endIndex {
-                    switch remaining[i].kind {
+                    let token = remaining[i]
+                    switch token.kind {
                     case .softKeyword(.get), .softKeyword(.set):
                         // Check if it's followed by `(` to confirm it's an accessor keyword.
-                        if i + 1 < remaining.endIndex,
+                        let precededByNavigation = i > exprStart
+                            && (remaining[i - 1].kind == .symbol(.dot)
+                                || remaining[i - 1].kind == .symbol(.questionDot)
+                                || remaining[i - 1].kind == .symbol(.doubleColon))
+                        if bodyDepth.isAtTopLevel,
+                           !precededByNavigation,
+                           i + 1 < remaining.endIndex,
                            remaining[i + 1].kind == .symbol(.lParen)
                         {
                             exprEnd = i
@@ -405,6 +418,7 @@ extension BuildASTPhase {
                         break
                     }
                     if exprEnd != remaining.endIndex { break }
+                    bodyDepth.track(token.kind)
                 }
                 let exprTokens = Array(remaining[exprStart ..< exprEnd])
                 if !exprTokens.isEmpty {
