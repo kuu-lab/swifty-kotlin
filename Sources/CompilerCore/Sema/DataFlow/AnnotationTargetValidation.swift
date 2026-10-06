@@ -238,7 +238,20 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID
                 )
             }
-        case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
+        case let .propertyDecl(property):
+            for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                for annotation in accessor.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: accessor.kind == .getter ? .getter : .setter,
+                        ownerRange: accessor.range, decl: decl, file: file,
+                        propertySymbol: symbolID, symbols: symbols,
+                        diagnostics: diagnostics, interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+        case .typeAliasDecl, .enumEntryDecl:
             break
         }
     }
@@ -338,6 +351,18 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
+            return
+        }
+
+        if case .getter = site,
+           symbols.annotations(for: annotationSymbolID).contains(where: {
+               KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
+           }) {
+            diagnostics.error(
+                "KSWIFTK-SEMA-OPT-IN-GETTER",
+                "Opt-in requirement marker annotation cannot be used on getter.",
+                range: ownerRange
+            )
             return
         }
 
