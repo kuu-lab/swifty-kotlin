@@ -445,7 +445,7 @@ public func kk_intArray_asList(_ arrayRaw: Int) -> Int {
 /// LongArray.asList(): List<Long>
 @_cdecl("__kk_longArray_asList")
 public func kk_longArray_asList(_ arrayRaw: Int) -> Int {
-    kk_array_asList(arrayRaw, functionName: "__kk_longArray_asList")
+    kk_array_asList(arrayRaw, functionName: "__kk_longArray_asList", elementKind: .long)
 }
 
 /// ShortArray.asList(): List<Short>
