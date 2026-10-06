@@ -29,10 +29,14 @@ private external fun <T> __kkChannelCreate(capacity: Int): Channel<T>
 // Capacity < -2 throws IllegalArgumentException like upstream (KUU-1403).
 public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 
-public fun <T> Channel(capacity: Int): Channel<T> {
-    require(capacity >= -2) { "Invalid channel capacity: $capacity, should be >=0" }
-    return __kkChannelCreate(capacity)
-}
+// Upstream `Channel(capacity)` is `Channel(capacity, BufferOverflow.SUSPEND)`:
+// the Channel.Factory sentinels (RENDEZVOUS / CONFLATED / BUFFERED /
+// UNLIMITED / OPTIONAL_CHANNEL) are valid capacity arguments, so this factory
+// delegates to the policy-aware bridge instead of letting kk_channel_create
+// clamp negatives to a rendezvous channel (KUU-1415: Channel(Channel.BUFFERED)
+// and produce(capacity = Channel.BUFFERED) silently produced capacity 0).
+public fun <T> Channel(capacity: Int): Channel<T> =
+    Channel(capacity, BufferOverflow.SUSPEND)
 
 // The residual runtime bridges return an Int flag (0/1); convert to Boolean in
 // Kotlin so the ABI return width matches the c-soft `@_cdecl` signatures.

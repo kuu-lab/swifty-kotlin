@@ -10,6 +10,7 @@ package kotlinx.coroutines.flow
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.produce
 
@@ -17,10 +18,10 @@ import kotlinx.coroutines.channels.produce
 // source, following the same migration pattern as Flow.kt (KSP-499).
 //
 // `launchIn` is a pure Kotlin composition over the `CoroutineScope.launch`
-// builder (kk_coroutine_scope_launch). `produceIn` reuses the `produce { }`
-// channel builder (kk_produce); that builder creates its own producer scope,
-// so the `scope` argument is accepted for API shape only — the same way a
-// user-written `CoroutineScope.produce` extension already ignores `this`.
+// builder (kk_coroutine_scope_launch). `produceIn` delegates to the
+// `produce(capacity) { }` channel builder on the given scope (kk_produce);
+// the launch still attaches the producer job to the ambient scope rather
+// than `scope`'s job, the same limitation `CoroutineScope.produce` has.
 
 public fun <T> Flow<T>.launchIn(scope: CoroutineScope): Job {
     val source = this
@@ -31,7 +32,11 @@ public fun <T> Flow<T>.launchIn(scope: CoroutineScope): Job {
 
 public fun <T> Flow<T>.produceIn(scope: CoroutineScope): ReceiveChannel<T> {
     val source = this
-    return produce {
+    // Upstream produceIn goes through ChannelFlow.produceImpl, which creates
+    // the channel with the default buffered capacity — a rendezvous produce
+    // deadlocks the producer (and its parent scope's join) whenever the
+    // consumer takes fewer elements than the flow emits (KUU-1415).
+    return scope.produce<T>(Channel.BUFFERED) {
         source.collect { value -> send(value) }
     }
 }
