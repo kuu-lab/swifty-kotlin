@@ -64,6 +64,62 @@ extension CallTypeChecker {
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
             return ctx.sema.types.errorType
         }
+
+        // A `?.` call evaluates its arguments only when the receiver is
+        // non-null, so a stable receiver reference narrows to non-null while
+        // they are checked (`x?.let { x.length }`, `map[x]` inside the
+        // lambda). The narrowing is scoped to the arguments: the receiver may
+        // still be null afterwards, so the narrowed local must be restored.
+        if safeCall {
+            let baseState = ctx.flowState.includingMembers(from: locals)
+            let narrowedState = ctx.dataFlow.narrowNonNull(
+                receiverID,
+                base: baseState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: ctx.sema,
+                interner: ctx.interner
+            )
+            if narrowedState != baseState {
+                var narrowedLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(
+                    narrowedState, locals: &narrowedLocals, sema: ctx.sema
+                )
+                let narrowedRequest = MemberCallInferenceRequest(
+                    id: id,
+                    receiverID: receiverID,
+                    calleeName: calleeName,
+                    args: args,
+                    range: range,
+                    ctx: ctx.copying(flowState: narrowedState),
+                    expectedType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    safeCall: safeCall
+                )
+                let result = inferMemberCallOnReceiver(
+                    narrowedRequest, receiverType: receiverType, locals: &narrowedLocals
+                )
+                // Keep argument-side effects on other locals, but restore
+                // the entries that moved only because of the receiver
+                // narrowing: `?.` may skip evaluation entirely.
+                for (name, prior) in locals
+                where narrowedState.variables[prior.symbol] != baseState.variables[prior.symbol] {
+                    narrowedLocals[name] = prior
+                }
+                narrowedLocals.memberFlow = locals.memberFlow
+                locals = narrowedLocals
+                return result
+            }
+        }
+
+        return inferMemberCallOnReceiver(request, receiverType: receiverType, locals: &locals)
+    }
+
+    private func inferMemberCallOnReceiver(
+        _ request: MemberCallInferenceRequest,
+        receiverType: TypeID,
+        locals: inout LocalBindings
+    ) -> TypeID {
         if let result = tryInferMemberCallEarlyReceiverSpecials(
             request,
             receiverType: receiverType,
