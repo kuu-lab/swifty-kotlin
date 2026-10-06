@@ -1,4 +1,33 @@
 extension CallTypeChecker {
+    /// A package extension with an incompatible receiver must not hide an
+    /// imported extension before its arguments can be contextualized.
+    func scopeCallCandidatesConsideringImplicitReceivers(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let candidates = ctx.cachedScopeLookup(name)
+        guard let receiverType = ctx.implicitReceiverType, !candidates.isEmpty else { return candidates }
+        func matchesReceiver(_ candidate: SymbolID) -> Bool {
+            guard isScopeExtensionCandidate(candidate, ctx: ctx),
+                  let receiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
+            else { return false }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: receiver,
+                sema: ctx.sema
+            )
+        }
+        // Keep ordinary callables and viable nearer extensions on their existing
+        // resolution paths. Only bypass a scope consisting of foreign receivers.
+        guard candidates.allSatisfy({ isScopeExtensionCandidate($0, ctx: ctx) }),
+              !candidates.contains(where: matchesReceiver)
+        else { return candidates }
+        let applicable = ctx.scope.lookup(name, matching: matchesReceiver)
+        // Matching lookup stops at the first scope with suitable receivers,
+        // preserving package/import precedence instead of merging all overloads.
+        return applicable.isEmpty ? candidates : applicable
+    }
+
     private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
         guard let symbol = ctx.sema.symbols.symbol(candidate),
               symbol.kind == .function,
