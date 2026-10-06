@@ -1109,6 +1109,10 @@ extension LambdaLowerer {
     /// itable boundary even when their substituted type is String. The wrapper
     /// getter intentionally returns the native String aggregate, so provide an
     /// erased bridge for get/invoke before registering the function pointer.
+    /// The impl call below must carry the impl function's own KIR name: a
+    /// `kk_`/`__kk_` callee spelling is treated as an external runtime name
+    /// and would discard the retained symbol, leaving an undeclared
+    /// `__kk_*` reference at link time (KUU-1391).
     private func propertyReferenceStringReturnBridge(
         interfaceMethod: SymbolID,
         implementation: SymbolID,
@@ -1156,7 +1160,7 @@ extension LambdaLowerer {
         let result = arena.appendTemporary(type: implementationFunction.returnType)
         body.append(.call(
             symbol: implementation,
-            callee: interner.intern("__kk_kproperty_impl_" + String(implementation.rawValue)),
+            callee: implementationFunction.name,
             arguments: args,
             result: result,
             canThrow: false,
