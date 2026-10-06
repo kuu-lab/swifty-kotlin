@@ -788,6 +788,15 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // KUU-1405 follow-up: the CoroutineExceptionHandler.Key singleton
+        // getter was registered in Sema but missing its ABI entry.
+        RuntimeABIFunctionSpec(
+            name: "kk_exception_handler_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_create",
             parameters: [
@@ -1879,6 +1888,31 @@ public extension RuntimeABISpec {
             name: "kk_mutex_unlock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        // KUU-1356: owner-token overloads of Mutex.lock/unlock. The lock
+        // bridge takes the caller continuation like kk_mutex_lock plus a
+        // trailing outThrown slot so same-owner re-acquisition throws
+        // IllegalStateException instead of deadlocking.
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutex_lock_owner",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_mutex_unlock_owner",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "owner", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

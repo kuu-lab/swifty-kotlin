@@ -957,6 +957,7 @@ extension CallLowerer {
         if loweredCalleeText == "kk_channel_send"
             || loweredCalleeText == "kk_channel_receive"
             || loweredCalleeText == "kk_mutex_lock"
+            || loweredCalleeText == "__kk_mutex_lock_owner"
             || loweredCalleeText == "kk_semaphore_acquire"
         {
             let continuationExpr = arena.appendExpr(
