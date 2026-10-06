@@ -4,13 +4,16 @@
 public extension RuntimeABISpec {
     /// KParameter reflection runtime functions (STDLIB-REFLECT-063).
     static let kParameterFunctions: [RuntimeABIFunctionSpec] = [
+        // KUU-1364: the 4th argument is a RuntimeKParameterFlags bitmask
+        // (bit0 = isOptional, bit1 = isVararg) — the signature is unchanged
+        // so older artifacts keep passing 0/1 and simply lack the vararg bit.
         RuntimeABIFunctionSpec(
             name: "__kk_kparameter_create_typed",
             parameters: [
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "typeRaw", type: .intptr),
-                RuntimeABIParameter(name: "isOptional", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
                 RuntimeABIParameter(name: "kind", type: .intptr),
                 RuntimeABIParameter(name: "typeToken", type: .intptr),
                 RuntimeABIParameter(name: "callableOwner", type: .intptr),
@@ -25,7 +28,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "typeRaw", type: .intptr),
-                RuntimeABIParameter(name: "isOptional", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
                 RuntimeABIParameter(name: "kind", type: .intptr),
             ],
             returnType: .intptr,
@@ -70,6 +73,15 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_kparameter_get_kind",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kparameter_is_vararg",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],

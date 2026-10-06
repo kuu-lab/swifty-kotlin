@@ -216,6 +216,7 @@ extension CallLowerer {
         "name": "__kk_kparameter_get_name",
         "type": "__kk_kparameter_get_type",
         "isOptional": "__kk_kparameter_is_optional",
+        "isVararg": "__kk_kparameter_is_vararg",
         "kind": "__kk_kparameter_get_kind",
     ]
 

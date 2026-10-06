@@ -295,7 +295,14 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     // plain (untagged) box for these — same as before this function grew
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
-    if sym.kind == .enumClass, !sym.flags.contains(.synthetic) {
+    let enumHasOrdinalNameHelper = sym.kind == .enumClass
+        && (!sym.flags.contains(.synthetic) || {
+            let probeName = NameMangler.enumOrdinalToNameHelperName(for: sym, interner: interner)
+            return symbols.lookupAll(fqName: sym.fqName + [probeName]).contains { id in
+                symbols.symbol(id).map { $0.kind == .function } ?? false
+            }
+        }())
+    if enumHasOrdinalNameHelper {
         emitEnumOrdinalBoxCall(
             ordinal: value,
             classSymbol: classType.classSymbol,
@@ -363,10 +370,21 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     into instructions: inout C
 ) where C.Element == KIRInstruction {
     guard let classSym = symbols.symbol(classSymbol),
-          classSym.kind == .enumClass,
-          !classSym.flags.contains(.synthetic)
+          classSym.kind == .enumClass
     else {
-        preconditionFailure("emitEnumOrdinalBoxCall requires a non-synthetic, source-backed enum class symbol")
+        preconditionFailure("emitEnumOrdinalBoxCall requires an enum class symbol")
+    }
+    if classSym.flags.contains(.synthetic) {
+        // Header-only synthetic enums never get a `$enumOrdinalToName$`
+        // helper; `.kklib`-imported enums are synthetic-flagged but carry
+        // theirs in the artifact, so only those with a resolvable helper
+        // may proceed (KUU-1364).
+        let probeName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+        let helperExists = symbols.lookupAll(fqName: classSym.fqName + [probeName]).contains { id in
+            symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        precondition(helperExists,
+                     "emitEnumOrdinalBoxCall requires a non-synthetic enum class symbol or an imported enum with a serialized helper")
     }
 
     // BUG-A: an Any-erased rendering of the box (println on a boxed

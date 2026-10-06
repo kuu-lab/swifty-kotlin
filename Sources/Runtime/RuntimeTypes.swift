@@ -3259,6 +3259,13 @@ final class RuntimeKTypeProjectionBox {
     }
 }
 
+/// Packed flags carried on the `__kk_kparameter_create*` `flags` argument.
+/// bit0 = isOptional, bit1 = isVararg (KUU-1364).
+enum RuntimeKParameterFlags {
+    static let isOptional: Int = 1 << 0
+    static let isVararg: Int = 1 << 1
+}
+
 /// Runtime box for `kotlin.reflect.KParameter`.
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
@@ -3273,14 +3280,21 @@ final class RuntimeKParameterBox {
     let typeRaw: Int
     /// Whether this parameter is optional (has a default value).
     let isOptional: Bool
-    /// Parameter kind: 0 = INSTANCE, 1 = EXTENSION_RECEIVER, 2 = VALUE.
+    /// Whether this parameter is declared `vararg`.
+    let isVararg: Bool
+    /// Parameter kind in the runtime's own ordering: 0 = INSTANCE,
+    /// 1 = EXTENSION_RECEIVER, 2 = VALUE. The Kotlin 2.3.10
+    /// `KParameter.Kind` declaration inserts CONTEXT at ordinal 1;
+    /// `__kk_kparameter_get_kind` translates to the Kotlin declaration
+    /// ordinals at the ABI boundary.
     let kind: Int
 
-    init(index: Int, nameRaw: Int, typeRaw: Int, isOptional: Bool = false, kind: Int = 2) {
+    init(index: Int, nameRaw: Int, typeRaw: Int, isOptional: Bool = false, kind: Int = 2, isVararg: Bool = false) {
         self.index = index
         self.nameRaw = nameRaw
         self.typeRaw = typeRaw
         self.isOptional = isOptional
+        self.isVararg = isVararg
         self.kind = kind
     }
 }
