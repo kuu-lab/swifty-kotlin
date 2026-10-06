@@ -15,17 +15,7 @@ import kotlin.internal.KsSymbolName
  */
 @SinceKotlin("2.1")
 @ExperimentalAtomicApi
-public class AtomicArray<T> {
-    @KsSymbolName("kk_atomic_ref_array_new")
-    public constructor(size: Int)
-
-    /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] and returns the old value of the element.
-     */
-    public fun compareAndExchange(index: Int, expectedValue: T, newValue: T): T =
-        compareAndExchangeAt(index, expectedValue, newValue)
-
+public class AtomicArray<T> private constructor() {
     /**
      * Atomically stores the [newValue] into the element of this [AtomicArray]
      * at the given [index] if the current value equals the [expectedValue]
@@ -35,14 +25,6 @@ public class AtomicArray<T> {
         checkIndex(index)
         return __kkAtomicRefArrayCompareAndExchangeAt(index, expectedValue, newValue)
     }
-
-    /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] if the current value equals the [expectedValue]
-     * and returns true if the operation was successful.
-     */
-    public fun compareAndSet(index: Int, expectedValue: T, newValue: T): Boolean =
-        compareAndSetAt(index, expectedValue, newValue)
 
     /**
      * Atomically stores the [newValue] into the element of this [AtomicArray]
@@ -64,32 +46,12 @@ public class AtomicArray<T> {
     }
 
     /**
-     * Atomically stores the [newValue] into the element of this [AtomicArray]
-     * at the given [index] and returns the old value of the element.
-     */
-    public fun getAndSet(index: Int, newValue: T): T =
-        exchangeAt(index, newValue)
-
-    /**
-     * Returns the element of this [AtomicArray] at the given [index].
-     */
-    public operator fun get(index: Int): T =
-        loadAt(index)
-
-    /**
      * Returns the element of this [AtomicArray] at the given [index].
      */
     public fun loadAt(index: Int): T {
         checkIndex(index)
         return __kkAtomicRefArrayLoadAt(index)
     }
-
-    /**
-     * Atomically stores the [value] into the element of this [AtomicArray]
-     * at the given [index].
-     */
-    public operator fun set(index: Int, value: T): Unit =
-        storeAt(index, value)
 
     /**
      * Atomically stores the [value] into the element of this [AtomicArray]
@@ -105,12 +67,6 @@ public class AtomicArray<T> {
      */
     public val size: Int
         get() = __kkAtomicRefArraySize()
-
-    /**
-     * Returns the number of elements in the array.
-     */
-    public val length: Int
-        get() = size
 
     /**
      * Returns a string representation of this array.

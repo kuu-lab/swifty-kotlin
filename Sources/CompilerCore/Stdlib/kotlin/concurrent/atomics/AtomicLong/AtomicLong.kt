@@ -85,8 +85,3 @@ public fun AtomicLong.store(value: Long): Unit {
 @SinceKotlin("2.1")
 public fun AtomicLong.toString(): String =
     __kkAtomicLongLoad().toString()
-
-@ExperimentalAtomicApi
-@SinceKotlin("2.1")
-public val AtomicLong.value: Long
-    get() = __kkAtomicLongLoad()

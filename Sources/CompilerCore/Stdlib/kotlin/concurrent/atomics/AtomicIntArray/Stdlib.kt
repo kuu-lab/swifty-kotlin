@@ -28,7 +28,7 @@ public fun AtomicIntArray(array: IntArray): AtomicIntArray {
     val result = AtomicIntArray(array.size)
     var index = 0
     while (index < array.size) {
-        result[index] = array[index]
+        result.storeAt(index, array[index])
         index++
     }
     return result
@@ -43,7 +43,7 @@ public fun AtomicIntArray(array: IntArray): AtomicIntArray {
 public inline fun AtomicIntArray(size: Int, init: (Int) -> Int): AtomicIntArray {
     val result = AtomicIntArray(size)
     for (index in 0 until size) {
-        result[index] = init(index)
+        result.storeAt(index, init(index))
     }
     return result
 }

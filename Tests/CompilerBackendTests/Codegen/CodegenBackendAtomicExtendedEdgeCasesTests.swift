@@ -268,18 +268,18 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicBooleanGetSetGetAndSet() throws {
+    func testCodegenAtomicBooleanLoadStoreExchange() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicBoolean
 
         fun main() {
             val a = AtomicBoolean(false)
-            println(a.get())
-            a.set(true)
-            println(a.get())
-            println(a.getAndSet(false))
-            println(a.get())
+            println(a.load())
+            a.store(true)
+            println(a.load())
+            println(a.exchange(false))
+            println(a.load())
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicBooleanGetSet", expected: "false\ntrue\ntrue\nfalse\n")
@@ -432,9 +432,10 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicArray
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
-            val arr = AtomicArray<String?>(1)
+            val arr = atomicArrayOfNulls<String>(1)
             arr.storeAt(0, "a")
             val old = arr.fetchAndUpdateAt(0) { (it ?: "") + "b" }
             println(old)
@@ -449,9 +450,10 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicArray
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
-            val arr = AtomicArray<String?>(1)
+            val arr = atomicArrayOfNulls<String>(1)
             arr.storeAt(0, "a")
             arr.updateAt(0) { (it ?: "") + "b" }
             println(arr.loadAt(0))
@@ -465,9 +467,10 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicArray
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
-            val arr = AtomicArray<String?>(1)
+            val arr = atomicArrayOfNulls<String>(1)
             arr.storeAt(0, "a")
             val old = arr.loadAt(0)
             println(arr.compareAndSetAt(0, old, "b"))
@@ -501,21 +504,22 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     func testCodegenAtomicArrayOfFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.atomicArrayOf
+        import kotlin.concurrent.atomics.AtomicArray
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
-            val arr = atomicArrayOf("first", "value")
+            val arr = AtomicArray(arrayOf("first", "value"))
             println(arr.size)
             println(arr.loadAt(0))
             println(arr.loadAt(1))
             arr.storeAt(1, "next")
             println(arr.loadAt(1))
 
-            val empty = atomicArrayOf<String>()
+            val empty = atomicArrayOfNulls<String>(0)
             println(empty.size)
 
             val source = arrayOf("spread", "values")
-            val spread = atomicArrayOf(*source)
+            val spread = AtomicArray(source)
             println(spread.size)
             println(spread.loadAt(0))
             println(spread.loadAt(1))
@@ -529,9 +533,10 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicArray
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
-            val arr = AtomicArray<String?>(1)
+            val arr = atomicArrayOfNulls<String>(1)
             arr.storeAt(0, "a")
             val new = arr.updateAndFetchAt(0) { (it ?: "") + "b" }
             println(new)
@@ -659,17 +664,17 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicIntArrayIndexOperator() throws {
+    func testCodegenAtomicIntArrayIndexedStoreLoad() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicIntArray
 
         fun main() {
             val arr = AtomicIntArray(2)
-            arr[0] = 7
-            arr[1] = 13
-            println(arr[0])
-            println(arr[1])
+            arr.storeAt(0, 7)
+            arr.storeAt(1, 13)
+            println(arr.loadAt(0))
+            println(arr.loadAt(1))
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicIntArrayIndexOp", expected: "7\n13\n")
@@ -777,7 +782,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicIncrementAndGetOverloads() throws {
+    func testCodegenAtomicIncrementAndFetchOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -787,21 +792,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(1)
-            println(intValue.incrementAndGet())
+            println(intValue.incrementAndFetch())
             println(intValue.load())
 
             val longValue = AtomicLong(3L)
-            println(longValue.incrementAndGet())
+            println(longValue.incrementAndFetch())
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 5)
-            println(intArray.incrementAndGet(0))
+            println(intArray.incrementAndFetchAt(0))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 7L)
-            println(longArray.incrementAndGet(0))
+            println(longArray.incrementAndFetchAt(0))
             println(longArray.loadAt(0))
         }
         """
@@ -829,7 +834,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicGetAndIncrementOverloads() throws {
+    func testCodegenAtomicFetchAndIncrementOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -839,21 +844,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(1)
-            println(intValue.getAndIncrement())
+            println(intValue.fetchAndIncrement())
             println(intValue.load())
 
             val longValue = AtomicLong(3L)
-            println(longValue.getAndIncrement())
+            println(longValue.fetchAndIncrement())
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 5)
-            println(intArray.getAndIncrement(0))
+            println(intArray.fetchAndIncrementAt(0))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 7L)
-            println(longArray.getAndIncrement(0))
+            println(longArray.fetchAndIncrementAt(0))
             println(longArray.loadAt(0))
         }
         """
@@ -861,7 +866,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicGetAndDecrementOverloads() throws {
+    func testCodegenAtomicFetchAndDecrementOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -871,21 +876,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(2)
-            println(intValue.getAndDecrement())
+            println(intValue.fetchAndDecrement())
             println(intValue.load())
 
             val longValue = AtomicLong(4L)
-            println(longValue.getAndDecrement())
+            println(longValue.fetchAndDecrement())
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 6)
-            println(intArray.getAndDecrement(0))
+            println(intArray.fetchAndDecrementAt(0))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 8L)
-            println(longArray.getAndDecrement(0))
+            println(longArray.fetchAndDecrementAt(0))
             println(longArray.loadAt(0))
         }
         """
@@ -893,7 +898,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicGetAndAddOverloads() throws {
+    func testCodegenAtomicFetchAndAddOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -903,21 +908,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(1)
-            println(intValue.getAndAdd(2))
+            println(intValue.fetchAndAdd(2))
             println(intValue.load())
 
             val longValue = AtomicLong(3L)
-            println(longValue.getAndAdd(4L))
+            println(longValue.fetchAndAdd(4L))
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 5)
-            println(intArray.getAndAdd(0, 2))
+            println(intArray.fetchAndAddAt(0, 2))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 7L)
-            println(longArray.getAndAdd(0, 3L))
+            println(longArray.fetchAndAddAt(0, 3L))
             println(longArray.loadAt(0))
         }
         """
@@ -925,7 +930,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicDecrementAndGetOverloads() throws {
+    func testCodegenAtomicDecrementAndFetchOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -935,21 +940,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(2)
-            println(intValue.decrementAndGet())
+            println(intValue.decrementAndFetch())
             println(intValue.load())
 
             val longValue = AtomicLong(4L)
-            println(longValue.decrementAndGet())
+            println(longValue.decrementAndFetch())
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 6)
-            println(intArray.decrementAndGet(0))
+            println(intArray.decrementAndFetchAt(0))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 8L)
-            println(longArray.decrementAndGet(0))
+            println(longArray.decrementAndFetchAt(0))
             println(longArray.loadAt(0))
         }
         """
@@ -957,7 +962,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicAddAndGetOverloads() throws {
+    func testCodegenAtomicAddAndFetchOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
@@ -967,21 +972,21 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
         fun main() {
             val intValue = AtomicInt(1)
-            println(intValue.addAndGet(2))
+            println(intValue.addAndFetch(2))
             println(intValue.load())
 
             val longValue = AtomicLong(3L)
-            println(longValue.addAndGet(4L))
+            println(longValue.addAndFetch(4L))
             println(longValue.load())
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 5)
-            println(intArray.addAndGet(0, 2))
+            println(intArray.addAndFetchAt(0, 2))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 7L)
-            println(longArray.addAndGet(0, 3L))
+            println(longArray.addAndFetchAt(0, 3L))
             println(longArray.loadAt(0))
         }
         """
@@ -1003,72 +1008,51 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicIntGetAndUpdate() throws {
+    func testCodegenAtomicIntUpdateFamily() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.atomics.update
 
         fun main() {
             val a = AtomicInt(10)
-            val old = a.getAndUpdate { it * 2 }
-            println(old)
+            a.update { it * 2 }
             println(a.load())
             val fetched = a.fetchAndUpdate { it - 3 }
             println(fetched)
             println(a.load())
-            val new2 = a.updateAndGet { it + 5 }
+            val new2 = a.updateAndFetch { it + 5 }
             println(new2)
             println(a.load())
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicIntGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
+        try assertKotlinOutput(source, moduleName: "AtomicIntGetAndUpdate", expected: "20\n20\n17\n22\n22\n")
     }
 
     @Test
-    func testCodegenAtomicLongGetAndUpdate() throws {
+    func testCodegenAtomicLongUpdateFamily() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicLong
+        import kotlin.concurrent.atomics.update
 
         fun main() {
             val a = AtomicLong(10L)
-            val old = a.getAndUpdate { it * 2L }
-            println(old)
+            a.update { it * 2L }
             println(a.load())
             val fetched = a.fetchAndUpdate { it - 3L }
             println(fetched)
             println(a.load())
-            val new2 = a.updateAndGet { it + 5L }
+            val new2 = a.updateAndFetch { it + 5L }
             println(new2)
             println(a.load())
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicLongGetAndUpdate", expected: "10\n20\n20\n17\n22\n22\n")
+        try assertKotlinOutput(source, moduleName: "AtomicLongGetAndUpdate", expected: "20\n20\n17\n22\n22\n")
     }
 
     @Test
-    func testCodegenAtomicBooleanGetAndUpdate() throws {
-        let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicBoolean
-
-        fun main() {
-            val a = AtomicBoolean(false)
-            val old = a.getAndUpdate { !it }
-            println(old)
-            println(a.load())
-            val fetched = a.fetchAndUpdate { !it }
-            println(fetched)
-            println(a.load())
-            val new2 = a.updateAndGet { !it }
-            println(new2)
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "AtomicBooleanGetAndUpdate", expected: "false\ntrue\ntrue\nfalse\ntrue\n")
-    }
-
-    @Test
-    func testCodegenAtomicGetAndSetOverloads() throws {
+    func testCodegenAtomicExchangeOverloads() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicArray
@@ -1077,33 +1061,34 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         import kotlin.concurrent.atomics.AtomicLong
         import kotlin.concurrent.atomics.AtomicLongArray
         import kotlin.concurrent.atomics.AtomicReference
+        import kotlin.concurrent.atomics.atomicArrayOfNulls
 
         fun main() {
             val intValue = AtomicInt(1)
-            println(intValue.getAndSet(2))
+            println(intValue.exchange(2))
             println(intValue.load())
 
             val longValue = AtomicLong(3L)
-            println(longValue.getAndSet(4L))
+            println(longValue.exchange(4L))
             println(longValue.load())
 
             val refValue = AtomicReference("a")
-            println(refValue.getAndSet("b"))
+            println(refValue.exchange("b"))
             println(refValue.load())
 
-            val refArray = AtomicArray<String?>(1)
+            val refArray = atomicArrayOfNulls<String>(1)
             refArray.storeAt(0, "x")
-            println(refArray.getAndSet(0, "y"))
+            println(refArray.exchangeAt(0, "y"))
             println(refArray.loadAt(0))
 
             val intArray = AtomicIntArray(1)
             intArray.storeAt(0, 5)
-            println(intArray.getAndSet(0, 6))
+            println(intArray.exchangeAt(0, 6))
             println(intArray.loadAt(0))
 
             val longArray = AtomicLongArray(1)
             longArray.storeAt(0, 7L)
-            println(longArray.getAndSet(0, 8L))
+            println(longArray.exchangeAt(0, 8L))
             println(longArray.loadAt(0))
         }
         """
@@ -1198,8 +1183,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     @Test
     func testCodegenAtomicBooleanValueSetterWiresBoolStore() throws {
         let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicBoolean
+        import kotlin.concurrent.AtomicBoolean
 
         fun main() {
             val a = AtomicBoolean(false)
@@ -1213,8 +1197,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     @Test
     func testCodegenAtomicIntValueSetterWiresIntStore() throws {
         let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.AtomicInt
 
         fun main() {
             val a = AtomicInt(0)
@@ -1226,27 +1209,25 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
-    func testCodegenAtomicReferenceGetAndUpdate() throws {
+    func testCodegenAtomicReferenceUpdateFamily() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import kotlin.concurrent.atomics.AtomicReference
+        import kotlin.concurrent.atomics.update
 
         fun main() {
             val a = AtomicReference("hello")
-            val old = a.getAndUpdate { it + "!" }
-            println(old)
-            println(a.value)
+            a.update { it + "!" }
+            println(a.load())
             val fetched = a.fetchAndUpdate { it + "?" }
             println(fetched)
-            println(a.value)
-            val updated = a.updateAndGet { it.uppercase() }
-            println(updated)
-            val fetchedNew = a.updateAndFetch { it + "~" }
+            println(a.load())
+            val fetchedNew = a.updateAndFetch { it.uppercase() + "~" }
             println(fetchedNew)
-            println(a.value)
+            println(a.load())
         }
         """
-        try assertKotlinOutput(source, moduleName: "AtomicRefGetAndUpdateBUG01", expected: "hello\nhello!\nhello!\nhello!?\nHELLO!?\nHELLO!?~\nHELLO!?~\n")
+        try assertKotlinOutput(source, moduleName: "AtomicRefGetAndUpdateBUG01", expected: "hello!\nhello!\nhello!?\nHELLO!?~\nHELLO!?~\n")
     }
 
     @Test
@@ -1258,7 +1239,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         fun main() {
             val a = AtomicIntArray(3)
             try {
-                val _ = a[5]
+                val _ = a.loadAt(5)
                 println("no exception")
             } catch (e: IndexOutOfBoundsException) {
                 println("caught")
@@ -1277,7 +1258,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         fun main() {
             val a = AtomicIntArray(3)
             try {
-                a[10] = 99
+                a.storeAt(10, 99)
                 println("no exception")
             } catch (e: IndexOutOfBoundsException) {
                 println("caught")
@@ -1296,7 +1277,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         fun main() {
             val a = AtomicLongArray(2)
             try {
-                val _ = a[7]
+                val _ = a.loadAt(7)
                 println("no exception")
             } catch (e: IndexOutOfBoundsException) {
                 println("caught")
@@ -1315,7 +1296,7 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         fun main() {
             val a = AtomicLongArray(2)
             try {
-                a[99] = 1L
+                a.storeAt(99, 1L)
                 println("no exception")
             } catch (e: IndexOutOfBoundsException) {
                 println("caught")
@@ -1329,10 +1310,10 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     func testCodegenAtomicArrayOfBoxesPrimitiveElementsForIsChecks() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
-        import kotlin.concurrent.atomics.atomicArrayOf
+        import kotlin.concurrent.atomics.AtomicArray
 
         fun main() {
-            val mixed = atomicArrayOf<Any>(1.5, "x", 2.5, 7L, true)
+            val mixed = AtomicArray(arrayOf<Any>(1.5, "x", 2.5, 7L, true))
             for (i in 0 until mixed.size) {
                 val v = mixed.loadAt(i)
                 println("${v is Double} ${v is Long} ${v is Boolean} ${v is String}")

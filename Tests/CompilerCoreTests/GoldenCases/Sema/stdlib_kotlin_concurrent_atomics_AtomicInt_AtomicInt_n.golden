@@ -43,7 +43,7 @@ expr e@16:50 int(16) type=Int
 expr e@16:20#1 memberCall recv=e@16:20 callee=compareAndExchange args=[_:e@16:46,_:e@16:50] type=Int call=kotlin.concurrent.atomics.compareAndExchange[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=Int,Int;ret=Int;names=[expectedValue,newValue]]
 expr e@16:5 localDecl compared mutable=0 type=_ init=e@16:20#1 type=Unit ref=__local_7.compared[kind=local;type=Int;origin=fixture]
 expr e@17:19 name(atomic) type=kotlin.concurrent.atomics.AtomicInt ref=__local_0.atomic[kind=local;type=kotlin.concurrent.atomics.AtomicInt;origin=fixture]
-expr e@17:19#1 memberCall recv=e@17:19 callee=value args=[] type=Int ref=kotlin.concurrent.atomics.AtomicInt.value[kind=prop;type=Int;mutable]
+expr e@17:19#1 memberCall recv=e@17:19 callee=load args=[] type=Int call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicInt;params=;ret=Int]
 expr e@17:5 localDecl current mutable=0 type=_ init=e@17:19#1 type=Unit ref=__local_8.current[kind=local;type=Int;origin=fixture]
 expr e@18:14 name(loaded) type=Int ref=__local_1.loaded[kind=local;type=Int;origin=fixture]
 expr e@18:22 name(exchanged) type=Int ref=__local_2.exchanged[kind=local;type=Int;origin=fixture]

@@ -31,7 +31,7 @@ expr e@13:43 bool(true) type=Boolean
 expr e@13:15#1 memberCall recv=e@13:15 callee=compareAndSet args=[_:e@13:36,_:e@13:43] type=Boolean call=kotlin.concurrent.atomics.compareAndSet[kind=fun;recv=kotlin.concurrent.atomics.AtomicBoolean;params=Boolean,Boolean;ret=Boolean;names=[expectedValue,newValue]]
 expr e@13:5 localDecl set mutable=0 type=_ init=e@13:15#1 type=Unit ref=__local_4.set[kind=local;type=Boolean;origin=fixture]
 expr e@14:19 name(atomic) type=kotlin.concurrent.atomics.AtomicBoolean ref=__local_0.atomic[kind=local;type=kotlin.concurrent.atomics.AtomicBoolean;origin=fixture]
-expr e@14:19#1 memberCall recv=e@14:19 callee=value args=[] type=Boolean ref=kotlin.concurrent.atomics.AtomicBoolean.value[kind=prop;type=Boolean;mutable]
+expr e@14:19#1 memberCall recv=e@14:19 callee=load args=[] type=Boolean call=kotlin.concurrent.atomics.load[kind=fun;recv=kotlin.concurrent.atomics.AtomicBoolean;params=;ret=Boolean]
 expr e@14:5 localDecl current mutable=0 type=_ init=e@14:19#1 type=Unit ref=__local_5.current[kind=local;type=Boolean;origin=fixture]
 expr e@15:14 name(loaded) type=Boolean ref=__local_1.loaded[kind=local;type=Boolean;origin=fixture]
 expr e@15:22 name(exchanged) type=Boolean ref=__local_2.exchanged[kind=local;type=Boolean;origin=fixture]

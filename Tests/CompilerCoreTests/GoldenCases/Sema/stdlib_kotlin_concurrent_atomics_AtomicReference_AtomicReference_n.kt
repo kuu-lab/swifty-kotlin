@@ -12,7 +12,7 @@ fun atomicReferenceReceiverMembers(): String {
     val oldSet = atomic.exchange("next")
     val expected = atomic.load()
     val compared = atomic.compareAndExchange(expected, "compared")
-    atomic.value = "assigned"
-    val current = atomic.value
+    atomic.store("assigned")
+    val current = atomic.load()
     return "$loaded:$exchanged:$oldSet:$compared:$current:${atomic.toString()}"
 }

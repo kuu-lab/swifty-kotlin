@@ -54,16 +54,10 @@ public fun AtomicIntArray.storeAt(index: Int, value: Int): Unit {
     __kk_store(index, value)
 }
 
-public operator fun AtomicIntArray.get(index: Int): Int = loadAt(index)
-
-public operator fun AtomicIntArray.set(index: Int, value: Int): Unit = storeAt(index, value)
-
 public fun AtomicIntArray.exchangeAt(index: Int, newValue: Int): Int {
     checkIndex(index)
     return __kk_exchange(index, newValue)
 }
-
-public fun AtomicIntArray.getAndSet(index: Int, newValue: Int): Int = exchangeAt(index, newValue)
 
 public fun AtomicIntArray.compareAndSetAt(index: Int, expectedValue: Int, update: Int): Boolean {
     checkIndex(index)
@@ -80,30 +74,18 @@ public fun AtomicIntArray.fetchAndAddAt(index: Int, delta: Int): Int {
     return __kk_fetchAndAdd(index, delta)
 }
 
-public fun AtomicIntArray.getAndAdd(index: Int, delta: Int): Int = fetchAndAddAt(index, delta)
-
 public fun AtomicIntArray.addAndFetchAt(index: Int, delta: Int): Int {
     checkIndex(index)
     return __kk_addAndFetch(index, delta)
 }
 
-public fun AtomicIntArray.addAndGet(index: Int, delta: Int): Int = addAndFetchAt(index, delta)
-
 public fun AtomicIntArray.fetchAndIncrementAt(index: Int): Int = fetchAndAddAt(index, 1)
-
-public fun AtomicIntArray.getAndIncrement(index: Int): Int = fetchAndAddAt(index, 1)
 
 public fun AtomicIntArray.incrementAndFetchAt(index: Int): Int = addAndFetchAt(index, 1)
 
-public fun AtomicIntArray.incrementAndGet(index: Int): Int = addAndFetchAt(index, 1)
-
 public fun AtomicIntArray.fetchAndDecrementAt(index: Int): Int = fetchAndAddAt(index, -1)
 
-public fun AtomicIntArray.getAndDecrement(index: Int): Int = fetchAndAddAt(index, -1)
-
 public fun AtomicIntArray.decrementAndFetchAt(index: Int): Int = addAndFetchAt(index, -1)
-
-public fun AtomicIntArray.decrementAndGet(index: Int): Int = addAndFetchAt(index, -1)
 
 public fun AtomicIntArray.updateAt(index: Int, transform: (Int) -> Int): Unit {
     while (true) {
@@ -158,16 +140,10 @@ public fun AtomicLongArray.storeAt(index: Int, value: Long): Unit {
     __kk_store(index, value)
 }
 
-public operator fun AtomicLongArray.get(index: Int): Long = loadAt(index)
-
-public operator fun AtomicLongArray.set(index: Int, value: Long): Unit = storeAt(index, value)
-
 public fun AtomicLongArray.exchangeAt(index: Int, newValue: Long): Long {
     checkIndex(index)
     return __kk_exchange(index, newValue)
 }
-
-public fun AtomicLongArray.getAndSet(index: Int, newValue: Long): Long = exchangeAt(index, newValue)
 
 public fun AtomicLongArray.compareAndSetAt(index: Int, expectedValue: Long, update: Long): Boolean {
     checkIndex(index)
@@ -184,30 +160,18 @@ public fun AtomicLongArray.fetchAndAddAt(index: Int, delta: Long): Long {
     return __kk_fetchAndAdd(index, delta)
 }
 
-public fun AtomicLongArray.getAndAdd(index: Int, delta: Long): Long = fetchAndAddAt(index, delta)
-
 public fun AtomicLongArray.addAndFetchAt(index: Int, delta: Long): Long {
     checkIndex(index)
     return __kk_addAndFetch(index, delta)
 }
 
-public fun AtomicLongArray.addAndGet(index: Int, delta: Long): Long = addAndFetchAt(index, delta)
-
 public fun AtomicLongArray.fetchAndIncrementAt(index: Int): Long = fetchAndAddAt(index, 1L)
-
-public fun AtomicLongArray.getAndIncrement(index: Int): Long = fetchAndAddAt(index, 1L)
 
 public fun AtomicLongArray.incrementAndFetchAt(index: Int): Long = addAndFetchAt(index, 1L)
 
-public fun AtomicLongArray.incrementAndGet(index: Int): Long = addAndFetchAt(index, 1L)
-
 public fun AtomicLongArray.fetchAndDecrementAt(index: Int): Long = fetchAndAddAt(index, -1L)
 
-public fun AtomicLongArray.getAndDecrement(index: Int): Long = fetchAndAddAt(index, -1L)
-
 public fun AtomicLongArray.decrementAndFetchAt(index: Int): Long = addAndFetchAt(index, -1L)
-
-public fun AtomicLongArray.decrementAndGet(index: Int): Long = addAndFetchAt(index, -1L)
 
 public inline fun AtomicLongArray.updateAt(index: Int, transform: (Long) -> Long): Unit {
     while (true) {
