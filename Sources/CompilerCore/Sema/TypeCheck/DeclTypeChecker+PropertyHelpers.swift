@@ -39,7 +39,15 @@ extension DeclTypeChecker {
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
         }
         let getterType = inferFunctionBodyType(
-            getter.body, ctx: accessorCtx, locals: &getterLocals,
+            getter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: inferredPropertyType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &getterLocals,
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
@@ -793,7 +801,15 @@ extension DeclTypeChecker {
             finalPropertyType, setterValueSymbol, true, true
         )
         let setterType = inferFunctionBodyType(
-            setter.body, ctx: accessorCtx, locals: &setterLocals,
+            setter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: sema.types.unitType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &setterLocals,
             expectedType: sema.types.unitType
         )
         driver.emitSubtypeConstraint(

@@ -267,7 +267,12 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { subTokens in
-                BuildASTPhase.ExpressionParser(tokens: subTokens, interner: self.interner, astArena: self.astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: subTokens,
+                    interner: self.interner,
+                    astArena: self.astArena,
+                    diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }
@@ -405,7 +410,8 @@ extension BuildASTPhase.ExpressionParser {
             end = labelToken.range.end
         }
 
-        let value = parseExpression(minPrecedence: 0)
+        // An else clause terminates a bare return in the enclosing if branch.
+        let value = matches(.keyword(.else)) ? nil : parseExpression(minPrecedence: 0)
         if let value, let valueEnd = astArena.exprRange(value)?.end {
             end = valueEnd
         }

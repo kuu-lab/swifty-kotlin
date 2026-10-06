@@ -944,7 +944,7 @@ extension CallLowerer {
             case "shr":
                 isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shr") : nil
             case "ushr":
-                isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
+                (nonNullReceiverType == intType || nonNullReceiverType == longType) && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
             default:
                 nil
             }

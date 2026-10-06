@@ -437,6 +437,23 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner,
             instructions: &instructions, arguments: &finalArguments
         )
+        // Kotlin coroutine builders accept a suspend function as their extension
+        // receiver. Preserve the same boxed callable ABI as value parameters.
+        if let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let receiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           case let .functionType(functionType) = sema.types.kind(of: receiverType),
+           functionType.isSuspend,
+           sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) != true {
+            let receiverIndex = memberExtensionDispatchReceiver == nil ? 0 : 1
+            finalArguments[receiverIndex] = materializeFunctionValueArgument(
+                loweredArgID: finalArguments[receiverIndex],
+                argExprID: receiver.expr,
+                functionType: functionType,
+                sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            )
+        }
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,

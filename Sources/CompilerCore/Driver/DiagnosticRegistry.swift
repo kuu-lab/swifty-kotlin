@@ -233,6 +233,12 @@ enum DiagnosticRegistry {
             summary: "Expected an identifier after '::'."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0015",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected ',' or ')' after call argument."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

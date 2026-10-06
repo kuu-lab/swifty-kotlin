@@ -158,6 +158,7 @@ public enum Expr: Equatable, Codable {
     case floatLiteral(Double, SourceRange)
     case doubleLiteral(Double, SourceRange)
     case charLiteral(UInt32, SourceRange)
+    case nullLiteral(SourceRange)
     case boolLiteral(Bool, SourceRange)
     case stringLiteral(InternedString, SourceRange)
     case stringTemplate(parts: [StringTemplatePart], range: SourceRange)

@@ -261,6 +261,13 @@ extension BuildASTPhase.ExpressionParser {
                     _ = consume()
                     continue
                 }
+                if let unexpected = current(), unexpected.kind != .symbol(.rParen) {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0015",
+                        "Expected ',' or ')' after call argument.",
+                        range: unexpected.range
+                    )
+                }
                 break
             }
         }

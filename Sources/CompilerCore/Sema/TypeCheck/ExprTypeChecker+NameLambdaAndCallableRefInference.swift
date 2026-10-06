@@ -828,10 +828,6 @@ extension ExprTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        if name == knownNames.null {
-            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
-            return sema.types.nullableNothingType
-        }
         if name == knownNames.thisName,
            let receiverType = ctx.implicitReceiverType
         {
@@ -2011,32 +2007,22 @@ extension ExprTypeChecker {
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
             } else {
-                if let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
-                {
-                    let propertyCandidates = sema.symbols.lookupAll(
-                        fqName: owner.fqName + [member]
-                    ).filter { symbolID in
-                        guard let symbol = ctx.cachedSymbol(symbolID) else {
-                            return false
-                        }
-                        // Member-extension properties are unreferenceable in
-                        // every `::` form, the same as member-extension
-                        // functions; `extensionPropertyReceiverType` is set
-                        // only when the member declares an extension receiver.
-                        return (symbol.kind == .property || symbol.kind == .field)
-                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
-                    }
-                    if let propertySymbol = propertyCandidates.first {
-                        return bindPropertyCallableRef(
-                            id,
-                            propertySymbol: propertySymbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
-                            isUnbound: unboundClassType != nil,
-                            expectedType: expectedType,
-                            sema: sema,
-                            interner: interner
-                        )
-                    }
+                // Property references use the same inheritance-aware lookup as
+                // ordinary member reads (for example MutableList<Int>::size).
+                if let property = driver.helpers.lookupMemberProperty(
+                    named: member,
+                    receiverType: nonNullReceiver,
+                    sema: sema
+                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                    return bindPropertyCallableRef(
+                        id,
+                        propertySymbol: property.symbol,
+                        ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                        isUnbound: unboundClassType != nil,
+                        expectedType: expectedType,
+                        sema: sema,
+                        interner: interner
+                    )
                 }
                 // REFL-EXTPROP: a package-level extension property (e.g. `val
                 // String.length: Int` in Stdlib/kotlin/String.kt) is registered
@@ -2858,6 +2844,22 @@ extension ExprTypeChecker {
         if receiverType == sema.types.errorType {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        // A qualified classifier such as `Outer.Nested` is a static class
+        // literal, even when Outer has a companion value. Do not evaluate it
+        // as a bound receiver; constructor calls and properties stay bound.
+        if case let .memberCall(_, _, _, args, _) = ctx.ast.arena.expr(receiver),
+           args.isEmpty, !ctx.ast.arena.isExplicitCall(receiver),
+           let symbolID = sema.bindings.identifierSymbol(for: receiver),
+           let symbol = sema.symbols.symbol(symbolID),
+           symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
+               || symbol.kind == .annotationClass || symbol.kind == .object
+        {
+            let targetType = sema.types.makeNonNullable(receiverType)
+            sema.bindings.bindClassRefTargetType(id, type: targetType)
+            let kClassType = sema.types.makeKClassType(argument: targetType)
+            sema.bindings.bindExprType(id, type: kClassType)
+            return kClassType
         }
         var visited: Set<TypeID> = []
         let isFlowNonNull: Bool

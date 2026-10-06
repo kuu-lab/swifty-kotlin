@@ -80,7 +80,7 @@ public extension RuntimeABISpec {
         ),
         // Link-time markers for the source-backed receiver-less intrinsics. The
         // coroutine lowering pass rewrites calls to them into the entry-point ABI
-        // above; the runtime only exports stubs so the standalone inline copies link.
+        // above for known symbols; create markers also accept boxed suspend values.
         RuntimeABIFunctionSpec(
             name: "kk_create_coroutine_unintercepted_no_receiver",
             parameters: [
@@ -105,7 +105,7 @@ public extension RuntimeABISpec {
         ),
         // Link-time markers for the source-backed receiver-bearing intrinsics. The
         // coroutine lowering pass rewrites calls to them into the entry-point ABI
-        // above; the runtime only exports stubs so the standalone inline copies link.
+        // above for known symbols; create markers also accept boxed suspend values.
         RuntimeABIFunctionSpec(
             name: "kk_create_coroutine_unintercepted_with_receiver",
             parameters: [

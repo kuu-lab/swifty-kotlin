@@ -135,19 +135,18 @@ extension ExprLowerer {
             }
             return accumulated
 
+        case .nullLiteral:
+            let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
+            instructions.append(.constValue(result: id, value: .null))
+            return id
+
         case let .nameRef(name, _):
-            let nullID = interner.intern("null")
             let thisID = interner.intern("this")
             // Resolve lambda param by name (handles collection HOF fallback where identifierSymbols may be unbound).
             if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
                let localValue = driver.ctx.localValue(for: paramSymbol)
             {
                 return localValue
-            }
-            if name == nullID {
-                let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                instructions.append(.constValue(result: id, value: .null))
-                return id
             }
             if name == thisID,
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -1277,7 +1276,12 @@ extension ExprLowerer {
                 let localFunReturnType: TypeID
                 if let sig {
                     localFunValueParamList = zip(sig.valueParameterSymbols, sig.parameterTypes).map { pair in
-                        KIRParameter(symbol: pair.0, type: pair.1)
+                        // Sema records the body type for packed vararg parameters;
+                        // the signature still carries their individual element type.
+                        KIRParameter(
+                            symbol: pair.0,
+                            type: sema.symbols.propertyType(for: pair.0) ?? pair.1
+                        )
                     }
                     localFunReturnType = sig.returnType
                 } else {
@@ -1326,8 +1330,8 @@ extension ExprLowerer {
                     return semanticSymbol.kind == .valueParameter
                 }
 
-                // Implicit receiver (this/super) is not collected by
-                // collectBoundIdentifierSymbols, so check separately —
+                // Explicit this/super and implicit member accesses do not
+                // collect the receiver in collectBoundIdentifierSymbols, so check separately —
                 // mirrors the post-filter in lexicalCaptureSymbolsForLambda.
                 if localFunReceiverParam == nil,
                    let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
@@ -1336,6 +1340,10 @@ extension ExprLowerer {
                 {
                     let needsReceiver = captureBodyExprIDs.contains { bodyExprID in
                         driver.lambdaLowerer.containsImplicitReceiverReference(in: bodyExprID, ast: ast)
+                            || driver.lambdaLowerer.containsImplicitReceiverMemberAccess(
+                                in: bodyExprID, ast: ast, sema: sema,
+                                excludingLocalExtensionBodies: true
+                            )
                     }
                     if needsReceiver {
                         captureSymbols.append(receiverSymbol)

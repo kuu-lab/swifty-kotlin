@@ -2,7 +2,7 @@
 // Init block, secondary constructor, and function declaration type checking.
 
 extension DeclTypeChecker {
-    private func localTypeForParameter(
+    func localTypeForParameter(
         at index: Int,
         signature: FunctionSignature,
         sema: SemaModule,
@@ -1349,8 +1349,8 @@ extension DeclTypeChecker {
         interner: StringInterner
     ) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
-        if case let .nameRef(name, _) = expr {
-            return name == KnownCompilerNames(interner: interner).null
+        if case .nullLiteral = expr {
+            return true
         }
         return false
     }

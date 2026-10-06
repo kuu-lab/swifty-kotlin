@@ -104,6 +104,29 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     // MARK: - start/create unintercepted runtime entry points
 
+    @Test func boxedCreateCoroutinePreservesClosureAndReceiverSlots() throws {
+        let completion = kk_coroutine_continuation_new(8897)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let state = try #require(runtimeContinuationState(from: completion))
+        let entry = unsafeBitCast(coro_intrinsics_receiver_plus_one as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let noReceiver = kk_suspend_function_create(0, 41, 0, entry)
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(noReceiver, 0, completion)
+        #expect(state.completion == 0)
+        kk_coroutine_continuation_resume(prepared, 0)
+        #expect(Int(state.completion) == 42)
+
+        let receiverCompletion = kk_coroutine_continuation_new(8898)
+        defer { _ = kk_coroutine_state_exit(receiverCompletion, 0) }
+        let receiverState = try #require(runtimeContinuationState(from: receiverCompletion))
+        let withReceiver = kk_suspend_function_create(0, 17, 1, entry)
+        let received = kk_create_coroutine_unintercepted_with_receiver(withReceiver, 0, 23, receiverCompletion)
+        #expect(kk_coroutine_launcher_arg_get(received, 0) == 17)
+        #expect(kk_coroutine_launcher_arg_get(received, 1) == 23)
+        kk_coroutine_continuation_resume(received, 0)
+        #expect(Int(receiverState.completion) == 18)
+        #expect(receiverState.thrownException == 0)
+    }
+
     @Test func createCoroutineUninterceptedStartsWhenReturnedContinuationIsResumed() throws {
         let completion = kk_coroutine_continuation_new(8812)
         defer { _ = kk_coroutine_state_exit(completion, 0) }

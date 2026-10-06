@@ -72,11 +72,11 @@ extension ControlFlowTypeChecker {
             let hasExplicitNullBranch = branches.contains { branch in
                 branch.conditions.contains { cond in
                     guard let conditionExpr = ast.arena.expr(cond),
-                          case let .nameRef(name, _) = conditionExpr
+                          case .nullLiteral = conditionExpr
                     else {
                         return false
                     }
-                    return name == KnownCompilerNames(interner: interner).null
+                    return true
                 }
             }
             var branchTypes: [TypeID] = []
@@ -95,11 +95,11 @@ extension ControlFlowTypeChecker {
 
             func isNullCondition(_ conditionID: ExprID) -> Bool {
                 guard let conditionExpr = ast.arena.expr(conditionID),
-                      case let .nameRef(name, _) = conditionExpr
+                      case .nullLiteral = conditionExpr
                 else {
                     return false
                 }
-                return name == KnownCompilerNames(interner: interner).null
+                return true
             }
 
             func recordCoverage(for conditionID: ExprID, conditionType: TypeID) {
@@ -159,11 +159,10 @@ extension ControlFlowTypeChecker {
                     }
                     covered.insert(interner.intern("false"))
 
+                case .nullLiteral:
+                    hasNullCase = true
+
                 case let .nameRef(name, _):
-                    if name == KnownCompilerNames(interner: interner).null {
-                        hasNullCase = true
-                        return
-                    }
                     guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                         covered.insert(name)
                         return

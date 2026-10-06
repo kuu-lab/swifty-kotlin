@@ -462,16 +462,15 @@ final class DataFlowAnalyzer {
             return base
         }
         switch conditionExpr {
-        case let .nameRef(name, _):
-            if name == builtinTypeNames(interner: interner).null {
-                var vars = base
-                vars[subjectSymbol] = VariableFlowState(
-                    possibleTypes: [subjectType],
-                    nullability: .nullable,
-                    isStable: true
-                )
-                return vars
-            }
+        case .nullLiteral:
+            var vars = base
+            vars[subjectSymbol] = VariableFlowState(
+                possibleTypes: [subjectType],
+                nullability: .nullable,
+                isStable: true
+            )
+            return vars
+        case .nameRef:
             guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                 return base
             }
@@ -661,11 +660,11 @@ final class DataFlowAnalyzer {
 
     private func isNullLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
         guard let expr = ast.arena.expr(id),
-              case let .nameRef(name, _) = expr
+              case .nullLiteral = expr
         else {
             return false
         }
-        return name == builtinTypeNames(interner: interner).null
+        return true
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {

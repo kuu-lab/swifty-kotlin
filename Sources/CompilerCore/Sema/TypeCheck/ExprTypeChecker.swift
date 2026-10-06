@@ -71,6 +71,10 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: charType)
             return charType
 
+        case .nullLiteral:
+            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
+            return sema.types.nullableNothingType
+
         case .boolLiteral:
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -208,10 +212,13 @@ final class ExprTypeChecker {
             let lambdaReturnScope = label.flatMap { label in
                 ctx.lambdaReturnScopes.last { $0.label == label }
             }
+            // Bare returns cross the same lambda boundaries as function-name
+            // labeled returns; validate them after call resolution determines
+            // whether every enclosing lambda argument can be inlined.
             let targetsFunction = label.map { label in
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
-            } ?? false
+            } ?? (ctx.lambdaDepth > 0)
             if let lambdaReturnScope,
                let targetIndex = ctx.enclosingLambdaExprIDs.lastIndex(of: lambdaReturnScope.exprID) {
                 sema.bindings.bindLambdaReturn(
@@ -221,6 +228,12 @@ final class ExprTypeChecker {
             }
             if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
+            } else if label == nil, ctx.lambdaDepth > 0 {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' does not reference an enclosing function.",
+                    range: range
+                )
             } else if let label, !ctx.hasLambdaLabel(label) {
                 let labelName = interner.resolve(label)
                 ctx.semaCtx.diagnostics.error(
@@ -351,7 +364,12 @@ final class ExprTypeChecker {
                         defaultType: intType,
                         literalValue: foldedValue
                     )
-                    _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: nil)
+                    // Unary plus reuses the operand in KIR, so its binding must
+                    // carry the contextual type used for boxing the result.
+                    _ = driver.inferExpr(
+                        operandID, ctx: ctx, locals: &locals,
+                        expectedType: op == .unaryPlus ? type : nil
+                    )
                 } else {
                     let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
                     if let overloadedType = inferUnaryOperatorExpr(

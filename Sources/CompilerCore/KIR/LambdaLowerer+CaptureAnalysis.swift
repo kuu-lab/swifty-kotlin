@@ -123,7 +123,7 @@ extension LambdaLowerer {
         }
 
         switch expr {
-        case .intLiteral,
+        case .nullLiteral, .intLiteral,
              .longLiteral,
              .uintLiteral,
              .ulongLiteral,
@@ -487,7 +487,7 @@ extension LambdaLowerer {
         case .thisRef, .superRef:
             return true
 
-        case .intLiteral,
+        case .nullLiteral, .intLiteral,
              .longLiteral,
              .uintLiteral,
              .ulongLiteral,

@@ -451,6 +451,10 @@ extension ExprTypeChecker {
                 continue
             }
             var propertyFlags: SymbolFlags = [.synthetic]
+            if propertyDecl.modifiers.contains(.override) { propertyFlags.insert(.overrideMember) }
+            if propertyDecl.modifiers.contains(.open) { propertyFlags.insert(.openType) }
+            if propertyDecl.modifiers.contains(.abstract) { propertyFlags.insert(.abstractType) }
+            if propertyDecl.modifiers.contains(.final) { propertyFlags.insert(.finalMember) }
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
@@ -875,6 +879,19 @@ extension ExprTypeChecker {
             }
             vtableSlots[method.id] = nextVtableSlot
             nextVtableSlot += 1
+        }
+
+        // KUU-1251: inherited methods read properties through the base class's
+        // vtable slots. Local/anonymous overrides must replace those getter
+        // and setter implementations, just as header-time named layouts do.
+        if let owner = sema.symbols.symbol(ownerSymbol) {
+            DataFlowSemaPhase.assignPropertyAccessorVtableSlots(
+                for: owner,
+                symbols: sema.symbols,
+                inheritedVtable: inheritedVtableSlots,
+                vtableSlots: &vtableSlots,
+                nextVtableSlot: &nextVtableSlot
+            )
         }
 
         // BUG-242: mirror the named-class path

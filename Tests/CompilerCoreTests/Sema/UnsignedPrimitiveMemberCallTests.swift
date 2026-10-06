@@ -5,6 +5,97 @@ import Testing
 struct UnsignedPrimitiveMemberCallTests {
 
     @Test
+    func testUnsignedUshrIsRejected() throws {
+        let source = """
+        fun rejected(ui: UInt, ul: ULong, ni: UInt?, nl: ULong?) {
+            1u ushr 4
+            1uL ushr 4
+            0xFFFFFFFFu ushr 28
+            ui ushr 1
+            ul ushr 1
+            ui.ushr(1)
+            ul.ushr(1)
+            ni?.ushr(1)
+            nl?.ushr(1)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 9, "Expected every unsigned ushr call to fail: \(errors)")
+            #expect(errors.allSatisfy { $0.message.contains("ushr") })
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            var checked = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                let name: InternedString
+                let range: SourceRange
+                switch expr {
+                case let .memberCall(_, callee, _, _, callRange),
+                     let .safeMemberCall(_, callee, _, _, callRange):
+                    name = callee
+                    range = callRange
+                default:
+                    continue
+                }
+                guard ctx.interner.resolve(name) == "ushr",
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                #expect(sema.bindings.exprType(for: ExprID(rawValue: Int32(index))) == sema.types.errorType)
+                checked += 1
+            }
+            #expect(checked == 9)
+        }
+    }
+
+    @Test
+    func testUnsignedUshrExtensionsResolve() throws {
+        let source = """
+        infix fun UInt.ushr(bits: Int): Int = 42
+        infix fun ULong.ushr(bits: Int): Int = 43
+        fun sample(ui: UInt, ul: ULong, ni: UInt?, nl: ULong?) {
+            ui ushr 1
+            ul ushr 1
+            ui.ushr(1)
+            ul.ushr(1)
+            ni?.ushr(1)
+            nl?.ushr(1)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            var checked = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                let name: InternedString
+                let range: SourceRange
+                switch expr {
+                case let .memberCall(_, callee, _, _, callRange),
+                     let .safeMemberCall(_, callee, _, _, callRange):
+                    name = callee
+                    range = callRange
+                default:
+                    continue
+                }
+                guard ctx.interner.resolve(name) == "ushr",
+                      ctx.sourceManager.path(of: range.start.file) == path
+                else { continue }
+                let id = ExprID(rawValue: Int32(index))
+                let binding = try #require(sema.bindings.callBindings[id])
+                let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+                #expect(signature.returnType == sema.types.intType)
+                #expect(sema.types.makeNonNullable(try #require(sema.bindings.exprType(for: id))) == sema.types.intType)
+                checked += 1
+            }
+            #expect(checked == 6)
+        }
+    }
+
+    @Test
     func testUnsignedUnarySignsRequireAnOperator() throws {
         let source = """
         fun rejected(ub: UByte, us: UShort, ui: UInt, ul: ULong,
@@ -194,7 +285,7 @@ struct UnsignedPrimitiveMemberCallTests {
                         ub.and(ub)
                         us.xor(us)
                         ui.shl(1)
-                        ul.ushr(1)
+                        ul.shr(1)
                     }
 
             """,
@@ -313,7 +404,7 @@ struct UnsignedPrimitiveMemberCallTests {
                     "and": sema.types.ubyteType,
                     "xor": sema.types.ushortType,
                     "shl": sema.types.uintType,
-                    "ushr": sema.types.ulongType,
+                    "shr": sema.types.ulongType,
                 ]
 
                 for (memberName, expectedType) in expectedTypes {
