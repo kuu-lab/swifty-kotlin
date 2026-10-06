@@ -326,6 +326,7 @@ extension CallLowerer {
         case int = 3
         case short = 4
         case byte = 5
+        case char = 6
     }
 
     func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
@@ -336,6 +337,11 @@ extension CallLowerer {
         case "toInt": return .int
         case "toShort": return .short
         case "toByte": return .byte
+        // KUU-1372: Number.toChar() is the one `open` (non-abstract)
+        // conversion member — it was omitted here originally, so its call fell
+        // through to a real vtable dispatch that crashed on primitive boxes
+        // (KSWIFTK-RUNTIME-0001).
+        case "toChar": return .char
         default: return nil
         }
     }

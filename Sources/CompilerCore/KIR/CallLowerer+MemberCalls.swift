@@ -224,8 +224,9 @@ extension CallLowerer {
             return comparableCharResult
         }
 
-        // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte() on an erased
-        //    receiver → kk_number_to_primitive(receiver, slot, kind) (KSP-1540) ──
+        // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte/toChar() on an
+        //    erased receiver → kk_number_to_primitive(receiver, slot, kind)
+        //    (KSP-1540, KUU-1372) ──
         if let numberConversionResult = tryLowerNumberConversion(
             exprID,
             receiverExpr: receiverExpr,

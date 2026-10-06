@@ -421,9 +421,10 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // KSP-1540 / DEBT-DIFF-008: Number.toDouble/toFloat/toLong/toInt/
-        // toShort/toByte dispatch for an erased `Number`/`T : Number`
-        // receiver — see CallLowerer+NumberConversionMemberCalls.swift and
+        // KSP-1540 / DEBT-DIFF-008 / KUU-1372: Number.toDouble/toFloat/toLong/
+        // toInt/toShort/toByte/toChar dispatch for an erased `Number`/
+        // `T : Number` receiver — see
+        // CallLowerer+NumberConversionMemberCalls.swift and
         // Sources/Runtime/RuntimeNumberConversionDispatch.swift.
         RuntimeABIFunctionSpec(
             name: "kk_number_to_primitive",
