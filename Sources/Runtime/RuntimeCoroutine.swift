@@ -733,15 +733,23 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     func makeContinuationContext() -> RuntimeCoroutineContext {
         let jobRaw = jobHandle?.identityHandle ?? 0
-        let inherited = scope?.context ?? RuntimeCoroutineContext()
-        let context = inherited.plus(builderContext ?? RuntimeCoroutineContext())
-        return RuntimeCoroutineContext(
-            dispatcher: context.dispatcher,
-            name: context.name ?? scope?.name,
-            exceptionHandler: context.exceptionHandler,
-            jobHandleRaw: jobRaw,
-            nameHandleRaw: context.nameHandleRaw,
-            dispatcherHandleRaw: context.dispatcherHandleRaw
+        let inherited = scope?.context
+        let builder = builderContext
+        // Merge `inherited.plus(builderContext)` without allocating so the
+        // canonicalizer lookup below is allocation-free on a hit: the
+        // builder's dispatcher/name/handler win when present (KUU-1387).
+        let builderDispatcher = builder?.dispatcher ?? 0
+        return runtimeCanonicalCoroutineContext(
+            dispatcher: builderDispatcher != 0 ? builderDispatcher : (inherited?.dispatcher ?? 0),
+            dispatcherHandleRaw: builderDispatcher != 0
+                ? (builder?.dispatcherHandleRaw ?? 0)
+                : (inherited?.dispatcherHandleRaw ?? 0),
+            name: (builder?.name ?? inherited?.name) ?? scope?.name,
+            nameHandleRaw: builder?.name != nil
+                ? (builder?.nameHandleRaw ?? 0)
+                : (inherited?.nameHandleRaw ?? 0),
+            exceptionHandler: builder?.exceptionHandler ?? inherited?.exceptionHandler,
+            jobHandleRaw: jobRaw
         )
     }
 
@@ -2731,9 +2739,15 @@ public func __kk_coroutine_continuation_context(
 
 @_cdecl("kk_coroutine_current_context")
 public func kk_coroutine_current_context() -> Int {
+    // KUU-1387: the current continuation state's context is the canonical one
+    // for its content. With no continuation state (boxed suspend bodies that
+    // install only a scope), the installed scope's own context object is the
+    // ambient context; a shared empty context is the last resort. All three
+    // return a canonical object so repeated reads stay `===`-stable.
     let context = RuntimeContinuationState.current?.makeContinuationContext()
+        ?? RuntimeCoroutineScope.current?.context
         ?? RuntimeCoroutineContext()
-    return runtimeRegisterObject(context)
+    return runtimeRegisterObject(runtimeCanonicalCoroutineContext(context))
 }
 
 @_cdecl("kk_coroutine_continuation_factory")

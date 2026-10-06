@@ -62,6 +62,136 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
     }
 }
 
+/// KUU-1387: content identity of a `CoroutineContext` object. Ambient-context
+/// readers (`coroutineContext`, `currentCoroutineContext()`,
+/// `continuation.context`) must return the same object whenever the same
+/// logical context is in force — Kotlin's property contract returns the
+/// continuation's one fixed context on every access (JVM), so repeated reads
+/// are `===`- and `==`-stable.
+private struct RuntimeCoroutineContextIdentity: Hashable {
+    let dispatcher: Int
+    let dispatcherHandleRaw: Int
+    let name: String?
+    let nameHandleRaw: Int
+    let exceptionHandlerRaw: Int
+    let jobHandleRaw: Int
+
+    init(
+        dispatcher: Int,
+        dispatcherHandleRaw: Int,
+        name: String?,
+        nameHandleRaw: Int,
+        exceptionHandler: RuntimeExceptionHandlerBox?,
+        jobHandleRaw: Int
+    ) {
+        self.dispatcher = dispatcher
+        self.dispatcherHandleRaw = dispatcherHandleRaw
+        self.name = name
+        self.nameHandleRaw = nameHandleRaw
+        self.exceptionHandlerRaw = exceptionHandler.map {
+            Int(bitPattern: Unmanaged.passUnretained($0).toOpaque())
+        } ?? 0
+        self.jobHandleRaw = jobHandleRaw
+    }
+
+    init(_ context: RuntimeCoroutineContext) {
+        self.init(
+            dispatcher: context.dispatcher,
+            dispatcherHandleRaw: context.dispatcherHandleRaw,
+            name: context.name,
+            nameHandleRaw: context.nameHandleRaw,
+            exceptionHandler: context.exceptionHandler,
+            jobHandleRaw: context.jobHandleRaw
+        )
+    }
+}
+
+private struct RuntimeWeakCoroutineContext {
+    weak var context: RuntimeCoroutineContext?
+}
+
+/// Canonicalizes `RuntimeCoroutineContext` objects by content identity so every
+/// read of an equal ambient context resolves to the same registered object.
+/// Weak entries let contexts die with their last handle (registered objects are
+/// retained by `runtimeRegisterObject`, so an entry outlives its consumers in
+/// practice and only a never-registered context can drop out early).
+private final class RuntimeCoroutineContextCanonicalizer: @unchecked Sendable {
+    static let shared = RuntimeCoroutineContextCanonicalizer()
+
+    private let lock = NSLock()
+    private var contexts: [RuntimeCoroutineContextIdentity: RuntimeWeakCoroutineContext] = [:]
+
+    func canonical(_ context: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
+        let key = RuntimeCoroutineContextIdentity(context)
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = contexts[key]?.context {
+            return cached
+        }
+        contexts[key] = RuntimeWeakCoroutineContext(context: context)
+        return context
+    }
+
+    func canonical(
+        dispatcher: Int,
+        dispatcherHandleRaw: Int,
+        name: String?,
+        nameHandleRaw: Int,
+        exceptionHandler: RuntimeExceptionHandlerBox?,
+        jobHandleRaw: Int
+    ) -> RuntimeCoroutineContext {
+        let key = RuntimeCoroutineContextIdentity(
+            dispatcher: dispatcher,
+            dispatcherHandleRaw: dispatcherHandleRaw,
+            name: name,
+            nameHandleRaw: nameHandleRaw,
+            exceptionHandler: exceptionHandler,
+            jobHandleRaw: jobHandleRaw
+        )
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = contexts[key]?.context {
+            return cached
+        }
+        let context = RuntimeCoroutineContext(
+            dispatcher: dispatcher,
+            name: name,
+            exceptionHandler: exceptionHandler,
+            jobHandleRaw: jobHandleRaw,
+            nameHandleRaw: nameHandleRaw,
+            dispatcherHandleRaw: dispatcherHandleRaw
+        )
+        contexts[key] = RuntimeWeakCoroutineContext(context: context)
+        return context
+    }
+}
+
+/// The canonical object for `context`'s content — `context` itself when it is
+/// the first object registered under that identity.
+func runtimeCanonicalCoroutineContext(_ context: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
+    RuntimeCoroutineContextCanonicalizer.shared.canonical(context)
+}
+
+/// The canonical object for the given content, creating it only on a miss so
+/// repeated `coroutineContext` reads on an unchanged context allocate nothing.
+func runtimeCanonicalCoroutineContext(
+    dispatcher: Int,
+    dispatcherHandleRaw: Int,
+    name: String?,
+    nameHandleRaw: Int,
+    exceptionHandler: RuntimeExceptionHandlerBox?,
+    jobHandleRaw: Int
+) -> RuntimeCoroutineContext {
+    RuntimeCoroutineContextCanonicalizer.shared.canonical(
+        dispatcher: dispatcher,
+        dispatcherHandleRaw: dispatcherHandleRaw,
+        name: name,
+        nameHandleRaw: nameHandleRaw,
+        exceptionHandler: exceptionHandler,
+        jobHandleRaw: jobHandleRaw
+    )
+}
+
 /// A CoroutineName element wrapping a String name.
 final class RuntimeCoroutineNameBox: @unchecked Sendable {
     let name: String
