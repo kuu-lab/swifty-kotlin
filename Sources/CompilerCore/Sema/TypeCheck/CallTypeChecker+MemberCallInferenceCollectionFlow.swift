@@ -6,7 +6,7 @@ extension CallTypeChecker {
     private static let collectionHOFNames: Set<String> = [
         "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
         "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
-        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
         "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
         "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
         "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
@@ -5866,45 +5866,6 @@ extension CallTypeChecker {
                 if !isSequenceReceiver,
                    bindBundledIterableSourceFunction(typeArguments: [collectionElementType, keyType])
                 {
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                }
-
-            case "scanReduce":
-                guard args.count == 1 else {
-                    ctx.semaCtx.diagnostics.error(
-                        "KSWIFTK-SEMA-0024",
-                        "scanReduce() expects 1 argument (a lambda), but \(args.count) were supplied.",
-                        range: ast.arena.exprRange(id)
-                    )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-                let scanReduceLambdaType = sema.types.make(.functionType(FunctionType(
-                    params: [collectionElementType, collectionElementType],
-                    returnType: collectionElementType
-                )))
-                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: scanReduceLambdaType)
-                if isSequenceReceiver {
-                    resultType = makeSyntheticSequenceType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: collectionElementType
-                    )
-                } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
-                    resultType = sema.types.make(.classType(ClassType(
-                        classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
-                        nullability: .nonNull
-                    )))
-                } else {
-                    resultType = sema.types.anyType
-                }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }

@@ -20,15 +20,18 @@ import Testing
 /// source-backed declaration with a RuntimeSequenceBox receiver should be
 /// redirected is the KSP-441 question RF-LOWER-CALL-014 owns.  They are pinned
 /// here too, so that task changes them deliberately rather than by accident.
+///
+/// KUU-1393 removed `scanReduce` entirely — it is not a Kotlin stdlib API —
+/// leaving ten unguarded names.
 @Suite
 struct ListAccumulationSourcePreservationTests {
-    /// The eleven callees RF-LOWER-CALL-009 dropped from the preserve allowlist.
+    /// The ten callees RF-LOWER-CALL-009 dropped from the preserve allowlist.
+    /// (`scanReduce` was removed in KUU-1393; it is not a Kotlin stdlib API.)
     private static let unguardedAccumulationCallees: Set<String> = [
         "fold", "foldIndexed", "foldRight", "foldRightIndexed",
         "reduce", "reduceOrNull",
         "reduceRight", "reduceRightOrNull",
         "reduceRightIndexed", "reduceRightIndexedOrNull",
-        "scanReduce",
     ]
 
     /// The eight callees still short-circuited, for RF-LOWER-CALL-014.
@@ -53,7 +56,6 @@ struct ListAccumulationSourcePreservationTests {
         val h = xs.reduceRightOrNull { v, acc -> v + acc }
         val i = xs.reduceRightIndexed { idx, v, acc -> acc + idx + v }
         val j = xs.reduceRightIndexedOrNull { idx, v, acc -> acc + idx + v }
-        val k = xs.scanReduce { acc, v -> acc + v }
         val l = xs.scan(0) { acc, v -> acc + v }
         val m = xs.scanIndexed(0) { i2, acc, v -> acc + i2 + v }
         val n = xs.runningFold(0) { acc, v -> acc + v }
@@ -76,8 +78,7 @@ struct ListAccumulationSourcePreservationTests {
         val e = xs.reduce { acc, v -> acc + v }
         val f = xs.reduceRight { v, acc -> v + acc }
         val g = xs.reduceRightIndexed { idx, v, acc -> acc + idx + v }
-        val h = xs.scanReduce { acc, v -> acc + v }.size
-        return a + b + c + d + e + f + g + h
+        return a + b + c + d + e + f + g
     }
 
     fun main() {
@@ -138,9 +139,9 @@ struct ListAccumulationSourcePreservationTests {
         return try #require(captured)
     }
 
-    // MARK: - the eleven names dropped from the allowlist
+    // MARK: - the ten names dropped from the allowlist
 
-    /// Each of the eleven survives the pass as a resolved source call.  If a
+    /// Each of the ten survives the pass as a resolved source call.  If a
     /// future rewrite branch claims one of these names, this fails instead of
     /// silently redirecting a bundled Kotlin declaration to a runtime bridge.
     @Test
@@ -202,7 +203,7 @@ struct ListAccumulationSourcePreservationTests {
         #expect(
             survivors == [
                 "fold", "foldIndexed", "foldRight", "foldRightIndexed",
-                "reduce", "reduceRight", "reduceRightIndexed", "scanReduce",
+                "reduce", "reduceRight", "reduceRightIndexed",
             ],
             "survivors: \(survivors.sorted())"
         )

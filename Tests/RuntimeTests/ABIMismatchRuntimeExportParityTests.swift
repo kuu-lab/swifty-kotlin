@@ -185,7 +185,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_list_runningReduceIndexed",
             "kk_list_scan",
             "kk_list_scanIndexed",
-            "kk_list_scanReduce",
             // KSP-426: source-backed in ListSortingHOF.kt / ListExtremaHOF.kt;
             // retained only in RuntimeABISpec and test-only compatibility shims.
             "kk_list_max",
