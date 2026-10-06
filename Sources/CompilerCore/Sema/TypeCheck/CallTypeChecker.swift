@@ -1703,7 +1703,7 @@ final class CallTypeChecker {
         var memberExtensionReceiverMarks: [SymbolID: SymbolID] = [:]
         var callInvisible: [SemanticSymbol] = []
         if let calleeName {
-            let allCallCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+            let allCallCandidates = scopeCallCandidatesConsideringImplicitReceivers(named: calleeName, ctx: ctx).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
