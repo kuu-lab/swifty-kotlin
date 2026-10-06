@@ -29,6 +29,37 @@ private let randomAccessRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.RandomAccess"
 )
 
+// View identities preserve interface conformance without claiming ArrayList identity.
+private let listViewRuntimeTypeIDs: [Int64] = (0..<4).map { flags in
+    let mutable = flags & 1 != 0
+    let randomAccess = flags & 2 != 0
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKListView\(flags)")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutable ? mutableListRuntimeTypeID : listRuntimeTypeID)
+    if mutable {
+        runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: runtimeMutableCollectionInterfaceTypeID)
+    }
+    if randomAccess {
+        runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: randomAccessRuntimeTypeID)
+    }
+    return id
+}
+
+func runtimeListViewTypeID(mutable: Bool, randomAccess: Bool) -> Int64 {
+    listViewRuntimeTypeIDs[(mutable ? 1 : 0) | (randomAccess ? 2 : 0)]
+}
+
+private func runtimeListHasConformance(_ raw: Int, to typeID: Int64) -> Bool {
+    guard let sourceTypeID = runtimeObjectTypeID(rawValue: raw) else { return false }
+    return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: typeID)
+}
+
+func runtimeSubListTypeID(_ raw: Int) -> Int64 {
+    runtimeListViewTypeID(
+        mutable: runtimeListHasConformance(raw, to: mutableListRuntimeTypeID),
+        randomAccess: runtimeListHasConformance(raw, to: randomAccessRuntimeTypeID)
+    )
+}
+
 let arrayListRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.ArrayList")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
