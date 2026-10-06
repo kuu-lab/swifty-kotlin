@@ -385,8 +385,8 @@ extension MemberLowerer {
 
     /// Lower a property getter or setter body as a synthetic KIR function.
     ///
-    /// Getter signature: `(<receiver>) -> PropertyType`
-    /// Setter signature: `(<receiver>, value: PropertyType) -> Unit`
+    /// Getter signature: `([dispatch,] receiver) -> PropertyType`
+    /// Setter signature: `([dispatch,] receiver, value: PropertyType) -> Unit`
     func lowerAccessorBody(
         accessorBody: FunctionBody,
         propertySymbol: SymbolID,
@@ -414,10 +414,32 @@ extension MemberLowerer {
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
         var params: [KIRParameter] = []
 
+        // Member extensions carry dispatch first, then extension (bare `this`).
+        var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
+        if extensionReceiverType != nil,
+           let ownerSymbol,
+           let ownerInfo = sema.symbols.symbol(ownerSymbol),
+           [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+        {
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: ownerSymbol, args: [], nullability: .nonNull
+            )))
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+            let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+            params.append(KIRParameter(symbol: receiverSymbol, type: ownerType))
+            driver.ctx.setLocalValue(receiverExpr, for: receiverSymbol)
+            driver.ctx.setLocalValue(receiverExpr, for: ownerSymbol)
+            driver.ctx.setLocalDeclaredType(ownerType, for: ownerSymbol)
+            driver.ctx.setQualifiedThisReceiver(receiverExpr, for: ownerInfo.name)
+            driver.ctx.setCapturedOuterReceiver(receiverExpr, for: ownerSymbol)
+            dispatchReceiverBinding = (receiverSymbol, receiverExpr)
+        }
+
         // Add receiver parameter for extension properties or member properties.
         if let receiverType = extensionReceiverType {
             let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
             params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+            driver.ctx.setLocalDeclaredType(receiverType, for: receiverSymbol)
             driver.ctx.setImplicitReceiver(
                 symbol: receiverSymbol,
                 exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
@@ -461,6 +483,9 @@ extension MemberLowerer {
         }
 
         var body: KIRLoweringEmitContext = [.beginBlock]
+        if let dispatchReceiverBinding {
+            body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
+        }
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }

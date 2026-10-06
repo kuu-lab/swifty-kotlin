@@ -126,10 +126,10 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
     let interfaceSlot = 0
     _ = kk_object_register_itable_iface(rawValue, Int(kCallableRuntimeTypeID), interfaceSlot)
     _ = kk_object_register_itable_method(
-        rawValue, interfaceSlot, 6, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
+        rawValue, interfaceSlot, 7, unsafeBitCast(runtimeKCallableNameGetter, to: Int.self)
     )
     _ = kk_object_register_itable_method(
-        rawValue, interfaceSlot, 8, unsafeBitCast(runtimeKCallableReturnTypeGetter, to: Int.self)
+        rawValue, interfaceSlot, 9, unsafeBitCast(runtimeKCallableReturnTypeGetter, to: Int.self)
     )
     let call: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, arguments, thrown in
         __kk_kcallable_call(raw, arguments, thrown)

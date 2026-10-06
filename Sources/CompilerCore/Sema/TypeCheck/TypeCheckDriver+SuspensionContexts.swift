@@ -57,7 +57,7 @@ extension TypeCheckDriver {
             if !allowed {
                 for name in suspendingCallNames(for: id) {
                     diagnostics.error(
-                        "KSWIFTK-SEMA-0307",
+                        "KSWIFTK-SEMA-0308",
                         "Suspend function '\(name)' can only be called from a coroutine or another suspend function.",
                         range: ast.arena.exprRange(id)
                     )

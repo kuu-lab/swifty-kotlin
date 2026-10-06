@@ -28,7 +28,7 @@ struct SuspendCallContextTests {
         """)
         let errors = result.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 2, "\(result.diagnostics)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0307" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" })
         #expect(errors.allSatisfy { $0.primaryRange != nil })
     }
 
@@ -47,7 +47,7 @@ struct SuspendCallContextTests {
             "test".ext()
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 5, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 5, "\(result.diagnostics)")
     }
 
     @Test
@@ -97,7 +97,7 @@ struct SuspendCallContextTests {
             suspend fun localSuspend() = sf()
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 3, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 3, "\(result.diagnostics)")
     }
 
     @Test
@@ -118,7 +118,7 @@ struct SuspendCallContextTests {
             }
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 6, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 6, "\(result.diagnostics)")
     }
 
     @Test
@@ -132,7 +132,7 @@ struct SuspendCallContextTests {
         fun bad(a: Operand) { a + a; a[0]; a combine a }
         suspend fun good(a: Operand) { a + a; a[0]; a combine a }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 3, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 3, "\(result.diagnostics)")
     }
 
     @Test
@@ -156,7 +156,7 @@ struct SuspendCallContextTests {
             for (value in values) { println(value) }
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 2, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 2, "\(result.diagnostics)")
     }
 
     @Test
@@ -177,7 +177,7 @@ struct SuspendCallContextTests {
             for ((b) in values) {}
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 2, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 2, "\(result.diagnostics)")
     }
 
     @Test
@@ -195,6 +195,6 @@ struct SuspendCallContextTests {
             val stored = { direct { sf() } }
         }
         """)
-        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0307" }.count == 4, "\(result.diagnostics)")
+        #expect(result.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0308" }.count == 4, "\(result.diagnostics)")
     }
 }

@@ -1,3 +1,5 @@
+import Foundation
+
 extension LambdaLowerer {
     func registerCallableReflection(
         value: KIRExprID,
@@ -9,6 +11,7 @@ extension LambdaLowerer {
         captures: [KIRExprID],
         receiverCount: Int,
         setterSymbol: SymbolID? = nil,
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -125,6 +128,45 @@ extension LambdaLowerer {
             arguments: [value, invoker, environment, parameterList, typeParameterList, integer(flags), integer(visibility), setter, setterParameters],
             result: nil, canThrow: false, thrownResult: nil
         ))
+        if let targetSymbol {
+            emitKClassAnnotationRegistration(
+                objectSymbol: targetSymbol, typeTokenExpr: value, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions,
+                registrationCallee: "__kk_kcallable_register_single_annotation",
+                annotations: runtimeCallableAnnotations(for: targetSymbol, ast: ast, sema: sema, interner: interner)
+            )
+        }
+    }
+
+    private func runtimeCallableAnnotations(
+        for symbol: SymbolID, ast: ASTModule, sema: SemaModule, interner: StringInterner
+    ) -> [MetadataAnnotationRecord] {
+        let file = sema.symbols.sourceFileID(for: symbol).flatMap { ast.file(for: $0) }
+        return sema.symbols.annotations(for: symbol).filter { annotation in
+            let annotationSymbol = file.flatMap {
+                resolveAnnotationSymbol(named: annotation.annotationFQName, in: $0, symbols: sema.symbols, interner: interner)
+            } ?? sema.symbols.lookup(fqName: annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) })
+            guard let annotationSymbol else { return true }
+            let annotationFile = sema.symbols.sourceFileID(for: annotationSymbol).flatMap { ast.file(for: $0) }
+            let retention = sema.symbols.annotations(for: annotationSymbol).first { meta in
+                if meta.annotationFQName == "kotlin.annotation.Retention" { return true }
+                guard let annotationFile,
+                      let metaSymbol = resolveAnnotationSymbol(named: meta.annotationFQName, in: annotationFile,
+                                                               symbols: sema.symbols, interner: interner) else { return false }
+                return sema.symbols.symbol(metaSymbol)?.fqName.map(interner.resolve) == ["kotlin", "annotation", "Retention"]
+            }
+            guard let argument = retention?.arguments.first else { return true }
+            let value = argument.split(separator: "=", maxSplits: 1).last.map(String.init) ?? argument
+            var entry = value.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ".").last.map(String.init)
+            if let entryName = entry, let annotationFile,
+               let imported = annotationFile.imports.first(where: {
+                   $0.alias.map(interner.resolve) == entryName
+                       && $0.path.dropLast().map(interner.resolve) == ["kotlin", "annotation", "AnnotationRetention"]
+               }), let importedEntry = imported.path.last {
+                entry = interner.resolve(importedEntry)
+            }
+            return entry != "SOURCE" && entry != "BINARY"
+        }
     }
 
     private func callableReflectionInvoker(

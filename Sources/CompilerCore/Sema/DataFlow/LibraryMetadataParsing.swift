@@ -153,6 +153,7 @@ extension DataFlowSemaPhase {
                 isSuspend: metadataRecord.isSuspend,
                 isInline: metadataRecord.isInline,
                 isOperator: metadataRecord.isOperator,
+                isInfix: metadataRecord.isInfix,
                 isOverride: metadataRecord.isOverride,
                 isMemberExtension: metadataRecord.isMemberExtension,
                 receiverOwnerFQName: receiverOwnerFQName,

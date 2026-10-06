@@ -693,6 +693,12 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-SEMA-0307",
             pass: "SEMA",
             defaultSeverity: .error,
+            summary: "Infix notation requires the infix modifier."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0308",
+            pass: "SEMA",
+            defaultSeverity: .error,
             summary: "Suspend function can only be called from a coroutine or another suspend function."
         ),
         DiagnosticDescriptor(

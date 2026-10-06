@@ -5,6 +5,21 @@ import Testing
 @Suite
 struct StandaloneClassReferenceTests {
 
+    @Test func testDeepQualifiedClassLiteralDoesNotEmitConstructorCalls() throws {
+        let ctx = makeContextFromSource("""
+        package Sample.deep
+        class Outer { class Nested(val value: Int) { class Deep(val value: Int) } }
+        fun main() { println(Outer.Nested.Deep::class) }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_kclass_create"))
+        #expect(!callees.contains { $0.contains("<init>") })
+    }
+
     @Test func testStandaloneReifiedClassRefEmitsKClassCreate() throws {
         let source = """
         inline fun <reified T> classOf(): Any = T::class

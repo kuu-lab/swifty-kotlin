@@ -3,7 +3,7 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
  *
  * Derived from kotlinx-io core/jvm/src/SourcesJvm.kt (tag 0.9.1). Only `Source.asInputStream()`
- * is ported; upstream's `Source.readString`/`readAtMostTo(ByteBuffer)`/`asByteChannel` depend on
+ * and charset-aware `Source.readString` are ported; `readAtMostTo(ByteBuffer)`/`asByteChannel` depend on
  * not-yet-ported APIs. The synthetic `java.io` stream stubs cannot be subclassed from Kotlin
  * source, so the adapter drains eagerly into a `ByteArrayInputStream` instead of returning
  * upstream's lazily-reading `InputStream` subclass.
@@ -11,6 +11,26 @@
 package kotlinx.io
 
 import java.io.InputStream
+import kotlin.text.Charset
+
+/** Decodes all remaining bytes using [charset]. */
+public fun Source.readString(charset: Charset): String {
+    request(Long.MAX_VALUE)
+    return buffer.readStringWithCharset(buffer.size, charset)
+}
+
+/** Decodes exactly [byteCount] bytes using [charset], throwing on premature exhaustion. */
+public fun Source.readString(byteCount: Long, charset: Charset): String {
+    require(byteCount)
+    return buffer.readStringWithCharset(byteCount, charset)
+}
+
+private fun Buffer.readStringWithCharset(byteCount: Long, charset: Charset): String {
+    if (byteCount < 0L || byteCount > Int.MAX_VALUE.toLong()) {
+        throw IllegalArgumentException("byteCount ($byteCount) is not within the range [0..${Int.MAX_VALUE}]")
+    }
+    return String(readByteArray(byteCount.toInt()), charset)
+}
 
 /**
  * Returns an input stream that reads from this source.

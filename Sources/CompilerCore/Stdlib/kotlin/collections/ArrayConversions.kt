@@ -195,6 +195,7 @@ public fun FloatArray.sliceArray(indices: Collection<Int>): FloatArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UByteArray.sliceArray(indices: Collection<Int>): UByteArray {
     val result = UByteArray(indices.size)
     var targetIndex = 0
@@ -204,6 +205,7 @@ public fun UByteArray.sliceArray(indices: Collection<Int>): UByteArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UShortArray.sliceArray(indices: Collection<Int>): UShortArray {
     val result = UShortArray(indices.size)
     var targetIndex = 0
@@ -213,6 +215,7 @@ public fun UShortArray.sliceArray(indices: Collection<Int>): UShortArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UIntArray.sliceArray(indices: Collection<Int>): UIntArray {
     val result = UIntArray(indices.size)
     var targetIndex = 0
@@ -222,6 +225,7 @@ public fun UIntArray.sliceArray(indices: Collection<Int>): UIntArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun ULongArray.sliceArray(indices: Collection<Int>): ULongArray {
     val result = ULongArray(indices.size)
     var targetIndex = 0
@@ -262,15 +266,19 @@ public fun DoubleArray.sliceArray(indices: IntRange): DoubleArray =
 public fun FloatArray.sliceArray(indices: IntRange): FloatArray =
     if (indices.start > indices.endInclusive) FloatArray(0) else copyOfRange(indices.start, indices.endInclusive + 1)
 
+@ExperimentalUnsignedTypes
 public fun UByteArray.sliceArray(indices: IntRange): UByteArray =
     if (indices.start > indices.endInclusive) UByteArray(0) else copyOfRange(indices.start, indices.endInclusive + 1)
 
+@ExperimentalUnsignedTypes
 public fun UShortArray.sliceArray(indices: IntRange): UShortArray =
     if (indices.start > indices.endInclusive) UShortArray(0) else copyOfRange(indices.start, indices.endInclusive + 1)
 
+@ExperimentalUnsignedTypes
 public fun UIntArray.sliceArray(indices: IntRange): UIntArray =
     if (indices.start > indices.endInclusive) UIntArray(0) else copyOfRange(indices.start, indices.endInclusive + 1)
 
+@ExperimentalUnsignedTypes
 public fun ULongArray.sliceArray(indices: IntRange): ULongArray =
     if (indices.start > indices.endInclusive) ULongArray(0) else copyOfRange(indices.start, indices.endInclusive + 1)
 
@@ -383,6 +391,7 @@ public fun FloatArray.reversedArray(): FloatArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UByteArray.reversedArray(): UByteArray {
     val length = __kkUByteArraySize(this)
     if (length == 0) return this
@@ -395,6 +404,7 @@ public fun UByteArray.reversedArray(): UByteArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UShortArray.reversedArray(): UShortArray {
     val length = __kkUShortArraySize(this)
     if (length == 0) return this
@@ -407,6 +417,7 @@ public fun UShortArray.reversedArray(): UShortArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UIntArray.reversedArray(): UIntArray {
     val length = __kkUIntArraySize(this)
     if (length == 0) return this
@@ -419,6 +430,7 @@ public fun UIntArray.reversedArray(): UIntArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun ULongArray.reversedArray(): ULongArray {
     val length = __kkULongArraySize(this)
     if (length == 0) return this
@@ -538,6 +550,7 @@ public fun FloatArray.toTypedArray(): Array<Float> {
 }
 
 @Suppress("UNCHECKED_CAST")
+@ExperimentalUnsignedTypes
 public fun UByteArray.toTypedArray(): Array<UByte> {
     val length = __kkUByteArraySize(this)
     val result = arrayOfNulls<UByte>(length)
@@ -550,6 +563,7 @@ public fun UByteArray.toTypedArray(): Array<UByte> {
 }
 
 @Suppress("UNCHECKED_CAST")
+@ExperimentalUnsignedTypes
 public fun UShortArray.toTypedArray(): Array<UShort> {
     val length = __kkUShortArraySize(this)
     val result = arrayOfNulls<UShort>(length)
@@ -562,6 +576,7 @@ public fun UShortArray.toTypedArray(): Array<UShort> {
 }
 
 @Suppress("UNCHECKED_CAST")
+@ExperimentalUnsignedTypes
 public fun UIntArray.toTypedArray(): Array<UInt> {
     val length = __kkUIntArraySize(this)
     val result = arrayOfNulls<UInt>(length)
@@ -574,6 +589,7 @@ public fun UIntArray.toTypedArray(): Array<UInt> {
 }
 
 @Suppress("UNCHECKED_CAST")
+@ExperimentalUnsignedTypes
 public fun ULongArray.toTypedArray(): Array<ULong> {
     val length = __kkULongArraySize(this)
     val result = arrayOfNulls<ULong>(length)
@@ -693,6 +709,7 @@ public fun List<Byte>.toByteArray(): ByteArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun List<UByte>.toUByteArray(): UByteArray {
     val size = this.size
     val result = UByteArray(size)
@@ -704,6 +721,7 @@ public fun List<UByte>.toUByteArray(): UByteArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun List<UShort>.toUShortArray(): UShortArray {
     val size = this.size
     val result = UShortArray(size)
@@ -715,8 +733,10 @@ public fun List<UShort>.toUShortArray(): UShortArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun UIntArray.toUIntArray(): UIntArray = copyOf()
 
+@ExperimentalUnsignedTypes
 public fun IntArray.toUIntArray(): UIntArray {
     val result = UIntArray(this.size)
     var i = 0
@@ -727,6 +747,7 @@ public fun IntArray.toUIntArray(): UIntArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun Array<out UInt>.toUIntArray(): UIntArray {
     val size = this.size
     val result = UIntArray(size)
@@ -738,6 +759,7 @@ public fun Array<out UInt>.toUIntArray(): UIntArray {
     return result
 }
 
+@ExperimentalUnsignedTypes
 public fun List<ULong>.toULongArray(): ULongArray {
     val size = this.size
     val result = ULongArray(size)

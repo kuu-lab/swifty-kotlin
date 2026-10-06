@@ -6,9 +6,10 @@ import TestStdlibCache
 
 @Suite
 struct LibMetadataSerializationTests {
-    @Test func memberExtensionFlagSurvivesMetadataRoundTrip() throws {
+    @Test(arguments: [SymbolKind.function, .property])
+    func memberExtensionFlagSurvivesMetadataRoundTrip(kind: SymbolKind) throws {
         let record = MetadataRecord(
-            kind: .function, fqName: "demo.C.sum", isMemberExtension: true,
+            kind: kind, fqName: "demo.C.sum", isMemberExtension: true,
             receiverOwnerFQName: "demo.C", typeSignature: "F1<Ldemo.C;,I>"
         )
         let encoder = MetadataEncoder()

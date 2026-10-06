@@ -3,7 +3,7 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    /// KSP-617: getTime* are bundled Kotlin functions, so user code lowers to a
+    /// KSP-617: getTimeMicros is a bundled Kotlin function, so user code lowers to a
     /// plain Kotlin call — the __kk_system_* bridge is only reached from the
     /// stdlib layer, never inlined into user KIR.
     @Test func testGetTimeMicrosLowersToBundledKotlinCallee() throws {
@@ -21,40 +21,6 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("getTimeMicros"), "Expected a call to the bundled getTimeMicros")
         #expect(!callees.contains("__kk_system_getTimeMicros"), "Bridge must not be called from user KIR")
-    }
-
-    @Test func testGetTimeMillisLowersToBundledKotlinCallee() throws {
-        let source = """
-        import kotlin.system.getTimeMillis
-
-        fun main(): Long = getTimeMillis()
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
-
-        let module = try #require(ctx.kir)
-        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-
-        #expect(callees.contains("getTimeMillis"), "Expected a call to the bundled getTimeMillis")
-        #expect(!callees.contains("__kk_system_getTimeMillis"), "Bridge must not be called from user KIR")
-    }
-
-    @Test func testGetTimeNanosLowersToBundledKotlinCallee() throws {
-        let source = """
-        import kotlin.system.getTimeNanos
-
-        fun main(): Long = getTimeNanos()
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
-
-        let module = try #require(ctx.kir)
-        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-
-        #expect(callees.contains("getTimeNanos"), "Expected a call to the bundled getTimeNanos")
-        #expect(!callees.contains("__kk_system_getTimeNanos"), "Bridge must not be called from user KIR")
     }
 
     @Test func testSystemObjectMembersLowerToBundledKotlinCallees() throws {

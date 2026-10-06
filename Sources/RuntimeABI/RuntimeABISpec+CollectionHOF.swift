@@ -217,6 +217,15 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         )
+        let mutableAsReversedSpec = RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_as_reversed",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        )
         let listSliceTakeDropSpecs = [
             RuntimeABIFunctionSpec(
                 name: "kk_list_take",
@@ -386,7 +395,7 @@ public extension RuntimeABISpec {
         functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                asReversedSpec,
+                asReversedSpec, mutableAsReversedSpec,
                 maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 sortedSpec,

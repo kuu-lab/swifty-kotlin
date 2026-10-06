@@ -13,6 +13,7 @@ package kotlin.reflect
  * The runtime supplies metadata for compiler-generated callable references.
  */
 public interface KCallable<out R> : KAnnotatedElement {
+    public val annotations: List<Annotation>
     public val name: String
     public val parameters: List<KParameter>
     public val returnType: KType

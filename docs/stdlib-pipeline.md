@@ -838,6 +838,13 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1312 adds one private bridge, `__kk_mutable_list_as_reversed` (reason:
+   metadata). Read-only and mutable `asReversed` overloads require distinct runtime
+   view identities even with the same backing list; Kotlin cannot register the
+   native `RuntimeListBox` nominal type. The existing read-only bridge remains,
+   so `__kk_*` increases by one. Scope is limited to mutable reversed-view creation;
+   `RuntimeABISpec.collectionHOFFunctions` registers the ABI and its canonical hash
+   automatically updates `specVersion`.
    KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
    representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
    not Kotlin object slots; the bridge returns their JVM-style text as a flat
@@ -914,3 +921,12 @@ slots. Kotlin receivers retain their resolved overrides and thrown channels.
 for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
 new `__kk_*` entries are memory-representation bridges: native schedulers have
 no source-object layout, and neither bridge implements context-key semantics.
+
+`__kk_dispatcher_named` exposes Default, IO, and Unconfined as named runtime
+objects (KUU-1300), preserving identity after erasure to `Any` without confusing
+integer values with scheduler tags. This adds one internal bridge with reason
+`MEMORY_REPRESENTATION`: native dispatchers have no Kotlin object layout or
+`toString` vtable. Objects resolve to the existing scheduler tags for coroutine
+context operations, retaining the object handle for element identity and fold.
+IO and Unconfined retain their existing Default scheduler compatibility;
+this bridge does not implement a separate IO pool or an unconfined event loop.
