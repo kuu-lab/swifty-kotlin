@@ -245,6 +245,16 @@ extension RuntimeSequenceTests {
         #expect(sequenceElements(seqHandle) == [7, 11])
     }
 
+    @Test(arguments: [1, 4])
+    func testSequenceBuilderYieldAllRange(start: Int) {
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { start, builder, thrown in
+            __kk_sequence_builder_yieldAll_checked(builder, kk_op_rangeTo(start, 3), thrown)
+        }
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self), start)
+        let values = sequenceElements(sequence).map { kk_unbox_int($0) }
+        #expect(values == (start == 1 ? [1, 2, 3] : []))
+    }
+
     @Test
     func testIteratorBuilderBuildCoroYieldsElementsThroughCPSProducer() {
         let entryPoint = unsafeBitCast(cpsIteratorBuilderEntry, to: Int.self)

@@ -190,7 +190,9 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 newFlags: declaration.flags,
                 additionalExisting: scopeExisting,
-                newIsExtensionProperty: newIsExtensionProperty
+                newIsExtensionProperty: newIsExtensionProperty,
+                topLevelVisibility: declaration.visibility,
+                topLevelFileID: file.fileID
             )
         }
         let symbol: SymbolID
@@ -213,7 +215,8 @@ extension DataFlowSemaPhase {
                 declSite: declaration.range,
                 visibility: declaration.visibility,
                 flags: declaration.flags,
-                isExtensionProperty: newIsExtensionProperty
+                isExtensionProperty: newIsExtensionProperty,
+                topLevelFileID: file.fileID
             )
         }
         symbols.setSourceFileID(file.fileID, for: symbol)

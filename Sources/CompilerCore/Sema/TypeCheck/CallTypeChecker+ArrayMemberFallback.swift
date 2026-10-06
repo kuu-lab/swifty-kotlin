@@ -3,6 +3,31 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
+    // Seed nested comparator factories before regular argument inference caches
+    // their selector lambda without the Array receiver's element type (KUU-1248).
+    func contextualizeArrayComparatorArgument(
+        calleeName: InternedString, receiverID: ExprID, receiverType: TypeID,
+        args: [CallArgument], ctx: TypeInferenceContext, locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard interner.resolve(calleeName) == "sortedWith", args.count == 1,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(
+                  sema.types.makeNonNullable(receiverType), sema: sema
+              ),
+              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "Array"],
+              ctx.ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef != true,
+              let comparatorSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"), interner.intern("Comparator"),
+              ])
+        else { return }
+        let elementType = arrayFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
+        let expected = sema.types.make(.classType(ClassType(
+            classSymbol: comparatorSymbol, args: [.in(elementType)], nullability: .nonNull
+        )))
+        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expected)
+    }
+
     // Recheck the callback with the solved accumulator type. Imported generic
     // parameters otherwise survive in lambda locals and lose numeric boxing.
     func contextualizeArrayReduceRightLambda(
@@ -44,6 +69,12 @@ extension CallTypeChecker {
         "contentEquals", "contentHashCode", "contentToString",
         "copyOf", "copyOfRange", "copyInto",
         "indices", "lastIndex", "iterator", "withIndex", "sort",
+        "average", "min", "max", "minOrNull", "maxOrNull",
+        "slice", "zip", "drop", "dropLast", "take", "takeLast",
+        "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
+        "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
+        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
+        "partition", "groupBy", "associate", "associateBy",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [
@@ -58,6 +89,7 @@ extension CallTypeChecker {
         "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
+        "indexOf", "lastIndexOf", "fill", "sortedBy", "sortedWith",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

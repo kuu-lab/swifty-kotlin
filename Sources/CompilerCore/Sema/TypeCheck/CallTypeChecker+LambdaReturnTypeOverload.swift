@@ -183,6 +183,7 @@ extension CallTypeChecker {
                 case .callableRef:
                     contextualArgExpectedTypes[index] = callableReferenceExpectedType(
                         at: index,
+                        argumentLabel: argument.label,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
                         sema: sema
@@ -342,7 +343,7 @@ extension CallTypeChecker {
         )
     }
 
-    private func sourceLevelRangeArgumentType(
+    func sourceLevelRangeArgumentType(
         _ expr: ExprID,
         inferredType: TypeID,
         ctx: TypeInferenceContext
@@ -397,7 +398,8 @@ extension CallTypeChecker {
             range: range,
             calleeName: calleeName,
             args: resolvedArgs,
-            explicitTypeArgs: explicitTypeArgs
+            explicitTypeArgs: explicitTypeArgs,
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
         )
 
         let hasRefinementAnnotation = candidates.contains(where: {
@@ -1317,15 +1319,19 @@ extension CallTypeChecker {
 
     private func callableReferenceExpectedType(
         at index: Int,
+        argumentLabel: InternedString?,
         candidates: [SymbolID],
         explicitTypeArgs: [TypeID] = [],
         sema: SemaModule
     ) -> TypeID? {
         if candidates.count == 1,
            let signature = sema.symbols.functionSignature(for: candidates[0]),
-           index < signature.parameterTypes.count
+           let parameterIndex = parameterIndexForCallArgument(
+               at: index, label: argumentLabel, in: signature, sema: sema
+           ),
+           parameterIndex < signature.parameterTypes.count
         {
-            let rawType = signature.parameterTypes[index]
+            let rawType = signature.parameterTypes[parameterIndex]
             return applyExplicitTypeArgs(
                 to: rawType,
                 signature: signature,
@@ -1338,12 +1344,23 @@ extension CallTypeChecker {
         var matchingParameterTypes: [TypeID] = []
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  index < signature.parameterTypes.count
+                  let parameterIndex = parameterIndexForCallArgument(
+                      at: index, label: argumentLabel, in: signature, sema: sema
+                  ),
+                  parameterIndex < signature.parameterTypes.count
             else {
                 continue
             }
-            let parameterType = signature.parameterTypes[index]
-            if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
+            let parameterType = applyExplicitTypeArgs(
+                to: signature.parameterTypes[parameterIndex],
+                signature: signature,
+                candidate: candidate,
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            if case .functionType = sema.types.kind(of: parameterType) {
+                matchingParameterTypes.append(parameterType)
+            } else if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
                 matchingParameterTypes.append(parameterType)
             }
         }

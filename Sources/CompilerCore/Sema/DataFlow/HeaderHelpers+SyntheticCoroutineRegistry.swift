@@ -1685,7 +1685,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: coroutineContextSymbol,
                 ownerType: coroutineContextType,
                 name: "plus",
-                externalLinkName: "kk_context_plus",
+                externalLinkName: "__kk_context_plus_dispatch",
                 returnType: kotlinCoroutineContextType,
                 parameters: [(name: "context", type: kotlinCoroutineContextType)],
                 flags: [.synthetic, .operatorFunction],

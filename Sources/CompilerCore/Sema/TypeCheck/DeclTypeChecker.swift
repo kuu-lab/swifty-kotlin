@@ -166,12 +166,16 @@ final class DeclTypeChecker {
             }
         }
 
-        // For extension properties, set the implicit receiver type so
-        // that `this` resolves correctly inside getter/setter bodies.
+        // Preserve the extension receiver and its property-name label across
+        // nested receiver lambdas in getter/setter bodies.
         let extRecv = sema.symbols
             .extensionPropertyReceiverType(for: symbol)
         let accessorCtx: TypeInferenceContext = if let extRecv {
-            ctx.copying(implicitReceiverType: extRecv)
+            ctx.copying(implicitReceiverType: extRecv).withOuterReceiver(
+                label: property.name,
+                type: extRecv,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
         } else {
             ctx
         }

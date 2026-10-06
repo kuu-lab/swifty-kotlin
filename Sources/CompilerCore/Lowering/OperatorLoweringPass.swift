@@ -129,12 +129,12 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) {
-        // STDLIB-CORO-077: CoroutineContext + operator -> kk_context_plus
+        // Preserve source overrides for CoroutineContext's + operator.
         if op == .add, isCoroutineContextType(lhs, arena: arena, types: types, interner: interner)
             || isCoroutineContextType(rhs, arena: arena, types: types, interner: interner)
         {
-            let callee = interner.intern("kk_context_plus")
-            newBody.append(.call(symbol: nil, callee: callee, arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil))
+            let callee = interner.intern("__kk_context_plus_dispatch")
+            newBody.append(.call(symbol: nil, callee: callee, arguments: [lhs, rhs], result: result, canThrow: true, thrownResult: nil))
             return
         }
 

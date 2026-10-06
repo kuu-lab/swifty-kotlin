@@ -288,6 +288,16 @@ final class LocalDeclTypeChecker {
         }
         if let member = implicitReceiverMember
         {
+            let (_, invisible) = ctx.filterByVisibility([member.symbol])
+            if let property = invisible.first {
+                driver.helpers.emitVisibilityError(
+                    for: property,
+                    name: interner.resolve(name),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+            }
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
             let propSymbol = ctx.sema.symbols.symbol(member.symbol)

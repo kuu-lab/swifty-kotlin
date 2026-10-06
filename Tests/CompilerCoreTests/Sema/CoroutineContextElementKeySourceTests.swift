@@ -15,6 +15,7 @@ struct CoroutineContextElementKeySourceTests {
             val indexed: Element? = context[Key]
             val explicit: Element? = context.get(Key)
             val removed: CoroutineContext = context.minusKey(Key)
+            val combined: CoroutineContext = context.plus(Element())
         }
         """)
         try runSema(ctx)
@@ -24,7 +25,7 @@ struct CoroutineContextElementKeySourceTests {
             fqName: ["kotlin", "coroutines", "CoroutineContext"].map(ctx.interner.intern)
         ))
         let layout = try #require(sema.symbols.nominalLayout(for: context))
-        for (name, slot) in [("get", 0), ("minusKey", 3)] {
+        for (name, slot) in [("get", 0), ("plus", 2), ("minusKey", 3)] {
             let member = try #require(sema.symbols.lookup(
                 fqName: ["kotlin", "coroutines", "CoroutineContext", name].map(ctx.interner.intern)
             ))

@@ -284,6 +284,20 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // Member extensions infer class parameters from their dispatch receiver;
+        // the extension receiver still constrains the declared receiver type.
+        let memberExtensionOwner = ctx.symbols.memberExtensionOwnerSymbol(for: candidate)
+        let classReceiverType: TypeID? = if let owner = memberExtensionOwner {
+            call.dispatchReceiverTypes.first { receiver in
+                guard case let .classType(receiverClass) = ctx.types.kind(
+                    of: ctx.types.makeNonNullable(receiver)
+                ) else { return false }
+                return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            }
+        } else {
+            implicitReceiverType
+        }
+
         var starProjectedReceiverParameters: Set<SymbolID> = []
         // A nominal member's leading type parameters belong to the declaring
         // class/interface. Constrain them from the dispatch receiver, not an
@@ -292,14 +306,13 @@ extension OverloadResolver {
         // from a Byte/Long argument instead of Int from IntRange, making an
         // inapplicable member steal the call from an exact user extension.
         if !isConstructor,
-           ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
            signature.classTypeParameterCount > 0,
-           let implicitReceiverType,
+           let classReceiverType,
            isNominalMemberFunction(candidate, typeSystem: ctx.types),
            let owner = ctx.symbols.parentSymbol(for: candidate),
-           signature.receiverType == nil || {
+           memberExtensionOwner != nil || signature.receiverType == nil || {
                guard case let .classType(receiverClass) = ctx.types.kind(
-                   of: ctx.types.makeNonNullable(implicitReceiverType)
+                   of: ctx.types.makeNonNullable(classReceiverType)
                ) else {
                    return false
                }
@@ -320,7 +333,7 @@ extension OverloadResolver {
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
-                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                let nonNullReceiverType = ctx.types.makeNonNullable(classReceiverType)
                 guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
                           from: receiverClassType.classSymbol,
@@ -328,7 +341,7 @@ extension OverloadResolver {
                           to: owner
                       )
                 else {
-                    return implicitReceiverType
+                    return classReceiverType
                 }
                 return ctx.types.make(.classType(ClassType(
                     classSymbol: owner,

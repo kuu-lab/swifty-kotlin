@@ -526,6 +526,16 @@ struct NativeEmitter {
                 let sanitized = fqn.map { c in
                     c.isLetter || c.isNumber || c == "_" ? String(c) : "_"
                 }.joined()
+                // Preserve existing library slot names unless distinct file-private
+                // declarations actually share this FQN in the current compilation.
+                if sym.visibility == .private,
+                   !sym.flags.contains(.importedLibrary),
+                   let symbols,
+                   symbols.lookupAll(fqName: sym.fqName).contains(where: { candidate in
+                       candidate != symbol && symbols.symbol(candidate)?.kind == sym.kind
+                   }) {
+                    return "kk_global_root_slot_\(sanitized)_private_\(symbol.rawValue)"
+                }
                 return "kk_global_root_slot_\(sanitized)"
             }
         }

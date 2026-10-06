@@ -35,6 +35,12 @@ extension DeclTypeChecker {
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         var getterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            // Match the property-based receiver parameter used by KIR accessors.
+            getterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
@@ -790,6 +796,11 @@ extension DeclTypeChecker {
             )
         }
         var setterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            setterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (

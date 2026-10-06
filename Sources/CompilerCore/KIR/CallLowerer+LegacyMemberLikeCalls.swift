@@ -366,8 +366,8 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // KUU-1256: Array extensions retain their typed Kotlin call convention.
-        // In particular, an Array receiver must never reach a List zip bridge.
+        // Array and primitive-array extensions retain their typed Kotlin call
+        // convention. Array receivers must never reach a List zip bridge.
         let isSourceBackedArrayIterableCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   sema.symbols.isSourceBackedSymbol(chosenCallee),
@@ -375,7 +375,7 @@ extension CallLowerer {
             else {
                 return false
             }
-            return isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+            return isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
         }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
@@ -2466,7 +2466,7 @@ extension CallLowerer {
                     callee: interner.intern("__kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
-                    canThrow: false,
+                    canThrow: true,
                     thrownResult: nil
                 ))
                 return result

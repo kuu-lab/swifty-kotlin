@@ -483,6 +483,12 @@ extension BuildASTPhase {
             case let .node(childID):
                 let childKind = arena.node(childID).kind
                 if childKind == .propertyAccessor {
+                    // A later accessor child may follow an inline expression
+                    // getter. Its '=' belongs to the getter, not an initializer.
+                    let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+                    if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
+                        return Array(tokens.prefix(idx))
+                    }
                     return tokens
                 }
                 if childKind == .block {

@@ -49,8 +49,26 @@ extension CallLowerer {
         {
             return resolved
         }
-        return resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+        if let receiver = resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
             ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
+        {
+            return receiver
+        }
+        // Imported companion extensions can bind as ordinary member calls,
+        // including property getters. They still need the singleton dispatch
+        // receiver even when no lexical receiver is active.
+        if ownerInfo.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return receiver
+        }
+        return nil
     }
 
     /// Supply the dispatch receiver shared by getter, setter and compound updates.
@@ -63,24 +81,10 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
-        guard let owner = memberExtensionOwnerSymbol(for: accessor, sema: sema) else {
-            return arguments
-        }
         if let receiver = memberExtensionDispatchReceiver(
             for: accessor, callExprID: callExprID, sema: sema, arena: arena,
             interner: interner, instructions: &instructions
         ) {
-            return [receiver] + arguments
-        }
-        if sema.symbols.symbol(owner)?.kind == .object {
-            driver.emitObjectLazyInitGuardIfNeeded(
-                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
-            )
-            let ownerType = sema.types.make(.classType(ClassType(
-                classSymbol: owner, args: [], nullability: .nonNull
-            )))
-            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
-            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
             return [receiver] + arguments
         }
         return arguments
@@ -1204,9 +1208,9 @@ extension CallLowerer {
            let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee),
            let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
-           isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+           isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
         {
-            // KUU-1256: Array zip and user Array extensions use their selected
+            // Array and primitive-array zip extensions use their selected
             // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }

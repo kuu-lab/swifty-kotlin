@@ -26,6 +26,12 @@ extension CallLowerer {
         guard let nominalSymbol = sema.symbols.lookup(fqName: package + [interner.intern(className)]),
             let closedRangeSymbol = sema.symbols.lookup(fqName: package + [interner.intern("ClosedRange")])
         else { return }
+        // Range factories return object handles, even when Sema keeps a scalar
+        // element type for operator and loop inference. Do not box the handle
+        // as an integer at Iterable or cast boundaries.
+        arena.setExprType(sema.types.make(.classType(ClassType(
+            classSymbol: nominalSymbol, args: [], nullability: .nonNull
+        ))), for: objectValue)
         appendObjectItableMethodRegistrations(
             objectValue: objectValue,
             nominalSymbol: nominalSymbol,
