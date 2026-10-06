@@ -3,6 +3,64 @@ import Testing
 
 @Suite
 struct FactoryClassifierResolutionTests {
+    @Test(arguments: ["wildcard", "explicit"], [(false, false), (false, true), (true, false), (true, true)])
+    func importedTypeAnnotationsIgnorePackageFactoryOrder(
+        importKind: String, placement: (factoryFirst: Bool, separateFile: Bool)
+    ) throws {
+        let (factoryFirst, separateFile) = placement
+        let importLine = importKind == "wildcard" ? "import lib.*" : "import lib.Thing\nimport lib.Impl"
+        let factory = "public fun Thing(x: Int = 0): Impl = Impl()"
+        let uses = """
+        public fun useType(t: Thing) {}
+        public fun Thing.ext() {}
+        public fun makeIt(): Thing = Thing()
+        """
+        let header = "package app\n\(importLine)\n"
+        let declarations = "package lib\npublic interface Thing\npublic class Impl : Thing"
+        let ordered = factoryFirst ? [factory, uses] : [uses, factory]
+        let sources = separateFile
+            ? [declarations] + ordered.map { header + $0 }
+            : [declarations, header + ordered.joined(separator: "\n")]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let thing = try #require(sema.symbols.lookup(
+                fqName: ["lib", "Thing"].map(ctx.interner.intern)
+            ))
+            for name in ["useType", "ext", "makeIt"] {
+                let function = try #require(sema.symbols.lookup(
+                    fqName: ["app", name].map(ctx.interner.intern)
+                ))
+                let signature = try #require(sema.symbols.functionSignature(for: function))
+                let type: TypeID
+                switch name {
+                case "useType": type = try #require(signature.parameterTypes.first)
+                case "ext": type = try #require(signature.receiverType)
+                default: type = signature.returnType
+                }
+                guard case let .classType(nominal) = sema.types.kind(of: type) else {
+                    Issue.record("Expected imported Thing in \(name)")
+                    continue
+                }
+                #expect(nominal.classSymbol == thing)
+            }
+            let ast = try #require(ctx.ast)
+            let usesPath = paths[separateFile && factoryFirst ? 2 : 1]
+            let call = try #require(firstExprID(in: ast, path: usesPath, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee) else { return false }
+                return name == ctx.interner.intern("Thing")
+            })
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            let callee = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(callee.kind == .function)
+            #expect(callee.fqName == ["app", "Thing"].map(ctx.interner.intern))
+        }
+    }
+
     @Test(arguments: [false, true])
     func sameNamedFactoryDoesNotMakeInstanceMembersStatic(factoryFirst: Bool) throws {
         let classifier = "class Foo(val x: Int) { fun tag() = x }"
