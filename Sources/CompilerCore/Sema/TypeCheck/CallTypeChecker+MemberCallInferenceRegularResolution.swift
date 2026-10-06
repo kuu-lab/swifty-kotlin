@@ -105,8 +105,15 @@ extension CallTypeChecker {
                     expectedType: sema.types.ulongType
                 )
             }
-            let inferredType = sema.bindings.exprType(for: arg.expr)
-                ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            // Speculative declaration checks can leave a name reference bound
+            // to a placeholder type. Read its current local/member type again.
+            let inferredType: TypeID
+            if case .nameRef = ast.arena.expr(arg.expr) {
+                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            } else {
+                inferredType = sema.bindings.exprType(for: arg.expr)
+                    ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            }
             if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(
                    arg.expr,
@@ -278,7 +285,8 @@ extension CallTypeChecker {
                 case .class, .interface, .enumClass, .annotationClass:
                     return receiverSymbolID
                 default:
-                    break
+                    // A resolved value must not fall back to a same-named imported classifier.
+                    return nil
                 }
             }
             if case let .nameRef(receiverName, _) = ast.arena.expr(receiverID) {
@@ -835,31 +843,26 @@ extension CallTypeChecker {
         var allCandidates: [SymbolID]
         if isClassNameReceiver {
             // Class-name receiver: only companion members are valid targets.
-            // Skip collectMemberFunctionCandidates which would find instance
-            // methods and shadow companion members of the same name.
+            // Search from the companion, rather than the owner class, so its
+            // inherited members are included without exposing owner instances.
             if let ownerNominal = classNameReceiverNominalSymbol,
-               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal),
-               let companionSym = sema.symbols.symbol(companionSymbol)
+               let companionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
             {
-                let companionMemberFQName = companionSym.fqName + [calleeName]
+                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
                 // Try companion property access when no arguments are provided
                 // (e.g. Foo.MAX_COUNT).  When args are present this is a function
                 // call, so skip the property short-circuit to avoid shadowing a
                 // companion function of the same name.
                 if args.isEmpty {
-                    let propertyCandidate = sema.symbols.lookupAll(fqName: companionMemberFQName).first(where: { cid in
-                        guard let sym = sema.symbols.symbol(cid),
-                              sym.kind == .property,
-                              sema.symbols.parentSymbol(for: cid) == companionSymbol
-                        else {
-                            return false
-                        }
-                        return true
-                    })
-                    if let propSymbol = propertyCandidate,
-                       let propType = sema.symbols.propertyType(for: propSymbol)
+                    if let propResult = driver.helpers.lookupMemberProperty(
+                        named: calleeName,
+                        receiverType: companionTypeForExtensionLookup,
+                        sema: sema
+                    )
                     {
+                        let propSymbol = propResult.symbol
+                        let propType = propResult.type
                         // Check visibility before returning the property.
                         if let propSym = sema.symbols.symbol(propSymbol),
                            !ctx.visibilityChecker.isAccessible(
@@ -885,8 +888,7 @@ extension CallTypeChecker {
                             diagnostics: ctx.semaCtx.diagnostics
                         )
                         // Re-bind receiver to companion type for correct KIR lowering
-                        let compType = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
-                        sema.bindings.bindExprType(receiverID, type: compType)
+                        sema.bindings.bindExprType(receiverID, type: companionTypeForExtensionLookup)
                         sema.bindings.bindIdentifier(id, symbol: propSymbol)
                         sema.bindings.bindExprType(id, type: propType)
                         return propType
@@ -911,18 +913,12 @@ extension CallTypeChecker {
                 }
 
                 // Then try companion function candidates
-                var companionCandidates: [SymbolID] = []
-                for candidate in sema.symbols.lookupAll(fqName: companionMemberFQName) {
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          sema.symbols.parentSymbol(for: candidate) == companionSymbol,
-                          sema.symbols.functionSignature(for: candidate) != nil
-                    else {
-                        continue
-                    }
-                    companionCandidates.append(candidate)
-                }
-                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                var companionCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName,
+                    receiverType: companionTypeForExtensionLookup,
+                    sema: sema,
+                    interner: interner
+                )
                 // Precompiled library extensions are not inserted into
                 // file scopes, because their receiver is resolved during
                 // member-call inference. Recover those synthetic
@@ -949,7 +945,7 @@ extension CallTypeChecker {
                     // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
                     // written as Kotlin source at package scope. These are resolved
                     // via scope lookup (like ordinary extension functions), not the
-                    // direct-member FQName lookup above.
+                    // companion member lookup above.
                     companionCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
                         guard let symbol = ctx.cachedSymbol(candidate),
                               symbol.kind == .function,
@@ -1149,6 +1145,7 @@ extension CallTypeChecker {
             let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             )
@@ -1949,11 +1946,11 @@ extension CallTypeChecker {
         // prevents the array resolver from binding the source overload.
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
-            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
             && !collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             ).isEmpty
@@ -1966,7 +1963,7 @@ extension CallTypeChecker {
             || isUniqueIteratorSource
             || isListSourceBackedMember
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
@@ -2614,6 +2611,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
@@ -2720,6 +2718,7 @@ extension CallTypeChecker {
         let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: nonNullReceiverForScope,
+            ctx: ctx,
             sema: sema,
             interner: interner
         )
@@ -3171,11 +3170,11 @@ extension CallTypeChecker {
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
-            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
             && !collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             ).isEmpty
@@ -3187,7 +3186,7 @@ extension CallTypeChecker {
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
@@ -3380,6 +3379,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(

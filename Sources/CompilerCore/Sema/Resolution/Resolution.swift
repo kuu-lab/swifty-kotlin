@@ -735,10 +735,23 @@ extension OverloadResolver {
                 ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
                 : inferredArgType
 
-            // A spread argument contributes the element type of its array to
-            // the vararg parameter. Recover that type when possible so
-            // overloads such as `split(*arrayOf("..."))` and
-            // `split(*charArrayOf('...'))` are distinguished by the resolver.
+            if arg.label != nil, isVararg[paramIndex] {
+                // A named vararg argument supplies the whole array, even without `*`.
+                guard let elementType = namedVarargArgumentElementType(
+                    argType, parameterType: paramType, sema: sema
+                ) else {
+                    return false
+                }
+                constraints.append(contentsOf: decomposeSubtypeConstraint(
+                    subtype: elementType,
+                    supertype: paramType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: call.range
+                ))
+                continue
+            }
+            // Recover spread element types to distinguish array overloads.
             // Keep the historical unconstrained fallback for synthetic or
             // incomplete test types whose array shape cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
@@ -813,9 +826,33 @@ extension OverloadResolver {
     }
 
     /// Returns the source-level element type represented by a spread argument.
+    private func namedVarargArgumentElementType(
+        _ type: TypeID,
+        parameterType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard sema.types.nullability(of: type) != .nullable,
+              let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let interner = sema.interner
+        else {
+            return nil
+        }
+        // Primitive varargs require their primitive array; reference, nullable
+        // primitive, and generic varargs require Array<out T>.
+        let arrayName: String
+        if case let .primitive(primitive, .nonNull) = sema.types.kind(of: parameterType) {
+            arrayName = primitive.kotlinName + "Array"
+        } else {
+            arrayName = "Array"
+        }
+        guard symbol.fqName == [interner.intern("kotlin"), interner.intern(arrayName)] else {
+            return nil
+        }
+        return spreadArgumentElementType(type, sema: sema)
+    }
+
     /// Generic `Array<T>`/collection types carry the element in their first type
-    /// argument; primitive arrays (notably `CharArray`) require the interner to
-    /// identify the nominal class.
+    /// argument; primitive arrays require the interner to identify the class.
     private func spreadArgumentElementType(_ type: TypeID, sema: SemaModule) -> TypeID? {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
@@ -1092,16 +1129,19 @@ extension OverloadResolver {
         _ symbol: SymbolID,
         typeSystem: TypeSystem
     ) -> Bool {
-        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
-              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        guard let symbols = typeSystem.symbolTable,
+              let declaration = symbols.symbol(symbol),
+              let parentID = symbols.parentSymbol(for: symbol),
+              let parent = symbols.symbol(parentID),
+              declaration.fqName == parent.fqName + [declaration.name]
         else {
             return false
         }
-        return parentKind == .class
-            || parentKind == .interface
-            || parentKind == .object
-            || parentKind == .enumClass
-            || parentKind == .annotationClass
+        return parent.kind == .class
+            || parent.kind == .interface
+            || parent.kind == .object
+            || parent.kind == .enumClass
+            || parent.kind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.
@@ -1306,12 +1346,17 @@ extension OverloadResolver {
             if !lhsSubRhs {
                 // Kotlin's literal-specific widening order is not subtyping:
                 // Int is preferred to Byte/Short/Long, and Short to Byte.
-                guard call.args[index].signedIntegerLiteral != nil,
-                      !call.args[index].isSpread,
+                // Unsigned literals follow the same shape: UInt beats
+                // UByte/UShort/ULong, and UShort beats UByte.
+                guard !call.args[index].isSpread,
                       case let .primitive(lhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(lhsParam)),
                       case let .primitive(rhsPrimitive, _) = typeSystem.kind(of: typeSystem.makeNonNullable(rhsParam)),
-                      (lhsPrimitive == .int && [.byte, .short, .long].contains(rhsPrimitive))
-                          || (lhsPrimitive == .short && rhsPrimitive == .byte)
+                      (call.args[index].signedIntegerLiteral != nil
+                          && ((lhsPrimitive == .int && [.byte, .short, .long].contains(rhsPrimitive))
+                              || (lhsPrimitive == .short && rhsPrimitive == .byte)))
+                          || (call.args[index].unsignedIntegerLiteral != nil
+                              && ((lhsPrimitive == .uint && [.ubyte, .ushort, .ulong].contains(rhsPrimitive))
+                                  || (lhsPrimitive == .ushort && rhsPrimitive == .ubyte)))
                 else { return false }
                 sawStrict = true
                 continue

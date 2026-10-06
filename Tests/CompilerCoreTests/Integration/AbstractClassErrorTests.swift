@@ -5,6 +5,91 @@ import Testing
 
 @Suite struct AbstractClassErrorTests {
 
+    @Test(arguments: ["class", "open class", "final class", "object"])
+    func testAbstractMembersInConcreteOwnerAreRejected(owner: String) throws {
+        let ctx = makeContextFromSource("""
+        \(owner) C {
+            abstract fun f(): Int
+            abstract val value: Int
+            abstract var mutable: Int
+        }
+        """)
+        try runSema(ctx)
+
+        for name in ["f", "value", "mutable"] {
+            #expect(ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                    && $0.severity == .error
+                    && $0.message.contains("'\(name)' cannot be abstract")
+            })
+        }
+    }
+
+    @Test func testConcreteAbstractFunctionCallIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        class C {
+            abstract fun f(): Int
+            fun g(): Int = f()
+        }
+        fun main() {
+            println(C().f())
+            println(C().g())
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                && $0.severity == .error
+                && $0.message.contains("'f' cannot be abstract")
+        })
+    }
+
+    @Test func testNestedConcreteClassCannotUseOuterAbstractness() throws {
+        let ctx = makeContextFromSource("""
+        abstract class Outer {
+            class C {
+                abstract fun f(): Int
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                && $0.severity == .error
+                && $0.message.contains("non-abstract class 'Outer.C'")
+        })
+    }
+
+    @Test(arguments: ["abstract class", "sealed class", "interface"])
+    func testAbstractMembersInAbstractOwnerRemainValid(owner: String) throws {
+        let ctx = makeContextFromSource("""
+        \(owner) C {
+            abstract fun f(): Int
+            abstract val value: Int
+            abstract var mutable: Int
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEnumAbstractMemberWithEntryImplementationRemainsValid() throws {
+        let ctx = makeContextFromSource("""
+        enum class C {
+            ENTRY {
+                override fun f(): Int = 42
+            };
+            abstract fun f(): Int
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     private static let abstractErrorSources: [String] = [
         """
         package sample0
@@ -183,13 +268,11 @@ import Testing
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: diagnostics)
             }
 
+            // KUU-984 removed the "abstract class has no abstract members"
+            // warning pass entirely, so nested abstract classes no longer warn.
             let nestedDiagnostics = diagnosticsForPath(paths[4], in: ctx)
             #expect(!nestedDiagnostics.hasError)
-            let warnings = nestedDiagnostics.filter {
-                $0.code == "KSWIFTK-SEMA-ABSTRACT" && $0.severity == .warning
-            }
-            #expect(warnings.count == 1)
-            #expect(warnings.first?.message == "Abstract class 'sealedOuter.Outer.Inner' has no abstract members. Consider removing the 'abstract' modifier.")
+            assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: nestedDiagnostics)
 
             let contractDiagnostics = diagnosticsForPath(paths[5], in: ctx)
             #expect(contractDiagnostics.hasError)

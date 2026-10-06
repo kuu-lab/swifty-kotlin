@@ -6,6 +6,7 @@ public struct ASTArenaSnapshot: Codable {
     public let typeRefs: [TypeRef]
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
+    public let whenSubjectTypeRefs: [ExprID: TypeRefID]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
     public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
     public let explicitCallExpressions: Set<ExprID>
@@ -18,6 +19,7 @@ public struct ASTArenaSnapshot: Codable {
         case typeRefs
         case loopLabels
         case whenSubjectVarNames
+        case whenSubjectTypeRefs
         case lambdaParamTypeRefs
         case callableRefReceiverTypeRefs
         case explicitCallExpressions
@@ -31,6 +33,7 @@ public struct ASTArenaSnapshot: Codable {
         typeRefs: [TypeRef],
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
+        whenSubjectTypeRefs: [ExprID: TypeRefID] = [:],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
         callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
         explicitCallExpressions: Set<ExprID> = [],
@@ -42,6 +45,7 @@ public struct ASTArenaSnapshot: Codable {
         self.typeRefs = typeRefs
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
+        self.whenSubjectTypeRefs = whenSubjectTypeRefs
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
         self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
         self.explicitCallExpressions = explicitCallExpressions
@@ -56,6 +60,9 @@ public struct ASTArenaSnapshot: Codable {
         typeRefs = try container.decode([TypeRef].self, forKey: .typeRefs)
         loopLabels = try container.decode([ExprID: InternedString].self, forKey: .loopLabels)
         whenSubjectVarNames = try container.decode([ExprID: InternedString].self, forKey: .whenSubjectVarNames)
+        whenSubjectTypeRefs = try container.decodeIfPresent(
+            [ExprID: TypeRefID].self, forKey: .whenSubjectTypeRefs
+        ) ?? [:]
         lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
         callableRefReceiverTypeRefs = try container.decodeIfPresent(
             [ExprID: TypeRefID].self,
@@ -134,6 +141,8 @@ public final class ASTArena: @unchecked Sendable {
     private var _loopLabels: [ExprID: InternedString] = [:]
     /// Maps whenExpr IDs to their subject variable name for `when (val x = expr)` syntax.
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
+    /// Preserves explicit type annotations in `when (val x: Type = expr)`.
+    private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
     /// Maps lambdaLiteral expression IDs to their explicit parameter type
     /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
@@ -167,6 +176,7 @@ public final class ASTArena: @unchecked Sendable {
         _typeRefs = snapshot.typeRefs
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
+        _whenSubjectTypeRefs = snapshot.whenSubjectTypeRefs
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
         _callableRefReceiverTypeRefs = snapshot.callableRefReceiverTypeRefs
         _explicitCallExpressions = snapshot.explicitCallExpressions
@@ -183,6 +193,7 @@ public final class ASTArena: @unchecked Sendable {
             typeRefs: _typeRefs,
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
+            whenSubjectTypeRefs: _whenSubjectTypeRefs,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
             callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
             explicitCallExpressions: _explicitCallExpressions,
@@ -381,6 +392,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _whenSubjectVarNames[exprID]
+    }
+
+    public func setWhenSubjectTypeRef(_ typeRef: TypeRefID, for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _whenSubjectTypeRefs[exprID] = typeRef
+    }
+
+    public func whenSubjectTypeRef(for exprID: ExprID) -> TypeRefID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _whenSubjectTypeRefs[exprID]
     }
 
     public func setLambdaParamTypeRefs(_ typeRefs: [TypeRefID?], for exprID: ExprID) {

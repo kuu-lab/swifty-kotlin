@@ -1,4 +1,3 @@
-
 struct InlineExpansion {
     let instructions: [KIRInstruction]
     let returnedExpr: KIRExprID?
@@ -171,7 +170,8 @@ final class InlineLoweringPass: LoweringPass {
                    argExpr: callableExpr,
                    arena: module.arena,
                    allFunctionsBySymbol: index.allFunctionsBySymbol,
-                   callerBody: callerBody
+                   callerBody: callerBody,
+                   ctx: ctx
                )
             {
                 guard !ancestry.contains(lambdaFunction.symbol) else {

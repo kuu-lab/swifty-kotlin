@@ -54,6 +54,32 @@ public enum KotlinStringSurrogateEncoding {
         String(decoding: utf16CodeUnits(value), as: UTF16.self)
     }
 
+    /// Decodes to text for process output (stdout/stderr), matching the JDK
+    /// CharsetEncoder convention that unpaired surrogates are emitted as '?'.
+    public static func printableString(_ value: String) -> String {
+        let units = utf16CodeUnits(value)
+        var result = ""
+        result.reserveCapacity(units.count)
+        var index = 0
+        while index < units.count {
+            let unit = UInt32(units[index])
+            if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
+               (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
+            {
+                let low = UInt32(units[index + 1])
+                result.unicodeScalars.append(UnicodeScalar(0x10000 + ((unit - 0xD800) << 10) + low - 0xDC00)!)
+                index += 2
+            } else if (0xD800 ... 0xDFFF).contains(unit) {
+                result.append("?")
+                index += 1
+            } else {
+                result.unicodeScalars.append(UnicodeScalar(unit)!)
+                index += 1
+            }
+        }
+        return result
+    }
+
     public static func utf16CodeUnits(_ value: String) -> [UInt16] {
         Array(UTF16CodeUnits(value))
     }

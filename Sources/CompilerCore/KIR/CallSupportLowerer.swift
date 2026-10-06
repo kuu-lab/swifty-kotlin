@@ -524,6 +524,7 @@ final class CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         sourceArgExprs: [ExprID] = [],
         ast: ASTModule,
         sema: SemaModule,
@@ -545,6 +546,17 @@ final class CallSupportLowerer {
         }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
+        // Named vararg arguments contain arrays and use the same packing path
+        // as explicit spread arguments. Ordinary named parameters remain scalar.
+        var spreadFlags = normalizeBoolFlags(spreadFlags, count: providedArguments.count)
+        for (argIndex, paramIndex) in callBinding.parameterMapping
+            where argumentLabels.indices.contains(argIndex)
+            && argumentLabels[argIndex] != nil
+            && isVararg.indices.contains(paramIndex) && isVararg[paramIndex]
+            && spreadFlags.indices.contains(argIndex)
+        {
+            spreadFlags[argIndex] = true
+        }
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
         let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
             chosenCallee,

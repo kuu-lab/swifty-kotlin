@@ -282,6 +282,7 @@ final class ControlFlowTypeChecker {
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
             range: range, ctx: ctx
         )
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
             let loopVariableSymbol = sema.symbols.define(
@@ -347,6 +348,7 @@ final class ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let boolType = sema.types.booleanType
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &locals, expectedType: boolType)
         driver.emitSubtypeConstraint(
             left: conditionType,
@@ -394,6 +396,7 @@ final class ControlFlowTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let boolType = sema.types.booleanType
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
         var bodyLocals = locals
@@ -436,6 +439,33 @@ final class ControlFlowTypeChecker {
     }
 
     // MARK: - Infinite-loop helpers
+
+    /// Loop-carried writes invalidate assignment facts on later iterations
+    /// and break paths, regardless of the body's final type.
+    func invalidateNullableControlFlowAssignments(_ expression: ExprID, ctx: TypeInferenceContext, locals: inout LocalBindings) {
+        for (name, local) in locals where local.isMutable {
+            guard let declaration = ctx.dataFlow.localDeclarations[local.symbol],
+                  ctx.dataFlow.localStability.isReassigned(declaration, within: expression),
+                  let declaredType = ctx.sema.symbols.propertyType(for: local.symbol),
+                  ctx.sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            locals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
+            locals.invalidateMembers(root: local.symbol)
+        }
+    }
+
+    func mergeNullableBranchAssignments(_ branches: [LocalBindings], sema: SemaModule, locals: inout LocalBindings) {
+        guard !branches.isEmpty else { return }
+        for (name, local) in locals where local.isMutable {
+            guard let declaredType = sema.symbols.propertyType(for: local.symbol),
+                  sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            let types = branches.map { branch in
+                branch[name].flatMap { $0.symbol == local.symbol ? $0.type : nil } ?? declaredType
+            }
+            locals[name] = (sema.types.lub(types), local.symbol, local.isMutable, local.isInitialized)
+        }
+    }
 
     /// Returns true if the condition expression is the boolean literal `true`.
     private func isConstantTrueCondition(_ conditionExpr: ExprID, ast: ASTModule) -> Bool {
@@ -647,10 +677,11 @@ final class ControlFlowTypeChecker {
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
         let thenCtx = ctx.copying(flowState: branch.trueState)
         let thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
+        var elseLocals = locals
+        driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
+        var elseCompletes = true
         let resolvedType: TypeID
         if let elseExpr {
-            var elseLocals = locals
-            driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
             let elseCtx = ctx.copying(flowState: branch.falseState)
             let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             resolvedType = sema.types.lub([thenType, elseType])
@@ -659,7 +690,7 @@ final class ControlFlowTypeChecker {
             // control only reaches the code after the `if` through whichever
             // branch does complete.
             let thenCompletes = thenType != sema.types.nothingType
-            let elseCompletes = elseType != sema.types.nothingType
+            elseCompletes = elseType != sema.types.nothingType
             for (name, local) in locals {
                 if !local.isInitialized {
                     let thenOK = !thenCompletes || (thenLocals[name]?.isInitialized == true && thenLocals[name]?.symbol == local.symbol)
@@ -677,6 +708,26 @@ final class ControlFlowTypeChecker {
                 // path, i.e. the negated condition. Apply that narrowed state so it survives
                 // the fallthrough (P5-66-style narrowing, but for the no-else if statement).
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
+            }
+        }
+        // Retain nullable-local assignment facts only on paths that can
+        // reach the following statement. The implicit else path participates
+        // too, so conditional initialization alone cannot prove non-nullness.
+        for (name, local) in locals where local.isMutable {
+            guard let declaredType = sema.symbols.propertyType(for: local.symbol),
+                  sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            var reachingTypes: [TypeID] = []
+            if thenType != sema.types.nothingType,
+               let thenLocal = thenLocals[name], thenLocal.symbol == local.symbol
+            {
+                reachingTypes.append(thenLocal.type)
+            }
+            if elseCompletes, let elseLocal = elseLocals[name], elseLocal.symbol == local.symbol {
+                reachingTypes.append(elseLocal.type)
+            }
+            if !reachingTypes.isEmpty {
+                locals[name] = (sema.types.lub(reachingTypes), local.symbol, local.isMutable, local.isInitialized)
             }
         }
         sema.bindings.bindExprType(id, type: resolvedType)
@@ -739,6 +790,8 @@ final class ControlFlowTypeChecker {
                 normalCompletionLocals.append(catchLocals)
             }
         }
+
+        mergeNullableBranchAssignments(normalCompletionLocals, sema: sema, locals: &locals)
 
         if let finallyExpr {
             // Finally is always checked for side effects, but it does not participate in try-expr type inference.

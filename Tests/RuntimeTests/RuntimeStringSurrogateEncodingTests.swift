@@ -8,7 +8,7 @@ struct RuntimeStringSurrogateEncodingTests {
     func consoleEncodingReplacesOnlyIsolatedSurrogates() {
         let units: [UInt16] = [0xD800, 0xD83C, 0xDF1F, 0xDC00, 0xD800, 0x0041, 0xDFFF, 0xFFFD, 0xE800, 0xE000]
         let value = runtimeKotlinStringFromUTF16CodeUnits(units)
-        #expect(runtimeConsoleString(value) == "?🌟??A?\u{FFFD}\u{E800}\u{E000}")
+        #expect(KotlinStringSurrogateEncoding.printableString(value) == "?🌟??A?\u{FFFD}\u{E800}\u{E000}")
         #expect(runtimeKotlinStringUTF16CodeUnits(value) == units)
     }
 

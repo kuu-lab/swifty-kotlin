@@ -25,6 +25,7 @@ extension CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> NormalizedCallResult {
@@ -33,6 +34,7 @@ extension CallSupportLowerer {
             callBinding: callBinding,
             chosenCallee: chosenCallee,
             spreadFlags: spreadFlags,
+            argumentLabels: argumentLabels,
             ast: shared.ast,
             sema: shared.sema,
             arena: shared.arena,
@@ -136,8 +138,9 @@ extension CallSupportLowerer {
         // and `kk_op_ne` for primitives. Routing `!=` through `kk_op_ne` here
         // compared object handles by raw word value, so two distinct boxes of
         // the same value compared "not equal".
-        // `===`/`!==` are raw word-equality comparisons — the same primitive
-        // already used for data-object identity checks (see
+        // Remaining `===`/`!==` operands use raw word equality; non-null
+        // Float/Double are handled by lowerBinaryExpr's IEEE path. This is
+        // also the comparison used for data-object identity checks (see
         // appendSyntheticDataObjectEqualsIfNeeded). Reference-typed operands are
         // single-word pointers, so this is a genuine pointer-identity comparison.
         case .identityEqual:

@@ -160,29 +160,11 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
 ]
 
-private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
-    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
-        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
-    })
-}()
-
 private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
     Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
         (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
     })
 }()
-
-private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
-    // Nominal type tokens use the same payload as classID, with the nominal
-    // base and nullability bit encoded around it. KClass metadata therefore
-    // provides the source name for user-defined throwable classes as well.
-    let payloadMask: UInt64 = (1 << 55) - 1
-    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
-    let typeToken = Int(truncatingIfNeeded: tokenBits)
-    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
-        ?? runtimeSourceThrowableSimpleNames[classID]
-        ?? "Throwable"
-}
 
 func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
     // Nominal type tokens use the same payload as classID, with the nominal
@@ -221,17 +203,8 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox, raw: Int) -> String {
-    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
-        return typeName
-    }
-    return "\(typeName): \(message)"
-}
-
-/// Raw stack-frame strings for a single throwable. The runtime only provides
-/// the class-specific header line here; Kotlin-side formatting walks cause and
-/// suppressed chains and adds prefixes (KSP-655).
+/// Header and saved native frames for a single throwable. Kotlin-side
+/// formatting walks cause and suppressed chains and adds their prefixes.
 private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
@@ -240,10 +213,12 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return []
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        return [throwable.renderedMessage]
+        let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+        return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object, raw: throwableRaw)]
+        let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+        return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
     return []
 }
@@ -404,7 +379,7 @@ public func __kk_throwable_toString(
             return tryCast(ptr, to: RuntimeObjectBox.self)
         }
         if let object {
-            typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
+            typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
             message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
@@ -417,43 +392,22 @@ public func __kk_throwable_toString(
     return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
 }
 
-/// Matches the JVM UTF-8 encoder's replacement for malformed UTF-16 at the
-/// console boundary, without changing Kotlin's internal code units.
-func runtimeConsoleString(_ value: String) -> String {
-    var units = KotlinStringSurrogateEncoding.utf16CodeUnits(value)
-    var index = 0
-    while index < units.count {
-        let unit = units[index]
-        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
-           (0xDC00 ... 0xDFFF).contains(units[index + 1])
-        {
-            index += 2
-            continue
-        }
-        if (0xD800 ... 0xDFFF).contains(unit) {
-            units[index] = 0x003F
-        }
-        index += 1
-    }
-    return String(decoding: units, as: UTF16.self)
-}
-
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(runtimeConsoleString(message), terminator: "")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(runtimeConsoleString(message), terminator: "\n")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-    FileHandle.standardError.write(Data(runtimeConsoleString(message).utf8))
+    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
     return 0
 }
 
@@ -1457,11 +1411,21 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     if let set = runtimeSetBox(from: container) {
         return set.contains(rawValue: element) ? 1 : 0
     }
-    // Array check
-    guard let array = runtimeArrayBox(from: container) else {
-        return 0
+    // Array check — `RuntimeObjectBox` subclasses `RuntimeArrayBox`, so plain
+    // `runtimeArrayBox` would also match class instances (whose storage holds
+    // fields, not elements) and wrongly answer `false` for `x in obj`.
+    if let array = runtimeArrayBoxExcludingObjects(from: container) {
+        return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
-    return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
+    // Source-defined collections (e.g. `class C : List<Int> by delegate`)
+    // are not native boxes; dispatch through the object's Collection itable.
+    return runtimeSourceInterfaceCall1(
+        container,
+        element,
+        interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection"),
+        methodSlot: 1,
+        context: "Collection.contains dispatch"
+    ) ?? 0
 }
 
 @_cdecl("kk_array_new")

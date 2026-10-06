@@ -20,6 +20,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
+    /// Already-checked typed when subjects reused by synthesized is/in conditions.
+    /// Keep initializer bindings intact while conditions see the declared variable type.
+    var whenSubjectTypes: [ExprID: TypeID] = [:]
     var implicitReceiverType: TypeID?
     /// Receiver values in lexical order, including shadowed lambda receivers.
     var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
