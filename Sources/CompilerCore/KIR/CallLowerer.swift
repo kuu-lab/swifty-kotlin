@@ -1433,6 +1433,12 @@ final class CallLowerer {
             "__kk_enum_entries_get",
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
+            // KUU-1404: channel send/receive surface terminal status
+            // (closed/cancelled) through the outThrown channel as Kotlin
+            // exceptions (ClosedSendChannelException /
+            // ClosedReceiveChannelException / CancellationException).
+            "kk_channel_send",
+            "kk_channel_receive",
         ].contains(name)
     }
 
@@ -1450,6 +1456,10 @@ final class CallLowerer {
             "__kk_regex_replace_lambda",
             "kk_iterable_iterator",
             "__kk_mutable_set_add",
+            // KUU-1404: thrown terminal statuses propagate through the regular
+            // exception channel so try/catch can observe them.
+            "kk_channel_send",
+            "kk_channel_receive",
         ].contains(interner.resolve(calleeName))
     }
 

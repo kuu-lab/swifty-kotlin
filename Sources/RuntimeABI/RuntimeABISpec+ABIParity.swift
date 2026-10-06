@@ -80,9 +80,13 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_channel_iterator", parameters: [
             p("handle", .intptr),
         ], isThrowing: false),
+        // KUU-1404: hasNext on a cancelled channel throws CancellationException
+        // through the outThrown channel (JVM parity); plain close still
+        // terminates iteration with a 0 return.
         abiParitySpec("kk_channel_iterator_hasNext", parameters: [
             p("iterHandle", .intptr),
-        ], isThrowing: false),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
         ], isThrowing: false),
