@@ -266,6 +266,37 @@ final class ControlFlowLowerer {
             interner: interner
         )
 
+        // KUU-1420: `for (e in map)` elements are Map.Entry/MutableMap.MutableEntry
+        // objects, so map iterables drive the mutable-entry iterator bridge
+        // directly. The fused `__kk_map_iterator` intrinsics only yield the raw
+        // key; they remain in use for `for ((k, v) in map)` destructuring, where
+        // component2 lowers to `map[key]`.
+        let isMapElementIteration: Bool = {
+            guard let (_, mapSymbol) = resolveClassTypeSymbol(nonNullIterableType, sema: sema)
+            else { return false }
+            return KnownCompilerNames(interner: interner).isMapLikeSymbol(mapSymbol)
+        }()
+        let defaultIteratorCallee: InternedString
+        let defaultHasNextCallee: InternedString
+        let defaultNextCallee: InternedString
+        if isMapElementIteration {
+            defaultIteratorCallee = interner.intern("__kk_mutable_map_iterator")
+            defaultHasNextCallee = interner.intern("__kk_mutable_map_iterator_hasNext")
+            defaultNextCallee = interner.intern("__kk_mutable_map_iterator_next")
+        } else if isULongRangeLike {
+            defaultIteratorCallee = interner.intern("__kk_ulong_range_iterator")
+            defaultHasNextCallee = interner.intern("__kk_ulong_range_hasNext")
+            defaultNextCallee = interner.intern("__kk_ulong_range_next")
+        } else if isUIntRangeLike {
+            defaultIteratorCallee = interner.intern("__kk_uint_range_iterator")
+            defaultHasNextCallee = interner.intern("__kk_uint_range_hasNext")
+            defaultNextCallee = interner.intern("__kk_uint_range_next")
+        } else {
+            defaultIteratorCallee = interner.intern("kk_range_iterator")
+            defaultHasNextCallee = interner.intern("kk_range_hasNext")
+            defaultNextCallee = interner.intern("kk_range_next")
+        }
+
         // Preserve the iterator() return type so hasNext()/next() can resolve
         // source-backed Iterator dispatch from the lowered temporary.
         let iteratorID = arena.appendTemporary(
@@ -290,9 +321,7 @@ final class ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: isULongRangeLike
-                    ? interner.intern("__kk_ulong_range_iterator")
-                    : (isUIntRangeLike ? interner.intern("__kk_uint_range_iterator") : interner.intern("kk_range_iterator")),
+                callee: defaultIteratorCallee,
                 arguments: [iterableID],
                 result: iteratorID,
                 canThrow: false,
@@ -324,9 +353,7 @@ final class ControlFlowLowerer {
         } else {
             instructions.append(.call(
                 symbol: nil,
-                callee: isULongRangeLike
-                    ? interner.intern("__kk_ulong_range_hasNext")
-                    : (isUIntRangeLike ? interner.intern("__kk_uint_range_hasNext") : interner.intern("kk_range_hasNext")),
+                callee: defaultHasNextCallee,
                 arguments: [iteratorID],
                 result: hasNextID,
                 canThrow: false,
@@ -360,14 +387,15 @@ final class ControlFlowLowerer {
                 instructions: &instructions
             )
         } else {
+            // The map-entry bridge carries an outThrown channel so
+            // ConcurrentModificationException propagates instead of degrading
+            // to a sentinel element (kk_range_next has no thrown channel).
             instructions.append(.call(
                 symbol: nil,
-                callee: isULongRangeLike
-                    ? interner.intern("__kk_ulong_range_next")
-                    : (isUIntRangeLike ? interner.intern("__kk_uint_range_next") : interner.intern("kk_range_next")),
+                callee: defaultNextCallee,
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: false,
+                canThrow: isMapElementIteration,
                 thrownResult: nil
             ))
         }

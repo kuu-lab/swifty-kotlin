@@ -575,27 +575,15 @@ struct TypeCheckHelpers {
             return nil
         }
 
-        // Extract K and V type arguments from the Map-compatible shape.
-        let keyArg = mapArgs[0]
-        let valueArg = mapArgs[1]
-        let keyType: TypeID
-        let valueType: TypeID
-        switch keyArg {
-        case let .invariant(inner), let .out(inner), let .in(inner):
-            keyType = inner
-        case .star:
-            keyType = sema.types.nullableAnyType
-        }
-        switch valueArg {
-        case let .invariant(inner), let .out(inner), let .in(inner):
-            valueType = inner
-        case .star:
-            valueType = sema.types.nullableAnyType
-        }
-
+        // Mirror the actual `iterator().next()` element types: Map yields
+        // `Map.Entry<K, V>` and MutableMap yields `MutableMap.MutableEntry<K, V>`,
+        // so the map's own K/V arguments (including any use-site projections)
+        // carry through unchanged. Wrapping them as `out` would mark V
+        // write-forbidden on the invariant MutableEntry and wrongly reject
+        // `e.setValue(...)` in `for (e in mutableMap)` loops.
         return sema.types.make(.classType(ClassType(
             classSymbol: entrySymbol,
-            args: [.out(keyType), .out(valueType)],
+            args: Array(mapArgs.prefix(2)),
             nullability: .nonNull
         )))
     }

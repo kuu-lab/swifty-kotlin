@@ -1,6 +1,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 @Suite
 struct UseSiteVarianceFlowTests {
@@ -107,6 +108,70 @@ struct UseSiteVarianceFlowTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func forLoopOverMutableMapYieldsInvariantMutableEntry(useArtifact: Bool) throws {
+        // KUU-1420: `for (e in mutableMap)` types the loop variable as
+        // MutableMap.MutableEntry<K, V> — invariant args, mirroring the real
+        // `MutableMap.iterator().next()` return type. The earlier `out`
+        // projections on the element args marked `V` write-forbidden, so
+        // `e.setValue(...)` was wrongly rejected with KSWIFTK-SEMA-VAR-OUT.
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        fun rewrite(map: MutableMap<String, Int>) {
+            for (e in map) {
+                e.setValue(9)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
+            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let setValueCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { exprID, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return interner.resolve(callee) == "setValue"
+            })
+            let binding = try #require(sema.bindings.callBinding(for: setValueCall))
+            let calleeSymbol = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(calleeSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("MutableMap"),
+                interner.intern("MutableEntry"),
+                interner.intern("setValue"),
+            ])
+        }
+    }
+
+    @Test
+    func forLoopOverReadOnlyMapStillRejectsSetValue() throws {
+        // KUU-1420 companion: `for (e in map)` over read-only Map yields
+        // Map.Entry<K, V> — setValue is not a member, so the write stays
+        // rejected (same as kotlinc's unresolved-reference error).
+        let source = """
+        fun rewrite(map: Map<String, Int>) {
+            for (e in map) {
+                e.setValue(9)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-VAR-OUT", in: ctx)
         }
     }
 }
