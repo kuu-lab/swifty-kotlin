@@ -1898,6 +1898,10 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self),
+       let name = dispatcher.displayName {
+        return name
+    }
     if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
         return runtimeRangeToString(range)
     }

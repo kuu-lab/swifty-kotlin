@@ -2,6 +2,7 @@
 @testable import CompilerBackend
 import Foundation
 import Testing
+import TestStdlibCache
 
 /// STDLIB-ARTIFACT-001: shared stdlib artifact (.kklib) is correctly consumed
 /// by a user module. This is a regression test for the `uuid_basic` shared-path
@@ -320,6 +321,65 @@ struct StdlibArtifactRegressionTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\nreleased\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testDispatcherNames(useArtifact: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        let artifactPath = useArtifact ? CompilerOptions.defaultStdlibLibraryPath : nil
+        if useArtifact {
+            try #require(artifactPath != nil, "shared stdlib artifact must be available")
+        }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/dispatchers_to_string.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "DispatcherNames",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            let expected = """
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            [Dispatchers.IO, Dispatchers.Unconfined, Dispatchers.Default]
+            false
+            false
+            true
+            1263223809
+            1263223810
+            1263223812
+            [1263223809, 1263223810, 1263223812]
+            io
+            unconfined
+            Dispatchers.IO
+            true
+            Dispatchers.Unconfined
+            true
+            true
+
+            """
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
         }
     }
 
