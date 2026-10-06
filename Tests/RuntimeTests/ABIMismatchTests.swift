@@ -50,8 +50,14 @@ struct ABIMismatchTests {
     func collectionMutationSignaturesIncludeThrowingChannel() throws {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_list_remove_dispatch", ["listRaw", "elem", "outThrown"]),
             ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),
             ("__kk_mutable_map_put", ["mapRaw", "key", "value", "outThrown"]),
+            ("__kk_mutable_map_remove", ["mapRaw", "key", "outThrown"]),
+            ("__kk_mutable_map_clear", ["mapRaw", "outThrown"]),
+            ("__kk_mutable_map_putAll", ["mapRaw", "entriesRaw", "outThrown"]),
         ]
         for item in expected {
             let spec = try requireSpec(item.name)
@@ -68,6 +74,16 @@ struct ABIMismatchTests {
                 "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
             )
         }
+    }
+
+    @Test
+    func legacyMutableListRemoveKeepsNonThrowingABI() throws {
+        let spec = try requireSpec("__kk_mutable_list_remove")
+        #expect(spec.parameters.map(\.name) == ["listRaw", "elem"])
+        #expect(spec.parameters.allSatisfy { $0.type == .intptr })
+        #expect(!spec.isThrowing)
+        let extern = try #require(RuntimeABIExterns.externDecl(named: spec.name))
+        #expect(extern.parameterTypes == spec.parameterTypeStrings)
     }
 
     @Test
@@ -98,6 +114,10 @@ struct ABIMismatchTests {
         let expected: [(name: String, parameters: [String])] = [
             ("__kk_list_get", ["listRaw", "index", "outThrown"]),
             ("kk_list_iterator_next", ["iterRaw", "outThrown"]),
+            ("kk_iterator_next", ["iterRaw", "outThrown"]),
+            ("kk_indexing_iterable_next", ["iterRaw", "outThrown"]),
+            ("__kk_map_iterator_next", ["iterRaw", "outThrown"]),
+            ("__kk_mutable_map_iterator_next", ["iterRaw", "outThrown"]),
             ("__kk_mutable_list_removeAt", ["listRaw", "index", "outThrown"]),
         ]
         for item in expected {
@@ -175,8 +195,9 @@ struct ABIMismatchTests {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
-            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
-            #expect(spec.parameters.map(\.name) == ["lhs", "rhs"])
+            #expect(spec.isThrowing)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .nullableIntptrPointer])
+            #expect(spec.parameters.map(\.name) == ["lhs", "rhs", "outThrown"])
         }
     }
 
@@ -249,7 +270,8 @@ struct ABIMismatchTests {
         for name in ["kk_op_floor_mod", "kk_op_lfloor_mod"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
-            #expect(spec.parameters.map(\.type) == [.intptr, .intptr])
+            #expect(spec.isThrowing)
+            #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .nullableIntptrPointer])
         }
     }
 
@@ -343,8 +365,8 @@ struct ABIMismatchTests {
     }
 
     // KSP-621: Iterable.joinTo/joinToString and Sequence.joinTo/joinToString share
-    // one bundled Kotlin implementation (Iterables.kt's appendJoinToPlain/
-    // appendJoinToTransform, called via iterator()), so the runtime bridges these
+    // one bundled Kotlin implementation (Iterables.kt's appendJoinToAppendable*
+    // helpers, called via iterator()), so the runtime bridges these
     // names used to route through when Sema left the callee unresolved are gone.
     @Test
     func iterableJoinToABIsAreSourceBacked() throws {
@@ -742,23 +764,11 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringIfBlankEmptyFlatSignatures() throws {
+    func kkStringIfBlankEmptyFlatCompatibilitySignatures() throws {
         for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .nullableUInt8Pointer)
             #expect(spec.parameters.count == 10)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 
@@ -819,6 +829,7 @@ struct ABIMismatchTests {
     @Test
     func kkStringFormatFlatSignatures() throws {
         let formatSpec = try requireSpec("__kk_string_format_flat")
+        #expect(formatSpec.isThrowing)
         #expect(formatSpec.returnType == .nullableUInt8Pointer)
         #expect(formatSpec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
@@ -829,9 +840,11 @@ struct ABIMismatchTests {
             .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
+            .nullableIntptrPointer,
         ])
 
         let localeSpec = try requireSpec("__kk_string_format_locale_flat")
+        #expect(localeSpec.isThrowing)
         #expect(localeSpec.returnType == .nullableUInt8Pointer)
         #expect(localeSpec.parameters.map(\.type) == [
             .intptr,
@@ -840,6 +853,7 @@ struct ABIMismatchTests {
             .intptr,
             .intptr,
             .intptr,
+            .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
@@ -954,24 +968,53 @@ struct ABIMismatchTests {
     func kkSuspendFunctionInvokeSignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 3)
+        #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "functionRaw")
         #expect(spec.parameters[0].type == .intptr)
         #expect(spec.parameters[1].name == "arg")
         #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].name == "outThrown")
-        #expect(spec.parameters[2].type == .nullableIntptrPointer)
+        #expect(spec.parameters[2].name == "continuation")
+        #expect(spec.parameters[2].type == .intptr)
+        #expect(spec.parameters[3].name == "outThrown")
+        #expect(spec.parameters[3].type == .nullableIntptrPointer)
     }
 
     @Test
     func kkSuspendFunctionInvokeZeroAritySignature() throws {
         let spec = try requireSpec("kk_suspend_function_invoke_0")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters.count == 3)
         #expect(spec.parameters[0].name == "functionRaw")
         #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].name == "outThrown")
-        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.parameters[1].name == "continuation")
+        #expect(spec.parameters[1].type == .intptr)
+        #expect(spec.parameters[2].name == "outThrown")
+        #expect(spec.parameters[2].type == .nullableIntptrPointer)
+    }
+
+    @Test
+    func kkSuspendFunctionInvokeTwoAritySignature() throws {
+        let spec = try requireSpec("kk_suspend_function_invoke_2")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "continuation", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
+    }
+
+    @Test
+    func kkSuspendFunctionCreateSignature() throws {
+        let spec = try requireSpec("kk_suspend_function_create")
+        #expect(spec.returnType == .intptr)
+        #expect(!spec.isThrowing)
+        #expect(spec.parameters.map(\.name) == ["bodyRaw", "closureRaw", "arity", "entryPointRaw"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr])
+    }
+
+    @Test
+    func kkSuspendFunctionInvokeThreeAritySignature() throws {
+        let spec = try requireSpec("kk_suspend_function_invoke_3")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "continuation", "outThrown"])
+        #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
     }
 
     @Test
@@ -1087,80 +1130,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkMutableListSortSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sort")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
-        #expect(spec.parameters[0].type == .intptr)
-    }
-
-    @Test
-    func kkMutableListSortPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sort_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 2)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .int32)
-    }
-
-    @Test
-    func kkMutableListSortBySignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortBy")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortWithSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortWith")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortBy_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 5)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .int32)
-        #expect(spec.parameters[4].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByDescendingSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortByDescending")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 4)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .nullableIntptrPointer)
-    }
-
-    @Test
-    func kkMutableListSortByDescendingPrimitiveSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_sortByDescending_primitive")
-        #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 5)
-        #expect(spec.parameters[0].type == .intptr)
-        #expect(spec.parameters[1].type == .intptr)
-        #expect(spec.parameters[2].type == .intptr)
-        #expect(spec.parameters[3].type == .int32)
-        #expect(spec.parameters[4].type == .nullableIntptrPointer)
-    }
-
-    @Test
     func kkLockWithLockSignature() throws {
         let spec = try requireSpec("__kk_lock_withLock")
         #expect(spec.returnType == .intptr)
@@ -1213,9 +1182,13 @@ struct ABIMismatchTests {
     func kkMutexUnlockSignature() throws {
         let spec = try requireSpec("kk_mutex_unlock")
         #expect(spec.returnType == .intptr)
-        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "handle")
         #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "outThrown")
+        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.isThrowing)
+        #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
     }
 
     @Test
@@ -1234,6 +1207,19 @@ struct ABIMismatchTests {
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].name == "handle")
         #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
+    func kkSemaphoreReleaseSignature() throws {
+        let spec = try requireSpec("kk_semaphore_release")
+        #expect(spec.returnType == .intptr)
+        #expect(spec.parameters.count == 2)
+        #expect(spec.parameters[0].name == "handle")
+        #expect(spec.parameters[0].type == .intptr)
+        #expect(spec.parameters[1].name == "outThrown")
+        #expect(spec.parameters[1].type == .nullableIntptrPointer)
+        #expect(spec.isThrowing)
+        #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
     }
 
     // KSP-677: kk_mutex_withLock removed — Mutex.withLock is Kotlin source.

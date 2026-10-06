@@ -117,6 +117,7 @@ struct MathOverloadResolutionTests {
     fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
     fun fqnPI(): Double = kotlin.math.PI
     fun fqnIntMax(): Int = kotlin.Int.MAX_VALUE
+    fun fqnDurationZero(): kotlin.time.Duration = kotlin.time.Duration.ZERO
     """#
 
     private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
@@ -774,6 +775,37 @@ struct MathOverloadResolutionTests {
         }
     }
 
+    @Test func testMathExtensionsRequireExplicitImport() throws {
+        let source = """
+        fun roundToIntWithoutImport(x: Double): Int = x.roundToInt()
+        fun roundToLongWithoutImport(x: Double): Long = x.roundToLong()
+        fun absoluteValueWithoutImport(x: Int): Int = x.absoluteValue
+        fun absWithoutImport(x: Double): Double = abs(x)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("roundToInt") },
+                "roundToInt must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("roundToLong") },
+                "roundToLong must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("absoluteValue") },
+                "absoluteValue must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                ctx.diagnostics.diagnostics.contains { $0.message.contains("abs") },
+                "abs must require an explicit import, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     // MARK: - Unofficial rounding mode helpers
 
     @Test func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {
@@ -898,9 +930,19 @@ struct MathOverloadResolutionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
 
+        let durationSymbol = try #require(
+            sema.symbols.lookup(fqName: ["kotlin", "time", "Duration"].map(ctx.interner.intern))
+        )
+        let durationType = sema.types.make(.classType(ClassType(
+            classSymbol: durationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
         for (functionName, propertyName, expectedType) in [
             ("fqnPI", "PI", sema.types.doubleType),
             ("fqnIntMax", "MAX_VALUE", sema.types.intType),
+            ("fqnDurationZero", "ZERO", durationType),
         ] {
             let functionRange = try functionBodyRange(
                 named: functionName,

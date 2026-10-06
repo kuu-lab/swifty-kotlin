@@ -1,7 +1,7 @@
-symbol fq=constructThreadLocal[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any?
-symbol fq=threadLocalValue[kind=prop] kind=property vis=public flags=mutable type=Int
+symbol fq=constructThreadLocal[kind=fun;params=;ret=Any?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any?
+symbol fq=threadLocalValue[kind=prop;type=Int;mutable;origin=fixture] kind=property vis=public flags=mutable type=Int
 file fstdlib_kotlin_native_concurrent_ThreadLocal_n_n package=_
-  decl threadLocalValue[kind=prop] property threadLocalValue var=1 sym=threadLocalValue[kind=prop]
-  decl constructThreadLocal[kind=fun;params=] fun constructThreadLocal sym=constructThreadLocal[kind=fun;params=]
+  decl threadLocalValue[kind=prop;type=Int;mutable;origin=fixture] property threadLocalValue var=1 sym=threadLocalValue[kind=prop;type=Int;mutable;origin=fixture]
+  decl constructThreadLocal[kind=fun;params=;ret=Any?;origin=fixture] fun constructThreadLocal sym=constructThreadLocal[kind=fun;params=;ret=Any?;origin=fixture]
 expr e@4:24 int(0) type=Int
-expr e@6:36 call callee=e@6:36#1 args=[] type=kotlin.native.concurrent.ThreadLocal call=kotlin.native.concurrent.ThreadLocal.<init>[kind=ctor;params=]
+expr e@6:36 call callee=e@6:36#1 args=[] type=kotlin.native.concurrent.ThreadLocal call=kotlin.native.concurrent.ThreadLocal.<init>[kind=ctor;recv=kotlin.native.concurrent.ThreadLocal;params=;ret=kotlin.native.concurrent.ThreadLocal]

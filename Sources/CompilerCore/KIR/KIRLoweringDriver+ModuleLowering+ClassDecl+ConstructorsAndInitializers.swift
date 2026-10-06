@@ -8,8 +8,7 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
         let sema = shared.sema
 
@@ -44,11 +43,17 @@ extension KIRLoweringDriver {
         ).enumerated() {
             var storageType = parameterType
             if varargFlags[index],
-               let listSymbol = sema.symbols.lookup(fqName: [
-                   shared.interner.intern("kotlin"),
-                   shared.interner.intern("collections"),
-                   shared.interner.intern("List"),
-               ])
+               let arrayType = primitiveVarargArrayType(
+                   elementType: parameterType, sema: sema, interner: shared.interner
+               )
+            {
+                storageType = arrayType
+            } else if varargFlags[index],
+                      let listSymbol = sema.symbols.lookup(fqName: [
+                          shared.interner.intern("kotlin"),
+                          shared.interner.intern("collections"),
+                          shared.interner.intern("List"),
+                      ])
             {
                 // CallSupportLowerer packs varargs as lists, including
                 // constructor arguments. A String element type must not turn
@@ -65,7 +70,7 @@ extension KIRLoweringDriver {
         let body = buildConstructorBody(
             ctorSymbol: ctorSymbol, ctorFQName: ctorFQName,
             classDecl: classDecl, ownerSymbol: ownerSymbol,
-            shared: shared, compilationCtx: compilationCtx
+            shared: shared
         )
 
         let decls = finalizeConstructorDecl(
@@ -83,14 +88,28 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
-        shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext
+        shared: KIRLoweringSharedContext
     ) -> KIRLoweringEmitContext {
         let sema = shared.sema
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let receiverBinding = ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+        // KUU-555: a local class's `<init>` is an independent KIR function —
+        // captured outer locals (stored into instance fields at the
+        // construction call site) must be read back before super-delegation
+        // args, initializers or init blocks reference them. No-ops for named
+        // classes, which carry no capture list.
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: ctorSymbol,
+            sema: sema,
+            arena: shared.arena,
+            interner: shared.interner,
+            instructions: &body.instructions
+        )
+        // Seed `lateinit` storage before any delegation so a superclass
+        // `init` that assigns it through a virtual call is not wiped later.
+        emitLateinitFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
         let constructorDeclSite = sema.symbols.symbol(ctorSymbol)?.declSite
         let isSecondary = classDecl.secondaryConstructors.contains { constructor in
             constructor.range == constructorDeclSite
@@ -98,30 +117,28 @@ extension KIRLoweringDriver {
         if !isSecondary {
             emitSuperConstructorDelegation(
                 classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             emitPrimaryConstructorPropertyInitializers(
                 classDecl: classDecl,
                 ownerSymbol: ownerSymbol,
                 shared: shared,
-                compilationCtx: compilationCtx,
                 body: &body
             )
             emitClassDelegationInitializers(
-                classDecl: classDecl, ownerSymbol: ownerSymbol,
+                ownerSymbol: ownerSymbol,
                 receiverID: ctx.activeImplicitReceiverExprID()!,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             emitClassBodyInitializers(
-                classDecl: classDecl, shared: shared,
-                compilationCtx: compilationCtx, body: &body
+                classDecl: classDecl, shared: shared, body: &body
             )
         }
         if isSecondary {
             emitSecondaryConstructorBody(
                 classDecl: classDecl, ctorSymbol: ctorSymbol,
                 ctorFQName: ctorFQName, ownerSymbol: ownerSymbol,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
         }
         if let receiver = ctx.activeImplicitReceiverExprID() {
@@ -146,7 +163,6 @@ extension KIRLoweringDriver {
         ctorSymbol: SymbolID,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -171,9 +187,9 @@ extension KIRLoweringDriver {
         // constructor has no emitted body, so delegating to its bare `<init>`
         // would leave an unresolved linker symbol in the bundled stdlib.
         let syntheticAbstractMutableListFQName = [
-            compilationCtx.interner.intern("kotlin"),
-            compilationCtx.interner.intern("collections"),
-            compilationCtx.interner.intern("AbstractMutableList"),
+            shared.interner.intern("kotlin"),
+            shared.interner.intern("collections"),
+            shared.interner.intern("AbstractMutableList"),
         ]
         if superclassInfo.flags.contains(.synthetic),
            superclassInfo.fqName == syntheticAbstractMutableListFQName
@@ -182,102 +198,43 @@ extension KIRLoweringDriver {
         }
         let superCtorSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
             ?? sema.symbols
-            .lookupAll(fqName: superclassInfo.fqName + [compilationCtx.interner.intern("<init>")])
+            .lookupAll(fqName: superclassInfo.fqName + [shared.interner.intern("<init>")])
             .first { $0 != ctorSymbol }
         guard let superCtorSymbol else {
             return
         }
 
-        let resolvedSuperclassFQName = superclassInfo.fqName.map(compilationCtx.interner.resolve)
+        let resolvedSuperclassFQName = superclassInfo.fqName.map(shared.interner.resolve)
         let isSourceBackedTimeSource =
             resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
                 || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
-        if !(sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true)
-            && !isSourceBackedTimeSource
+        if !isSourceBackedTimeSource,
+           isRuntimeThrowableSuperConstructor(superCtorSymbol, sema: sema)
         {
-            // Runtime-backed Throwable construction returns its own native box,
-            // while a Kotlin subclass already owns the compiler-emitted object.
-            // Initialize that object through the message accessor instead of
-            // discarding it in favor of the factory result.
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-            let nullableThrowableType = sema.types.make(.classType(ClassType(
-                classSymbol: superclassSymbol,
-                args: [],
-                nullability: .nullable
-            )))
-            guard superclassInfo.fqName.map({ compilationCtx.interner.resolve($0) }) == ["kotlin", "Throwable"],
-                  let signature = sema.symbols.functionSignature(for: superCtorSymbol)
-            else {
-                return
-            }
-
-            func setterSymbol(named name: String) -> SymbolID? {
-                sema.symbols.lookupAll(
-                    fqName: superclassInfo.fqName.dropLast() + [compilationCtx.interner.intern(name)]
-                ).first(where: { candidate in
-                    sema.symbols.symbol(candidate)?.kind == .function
-                })
-            }
-
-            func emitSetter(_ symbol: SymbolID, argument: KIRExprID, fallbackName: String) {
-                let resultID = arena.appendTemporary(type: sema.types.unitType)
-                body.append(.call(
-                    symbol: symbol,
-                    callee: compilationCtx.interner.intern(
-                        sema.symbols.externalLinkName(for: symbol) ?? fallbackName
-                    ),
-                    arguments: [receiverID, argument],
-                    result: resultID,
-                    canThrow: false,
-                    thrownResult: nil,
-                    isSuperCall: false
-                ))
-            }
-
-            switch signature.parameterTypes.count {
-            case 0:
-                guard superArgs.isEmpty,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
-                else {
-                    return
-                }
-                let messageID = arena.appendExpr(.null, type: nullableStringType)
-                body.append(.constValue(result: messageID, value: .null))
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-            case 1:
-                guard signature.parameterTypes[0] == nullableStringType,
-                      superArgs.count == 1,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
-                else {
-                    return
-                }
-                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-            case 2:
-                guard signature.parameterTypes[0] == nullableStringType,
-                      signature.parameterTypes[1] == nullableThrowableType,
-                      superArgs.count == 2,
-                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage"),
-                      let causeSetter = setterSymbol(named: "__kkThrowableSetCause")
-                else {
-                    return
-                }
-                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
-                let causeID = lowerExpr(superArgs[1].expr, shared: shared, emit: &body)
-                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
-                emitSetter(causeSetter, argument: causeID, fallbackName: "__kkThrowableSetCause")
-            default:
-                return
-            }
+            emitRuntimeThrowableSuperInitialization(
+                superCtorSymbol: superCtorSymbol,
+                superclassSymbol: superclassSymbol,
+                receiver: receiverID,
+                loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
+                spreadFlags: superArgs.map(\.isSpread),
+                argumentLabels: superArgs.map(\.label),
+                callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+                shared: shared,
+                body: &body
+            )
             return
         }
         // Synthetic nominal shells may expose a constructor for Sema
-        // compatibility without providing a linkable implementation. The
-        // time-source shells are source-backed in the bundled stdlib and their
-        // constructor initializes the inherited `unit` field, so retain that
-        // delegation even while the compatibility flag is present.
+        // compatibility without providing a linkable implementation. Imported
+        // library declarations also carry the synthetic bit, but their
+        // artifact object contains the real constructor body and must remain
+        // callable from a user-defined subclass. The time-source shells are
+        // source-backed in the bundled stdlib and their constructor initializes
+        // the inherited `unit` field, so retain that delegation even while the
+        // compatibility flag is present.
         guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || sema.symbols.isSourceBackedSymbol(superCtorSymbol)
             || isSourceBackedTimeSource
         else {
             return
@@ -287,9 +244,9 @@ extension KIRLoweringDriver {
         // surface. Its synthetic protected constructor has no emitted body, so
         // a generated parent call would leave an unresolved `<init>` symbol.
         let hashSetFQName = [
-            compilationCtx.interner.intern("kotlin"),
-            compilationCtx.interner.intern("collections"),
-            compilationCtx.interner.intern("HashSet"),
+            shared.interner.intern("kotlin"),
+            shared.interner.intern("collections"),
+            shared.interner.intern("HashSet"),
         ]
         if sema.symbols.symbol(ownerSymbol)?.fqName == hashSetFQName,
            sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true
@@ -297,28 +254,146 @@ extension KIRLoweringDriver {
             return
         }
 
-        var argIDs: [KIRExprID] = [receiverID]
-        for arg in superArgs {
-            argIDs.append(lowerExpr(arg.expr, shared: shared, emit: &body))
+        let loweredSuperArgs = superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) }
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        emitDelegatedConstructorCall(
+            target: superCtorSymbol,
+            receiver: receiverID,
+            loweredArgs: loweredSuperArgs,
+            spreadFlags: superArgs.map(\.isSpread),
+            argumentLabels: superArgs.map(\.label),
+            callBinding: sema.bindings.constructorDelegationCallBinding(for: ctorSymbol),
+            sourceArgExprs: superArgs.map(\.expr),
+            result: resultID,
+            shared: shared,
+            body: &body
+        )
+    }
+
+    /// True when a `super(...)` target is a runtime-backed Throwable
+    /// constructor (`@KsSymbolName("__kk_exception_new_message")` etc.). Such
+    /// a constructor returns its own native box instead of initializing the
+    /// compiler-allocated subclass object, so it cannot be called as `<init>`.
+    func isRuntimeThrowableSuperConstructor(_ superCtorSymbol: SymbolID, sema: SemaModule) -> Bool {
+        if callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema) {
+            return true
+        }
+        return sema.symbols.externalLinkName(for: superCtorSymbol) == "__kk_throwable_new"
+            && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
+    }
+
+    /// Initializes a Kotlin Throwable subclass whose `super(...)` target is a
+    /// runtime factory (see `isRuntimeThrowableSuperConstructor`). The factory
+    /// is called with the normalized arguments (named arguments reordered like
+    /// any call site), and the message / cause of the box it returns are copied
+    /// onto `receiver`. Copying instead of mapping parameters by hand keeps the
+    /// factory's own semantics, e.g. `Exception(cause)` deriving its message
+    /// from `cause.toString()`.
+    func emitRuntimeThrowableSuperInitialization(
+        superCtorSymbol: SymbolID,
+        superclassSymbol: SymbolID,
+        receiver: KIRExprID,
+        loweredArgs: [KIRExprID],
+        spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
+        callBinding: CallBinding?,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        let throwableFQName = [interner.intern("kotlin"), interner.intern("Throwable")]
+        guard let throwableSymbol = sema.symbols.lookup(fqName: throwableFQName) else {
+            return
+        }
+        let superclassType = sema.types.make(.classType(ClassType(
+            classSymbol: superclassSymbol, args: [], nullability: .nonNull
+        )))
+        let throwableType = sema.types.make(.classType(ClassType(
+            classSymbol: throwableSymbol, args: [], nullability: .nonNull
+        )))
+        guard sema.types.isSubtype(superclassType, throwableType) else {
+            return
+        }
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+        let nullableThrowableType = sema.types.makeNullable(throwableType)
+
+        func helperSymbol(named name: String) -> SymbolID? {
+            sema.symbols.lookupAll(
+                fqName: throwableFQName.dropLast() + [interner.intern(name)]
+            ).first(where: { sema.symbols.symbol($0)?.kind == .function })
         }
 
-        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        func emitHelperCall(_ name: String, arguments: [KIRExprID], resultType: TypeID) -> KIRExprID? {
+            guard let symbol = helperSymbol(named: name) else {
+                return nil
+            }
+            let resultID = arena.appendTemporary(type: resultType)
+            body.append(.call(
+                symbol: symbol,
+                callee: interner.intern(sema.symbols.externalLinkName(for: symbol) ?? name),
+                arguments: arguments,
+                result: resultID,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+            return resultID
+        }
+
+        guard callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema) else {
+            // `Throwable()`'s bare allocator: only the message slot needs a
+            // defined (null) value.
+            let messageID = arena.appendExpr(.null, type: nullableStringType)
+            body.append(.constValue(result: messageID, value: .null))
+            _ = emitHelperCall(
+                "__kkThrowableSetMessage", arguments: [receiver, messageID], resultType: sema.types.unitType
+            )
+            return
+        }
+
+        var factoryArgs = loweredArgs
+        if let callBinding, callBinding.chosenCallee == superCtorSymbol {
+            factoryArgs = callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredArgs,
+                callBinding: callBinding,
+                chosenCallee: superCtorSymbol,
+                spreadFlags: spreadFlags,
+                argumentLabels: argumentLabels,
+                shared: shared,
+                emit: &body
+            ).arguments
+        }
+        let factoryResult = arena.appendTemporary(type: throwableType)
         body.append(.call(
             symbol: superCtorSymbol,
-            callee: compilationCtx.interner.intern("<init>"),
-            arguments: argIDs,
-            result: resultID,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
+            callee: interner.intern(sema.symbols.externalLinkName(for: superCtorSymbol) ?? "<init>"),
+            arguments: factoryArgs,
+            result: factoryResult,
+            canThrow: sema.symbols.functionSignature(for: superCtorSymbol)?.canThrow ?? false,
+            thrownResult: nil
         ))
+        if let messageID = emitHelperCall(
+            "__kkThrowableMessage", arguments: [factoryResult], resultType: nullableStringType
+        ) {
+            _ = emitHelperCall(
+                "__kkThrowableSetMessage", arguments: [receiver, messageID], resultType: sema.types.unitType
+            )
+        }
+        if let causeID = emitHelperCall(
+            "__kkThrowableCause", arguments: [factoryResult], resultType: nullableThrowableType
+        ) {
+            _ = emitHelperCall(
+                "__kkThrowableSetCause", arguments: [receiver, causeID], resultType: sema.types.unitType
+            )
+        }
     }
 
     private func emitPrimaryConstructorPropertyInitializers(
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx _: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -427,12 +502,10 @@ extension KIRLoweringDriver {
     }
 
     /// CLASS-008: Emits delegate field initialization for `: Interface by expr`.
-    private func emitClassDelegationInitializers(
-        classDecl _: ClassDecl,
+    func emitClassDelegationInitializers(
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -454,7 +527,7 @@ extension KIRLoweringDriver {
             let unusedResult = arena.appendTemporary(type: shared.sema.types.anyType)
             body.append(.call(
                 symbol: nil,
-                callee: compilationCtx.interner.intern("kk_array_set"),
+                callee: shared.interner.intern("kk_array_set"),
                 arguments: [receiverID, offsetExpr, delegateValue],
                 result: unusedResult,
                 canThrow: true,
@@ -474,7 +547,6 @@ extension KIRLoweringDriver {
     func emitClassBodyInitializers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         for member in classDecl.classBodyInitOrder {
@@ -485,7 +557,6 @@ extension KIRLoweringDriver {
                 emitPropertyInitializer(
                     propDeclID: propDeclID,
                     shared: shared,
-                    compilationCtx: compilationCtx,
                     body: &body
                 )
             case let .initBlock(index):
@@ -515,7 +586,6 @@ extension KIRLoweringDriver {
     func emitPropertyInitializer(
         propDeclID: DeclID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let ast = shared.ast
@@ -540,7 +610,6 @@ extension KIRLoweringDriver {
                 propSymbol: propSymbol,
                 sema: sema,
                 arena: arena,
-                compilationCtx: compilationCtx,
                 shared: shared,
                 body: &body
             )
@@ -551,53 +620,87 @@ extension KIRLoweringDriver {
         if let explicitField = prop.explicitBackingField {
             let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
             let backingFieldType = sema.symbols.propertyType(for: targetSymbol) ?? sema.types.anyType
-            let initValue = lowerExpr(
+            let initValue = lowerPropertyInitializerValue(
                 explicitField.initializer,
                 shared: shared, emit: &body
             )
             emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: targetSymbol,
                 value: initValue, valueType: backingFieldType,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             // Also initialize the property itself if it has a regular initializer.
             if let initExpr = prop.initializer {
                 let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let propInitValue = lowerExpr(initExpr, shared: shared, emit: &body)
+                let propInitValue = lowerPropertyInitializerValue(initExpr, shared: shared, emit: &body)
                 emitFieldStore(
                     propSymbol: propSymbol, targetSymbol: targetSymbol,
                     value: propInitValue, valueType: propType,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
+                    shared: shared, body: &body
                 )
             }
             return
         }
 
-        guard let initExpr = prop.initializer else {
-            if prop.modifiers.contains(.lateinit) {
-                let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
-                let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-                let nullExpr = arena.appendExpr(.null, type: propType)
-                body.append(.constValue(result: nullExpr, value: .null))
-                emitFieldStore(
-                    propSymbol: propSymbol, targetSymbol: targetSymbol,
-                    value: nullExpr, valueType: propType,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
-                )
-            }
-            return
-        }
+        // A `lateinit` without an initializer emits nothing here: its null
+        // sentinel is seeded at constructor entry (`emitLateinitFieldSentinels`).
+        guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
-        let initValue = lowerExpr(
+        let initValue = lowerPropertyInitializerValue(
             initExpr,
             shared: shared, emit: &body
         )
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: targetSymbol,
             value: initValue, valueType: propType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
+    }
+
+    private func lowerPropertyInitializerValue(
+        _ exprID: ExprID,
+        shared: KIRLoweringSharedContext,
+        emit body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let value = lowerExpr(exprID, shared: shared, emit: &body)
+        guard let type = shared.sema.bindings.exprTypes[exprID],
+              case let .functionType(functionType) = shared.sema.types.kind(of: shared.sema.types.makeNonNullable(type))
+        else {
+            return value
+        }
+        return callLowerer.materializeFunctionValueArgument(
+            loweredArgID: value,
+            argExprID: exprID,
+            functionType: functionType,
+            sema: shared.sema,
+            arena: shared.arena,
+            interner: shared.interner,
+            instructions: &body.instructions
+        )
+    }
+
+    /// Seeds each `lateinit` instance field of `classDecl` with the null
+    /// sentinel. Emitted at constructor entry, ahead of the superclass
+    /// constructor call (see `KIRLoweringDriver+LateinitSentinel.swift`).
+    private func emitLateinitFieldSentinels(
+        classDecl: ClassDecl,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        for propSymbol in lateinitSentinelPropertySymbols(classDecl.memberProperties, shared: shared) {
+            let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
+            let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
+            let nullExpr = arena.appendExpr(.null, type: propType)
+            body.append(.constValue(result: nullExpr, value: .null))
+            emitFieldStore(
+                propSymbol: propSymbol, targetSymbol: targetSymbol,
+                value: nullExpr, valueType: propType,
+                shared: shared, body: &body
+            )
+        }
     }
 
     /// Stores `value` into the storage backing `targetSymbol` on the instance
@@ -616,11 +719,18 @@ extension KIRLoweringDriver {
         value: KIRExprID,
         valueType: TypeID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
         let arena = shared.arena
+        // Enum entries are ordinal-backed: while the enum's lazy initializer
+        // constructs an entry, its stored properties go to per-entry globals.
+        if let slotSymbol = ctx.enumEntryStorageSlots[propSymbol] {
+            let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: valueType)
+            body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
+            body.append(.copy(from: value, to: slotRef))
+            return
+        }
         if let receiverID = ctx.activeImplicitReceiverExprID(),
            let ownerSymbol = sema.symbols.parentSymbol(for: propSymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -629,11 +739,18 @@ extension KIRLoweringDriver {
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let storedValue = normalizedValueForNullablePrimitiveSlot(
+                value,
+                slotType: valueType,
+                types: sema.types,
+                arena: arena,
+                into: &body
+            )
             let unusedResult = arena.appendTemporary(type: sema.types.anyType)
             body.append(.call(
                 symbol: nil,
-                callee: compilationCtx.interner.intern("kk_array_set"),
-                arguments: [receiverID, offsetExpr, value],
+                callee: shared.interner.intern("kk_array_set"),
+                arguments: [receiverID, offsetExpr, storedValue],
                 result: unusedResult,
                 canThrow: false,
                 thrownResult: nil,
@@ -653,7 +770,6 @@ extension KIRLoweringDriver {
         ctorFQName: [InternedString],
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
@@ -670,7 +786,6 @@ extension KIRLoweringDriver {
                     ctorSymbol: ctorSymbol,
                     sema: sema,
                     arena: arena,
-                    compilationCtx: compilationCtx,
                     shared: shared,
                     body: &body
                 )
@@ -679,7 +794,7 @@ extension KIRLoweringDriver {
                 // through: the superclass constructor is invoked implicitly.
                 emitSuperConstructorDelegation(
                     classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
-                    shared: shared, compilationCtx: compilationCtx, body: &body
+                    shared: shared, body: &body
                 )
             }
             // A class without a primary constructor runs its property
@@ -688,8 +803,7 @@ extension KIRLoweringDriver {
             // delegating to `this(...)` inherit them from the target instead.
             if secondaryCtor.delegationCall?.kind != .this {
                 emitClassBodyInitializers(
-                    classDecl: classDecl, shared: shared,
-                    compilationCtx: compilationCtx, body: &body
+                    classDecl: classDecl, shared: shared, body: &body
                 )
             }
             switch secondaryCtor.body {
@@ -706,12 +820,19 @@ extension KIRLoweringDriver {
         }
     }
 
-    private func emitDelegatePropertyInitializer(
+    /// Emits the delegate-expression initialization for a `by` member
+    /// property: lowers the delegate expression (or synthesizes the `LazyImpl`
+    /// construction for `lazy`), wraps it in `provideDelegate` when the
+    /// delegate type declares that operator, and stores the resulting delegate
+    /// instance into the `$delegate_<name>` field at its layout offset.
+    /// Also used by `ObjectLiteralLowerer` for object-expression members —
+    /// there is no constructor to run inside, so it is invoked inline at the
+    /// construction site with the object literal as the implicit receiver.
+    func emitDelegatePropertyInitializer(
         propertyDecl: PropertyDecl,
         propSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
-        compilationCtx: CompilationContext,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) {
@@ -725,7 +846,7 @@ extension KIRLoweringDriver {
             emitLazyDelegatePropertyInitializer(
                 propertyDecl: propertyDecl, propSymbol: propSymbol,
                 delegateStorageSym: delegateStorageSym, sema: sema, arena: arena,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
             return
         }
@@ -739,7 +860,7 @@ extension KIRLoweringDriver {
             emitProvideDelegateCall(
                 delegateValue: delegateValue, storageSym: storageSym,
                 propSymbol: propSymbol, sema: sema, arena: arena,
-                compilationCtx: compilationCtx, shared: shared, body: &body
+                shared: shared, body: &body
             )
         } else {
             delegateValue
@@ -748,7 +869,7 @@ extension KIRLoweringDriver {
             emitFieldStore(
                 propSymbol: propSymbol, targetSymbol: storageSym,
                 value: valueToStore, valueType: sema.types.anyType,
-                shared: shared, compilationCtx: compilationCtx, body: &body
+                shared: shared, body: &body
             )
         }
     }
@@ -763,7 +884,6 @@ extension KIRLoweringDriver {
         sema: SemaModule,
         arena: KIRArena,
         shared: KIRLoweringSharedContext,
-        compilationCtx: CompilationContext,
         body: inout KIRLoweringEmitContext
     ) {
         guard let storageSym = delegateStorageSym else { return }
@@ -782,7 +902,7 @@ extension KIRLoweringDriver {
         ).map { lowerExpr($0, shared: shared, emit: &body) }
         let modeExpr = lowerLazyModeExpr(
             delegateExpression: propertyDecl.delegateExpression,
-            shared: shared, compilationCtx: compilationCtx, emit: &body
+            shared: shared, emit: &body
         )
         let lockArgument: KIRExprID
         if let lockValue {
@@ -815,7 +935,7 @@ extension KIRLoweringDriver {
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
             value: createResult, valueType: delegateType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
     }
 
@@ -825,7 +945,6 @@ extension KIRLoweringDriver {
         propSymbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
-        compilationCtx: CompilationContext,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
@@ -838,10 +957,10 @@ extension KIRLoweringDriver {
         emitFieldStore(
             propSymbol: propSymbol, targetSymbol: storageSym,
             value: delegateValue, valueType: delegateType,
-            shared: shared, compilationCtx: compilationCtx, body: &body
+            shared: shared, body: &body
         )
         let propertyName = sema.symbols.symbol(propSymbol)?.name
-            ?? compilationCtx.interner.intern("")
+            ?? shared.interner.intern("")
         let thisRefExprID: KIRExprID
         if let receiver = ctx.activeImplicitReceiverExprID() {
             thisRefExprID = receiver
@@ -855,7 +974,7 @@ extension KIRLoweringDriver {
             propertyType: sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType,
             shared: shared, emit: &body
         )
-        let provideDelegateName = compilationCtx.interner.intern("provideDelegate")
+        let provideDelegateName = shared.interner.intern("provideDelegate")
         let provideDelegateResult = arena.appendTemporary(type: sema.types.anyType
         )
         body.append(.call(
@@ -964,6 +1083,16 @@ extension KIRLoweringDriver {
             body: &body
         )
 
+        appendValueClassAnyToStringRegistration(
+            nominalSymbol: ownerSymbol,
+            classID: typeToken,
+            driver: self,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+
         body.append(.returnUnit)
         body.append(.endBlock)
 
@@ -980,7 +1109,7 @@ extension KIRLoweringDriver {
             ))
         )
         ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
-        return [declID]
+        return [declID] + ctx.drainGeneratedCallableDecls()
     }
 
     // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration

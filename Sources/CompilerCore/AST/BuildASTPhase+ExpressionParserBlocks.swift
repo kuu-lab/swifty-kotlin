@@ -44,7 +44,13 @@ extension BuildASTPhase.ExpressionParser {
                 statements.append(localDecl)
             } else if let localAssign = parseLocalAssignFromSlice(group) {
                 statements.append(localAssign)
-            } else if let expr = BuildASTPhase.ExpressionParser(tokens: group, interner: interner, astArena: astArena).parse() {
+            } else if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
+                from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
+            ) {
+                statements.append(nominalDecl)
+            } else if let expr = BuildASTPhase.ExpressionParser(
+                tokens: group, interner: interner, astArena: astArena, diagnostics: diagnostics
+            ).parse() {
                 statements.append(expr)
             }
         }
@@ -52,7 +58,7 @@ extension BuildASTPhase.ExpressionParser {
         var trailingExpr: ExprID?
         if let lastID = statements.last, let lastExpr = astArena.expr(lastID) {
             switch lastExpr {
-            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
+            case .localDecl, .localAssign, .memberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl, .localNominalDecl:
                 break
             default:
                 trailingExpr = statements.removeLast()
@@ -130,7 +136,8 @@ extension BuildASTPhase.ExpressionParser {
         if let destructuring = BuildASTPhase.parseDestructuringDeclarationStatement(
             from: Array(tokens),
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ) {
             return destructuring
         }
@@ -138,7 +145,9 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 guard let first = typeTokens.first else {
@@ -147,9 +156,15 @@ extension BuildASTPhase.ExpressionParser {
                 let parser = BuildASTPhase.ExpressionParser(
                     tokens: typeTokens,
                     interner: interner,
-                    astArena: astArena
+                    astArena: astArena,
+                    diagnostics: self.diagnostics
                 )
-                return parser.parseTypeReference(first.range)
+                // A local `val`/`var` type annotation is a declaration type:
+                // the tokens are already bounded by `=`/newline, so function
+                // types (`(T) -> U`, `R.() -> U`, `suspend R.() -> U`) parse
+                // unambiguously — unlike is/as operands, which share the
+                // arrow token with `when` branches and stay non-functional.
+                return parser.parseTypeReference(first.range, allowFunctionType: true)
             },
             resolveDeclarationName: { token, interner in
                 guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
@@ -181,7 +196,9 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(tokens: slice, interner: interner, astArena: astArena).parse()
+                BuildASTPhase.ExpressionParser(
+                    tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }

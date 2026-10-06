@@ -10,9 +10,9 @@ package kotlin.collections
 //   Sources/Runtime/RuntimeCollections.swift (kk_list_slice, kk_list_slice_iterable,
 //   kk_list_subList)
 //
-// NOTE: List.subList is declared as returning a view in the real Kotlin stdlib.
-// This bundled implementation returns a snapshot copy instead, matching the
-// historical runtime behavior and the current RuntimeListBox storage model.
+// NOTE: This List<T> extension returns a snapshot copy. MutableList.subList is
+// declared as an external member and is routed to kk_list_subList, which
+// provides a live view for runtime-backed mutable lists.
 
 public fun <T> List<T>.take(n: Int): List<T> {
     require(n >= 0) { "Requested element count $n is less than zero." }
@@ -119,9 +119,11 @@ public fun <T> List<T>.slice(indices: Iterable<Int>): List<T> {
 }
 
 public fun <T> List<T>.subList(fromIndex: Int, toIndex: Int): List<T> {
-    val message = "fromIndex: $fromIndex, toIndex: $toIndex, size: $size"
-    if (fromIndex < 0 || toIndex > size || fromIndex > toIndex) {
-        throw IndexOutOfBoundsException(message)
+    if (fromIndex < 0 || toIndex > size) {
+        throw IndexOutOfBoundsException("fromIndex: $fromIndex, toIndex: $toIndex, size: $size")
+    }
+    if (fromIndex > toIndex) {
+        throw IllegalArgumentException("fromIndex: $fromIndex > toIndex: $toIndex")
     }
     val result = mutableListOf<T>()
     var i = fromIndex

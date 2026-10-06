@@ -9,25 +9,26 @@ import kotlin.internal.KsSymbolName
 // expanded by a KIR special case (StdlibSpecialCallKind); they are plain
 // Kotlin inline functions here, matching kotlin-stdlib.
 
+// getTimeMillis/getTimeNanos are not part of the Kotlin/JVM public API.
+// PublishedApi allows the supported public inline functions to read the clocks
+// without exposing the removed public function names.
 @KsSymbolName("__kk_system_getTimeMillis")
-private external fun __kkSystemGetTimeMillis(): Long
+@PublishedApi
+internal external fun __kkSystemGetTimeMillis(): Long
 
 @KsSymbolName("__kk_system_getTimeMicros")
 private external fun __kkSystemGetTimeMicros(): Long
 
 @KsSymbolName("__kk_system_getTimeNanos")
-private external fun __kkSystemGetTimeNanos(): Long
-
-public fun getTimeMillis(): Long = __kkSystemGetTimeMillis()
+@PublishedApi
+internal external fun __kkSystemGetTimeNanos(): Long
 
 public fun getTimeMicros(): Long = __kkSystemGetTimeMicros()
 
-public fun getTimeNanos(): Long = __kkSystemGetTimeNanos()
-
 public inline fun measureTimeMillis(block: () -> Unit): Long {
-    val start = getTimeMillis()
+    val start = __kkSystemGetTimeMillis()
     block()
-    return getTimeMillis() - start
+    return __kkSystemGetTimeMillis() - start
 }
 
 public inline fun measureTimeMicros(block: () -> Unit): Long {
@@ -37,7 +38,7 @@ public inline fun measureTimeMicros(block: () -> Unit): Long {
 }
 
 public inline fun measureNanoTime(block: () -> Unit): Long {
-    val start = getTimeNanos()
+    val start = __kkSystemGetTimeNanos()
     block()
-    return getTimeNanos() - start
+    return __kkSystemGetTimeNanos() - start
 }

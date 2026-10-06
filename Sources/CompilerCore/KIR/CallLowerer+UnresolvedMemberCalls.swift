@@ -2,6 +2,35 @@
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
+    /// ULongRange and ULongProgression instances are runtime range boxes, not
+    /// Kotlin objects with vtables. Keep source-backed Any overrides and
+    /// iterator calls on their runtime-aware ABI paths.
+    func runtimeBackedULongProgressionMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let (_, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType), sema: sema
+        ) else {
+            return nil
+        }
+        let className = symbol.fqName.map(interner.resolve)
+        guard className == ["kotlin", "ranges", "ULongRange"]
+                || className == ["kotlin", "ranges", "ULongProgression"]
+        else {
+            return nil
+        }
+        switch memberName {
+        case "equals": return interner.intern("kk_any_member_equals")
+        case "hashCode": return interner.intern("kk_any_member_hashCode")
+        case "toString": return interner.intern("kk_any_member_to_string")
+        case "iterator": return interner.intern("__kk_ulong_range_iterator")
+        default: return nil
+        }
+    }
+
     /// Returns true only for the source-backed HashSet declaration. Other set
     /// types may provide their own source implementation and must retain the
     /// resolved symbol for ABI return-type handling.
@@ -110,6 +139,147 @@ extension CallLowerer {
         }
     }
 
+    /// Runtime-backed list boxes (the values `mutableListOf`/`subList` produce)
+    /// carry no Kotlin vtable, so source-backed MutableList member defaults
+    /// cannot be reached through itable dispatch on them. Route migrated
+    /// `kotlin.collections.MutableList` members to their demoted list ABI entry
+    /// points instead. Top-level extensions (e.g. the predicate `removeAll`)
+    /// share only the member name, so the callee's fqName must name the
+    /// MutableList interface before remapping (KSP-1503).
+    func runtimeBackedListMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        chosenCallee: SymbolID? = nil,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner),
+              isMutableListRuntimeFamilyMember(
+                  chosenCallee,
+                  memberName: memberName,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        switch memberName {
+        case "set":
+            return interner.intern("__kk_mutable_list_set")
+        case "add":
+            let arity = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count
+            } ?? 1
+            return interner.intern(arity >= 2 ? "__kk_mutable_list_add_at" : "__kk_mutable_list_add")
+        case "removeAt":
+            return interner.intern("__kk_mutable_list_removeAt")
+        case "remove":
+            return interner.intern("__kk_mutable_list_remove_checked")
+        case "listIterator":
+            let arity = chosenCallee.flatMap {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.count
+            } ?? 0
+            return interner.intern(arity == 0 ? "__kk_mutable_list_listIterator" : "kk_list_iterator_at")
+        case "clear":
+            return interner.intern("__kk_mutable_list_clear_checked")
+        case "removeAll":
+            return interner.intern("__kk_mutable_list_removeAll_checked")
+        case "retainAll":
+            return interner.intern("__kk_mutable_list_retainAll_checked")
+        case "plusAssign", "minusAssign":
+            return mutableListBulkMutationCallee(
+                memberName: memberName,
+                chosenCallee: chosenCallee,
+                sema: sema,
+                interner: interner
+            )
+        default:
+            return nil
+        }
+    }
+
+    /// `plusAssign`/`minusAssign` on a runtime-backed MutableList resolve to
+    /// either the element or the Collection overload; select the matching
+    /// residual bridge from the bound signature's first parameter type.
+    private func mutableListBulkMutationCallee(
+        memberName: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let parameterType = chosenCallee.flatMap { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        }
+        let parameterName = parameterType.flatMap { type in
+            resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
+                .map { interner.resolve($0.symbol.name) }
+        }
+        let operation = memberName == "plusAssign" ? "addAll" : "removeAll"
+        switch parameterName {
+        case "Sequence":
+            return interner.intern("__kk_mutable_list_\(operation)_sequence")
+        case "Iterable":
+            return interner.intern("__kk_mutable_list_\(operation)_iterable")
+        case "Array", "Collection", "MutableCollection":
+            return interner.intern("__kk_mutable_list_\(operation)_checked")
+        default:
+            if memberName == "plusAssign" {
+                return interner.intern("__kk_mutable_list_add")
+            }
+            if memberName == "minusAssign" {
+                return interner.intern("__kk_mutable_list_remove_checked")
+            }
+            return nil
+        }
+    }
+
+    /// True when the receiver's static type is `kotlin.collections.MutableList`
+    /// — the interface spelling used by runtime list boxes (`mutableListOf`,
+    /// `subList` views). `AbstractMutableList` is deliberately excluded: its
+    /// receivers use registered vtable dispatch, including runtime-backed
+    /// `ArrayDeque` objects and user-defined subclasses. Runtime list boxes
+    /// carry no Kotlin vtable/itable, so these
+    /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
+    /// than dispatch dynamically (KSP-1503).
+    private func isMutableListRuntimeFamilyType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        return symbol.name == knownNames.mutableList
+            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
+    }
+
+    /// True only when the bound callee is a member declared on
+    /// `kotlin.collections.MutableList` — i.e. one of the members migrated to
+    /// `MutableList.kt`. Top-level extensions with the same name
+    /// (`removeAll(predicate)`, `retainAll(predicate)`, HOF sort variants)
+    /// live at package fqName and must keep their own lowering path.
+    private func isMutableListRuntimeFamilyMember(
+        _ chosenCallee: SymbolID?,
+        memberName: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee,
+              let calleeSymbol = sema.symbols.symbol(chosenCallee),
+              calleeSymbol.fqName.last == interner.intern(memberName)
+        else {
+            return false
+        }
+        let owner = Array(calleeSymbol.fqName.dropLast())
+        return owner == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+    }
+
     // swiftlint:disable cyclomatic_complexity
     func unresolvedSyntheticMemberCallee(
         memberName: String,
@@ -127,9 +297,11 @@ extension CallLowerer {
         // count lambda args only) are matched correctly.
         let hofArity = sourceArgumentCount ?? argumentCount
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        // OpenEndRange's generic contains member is still a compiler residual
-        // (KSP-652). Keep its source-backed cross-type overloads executable by
-        // lowering the residual call to the existing range bridge.
+        // OpenEndRange's generic contains member is source-backed since
+        // KSP-1311 (Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt), but the
+        // range-member typecheck fallback still leaves call sites unbound.
+        // Keep those unbound calls and the `--no-stdlib` residual on the
+        // existing range bridge.
         if memberName == "contains",
            let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
            interner.resolve(receiverSymbol.name) == "OpenEndRange"
@@ -273,17 +445,23 @@ extension CallLowerer {
             }
         }
 
-        if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+        if isMutableListRuntimeFamilyType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case "add" where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
+            case "add" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_add_at")
+            case "addAll" where argumentCount == 2:
+                return interner.intern("__kk_mutable_list_addAll_at")
             case "addAll":
-                return interner.intern("__kk_mutable_list_addAll")
+                return interner.intern("__kk_mutable_list_addAll_checked")
             case "removeAll":
-                return interner.intern("__kk_mutable_list_removeAll")
+                return interner.intern("__kk_mutable_list_removeAll_checked")
             case "retainAll":
-                return interner.intern("__kk_mutable_list_retainAll")
+                return interner.intern("__kk_mutable_list_retainAll_checked")
+            case "removeAt":
+                return interner.intern("__kk_mutable_list_removeAt")
             case "removeFirst":
                 return interner.intern("__kk_mutable_list_removeFirst")
             case "removeFirstOrNull":
@@ -292,6 +470,14 @@ extension CallLowerer {
                 return interner.intern("__kk_mutable_list_removeLast")
             case "removeLastOrNull":
                 return interner.intern("__kk_mutable_list_removeLastOrNull")
+            case "set":
+                return interner.intern("__kk_mutable_list_set")
+            case "clear":
+                return interner.intern("__kk_mutable_list_clear_checked")
+            case "plusAssign":
+                return interner.intern("__kk_mutable_list_add")
+            case "minusAssign":
+                return interner.intern("__kk_mutable_list_remove_checked")
             default:
                 break
             }
@@ -692,36 +878,6 @@ extension CallLowerer {
         }
 
         switch memberName {
-        case "size":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("__kk_map_size")
-            case .set?:
-                return interner.intern("__kk_set_size")
-            case .array?:
-                return interner.intern("__kk_array_size")
-            case .list?:
-                return interner.intern("__kk_list_size")
-            case .collection?:
-                // A bare `Collection<T>` receiver can be backed by either a list
-                // or a set box, so it needs the type-tag dispatching bridge.
-                return interner.intern("__kk_collection_size")
-            default:
-                break
-            }
-        case "isEmpty":
-            switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
-            case .map?:
-                return interner.intern("__kk_map_is_empty")
-            case .set?:
-                return interner.intern("__kk_set_is_empty")
-            case .array?:
-                return interner.intern("kk_array_is_empty")
-            case .list?, .collection?:
-                return interner.intern("kk_list_is_empty")
-            default:
-                break
-            }
         case "iterator":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
@@ -863,11 +1019,6 @@ extension CallLowerer {
         switch memberName {
         case "count":
             return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
-        case "putAll":
-            guard knownNames.isMutableMapSymbol(symbol) else {
-                return nil
-            }
-            return interner.intern("__kk_mutable_map_putAll")
         default:
             return nil
         }
@@ -890,8 +1041,10 @@ extension CallLowerer {
             return interner.intern("__kk_set_is_empty")
         case .array?:
             return interner.intern("kk_array_is_empty")
-        case .list?, .collection?:
+        case .list?:
             return interner.intern("kk_list_is_empty")
+        case .collection?:
+            return interner.intern("__kk_collection_isEmpty")
         case .sequence?, nil:
             return nil
         }

@@ -33,7 +33,7 @@ public fun String.first(): Char {
     return this.__kk_string_first()
 }
 
-public fun String.first(predicate: (Char) -> Boolean): Char {
+public inline fun String.first(predicate: (Char) -> Boolean): Char {
     var foundIndex = -1
     var i = 0
     val sz = length
@@ -51,7 +51,7 @@ public fun String.firstOrNull(): Char? {
     return this.__kk_string_firstOrNull()
 }
 
-public fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
+public inline fun String.firstOrNull(predicate: (Char) -> Boolean): Char? {
     var foundIndex = -1
     var i = 0
     val sz = length
@@ -69,7 +69,7 @@ public fun String.last(): Char {
     return this.__kk_string_last()
 }
 
-public fun String.last(predicate: (Char) -> Boolean): Char {
+public inline fun String.last(predicate: (Char) -> Boolean): Char {
     var foundIndex = -1
     var i = length - 1
     while (i >= 0 && foundIndex < 0) {
@@ -86,7 +86,7 @@ public fun String.lastOrNull(): Char? {
     return this.__kk_string_lastOrNull()
 }
 
-public fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
+public inline fun String.lastOrNull(predicate: (Char) -> Boolean): Char? {
     var foundIndex = -1
     var i = length - 1
     while (i >= 0 && foundIndex < 0) {
@@ -188,7 +188,7 @@ public fun String.single(): Char {
     return this.__kk_string_single()
 }
 
-public fun String.single(predicate: (Char) -> Boolean): Char {
+public inline fun String.single(predicate: (Char) -> Boolean): Char {
     var matchIndex = -1
     var hasMultipleMatches = false
     var i = 0
@@ -214,7 +214,7 @@ public fun String.singleOrNull(): Char? {
     return this.__kk_string_singleOrNull()
 }
 
-public fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
+public inline fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
     var matchIndex = -1
     var hasMultipleMatches = false
     var i = 0

@@ -30,7 +30,9 @@ extension BuildASTPhase {
             return .unit
         }
         let exprTokens = tokens[bodyStartIndex...]
-        let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let exprID = parser.parse() else {
             return .unit
         }
@@ -152,7 +154,11 @@ extension BuildASTPhase {
         guard let last = previousTail.last else {
             return false
         }
-        if isStatementContinuationAtLineEnd(last.kind)
+        let lastIndex = previousTail.index(before: previousTail.endIndex)
+        let endsWithLabelReference = last.kind.isLabelName
+            && lastIndex > previousTail.startIndex
+            && previousTail[previousTail.index(before: lastIndex)].kind == .symbol(.at)
+        if (!endsWithLabelReference && isStatementContinuationAtLineEnd(last.kind))
             || last.kind == .symbol(.lParen)
             || last.kind == .symbol(.comma)
         {
@@ -161,15 +167,30 @@ extension BuildASTPhase {
         if hasUnclosedStatementDelimiter(previousTail) {
             return true
         }
+        // `a or\n    (b)`: Kotlin allows a newline after an infix function
+        // name, and `if (a)\n    body`: the branch body may start on the line
+        // after the condition. The CST parser splits both at the newline.
+        if KotlinParser.endsWithPendingInfixOperator(previousTail)
+            || KotlinParser.endsWithControlFlowCondition(previousTail)
+        {
+            return true
+        }
         guard let first = nextHead.first else {
             return false
         }
-        // `isBinaryOperatorToken` already covers `.`/`?.`, so a dot-continuation
-        // line (`.member()`) is a continuation via this check too.
-        if isBinaryOperatorToken(first.kind)
+        if first.kind.isLabelName,
+           nextHead.dropFirst().first?.kind == .symbol(.at) {
+            return false
+        }
+        if ParserBoundaryPolicy.continuesExpressionBeforeNewline(first.kind)
             || first.kind == .symbol(.comma)
             || first.kind == .symbol(.rParen)
             || first.kind == .symbol(.rBracket)
+        {
+            return true
+        }
+        if first.kind == .symbol(.assign),
+           isDeclarationAssignmentContinuation(previousTail)
         {
             return true
         }
@@ -177,6 +198,24 @@ extension BuildASTPhase {
             return true
         }
         return false
+    }
+
+    private static func isDeclarationAssignmentContinuation<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
+        var depth = BracketDepth()
+        var sawDeclaration = false
+        for token in tokens {
+            if depth.isBracketBraceParenTopLevel {
+                if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) { return false }
+                switch token.kind {
+                case .keyword(.fun), .keyword(.val), .keyword(.var):
+                    sawDeclaration = true
+                default:
+                    break
+                }
+            }
+            depth.track(token.kind)
+        }
+        return sawDeclaration
     }
 
     /// Filter out semicolons that are at the outermost brace level,
@@ -247,13 +286,20 @@ extension BuildASTPhase {
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
+        if let expr = Self.parseLocalNominalDeclExpr(
+            from: raw, interner: interner, astArena: astArena, diagnostics: diagnostics
+        ) {
+            return expr
+        }
         if let expr = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
         }
-        let parser = ExpressionParser(tokens: filtered, interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: filtered, interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 
@@ -262,7 +308,7 @@ extension BuildASTPhase {
         var current: [Token] = []
         var depth = BracketDepth()
         for (idx, token) in tokens.enumerated() {
-            if depth.isAtTopLevel {
+            if depth.isBracketBraceParenTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
                         groups.append(current)
@@ -389,7 +435,7 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl:
+             .funDecl, .classDecl, .objectDecl:
             true
         default:
             false

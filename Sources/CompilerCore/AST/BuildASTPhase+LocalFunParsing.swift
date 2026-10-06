@@ -3,7 +3,8 @@ extension BuildASTPhase {
     func parseLocalFunDeclExpr(
         from statementTokens: [Token],
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        bodyOverride: FunctionBody? = nil
     ) -> ExprID? {
         guard !statementTokens.isEmpty else {
             return nil
@@ -11,6 +12,7 @@ extension BuildASTPhase {
 
         var startIndex = 0
         var isSuspend = false
+        var isInfix = false
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(keyword)
@@ -18,6 +20,7 @@ extension BuildASTPhase {
             if keyword == .suspend {
                 isSuspend = true
             }
+            if keyword == .infix { isInfix = true }
             startIndex += 1
         }
 
@@ -33,17 +36,16 @@ extension BuildASTPhase {
 
         let funTokens = Array(statementTokens[startIndex...])
 
-        guard let nameToken = funTokens.dropFirst().first(where: { token in
-            TypeRefParserCore.isDeclarationNameToken(token.kind)
-        }),
-            let name = internedIdentifier(from: nameToken, interner: interner)
+        guard let lParenIndex = functionParameterOpenParenIndex(in: funTokens),
+              let nameToken = funTokens[..<lParenIndex].last(where: { token in
+                  TypeRefParserCore.isDeclarationNameToken(token.kind)
+              }),
+              let name = internedIdentifier(from: nameToken, interner: interner)
         else {
             return nil
         }
 
-        guard let lParenIndex = funTokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
-            return nil
-        }
+        let receiverType = declarationReceiverType(from: funTokens, interner: interner, astArena: astArena)
 
         var valueParams: [ValueParamDecl] = []
         var depth = BracketDepth()
@@ -77,13 +79,17 @@ extension BuildASTPhase {
         )
 
         let body: FunctionBody
-        if index < funTokens.count, funTokens[index].kind == .symbol(.assign) {
+        if let bodyOverride {
+            body = bodyOverride
+        } else if index < funTokens.count, funTokens[index].kind == .symbol(.assign) {
             index += 1
             // Only strip top-level semicolons (matching filterTopLevelSemicolons'
             // caller convention) so a nested block in the expression body — e.g.
             // `= if (c) { a; b } else d` — keeps its own statement separator.
             let exprTokens = filterTopLevelSemicolons(funTokens[index...])
-            let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             if let exprID = parser.parse(), let exprRange = astArena.exprRange(exprID) {
                 body = .expr(exprID, exprRange)
             } else {
@@ -106,14 +112,17 @@ extension BuildASTPhase {
             statementTokens.last?.range.end ?? head.range.end
         }
         let range = SourceRange(start: head.range.start, end: end)
-        return astArena.appendExpr(.localFunDecl(
+        let declaration = astArena.appendExpr(.localFunDecl(
             name: name,
+            receiverType: receiverType,
             valueParams: valueParams,
             returnType: returnType,
             body: body,
             isSuspend: isSuspend,
             range: range
         ))
+        if isInfix { astArena.markInfixFunction(declaration) }
+        return declaration
     }
 
     private func parseReturnTypeAnnotation(

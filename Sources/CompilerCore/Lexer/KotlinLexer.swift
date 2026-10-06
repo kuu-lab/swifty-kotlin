@@ -7,6 +7,7 @@ final class KotlinLexer {
     let diagnostics: DiagnosticEngine
 
     var offset: Int = 0
+    var templateExpressionNestingDepth: Int = 0
     // Keep classification and interned IDs local to this lexer and its interner.
     var identifierKinds: [String: TokenKind] = [:]
 
@@ -210,7 +211,7 @@ final class KotlinLexer {
             return [scanBacktickedIdentifier(leadingTrivia: leadingTrivia, start: start)]
         }
 
-        if isDigit(ch) {
+        if isDigit(ch) || (ch == 0x2E && offset + 1 < byteCount() && isDigit(byte(at: offset + 1))) {
             return [scanNumber(leadingTrivia: leadingTrivia, start: start)]
         }
 

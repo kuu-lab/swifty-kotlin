@@ -57,7 +57,7 @@ extension CallLowerer {
 
         let valueParams: [KIRParameter] = allValueTypes.enumerated().map { index, type in
             let isErasedPrimitiveParam = erasedValueType(at: index) != nil
-                && (isNonNullPrimitiveType(type, sema: sema)
+                && (isNonNullValueRepresentationType(type, sema: sema)
                     || isNonNullEnumType(type, sema: sema))
             return KIRParameter(
                 symbol: SymbolID(rawValue: Int32(clamping: symbolIDOffsetBase - Int64(argExprID.rawValue) * 16 - Int64(index))),
@@ -69,7 +69,7 @@ extension CallLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        var callArguments = appendCallableCaptureLoads(
+        var callArguments = callableInfo.hasClosureParam ? [closureExpr] : appendCallableCaptureLoads(
             callableInfo: callableInfo,
             closureExpr: closureExpr,
             sema: sema,
@@ -83,15 +83,21 @@ extension CallLowerer {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
+            let lambdaParamKind = resolveValueClassKind(
+                sema.types.kind(of: lambdaParamType),
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            let normalizedLambdaParamType = sema.types.make(lambdaParamKind)
             let unboxCallee: InternedString? = {
                 if isNonNullEnumType(lambdaParamType, sema: sema) {
                     return ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
                 }
                 return boxingCalleeTable.unboxCallee(
-                    for: lambdaParamType, types: sema.types, requireNonNull: true
+                    for: lambdaParamKind, requireNonNull: true
                 )
             }()
-            guard param.type != lambdaParamType,
+            guard param.type != normalizedLambdaParamType,
                   let unboxCallee
             else {
                 callArguments.append(paramExpr)
@@ -109,37 +115,47 @@ extension CallLowerer {
             callArguments.append(unboxedExpr)
         }
 
-        let callResult = arena.appendTemporary(type: functionType.returnType
-        )
+        if !callableInfo.hasClosureParam,
+           functionType.receiver != nil,
+           sema.bindings.isCoroutineLauncherLambdaExpr(argExprID)
+        {
+            let captureCount = callableInfo.captureArguments.count
+            callArguments = Array(callArguments.dropFirst(captureCount))
+                + Array(callArguments.prefix(captureCount))
+        }
+
+        // Reference-returning callbacks (e.g. Comparable selectors) need boxes
+        // even when the concrete callable already has a closure parameter.
+        let adapterReturnType = erasedFunctionType.flatMap {
+            functionValueBoxedReturnType(
+                concreteReturnType: functionType.returnType,
+                expectedReturnType: $0.returnType,
+                sema: sema
+            )
+        } ?? functionType.returnType
+
+        // Generic callbacks may already return an erased, boxed value. Use
+        // the emitted callable's ABI type rather than its contextual type.
+        let callableReturnType = arena.function(for: callableInfo.symbol)?.returnType
+            ?? functionType.returnType
+        let callResult = arena.appendTemporary(type: callableReturnType)
+        let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
         body.append(.call(
             symbol: callableInfo.symbol,
             callee: callableInfo.callee,
             arguments: callArguments,
             result: callResult,
-            canThrow: false,
+            canThrow: canThrow,
             thrownResult: nil
         ))
 
-        switch sema.types.kind(of: functionType.returnType) {
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(callResult))
         }
         body.append(.endBlock)
-
-        // Declaring an erased primitive result as `Any` makes ABILoweringPass
-        // box the returned value, so `Double`/`Char` results keep their identity
-        // once the generic caller stores them into an erased slot.
-        let adapterReturnType: TypeID = {
-            guard let erasedReturnType = erasedFunctionType?.returnType,
-                  isErasedRepresentationType(erasedReturnType, sema: sema),
-                  isNonNullPrimitiveType(functionType.returnType, sema: sema)
-            else {
-                return functionType.returnType
-            }
-            return sema.types.anyType
-        }()
 
         // `functionType.isSuspend` reflects the *expected* (contextual) type the
         // argument lambda was checked against -- e.g. a plain `(T) -> R)` HOF
@@ -175,6 +191,26 @@ extension CallLowerer {
         )
     }
 
+    func functionValueBoxedReturnType(
+        concreteReturnType: TypeID,
+        expectedReturnType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard isNonNullValueRepresentationType(concreteReturnType, sema: sema) else {
+            return nil
+        }
+        if isErasedRepresentationType(expectedReturnType, sema: sema) {
+            return sema.types.anyType
+        }
+        if case .classType = sema.types.kind(of: expectedReturnType),
+           !isNonNullValueRepresentationType(expectedReturnType, sema: sema),
+           !isNonNullEnumType(expectedReturnType, sema: sema)
+        {
+            return expectedReturnType
+        }
+        return nil
+    }
+
     /// True for types represented as an erased `Any` handle at runtime: type
     /// parameters and `Any`/`Any?`.
     private func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -183,8 +219,14 @@ extension CallLowerer {
         return nonNull == sema.types.anyType
     }
 
-    private func isNonNullPrimitiveType(_ type: TypeID, sema: SemaModule) -> Bool {
-        if case .primitive(_, .nonNull) = sema.types.kind(of: type) { return true }
+    private func isNonNullValueRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
+        let kind = resolveValueClassKind(
+            sema.types.kind(of: type),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        if case .primitive(_, .nonNull) = kind { return true }
+        if case .stringStruct(.nonNull) = kind { return true }
         return false
     }
 

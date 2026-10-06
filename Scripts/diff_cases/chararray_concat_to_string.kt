@@ -33,4 +33,12 @@ fun main() {
     val greeting = charArrayOf('H', 'i')
     println(greeting.concatToString() + " there")
     println(greeting.concatToString().length)
+
+    // Surrogate pairs: CharArray holds UTF-16 code units, so a pair must
+    // recombine into one supplementary-plane character (KUU-634).
+    val surrogate = charArrayOf('\uD800', '\uDC00')
+    println(surrogate.concatToString())
+    println(surrogate.concatToString().length)
+    val astral = "𐀀"
+    println(astral.toCharArray().concatToString() == astral)
 }

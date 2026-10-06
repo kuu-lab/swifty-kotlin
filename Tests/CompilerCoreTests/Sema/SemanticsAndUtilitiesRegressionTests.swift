@@ -13,6 +13,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             """
             package sample0
 
+                    @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
                     import kotlin.concurrent.atomics.AtomicInt
 
                     fun main() {
@@ -22,7 +24,7 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testAtomicMigrationAliasesResolveInAtomicsPackage
+            // testCanonicalAtomicMethodsResolveInAtomicsPackage
             """
             package sample1
 
@@ -33,12 +35,12 @@ struct SemanticsAndUtilitiesRegressionTests {
 
                     fun main() {
                         val intValue = AtomicInt(1)
-                        val nextInt = intValue.incrementAndGet()
-                        val intAgain = intValue.get()
+                        val nextInt = intValue.incrementAndFetch()
+                        val intAgain = intValue.load()
 
                         val longValue = AtomicLong(3L)
-                        val nextLong = longValue.incrementAndGet()
-                        val longAgain = longValue.get()
+                        val nextLong = longValue.incrementAndFetch()
+                        val longAgain = longValue.load()
 
                         println(nextInt + intAgain)
                         println(nextLong + longAgain)
@@ -149,6 +151,8 @@ struct SemanticsAndUtilitiesRegressionTests {
             """
             package sample8
 
+                    @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
                     import kotlin.concurrent.AtomicLongArray
 
                     fun main() {
@@ -194,11 +198,11 @@ struct SemanticsAndUtilitiesRegressionTests {
 
                     fun main() {
                         val ints = AtomicIntArray(2)
-                        ints[0] = 5
-                        ints[1] = ints[0] + 1
+                        ints.storeAt(0, 5)
+                        ints.storeAt(1, ints.loadAt(0) + 1)
                         val longs = AtomicLongArray(1)
-                        longs[0] = 9L
-                        println(ints[0] + ints[1] + longs[0])
+                        longs.storeAt(0, 9L)
+                        println(ints.loadAt(0) + ints.loadAt(1) + longs.loadAt(0))
                     }
 
             """,
@@ -316,7 +320,7 @@ struct SemanticsAndUtilitiesRegressionTests {
                 _ = samplePath
                 #expect(
                     !(ctx.diagnostics.hasError),
-                    "Atomic migration aliases should resolve from kotlin.concurrent.atomics imports: \(ctx.diagnostics.diagnostics.map(\.message))"
+                    "Canonical atomic methods should resolve from kotlin.concurrent.atomics imports: \(ctx.diagnostics.diagnostics.map(\.message))"
                 )
             }
 

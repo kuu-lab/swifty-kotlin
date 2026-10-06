@@ -40,10 +40,41 @@ private func coro_intrinsics_throw_immediately(_ continuation: Int, _ outThrown:
     return 0
 }
 
+private func coro_intrinsics_dispatcher_tag(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, RuntimeDispatcher.current?.tag ?? 0)
+}
+
+private func coro_intrinsics_nested_throw(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, 8823)
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+        let entry = unsafeBitCast(coro_intrinsics_throw_immediately as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let child = kk_coroutine_continuation_new(entry)
+        return kk_coroutine_call_direct_suspend(entry, child, continuation)
+    }
+    outThrown?.pointee = kk_coroutine_state_get_thrown_exception(continuation)
+    return kk_coroutine_state_exit(continuation, 0)
+}
+
 //   • runtimeResultRunCatching + cancellation-exception propagation through Result
 
 @Suite(.serialized, .runtimeIsolation(.all))
 struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
+
+    @Test func dispatcherDefaultsOnlyApplyToNativeReceivers() {
+        let dispatcherObject = runtimeRegisterObject(RuntimeDispatcher(queue: .global(), tag: kk_dispatcher_default()))
+        for dispatcher in [kk_dispatcher_default(), kk_dispatcher_main(), kk_dispatcher_io(), dispatcherObject] {
+            #expect(kk_is_native_dispatcher(dispatcher) == 1)
+            #expect(kk_dispatcher_default_method(dispatcher, 123, 456) == 456)
+            #expect(kk_dispatcher_default_method(dispatcher, 0, 456) == 456)
+        }
+        for receiver in [0, runtimeNullSentinelInt, kk_coroutine_name_create(0)] {
+            #expect(kk_is_native_dispatcher(receiver) == 0)
+            #expect(kk_dispatcher_default_method(receiver, 123, 456) == 123)
+            #expect(kk_dispatcher_default_method(receiver, 0, 456) == 0)
+        }
+    }
 
     // MARK: - COROUTINE_SUSPENDED sentinel
 
@@ -72,6 +103,29 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     }
 
     // MARK: - start/create unintercepted runtime entry points
+
+    @Test func boxedCreateCoroutinePreservesClosureAndReceiverSlots() throws {
+        let completion = kk_coroutine_continuation_new(8897)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let state = try #require(runtimeContinuationState(from: completion))
+        let entry = unsafeBitCast(coro_intrinsics_receiver_plus_one as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let noReceiver = kk_suspend_function_create(0, 41, 0, entry)
+        let prepared = kk_create_coroutine_unintercepted_no_receiver(noReceiver, 0, completion)
+        #expect(state.completion == 0)
+        kk_coroutine_continuation_resume(prepared, 0)
+        #expect(Int(state.completion) == 42)
+
+        let receiverCompletion = kk_coroutine_continuation_new(8898)
+        defer { _ = kk_coroutine_state_exit(receiverCompletion, 0) }
+        let receiverState = try #require(runtimeContinuationState(from: receiverCompletion))
+        let withReceiver = kk_suspend_function_create(0, 17, 1, entry)
+        let received = kk_create_coroutine_unintercepted_with_receiver(withReceiver, 0, 23, receiverCompletion)
+        #expect(kk_coroutine_launcher_arg_get(received, 0) == 17)
+        #expect(kk_coroutine_launcher_arg_get(received, 1) == 23)
+        kk_coroutine_continuation_resume(received, 0)
+        #expect(Int(receiverState.completion) == 18)
+        #expect(receiverState.thrownException == 0)
+    }
 
     @Test func createCoroutineUninterceptedStartsWhenReturnedContinuationIsResumed() throws {
         let completion = kk_coroutine_continuation_new(8812)
@@ -171,23 +225,130 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     // MARK: - intercepted() — bypass semantics
 
+    @Test func generatedCoroutineDeliversImmediateChildFailureSynchronously() throws {
+        let completion = kk_coroutine_continuation_new(8824)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let state = try #require(runtimeContinuationState(from: completion))
+        let entry = unsafeBitCast(coro_intrinsics_nested_throw as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, completion)
+        kk_coroutine_continuation_resume(coroutine, 0)
+        #expect(state.thrownException != 0)
+    }
+
+    @Test func startCoroutineReturnsImmediateChildFailureWithoutSuspending() {
+        let entry = unsafeBitCast(coro_intrinsics_nested_throw as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, 0)
+        var thrown = 0
+        let result = kk_start_coroutine_unintercepted_or_return(entry, coroutine, &thrown)
+        #expect(result == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test(arguments: [kk_dispatcher_default(), kk_dispatcher_io(), kk_dispatcher_main()])
+    func generatedCoroutineCachesDispatcherWrapperAndResumes(dispatcher: Int) throws {
+        let completion = kk_coroutine_continuation_new(8820)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        completionState.builderContext = RuntimeCoroutineContext(dispatcher: dispatcher)
+        let completed = DispatchSemaphore(value: 0)
+        completionState.installResumeContinuation { completed.signal() }
+        let entry = unsafeBitCast(coro_intrinsics_dispatcher_tag as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, completion)
+        let context = __kk_coroutine_continuation_context(coroutine)
+        #expect(kk_context_get_dispatcher(context) == dispatcher)
+        #expect(__kk_coroutine_continuation_context(coroutine) == context)
+        let first = __kk_continuation_intercepted(coroutine)
+        #expect(first != coroutine)
+        #expect(__kk_continuation_intercepted(coroutine) == first)
+        #expect(__kk_continuation_intercepted(first) == first)
+        #expect(__kk_coroutine_continuation_context(first) == context)
+        kk_coroutine_continuation_resume(first, 0)
+        #expect(completed.wait(timeout: .now() + 3) == .success)
+        #expect(completionState.completion == Int64(dispatcher))
+        #expect(completionState.thrownException == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func generatedDispatcherWrapperDeliversFailure(failStart: Bool) throws {
+        let completion = kk_coroutine_continuation_new(8821)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        completionState.builderContext = RuntimeCoroutineContext(dispatcher: kk_dispatcher_default())
+        let completed = DispatchSemaphore(value: 0)
+        completionState.installResumeContinuation { completed.signal() }
+        let entry = unsafeBitCast(coro_intrinsics_throw_immediately as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, completion)
+        let wrapper = __kk_continuation_intercepted(coroutine)
+        let failure = runtimeAllocateThrowable(message: "start failure")
+        if failStart {
+            kk_coroutine_continuation_resume_with_exception(wrapper, failure)
+        } else {
+            kk_coroutine_continuation_resume(wrapper, 0)
+        }
+        #expect(completed.wait(timeout: .now() + 3) == .success)
+        #expect(completionState.thrownException != 0)
+        if failStart {
+            #expect(completionState.thrownException == failure)
+        }
+    }
+
+    @Test func generatedDispatcherWrapperResumesAfterSuspension() throws {
+        let completion = kk_coroutine_continuation_new(8822)
+        defer { _ = kk_coroutine_state_exit(completion, 0) }
+        let completionState = try #require(runtimeContinuationState(from: completion))
+        completionState.builderContext = RuntimeCoroutineContext(dispatcher: kk_dispatcher_default())
+        let completed = DispatchSemaphore(value: 0)
+        completionState.installResumeContinuation { completed.signal() }
+        let entry = unsafeBitCast(coro_intrinsics_delay_then_return as RuntimeCoroutineIntrinsicEntry, to: Int.self)
+        let coroutine = kk_create_coroutine_unintercepted(entry, completion)
+        let wrapper = __kk_continuation_intercepted(coroutine)
+        kk_coroutine_continuation_resume(wrapper, 0)
+        #expect(completed.wait(timeout: .now() + 3) == .success)
+        #expect(completionState.completion == 456)
+        #expect(completionState.thrownException == 0)
+    }
+
     @Test func interceptedFreshContinuationReturnsIdentity() {
         let cont = kk_coroutine_continuation_new(8801)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
-        let intercepted = kk_continuation_intercepted(cont)
+        let intercepted = __kk_continuation_intercepted(cont)
         #expect(intercepted == cont, "intercepted() on a continuation with no interceptor must return the same handle (bypass)")
     }
 
     @Test func interceptedZeroHandleReturnsZero() {
-        let result = kk_continuation_intercepted(0)
+        let result = __kk_continuation_intercepted(0)
         #expect(result == 0, "intercepted(null) must return 0")
     }
 
     @Test func interceptedValidContinuationIsNonZero() {
         let cont = kk_coroutine_continuation_new(8802)
         defer { _ = kk_coroutine_state_exit(cont, 0) }
-        let intercepted = kk_continuation_intercepted(cont)
+        let intercepted = __kk_continuation_intercepted(cont)
         #expect(intercepted != 0, "intercepted() must return a non-zero handle for a valid continuation")
+    }
+
+    @Test func interceptedNonSwiftMemoryReturnsIdentity() {
+        let pointer = UnsafeMutableRawPointer.allocate(byteCount: 32, alignment: 8)
+        defer { pointer.deallocate() }
+        pointer.initializeMemory(as: UInt8.self, repeating: 0, count: 32)
+        let raw = Int(bitPattern: pointer)
+        #expect(__kk_continuation_intercepted(raw) == raw)
+    }
+
+    @Test func interceptedDispatcherContinuationStillDispatchesResume() throws {
+        let completion = DispatchGroup()
+        completion.enter()
+        let continuation = runtimeRegisterObject(KKDispatchContinuation(
+            context: UnsafeMutableRawPointer(bitPattern: kk_dispatcher_default()),
+            callback: { _ in completion.leave() }
+        ))
+        let intercepted = __kk_continuation_intercepted(continuation)
+        #expect(intercepted != 0 && intercepted != continuation)
+        #expect(__kk_continuation_intercepted(intercepted) == intercepted)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: intercepted))
+        let wrapper = try #require(Unmanaged<AnyObject>.fromOpaque(pointer).takeUnretainedValue() as? KKContinuation)
+        wrapper.resumeWith(nil)
+        #expect(completion.wait(timeout: .now() + 2) == .success)
     }
 
     // MARK: - kk_continuation_interceptor_intercept_continuation
@@ -209,6 +370,32 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
     @Test func interceptorInterceptContinuationWithZeroContinuationReturnsZero() {
         let result = kk_continuation_interceptor_intercept_continuation(0, 0)
         #expect(result == 0, "Intercepting a null continuation must return 0")
+    }
+
+    @Test(arguments: [kk_dispatcher_default(), kk_dispatcher_io(), kk_dispatcher_main()])
+    func nativeDispatcherUsesInterceptorInterfaceAdapters(dispatcher: Int) throws {
+        let interfaceID = Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.ContinuationInterceptor"))
+        let interceptRaw = try #require(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 0))
+        #expect(kk_itable_lookup_dynamic(dispatcher, interfaceID, 0) == interceptRaw)
+        let intercept = unsafeBitCast(interceptRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 42
+        #expect(intercept(dispatcher, 0, &thrown) == kk_continuation_interceptor_intercept_continuation(dispatcher, 0))
+        #expect(thrown == 0)
+        let continuation = runtimeRegisterObject(KKDispatchContinuation(context: nil, callback: { _ in }))
+        let intercepted = intercept(dispatcher, continuation, &thrown)
+        #expect(intercepted != 0 && intercepted != continuation)
+        #expect(thrown == 0)
+        let dispatcherObject = runtimeRegisterObject(RuntimeDispatcher(queue: .global(), tag: dispatcher))
+        #expect(runtimeDispatcherInterceptorMethod(dispatcherObject, interfaceID, 0) == interceptRaw)
+        let releaseRaw = try #require(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 1))
+        let release = unsafeBitCast(releaseRaw, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        thrown = 42
+        #expect(release(dispatcher, 0, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID, 2) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(dispatcher, interfaceID + 1, 0) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(0, interfaceID, 0) == nil)
+        #expect(runtimeDispatcherInterceptorMethod(continuation, interfaceID, 0) == nil)
     }
 
     // MARK: - CancellationException type identity

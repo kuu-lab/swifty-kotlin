@@ -1,4 +1,6 @@
 extension KotlinLexer {
+    private static let maximumTemplateExpressionNestingDepth = 64
+
     func scanString(leadingTrivia: [TriviaPiece], start: Int) -> [Token] {
         let openStart = offset
         offset += 1
@@ -28,7 +30,11 @@ extension KotlinLexer {
                 continue
             }
 
-            if ch == 0x24, offset + 1 < byteCount(), isIdentifierStart(byte(at: offset + 1)) {
+            if ch == 0x24,
+               offset + 1 < byteCount(),
+               isIdentifierStart(byte(at: offset + 1)),
+               byte(at: offset + 1) != 0x24
+            {
                 appendSegment(to: &tokens, from: segmentStart, to: offset, leadingTrivia: [])
                 tokens.append(
                     Token(
@@ -54,18 +60,8 @@ extension KotlinLexer {
                 continue
             }
 
-            if ch == 0x0A {
-                diagnostics.warning(
-                    "KSWIFTK-LEX-0004",
-                    "Unescaped line break in string literal.",
-                    range: makeRange(start: offset, end: offset + 1)
-                )
-                offset += 1
-                continue
-            }
-
-            if ch == 0x0D {
-                diagnostics.warning(
+            if ch == 0x0A || ch == 0x0D {
+                diagnostics.error(
                     "KSWIFTK-LEX-0004",
                     "Unescaped line break in string literal.",
                     range: makeRange(start: offset, end: offset + 1)
@@ -163,6 +159,18 @@ extension KotlinLexer {
 
     func scanTemplateExpression() -> (tokens: [Token], closeRange: SourceRange) {
         let expressionStart = offset
+        guard templateExpressionNestingDepth < Self.maximumTemplateExpressionNestingDepth else {
+            diagnostics.error(
+                "KSWIFTK-LEX-0007",
+                "String template nesting exceeds the maximum supported depth of \(Self.maximumTemplateExpressionNestingDepth).",
+                range: makeRange(start: expressionStart, end: expressionStart)
+            )
+            return ([], skipTemplateExpression())
+        }
+
+        templateExpressionNestingDepth += 1
+        defer { templateExpressionNestingDepth -= 1 }
+
         var depth = 1
         var tokens: [Token] = []
 
@@ -275,6 +283,64 @@ extension KotlinLexer {
         ))
     }
 
+    private func skipTemplateExpression() -> SourceRange {
+        var braceDepth = 1
+
+        while offset < byteCount() {
+            _ = consumeTrivia()
+            guard offset < byteCount() else { break }
+
+            let current = byte(at: offset)
+            if current == 0x22 || current == 0x27 {
+                skipQuotedLiteral(quote: current)
+                continue
+            }
+
+            if current == 0x7B {
+                braceDepth += 1
+                offset += 1
+                continue
+            }
+
+            if current == 0x7D {
+                let closeStart = offset
+                offset += 1
+                braceDepth -= 1
+                if braceDepth == 0 {
+                    return makeRange(start: closeStart, end: offset)
+                }
+                continue
+            }
+
+            offset += 1
+        }
+
+        return makeRange(start: offset, end: offset)
+    }
+
+    private func skipQuotedLiteral(quote: UInt8) {
+        let isRawString = quote == 0x22 && starts(with: "\"\"\"", at: offset)
+        offset += isRawString ? 3 : 1
+
+        while offset < byteCount() {
+            if isRawString {
+                if starts(with: "\"\"\"", at: offset) {
+                    offset += 3
+                    return
+                }
+                offset += 1
+            } else {
+                let current = byte(at: offset)
+                offset += 1
+                if current == 0x5C, offset < byteCount() {
+                    offset += 1
+                } else if current == quote {
+                    return
+                }
+            }
+        }
+    }
+
     // MARK: - Multi-dollar string support (Kotlin 2.1+)
 
     /// Scans a multi-dollar single-line string: `$$"..."`, `$$$"..."`, etc.
@@ -328,7 +394,7 @@ extension KotlinLexer {
             }
 
             if ch == 0x0A || ch == 0x0D {
-                diagnostics.warning(
+                diagnostics.error(
                     "KSWIFTK-LEX-0004",
                     "Unescaped line break in string literal.",
                     range: makeRange(start: offset, end: offset + 1)

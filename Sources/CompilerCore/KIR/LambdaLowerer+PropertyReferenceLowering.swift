@@ -262,6 +262,14 @@ extension LambdaLowerer {
             captureArguments: [wrapperValue],
             hasClosureParam: false
         )
+        registerCallableReflection(
+            value: taggedValue, callableSymbol: getterMethodSymbol, callableName: interner.intern("get"),
+            targetSymbol: accessor.propertySymbol,
+            parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
+            returnType: accessor.propertyType, captures: [wrapperValue], receiverCount: shape.arity,
+            setterSymbol: setterMethodSymbol, ast: ast, sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        )
         _ = isUnbound
         return taggedValue
     }
@@ -356,12 +364,106 @@ extension LambdaLowerer {
             arena: arena,
             interner: interner,
             propertyConstantInitializers: propertyConstantInitializers
-        ),
-            let getter = arena.function(for: accessor.getterSymbol)
+        )
         else {
             return nil
         }
-        return (accessor.getterSymbol, getter.name)
+        if let thunk = virtualPropertyGetterThunk(
+            accessor: accessor,
+            sema: sema,
+            arena: arena,
+            interner: interner
+        ) {
+            return thunk
+        }
+        if let getter = arena.function(for: accessor.getterSymbol) {
+            return propertyGetterThunk(
+                accessor: accessor,
+                getterName: getter.name,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+        }
+        // REFL-EXTPROP: an extension property imported from a precompiled
+        // stdlib `.kklib` (e.g. `String.length`) links its getter externally
+        // instead of getting a body lowered into *this* arena -- see the
+        // matching external-link-name guard in `ensurePropertyReferenceAccessor`,
+        // which deliberately leaves such a getter absent from the arena
+        // rather than synthesizing a bogus stored-property body for it.
+        if let externalLinkName = sema.symbols.externalLinkName(for: accessor.getterSymbol),
+           !externalLinkName.isEmpty
+        {
+            return propertyGetterThunk(
+                accessor: accessor,
+                getterName: interner.intern(externalLinkName),
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+        }
+        return nil
+    }
+
+    private func propertyGetterThunk(
+        accessor: PropertyReferenceAccessor,
+        getterName: InternedString,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (symbol: SymbolID, name: InternedString) {
+        let name = interner.intern("kk_lambda_property_getter_\(accessor.propertySymbol.rawValue)")
+        if let existing = sema.symbols.lookup(fqName: [name]) {
+            return (existing, name)
+        }
+        let symbol = sema.symbols.define(
+            kind: .function,
+            name: name,
+            fqName: [name],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        let receiverType = sema.symbols.functionSignature(for: accessor.getterSymbol)?.receiverType
+        let params = receiverType.map { type in
+            [KIRParameter(
+                symbol: driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol),
+                type: type
+            )]
+        } ?? []
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: receiverType, parameterTypes: [], returnType: accessor.propertyType),
+            for: symbol
+        )
+        var body: [KIRInstruction] = [.beginBlock]
+        let arguments = params.map { param in
+            let value = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: value, value: .symbolRef(param.symbol)))
+            return value
+        }
+        let result = arena.appendTemporary(type: accessor.propertyType)
+        // Adapt the thunk, not the getter, to the raw function-value ABI.
+        // Imported getters must retain their compiled aggregate/throwing ABI.
+        body.append(.call(
+            symbol: accessor.getterSymbol,
+            callee: getterName,
+            arguments: arguments,
+            result: result,
+            canThrow: true,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(result))
+        body.append(.endBlock)
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: symbol,
+            name: name,
+            params: params,
+            returnType: accessor.propertyType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        ))))
+        return (symbol, name)
     }
 
     private func ensurePropertyReferenceAccessor(
@@ -391,18 +493,16 @@ extension LambdaLowerer {
         // and declare no virtual dispatch never allocate a real heap
         // instance) — this used to crash with SIGSEGV.
         //
-        // Every other owner kind — including `.class`/`.interface` (real
-        // per-instance field storage) and `.enumClass` (per-*entry*
-        // instance storage — confirmed by testing that it must NOT be
-        // treated like `.object` here, or a per-entry constructor property
-        // like `enum class E(val v: Int) { A(1), B(2) }`'s `v` silently
-        // reads back `0` for every entry instead of each entry's own value;
-        // see isCaptureEligibleInstanceContainerSymbol's doc comment) —
-        // keeps the original unconditional ownerType computation, unchanged
-        // from before this fix.
-        let ownerType: TypeID? = ownerKind == .object
-            ? nil
-            : ownerSymbol.flatMap { owner in
+        // Extension getters receive their declared receiver, not their package.
+        // Class/interface/enum properties retain per-instance storage; package
+        // and singleton object properties have no instance receiver.
+        let ownerType: TypeID?
+        if let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
+            ownerType = extensionReceiverType
+        } else if ownerKind == .object || ownerKind == .package {
+            ownerType = nil
+        } else {
+            ownerType = ownerSymbol.flatMap { owner in
                 sema.symbols.symbol(owner).map {
                     sema.types.make(.classType(ClassType(
                         classSymbol: $0.id,
@@ -411,6 +511,7 @@ extension LambdaLowerer {
                     )))
                 }
             }
+        }
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
@@ -418,7 +519,20 @@ extension LambdaLowerer {
                 ? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
                 : nil)
 
-        if arena.function(for: getterSymbol) == nil {
+        // REFL-EXTPROP: an extension property imported from a precompiled
+        // stdlib `.kklib` (LibraryImport.swift) already points its
+        // accessor's symbol at a real external link name -- it links
+        // against the library's own compiled getter/setter the same way any
+        // other imported function does, and has no AST `propertyDecl` in
+        // *this* compilation for `emitPropertyReferenceAccessor` to read a
+        // body from. Synthesizing one anyway falls through to that
+        // function's stored-property fallback, which fabricates a
+        // load/storeGlobal body for a property that was never a stored
+        // global to begin with (`String.length` is a computed getter) and
+        // links against a global slot that was never created
+        // (`kk_global_root_slot_kotlin_length`, undefined at link time).
+        let getterIsExternallyLinked = sema.symbols.externalLinkName(for: getterSymbol)?.isEmpty == false
+        if arena.function(for: getterSymbol) == nil, !getterIsExternallyLinked {
             emitPropertyReferenceAccessor(
                 propertySymbol: propertySymbol,
                 accessorSymbol: getterSymbol,
@@ -432,8 +546,10 @@ extension LambdaLowerer {
                 propertyConstantInitializers: propertyConstantInitializers
             )
         }
+        let setterIsExternallyLinked = setterSymbol.flatMap { sema.symbols.externalLinkName(for: $0) }?.isEmpty == false
         if let setterSymbol,
-           arena.function(for: setterSymbol) == nil
+           arena.function(for: setterSymbol) == nil,
+           !setterIsExternallyLinked
         {
             emitPropertyReferenceAccessor(
                 propertySymbol: propertySymbol,
@@ -540,7 +656,23 @@ extension LambdaLowerer {
             body.append(.constValue(result: expr, value: .symbolRef(symbol)))
             return expr
         }
-        if let fieldOffset,
+        if kind == .getter,
+           let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
+           !externalLinkName.isEmpty
+        {
+            // Runtime-backed properties retain their bridge even when bundled
+            // source declares the property without a getter body.
+            let result = arena.appendTemporary(type: propertyType)
+            body.append(.call(
+                symbol: propertySymbol,
+                callee: interner.intern(externalLinkName),
+                arguments: receiverExpr.map { [$0] } ?? [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.returnValue(result))
+        } else if let fieldOffset,
            let receiverExpr
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
@@ -696,6 +828,34 @@ extension LambdaLowerer {
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameter.symbol)))
             callArgs.append(parameterExpr)
         }
+        // An interface / open / abstract member property must be read through
+        // its itable / vtable, exactly like an ordinary `receiver.prop` read:
+        // calling the declaring accessor statically would run the abstract
+        // stub (null) or the base getter instead of the implementer's.
+        if accessor.ownerType != nil,
+           let dispatchReceiver = callArgs.first,
+           let dispatched = emitVirtualPropertyReferenceGetterRead(
+               accessor: accessor,
+               receiver: dispatchReceiver,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &body
+           )
+        {
+            body.append(.returnValue(dispatched))
+            body.append(.endBlock)
+            driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+                symbol: methodSymbol,
+                name: interner.intern("get"),
+                params: params,
+                returnType: accessor.propertyType,
+                body: body,
+                isSuspend: false,
+                isInline: false
+            ))))
+            return
+        }
         let result = arena.appendTemporary(type: accessor.propertyType)
         body.append(.call(symbol: accessor.getterSymbol, callee: interner.intern("get"), arguments: callArgs, result: result, canThrow: false, thrownResult: nil))
         body.append(.returnValue(result))
@@ -709,6 +869,121 @@ extension LambdaLowerer {
             isSuspend: false,
             isInline: false
         ))))
+    }
+
+    /// `(receiver) -> value` function-value target for an interface / open /
+    /// abstract member property (`list.map(Named::label)`). The plain
+    /// accessor is the declaring type's own (possibly abstract-stub) getter,
+    /// so the function value needs a thunk that dispatches through the
+    /// itable / vtable. Returns `nil` when the property needs no dispatch.
+    private func virtualPropertyGetterThunk(
+        accessor: PropertyReferenceAccessor,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (symbol: SymbolID, name: InternedString)? {
+        guard let ownerType = accessor.ownerType else { return nil }
+        let getName = interner.intern("get")
+        let thunkFQName = [interner.intern("kk_property_virtual_getter_\(accessor.propertySymbol.rawValue)"), getName]
+        if let existing = sema.symbols.lookup(fqName: thunkFQName) {
+            return (existing, getName)
+        }
+        // Probe applicability before defining anything, so a property that
+        // needs no dispatch never leaves a body-less thunk symbol behind.
+        var probe: [KIRInstruction] = []
+        let probeReceiver = arena.appendExpr(.intLiteral(0), type: ownerType)
+        guard emitVirtualPropertyReferenceGetterRead(
+            accessor: accessor,
+            receiver: probeReceiver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &probe
+        ) != nil else {
+            return nil
+        }
+        let thunkSymbol = sema.symbols.define(
+            kind: .function,
+            name: getName,
+            fqName: thunkFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: thunkSymbol)
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        var body: [KIRInstruction] = [.beginBlock, .constValue(result: receiverExpr, value: .symbolRef(receiverSymbol))]
+        guard let dispatched = emitVirtualPropertyReferenceGetterRead(
+            accessor: accessor,
+            receiver: receiverExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        ) else {
+            return nil
+        }
+        body.append(.returnValue(dispatched))
+        body.append(.endBlock)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: accessor.propertyType,
+                valueParameterSymbols: []
+            ),
+            for: thunkSymbol
+        )
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: thunkSymbol,
+            name: getName,
+            params: [KIRParameter(symbol: receiverSymbol, type: ownerType)],
+            returnType: accessor.propertyType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        ))))
+        return (thunkSymbol, getName)
+    }
+
+    private func emitVirtualPropertyReferenceGetterRead(
+        accessor: PropertyReferenceAccessor,
+        receiver: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        if let interfaceRead = driver.callLowerer.tryLowerInterfaceItablePropertyGetterRead(
+            propertySymbol: accessor.propertySymbol,
+            loweredReceiverID: receiver,
+            resultType: accessor.propertyType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return interfaceRead
+        }
+        guard let (getterSymbol, dispatch) = driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+            propertySymbol: accessor.propertySymbol,
+            accessorKind: .getter,
+            sema: sema
+        ) else {
+            return nil
+        }
+        let result = arena.appendTemporary(type: accessor.propertyType)
+        instructions.append(.virtualCall(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            receiver: receiver,
+            arguments: [],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: dispatch
+        ))
+        return result
     }
 
     private func emitPropertyReferenceSetter(

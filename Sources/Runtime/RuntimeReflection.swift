@@ -70,6 +70,11 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
     }
 }
 
+/// Renders class handles consistently across Any.toString, printing, and collections.
+func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
+    "class \(box.metadata?.displayName ?? box.reflectionQualifiedName)"
+}
+
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 @_cdecl("__kk_kclass_get_arity")
@@ -95,8 +100,12 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 
+    return runtimeAnnotationList(metadata.annotations)
+}
+
+func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord]) -> Int {
     var annotationHandles: [Int] = []
-    for record in metadata.annotations where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
+    for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
         let box = RuntimeAnnotationBox(
             annotationFQName: record.annotationFQName,
             arguments: record.arguments,
@@ -105,6 +114,22 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
         annotationHandles.append(registerRuntimeObject(box))
     }
     return registerRuntimeObject(RuntimeListBox(elements: annotationHandles))
+}
+
+/// Attaches declaration annotation metadata to a compiler-generated callable.
+@_cdecl("__kk_kcallable_register_single_annotation")
+public func __kk_kcallable_register_single_annotation(
+    _ callableRaw: Int, _ fqNameRaw: Int, _ argsEncodedRaw: Int, _ argCount: Int
+) -> Int {
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    guard runtimeShouldExposeAnnotation(fqName: fqName) else { return 0 }
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let arguments = argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : []
+    let record = RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments)
+    runtimeStorage.withDelegateLock { state in
+        state.callableRefMetadataByValue[callableRaw]?.annotations.append(record)
+    }
+    return 0
 }
 
 /// Searches for an annotation by its simple or qualified name on a KClass.
@@ -257,6 +282,16 @@ private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
         return nil
     }
     return tryCast(ptr, to: RuntimeKParameterBox.self)
+}
+
+@_cdecl("__kk_kparameter_create_typed")
+public func __kk_kparameter_create_typed(
+    _ index: Int, _ nameRaw: Int, _ typeRaw: Int, _ isOptional: Int, _ kind: Int, _ typeToken: Int, _ callableOwner: Int = 0
+) -> Int {
+    let raw = __kk_kparameter_create(index, nameRaw, typeRaw, isOptional, kind)
+    runtimeKParameterBox(from: raw)?.typeToken = typeToken
+    runtimeKParameterBox(from: raw)?.callableOwner = callableOwner
+    return raw
 }
 
 @_cdecl("__kk_kparameter_get_index")
@@ -628,20 +663,56 @@ func runtimeKTypeProjectionToString(_ box: RuntimeKTypeProjectionBox) -> String 
     }
 }
 
+private func runtimeKTypeProjectionRendered(_ raw: Int) -> String {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+          let box = tryCast(ptr, to: RuntimeKTypeProjectionBox.self)
+    else {
+        return "*"
+    }
+    return runtimeKTypeProjectionToString(box)
+}
+
 private func runtimeKTypeArgumentsToString(_ argumentRaws: [Int]) -> String {
     guard !argumentRaws.isEmpty else {
         return ""
     }
-    let renderedArguments = argumentRaws.map { raw -> String in
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
-              let box = tryCast(ptr, to: RuntimeKTypeProjectionBox.self)
-        else {
-            return "*"
-        }
-        return runtimeKTypeProjectionToString(box)
-    }
+    let renderedArguments = argumentRaws.map(runtimeKTypeProjectionRendered)
     return "<\(renderedArguments.joined(separator: ", "))>"
+}
+
+/// KUU-1084: renders a KType whose classifier token is a FunctionN in Kotlin's
+/// function-type notation — `suspend (P1, P2) -> R` — instead of the nominal
+/// `kotlin.FunctionN<P1, P2, R>` form. Argument projections follow Kotlin
+/// order: context receivers, extension receiver, value parameters, then the
+/// return type.
+private func runtimeFunctionKTypeToString(_ box: RuntimeKTypeBox, classifier kclassBox: RuntimeKClassBox) -> String {
+    let payload = (Int64(truncatingIfNeeded: kclassBox.typeToken) >> RuntimeTypeTokenEncoding.payloadShift)
+        & RuntimeTypeTokenEncoding.payloadMask
+    let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+    let argumentRaws = box.argumentRaws
+    guard argumentRaws.count == arity + 1 else {
+        // A function classifier without its full projection list (e.g. built
+        // through a path that could not see the static type) keeps the nominal
+        // classifier spelling.
+        let baseName = isSuspend
+            ? "kotlin.coroutines.intrinsics.SuspendFunction\(arity)"
+            : "kotlin.Function\(arity)"
+        return baseName
+            + runtimeKTypeArgumentsToString(argumentRaws)
+            + (box.isMarkedNullable ? "?" : "")
+    }
+    var parts: [String] = []
+    if isSuspend {
+        parts.append("suspend")
+    }
+    // kotlinc renders parameter projections bare inside the param parens —
+    // `(() -> kotlin.Unit, kotlin.Int) -> kotlin.String` — no extra wrapper.
+    let renderedParams = argumentRaws[..<arity].map(runtimeKTypeProjectionRendered)
+    let renderedReturn = runtimeKTypeProjectionRendered(argumentRaws[arity])
+    parts.append("(\(renderedParams.joined(separator: ", "))) -> \(renderedReturn)")
+    let notation = parts.joined(separator: " ")
+    return box.isMarkedNullable ? "(\(notation))?" : notation
 }
 
 private func runtimeKTypeToString(raw ktypeRaw: Int) -> String {
@@ -685,6 +756,10 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: classifierPtr)) }),
        let kclassBox = tryCast(classifierPtr, to: RuntimeKClassBox.self)
     {
+        if (Int64(truncatingIfNeeded: kclassBox.typeToken) & RuntimeTypeTokenEncoding.baseMask)
+            == RuntimeTypeTokenEncoding.functionBase {
+            return runtimeFunctionKTypeToString(box, classifier: kclassBox)
+        }
         let qualName = kclassBox.reflectionQualifiedName
         if !qualName.isEmpty {
             baseName = qualName

@@ -11,8 +11,10 @@
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
+| `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
+| `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
@@ -164,13 +166,24 @@ Run all tracked regression cases:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-For coroutine/Flow cases, `diff_kotlinc.sh` can automatically download
-`kotlinx-coroutines-core-jvm` when needed (if no `--kotlinc-classpath` is
-set).  
+`diff_kotlinc.sh` detects imports in the target file or recursively in a target
+directory and downloads JVM reference jars from Maven Central:
+
+| Import | Artifact | Default version |
+|---|---|---|
+| `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.10.2 |
+| `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.1 |
+| `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
+
+Cases importing both coroutines and io receive both dependencies. This import
+detection is the equivalent of a `requires_kotlinx_io` header; no extra header
+is needed. An explicit `--kotlinc-classpath` / `KOTLINC_CLASSPATH` bypasses all
+automatic downloads, so supply every required jar in that classpath.
 You can control the cached path and version with:
 
 ```bash
 export KOTLINC_COROUTINES_VERSION=1.10.2
+export KOTLINC_KOTLINX_IO_VERSION=0.9.1
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
 ```
 
@@ -179,7 +192,14 @@ the script, also set:
 
 ```bash
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
+export KOTLINC_KOTLINX_IO_SHA256=<expected sha256 of the io core jar>
+export KOTLINC_KOTLINX_IO_BYTESTRING_SHA256=<expected sha256 of the bytestring jar>
 ```
+
+Override individual cached paths with `KOTLINC_COROUTINES_JAR`,
+`KOTLINC_KOTLINX_IO_JAR`, and `KOTLINC_KOTLINX_IO_BYTESTRING_JAR`.
+Run `bash Scripts/test_diff_kotlinc_dependencies.sh` to check dependency
+selection without downloading jars or building the compiler.
 
 Successful non-script reference compilations are reused across runs via
 `KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a
@@ -221,6 +241,20 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
+
+```bash
+DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+In CI, the diff corpus (at both `-O0` and `-O2`) runs only in the daily full
+verification, `.github/workflows/nightly-full.yml`; pull requests and the merge
+queue do not run it. Trigger that workflow with `workflow_dispatch` on a branch
+to run the corpus before merging.
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:
@@ -241,7 +275,7 @@ warning and is treated as `DIFF_WORKERS`.
 
 `DIFF_WORKERS` parallelizes within one machine. To split the case
 set across several machines (CI shards the regression this way; the current
-shard count is the diff-regression matrix in `.github/workflows/ci.yml`),
+shard count is the diff-regression matrix in `.github/workflows/nightly-full.yml`),
 use interleaved sharding — case `i` runs only when `i % count == index`:
 
 ```bash
@@ -274,6 +308,14 @@ The dedicated `Scripts/diagnostic_cases/` directory keeps negative cases out of
 the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
 must be rejected by both compilers; acceptance is the default and can be stated
 explicitly with `// EXPECT-ACCEPT`.
+
+A case may pass extra flags to `kotlinc` with `// KOTLINC_FLAGS: <flags>`.
+Fixtures are treated as untrusted input: the flag list is validated against an
+allowlist of language-feature and diagnostic toggles (e.g. `-Xfeature`,
+`-Xfeature=mode`, `-XXLanguage:+Feature`, `-jvm-target 21`, `-opt-in=<fqname>`)
+before `kotlinc` runs. Options that load JVM code or reshape the compiler
+environment — `-Xplugin`, plugin `-P`, `-J`, `@argfile`, `-classpath` and
+friends — fail the case without invoking the compiler.
 
 ```bash
 bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases
@@ -351,3 +393,19 @@ bash Scripts/dead_code_audit.sh --verbose
 The `Quarterly Audits` workflow runs this audit with the fiction audit on the
 first day of January, April, July, and October. Its summary and the intermediate
 audit files are retained as a 90-day GitHub Actions artifact.
+
+## Ktor build probe
+
+`ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
+sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
+into a cache dir outside the repo, compiles each with `kswiftc --emit
+library`, and writes a per-module TSV of diagnostic-code counts (see
+`docs/ktor-build-status.md` for the current gap inventory). It is a
+diagnostic probe, not a CI-wired regression test — a module failing to
+compile is expected until the remaining gaps close.
+
+```bash
+bash Scripts/ktor_build.sh                  # fetch + compile all modules
+bash Scripts/ktor_build.sh --no-fetch        # reuse an existing checkout
+bash Scripts/ktor_build.sh --module ktor_io  # compile a single module
+```

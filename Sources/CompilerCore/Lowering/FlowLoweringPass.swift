@@ -1,6 +1,8 @@
 
 final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "FlowLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     private enum RuntimeFlowTag: Int64 {
         case emit = 0
@@ -211,7 +213,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     loweredBody.append(instruction)
 
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                     if let result, isFlowClassResultType(result) {
                         flowExprIDs.insert(result.rawValue)
                         activeFlowExpr = result
@@ -234,8 +236,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [flowExpr, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         continue
                     }
@@ -384,8 +386,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [arguments[0], arguments[1], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         if let result {
                             activeFlowExpr = result
@@ -470,7 +472,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        isSuperCall: isSuperCall
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
                     ))
 
                 case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
@@ -577,8 +580,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [receiver, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         activeFlowExpr = receiver
                         continue

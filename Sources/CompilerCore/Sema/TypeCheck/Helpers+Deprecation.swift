@@ -54,6 +54,7 @@ extension TypeCheckHelpers {
     private enum DeprecatedLevel {
         case warning
         case error
+        case hidden
     }
 
     private struct DeprecatedArguments {
@@ -73,6 +74,9 @@ extension TypeCheckHelpers {
     ///
     /// - `@Deprecated("msg")` or `@Deprecated("msg", level = WARNING)` -> warning
     /// - `@Deprecated("msg", level = ERROR)` -> error
+    /// - `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
+    ///   resolves (lookup hiding is not modelled), so the deprecated diagnostic
+    ///   stands in for kotlinc's "unresolved reference".
     func checkDeprecation(
         for symbolID: SymbolID,
         sema: SemaModule,
@@ -105,15 +109,20 @@ extension TypeCheckHelpers {
             KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
         }).map { parseDeprecatedSinceKotlinArguments($0.arguments, stringValue: stringValue) }
 
-        // An explicit @Deprecated(level = ERROR) remains authoritative.  The
-        // SinceKotlin metadata only refines the default warning level used by
-        // the stdlib as the target compiler version advances.
-        let severity: DeprecatedSeverity = if parsed.level == .error {
+        // An explicit @Deprecated(level = ERROR/HIDDEN) remains authoritative.
+        // The SinceKotlin metadata only refines the default warning level used
+        // by the stdlib as the target compiler version advances.
+        let severity: DeprecatedSeverity = switch parsed.level {
+        case .error:
             .error
-        } else if let sinceArguments {
-            deprecatedSeverity(for: sinceArguments)
-        } else {
-            .warning
+        case .hidden:
+            .hidden
+        case .warning:
+            if let sinceArguments {
+                deprecatedSeverity(for: sinceArguments)
+            } else {
+                .warning
+            }
         }
         guard severity != .none else {
             return
@@ -130,7 +139,7 @@ extension TypeCheckHelpers {
             codeActions = []
         }
 
-        if severity == .error {
+        if severity == .error || severity == .hidden {
             diagnostics.error(
                 "KSWIFTK-SEMA-DEPRECATED",
                 deprecationMessage,
@@ -225,6 +234,7 @@ extension TypeCheckHelpers {
         case none
         case warning
         case error
+        case hidden
     }
 
     private func parseDeprecatedSinceKotlinArguments(
@@ -269,6 +279,9 @@ extension TypeCheckHelpers {
     }
 
     private func deprecatedSeverity(for arguments: DeprecatedSinceKotlinArguments) -> DeprecatedSeverity {
+        if let hiddenSince = arguments.hiddenSince, kotlinApiVersion >= hiddenSince {
+            return .hidden
+        }
         if let errorSince = arguments.errorSince, kotlinApiVersion >= errorSince {
             return .error
         }
@@ -277,9 +290,7 @@ extension TypeCheckHelpers {
         }
         // A SinceKotlin annotation keeps the declaration available without a
         // deprecation diagnostic until its first visible threshold is reached.
-        // Lookup hiding based on hiddenSince is outside this helper and remains
-        // unsupported, so hiddenSince-only metadata keeps the historical warning.
-        if arguments.warningSince != nil || arguments.errorSince != nil {
+        if arguments.warningSince != nil || arguments.errorSince != nil || arguments.hiddenSince != nil {
             return .none
         }
         return .warning
@@ -306,10 +317,12 @@ extension TypeCheckHelpers {
         let normalized = raw.replacingOccurrences(of: " ", with: "")
         let levelName = normalized.split(separator: ".").last.map(String.init)?.uppercased() ?? normalized.uppercased()
         return switch levelName {
+        case "WARNING":
+            .warning
         case "ERROR":
             .error
-        case "WARNING", "HIDDEN":
-            .warning
+        case "HIDDEN":
+            .hidden
         default:
             nil
         }
@@ -589,4 +602,47 @@ extension TypeCheckHelpers {
 
         return decodeKotlinStringEscapes(value)
     }
+}
+
+/// Hidden declarations remain in metadata for binary compatibility, but must
+/// not participate in source overload resolution (including factory/constructor
+/// pairs with the same signature in the Native standard library).
+func isHiddenByDeprecatedAnnotation(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+    guard let annotation = symbols.annotations(for: symbol).first(where: {
+        KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+    }) else { return false }
+    if let since = symbols.annotations(for: symbol).first(where: {
+        KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
+    }) {
+        for (index, argument) in since.arguments.enumerated() {
+            let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
+            let value: String
+            if pieces.count == 2 {
+                guard pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "hiddenSince" else { continue }
+                value = pieces[1]
+            } else {
+                guard index == 2 else { continue }
+                value = argument
+            }
+            let version = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \t\n"))
+            if let parsed = KotlinCompilerVersion(rawValue: version), parsed <= kotlinApiVersion {
+                return true
+            }
+        }
+    }
+    for (index, argument) in annotation.arguments.enumerated() {
+        let pieces = argument.split(separator: "=", maxSplits: 1).map(String.init)
+        let value: String
+        if pieces.count == 2 {
+            guard pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == "level" else { continue }
+            value = pieces[1]
+        } else {
+            guard index == 2 else { continue }
+            value = argument
+        }
+        let level = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".").last.map(String.init)
+        if level == "HIDDEN" { return true }
+    }
+    return false
 }

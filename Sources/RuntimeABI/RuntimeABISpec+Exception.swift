@@ -145,6 +145,22 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_index_out_of_bounds_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_index_out_of_bounds_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
         // Per-type explicit constructor entry points (catch-clause sibling-type
         // discrimination fix). Each built-in exception class below gets its own
         // direct `__kk_*` constructor bridge instead of sharing
@@ -179,6 +195,41 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_exception_new_cause",
+            parameters: [
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_exception_new_message_cause",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_io_exception_new_cause",
             parameters: [
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
@@ -308,6 +359,56 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        // Bridge-only allocation entry points for the bundled Kotlin
+        // `kotlin.StackOverflowError` declaration (KUU-1384).
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_message_cause",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_stack_overflow_error_new_cause",
+            parameters: [
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        // Per-frame stack guard invoked by generated function prologues:
+        // returns 0 while the caller's stack marker sits above the current
+        // thread's overflow bound, or a StackOverflowError handle once it
+        // drops below it (KUU-1384).
+        RuntimeABIFunctionSpec(
+            name: "kk_stack_overflow_check",
+            parameters: [
+                RuntimeABIParameter(name: "marker", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_assertion_error_new",
             parameters: [],
@@ -336,6 +437,13 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_illegal_state_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_null_pointer_exception_new",
             parameters: [],
             returnType: .intptr,
             section: "Exception",

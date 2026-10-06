@@ -434,6 +434,24 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        // KSP-1553: kotlinx.io Sink.asOutputStream() — the write/flush/close
+        // Kotlin lambdas arrive as (fnPtr, closureRaw) pairs expanded by
+        // KIRLowering, same convention as `__kk_synchronized` /
+        // `kk_worker_execute`.
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_sink_output_stream",
+            parameters: [
+                RuntimeABIParameter(name: "writeFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "writeClosureRaw", type: .intptr),
+                RuntimeABIParameter(name: "flushFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "flushClosureRaw", type: .intptr),
+                RuntimeABIParameter(name: "closeFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closeClosureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO",
+            isThrowing: false,
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_classloader_getSystemClassLoader",
             parameters: [],

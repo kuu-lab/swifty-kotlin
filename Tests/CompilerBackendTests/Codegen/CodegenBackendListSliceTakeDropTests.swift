@@ -48,5 +48,56 @@ struct CodegenBackendListSliceTakeDropTests {
             """
         )
     }
+
+    // Regression for KUU-633: List.subList must throw
+    // IllegalArgumentException when fromIndex > toIndex and
+    // IndexOutOfBoundsException when the range is out of bounds, matching
+    // checkRangeIndexes (and AbstractMutableList.subList).
+    @Test
+    func testCodegenListSubListExceptionTypes() throws {
+        let source = """
+        fun main() {
+            val list = listOf(1, 2, 3, 4, 5)
+            try {
+                list.subList(3, 2)
+                println("no-throw")
+            } catch (e: IllegalArgumentException) {
+                println("IAE")
+            } catch (e: IndexOutOfBoundsException) {
+                println("IOOBE")
+            }
+            try {
+                list.subList(6, 4)
+                println("no-throw")
+            } catch (e: IllegalArgumentException) {
+                println("IAE")
+            } catch (e: IndexOutOfBoundsException) {
+                println("IOOBE")
+            }
+            try {
+                list.subList(-1, 2)
+                println("no-throw")
+            } catch (e: IllegalArgumentException) {
+                println("IAE")
+            } catch (e: IndexOutOfBoundsException) {
+                println("IOOBE")
+            }
+            try {
+                list.subList(0, 6)
+                println("no-throw")
+            } catch (e: IllegalArgumentException) {
+                println("IAE")
+            } catch (e: IndexOutOfBoundsException) {
+                println("IOOBE")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListSubListExceptionTypes",
+            expected: "IAE\nIAE\nIOOBE\nIOOBE\n"
+        )
+    }
 }
 #endif

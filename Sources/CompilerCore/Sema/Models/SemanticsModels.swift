@@ -28,6 +28,49 @@ public enum SymbolKind: Hashable, Sendable {
     case label
 }
 
+extension SymbolTable {
+    /// Whether `import <path>` contributes the declarations nested under that
+    /// path to unqualified lookup. A path that resolves only to packages acts
+    /// like a package import (the `import kotlin.collections` quirk), and a
+    /// wildcard import (`import a.b.*`) always contributes. A non-wildcard
+    /// import whose path also resolves to a declaration must not: a class may
+    /// share its FQ name with a synthesised package record, so treating
+    /// `import kotlin.coroutines.CoroutineContext` as a package import would
+    /// leak the interface's members (Element, Key, ...) into bare-name
+    /// resolution and shadow same-named user declarations (KUU-1205).
+    public func importPathContributesMembers(_ path: [InternedString], isWildcard: Bool) -> Bool {
+        let resolved = lookupAll(fqName: path)
+        guard resolved.contains(where: { symbol($0)?.kind == .package }) else {
+            return false
+        }
+        return isWildcard || resolved.allSatisfy { symbol($0)?.kind == .package }
+    }
+
+    /// Member extensions use [dispatch, extension, value arguments], while
+    /// their semantic signature stores only the extension receiver.
+    public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        // Property accessors are parented by their property, not its owner.
+        if let property = parentSymbol(for: callee),
+           symbol(property)?.kind == .property,
+           symbol(property)?.flags.contains(.memberExtension) == true,
+           let owner = parentSymbol(for: property),
+           let ownerInfo = symbol(owner),
+           [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+        {
+            return owner
+        }
+        guard let signature = functionSignature(for: callee),
+              signature.receiverType != nil,
+              symbol(callee)?.flags.contains(.memberExtension) == true,
+              let owner = parentSymbol(for: callee),
+              let ownerInfo = symbol(owner),
+              [.class, .interface, .enumClass, .object].contains(ownerInfo.kind),
+              symbol(callee)?.flags.contains(.extensionMemberAlias) != true
+        else { return nil }
+        return owner
+    }
+}
+
 public struct SymbolFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -68,6 +111,16 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// scope for a top-level `private class`) instead of a class-hierarchy check,
     /// without loosening genuinely explicit `private constructor` declarations.
     public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
+    /// Marks the synthetic member alias created for a source-backed bundled
+    /// extension function under its receiver nominal's FQ name (KSP-443). The
+    /// alias exists solely for owner+member-name lookup — it is statically
+    /// dispatched through its external link name and must never occupy a
+    /// vtable/itable slot or be treated as a real member of the nominal
+    /// (KUU-545).
+    public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
+    public static let localFunction = SymbolFlags(rawValue: 1 << 25)
+    public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
+    public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -114,6 +167,7 @@ func isCompatibleExpectActualPair(
 
 public struct FunctionSignature: Hashable, Sendable {
     public let receiverType: TypeID?
+    public let contextReceiverTypes: [TypeID]
     public let parameterTypes: [TypeID]
     public let returnType: TypeID
     public let isSuspend: Bool
@@ -124,6 +178,8 @@ public struct FunctionSignature: Hashable, Sendable {
     /// Whether a function parameter may carry non-local returns from a lambda
     /// argument. `crossinline` and `noinline` parameters are false.
     public let valueParameterAllowsNonLocalReturn: [Bool]
+    /// False for legacy imported signatures whose inline permissions were inferred.
+    public let hasExplicitInlineParameterMetadata: Bool
     public let typeParameterSymbols: [SymbolID]
     public let reifiedTypeParameterIndices: Set<Int>
     public let typeParameterUpperBounds: [TypeID?]
@@ -136,6 +192,7 @@ public struct FunctionSignature: Hashable, Sendable {
 
     public init(
         receiverType: TypeID? = nil,
+        contextReceiverTypes: [TypeID] = [],
         parameterTypes: [TypeID],
         returnType: TypeID,
         isSuspend: Bool = false,
@@ -144,6 +201,7 @@ public struct FunctionSignature: Hashable, Sendable {
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
+        hasExplicitInlineParameterMetadata: Bool = true,
         typeParameterSymbols: [SymbolID] = [],
         reifiedTypeParameterIndices: Set<Int> = [],
         typeParameterUpperBounds: [TypeID?] = [],
@@ -151,6 +209,7 @@ public struct FunctionSignature: Hashable, Sendable {
         classTypeParameterCount: Int = 0
     ) {
         self.receiverType = receiverType
+        self.contextReceiverTypes = contextReceiverTypes
         self.parameterTypes = parameterTypes
         self.returnType = returnType
         self.isSuspend = isSuspend
@@ -159,6 +218,7 @@ public struct FunctionSignature: Hashable, Sendable {
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
+        self.hasExplicitInlineParameterMetadata = hasExplicitInlineParameterMetadata
         self.typeParameterSymbols = typeParameterSymbols
         self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
         let normalizedUpperBoundsList: [[TypeID]] = if !typeParameterUpperBoundsList.isEmpty {
@@ -181,6 +241,31 @@ public struct EnumEntryDispatchTarget: Hashable, Sendable {
     public init(entrySymbol: SymbolID, functionSymbol: SymbolID) {
         self.entrySymbol = entrySymbol
         self.functionSymbol = functionSymbol
+    }
+}
+
+public enum ContractReturnCondition: String, Equatable, Sendable {
+    case normally, returnsTrue, returnsFalse, returnsNull, returnsNotNull
+}
+
+public enum ContractArgumentCondition: String, Equatable, Sendable {
+    case nonNull, booleanTrue, booleanFalse, isType
+}
+
+public struct ContractImplicationEffect: Equatable, Sendable {
+    public let parameterIndex: Int
+    public let returnCondition: ContractReturnCondition
+    public let argumentCondition: ContractArgumentCondition
+
+    public let targetType: TypeID?
+    public let targetTypeSignature: String?
+
+    public init(parameterIndex: Int, returnCondition: ContractReturnCondition, argumentCondition: ContractArgumentCondition, targetType: TypeID? = nil, targetTypeSignature: String? = nil) {
+        self.parameterIndex = parameterIndex
+        self.returnCondition = returnCondition
+        self.argumentCondition = argumentCondition
+        self.targetType = targetType
+        self.targetTypeSignature = targetTypeSignature
     }
 }
 
@@ -333,6 +418,9 @@ public struct NominalLayoutHint: Equatable, Sendable {
 
 public protocol Scope: AnyObject {
     func lookup(_ name: InternedString) -> [SymbolID]
+    /// Stops at the innermost scope containing matching bindings, so declarations
+    /// in a different namespace do not shadow the requested candidates.
+    func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
     /// Like `lookup`, but merges bindings from every scope in the parent chain
     /// instead of stopping at the innermost scope that binds `name`. Used as a
     /// resolution fallback to recover candidates that ordinary (shadowing)
@@ -357,6 +445,14 @@ open class BaseScope: Scope {
             return local
         }
         return parent?.lookup(name) ?? []
+    }
+
+    open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
+        let local = (locals[name] ?? []).filter(predicate)
+        if !local.isEmpty {
+            return local
+        }
+        return parent?.lookup(name, matching: predicate) ?? []
     }
 
     open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
@@ -419,6 +515,15 @@ final class FunctionScope: BaseScope {}
 
 import Foundation
 
+/// Compact member shape recovered from a v2 metadata index entry when an
+/// imported symbol is registered as a lazy shell. Arity-based member keys
+/// (bundled-overlap checks) can be answered from this shape without
+/// materializing the declaration body.
+struct ImportedMemberIndexShape {
+    let arity: Int
+    let receiverOwnerFQName: [InternedString]?
+}
+
 public final class SymbolTable {
     private var symbolsStorage: [SemanticSymbol] = []
     private var byFQName: [[InternedString]: [SymbolID]] = [:]
@@ -427,9 +532,20 @@ public final class SymbolTable {
     private var byParentFQName: [[InternedString]: [SymbolID]] = [:]
     private var byDeclSite: [SourceRange: [SymbolID]] = [:]
     private var functionSignatures: [SymbolID: FunctionSignature] = [:]
+    /// Owning function/constructor for each symbol listed in some signature's
+    /// `valueParameterSymbols`; populated by `setFunctionSignature`. The first
+    /// registrant wins: later signatures may copy a parameter list wholesale
+    /// (e.g. synthesized forwarding helpers), but the parameter's semantic
+    /// owner is the declaration it was defined on.
+    private var valueParameterOwners: [SymbolID: SymbolID] = [:]
     private var propertyTypes: [SymbolID: TypeID] = [:]
     private var propertyHasCustomGetter: [SymbolID: Bool] = [:]
     private var directSupertypes: [SymbolID: [SymbolID]] = [:]
+    /// Inverse of `directSupertypes`: supertype symbol → the nominal types
+    /// that declare it. Kept in sync by `setDirectSupertypes` so
+    /// `directSubtypes(of:)` reads a precomputed list instead of scanning
+    /// every nominal type in the module on each call.
+    private var directSubtypesIndex: [SymbolID: [SymbolID]] = [:]
     private var supertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalLayouts: [SymbolID: NominalLayout] = [:]
     private var nominalLayoutHints: [SymbolID: NominalLayoutHint] = [:]
@@ -448,6 +564,7 @@ public final class SymbolTable {
     private var delegateProvideDelegateSymbols: [SymbolID: SymbolID] = [:]
     private var accessorOwnerProperties: [SymbolID: SymbolID] = [:]
     private var extensionPropertyReceiverTypes: [SymbolID: TypeID] = [:]
+    private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
@@ -456,29 +573,109 @@ public final class SymbolTable {
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
+    /// BUG-inner-outer: the synthetic `$outer` field holding an `inner
+    /// class`'s enclosing-instance link, keyed by the inner class's own
+    /// symbol. `nil` for every non-inner nominal.
+    private var outerInstanceFieldSymbols: [SymbolID: SymbolID] = [:]
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
+    private var objectLazyInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
-    private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
     private var enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]] = [:]
+    private var enumEntryDispatchBaseSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
     private var contractNonNullEffects: [SymbolID: ContractNonNullEffect] = [:]
+    private var contractImplicationEffects: [SymbolID: [ContractImplicationEffect]] = [:]
     private var contractReturnsEffects: [SymbolID: ContractReturnsEffect] = [:]
     private var contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]] = [:]
     private var contractReturnsNotNullEffects: Set<SymbolID> = []
     private var contractConditionEffects: [SymbolID: ContractConditionEffect] = [:]
+    /// ARCH-029: imported library declarations are registered from a compact
+    /// metadata index and materialized the first time semantic data is queried.
+    private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
+    private var lazyImportedMetadataLoaded: Set<SymbolID> = []
+    private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
+    /// Index-shape hints for lazy shells, keyed by symbol. Consulted by
+    /// arity-key builders so they never force body materialization.
+    private var importedMemberIndexShapes: [SymbolID: ImportedMemberIndexShape] = [:]
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
 
-    /// Thread safety lock for concurrent access
-    private let lock = NSLock()
+    /// Globals that carry `.importedLibrary` but whose storage is defined by
+    /// this compilation — `.klib` modules ship serialized IR without a
+    /// precompiled object, so the backend must emit a real slot instead of
+    /// an extern reference. Populated when KlibBodyLowerer materializes
+    /// top-level fields, enum entries and object singletons.
+    private var klibDefinedGlobalSymbols: Set<SymbolID> = []
+
+    /// KUU-655: an `override` whose own declaration carries no default value
+    /// expressions still accepts calls that omit the overridden parameter
+    /// (Kotlin inherits the base's default). `OverrideDefaultArgumentInheritance`
+    /// copies the base's `valueParameterHasDefaultValues` flags onto such an
+    /// override's `FunctionSignature` so overload resolution accepts the
+    /// call, and records the link here so KIR call-site lowering knows to
+    /// route through the base's `$default` stub (the override itself never
+    /// gets one -- its AST has no default expressions to evaluate).
+    /// Key = override symbol, Value = the overridden symbol that actually
+    /// owns the default value expressions (possibly several levels up an
+    /// override chain).
+    private var overrideDefaultsBaseSymbols: [SymbolID: SymbolID] = [:]
+
+    /// Thread safety lock for concurrent access. Recursive because the lazy
+    /// imported-metadata loader re-enters this table (`define`, `lookupAll`,
+    /// `setFunctionSignature`, ...) while materializing a symbol, and that
+    /// materialization can be triggered from inside `define`'s critical
+    /// section (e.g. `canCoexistAsOverload` → `extensionPropertyReceiverType`).
+    /// A plain NSLock would self-deadlock on that path.
+    private let lock = NSRecursiveLock()
 
     public init() {}
+
+    /// Installs the per-compilation loader used by indexed `.kklib` metadata.
+    /// The loader is intentionally callback-based so the metadata reader stays
+    /// outside the symbol model and can reuse the normal import application path.
+    func setLazyImportedMetadataLoader(
+        alreadyLoaded: Set<SymbolID> = [],
+        _ loader: ((SymbolID) -> Void)?
+    ) {
+        lazyImportedMetadataLoader = loader
+        lazyImportedMetadataLoaded = alreadyLoaded
+        lazyImportedMetadataLoadInProgress.removeAll()
+    }
+
+    var hasLazyImportedMetadataLoader: Bool {
+        lazyImportedMetadataLoader != nil
+    }
+
+    /// Records the compact index shape of a lazy shell so arity-based member
+    /// keys resolve without materializing the declaration body.
+    func setImportedMemberIndexShape(_ shape: ImportedMemberIndexShape, for symbol: SymbolID) {
+        importedMemberIndexShapes[symbol] = shape
+    }
+
+    func importedMemberIndexShape(for symbol: SymbolID) -> ImportedMemberIndexShape? {
+        importedMemberIndexShapes[symbol]
+    }
+
+    func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let loader = lazyImportedMetadataLoader,
+              !lazyImportedMetadataLoaded.contains(symbol),
+              !lazyImportedMetadataLoadInProgress.contains(symbol)
+        else {
+            return
+        }
+        lazyImportedMetadataLoadInProgress.insert(symbol)
+        loader(symbol)
+        lazyImportedMetadataLoadInProgress.remove(symbol)
+        lazyImportedMetadataLoaded.insert(symbol)
+    }
 
     public var count: Int {
         symbolsStorage.count
@@ -563,13 +760,20 @@ public final class SymbolTable {
         declSite: SourceRange?,
         visibility: Visibility,
         flags: SymbolFlags = [],
-        isExtensionProperty: Bool = false
+        isExtensionProperty: Bool = false,
+        topLevelFileID: FileID? = nil
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
 
         if let existing = byFQName[fqName], !existing.isEmpty {
-            let existingSymbols = existing.compactMap { symbol($0) }
+            // File-private callables in other files do not occupy this declaration's scope.
+            let existingSymbols = existing.compactMap { symbol($0) }.filter { existing in
+                guard let topLevelFileID else { return true }
+                return !canCoexistAsFilePrivateTopLevelCallable(
+                    kind: kind, visibility: visibility, fileID: topLevelFileID, existing: existing
+                )
+            }
 
             let shouldCoexist = canCoexistAsOverload(
                 kind: kind,
@@ -579,7 +783,7 @@ public final class SymbolTable {
                 || canCoexistAsExpectActual(kind: kind, flags: flags, existingSymbols: existingSymbols)
                 || canCoexistAsSyntheticPropertyFamily(kind: kind, flags: flags, existingSymbols: existingSymbols)
             if shouldCoexist {
-                return appendNewSymbol(
+                let id = appendNewSymbol(
                     kind: kind,
                     name: name,
                     fqName: fqName,
@@ -587,10 +791,18 @@ public final class SymbolTable {
                     visibility: visibility,
                     flags: flags
                 )
+                if isExtensionProperty { declaredExtensionProperties.insert(id) }
+                return id
             }
-            return existing[0]
+            // When a classifier coexists with a factory, a duplicate classifier
+            // must reuse the classifier rather than the first (possibly callable) entry.
+            if isNominalType(kind) || kind == .typeAlias,
+               let matching = existingSymbols.first(where: { $0.kind == kind }) {
+                return matching.id
+            }
+            return existingSymbols.first?.id ?? existing[0]
         }
-        return appendNewSymbol(
+        let id = appendNewSymbol(
             kind: kind,
             name: name,
             fqName: fqName,
@@ -598,6 +810,8 @@ public final class SymbolTable {
             visibility: visibility,
             flags: flags
         )
+        if isExtensionProperty { declaredExtensionProperties.insert(id) }
+        return id
     }
 
     private func appendNewSymbol(
@@ -630,6 +844,24 @@ public final class SymbolTable {
             byDeclSite[site, default: []].append(id)
         }
         return id
+    }
+
+    /// Only top-level callables have distinct file facades; classifiers still
+    /// occupy the package namespace even when declared private.
+    func canCoexistAsFilePrivateTopLevelCallable(
+        kind: SymbolKind,
+        visibility: Visibility,
+        fileID: FileID,
+        existing: SemanticSymbol
+    ) -> Bool {
+        guard kind == .property || kind == .function,
+              existing.kind == .property || existing.kind == .function,
+              visibility == .private,
+              existing.visibility == .private,
+              parentSymbol(for: existing.id) == nil,
+              let existingFile = sourceFileID(for: existing.id) ?? existing.declSite?.start.file
+        else { return false }
+        return existingFile != fileID
     }
 
     private func canCoexistAsOverload(
@@ -685,7 +917,7 @@ public final class SymbolTable {
                 // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
+                        || (existing.kind == .property && (existing.flags.contains(.synthetic) || hasExtensionPropertyReceiver(existing.id)))
                 }
             }
             return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
@@ -700,6 +932,10 @@ public final class SymbolTable {
             return existingNonPackageKinds.allSatisfy {
                 isCallableLike($0) || isNominalType($0) || $0 == .typeAlias || $0 == .property
             }
+        }
+        // Classifiers and factory functions must coexist in either registration order.
+        if isNominalType(kind) || kind == .typeAlias {
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
         }
         guard isOverloadable(kind) else {
             return false
@@ -771,18 +1007,31 @@ public final class SymbolTable {
 
     public func setFunctionSignature(_ signature: FunctionSignature, for symbol: SymbolID) {
         functionSignatures[symbol] = signature
+        for parameterSymbol in signature.valueParameterSymbols {
+            if valueParameterOwners[parameterSymbol] == nil {
+                valueParameterOwners[parameterSymbol] = symbol
+            }
+        }
+    }
+
+    /// The function/constructor whose signature lists `symbol` in
+    /// `valueParameterSymbols`, if any signature has done so.
+    public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
+        valueParameterOwners[symbol]
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
-        functionSignatures[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return functionSignatures[symbol]
     }
 
-    public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
-        enumEntryDispatchSymbols[functionSymbol] = dispatchSymbol
+    /// KUU-655: see `overrideDefaultsBaseSymbols` above.
+    public func setOverrideDefaultsBaseSymbol(_ base: SymbolID, for symbol: SymbolID) {
+        overrideDefaultsBaseSymbols[symbol] = base
     }
 
-    public func enumEntryDispatchSymbol(for functionSymbol: SymbolID) -> SymbolID? {
-        enumEntryDispatchSymbols[functionSymbol]
+    public func overrideDefaultsBaseSymbol(for symbol: SymbolID) -> SymbolID? {
+        overrideDefaultsBaseSymbols[symbol]
     }
 
     public func setEnumEntryDispatchTargets(
@@ -796,12 +1045,53 @@ public final class SymbolTable {
         enumEntryDispatchTargets[dispatchSymbol] ?? []
     }
 
+    public func setEnumEntryDispatchBaseSymbol(_ baseSymbol: SymbolID, for dispatchSymbol: SymbolID) {
+        enumEntryDispatchBaseSymbols[dispatchSymbol] = baseSymbol
+    }
+
+    public func enumEntryDispatchBaseSymbol(for dispatchSymbol: SymbolID) -> SymbolID? {
+        enumEntryDispatchBaseSymbols[dispatchSymbol]
+    }
+
+    /// Returns the enum's `$enumEntryDispatch$` helper for `toString`, when an
+    /// enum entry body overrides it. Dispatches are keyed by the base member a
+    /// call resolved to (e.g. `kotlin.Enum.toString` or `kotlin.Any.toString`),
+    /// so the helper is identified through its recorded base symbol.
+    public func enumEntryToStringDispatchSymbol(
+        for ownerSymbol: SymbolID,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let owner = symbol(ownerSymbol) else {
+            return nil
+        }
+        let toStringName = interner.intern("toString")
+        return children(ofFQName: owner.fqName).first { childID in
+            guard let child = symbol(childID),
+                  child.kind == .function,
+                  interner.resolve(child.name).hasPrefix("$enumEntryDispatch$"),
+                  let baseSymbol = enumEntryDispatchBaseSymbol(for: childID),
+                  symbol(baseSymbol)?.name == toStringName,
+                  functionSignature(for: baseSymbol)?.parameterTypes.isEmpty ?? false
+            else {
+                return false
+            }
+            return true
+        }
+    }
+
     public func setPropertyType(_ type: TypeID, for symbol: SymbolID) {
         propertyTypes[symbol] = type
     }
 
     public func propertyType(for symbol: SymbolID) -> TypeID? {
-        propertyTypes[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return propertyTypes[symbol]
+    }
+
+    /// The property a synthetic getter/setter accessor symbol encodes, or nil
+    /// when `symbol` is a real member rather than a property accessor.
+    public func propertySymbol(forAccessor accessor: SymbolID) -> SymbolID? {
+        SyntheticSymbolScheme.decodedPropertyAccessor(accessor)?.property
     }
 
     public func setPropertyHasCustomGetter(_ value: Bool, for symbol: SymbolID) {
@@ -813,11 +1103,23 @@ public final class SymbolTable {
     }
 
     public func setDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
+        if let previous = directSupertypes[symbol] {
+            for removedSupertype in previous where !supertypes.contains(removedSupertype) {
+                directSubtypesIndex[removedSupertype]?.removeAll { $0 == symbol }
+            }
+        }
         directSupertypes[symbol] = supertypes
+        var seen: Set<SymbolID> = []
+        for supertype in supertypes where seen.insert(supertype).inserted {
+            if directSubtypesIndex[supertype]?.contains(symbol) != true {
+                directSubtypesIndex[supertype, default: []].append(symbol)
+            }
+        }
     }
 
     public func directSupertypes(for symbol: SymbolID) -> [SymbolID] {
-        directSupertypes[symbol] ?? []
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return directSupertypes[symbol] ?? []
     }
 
     public func setSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
@@ -825,15 +1127,12 @@ public final class SymbolTable {
     }
 
     public func supertypeTypeArgs(for child: SymbolID, supertype parent: SymbolID) -> [TypeArg] {
-        supertypeTypeArgsMap[child]?[parent] ?? []
+        ensureLazyImportedMetadataLoaded(for: child)
+        return supertypeTypeArgsMap[child]?[parent] ?? []
     }
 
     public func directSubtypes(of symbol: SymbolID) -> [SymbolID] {
-        var result: [SymbolID] = []
-        for (candidate, supertypes) in directSupertypes where supertypes.contains(symbol) {
-            result.append(candidate)
-        }
-        return result.sorted(by: { $0.rawValue < $1.rawValue })
+        (directSubtypesIndex[symbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
     /// CLASS-008: Record that a class delegates to an interface.
@@ -905,12 +1204,42 @@ public final class SymbolTable {
         classDelegationForwardingMethodInfo[forwardingSymbol]
     }
 
+    /// CLASS-008: Synthetic forwarding property symbols created for class delegation.
+    /// Maps forwarding property symbol -> (interfaceSymbol, interfacePropertySymbol, fieldSymbol).
+    private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
+
+    /// CLASS-008: Per-class list of synthetic forwarding property symbols.
+    private var classDelegationForwardingPropertiesByClass: [SymbolID: [SymbolID]] = [:]
+
+    /// CLASS-008: Record a synthetic forwarding property for class delegation.
+    public func addClassDelegationForwardingProperty(
+        _ forwardingSymbol: SymbolID,
+        forClass classSymbol: SymbolID,
+        interface interfaceSymbol: SymbolID,
+        interfaceProperty interfacePropertySymbol: SymbolID,
+        field fieldSymbol: SymbolID
+    ) {
+        classDelegationForwardingPropertyInfo[forwardingSymbol] = (interfaceSymbol, interfacePropertySymbol, fieldSymbol)
+        classDelegationForwardingPropertiesByClass[classSymbol, default: []].append(forwardingSymbol)
+    }
+
+    /// CLASS-008: Get synthetic forwarding property symbols for a class.
+    public func classDelegationForwardingPropertySymbols(forClass classSymbol: SymbolID) -> [SymbolID] {
+        classDelegationForwardingPropertiesByClass[classSymbol] ?? []
+    }
+
+    /// CLASS-008: Get the info needed to emit the forwarding body for a synthetic property.
+    public func classDelegationForwardingPropertyInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)? {
+        classDelegationForwardingPropertyInfo[forwardingSymbol]
+    }
+
     public func setNominalLayout(_ layout: NominalLayout, for symbol: SymbolID) {
         nominalLayouts[symbol] = layout
     }
 
     public func nominalLayout(for symbol: SymbolID) -> NominalLayout? {
-        nominalLayouts[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return nominalLayouts[symbol]
     }
 
     public func setNominalLayoutHint(_ hint: NominalLayoutHint, for symbol: SymbolID) {
@@ -918,7 +1247,8 @@ public final class SymbolTable {
     }
 
     public func nominalLayoutHint(for symbol: SymbolID) -> NominalLayoutHint? {
-        nominalLayoutHints[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return nominalLayoutHints[symbol]
     }
 
     public func setExternalLinkName(_ linkName: String, for symbol: SymbolID) {
@@ -930,7 +1260,19 @@ public final class SymbolTable {
     }
 
     public func externalLinkName(for symbol: SymbolID) -> String? {
-        externalLinkNames[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return externalLinkNames[symbol]
+    }
+
+    /// Marks an `.importedLibrary`-flagged global as storage-defined by this
+    /// compilation (`.klib` globals have no precompiled object file behind
+    /// them — their serialized IR bodies are materialized into KIR here).
+    public func markKlibDefinedGlobal(_ symbol: SymbolID) {
+        klibDefinedGlobalSymbols.insert(symbol)
+    }
+
+    public func isKlibDefinedGlobal(_ symbol: SymbolID) -> Bool {
+        klibDefinedGlobalSymbols.contains(symbol)
     }
 
     public func setFunctionABIReturnType(_ type: TypeID, for symbol: SymbolID) {
@@ -938,7 +1280,8 @@ public final class SymbolTable {
     }
 
     public func functionABIReturnType(for symbol: SymbolID) -> TypeID? {
-        functionABIReturnTypes[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return functionABIReturnTypes[symbol]
     }
 
     public func setStdlibSpecialCallKind(_ kind: StdlibSpecialCallKind, for symbol: SymbolID) {
@@ -956,6 +1299,7 @@ public final class SymbolTable {
     }
 
     public func typeAliasUnderlyingType(for symbol: SymbolID) -> TypeID? {
+        ensureLazyImportedMetadataLoaded(for: symbol)
         lock.lock()
         defer { lock.unlock() }
         return typeAliasUnderlyingTypes[symbol]
@@ -968,6 +1312,7 @@ public final class SymbolTable {
     }
 
     public func typeAliasTypeParameters(for symbol: SymbolID) -> [SymbolID] {
+        ensureLazyImportedMetadataLoaded(for: symbol)
         lock.lock()
         defer { lock.unlock() }
         return typeAliasTypeParameters[symbol] ?? []
@@ -978,7 +1323,8 @@ public final class SymbolTable {
     }
 
     public func parentSymbol(for child: SymbolID) -> SymbolID? {
-        parentSymbols[child]
+        ensureLazyImportedMetadataLoaded(for: child)
+        return parentSymbols[child]
     }
 
     public func setBackingFieldSymbol(_ backingField: SymbolID, for property: SymbolID) {
@@ -1026,7 +1372,12 @@ public final class SymbolTable {
     }
 
     public func extensionPropertyReceiverType(for property: SymbolID) -> TypeID? {
-        extensionPropertyReceiverTypes[property]
+        ensureLazyImportedMetadataLoaded(for: property)
+        return extensionPropertyReceiverTypes[property]
+    }
+
+    public func hasExtensionPropertyReceiver(_ property: SymbolID) -> Bool {
+        declaredExtensionProperties.contains(property) || extensionPropertyReceiverTypes[property] != nil
     }
 
     public func setExtensionPropertyGetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
@@ -1034,7 +1385,8 @@ public final class SymbolTable {
     }
 
     public func extensionPropertyGetterAccessor(for property: SymbolID) -> SymbolID? {
-        extensionPropertyGetterAccessors[property]
+        ensureLazyImportedMetadataLoaded(for: property)
+        return extensionPropertyGetterAccessors[property]
     }
 
     public func setExtensionPropertySetterAccessor(_ accessor: SymbolID, for property: SymbolID) {
@@ -1042,7 +1394,8 @@ public final class SymbolTable {
     }
 
     public func extensionPropertySetterAccessor(for property: SymbolID) -> SymbolID? {
-        extensionPropertySetterAccessors[property]
+        ensureLazyImportedMetadataLoaded(for: property)
+        return extensionPropertySetterAccessors[property]
     }
 
     public func setAccessorOwnerProperty(_ propertySymbol: SymbolID, for accessorSymbol: SymbolID) {
@@ -1105,7 +1458,8 @@ public final class SymbolTable {
     }
 
     public func annotations(for symbol: SymbolID) -> [MetadataAnnotationRecord] {
-        annotationsStorage[symbol] ?? []
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return annotationsStorage[symbol] ?? []
     }
 
     public func setCompanionObjectSymbol(_ companion: SymbolID, for owner: SymbolID) {
@@ -1113,7 +1467,18 @@ public final class SymbolTable {
     }
 
     public func companionObjectSymbol(for owner: SymbolID) -> SymbolID? {
-        companionObjectSymbols[owner]
+        ensureLazyImportedMetadataLoaded(for: owner)
+        return companionObjectSymbols[owner]
+    }
+
+    public func setOuterInstanceFieldSymbol(_ field: SymbolID, for innerClass: SymbolID) {
+        outerInstanceFieldSymbols[innerClass] = field
+    }
+
+    /// The `$outer` field symbol holding `innerClass`'s enclosing-instance
+    /// link, or `nil` when `innerClass` is not an `inner class`.
+    public func outerInstanceFieldSymbol(for innerClass: SymbolID) -> SymbolID? {
+        outerInstanceFieldSymbols[innerClass]
     }
 
     public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
@@ -1121,7 +1486,16 @@ public final class SymbolTable {
     }
 
     public func objectInitializerSymbol(for object: SymbolID) -> SymbolID? {
-        objectInitializerSymbols[object]
+        ensureLazyImportedMetadataLoaded(for: object)
+        return objectInitializerSymbols[object]
+    }
+
+    public func setObjectLazyInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
+        objectLazyInitializerSymbols[object] = initializer
+    }
+
+    public func objectLazyInitializerSymbol(for object: SymbolID) -> SymbolID? {
+        objectLazyInitializerSymbols[object]
     }
 
     public func setCompanionObjectInitializerSymbol(_ initializer: SymbolID, for owner: SymbolID) {
@@ -1129,7 +1503,8 @@ public final class SymbolTable {
     }
 
     public func companionObjectInitializerSymbol(for owner: SymbolID) -> SymbolID? {
-        companionObjectInitializerSymbols[owner]
+        ensureLazyImportedMetadataLoaded(for: owner)
+        return companionObjectInitializerSymbols[owner]
     }
 
     public func setEnumStaticInitSymbol(_ initializer: SymbolID, for owner: SymbolID) {
@@ -1137,7 +1512,8 @@ public final class SymbolTable {
     }
 
     public func enumStaticInitSymbol(for owner: SymbolID) -> SymbolID? {
-        enumStaticInitSymbols[owner]
+        ensureLazyImportedMetadataLoaded(for: owner)
+        return enumStaticInitSymbols[owner]
     }
 
     public func setValueClassUnderlyingType(_ type: TypeID, for symbol: SymbolID) {
@@ -1145,7 +1521,8 @@ public final class SymbolTable {
     }
 
     public func valueClassUnderlyingType(for symbol: SymbolID) -> TypeID? {
-        valueClassUnderlyingTypes[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return valueClassUnderlyingTypes[symbol]
     }
 
     /// Whether a value class directly implements at least one interface.
@@ -1184,11 +1561,13 @@ public final class SymbolTable {
     }
 
     public func constValueExprKind(for symbol: SymbolID) -> KIRExprKind? {
-        constValueExprKinds[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return constValueExprKinds[symbol]
     }
 
     public func sealedSubclasses(for symbol: SymbolID) -> [SymbolID]? {
-        sealedSubclassesStorage[symbol]
+        ensureLazyImportedMetadataLoaded(for: symbol)
+        return sealedSubclassesStorage[symbol]
     }
 
     /// Mark a property symbol as having a delegate with a `provideDelegate` operator.
@@ -1218,6 +1597,16 @@ public final class SymbolTable {
 
     public func setContractNonNullEffect(_ effect: ContractNonNullEffect, for function: SymbolID) {
         contractNonNullEffects[function] = effect
+    }
+
+    public func addContractImplicationEffect(_ effect: ContractImplicationEffect, for function: SymbolID) {
+        var effects = contractImplicationEffects[function] ?? []
+        if !effects.contains(effect) { effects.append(effect) }
+        contractImplicationEffects[function] = effects
+    }
+
+    public func contractImplicationEffects(for function: SymbolID) -> [ContractImplicationEffect] {
+        contractImplicationEffects[function] ?? []
     }
 
     public func contractNonNullEffect(for function: SymbolID) -> ContractNonNullEffect? {
@@ -1292,9 +1681,18 @@ public final class SymbolTable {
 
 public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
+    /// Actual lambda destination and the boundaries crossed to reach it.
+    /// Validated after overload resolution has bound the containing calls.
+    public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
+    public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
+    /// Lambda boundaries crossed by a return targeting an enclosing named function.
+    public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
+    public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
+    public private(set) var indexedCompoundAssignElementOperatorBindings: [ExprID: IndexedCompoundAssignElementOperatorBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
     /// Maps a secondary constructor's own symbol to the constructor symbol chosen
     /// by overload resolution for its `this(...)` / `super(...)` delegation call.
@@ -1303,12 +1701,28 @@ public final class BindingTable {
     /// this rather than re-deriving the target via FQ-name lookup, which cannot
     /// distinguish sibling overloads or exclude the constructor being lowered.
     public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
+    /// Full call binding (argument -> parameter mapping) of the same delegation
+    /// call, so KIR lowering can apply named-argument / default / vararg
+    /// normalization exactly like an ordinary constructor call.
+    public private(set) var constructorDelegationCallBindings: [SymbolID: CallBinding] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var castTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var findAnnotationSearchTypes: [ExprID: TypeID] = [:]
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
+    /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
+    /// Populated by `inferLambdaLiteralExpr` and consumed by `applyContractEffects`
+    /// when the enclosing call's callee has a `callsInPlace(param, EXACTLY_ONCE/AT_LEAST_ONCE)`
+    /// contract on that lambda parameter.
+    public private(set) var contractCallsInPlaceInitializedSymbolsByExpr: [ExprID: [SymbolID]] = [:]
+    /// Cached union of `contractCallsInPlaceInitializedSymbolsByExpr`'s values,
+    /// computed once Sema has finished (mirrors `ExprLowerer.lambdaCapturedSymbols`).
+    /// Lets KIR lowering ask "is this symbol EVER guaranteed-initialized by some
+    /// callsInPlace lambda" without conflating it with any *other* reason a
+    /// mutable local's `localValue` might transiently read as unset.
+    private var cachedContractCallsInPlaceInitializedSymbolsUnion: Set<SymbolID>?
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
@@ -1328,6 +1742,8 @@ public final class BindingTable {
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
+    private var openFloatingPointRangeExprIDs: Set<ExprID> = []
+    private var openFloatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1343,6 +1759,7 @@ public final class BindingTable {
     /// `T` refers to.  Used by KIR lowering to emit the correct type token
     /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
+    public private(set) var boundClassRefExprs: Set<ExprID> = []
     /// Maps expression IDs to their compile-time constant values when the
     /// expression references a `const val` property.  This allows downstream
     /// passes (KIR lowering, codegen) to fold constant references without
@@ -1382,18 +1799,32 @@ public final class BindingTable {
     /// nested class (for example, `Outer.Inner()`): the type qualifier is not
     /// an instance receiver and must not be passed to the constructor ABI.
     public private(set) var typeQualifiedConstructorCallExprIDs: Set<ExprID> = []
+    /// KUU-1211: `Comparable<Char>` locals that `ComparableCharEscapeAnalyzer`
+    /// proved can keep kotlinc's unboxed `compareTo` semantics (normalized
+    /// -1/0/1 like `Intrinsics.compare` on a primitive `char`). Populated once
+    /// after body analysis; consumed by KIR lowering to swap the generic
+    /// `__kk_comparable_compareTo` dispatch for `kk_char_compareTo` on
+    /// `nameRef` receivers bound to these symbols.
+    public private(set) var nonEscapingComparableCharLocals: Set<SymbolID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Runtime trampolines require a raw suspend entry, not a nested boxed adapter.
+    public private(set) var rawSuspendEntryLambdaExprIDs: Set<ExprID> = []
+    /// Receivers supplied by the running continuation, not by launcherArgs.
+    public private(set) var coroutineScopeLambdaReceiverTypes: [ExprID: TypeID] = [:]
     /// Tracks expressions whose expected type comes from a type annotation
     /// written in source (a property or local declaration's `: Type`), as
     /// opposed to an expected type the compiler synthesized while inferring a
     /// call. Only source-declared expected types are authoritative enough to
     /// contradict an explicit lambda parameter annotation with `Any`.
     public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
+    /// Callable literals checked against nominal FunctionN still infer a
+    /// function type, but must materialize their closure ABI before escaping.
+    public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks stdlib calls that require dedicated lowering.
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     /// Maps stdlib special call expressions to their lowering kind.
@@ -1401,6 +1832,20 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
+    /// For calls that resolved on an *outer* implicit receiver (e.g. an
+    /// enclosing class's member called unqualified from an object literal's
+    /// member body), the enclosing function's receiver parameter symbol. KIR
+    /// lowering reads the receiver through the captured value of that symbol
+    /// instead of the innermost implicit receiver.
+    public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
+    /// For implicit member-extension calls, the receiver-tower entry whose
+    /// value supplies the declared extension receiver argument: e.g. `bump()`
+    /// inside `with("s") { ... }` nested in `fun Int.gapProbe()` picks the
+    /// enclosing `Int` receiver parameter, which capture analysis then routes
+    /// into the lambda so KIR lowering reads the real Int value rather than
+    /// the lambda's own `String` receiver. `implicitReceiverOuterReceiver`
+    /// names the *dispatch* side; this names the *extension* side.
+    public private(set) var implicitExtensionReceiverSymbols: [ExprID: SymbolID] = [:]
     /// Calls resolved through the ambient CoroutineScope of a coroutine builder
     /// need a runtime receiver even though the builder lambda keeps a no-receiver
     /// function ABI.
@@ -1408,15 +1853,32 @@ public final class BindingTable {
     /// Maps callable reference expression IDs to their kind (function vs property)
     /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
+    public var inferredCallableReferenceSymbols: Set<SymbolID> = []
     /// Tracks callable reference expressions that are unbound type references
     /// (e.g. `Type::member`).  The receiver is not captured; instead it
     /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
+    /// REFL-PRIMOP: primitive arithmetic operators (`Int.plus`/`times`, ...)
+    /// have no real member symbol -- CallTypeChecker's
+    /// `tryInferRegularMemberCallPrimitiveSpecials` binds a call's result
+    /// type directly from the receiver/argument types instead of resolving a
+    /// `plus`/`times` symbol. A callable reference to one (`Int::plus`) has
+    /// no symbol to bind either, so this records which raw binary operator
+    /// KIR lowering should synthesize a wrapper function around in its place.
+    public private(set) var primitiveOperatorCallableRefs: [ExprID: BinaryOp] = [:]
+    /// `Int::toString` used as a `(Int) -> String` function value: `toString()`
+    /// on a receiver has no member symbol (only the `toString(radix)` overload
+    /// is a real declaration), so KIR lowering synthesizes a wrapper that
+    /// stringifies its argument the way a literal `x.toString()` does.
+    public private(set) var anyToStringCallableRefs: Set<ExprID> = []
     /// KSP-CAP-001: outer local variables/parameters captured by an object
     /// literal's member function bodies, keyed by the object literal's
     /// synthesized class symbol. Populated during Sema so KIR lowering can
     /// materialize each captured symbol as an instance field.
     public private(set) var objectLiteralCaptureSymbolsByOwner: [SymbolID: [SymbolID]] = [:]
+    /// Mutable outer receiver properties are accessed through the enclosing
+    /// instance, so object literals that use them capture that receiver here.
+    public private(set) var objectLiteralCapturedReceiversByOwner: [SymbolID: (receiverSymbol: SymbolID, ownerSymbol: SymbolID)] = [:]
     /// Static type of a captured local/parameter symbol at the point it was
     /// captured, keyed by the captured symbol itself. `LocalBindings` (where
     /// this type normally lives) is a Sema-only, transient structure, so KIR
@@ -1436,8 +1898,26 @@ public final class BindingTable {
         exprTypes[expr] = type
     }
 
+    public func bindWhenExhaustiveness(_ expr: ExprID, isExhaustive: Bool) {
+        whenExhaustiveness[expr] = isExhaustive
+    }
+
     public func bindIdentifier(_ expr: ExprID, symbol: SymbolID) {
         identifierSymbols[expr] = symbol
+    }
+
+    public func setNonEscapingComparableCharLocals(_ symbols: Set<SymbolID>) {
+        nonEscapingComparableCharLocals = symbols
+    }
+
+    func bindFunctionReturn(_ expr: ExprID, symbol: SymbolID, lambdaPath: [ExprID]) {
+        identifierSymbols[expr] = symbol
+        functionReturnLambdaPaths[expr] = lambdaPath
+    }
+
+    func bindLambdaReturn(_ expr: ExprID, target: ExprID, lambdaPath: [ExprID]) {
+        lambdaReturnTargets[expr] = target
+        lambdaReturnLambdaPaths[expr] = lambdaPath
     }
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
@@ -1448,12 +1928,25 @@ public final class BindingTable {
         loopIterationBindings[expr] = binding
     }
 
+    public func bindIndexedCompoundAssignOperator(_ expr: ExprID, binding: IndexedCompoundAssignOperatorBinding) {
+        indexedCompoundAssignOperatorBindings[expr] = binding
+    }
+
+    public func bindIndexedCompoundAssignElementOperator(_ expr: ExprID, binding: IndexedCompoundAssignElementOperatorBinding) {
+        indexedCompoundAssignElementOperatorBindings[expr] = binding
+    }
+
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
         callableTargets[expr] = target
     }
 
     public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
         constructorDelegationTargets[ctorSymbol] = target
+    }
+
+    public func bindConstructorDelegationCall(_ ctorSymbol: SymbolID, binding: CallBinding) {
+        constructorDelegationTargets[ctorSymbol] = binding.chosenCallee
+        constructorDelegationCallBindings[ctorSymbol] = binding
     }
 
     public func bindCallableValueCall(_ expr: ExprID, binding: CallableValueCallBinding) {
@@ -1485,6 +1978,22 @@ public final class BindingTable {
 
     public func destructuringComponentCallee(for expr: ExprID, index: Int) -> SymbolID? {
         destructuringComponentCallees[expr]?[index]
+    }
+
+    public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] = symbols
+        cachedContractCallsInPlaceInitializedSymbolsUnion = nil
+    }
+
+    public func contractCallsInPlaceInitializedSymbols(for expr: ExprID) -> [SymbolID] {
+        contractCallsInPlaceInitializedSymbolsByExpr[expr] ?? []
+    }
+
+    public func isContractCallsInPlaceInitializedSymbol(_ symbol: SymbolID) -> Bool {
+        if cachedContractCallsInPlaceInitializedSymbolsUnion == nil {
+            cachedContractCallsInPlaceInitializedSymbolsUnion = Set(contractCallsInPlaceInitializedSymbolsByExpr.values.joined())
+        }
+        return cachedContractCallsInPlaceInitializedSymbolsUnion?.contains(symbol) == true
     }
 
     public func bindCaptureSymbols(_ expr: ExprID, symbols: [SymbolID]) {
@@ -1552,9 +2061,18 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID, endExclusive: Bool = false) {
         floatingPointRangeExprIDs.insert(expr)
         floatingPointRangeElementTypesByExpr[expr] = type
+        if endExclusive {
+            openFloatingPointRangeExprIDs.insert(expr)
+        } else {
+            openFloatingPointRangeExprIDs.remove(expr)
+        }
+    }
+
+    public func isOpenFloatingPointRangeExpr(_ expr: ExprID) -> Bool {
+        openFloatingPointRangeExprIDs.contains(expr)
     }
 
     public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
@@ -1592,6 +2110,18 @@ public final class BindingTable {
 
     public func objectLiteralCaptureSymbols(for owner: SymbolID) -> [SymbolID] {
         objectLiteralCaptureSymbolsByOwner[owner] ?? []
+    }
+
+    public func bindObjectLiteralCapturedReceiver(
+        _ owner: SymbolID,
+        receiverSymbol: SymbolID,
+        ownerSymbol: SymbolID
+    ) {
+        objectLiteralCapturedReceiversByOwner[owner] = (receiverSymbol, ownerSymbol)
+    }
+
+    public func objectLiteralCapturedReceiver(for owner: SymbolID) -> (receiverSymbol: SymbolID, ownerSymbol: SymbolID)? {
+        objectLiteralCapturedReceiversByOwner[owner]
     }
 
     public func bindCapturedLocalType(_ symbol: SymbolID, type: TypeID) {
@@ -1650,9 +2180,18 @@ public final class BindingTable {
         floatingPointRangeSymbolIDs.contains(symbol)
     }
 
-    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID, endExclusive: Bool = false) {
         floatingPointRangeSymbolIDs.insert(symbol)
         floatingPointRangeElementTypesBySymbol[symbol] = type
+        if endExclusive {
+            openFloatingPointRangeSymbolIDs.insert(symbol)
+        } else {
+            openFloatingPointRangeSymbolIDs.remove(symbol)
+        }
+    }
+
+    public func isOpenFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
+        openFloatingPointRangeSymbolIDs.contains(symbol)
     }
 
     public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
@@ -1705,6 +2244,10 @@ public final class BindingTable {
         classRefTargetTypes[expr]
     }
 
+    public func bindBoundClassRef(_ expr: ExprID) {
+        boundClassRefExprs.insert(expr)
+    }
+
     public func exprType(for expr: ExprID) -> TypeID? {
         exprTypes[expr]
     }
@@ -1721,12 +2264,24 @@ public final class BindingTable {
         loopIterationBindings[expr]
     }
 
+    public func indexedCompoundAssignOperatorBinding(for expr: ExprID) -> IndexedCompoundAssignOperatorBinding? {
+        indexedCompoundAssignOperatorBindings[expr]
+    }
+
+    public func indexedCompoundAssignElementOperatorBinding(for expr: ExprID) -> IndexedCompoundAssignElementOperatorBinding? {
+        indexedCompoundAssignElementOperatorBindings[expr]
+    }
+
     public func callableTarget(for expr: ExprID) -> CallableTarget? {
         callableTargets[expr]
     }
 
     public func constructorDelegationTarget(for ctorSymbol: SymbolID) -> SymbolID? {
         constructorDelegationTargets[ctorSymbol]
+    }
+
+    public func constructorDelegationCallBinding(for ctorSymbol: SymbolID) -> CallBinding? {
+        constructorDelegationCallBindings[ctorSymbol]
     }
 
     public func callableValueCallBinding(for expr: ExprID) -> CallableValueCallBinding? {
@@ -1890,10 +2445,18 @@ public final class BindingTable {
         coroutineLauncherLambdaExprIDs.insert(expr)
     }
 
+    public func markRawSuspendEntryLambdaExpr(_ expr: ExprID) {
+        rawSuspendEntryLambdaExprIDs.insert(expr)
+    }
+
     /// Whether the lambda literal is a KIR-level coroutine launcher's block
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
+    }
+
+    public func bindCoroutineScopeLambdaReceiverType(_ expr: ExprID, type: TypeID) {
+        coroutineScopeLambdaReceiverTypes[expr] = type
     }
 
     /// Mark an expression as checked against a source-written type annotation
@@ -1905,6 +2468,10 @@ public final class BindingTable {
     /// Whether the expression's expected type was written in source.
     public func hasSourceDeclaredExpectedType(_ expr: ExprID) -> Bool {
         sourceDeclaredExpectedTypeExprIDs.contains(expr)
+    }
+
+    public func bindNominalFunctionExpectedType(_ expr: ExprID, type: TypeID) {
+        nominalFunctionExpectedTypes[expr] = type
     }
 
     /// Mark a call expression as a stdlib special call requiring custom lowering.
@@ -1921,6 +2488,31 @@ public final class BindingTable {
     /// Mark a nameRef expression as an implicit receiver member access (STDLIB-004).
     public func markImplicitReceiverMember(_ expr: ExprID, name: InternedString) {
         implicitReceiverMemberNames[expr] = name
+    }
+
+    /// Record which captured outer receiver an unqualified member call
+    /// dispatches on. See `implicitReceiverOuterReceiverSymbols`.
+    public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitReceiverOuterReceiverSymbols[expr] = symbol
+    }
+
+    /// The captured outer-receiver symbol an unqualified member call dispatches
+    /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
+    public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
+        implicitReceiverOuterReceiverSymbols[expr]
+    }
+
+    /// Record which receiver-tower entry supplies a member extension's
+    /// extension receiver argument. See `implicitExtensionReceiverSymbols`.
+    public func markImplicitExtensionReceiver(_ expr: ExprID, symbol: SymbolID) {
+        implicitExtensionReceiverSymbols[expr] = symbol
+    }
+
+    /// The receiver-tower symbol supplying a member extension's extension
+    /// receiver argument, if Sema recorded one. See
+    /// `implicitExtensionReceiverSymbols`.
+    public func implicitExtensionReceiver(for expr: ExprID) -> SymbolID? {
+        implicitExtensionReceiverSymbols[expr]
     }
 
     public func markCoroutineScopeImplicitReceiverCall(_ expr: ExprID) {
@@ -1950,6 +2542,27 @@ public final class BindingTable {
     public func isUnboundCallableRef(_ expr: ExprID) -> Bool {
         unboundCallableRefs.contains(expr)
     }
+
+    /// Record which raw binary operator a primitive-operator callable
+    /// reference (`Int::plus`) should synthesize a wrapper function around
+    /// (REFL-PRIMOP).
+    public func bindPrimitiveOperatorCallableRef(_ expr: ExprID, op: BinaryOp) {
+        primitiveOperatorCallableRefs[expr] = op
+    }
+
+    /// Query the raw binary operator recorded for a primitive-operator
+    /// callable reference (REFL-PRIMOP).
+    public func primitiveOperatorCallableRef(for expr: ExprID) -> BinaryOp? {
+        primitiveOperatorCallableRefs[expr]
+    }
+
+    public func bindAnyToStringCallableRef(_ expr: ExprID) {
+        anyToStringCallableRefs.insert(expr)
+    }
+
+    public func isAnyToStringCallableRef(_ expr: ExprID) -> Bool {
+        anyToStringCallableRefs.contains(expr)
+    }
 }
 
 public final class SemaModule {
@@ -1962,7 +2575,22 @@ public final class SemaModule {
     /// arguments passed to a vararg parameter). Kept optional for lightweight
     /// unit-test sema modules that do not build a full source environment.
     public let interner: StringInterner?
-    public var importedInlineFunctions: [SymbolID: KIRFunction]
+    /// Imported inline bodies, resolved lazily: library import registers
+    /// descriptors (path + signature + name) per symbol, and the inline
+    /// lowering pass reads + parses each body on first expansion instead of
+    /// paying for every artifact up front.
+    public var importedInlineFunctions: ImportedInlineFunctionStore
+    /// `.klib` modules whose declarations were imported through
+    /// `loadImportedLibrarySymbols`. The decoded IR and the
+    /// `(fileIndex, signatureIndex) → SymbolID` map stay alive here so KIR
+    /// lowering can materialize serialized bodies into this compilation's
+    /// arena (they are `internal` because `LoadedKlibModule` is a
+    /// `DataFlowSemaPhase` detail type).
+    var klibModules: [DataFlowSemaPhase.LoadedKlibModule] = []
+    /// ARCH-029: resolves deferred imported inline bodies that the module's
+    /// call sites actually demand. Set by the lazy metadata loader when a v2
+    /// `.kklib` index is in use; `nil` on the eager import path.
+    public var resolveDemandedImportedInlineBodies: ((KIRModule) -> Void)?
     /// KSP-499 Stage 3: the bundled/user declaration index built once per
     /// compilation (see `DataFlowSemaPhase.run`). Kept here — rather than only
     /// in the transient `BundledSyntheticStubRegistration` thread-local, which
@@ -1973,6 +2601,9 @@ public final class SemaModule {
     /// CallTypeChecker+MemberCallInferenceCollectionFlow.swift and
     /// CallLowerer+MemberCalls.swift).
     var bundledIndex: BundledDeclarationIndex
+    /// ARCH-021: compiler-owned well-known declarations resolved by exact
+    /// SymbolID after header collection.
+    var wellKnownSymbols: WellKnownSymbols
 
     public init(
         symbols: SymbolTable,
@@ -1980,7 +2611,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore()
     ) {
         self.symbols = symbols
         self.types = types
@@ -1989,6 +2620,7 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = .empty
+        self.wellKnownSymbols = .empty
     }
 
     /// Module-internal overload that also accepts the bundled declaration
@@ -2002,7 +2634,7 @@ public final class SemaModule {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner? = nil,
-        importedInlineFunctions: [SymbolID: KIRFunction] = [:],
+        importedInlineFunctions: ImportedInlineFunctionStore = ImportedInlineFunctionStore(),
         bundledIndex: BundledDeclarationIndex
     ) {
         self.symbols = symbols
@@ -2012,5 +2644,6 @@ public final class SemaModule {
         self.interner = interner
         self.importedInlineFunctions = importedInlineFunctions
         self.bundledIndex = bundledIndex
+        self.wellKnownSymbols = .empty
     }
 }

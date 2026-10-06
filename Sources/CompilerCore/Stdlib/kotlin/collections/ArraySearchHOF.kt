@@ -17,6 +17,67 @@ public operator fun <T> Array<T>.contains(element: T): Boolean {
     return false
 }
 
+// Primitive arrays compare unboxed elements with Kotlin primitive equality.
+public operator fun BooleanArray.contains(element: Boolean): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
+public operator fun ByteArray.contains(element: Byte): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
+public operator fun CharArray.contains(element: Char): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
+public operator fun IntArray.contains(element: Int): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
+public operator fun LongArray.contains(element: Long): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
+public operator fun ShortArray.contains(element: Short): Boolean {
+    var i = 0
+    val sz = this.size
+    while (i < sz) {
+        if (this[i] == element) return true
+        i++
+    }
+    return false
+}
+
 public fun <T> Array<T>.indexOf(element: T): Int {
     var i = 0
     val sz = this.size

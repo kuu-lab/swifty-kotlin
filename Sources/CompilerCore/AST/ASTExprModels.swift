@@ -133,13 +133,13 @@ public struct CallArgument: Equatable, Codable {
 
 public struct CatchClause: Equatable, Codable {
     public let paramName: InternedString?
-    public let paramTypeName: InternedString?
+    public let paramType: TypeRefID?
     public let body: ExprID
     public let range: SourceRange
 
-    public init(paramName: InternedString? = nil, paramTypeName: InternedString? = nil, body: ExprID, range: SourceRange) {
+    public init(paramName: InternedString? = nil, paramType: TypeRefID? = nil, body: ExprID, range: SourceRange) {
         self.paramName = paramName
-        self.paramTypeName = paramTypeName
+        self.paramType = paramType
         self.body = body
         self.range = range
     }
@@ -158,6 +158,7 @@ public enum Expr: Equatable, Codable {
     case floatLiteral(Double, SourceRange)
     case doubleLiteral(Double, SourceRange)
     case charLiteral(UInt32, SourceRange)
+    case nullLiteral(SourceRange)
     case boolLiteral(Bool, SourceRange)
     case stringLiteral(InternedString, SourceRange)
     case stringTemplate(parts: [StringTemplatePart], range: SourceRange)
@@ -191,7 +192,11 @@ public enum Expr: Equatable, Codable {
     case lambdaLiteral(params: [InternedString], body: ExprID, label: InternedString? = nil, range: SourceRange)
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
-    case localFunDecl(name: InternedString, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
+    case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
+    /// A `class`/`object` declared as a block statement (`{ class L { ... } }`).
+    /// Unlike a top-level nominal decl the name is only visible to statements
+    /// after it inside the same block scope, mirroring `localFunDecl`.
+    case localNominalDecl(declID: DeclID, range: SourceRange)
     case blockExpr(statements: [ExprID], trailingExpr: ExprID?, range: SourceRange)
     case superRef(interfaceQualifier: InternedString?, SourceRange)
     case thisRef(label: InternedString?, SourceRange)

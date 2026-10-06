@@ -2,6 +2,9 @@
 extension BuildASTPhase.ExpressionParser {
     private func parseControlFlowBodyExpression() -> ExprID? {
         if matches(.symbol(.lBrace)) {
+            if braceGroupStartsLambdaLiteral(), let lambda = parseLambdaLiteral() {
+                return lambda
+            }
             return parseBlockExpression()
         }
         let startIndex = index
@@ -58,19 +61,25 @@ extension BuildASTPhase.ExpressionParser {
         }
         var subject: ExprID?
         var subjectVarName: InternedString?
+        var subjectTypeRef: TypeRefID?
         if matches(.symbol(.lParen)) {
             _ = consume()
-            // Check for `val identifier =` subject variable declaration
             if matches(.keyword(.val)),
                let identToken = peek(1),
-               let varName = identifierFromToken(identToken),
-               let eqToken = peek(2),
-               eqToken.kind == .symbol(.assign)
+               let varName = whenSubjectVariableName(from: identToken)
             {
                 subjectVarName = varName
                 _ = consume() // val
                 _ = consume() // identifier
-                _ = consume() // =
+                if let colon = consumeIf(.symbol(.colon)) {
+                    guard let typeRef = parseTypeReference(colon.range, allowFunctionType: true) else {
+                        return nil
+                    }
+                    subjectTypeRef = typeRef
+                }
+                guard consumeIf(.symbol(.assign)) != nil else {
+                    return nil
+                }
             }
             subject = parseExpression(minPrecedence: 0)
             _ = consumeIf(.symbol(.rParen))
@@ -152,7 +161,21 @@ extension BuildASTPhase.ExpressionParser {
         if let subjectVarName {
             astArena.setWhenSubjectVarName(subjectVarName, for: whenExprID)
         }
+        if let subjectTypeRef {
+            astArena.setWhenSubjectTypeRef(subjectTypeRef, for: whenExprID)
+        }
         return whenExprID
+    }
+
+    private func whenSubjectVariableName(from token: Token) -> InternedString? {
+        switch token.kind {
+        case .identifier, .backtickedIdentifier, .softKeyword:
+            return tokenText(token)
+        case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword):
+            return tokenText(token)
+        default:
+            return nil
+        }
     }
 
     private func parseWhenBranchCondition(subject: ExprID?) -> ExprID? {
@@ -161,7 +184,7 @@ extension BuildASTPhase.ExpressionParser {
         {
             if token.kind == .keyword(.is) {
                 _ = consume()
-                guard let typeRef = parseTypeReference(token.range) else {
+                guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
@@ -173,11 +196,34 @@ extension BuildASTPhase.ExpressionParser {
             {
                 _ = consume() // !
                 _ = consume() // is
-                guard let typeRef = parseTypeReference(token.range) else {
+                guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
                 return astArena.appendExpr(.isCheck(expr: subject, type: typeRef, negated: true, range: conditionRange))
+            }
+            // Range / collection membership conditions: `in a..b ->`, `!in xs ->`.
+            let negatedIn: Bool? = if token.kind == .keyword(.in) {
+                false
+            } else if token.kind == .symbol(.bang), let inToken = peek(1), inToken.kind == .keyword(.in) {
+                true
+            } else {
+                nil
+            }
+            if let negatedIn {
+                _ = consume() // `in` or `!`
+                if negatedIn { _ = consume() } // `in`
+                guard let rangeExpr = parseExpression(minPrecedence: 0) else {
+                    return nil
+                }
+                let conditionRange = mergeRanges(
+                    astArena.exprRange(subject), astArena.exprRange(rangeExpr), fallback: token.range
+                )
+                return astArena.appendExpr(
+                    negatedIn
+                        ? .notInExpr(lhs: subject, rhs: rangeExpr, range: conditionRange)
+                        : .inExpr(lhs: subject, rhs: rangeExpr, range: conditionRange)
+                )
             }
         }
         return parseExpression(minPrecedence: 0)
@@ -198,23 +244,64 @@ extension BuildASTPhase.ExpressionParser {
         let parser = BuildASTPhase.ExpressionParser(
             tokens: branchTokens,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
-        let body: ExprID?
+        var body: ExprID?
         if branchTokens.first?.kind == .symbol(.lBrace) {
-            body = parser.parseBlockExpression()
+            if parser.braceGroupStartsLambdaLiteral() {
+                body = parser.parseLambdaLiteral()
+            } else {
+                body = parser.parseBlockExpression()
+            }
         } else {
             body = parser.parse()
+        }
+        var consumedCount = parser.index - parser.tokens.startIndex
+        // A bare (non-block) branch body may be an assignment
+        // (`1 -> x = 10`, `1 -> counter += 1`, `1 -> arr[i] = v`), which is a
+        // statement form the generic expression parser above doesn't know —
+        // it only consumes the assignment's target and stops at `=`. Retry as
+        // a local assignment when the generic parse left tokens unconsumed.
+        if body == nil || consumedCount < branchTokens.count {
+            if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
+                body = assignBody
+                consumedCount = branchTokens.count
+            }
         }
         guard let body else {
             return nil
         }
 
-        let consumedCount = parser.index - parser.tokens.startIndex
         if consumedCount > 0 {
             index = startIndex + consumedCount
         }
         return body
+    }
+
+    /// Attempts to parse `branchTokens` as a local assignment statement
+    /// (`.localAssign`, `.memberAssign`, `.indexedAssign`, or a compound-assign
+    /// form), succeeding only if the whole span is consumed.
+    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
+        let context = BuildASTPhase.LocalStatementCoreContext(
+            interner: interner,
+            astArena: astArena,
+            parseExpression: { subTokens in
+                BuildASTPhase.ExpressionParser(
+                    tokens: subTokens,
+                    interner: self.interner,
+                    astArena: self.astArena,
+                    diagnostics: self.diagnostics
+                ).parse()
+            },
+            parseTypeReference: { _ in nil },
+            resolveDeclarationName: { _, _ in nil }
+        )
+        return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
+            from: branchTokens,
+            context: context,
+            options: .blockExpression
+        )
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {
@@ -335,7 +422,7 @@ extension BuildASTPhase.ExpressionParser {
         var end = returnToken.range.end
         if let atToken = current(), atToken.kind == .symbol(.at),
            let labelToken = peek(1),
-           let labelName = identifierFromToken(labelToken)
+           let labelName = labelNameFromToken(labelToken)
         {
             _ = consume()
             _ = consume()
@@ -343,7 +430,8 @@ extension BuildASTPhase.ExpressionParser {
             end = labelToken.range.end
         }
 
-        let value = parseExpression(minPrecedence: 0)
+        // An else clause terminates a bare return in the enclosing if branch.
+        let value = matches(.keyword(.else)) ? nil : parseExpression(minPrecedence: 0)
         if let value, let valueEnd = astArena.exprRange(value)?.end {
             end = valueEnd
         }
@@ -545,7 +633,8 @@ extension BuildASTPhase.ExpressionParser {
         // are preserved for intra-block statement splitting.
         if let first = bodyTokens.first, first.kind == .symbol(.lBrace) {
             return BuildASTPhase.ExpressionParser(
-                tokens: bodyTokens, interner: interner, astArena: astArena
+                tokens: bodyTokens, interner: interner, astArena: astArena,
+                diagnostics: diagnostics
             ).parseBlockExpression()
         }
         let sanitized = bodyTokens.filter { $0.kind != .symbol(.semicolon) }
@@ -558,7 +647,10 @@ extension BuildASTPhase.ExpressionParser {
         if let localAssign = parseLocalAssignFromSlice(sanitized[...]) {
             return localAssign
         }
-        return BuildASTPhase.ExpressionParser(tokens: sanitized[...], interner: interner, astArena: astArena).parse()
+        return BuildASTPhase.ExpressionParser(
+            tokens: sanitized[...], interner: interner, astArena: astArena,
+            diagnostics: diagnostics
+        ).parse()
     }
 
     /// Finds the top-level `while` keyword that starts the condition part of
@@ -617,21 +709,33 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        // Nested expressions can bypass the structured CST parser. Use the
+        // same range and diagnostic so reparsing a CST error reports it once.
+        let nextIsHandler = (matches(.keyword(.catch)) || matches(.keyword(.finally)))
+            && peek(1)?.kind != .symbol(.at)
+        if !nextIsHandler {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0016",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
+
         var catchClauses: [CatchClause] = []
-        while matches(.keyword(.catch)) {
+        while matches(.keyword(.catch)), peek(1)?.kind != .symbol(.at) {
             let catchToken = consume()!
-            let (paramName, paramTypeName) = parseCatchParameter()
+            let (paramName, paramType) = parseCatchParameter()
             if let catchExpr = parseControlFlowBodyExpression() {
                 let clauseEnd = astArena.exprRange(catchExpr)?.end ?? catchToken.range.end
                 let clauseRange = SourceRange(start: catchToken.range.start, end: clauseEnd)
-                catchClauses.append(CatchClause(paramName: paramName, paramTypeName: paramTypeName, body: catchExpr, range: clauseRange))
+                catchClauses.append(CatchClause(paramName: paramName, paramType: paramType, body: catchExpr, range: clauseRange))
             } else {
                 break
             }
         }
 
         var finallyExpr: ExprID?
-        if matches(.keyword(.finally)) {
+        if matches(.keyword(.finally)), peek(1)?.kind != .symbol(.at) {
             _ = consume()
             finallyExpr = parseControlFlowBodyExpression()
         }
@@ -645,22 +749,19 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.tryExpr(body: bodyExpr, catchClauses: catchClauses, finallyExpr: finallyExpr, range: range))
     }
 
-    func parseCatchParameter() -> (paramName: InternedString?, paramTypeName: InternedString?) {
+    func parseCatchParameter() -> (paramName: InternedString?, paramType: TypeRefID?) {
         guard matches(.symbol(.lParen)) else {
             return (nil, nil)
         }
         _ = consume()
         var paramName: InternedString?
-        var paramTypeName: InternedString?
+        var paramType: TypeRefID?
         if case let .identifier(name) = current()?.kind {
             paramName = name
             _ = consume()
             if matches(.symbol(.colon)) {
-                _ = consume()
-                if case let .identifier(typeName) = current()?.kind {
-                    paramTypeName = typeName
-                    _ = consume()
-                }
+                let colonToken = consume()!
+                paramType = parseTypeReference(colonToken.range)
             }
         }
         var depth = 1
@@ -675,6 +776,6 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
         }
-        return (paramName, paramTypeName)
+        return (paramName, paramType)
     }
 }

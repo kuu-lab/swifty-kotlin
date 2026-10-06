@@ -414,6 +414,89 @@ struct CollectionFactorySourceMigrationTests {
         }
     }
 
+    /// KUU-646: `mutableMapOf` / `linkedMapOf` declare a mutable result, so they
+    /// need the LinkedHashMap-tagged bridge. `hashMapOf` keeps HashMap.
+    /// `__kk_map_of` is shared with read-only `mapOf` and tags its box as `Map`.
+    @Test
+    func mutableMapFactoriesUseConcreteMutableTaggedBridges() throws {
+        let source = """
+        fun main() {
+            val emptyMutable = mutableMapOf<String, Int>()
+            val filledMutable = mutableMapOf("a" to 1)
+            val emptyHash = hashMapOf<String, Int>()
+            val filledHash = hashMapOf("a" to 1)
+            val emptyLinked = linkedMapOf<String, Int>()
+            val filledLinked = linkedMapOf("a" to 1)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryMutableMapTag",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.filter { $0 == "__kk_linked_hash_map_of" }.count == 4,
+                "mutableMapOf/linkedMapOf must use __kk_linked_hash_map_of; callees: \(callees)"
+            )
+            #expect(
+                callees.filter { $0 == "__kk_hash_map_of" }.count == 2,
+                "both hashMapOf calls must use __kk_hash_map_of; callees: \(callees)"
+            )
+            #expect(
+                !callees.contains("__kk_map_of"),
+                "no mutable map factory may fall back to the read-only Map tag; callees: \(callees)"
+            )
+        }
+    }
+
+    /// The read-only map factories must keep the `Map` tag. kotlinc answers
+    /// `true` to `mapOf(...) is MutableMap<*, *>` only because read-only maps
+    /// map onto `java.util` types on the JVM; that leak must not be reproduced.
+    @Test
+    func readOnlyMapFactoriesKeepTheReadOnlyTag() throws {
+        let source = """
+        fun main() {
+            val a = mapOf("a" to 1)
+            val b = emptyMap<String, Int>()
+            val c = mapOf<String, Int>()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryReadOnlyMapTag",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                !callees.contains("__kk_linked_hash_map_of"),
+                "read-only map factories must not take the LinkedHashMap tag; callees: \(callees)"
+            )
+            #expect(
+                !callees.contains("__kk_hash_map_of"),
+                "read-only map factories must not take the HashMap tag; callees: \(callees)"
+            )
+            #expect(
+                callees.contains("__kk_emptyMap") || callees.contains("__kk_map_of"),
+                "read-only map factories must still reach a Map-tagged bridge; callees: \(callees)"
+            )
+        }
+    }
+
     /// The bootstrap stub set an `externalLinkName` on each factory symbol, so
     /// a leftover one would mean a stub is still being registered. The vararg
     /// overloads must also survive, since that is the shape the factory call

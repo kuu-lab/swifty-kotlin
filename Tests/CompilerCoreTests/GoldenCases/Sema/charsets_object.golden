@@ -1,57 +1,57 @@
-symbol fq=__local_0.utf8[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_1.utf16[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_2.usAscii[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_3.iso88591[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_4.utf16be[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_5.utf16le[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_6.utf32[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_7.utf32be[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=__local_8.utf32le[kind=local] kind=local vis=private flags=_ type=kotlin.text.Charset
-symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=__local_0.utf8[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_1.utf16[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_2.usAscii[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_3.iso88591[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_4.utf16be[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_5.utf16le[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_6.utf32[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_7.utf32be[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=__local_8.utf32le[kind=local;type=kotlin.text.Charset;origin=fixture] kind=local vis=private flags=_ type=kotlin.text.Charset
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fcharsets_object package=_
-  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@7:25 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@7:25#1 memberCall recv=e@7:25 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8[kind=prop]
-expr e@7:5 localDecl utf8 mutable=0 type=Charset init=e@7:25#1 type=Unit ref=__local_0.utf8[kind=local]
+expr e@7:25#1 memberCall recv=e@7:25 callee=UTF_8 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_8[kind=prop;type=kotlin.text.Charset]
+expr e@7:5 localDecl utf8 mutable=0 type=Charset init=e@7:25#1 type=Unit ref=__local_0.utf8[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@8:26 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@8:26#1 memberCall recv=e@8:26 callee=UTF_16 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16[kind=prop]
-expr e@8:5 localDecl utf16 mutable=0 type=Charset init=e@8:26#1 type=Unit ref=__local_1.utf16[kind=local]
+expr e@8:26#1 memberCall recv=e@8:26 callee=UTF_16 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16[kind=prop;type=kotlin.text.Charset]
+expr e@8:5 localDecl utf16 mutable=0 type=Charset init=e@8:26#1 type=Unit ref=__local_1.utf16[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@9:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@9:28#1 memberCall recv=e@9:28 callee=US_ASCII args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.US_ASCII[kind=prop]
-expr e@9:5 localDecl usAscii mutable=0 type=Charset init=e@9:28#1 type=Unit ref=__local_2.usAscii[kind=local]
+expr e@9:28#1 memberCall recv=e@9:28 callee=US_ASCII args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.US_ASCII[kind=prop;type=kotlin.text.Charset]
+expr e@9:5 localDecl usAscii mutable=0 type=Charset init=e@9:28#1 type=Unit ref=__local_2.usAscii[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@10:29 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@10:29#1 memberCall recv=e@10:29 callee=ISO_8859_1 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.ISO_8859_1[kind=prop]
-expr e@10:5 localDecl iso88591 mutable=0 type=Charset init=e@10:29#1 type=Unit ref=__local_3.iso88591[kind=local]
+expr e@10:29#1 memberCall recv=e@10:29 callee=ISO_8859_1 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.ISO_8859_1[kind=prop;type=kotlin.text.Charset]
+expr e@10:5 localDecl iso88591 mutable=0 type=Charset init=e@10:29#1 type=Unit ref=__local_3.iso88591[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@11:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@11:28#1 memberCall recv=e@11:28 callee=UTF_16BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16BE[kind=prop]
-expr e@11:5 localDecl utf16be mutable=0 type=Charset init=e@11:28#1 type=Unit ref=__local_4.utf16be[kind=local]
+expr e@11:28#1 memberCall recv=e@11:28 callee=UTF_16BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16BE[kind=prop;type=kotlin.text.Charset]
+expr e@11:5 localDecl utf16be mutable=0 type=Charset init=e@11:28#1 type=Unit ref=__local_4.utf16be[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@12:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@12:28#1 memberCall recv=e@12:28 callee=UTF_16LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16LE[kind=prop]
-expr e@12:5 localDecl utf16le mutable=0 type=Charset init=e@12:28#1 type=Unit ref=__local_5.utf16le[kind=local]
+expr e@12:28#1 memberCall recv=e@12:28 callee=UTF_16LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_16LE[kind=prop;type=kotlin.text.Charset]
+expr e@12:5 localDecl utf16le mutable=0 type=Charset init=e@12:28#1 type=Unit ref=__local_5.utf16le[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@13:26 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@13:26#1 memberCall recv=e@13:26 callee=UTF_32 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32[kind=prop]
-expr e@13:5 localDecl utf32 mutable=0 type=Charset init=e@13:26#1 type=Unit ref=__local_6.utf32[kind=local]
+expr e@13:26#1 memberCall recv=e@13:26 callee=UTF_32 args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32[kind=prop;type=kotlin.text.Charset]
+expr e@13:5 localDecl utf32 mutable=0 type=Charset init=e@13:26#1 type=Unit ref=__local_6.utf32[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@14:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@14:28#1 memberCall recv=e@14:28 callee=UTF_32BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32BE[kind=prop]
-expr e@14:5 localDecl utf32be mutable=0 type=Charset init=e@14:28#1 type=Unit ref=__local_7.utf32be[kind=local]
+expr e@14:28#1 memberCall recv=e@14:28 callee=UTF_32BE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32BE[kind=prop;type=kotlin.text.Charset]
+expr e@14:5 localDecl utf32be mutable=0 type=Charset init=e@14:28#1 type=Unit ref=__local_7.utf32be[kind=local;type=kotlin.text.Charset;origin=fixture]
 expr e@15:28 name(Charsets) type=kotlin.text.Charsets ref=kotlin.text.Charsets[kind=obj]
-expr e@15:28#1 memberCall recv=e@15:28 callee=UTF_32LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32LE[kind=prop]
-expr e@15:5 localDecl utf32le mutable=0 type=Charset init=e@15:28#1 type=Unit ref=__local_8.utf32le[kind=local]
-expr e@16:13 name(utf8) type=kotlin.text.Charset ref=__local_0.utf8[kind=local]
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@17:13 name(utf16) type=kotlin.text.Charset ref=__local_1.utf16[kind=local]
-expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@18:13 name(usAscii) type=kotlin.text.Charset ref=__local_2.usAscii[kind=local]
-expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@19:13 name(iso88591) type=kotlin.text.Charset ref=__local_3.iso88591[kind=local]
-expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@20:13 name(utf16be) type=kotlin.text.Charset ref=__local_4.utf16be[kind=local]
-expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@21:13 name(utf16le) type=kotlin.text.Charset ref=__local_5.utf16le[kind=local]
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@22:13 name(utf32) type=kotlin.text.Charset ref=__local_6.utf32[kind=local]
-expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@23:13 name(utf32be) type=kotlin.text.Charset ref=__local_7.utf32be[kind=local]
-expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
-expr e@24:13 name(utf32le) type=kotlin.text.Charset ref=__local_8.utf32le[kind=local]
-expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@15:28#1 memberCall recv=e@15:28 callee=UTF_32LE args=[] type=kotlin.text.Charset ref=kotlin.text.Charsets.UTF_32LE[kind=prop;type=kotlin.text.Charset]
+expr e@15:5 localDecl utf32le mutable=0 type=Charset init=e@15:28#1 type=Unit ref=__local_8.utf32le[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@16:13 name(utf8) type=kotlin.text.Charset ref=__local_0.utf8[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@17:13 name(utf16) type=kotlin.text.Charset ref=__local_1.utf16[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:13 name(usAscii) type=kotlin.text.Charset ref=__local_2.usAscii[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@19:13 name(iso88591) type=kotlin.text.Charset ref=__local_3.iso88591[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@20:13 name(utf16be) type=kotlin.text.Charset ref=__local_4.utf16be[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:13 name(utf16le) type=kotlin.text.Charset ref=__local_5.utf16le[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@22:13 name(utf32) type=kotlin.text.Charset ref=__local_6.utf32[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@23:13 name(utf32be) type=kotlin.text.Charset ref=__local_7.utf32be[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@24:13 name(utf32le) type=kotlin.text.Charset ref=__local_8.utf32le[kind=local;type=kotlin.text.Charset;origin=fixture]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

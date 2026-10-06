@@ -54,14 +54,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticRangeUntilFunction(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1281: no generic `T.rangeUntil` registration — the bundled
+        // `ranges/Stdlib.kt` declares it as Kotlin source. The bundledIndex
+        // skip-guard cannot see a type-parameter receiver, so the synthetic
+        // would survive alongside the source declaration and make generic
+        // `x..<y` calls ambiguous.
 
         // Byte/Short until produce Int ranges; mixed Int/Long calls widen to Long.
         registerSyntheticRangeUntilStub(
@@ -166,6 +163,7 @@ extension DataFlowSemaPhase {
             elementType: types.intType,
             stepType: types.intType,
             externalLinkName: "__kk_int_progression_fromClosedRange",
+            registerProperties: false,
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
@@ -205,18 +203,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticUIntRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no UIntRange registration — the bundled
+        // `ranges/UIntRange/Stdlib.kt` declaration owns the class shell,
+        // its Companion, and the residual member surface in Kotlin source.
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
-            stepType: types.intType,
+            stepType: types.longType,
             externalLinkName: "__kk_ulong_progression_fromClosedRange",
             rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
@@ -224,40 +217,10 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticULongRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticIntRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticLongRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticCharRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
-            rangesFQName: rangesFQName,
-            openEndRangeSymbol: openEndRangeSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-709: no ULongRange registration — the bundled
+        // `ranges/ULongRange/Stdlib.kt` declaration owns the class shell
+        // and its Companion in Kotlin source.
         registerSyntheticClosedRangeStub(
-            rangesPackageSymbol: rangesPackageSymbol,
             rangesFQName: rangesFQName,
             symbols: symbols,
             types: types,
@@ -266,11 +229,16 @@ extension DataFlowSemaPhase {
     }
 
     /// KSP-652: the `OpenEndRange<T>` declaration is source-backed by
-    /// `Stdlib/kotlin/ranges/Ranges.kt`, which reuses this shell on bundle load (the
+    /// `Stdlib/kotlin/ranges/OpenEndRange/OpenEndRange.kt` (moved out of
+    /// `Ranges.kt` by KSP-1311), which reuses this shell on bundle load (the
     /// `.synthetic` flag is cleared then). The shell has to stay because `rangeUntil` and the
     /// concrete range conformances are registered before bundled headers are collected and need
-    /// the symbol to already exist; its members stay compiler-side residuals for the same
-    /// reason as the `ClosedRange` ones. See `HeaderHelpers+SyntheticRangeInterfaceStubs.swift`.
+    /// the symbol to already exist. The member registrations below are the
+    /// residual runtime links the bundled declarations reuse: `start`/
+    /// `endExclusive` keep `__kk_range_*` external links because runtime range
+    /// boxes carry no interface itable (the `Map.size` pattern), and the
+    /// `contains`/`isEmpty` residuals act as the `--no-stdlib` fallback plus the
+    /// reuse target for the `@KsSymbolName` source members.
     private func registerSyntheticOpenEndRangeStub(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
@@ -330,6 +298,7 @@ extension DataFlowSemaPhase {
             named: "start",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_first",
             symbols: symbols,
             interner: interner
         )
@@ -337,6 +306,7 @@ extension DataFlowSemaPhase {
             named: "endExclusive",
             ownerSymbol: classSymbol,
             propertyType: typeParamType,
+            externalLinkName: "__kk_range_endExclusive",
             symbols: symbols,
             interner: interner
         )
@@ -348,8 +318,9 @@ extension DataFlowSemaPhase {
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
             classTypeParameterCount: 1,
-            // KSP-1288 adds source-backed cross-type overloads with the same
-            // arity. Keep this generic interface residual alongside them.
+            // KSP-1288 adds source-backed cross-type overloads and KSP-1311 the
+            // source-backed member itself. Keep this generic residual for
+            // `--no-stdlib` compilations; bundled loads reuse the symbol.
             allowBundledSourceOverlap: true,
             symbols: symbols,
             interner: interner
@@ -366,104 +337,6 @@ extension DataFlowSemaPhase {
         )
 
         return classSymbol
-    }
-
-    private func registerSyntheticRangeUntilFunction(
-        rangesPackageSymbol: SymbolID,
-        rangesFQName: [InternedString],
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("rangeUntil")
-        let functionFQName = rangesFQName + [functionName]
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = functionFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let comparableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("Comparable"),
-        ]
-        guard let comparableSymbol = symbols.lookup(fqName: comparableFQName) else {
-            return
-        }
-        let comparableType = types.make(.classType(ClassType(
-            classSymbol: comparableSymbol,
-            args: [.in(typeParamType)],
-            nullability: .nonNull
-        )))
-        let openEndRangeType = types.make(.classType(ClassType(
-            classSymbol: openEndRangeSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == typeParamType
-                && signature.parameterTypes == [typeParamType]
-                && signature.returnType == openEndRangeType
-        }) {
-            return
-        }
-
-        let parameterName = interner.intern("that")
-        let parameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: parameterName,
-            fqName: functionFQName + [parameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(rangesPackageSymbol, for: functionSymbol)
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-        symbols.setExternalLinkName("__kk_op_rangeUntil", for: functionSymbol)
-        symbols.setTypeParameterUpperBounds([comparableType], for: typeParamSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: typeParamType,
-                parameterTypes: [typeParamType],
-                returnType: openEndRangeType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol],
-                typeParameterUpperBoundsList: [[comparableType]]
-            ),
-            for: functionSymbol
-        )
     }
 
     private func registerSyntheticRangeUntilStub(
@@ -542,6 +415,7 @@ extension DataFlowSemaPhase {
         elementType: TypeID,
         stepType: TypeID,
         externalLinkName: String,
+        registerProperties: Bool = true,
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
@@ -560,7 +434,9 @@ extension DataFlowSemaPhase {
                 fqName: classFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: name == "ULongProgression" ? [.synthetic, .openType] : [.synthetic]
+                flags: (name == "ULongProgression" || name == "CharProgression")
+                    ? [.synthetic, .openType]
+                    : [.synthetic]
             )
             symbols.setParentSymbol(rangesPackageSymbol, for: created)
             classSymbol = created
@@ -669,17 +545,19 @@ extension DataFlowSemaPhase {
         // externalLinkNames registered below — resolution always lands on the
         // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
         // before this registration's link name is read (`step` is the one
-        // exception: it stays on the live, kept `kk_uint_range_step` bridge,
-        // same as UIntRange's own `.step`). Aligning the dead names to the
-        // safe generic bridge so they don't dangle on symbols this ticket
-        // removes; Sema still needs the registration itself so these member
-        // names type-check on UIntProgression.
+        // exception: it stays on the live, kept `__kk_uint_range_step` /
+        // `__kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
+        // `.step` — the progression box stores the step at runtime and there
+        // is no Kotlin-side field to read it from). Aligning the dead names
+        // to the safe generic bridge so they don't dangle on symbols this
+        // ticket removes; Sema still needs the registration itself so these
+        // member names type-check on UIntProgression.
         let firstLastRuntime: (String, String)
         switch name {
         case "UIntProgression":
             firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         case "ULongProgression":
-            firstLastRuntime = ("kk_ulong_range_first", "kk_ulong_range_last")
+            firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         case "LongProgression":
             firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         default:
@@ -687,18 +565,18 @@ extension DataFlowSemaPhase {
         }
         let stepRuntime: String
         switch name {
-        case "UIntProgression": stepRuntime = "kk_uint_range_step"
-        case "ULongProgression": stepRuntime = "kk_ulong_range_step"
-        case "LongProgression": stepRuntime = "kk_long_range_step"
+        case "UIntProgression": stepRuntime = "__kk_uint_range_step"
+        case "ULongProgression": stepRuntime = "__kk_ulong_range_step"
+        case "LongProgression": stepRuntime = "__kk_long_range_step"
         default: stepRuntime = "kk_range_step"
         }
-        let isEmptyRuntime: String
+        let isEmptyRuntime: String?
         switch name {
         case "UIntProgression": isEmptyRuntime = "__kk_range_isEmpty"
-        case "ULongProgression": isEmptyRuntime = "kk_ulong_range_isEmpty"
+        case "ULongProgression": isEmptyRuntime = nil
         default: isEmptyRuntime = "__kk_range_isEmpty"
         }
-        let reversedRuntime: String
+        let reversedRuntime: String?
         let toListRuntime: String?
         switch name {
         case "UIntProgression":
@@ -711,43 +589,46 @@ extension DataFlowSemaPhase {
             // that instead of dangling on a symbol removed from Runtime.
             toListRuntime = nil
         case "ULongProgression":
-            reversedRuntime = "kk_ulong_range_reversed"
-            toListRuntime = "kk_ulong_range_toList"
+            // KSP-1524: these are bundled Kotlin declarations.
+            reversedRuntime = nil
+            toListRuntime = nil
         case "LongProgression":
             reversedRuntime = "__kk_range_reversed"
-            toListRuntime = "kk_long_range_toList"
+            toListRuntime = "__kk_long_range_toList"
         case "CharProgression":
             reversedRuntime = "__kk_range_reversed"
-            toListRuntime = "kk_char_range_toList"
+            toListRuntime = "__kk_char_range_toList"
         default:
             reversedRuntime = "__kk_range_reversed"
             toListRuntime = "kk_range_toList"
         }
 
-        registerProgressionProperty(
-            named: "first",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.0,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "last",
-            ownerSymbol: classSymbol,
-            propertyType: elementType,
-            externalLinkName: firstLastRuntime.1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "step",
-            ownerSymbol: classSymbol,
-            propertyType: stepType,
-            externalLinkName: stepRuntime,
-            symbols: symbols,
-            interner: interner
-        )
+        if registerProperties {
+            registerProgressionProperty(
+                named: "first",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.0,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "last",
+                ownerSymbol: classSymbol,
+                propertyType: elementType,
+                externalLinkName: firstLastRuntime.1,
+                symbols: symbols,
+                interner: interner
+            )
+            registerProgressionProperty(
+                named: "step",
+                ownerSymbol: classSymbol,
+                propertyType: stepType,
+                externalLinkName: stepRuntime,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         registerProgressionMethod(
             named: "toList",
             ownerSymbol: classSymbol,
@@ -943,99 +824,25 @@ extension DataFlowSemaPhase {
     }
 
     private func registerSyntheticClosedRangeStub(
-        rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let className = interner.intern("ClosedRange")
-        let classFQName = rangesFQName + [className]
-        let classSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: classFQName) {
-            classSymbol = existing
-        } else {
-            let created = symbols.define(
-                kind: .interface,
-                name: className,
-                fqName: classFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rangesPackageSymbol, for: created)
-            classSymbol = created
+        let classFQName = rangesFQName + [interner.intern("ClosedRange")]
+        guard let classSymbol = symbols.lookup(fqName: classFQName) else { return }
+        if !BundledSyntheticStubRegistration.bundledIndex.contains(owner: classFQName, name: interner.intern("contains"), arity: 1) {
+            for (name, link) in [
+                ("start", "__kk_range_first"),
+                ("endInclusive", "__kk_range_last"),
+                ("contains", "__kk_range_contains"),
+                ("isEmpty", "__kk_range_isEmpty"),
+            ] {
+                if let member = symbols.lookup(fqName: classFQName + [interner.intern(name)]) {
+                    symbols.setExternalLinkName(link, for: member)
+                }
+            }
         }
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = classFQName + [typeParamName]
-        let typeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            typeParamSymbol = existing
-        } else {
-            typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: classSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: classSymbol)
-
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let rangeType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerProgressionProperty(
-            named: "start",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_first",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionProperty(
-            named: "endInclusive",
-            ownerSymbol: classSymbol,
-            propertyType: typeParamType,
-            externalLinkName: "__kk_range_last",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [typeParamType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_op_contains",
-            flags: [.synthetic, .operatorFunction],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "__kk_range_isEmpty",
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerClosedRangeImplementation(
             named: "IntRange",
@@ -1103,22 +910,6 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol,
             supertype: iterableInterfaceSymbol,
             typeArgs: [.out(elementType)],
-            symbols: symbols,
-            types: types
-        )
-    }
-
-    func registerOpenEndRangeConformance(
-        classSymbol: SymbolID,
-        elementType: TypeID,
-        openEndRangeSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem
-    ) {
-        appendNominalSupertype(
-            classSymbol: classSymbol,
-            supertype: openEndRangeSymbol,
-            typeArgs: [.invariant(elementType)],
             symbols: symbols,
             types: types
         )
@@ -1219,7 +1010,11 @@ extension DataFlowSemaPhase {
             interner.intern("ranges"),
             interner.intern("ClosedRange"),
         ]
-        guard symbols.lookup(fqName: closedRangeFQName) != nil else {
+        guard symbols.lookup(fqName: closedRangeFQName) != nil,
+              !BundledSyntheticStubRegistration.bundledIndex.contains(
+                  owner: closedRangeFQName, name: interner.intern("contains"), arity: 1
+              )
+        else {
             return
         }
         let typeParamFQName = closedRangeFQName + [interner.intern("T")]

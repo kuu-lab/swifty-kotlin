@@ -90,6 +90,36 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
         ], isThrowing: false),
+        // KSP-1571: same KSP-678 pattern — close-cause retention, isEmpty, and
+        // cancel are bridged from bundled Kotlin (Channel.kt /
+        // ChannelResult.kt) as plain Int-token residuals; they do not use the
+        // outThrown ABI lowering path.
+        abiParitySpec("kk_channel_is_empty", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_channel_close_cause", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_close_cause", parameters: [
+            p("handle", .intptr),
+            p("cause", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_cancel", parameters: [
+            p("handle", .intptr),
+            p("cause", .intptr),
+        ], isThrowing: false),
+        // KSP-1571: ChannelResult box accessors added on top of KSP-1572's
+        // box-returning `__kk_channel_*` bridges (registered in the Coroutine
+        // section): `cause` reads the retained close cause and `create` backs
+        // the companion `success`/`failure`/`closed` factories.
+        abiParitySpec("__kk_channel_result_cause", parameters: [
+            p("boxRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_result_create", parameters: [
+            p("status", .intptr),
+            p("value", .intptr),
+            p("cause", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_channel_send_suspending", parameters: [
             p("handle", .intptr),
             p("value", .intptr),
@@ -115,6 +145,34 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_copaque_pointer_new", parameters: [
             p("address", .intptr),
         ]),
+        abiParitySpec("__kk_cancellable_continuation_new", parameters: [p("delegate", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_state", parameters: [p("handle", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("callback", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_cancel", parameters: [p("handle", .intptr), p("cause", .intptr)]),
+        abiParitySpec("__kk_cancellable_continuation_invoke_on_cancellation", parameters: [
+            p("handle", .intptr), p("handler", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_try_resume", parameters: [
+            p("handle", .intptr), p("result", .intptr), p("idempotent", .intptr),
+        ]),
+        abiParitySpec("__kk_cancellable_continuation_complete_resume", parameters: [
+            p("handle", .intptr), p("token", .intptr), p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
+        abiParitySpec("__kk_cancellable_continuation_get_result", parameters: [
+            p("handle", .intptr), p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_coroutine_continuation_context", parameters: [
+            p("continuation", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_coroutine_continuation_resume_with", parameters: [
+            p("continuation", .intptr),
+            p("resultRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ], returnType: .void),
         abiParitySpec("kk_coroutine_continuation_context", parameters: [
             p("continuation", .intptr),
         ]),
@@ -392,20 +450,20 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_average", parameters: [
+        abiParitySpec("__kk_long_range_average", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_drop", parameters: [
+        abiParitySpec("__kk_long_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_long_range_sorted", parameters: [
+        abiParitySpec("__kk_long_range_sorted", parameters: [
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_long_range_take", parameters: [
+        abiParitySpec("__kk_long_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -591,19 +649,11 @@ public extension RuntimeABISpec {
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_ulong_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_ulong_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),

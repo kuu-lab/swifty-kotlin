@@ -4,6 +4,108 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(!errors.isEmpty)
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testExpectClassBodylessMembersLinkToActual() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """,
+            """
+            actual abstract class Charset {
+                actual fun newEncoder(): Int = 1
+                actual final override fun equals(other: Any?): Boolean = false
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
+        let ctx = makeContextFromSource(
+            """
+            abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "Expected a missing-body error for each member: \(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0009" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testUnresolvedExpectExtensionRemainsCallable() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """
+        )
+        try runSema(ctx)
+
+        // Missing actual is diagnosed independently of overload resolution.
+        // Both member-style calls must still bind the expect declaration.
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.compactMap(\.code)
+        #expect(codes.contains("KSWIFTK-MPP-UNRESOLVED"))
+        #expect(!codes.contains("KSWIFTK-SEMA-0002"), "Expect extension must be a viable call candidate: \(ctx.diagnostics.diagnostics)")
+        #expect(!codes.contains("KSWIFTK-SEMA-0003"), "Expect extension must not become ambiguous: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        let resolvedCalls = sema.bindings.callBindings.values.filter { $0.chosenCallee == expectSymbol }
+        #expect(resolvedCalls.count == 2, "Both member-style calls must bind the expect declaration")
+    }
+
+    @Test func testMemberCallPrefersLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            """,
+            """
+            package sample.kmp
+            actual fun Short.reverseByteOrder(): Short = this
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """,
+        ])
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Linked actual must resolve both calls without ambiguous overloads: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let actualSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true })
+        #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
+    }
+
     private struct TestCase {
         let name: String
         let sources: [String]

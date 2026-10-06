@@ -3,6 +3,10 @@ import Foundation
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
+    func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
+        BuiltinTypeNames(interner: interner)
+    }
+
     init() {}
 
     func run(_ ctx: CompilationContext) throws {
@@ -38,6 +42,12 @@ final class DataFlowSemaPhase: CompilerPhase {
         let fileScopes = buildFileScopes(ast: ast, symbols: symbols, interner: ctx.interner)
         let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
         sema.importedInlineFunctions = importedInlineFunctions
+        sema.klibModules = importDeferredWork.klibModules
+        importDeferredWork.lazyLoaderState?.descriptorSink = { [weak sema] symbol, descriptor in
+            sema?.importedInlineFunctions.register(descriptor, for: symbol)
+        }
+        sema.resolveDemandedImportedInlineBodies =
+            importDeferredWork.lazyLoaderState?.resolveDemandedInlineBodies
 
         // KSP-706: when compiling against bundled stdlib source rather than a
         // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
@@ -52,6 +62,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
         predeclareBundledSetHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        predeclareBundledMapHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -146,6 +161,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1323: make the source-backed kotlin.reflect nominal types
+        // available before reflection synthetic stubs attach their residual
+        // constructors, members, and marker-interface supertypes.
+        predeclareBundledReflectTopLevelHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1150: make the source-backed CancellationException nominal
         // available before coroutine residual stubs are registered. This lets
         // the residual pass retain its no-stdlib fallback without recreating
@@ -176,6 +199,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 types: types,
                 interner: ctx.interner
             )
+            importDeferredWork.lazyLoaderState?.bundledIndex = bundledIndex
             // STDLIB-SHARED-002: SemaModule was created before imported symbols were
             // merged into the bundled index, so update it before any type-checker
             // queries rely on source-backed stdlib declarations.
@@ -231,6 +255,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        patchSourceBackedNativeUnhandledExceptionHookContract(
+            symbols: symbols,
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
+        )
         // KSP-704: the Set/MutableSet nominal headers are only predeclared
         // before residual registration; their type parameters become available
         // when the complete bundled headers are collected. Register the
@@ -286,6 +315,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // KSP-1333: same covariant List contract for KTypeParameter.upperBounds.
+        patchKTypeParameterUpperBoundsType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         initializeSourceBackedCloseableTypes(
             symbols: symbols,
             types: types,
@@ -318,6 +353,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // ARCH-021: body type checking and later KIR lowering must use the
+        // same exact compiler-owned SymbolIDs. Resolve after all headers and
+        // validation-created symbols are present, but before body analysis.
+        sema.wellKnownSymbols = WellKnownSymbols(
+            symbols: symbols,
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
@@ -339,12 +382,12 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private func loadImports(
         ctx: CompilationContext, symbols: SymbolTable, types: TypeSystem
-    ) -> ([SymbolID: KIRFunction], LibraryImportDeferredWork) {
-        var importedInlineFunctions: [SymbolID: KIRFunction] = [:]
+    ) -> (ImportedInlineFunctionStore, LibraryImportDeferredWork) {
+        let importedInlineFunctions = ImportedInlineFunctionStore()
         let deferredWork = loadImportedLibrarySymbols(
             options: ctx.options, symbols: symbols, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner,
-            importedInlineFunctions: &importedInlineFunctions
+            importedInlineFunctions: importedInlineFunctions
         )
         return (importedInlineFunctions, deferredWork)
     }
@@ -370,6 +413,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
             guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
+            // `memberKey` answers arity/receiver-owner from the compact
+            // `ImportedMemberIndexShape` when the symbol is an unmaterialized
+            // lazy shell, so this scan does not decode declaration bodies.
             guard let key = BundledDeclarationIndex.memberKey(
                 for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
             ) else { continue }
@@ -380,16 +426,51 @@ final class DataFlowSemaPhase: CompilerPhase {
             // collection/sequence member-call fallback resolution (which keys off
             // parentSymbol == owner) can find them. Skip retained runtime-bridge
             // overlaps so synthetic ABI stubs keep routing through kk_* entries.
+            //
+            // Member extensions (`fun T.m(...)` declared inside a nominal type)
+            // must keep their declaring owner as parent: re-parenting them to
+            // the extension receiver would erase the dispatch receiver owner
+            // member-extension calls need for the [dispatch, extension, args]
+            // calling convention.
             guard symbol.kind == .function,
-                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
-                  let signature = symbols.functionSignature(for: symbol.id),
-                  let receiverType = signature.receiverType,
-                  let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
-                      for: receiverType,
-                      types: types
-                  )
+                  !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner)
             else { continue }
-            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            let declaringOwnerFQName = Array(symbol.fqName.dropLast())
+            let declaringOwnerIsNominal = symbols.lookupAll(fqName: declaringOwnerFQName)
+                .compactMap { symbols.symbol($0) }
+                .contains { owner in
+                    switch owner.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass: true
+                    default: false
+                    }
+                }
+            if declaringOwnerIsNominal {
+                continue
+            }
+            if let receiverFQName = symbols.importedMemberIndexShape(for: symbol.id)?.receiverOwnerFQName {
+                // Lazy shells carry the receiver's nominal FQ name in the
+                // compact index, so the parent edge is restored without
+                // materializing the callable signature.
+                if let receiverSymbol = symbols.lookupAll(fqName: receiverFQName).first(where: { candidate in
+                    guard let candidateSymbol = symbols.symbol(candidate) else { return false }
+                    switch candidateSymbol.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass:
+                        return true
+                    default:
+                        return false
+                    }
+                }) {
+                    symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+                }
+            } else if symbols.importedMemberIndexShape(for: symbol.id) == nil,
+                      let signature = symbols.functionSignature(for: symbol.id),
+                      let receiverType = signature.receiverType,
+                      let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                          for: receiverType,
+                          types: types
+                      ) {
+                symbols.setParentSymbol(receiverSymbol, for: symbol.id)
+            }
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)
@@ -431,9 +512,20 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
-        // Resolve kotlin.Number as early as possible. Number is a builtin type
-        // name (BuiltinTypeNames.number), so signatures that mention `Number`
-        // need types.numberClassSymbol set before they are resolved.
+        // Alias right-hand sides can reference nested types before their owners'
+        // signatures are collected, including owners in later input files.
+        for file in orderedFiles {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            for declID in file.topLevelDecls {
+                guard let symbol = predeclared[declID] else { continue }
+                predeclareNestedNominalTypeHeaders(
+                    declID: declID, ownerSymbol: symbol, sourceFileID: file.fileID,
+                    ast: ast, symbols: symbols, types: types, bindings: bindings,
+                    scope: fileScope, ctx: ctx
+                )
+            }
+        }
+        // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,
             types: types,
@@ -482,7 +574,11 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
-        bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        bindInheritanceEdges(
+            ast: ast, symbols: symbols, bindings: bindings, types: types,
+            diagnostics: ctx.diagnostics, interner: ctx.interner
+        )
+        registerChannelSendChannelSubtype(symbols: symbols, types: types, interner: ctx.interner)
         // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
         // kotlin.Annotation source, because its source declaration has no
         // explicit supertype clause and would otherwise erase the synthetic
@@ -510,6 +606,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
+        validateTypeAliasCycles(
+            symbols: symbols, types: types, diagnostics: ctx.diagnostics
+        )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -519,10 +618,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )
         validateAbstractOverrides(
-            ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
-        )
-        validateAbstractClassConstraints(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner
         )
@@ -572,7 +667,17 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, interner: ctx.interner
         )
-        synthesizeNominalLayouts(symbols: symbols, types: types, interner: ctx.interner)
+        // KUU-655: after delegation forwarders exist (so a `by`-delegated
+        // interface method's forwarder inherits its defaults too), before
+        // vtable/itable layout (layout only keys off arity/suspend, not
+        // default flags, so ordering relative to it doesn't matter).
+        inheritDefaultArgumentValuesForOverrides(symbols: symbols, types: types)
+        inheritOperatorModifierForOverrides(symbols: symbols, types: types, sourceManager: ctx.sourceManager)
+        inheritInfixModifierForOverrides(symbols: symbols, types: types)
+        synthesizeNominalLayouts(
+            symbols: symbols, types: types,
+            interner: ctx.interner, diagnostics: ctx.diagnostics
+        )
         attachCompilerMetadataAnnotations(
             symbols: symbols,
             types: types,

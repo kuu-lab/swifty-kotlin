@@ -1,6 +1,8 @@
 
 final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ForLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         module.ensureFeaturesScanned()

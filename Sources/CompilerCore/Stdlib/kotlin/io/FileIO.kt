@@ -13,7 +13,12 @@ private fun fileLines(file: File): List<String> {
     val content = __kkFileReadText(file)
     if (content.isEmpty()) return emptyList()
 
-    val lines = content.split("\n")
+    // Match BufferedReader.readLine: LF, CR, and CRLF are all terminators
+    // and are not included in the line. Collapse CRLF first so its CR is
+    // not treated as a second break. A trailing terminator must not yield
+    // an extra empty line (unlike String.lines()).
+    val normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    val lines = normalized.split("\n")
     if (lines.size > 0 && lines[lines.size - 1].isEmpty()) {
         return lines.subList(0, lines.size - 1)
     }

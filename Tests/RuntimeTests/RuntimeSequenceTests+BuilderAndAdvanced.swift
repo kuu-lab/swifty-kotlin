@@ -38,6 +38,193 @@ private let cpsIteratorBuilderEntry: @convention(c) (Int, UnsafeMutablePointer<I
 /// source focused.
 extension RuntimeSequenceTests {
     @Test
+    func testFactoryBuilderIteratorsAreLazyAndIndependent() {
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { counter, builder, _ in
+            let count = UnsafeMutablePointer<Int>(bitPattern: counter)!
+            count.pointee += 1
+            _ = __kk_sequence_builder_yield(builder, count.pointee)
+            count.pointee += 1
+            _ = __kk_sequence_builder_yield(builder, count.pointee)
+            return 0
+        }
+        var count = 0
+        withUnsafeMutablePointer(to: &count) { counter in
+            let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self), Int(bitPattern: counter))
+            var thrown = 0
+            let a = kk_sequence_box_iterator(seq, &thrown)
+            let b = kk_sequence_box_iterator(seq, &thrown)
+            #expect(counter.pointee == 0)
+            #expect(kk_sequence_iterator_hasNext(a, &thrown) == 1)
+            #expect(kk_sequence_iterator_hasNext(a, &thrown) == 1)
+            #expect(counter.pointee == 1)
+            #expect(kk_sequence_iterator_next(a, &thrown) == 1)
+            #expect(kk_sequence_iterator_next(b, &thrown) == 2)
+            #expect(kk_sequence_iterator_next(a, &thrown) == 3)
+            #expect(kk_sequence_iterator_next(b, &thrown) == 4)
+            #expect(kk_sequence_iterator_hasNext(a, &thrown) == 0)
+            #expect(kk_sequence_iterator_hasNext(b, &thrown) == 0)
+            #expect(sequenceElements(seq) == [5, 6])
+            #expect(thrown == 0)
+        }
+    }
+
+    @Test
+    func testFactoryBuildersPropagateExceptions() {
+        let sequenceThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalStateException(message: "sequence boom")
+            return 0
+        }
+        let seq = __kk_sequence_builder_build(unsafeBitCast(sequenceThunk, to: Int.self))
+        var thrown = 0
+        let seqIter = kk_sequence_box_iterator(seq, &thrown)
+        #expect(kk_sequence_iterator_hasNext(seqIter, &thrown) == 0)
+        #expect(thrown != 0)
+        thrown = 0
+        #expect(kk_sequence_to_list(seq, &thrown) == runtimeNullSentinelInt)
+        #expect(thrown != 0)
+        let iteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalStateException(message: "iterator boom")
+            return 0
+        }
+        let iter = __kk_iterator_builder_build(unsafeBitCast(iteratorThunk, to: Int.self))
+        thrown = 0
+        #expect(kk_iterator_hasNext(iter, &thrown) == 0)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func testFactoryGeneratorIteratorDoesNotTruncateAtOneHundredThousand() {
+        let next: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in value + 1 }
+        let seq = __kk_sequence_generate(0, unsafeBitCast(next, to: Int.self), 0)
+        var thrown = 0
+        let iter = kk_sequence_box_iterator(seq, &thrown)
+        for expected in 0...100_001 {
+            #expect(kk_sequence_iterator_next(iter, &thrown) == expected)
+        }
+        #expect(thrown == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func testFactoryYieldAllPropagatesNestedIteratorFailure(yieldsFirst: Bool) throws {
+        let inner: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
+            return 0
+        }
+        let innerAfterYield: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builder, thrown in
+            _ = __kk_iterator_builder_yield(builder, 17)
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested")
+            return 0
+        }
+        let outer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { iterator, builder, _ in
+            _ = __kk_sequence_builder_yieldAll(builder, iterator)
+            _ = __kk_sequence_builder_yield(builder, 99)
+            return 0
+        }
+        let iterator = __kk_iterator_builder_build(unsafeBitCast(yieldsFirst ? innerAfterYield : inner, to: Int.self))
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), iterator)
+        var thrown = 0
+        #expect(kk_sequence_to_list(sequence, &thrown) == runtimeNullSentinelInt)
+        let error = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(error.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(error.message == "nested")
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testFactoryFailedIteratorDoesNotReplayProducerException(firstUsesNext: Bool, usesCPS: Bool) throws {
+        let producer: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "boom")
+            return 0
+        }
+        let iterator = usesCPS
+            ? __kk_iterator_builder_build_coro(unsafeBitCast(producer, to: Int.self), 730_003, 0)
+            : __kk_iterator_builder_build(unsafeBitCast(producer, to: Int.self))
+        var thrown = 0
+        if firstUsesNext {
+            _ = kk_iterator_next(iterator, &thrown)
+        } else {
+            _ = kk_iterator_hasNext(iterator, &thrown)
+        }
+        let original = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(original.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(original.message == "boom")
+        for usesNext in [false, true, false] {
+            thrown = 0
+            if usesNext {
+                _ = kk_iterator_next(iterator, &thrown)
+            } else {
+                _ = kk_iterator_hasNext(iterator, &thrown)
+            }
+            let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+            #expect(failure.exceptionFQName == "kotlin.IllegalStateException")
+            #expect(failure.message == "Iterator has failed.")
+        }
+    }
+
+    @Test
+    func testFactoryYieldAllPropagatesNestedSequenceFailure() throws {
+        let inner: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builder, thrown in
+            _ = __kk_sequence_builder_yield(builder, 17)
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "nested sequence")
+            return 0
+        }
+        let outer: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { source, builder, _ in
+            __kk_sequence_builder_yieldAll(builder, source)
+        }
+        let source = __kk_sequence_builder_build(unsafeBitCast(inner, to: Int.self))
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(outer, to: Int.self), source)
+        var thrown = 0
+        #expect(kk_sequence_to_list(sequence, &thrown) == runtimeNullSentinelInt)
+        let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(failure.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(failure.message == "nested sequence")
+    }
+
+    @Test(arguments: [false, true])
+    func testFactoryFailedSequenceIteratorDoesNotReplayProducerException(usesCPS: Bool) throws {
+        let legacy: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "sequence boom")
+            return 0
+        }
+        let cps: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, thrown in
+            thrown?.pointee = runtimeAllocateIllegalArgumentException(message: "sequence boom")
+            return 0
+        }
+        let sequence = usesCPS
+            ? __kk_sequence_builder_build_coro(unsafeBitCast(cps, to: Int.self), 730_004, 0)
+            : __kk_sequence_builder_build(unsafeBitCast(legacy, to: Int.self))
+        var thrown = 0
+        let iterator = kk_sequence_box_iterator(sequence, &thrown)
+        for probe in 0..<3 {
+            #expect(kk_sequence_iterator_hasNext(iterator, &thrown) == 0)
+            let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+            #expect(failure.exceptionFQName == (probe == 0 ? "kotlin.IllegalArgumentException" : "kotlin.IllegalStateException"))
+            #expect(failure.message == (probe == 0 ? "sequence boom" : "Iterator has failed."))
+        }
+        _ = kk_sequence_iterator_next(iterator, &thrown)
+        let failure = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(failure.message == "Iterator has failed.")
+        let fresh = kk_sequence_box_iterator(sequence, &thrown)
+        _ = kk_sequence_iterator_next(fresh, &thrown)
+        let original = try #require(resolveRuntimeHandle(thrown, as: RuntimeThrowableBox.self))
+        #expect(original.message == "sequence boom")
+    }
+
+    @Test
+    func testFactoryGeneratorClaimsOneShotAtIteratorAcquisition() {
+        let next: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in runtimeNullSentinelInt }
+        let source = __kk_sequence_generate_noarg(unsafeBitCast(next, to: Int.self), 0)
+        let seq = kk_sequence_constrainOnce(source)
+        var thrown = 0
+        let first = kk_sequence_box_iterator(seq, &thrown)
+        #expect(first != 0)
+        #expect(thrown == 0)
+        #expect(kk_sequence_box_iterator(seq, &thrown) == 0)
+        #expect(thrown != 0)
+        #expect(kk_sequence_iterator_hasNext(first, &thrown) == 0)
+        #expect(thrown == 0)
+    }
+
+    @Test
     func testSequenceBuilderBuildYieldsElementsInOrder() {
         // sequence { yield(1); yield(2); yield(3) }.toList()
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
@@ -56,6 +243,16 @@ extension RuntimeSequenceTests {
         let entryPoint = unsafeBitCast(cpsSequenceBuilderEntry, to: Int.self)
         let seqHandle = __kk_sequence_builder_build_coro(entryPoint, cpsSequenceBuilderFunctionID, 0)
         #expect(sequenceElements(seqHandle) == [7, 11])
+    }
+
+    @Test(arguments: [1, 4])
+    func testSequenceBuilderYieldAllRange(start: Int) {
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { start, builder, thrown in
+            __kk_sequence_builder_yieldAll_checked(builder, kk_op_rangeTo(start, 3), thrown)
+        }
+        let sequence = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self), start)
+        let values = sequenceElements(sequence).map { kk_unbox_int($0) }
+        #expect(values == (start == 1 ? [1, 2, 3] : []))
     }
 
     @Test
@@ -200,16 +397,16 @@ extension RuntimeSequenceTests {
         let taken = kk_sequence_take(seqHandle, 2)
         #expect(sequenceElements(taken) == [10, 20])
         #expect(_lazyTestYieldCounter <= 3, "yieldAll should not eagerly evaluate all 5 elements of the nested sequence before first consumer demand")
+        let firstTraversalYields = _lazyTestYieldCounter
 
         let full = sequenceElements(seqHandle)
         #expect(full == [10, 20, 30, 40, 50, 99])
-        #expect(_lazyTestYieldCounter == 5)
+        #expect(_lazyTestYieldCounter == firstTraversalYields + 5)
     }
 
     @Test
     func testSequenceBuilderBuildReiterableProducesSameElements() {
         // Verify that materializing the same lazy sequence twice produces the same result
-        // (cached after first materialization).
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = __kk_sequence_builder_yield(builderRaw, 7)
             _ = __kk_sequence_builder_yield(builderRaw, 8)
@@ -219,7 +416,7 @@ extension RuntimeSequenceTests {
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
         let seqHandle = __kk_sequence_builder_build(fnPtr)
         #expect(sequenceElements(seqHandle) == [7, 8, 9])
-        // Second materialization should produce the same result (cached).
+        // Rerunning this deterministic producer yields the same values.
         #expect(sequenceElements(seqHandle) == [7, 8, 9])
     }
 

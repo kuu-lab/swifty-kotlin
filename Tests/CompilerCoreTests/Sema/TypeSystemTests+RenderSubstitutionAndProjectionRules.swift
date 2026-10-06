@@ -2,6 +2,141 @@
 import Testing
 
 extension TypeSystemTests {
+    @Test func testNominalFunctionTypePreservesSignatureAndNullability() throws {
+        let ts = TypeSystem()
+        for arity in 0 ... 5 {
+            let symbol = SymbolID(rawValue: Int32(100 + arity))
+            ts.functionNInterfaceSymbols[arity] = symbol
+            let parameters = Array(repeating: ts.intType, count: arity)
+            let nominal = ts.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: (parameters + [ts.stringType]).map(TypeArg.invariant),
+                nullability: .nullable
+            )))
+            let function = try #require(ts.nominalFunctionType(for: nominal))
+            #expect(function.params == parameters)
+            #expect(function.returnType == ts.stringType)
+            #expect(function.nullability == .nullable)
+            #expect(function.receiver == nil)
+            #expect(!function.isSuspend)
+            #expect(ts.isSubtype(nominal, ts.make(.functionType(function))))
+            #expect(!ts.isSubtype(nominal, ts.make(.functionType(FunctionType(
+                params: parameters,
+                returnType: ts.stringType
+            )))))
+        }
+    }
+
+    @Test func testNominalFunctionTypeRejectsUnrelatedAndIncompleteTypes() {
+        let ts = TypeSystem()
+        let symbol = SymbolID(rawValue: 100)
+        ts.functionNInterfaceSymbols[1] = symbol
+        #expect(ts.nominalFunctionType(for: ts.intType) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: SymbolID(rawValue: 101),
+            args: [.invariant(ts.intType), .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.invariant(ts.intType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.star, .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.out(ts.intType), .invariant(ts.stringType)]
+        )))) == nil)
+        #expect(ts.nominalFunctionType(for: ts.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [.invariant(ts.intType), .in(ts.stringType)]
+        )))) == nil)
+    }
+
+    // MARK: - Inherited FunctionN subtyping (KUU-1195)
+
+    @Test func testInheritedFunctionNSubtypeOfFunctionType() {
+        let ts = TypeSystem()
+        // `KProperty1<T, out V> : (T) -> V` binds to `Function1<T, V>` in the
+        // nominal supertype graph, so `KProperty1<Box, Int> <: (Box) -> Int`.
+        let function1Sym = SymbolID(rawValue: 101)
+        ts.functionNInterfaceSymbols[1] = function1Sym
+        let kProperty1Sym = SymbolID(rawValue: 200)
+        let tSym = SymbolID(rawValue: 210)
+        let vSym = SymbolID(rawValue: 211)
+        ts.setNominalTypeParameterSymbols([tSym, vSym], for: kProperty1Sym)
+        ts.setNominalDirectSupertypes([function1Sym], for: kProperty1Sym)
+        ts.setNominalSupertypeTypeArgs([
+            .in(ts.make(.typeParam(TypeParamType(symbol: tSym)))),
+            .out(ts.make(.typeParam(TypeParamType(symbol: vSym))))
+        ], for: kProperty1Sym, supertype: function1Sym)
+
+        let boxType = ts.make(.classType(ClassType(classSymbol: SymbolID(rawValue: 300))))
+        let kProperty1BoxInt = ts.make(.classType(ClassType(
+            classSymbol: kProperty1Sym,
+            args: [.invariant(boxType), .invariant(ts.intType)]
+        )))
+        let boxToInt = ts.make(.functionType(FunctionType(params: [boxType], returnType: ts.intType)))
+
+        #expect(ts.isSubtype(kProperty1BoxInt, boxToInt))
+        // Return covariance: `KProperty1<Box, Int> <: (Box) -> Any`.
+        #expect(ts.isSubtype(kProperty1BoxInt, ts.make(.functionType(FunctionType(
+            params: [boxType], returnType: ts.anyType
+        )))))
+        // Parameter contravariance: `KProperty1<Any, Int> <: (Box) -> Int`.
+        let kProperty1AnyInt = ts.make(.classType(ClassType(
+            classSymbol: kProperty1Sym,
+            args: [.invariant(ts.anyType), .invariant(ts.intType)]
+        )))
+        #expect(ts.isSubtype(kProperty1AnyInt, boxToInt))
+        // Arity mismatch stays rejected (`KProperty1<Box, Int>` is not `() -> Int`).
+        #expect(!ts.isSubtype(kProperty1BoxInt, ts.make(.functionType(FunctionType(
+            params: [], returnType: ts.intType
+        )))))
+        // A nullable expected function type accepts the non-null value.
+        #expect(ts.isSubtype(kProperty1BoxInt, ts.make(.functionType(FunctionType(
+            params: [boxType], returnType: ts.intType, nullability: .nullable
+        )))))
+    }
+
+    @Test func testTransitiveInheritedFunctionNSubtypeOfFunctionType() {
+        let ts = TypeSystem()
+        // `KMutableProperty0<V> : KProperty0<V>` and `KProperty0<V> : () -> V`
+        // reach `Function0` transitively.
+        let function0Sym = SymbolID(rawValue: 100)
+        ts.functionNInterfaceSymbols[0] = function0Sym
+        let kProperty0Sym = SymbolID(rawValue: 200)
+        let kMutableProperty0Sym = SymbolID(rawValue: 201)
+        let vSym = SymbolID(rawValue: 210)
+        let vSubSym = SymbolID(rawValue: 220)
+        ts.setNominalTypeParameterSymbols([vSym], for: kProperty0Sym)
+        ts.setNominalDirectSupertypes([function0Sym], for: kProperty0Sym)
+        ts.setNominalSupertypeTypeArgs([
+            .out(ts.make(.typeParam(TypeParamType(symbol: vSym))))
+        ], for: kProperty0Sym, supertype: function0Sym)
+        ts.setNominalTypeParameterSymbols([vSubSym], for: kMutableProperty0Sym)
+        ts.setNominalDirectSupertypes([kProperty0Sym], for: kMutableProperty0Sym)
+        ts.setNominalSupertypeTypeArgs([
+            .invariant(ts.make(.typeParam(TypeParamType(symbol: vSubSym))))
+        ], for: kMutableProperty0Sym, supertype: kProperty0Sym)
+
+        let kMutableProperty0Int = ts.make(.classType(ClassType(
+            classSymbol: kMutableProperty0Sym,
+            args: [.invariant(ts.intType)]
+        )))
+        let unitToInt = ts.make(.functionType(FunctionType(params: [], returnType: ts.intType)))
+
+        #expect(ts.isSubtype(kMutableProperty0Int, unitToInt))
+        // The same value still cannot satisfy an arity-1 function type.
+        #expect(!ts.isSubtype(kMutableProperty0Int, ts.make(.functionType(FunctionType(
+            params: [ts.intType], returnType: ts.intType
+        )))))
+        // A plain `() -> Int` is not a `KMutableProperty0<Int>` — the lifted
+        // check only runs in the subtype direction.
+        #expect(!ts.isSubtype(unitToInt, kMutableProperty0Int))
+    }
+
     @Test
     func testRenderTypeForBuiltIns() {
         let ts = TypeSystem()
@@ -478,14 +613,41 @@ extension TypeSystemTests {
     }
 
     @Test
-    func testComposedProjectionInWithInReturnsOut() {
+    func testComposedProjectionInWithInReturnsIn() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
+        // A use-site `in` on an `in`-declared parameter is redundant and keeps
+        // the `in` direction — `Sink<in X>` admits `Sink<S>` for `X <: S` (KUU-1381).
         let result = ts.composedProjection(declarationVariance: .in, useSite: .in(intType))
-        if case let .out(t) = result {
+        if case let .in(t) = result {
             #expect(t == intType)
         } else {
-            Issue.record("Expected .out from in + in")
+            Issue.record("Expected .in from in + in")
         }
+    }
+
+    @Test
+    func testInDeclaredParameterAcceptsSameDirectionInProjection() {
+        let ts = TypeSystem()
+        let sym = SymbolID(rawValue: 0)
+        ts.setNominalTypeParameterVariances([.in], for: sym)
+
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let anyType = ts.anyType
+        func sink(_ arg: TypeArg) -> TypeID {
+            ts.make(.classType(ClassType(classSymbol: sym, args: [arg])))
+        }
+
+        // `Sink<in X>` behaves like `Sink<X>`: admits `Sink<S>` whenever `X <: S`.
+        #expect(ts.isSubtype(sink(.invariant(intType)), sink(.in(intType))))
+        #expect(ts.isSubtype(sink(.invariant(anyType)), sink(.in(intType))))
+        #expect(ts.isSubtype(sink(.in(anyType)), sink(.in(intType))))
+        // Direction stays contravariant: `Sink<in Int>` is not a `Sink<in Any>`.
+        #expect(!(ts.isSubtype(sink(.in(intType)), sink(.in(anyType)))))
+        #expect(!(ts.isSubtype(sink(.invariant(intType)), sink(.in(anyType)))))
+        // Unprojected and star projections behave as before.
+        #expect(ts.isSubtype(sink(.in(intType)), sink(.invariant(intType))))
+        #expect(ts.isSubtype(sink(.in(intType)), sink(.star)))
+        #expect(!(ts.isSubtype(sink(.star), sink(.in(intType)))))
     }
 }

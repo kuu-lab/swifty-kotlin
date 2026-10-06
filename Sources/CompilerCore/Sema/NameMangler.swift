@@ -181,6 +181,8 @@ package final class NameMangler {
 
         case .unit:
             return "U"
+        case .nullableUnit:
+            return applyNullability("U", nullability: .nullable)
 
         case let .nothing(nullability):
             return applyNullability("N", nullability: nullability)
@@ -296,7 +298,8 @@ package final class NameMangler {
                 encodeType($0, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses)
             })
             components.append(encodeType(functionType.returnType, symbols: symbols, types: types, nameResolver: nameResolver, unboxValueClasses: unboxValueClasses))
-            let prefix = functionType.isSuspend ? "SF" : "F"
+            let prefix = (functionType.isCallableReference ? "K" : "")
+                + (functionType.isSuspend ? "SF" : "F")
             let encoded = "\(prefix)\(functionType.params.count)<\(components.joined(separator: ","))>"
             return applyNullability(encoded, nullability: functionType.nullability)
 

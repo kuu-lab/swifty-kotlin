@@ -31,8 +31,10 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
             // entire string is delimiter
             println(",".split(","))
 
-            // empty delimiter returns list containing original string
+            // empty delimiter matches at every UTF-16 boundary
             println("abc".split(""))
+            println("abc".split("", limit = 2))
+            println("abc".split("", ignoreCase = true))
         }
         """
 
@@ -48,7 +50,9 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 [, a, b, ]
                 [a, , b]
                 [, ]
-                [abc]
+                [, a, b, c, ]
+                [, abc]
+                [, a, b, c, ]
                 """
                 + "\n"
         )
@@ -88,7 +92,7 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
             // normal split
             println("a,b,c".splitToSequence(",").toList())
 
-            // empty delimiter returns original string wrapped
+            // empty delimiter matches at every UTF-16 boundary
             println("abc".splitToSequence("").toList())
         }
         """
@@ -101,7 +105,7 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 []
                 [hello]
                 [a, b, c]
-                [abc]
+                [, a, b, c, ]
                 """
                 + "\n"
         )

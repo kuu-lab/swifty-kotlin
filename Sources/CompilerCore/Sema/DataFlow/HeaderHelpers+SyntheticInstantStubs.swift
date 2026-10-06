@@ -151,10 +151,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KUU-1093: kk_instant_until returns the raw Int64 nanosecond
+        // payload, but Duration is now a boxed object (Comparable<Duration>),
+        // so the bridge is typed `Long` and Kotlin source wraps the result in
+        // `Duration(...)`.
         registerInstantInstanceMethod(
             named: "__kk_instant_until",
             externalLinkName: "kk_instant_until",
-            returnType: durationType,
+            returnType: longType,
             parameters: [(name: "other", type: instantType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,

@@ -110,6 +110,22 @@ extension BuildKIRRegressionTests {
     private func sharedVarargLoweringCtx() throws -> CompilationContext {
         try Self._sharedVarargLoweringCtx.get()
     }
+    @Test func testNamedVarargArrayUsesSpreadPacking() throws {
+        let ctx = makeContextFromSource("""
+        fun collect(vararg xs: Int, y: Int = 9): Int = xs.size + y
+        fun namedArray(xs: IntArray): Int = collect(xs = xs)
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "namedArray", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        // A single spread array is passed through rather than packed as one element.
+        #expect(!callees.contains("kk_array_new"))
+        #expect(!callees.contains("kk_array_set"))
+        #expect(callees.contains("collect$default"))
+    }
+
     @Test
     func testVarargNamedArgSkipsToVarargParameter() throws {
         let ctx = try sharedVarargCtx()
@@ -253,7 +269,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
-    func testVarargCharArgumentsAreBoxed() throws {
+    func testVarargCharArgumentsAreStoredUnboxed() throws {
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Char vararg call to compile without errors.")
@@ -261,12 +277,15 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main7", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        let boxCharCount = callNames.filter { $0 == "kk_box_char" }.count
-        #expect(boxCharCount == 3, "Expected each Char vararg element to be boxed via kk_box_char, got: \(callNames)")
+        // A primitive vararg is packed directly into its primitive array, so the
+        // elements are stored raw rather than boxed.
+        let boxCharCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        #expect(boxCharCount == 0, "Expected Char vararg elements to be stored unboxed, got: \(callNames)")
+        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Char vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
-    func testVarargBooleanArgumentsAreBoxed() throws {
+    func testVarargBooleanArgumentsAreStoredUnboxed() throws {
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Boolean vararg call to compile without errors.")
@@ -274,12 +293,15 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main8", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        let boxBoolCount = callNames.filter { $0 == "kk_box_bool" }.count
-        #expect(boxBoolCount == 3, "Expected each Boolean vararg element to be boxed via kk_box_bool, got: \(callNames)")
+        // A primitive vararg is packed directly into its primitive array, so the
+        // elements are stored raw rather than boxed.
+        let boxBoolCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        #expect(boxBoolCount == 0, "Expected Boolean vararg elements to be stored unboxed, got: \(callNames)")
+        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Boolean vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
-    func testVarargDoubleArgumentsAreBoxed() throws {
+    func testVarargDoubleArgumentsAreStoredUnboxed() throws {
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Double vararg call to compile without errors.")
@@ -287,15 +309,15 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main9", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // Double literals are provably non-null, so BoxingCalleeTable routes
-        // them through kk_box_double_nonnull rather than the nullable-safe
-        // kk_box_double (see BoxingCalleeTable.nonNullOnlyBoxCalleeOverridesByPrimitive).
-        let boxDoubleCount = callNames.filter { $0 == "kk_box_double_nonnull" }.count
-        #expect(boxDoubleCount == 3, "Expected each Double vararg element to be boxed via kk_box_double_nonnull, got: \(callNames)")
+        // A primitive vararg is packed directly into its primitive array, so the
+        // elements are stored raw rather than boxed.
+        let boxDoubleCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        #expect(boxDoubleCount == 0, "Expected Double vararg elements to be stored unboxed, got: \(callNames)")
+        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Double vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
-    func testVarargLongArgumentsAreBoxed() throws {
+    func testVarargLongArgumentsAreStoredUnboxed() throws {
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Long vararg call to compile without errors.")
@@ -303,11 +325,11 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main10", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // Long literals are provably non-null, so BoxingCalleeTable routes
-        // them through kk_box_long_nonnull rather than the nullable-safe
-        // kk_box_long (see BoxingCalleeTable.nonNullOnlyBoxCalleeOverridesByPrimitive).
-        let boxLongCount = callNames.filter { $0 == "kk_box_long_nonnull" }.count
-        #expect(boxLongCount == 3, "Expected each Long vararg element to be boxed via kk_box_long_nonnull, got: \(callNames)")
+        // A primitive vararg is packed directly into its primitive array, so the
+        // elements are stored raw rather than boxed.
+        let boxLongCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        #expect(boxLongCount == 0, "Expected Long vararg elements to be stored unboxed, got: \(callNames)")
+        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Long vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test

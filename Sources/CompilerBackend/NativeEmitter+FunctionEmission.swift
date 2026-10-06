@@ -3,6 +3,658 @@ import RuntimeABI
 import CompilerCore
 
 extension NativeEmitter {
+    private struct FlatStringReturnCallSpec {
+        let flatName: String
+        let stringArgumentCount: Int
+        let extraArgumentCount: Int
+        let stringArgumentPositions: [Int]
+        let canThrow: Bool
+
+        init(
+            flatName: String,
+            stringArgumentCount: Int,
+            extraArgumentCount: Int,
+            stringArgumentPositions: [Int]? = nil,
+            canThrow: Bool
+        ) {
+            self.flatName = flatName
+            self.stringArgumentCount = stringArgumentCount
+            self.extraArgumentCount = extraArgumentCount
+            self.stringArgumentPositions = stringArgumentPositions ?? Array(0..<stringArgumentCount)
+            self.canThrow = canThrow
+        }
+    }
+
+    private struct FlatScalarReturnCallSpec {
+        let flatName: String
+        let stringArgumentCount: Int
+        let extraArgumentCount: Int
+        let stringArgumentPositions: [Int]
+        let canThrow: Bool
+        let defaultMissingClosureRaw: Bool
+
+        init(
+            flatName: String,
+            stringArgumentCount: Int,
+            extraArgumentCount: Int,
+            stringArgumentPositions: [Int]? = nil,
+            canThrow: Bool = false,
+            defaultMissingClosureRaw: Bool = false
+        ) {
+            self.flatName = flatName
+            self.stringArgumentCount = stringArgumentCount
+            self.extraArgumentCount = extraArgumentCount
+            self.stringArgumentPositions = stringArgumentPositions ?? Array(0..<stringArgumentCount)
+            self.canThrow = canThrow
+            self.defaultMissingClosureRaw = defaultMissingClosureRaw
+        }
+    }
+
+    private static let flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = {
+        var specs: [String: FlatStringReturnCallSpec] = [
+            "kk_string_to_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_to_flat",
+                stringArgumentCount: 0,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "__kk_locale_toString_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_locale_toString_flat",
+                stringArgumentCount: 0,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "__kk_string_concat_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_string_concat_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_trim_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trim_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_trim_predicate_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trim_predicate_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: true
+            ),
+            "kk_string_trimStart_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trimStart_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_trimStart_predicate_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trimStart_predicate_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: true
+            ),
+            "kk_string_trimEnd_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trimEnd_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_trimEnd_predicate_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_trimEnd_predicate_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: true
+            ),
+            "kk_string_lowercase_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_lowercase_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_uppercase_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_uppercase_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "__kk_lowercase_locale_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_lowercase_locale_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "__kk_uppercase_locale_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_uppercase_locale_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "__kk_string_normalize_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_string_normalize_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_orEmpty_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
+            // no flat emission spec.
+            // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
+            // source (StringHOF.kt); no flat emission spec.
+            // Source-backed declarations retain flat compatibility lowering
+            // for aggregate String receivers.
+            "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_ifBlank_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: true
+            ),
+            "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_ifEmpty_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: true
+            ),
+            // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin
+            // source (StringTakeDrop.kt); no flat emission spec.
+            "kk_string_replace_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_replace_flat",
+                stringArgumentCount: 3,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            "kk_string_replace_char_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_replace_char_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                canThrow: false
+            ),
+            "kk_string_replace_ignoreCase_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_replace_ignoreCase_flat",
+                stringArgumentCount: 3,
+                extraArgumentCount: 1,
+                canThrow: false
+            ),
+            "kk_string_replace_char_ignoreCase_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_replace_char_ignoreCase_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 3,
+                canThrow: false
+            ),
+            "kk_string_replaceFirst_flat": FlatStringReturnCallSpec(
+                flatName: "kk_string_replaceFirst_flat",
+                stringArgumentCount: 3,
+                extraArgumentCount: 0,
+                canThrow: false
+            ),
+            // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
+            // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
+            // KSP-1390: padStart/padEnd are bundled Kotlin source
+            // (StringHOF.kt); no flat emission spec.
+            // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt);
+            // no flat emission spec.
+            // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
+            // (StringTakeDrop.kt); no flat emission spec.
+            // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
+            // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
+            // KSP-407: substringBefore/After/BeforeLast/AfterLast and
+            // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
+            // source (StringSearchReplace.kt); no flat emission spec.
+            "__kk_string_format_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_string_format_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [0],
+                canThrow: true
+            ),
+            "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
+                flatName: "__kk_string_format_locale_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2,
+                stringArgumentPositions: [1],
+                canThrow: true
+            ),
+        ]
+        for spec in Array(specs.values)
+        where specs[spec.flatName] == nil {
+            specs[spec.flatName] = spec
+        }
+        return specs
+    }()
+
+    private static let flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = {
+        var specs: [String: FlatScalarReturnCallSpec] = [
+            "kk_string_from_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_from_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_locale_new_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_locale_new_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_locale_new_language_country_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0
+            ),
+            "kk_string_split_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_split_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0
+            ),
+            "kk_string_split_limit_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_split_limit_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 2
+            ),
+            "kk_string_splitToSequence_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_splitToSequence_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0
+            ),
+            "__kk_regex_create_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_create_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_regex_create_with_option_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_create_with_option_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_regex_create_with_options_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_create_with_options_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_matches_regex_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_contains_regex_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_contains_regex_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_split_regex_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_split_regex_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_toRegex_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toRegex_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toRegex_with_option_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toRegex_with_options_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_regex_find_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_find_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_regex_findAll_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_findAll_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_regex_matchEntire_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_matchEntire_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_regex_containsMatchIn_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_containsMatchIn_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_regex_from_literal_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_from_literal_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_match_result_group_index_of_name": FlatScalarReturnCallSpec(
+                flatName: "__kk_match_result_group_index_of_name_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_regex_matches_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_regex_matches_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_string_builder_new_from_string_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_builder_new_from_string_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_builder_append_obj": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_builder_append_obj_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                stringArgumentPositions: [1]
+            ),
+            "__kk_string_builder_toString": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_builder_toString",
+                stringArgumentCount: 0,
+                extraArgumentCount: 1
+            ),
+            "__kk_bignum_toString": FlatScalarReturnCallSpec(
+                flatName: "__kk_bignum_toString",
+                stringArgumentCount: 0,
+                extraArgumentCount: 1
+            ),
+            // KSP-404: startsWith/endsWith are bundled Kotlin source
+            // (StringPrefixSuffix.kt); no flat emission spec.
+            // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
+            // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
+            // no flat emission spec.
+            // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase)
+            // are bundled Kotlin source (StringComparison.kt); no flat emission spec.
+            "kk_string_compareTo_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_compareTo_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_compareTo_locale_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_compareTo_locale_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_isNormalized_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_isNormalized_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_equals_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_equals_flat",
+                stringArgumentCount: 2,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isEmpty_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isEmpty_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isNotEmpty_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isNotEmpty_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isBlank_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isBlank_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isNotBlank_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isNotBlank_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isNullOrEmpty_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isNullOrEmpty_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "kk_string_isNullOrBlank_flat": FlatScalarReturnCallSpec(
+                flatName: "kk_string_isNullOrBlank_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_first_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_first_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_last_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_last_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_single_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_single_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_firstOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_firstOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_lastOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_lastOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_singleOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_singleOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_getOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_get_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_get_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
+            // (StringIndexOf.kt); no flat emission spec.
+            // KSP-410: count/any/all/none/find/findLast/partition and
+            // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
+            // Kotlin source (StringHOF.kt); no flat emission spec.
+            // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
+            // reduceRightIndexedOrNull/reduceRightOrNull are bundled
+            // Kotlin source (StringHOF.kt); no flat emission spec.
+            "__kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toBoolean_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toBooleanStrict_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toBooleanStrictOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toInt_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toInt_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toIntOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toIntOrNull_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toUByteOrNull_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toUShortOrNull_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toUIntOrNull_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toULongOrNull_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toDouble_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toDouble_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toDoubleOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toDoubleOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toLong_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toLong_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toLongOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toFloat_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toFloat_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toFloatOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toFloatOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toShort_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toShort_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toShortOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toByte_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toByte_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toByte_radix_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1,
+                canThrow: true
+            ),
+            "__kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toByteOrNull_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toBigDecimal_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0,
+                canThrow: true
+            ),
+            "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toByteArray_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_toByteArray_charset_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_toByteArray_charset_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_encodeToByteArray_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_encodeToByteArray_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_encodeToByteArray_range_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_encodeToByteArray_range_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 2
+            ),
+            "__kk_string_encodeToByteArray_charset_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_encodeToByteArray_charset_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+            "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_byteInputStream_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 0
+            ),
+            "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
+                flatName: "__kk_string_byteInputStream_charset_flat",
+                stringArgumentCount: 1,
+                extraArgumentCount: 1
+            ),
+        ]
+        for spec in Array(specs.values)
+        where specs[spec.flatName] == nil {
+            specs[spec.flatName] = spec
+        }
+        return specs
+    }()
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func emitFunctionBody(
         function: KIRFunction,
@@ -235,7 +887,9 @@ extension NativeEmitter {
             case .jump, .label, .jumpIfEqual, .jumpIfNotNull,
                  .storeGlobal, .rethrow, .returnIfEqual, .returnUnit, .returnValue,
                  .beginBlock, .endBlock, .nop, .nonLocalReturn,
-                 .beginFinallyGuard, .endFinallyGuard:
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .resumeNonLocalReturn,
+                 .beginFinallyCleanup, .endFinallyCleanup:
                 return []
             }
         }
@@ -247,7 +901,14 @@ extension NativeEmitter {
             }
         }
 
-        let shouldSpillID = Set(assignmentTargetCounts.filter { $0.value > 1 }.map(\.key))
+        // KIR temporaries are not strict SSA values: inline expansion and
+        // throw-aware control flow can route multiple predecessor blocks to a
+        // later use even when the temporary has only one syntactic assignment.
+        // Keeping such a result as an LLVM SSA value produces invalid IR when
+        // its defining block does not dominate the merge block. Materialize
+        // assignment targets in entry-block slots; optimized pipelines promote
+        // the safe cases back to SSA with mem2reg.
+        let shouldSpillID = Set(assignmentTargetCounts.keys)
 
         var copyTargetAllocas: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         for instruction in function.body {
@@ -294,6 +955,26 @@ extension NativeEmitter {
             }
             if let existing = externalFunctions[effectiveName] {
                 return existing
+            }
+            if let spec = Self.runtimeABIFunctionByName[effectiveName] {
+                let parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = spec.parameters.map { parameter in
+                    switch parameter.type {
+                    case .nullableIntptrPointer:
+                        return outThrownPointerType
+                    case .constUInt8Pointer, .nullableConstUInt8Pointer:
+                        // Flat bridges consume native pointers; legacy raw calls carry pointer bits as intptr.
+                        return Self.flatScalarReturnCallSpecs[effectiveName] != nil
+                            || Self.flatStringReturnCallSpecs[effectiveName] != nil
+                            ? typeLowering?.dataPointerType : int64Type
+                    default:
+                        return int64Type
+                    }
+                }
+                return declareExternalFunction(
+                    named: effectiveName,
+                    parameterTypes: parameterTypes,
+                    returnType: int64Type
+                )
             }
             let maxArgsSeenInBody = maxKIRArgumentCountByExternalCallee[effectiveName] ?? 0
             let effectiveArgumentCount = max(argumentCount, maxArgsSeenInBody)
@@ -478,6 +1159,84 @@ extension NativeEmitter {
             )
         }
 
+        /// BUG-B: `.length` on a String must throw `NullPointerException`
+        /// when the value is *actually* null at runtime, regardless of its
+        /// statically-declared non-null type -- exactly like calling any
+        /// method on a null reference. This can genuinely happen: an
+        /// overridden non-null `String` property read during superclass
+        /// construction observes the not-yet-run subclass initializer's
+        /// zero-filled backing field, which `stringAggregateFields` bridges
+        /// to a null data pointer (mirroring `kk_string_to_flat`'s existing
+        /// raw-handle-zero-means-null convention). `lowerBuiltinCall`'s
+        /// ordinary fast path for this accessor has no way to signal a
+        /// thrown exception, so this handles it here instead, before that
+        /// fast path runs, with direct access to the thrown-channel
+        /// plumbing (`storeOutThrownIfNonNull`, `currentBlock`) that
+        /// `lowerBuiltinCall` does not have.
+        func emitThrowingStringLength(
+            receiverValue: LLVMCAPIBindings.LLVMValueRef,
+            result: KIRExprID?,
+            usesThrownChannel: Bool,
+            thrownResult: KIRExprID?,
+            instructionIndex: Int
+        ) -> Bool {
+            guard let typeLowering,
+                  let fields = stringAggregateFields(receiverValue, suffix: "len_npe_\(instructionIndex)"),
+                  let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                  let isNull = bindings.buildICmpEqual(
+                      builder, lhs: fields[0], rhs: nullData, name: "len_npe_isnull_\(instructionIndex)"
+                  ),
+                  let npeFunction = declareExternalFunction(
+                      named: "__kk_null_pointer_exception_new", argumentCount: 0, appendThrownChannel: false
+                  ),
+                  let throwBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_throw_\(instructionIndex)"
+                  ),
+                  let okBlock = bindings.appendBasicBlock(
+                      context: context, function: llvmFunction.value, name: "len_npe_ok_\(instructionIndex)"
+                  )
+            else {
+                return false
+            }
+            let continueBlock = usesThrownChannel
+                ? bindings.appendBasicBlock(context: context, function: llvmFunction.value, name: "len_npe_cont_\(instructionIndex)")
+                : nil
+            _ = bindings.buildCondBr(builder, condition: isNull, thenBlock: throwBlock, elseBlock: okBlock)
+
+            currentBlock = throwBlock
+            bindings.positionBuilder(builder, at: throwBlock)
+            let exceptionHandle = bindings.buildCall(
+                builder, functionType: npeFunction.type, callee: npeFunction.value, arguments: [],
+                name: "len_npe_exc_\(instructionIndex)"
+            ) ?? zeroValue
+            storeResult(result, zeroValue)
+            if usesThrownChannel, let thrownResult, let continueBlock {
+                storeResult(thrownResult, exceptionHandle)
+                _ = bindings.buildBr(builder, destination: continueBlock)
+            } else {
+                // No enclosing catch reachable for this call within this
+                // function: propagate to this function's own caller
+                // immediately, matching the `nullAssert` case's pattern.
+                storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
+                _ = bindings.buildRet(builder, value: zeroReturnValue)
+            }
+
+            currentBlock = okBlock
+            bindings.positionBuilder(builder, at: okBlock)
+            storeResult(result, fields[1])
+            if usesThrownChannel, let thrownResult {
+                storeResult(thrownResult, zeroValue)
+            }
+            if let continueBlock {
+                _ = bindings.buildBr(builder, destination: continueBlock)
+                currentBlock = continueBlock
+                bindings.positionBuilder(builder, at: continueBlock)
+            } else {
+                currentBlock = okBlock
+            }
+            return true
+        }
+
         func isStringAggregateType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -500,7 +1259,7 @@ extension NativeEmitter {
         }
 
         /// Raw scalar values use Int64.min as the nullable sentinel, so zero
-        /// remains a valid value for nullable primitives and enum ordinals.
+        /// remains a valid value for nullable primitives, enum ordinals, and Charset tags.
         /// Reference-like values still use zero as the null representation.
         func nullableRawScalarPreservesZero(_ type: TypeID?) -> Bool {
             guard let type, let typeSystem else { return false }
@@ -508,8 +1267,10 @@ extension NativeEmitter {
             case .primitive(_, let nullability):
                 return nullability != .nonNull
             case let .classType(classType):
-                return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
-            case .unit:
+                guard let symbol = symbols?.symbol(classType.classSymbol) else { return false }
+                return symbol.kind == .enumClass
+                    || symbol.fqName.map(interner.resolve) == ["kotlin", "text", "Charset"]
+            case .unit, .nullableUnit:
                 // Safe calls returning Unit use the Int64.min sentinel for
                 // null, while the valid Unit value is raw zero.
                 return true
@@ -726,643 +1487,9 @@ extension NativeEmitter {
             }
             let argumentTypes = arguments.map(module.arena.exprType)
 
-            struct FlatStringReturnCallSpec {
-                let flatName: String
-                let stringArgumentCount: Int
-                let extraArgumentCount: Int
-                let stringArgumentPositions: [Int]
-                let canThrow: Bool
+            let flatStringReturnCallSpecs = Self.flatStringReturnCallSpecs
+            let flatScalarReturnCallSpecs = Self.flatScalarReturnCallSpecs
 
-                init(
-                    flatName: String,
-                    stringArgumentCount: Int,
-                    extraArgumentCount: Int,
-                    stringArgumentPositions: [Int]? = nil,
-                    canThrow: Bool
-                ) {
-                    self.flatName = flatName
-                    self.stringArgumentCount = stringArgumentCount
-                    self.extraArgumentCount = extraArgumentCount
-                    self.stringArgumentPositions = stringArgumentPositions ?? Array(0..<stringArgumentCount)
-                    self.canThrow = canThrow
-                }
-            }
-
-            struct FlatScalarReturnCallSpec {
-                let flatName: String
-                let stringArgumentCount: Int
-                let extraArgumentCount: Int
-                let stringArgumentPositions: [Int]
-                let canThrow: Bool
-                let defaultMissingClosureRaw: Bool
-
-                init(
-                    flatName: String,
-                    stringArgumentCount: Int,
-                    extraArgumentCount: Int,
-                    stringArgumentPositions: [Int]? = nil,
-                    canThrow: Bool = false,
-                    defaultMissingClosureRaw: Bool = false
-                ) {
-                    self.flatName = flatName
-                    self.stringArgumentCount = stringArgumentCount
-                    self.extraArgumentCount = extraArgumentCount
-                    self.stringArgumentPositions = stringArgumentPositions ?? Array(0..<stringArgumentCount)
-                    self.canThrow = canThrow
-                    self.defaultMissingClosureRaw = defaultMissingClosureRaw
-                }
-            }
-
-            var flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
-                "kk_string_to_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_to_flat",
-                    stringArgumentCount: 0,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "__kk_string_concat_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_string_concat_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trim_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trim_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trim_predicate_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trim_predicate_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_trimStart_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimStart_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trimStart_predicate_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimStart_predicate_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_trimEnd_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimEnd_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_trimEnd_predicate_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_trimEnd_predicate_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_lowercase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_lowercase_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_uppercase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_uppercase_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "__kk_lowercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_lowercase_locale_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "__kk_uppercase_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_uppercase_locale_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "__kk_string_normalize_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_string_normalize_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_orEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
-                // no flat emission spec.
-                // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
-                // source (StringHOF.kt); no flat emission spec.
-                "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_ifBlank_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_ifEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: true
-                ),
-                // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin
-                // source (StringTakeDrop.kt); no flat emission spec.
-                "kk_string_replace_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replace_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                "kk_string_replace_char_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replace_char_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: false
-                ),
-                "kk_string_replace_ignoreCase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replace_ignoreCase_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "kk_string_replace_char_ignoreCase_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replace_char_ignoreCase_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 3,
-                    canThrow: false
-                ),
-                "kk_string_replaceFirst_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_replaceFirst_flat",
-                    stringArgumentCount: 3,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
-                // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
-                // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
-                // KSP-1390: padStart/padEnd are bundled Kotlin source
-                // (StringHOF.kt); no flat emission spec.
-                // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt);
-                // no flat emission spec.
-                // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-                // (StringTakeDrop.kt); no flat emission spec.
-                // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
-                // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
-                // KSP-407: substringBefore/After/BeforeLast/AfterLast and
-                // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
-                // source (StringSearchReplace.kt); no flat emission spec.
-                "__kk_string_format_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_string_format_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [0],
-                    canThrow: false
-                ),
-                "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
-                    flatName: "__kk_string_format_locale_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    stringArgumentPositions: [1],
-                    canThrow: false
-                ),
-            ]
-            for spec in Array(flatStringReturnCallSpecs.values)
-            where flatStringReturnCallSpecs[spec.flatName] == nil {
-                flatStringReturnCallSpecs[spec.flatName] = spec
-            }
-
-            var flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
-                "kk_string_from_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_from_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_locale_new_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_locale_new_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_locale_new_language_country_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_split_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_split_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_split_limit_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_split_limit_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 2
-                ),
-                "kk_string_splitToSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_splitToSequence_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "__kk_regex_create_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_create_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_regex_create_with_option_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_create_with_option_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_regex_create_with_options_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_create_with_options_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_matches_regex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_contains_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_contains_regex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_split_regex_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_split_regex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_toRegex_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toRegex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toRegex_with_option_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toRegex_with_options_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_regex_find_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_find_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_regex_findAll_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_findAll_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_regex_matchEntire_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_matchEntire_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_regex_containsMatchIn_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_containsMatchIn_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_regex_from_literal_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_from_literal_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_match_result_group_index_of_name": FlatScalarReturnCallSpec(
-                    flatName: "__kk_match_result_group_index_of_name_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_regex_matches_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_regex_matches_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_string_builder_new_from_string_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_builder_new_from_string_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_builder_append_obj": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_builder_append_obj_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    stringArgumentPositions: [1]
-                ),
-                "__kk_string_builder_toString": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_builder_toString",
-                    stringArgumentCount: 0,
-                    extraArgumentCount: 1
-                ),
-                "__kk_bignum_toString": FlatScalarReturnCallSpec(
-                    flatName: "__kk_bignum_toString",
-                    stringArgumentCount: 0,
-                    extraArgumentCount: 1
-                ),
-                // KSP-404: startsWith/endsWith are bundled Kotlin source
-                // (StringPrefixSuffix.kt); no flat emission spec.
-                // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
-                // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
-                // no flat emission spec.
-                // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase)
-                // are bundled Kotlin source (StringComparison.kt); no flat emission spec.
-                "kk_string_compareTo_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_compareTo_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_compareTo_locale_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_compareTo_locale_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_isNormalized_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_isNormalized_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_equals_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_equals_flat",
-                    stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isEmpty_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isNotEmpty_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNotEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isBlank_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isBlank_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isNotBlank_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNotBlank_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isNullOrEmpty_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNullOrEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isNullOrBlank_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNullOrBlank_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_first_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_first_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_last_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_last_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_single_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_single_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_firstOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_firstOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_lastOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_lastOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_singleOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_singleOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_getOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_get_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_get_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
-                // (StringIndexOf.kt); no flat emission spec.
-                // KSP-410: count/any/all/none/find/findLast/partition and
-                // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
-                // Kotlin source (StringHOF.kt); no flat emission spec.
-                // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
-                // reduceRightIndexedOrNull/reduceRightOrNull are bundled
-                // Kotlin source (StringHOF.kt); no flat emission spec.
-                "__kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBoolean_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBooleanStrict_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBooleanStrictOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toInt_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toInt_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toInt_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toIntOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toIntOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toIntOrNull_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toUByteOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toUByteOrNull_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toUShortOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toUShortOrNull_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toUIntOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toUIntOrNull_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toULongOrNull_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toULongOrNull_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toDouble_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toDouble_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toDoubleOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toDoubleOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toLong_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toLong_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toLongOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toLongOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toFloat_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toFloat_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toFloatOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toFloatOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toShort_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toShort_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toShortOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toShortOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toByte_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toByte_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toByte_radix_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toByte_radix_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
-                "__kk_string_toByteOrNull_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toByteOrNull_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toBigDecimal_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toBigDecimal_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: true
-                ),
-                "__kk_string_toByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toByteArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_toByteArray_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_toByteArray_charset_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_encodeToByteArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_encodeToByteArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_encodeToByteArray_range_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_encodeToByteArray_range_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2
-                ),
-                "__kk_string_encodeToByteArray_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_encodeToByteArray_charset_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "__kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_byteInputStream_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                    flatName: "__kk_string_byteInputStream_charset_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-            ]
-            for spec in Array(flatScalarReturnCallSpecs.values)
-            where flatScalarReturnCallSpecs[spec.flatName] == nil {
-                flatScalarReturnCallSpecs[spec.flatName] = spec
-            }
 
             func emitFlatStringReturnCall(_ spec: FlatStringReturnCallSpec) -> Bool {
                 let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount
@@ -1606,6 +1733,22 @@ extension NativeEmitter {
             return internalSignatures[symbol]
         }
 
+        func sourceReceiverTypes(for symbol: SymbolID, signature: FunctionSignature) -> [TypeID] {
+            var receivers = [signature.receiverType].compactMap { $0 }
+            if let symbols, let typeSystem,
+               let owner = symbols.memberExtensionOwnerSymbol(for: symbol)
+            {
+                let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                    .prefix(signature.classTypeParameterCount)
+                    .map { .invariant(typeSystem.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                let ownerType = typeSystem.make(.classType(ClassType(
+                    classSymbol: owner, args: ownerArgs, nullability: .nonNull
+                )))
+                receivers.insert(ownerType, at: 0)
+            }
+            return receivers
+        }
+
         func sourceExternalSignature(
             for symbol: SymbolID?,
             argumentCount: Int
@@ -1619,7 +1762,10 @@ extension NativeEmitter {
             else {
                 return nil
             }
-            let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+            let omitsRuntimeReceiver = Self.runtimeABIFunctionByName[externalLinkName] != nil
+                && argumentCount == signature.parameterTypes.count
+            let receivers = omitsRuntimeReceiver ? [] : sourceReceiverTypes(for: symbol, signature: signature)
+            let parameters = receivers + signature.parameterTypes
             guard parameters.count == argumentCount else {
                 return nil
             }
@@ -1636,7 +1782,7 @@ extension NativeEmitter {
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
             func isVarargParameter(_ parameterIndex: Int) -> Bool {
-                let valueParameterIndex = parameterIndex - (signature.receiverType == nil ? 0 : 1)
+                let valueParameterIndex = parameterIndex - receivers.count
                 return signature.valueParameterIsVararg.indices.contains(valueParameterIndex)
                     && signature.valueParameterIsVararg[valueParameterIndex]
             }
@@ -1648,7 +1794,7 @@ extension NativeEmitter {
                 // that is not part of the Kotlin parameter list, so exclude it
                 // when matching against the source-level signature.
                 let abiValueParameters = spec.parameters.filter { parameter in
-                    !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
+                    !(parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
                 }
                 if abiValueParameters.count == parameters.count {
                     resolvedParameters = zip(parameters, abiValueParameters).enumerated().map { index, pair in
@@ -1721,7 +1867,91 @@ extension NativeEmitter {
                 globalVariables: globalVariables,
                 nameCounter: nameCounter,
                 declareExternalFunction: { name, argCount, appendThrown in
-                    declareExternalFunction(named: name, argumentCount: argCount, appendThrownChannel: appendThrown)
+                    // Runtime calls use raw handles rather than Kotlin aggregate types.
+                    if let spec = Self.runtimeABIFunctionByName[name] {
+                        let valueParameters = spec.parameters.filter {
+                            !(spec.isThrowing && $0.name == "outThrown" && $0.type == .nullableIntptrPointer)
+                        }
+                        return declareExternalFunction(
+                            named: name,
+                            argumentCount: valueParameters.count,
+                            appendThrownChannel: spec.isThrowing
+                        )
+                    }
+                    // Source-backed addresses must use the same typed ABI as calls,
+                    // including aggregate Strings and the hidden thrown channel.
+                    if let symbol = externalFunctionSymbolsByLinkName[name],
+                       let signature = symbols?.functionSignature(for: symbol)
+                    {
+                        if let internalFunction = internalFunctions[symbol] {
+                            return internalFunction
+                        }
+                        let parameterCount = signature.parameterTypes.count
+                            + (signature.receiverType == nil ? 0 : 1)
+                        if let sourceSignature = sourceExternalSignature(
+                            for: symbol,
+                            argumentCount: parameterCount
+                        ) {
+                            var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                            parameterTypes.append(outThrownPointerType)
+                            return declareExternalFunction(
+                                named: name,
+                                parameterTypes: parameterTypes,
+                                returnType: loweredLLVMType(
+                                    for: sourceSignature.returnType,
+                                    lowering: typeLowering,
+                                    defaultType: int64Type
+                                )
+                            )
+                        }
+                    }
+                    // Function-address constants use a conservative four-word
+                    // prototype when no call-site signature is available. If
+                    // this body also calls the symbol directly, prefer that
+                    // observed arity so the address materialization cannot
+                    // poison the module's declaration before the direct call.
+                    let observedArgumentCount = maxKIRArgumentCountByExternalCallee[name]
+                        ?? argCount
+                    return declareExternalFunction(
+                        named: name,
+                        argumentCount: observedArgumentCount,
+                        appendThrownChannel: appendThrown
+                    )
+                },
+                declareExternalSymbolFunction: { symbol in
+                    guard let signature = symbols?.functionSignature(for: symbol),
+                          let linkName = symbols?.externalLinkName(for: symbol),
+                          !linkName.isEmpty
+                    else {
+                        return nil
+                    }
+                    let runtimeSpec = Self.runtimeABIFunctionByName[linkName]
+                    let argumentCount = sourceReceiverTypes(for: symbol, signature: signature).count
+                        + signature.parameterTypes.count
+                    let appendThrown = runtimeSpec?.isThrowing ?? true
+                    // Runtime aliases retain their raw-handle declaration path.
+                    if runtimeSpec == nil,
+                       let sourceSignature = sourceExternalSignature(for: symbol, argumentCount: argumentCount)
+                    {
+                        var parameterTypes = loweredLLVMTypes(for: sourceSignature.parameters)
+                        if appendThrown {
+                            parameterTypes.append(outThrownPointerType)
+                        }
+                        return declareExternalFunction(
+                            named: linkName,
+                            parameterTypes: parameterTypes,
+                            returnType: loweredLLVMType(
+                                for: sourceSignature.returnType,
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                        )
+                    }
+                    return declareExternalFunction(
+                        named: linkName,
+                        argumentCount: argumentCount,
+                        appendThrownChannel: appendThrown
+                    )
                 },
                 interner: interner
             )
@@ -1781,12 +2011,33 @@ extension NativeEmitter {
             guard let result else {
                 return
             }
-            let storedValue = value ?? zeroLLVMValue(
+            var storedValue = value ?? zeroLLVMValue(
                 for: module.arena.exprType(result),
                 lowering: typeLowering,
                 int64Type: int64Type,
                 context: context
             ) ?? zeroValue
+            // The stored representation must match what `loweredLLVMType` yields
+            // for the result expression: copy-slot allocas and `resolveValue`
+            // loads both derive from it. A flat string aggregate leaking into an
+            // i64-typed slot (e.g. a source-backed itable getter result with an
+            // erased type) is read back as its data pointer, and a raw handle
+            // stored where aggregate fields are expected is read as garbage.
+            if let value,
+               bindings.isAggregateStructValue(value) != isStringAggregateType(module.arena.exprType(result))
+            {
+                if isStringAggregateType(module.arena.exprType(result)) {
+                    storedValue = bridgeRuntimeRawToStringAggregate(
+                        value,
+                        suffix: nameCounter.nextName("store_result_raw_")
+                    ) ?? value
+                } else {
+                    storedValue = bridgeStringAggregateToRuntimeRaw(
+                        value,
+                        suffix: nameCounter.nextName("store_result_flat_")
+                    ) ?? value
+                }
+            }
             if let resultExpr = module.arena.expr(result),
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
@@ -1805,7 +2056,9 @@ extension NativeEmitter {
                 }
                 _ = bindings.buildStore(builder, value: globalValue, pointer: globalPointer)
             }
-            if let alloca = copyTargetAllocas[result.rawValue] {
+            if let alloca = copyTargetAllocas[result.rawValue],
+               !bindings.hasTerminator(currentBlock)
+            {
                 _ = bindings.buildStore(builder, value: storedValue, pointer: alloca)
             }
             values[result.rawValue] = storedValue
@@ -1883,6 +2136,64 @@ extension NativeEmitter {
         )
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
+        // Per-frame stack guard (KUU-1384): every emitted function prologue
+        // passes a marker address inside its own frame to
+        // `kk_stack_overflow_check`. Once the current thread's stack drops
+        // below the runtime's overflow bound the call returns a
+        // StackOverflowError handle which this prologue propagates through the
+        // ordinary outThrown channel, so deep recursion becomes a catchable
+        // exception instead of a SIGSEGV.
+        func emitStackOverflowGuard() {
+            guard let checkFunction = declareExternalFunction(
+                named: "kk_stack_overflow_check",
+                argumentCount: 1,
+                appendThrownChannel: false
+            ),
+                  let markerSlot = buildEntrySlot(name: "soe_marker"),
+                  let markerValue = bindings.buildPtrToInt(
+                      builder,
+                      value: markerSlot,
+                      type: int64Type,
+                      name: "soe_marker"
+                  ),
+                  let throwBlock = bindings.appendBasicBlock(
+                      context: context,
+                      function: llvmFunction.value,
+                      name: "soe_throw"
+                  ),
+                  let okBlock = bindings.appendBasicBlock(
+                      context: context,
+                      function: llvmFunction.value,
+                      name: "soe_ok"
+                  ),
+                  let errorHandle = bindings.buildCall(
+                      builder,
+                      functionType: checkFunction.type,
+                      callee: checkFunction.value,
+                      arguments: [markerValue],
+                      name: "soe_handle"
+                  ),
+                  let overflowed = buildThrownSlotCondition(from: errorHandle, name: "soe_threw")
+            else {
+                return
+            }
+
+            _ = bindings.buildCondBr(
+                builder,
+                condition: overflowed,
+                thenBlock: throwBlock,
+                elseBlock: okBlock
+            )
+
+            bindings.positionBuilder(builder, at: throwBlock)
+            storeOutThrownIfNonNull(errorHandle, suffix: "soe")
+            _ = bindings.buildRet(builder, value: zeroReturnValue)
+
+            currentBlock = okBlock
+            bindings.positionBuilder(builder, at: okBlock)
+        }
+        emitStackOverflowGuard()
+
         func emitBuiltinCall(
             calleeName: String,
             argumentValues: [LLVMCAPIBindings.LLVMValueRef],
@@ -1942,7 +2253,8 @@ extension NativeEmitter {
             }
 
             switch instruction {
-            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard:
+            case .nop, .beginBlock, .endBlock, .beginFinallyGuard, .endFinallyGuard,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
                 continue
 
             case let .label(id):
@@ -2173,11 +2485,23 @@ extension NativeEmitter {
                 }
 
                 let calleeName = interner.resolve(callee)
-                let argumentValues = arguments.map(resolveValue)
-                let argumentTypes = arguments.map(module.arena.exprType)
+                // Reified enum intrinsics survive only in unspecialized template
+                // bodies. Their serialized KIR is expanded by consumers, while
+                // the native fallback must not reference a bodyless stdlib stub.
+                if calleeName == "$reifiedEnumValues", let symbol,
+                   symbols?.symbol(symbol)?.fqName.map(interner.resolve) == ["kotlin", "enumValues"] {
+                    if let trap = declareExternalFunction(named: "kk_abort_unreachable", argumentCount: 1, appendThrownChannel: false) {
+                        _ = bindings.buildCall(builder, functionType: trap.type, callee: trap.value, arguments: [nullThrownPointer], name: "reified_enum_template")
+                    }
+                    storeResult(result, zeroValue)
+                    continue
+                }
+                var argumentValues = arguments.map(resolveValue)
+                var argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 if emitFlatStringRuntimeCall(
@@ -2216,6 +2540,26 @@ extension NativeEmitter {
                         }
                     }
                     storeResult(result, zeroValue)
+                    continue
+                }
+
+                // BUG-B: must run before `emitBuiltinCall`'s ordinary fast
+                // path for this accessor, which has no way to signal a
+                // thrown exception. Gated on the receiver's KIR-level type
+                // actually being String -- not merely "an aggregate struct
+                // value" -- so a CharSequence/StringBuilder handle bridged
+                // through the same struct shape never starts throwing.
+                if Self.isStringLengthAggregateAccessorName(externalCalleeName),
+                   argumentValues.count == 1,
+                   isStringAggregateType(argumentTypes.first ?? nil),
+                   emitThrowingStringLength(
+                       receiverValue: argumentValues[0],
+                       result: result,
+                       usesThrownChannel: usesThrownChannel,
+                       thrownResult: thrownResult,
+                       instructionIndex: instructionIndex
+                   )
+                {
                     continue
                 }
 
@@ -2340,10 +2684,40 @@ extension NativeEmitter {
                 // builder. Honor the remapped bridge after boxing is complete.
                 let isSequenceBuilderRuntimeCall = calleeName == "__kk_sequence_builder_yield"
                     || calleeName == "__kk_sequence_builder_yieldAll"
+                    || calleeName == "__kk_sequence_builder_yieldAll_checked"
+                // A `kk_`/`__kk_` callee spelling is a lowered runtime name, not
+                // a source-level identifier. When such a call still carries a
+                // KIR symbol that the callee text does not actually name (not the
+                // declared name, not the symbol's own `kk_fn_*` link name, and
+                // not the emitted entry in the internal lookup table), the
+                // symbol is stale bookkeeping: CallLowerer retargeted the call
+                // to a runtime bridge (e.g. `__kk_iterable_firstNotNullOf`) while
+                // keeping the source symbol for inline-expansion bookkeeping.
+                // Binding that call through `internalFunctions[symbol]` would
+                // invoke the source body with bridge-shaped arguments, so the
+                // callee text must win.
+                let calleeIsRuntimeName = calleeName.hasPrefix("kk_")
+                    || calleeName.hasPrefix("__kk_")
+                let calleeLookupKey = FunctionLookupKey(
+                    name: calleeName,
+                    parameterCount: argumentValues.count
+                )
+                let calleeNamesSymbol: Bool = if !calleeIsRuntimeName {
+                    true
+                } else if let symbol, symbol != .invalid {
+                    symbols?.symbol(symbol)?.name == callee
+                        || symbols?.externalLinkName(for: symbol)
+                            .map({ $0.hasPrefix("kk_fn_") && $0 == calleeName }) == true
+                        || internalFunctionsByLookupKey[calleeLookupKey]?
+                            .contains(where: { $0.symbol == symbol }) == true
+                } else {
+                    false
+                }
                 let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
                                                        !isSequenceBuilderRuntimeCall,
                                                        let symbol,
-                                                       symbol != .invalid
+                                                       symbol != .invalid,
+                                                       calleeNamesSymbol
                 {
                     symbol
                 } else {
@@ -2363,13 +2737,49 @@ extension NativeEmitter {
                 let calleeFunction: LLVMFunction?
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
                 let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+                // Default stubs can forward boxed callbacks without passing through CallLowerer's expansion.
+                if !isInternalCall,
+                   let spec = Self.runtimeABIFunctionByName[effectiveExternalName]
+                {
+                    let valueParameters = spec.parameters.filter { $0.name != "outThrown" }
+                    if argumentValues.count + 1 == valueParameters.count,
+                       let callbackIndex = valueParameters.firstIndex(where: { $0.name == "fnPtr" }),
+                       callbackIndex + 1 < valueParameters.count,
+                       valueParameters[callbackIndex + 1].name == "closureRaw",
+                       argumentTypes.indices.contains(callbackIndex),
+                       let callbackType = argumentTypes[callbackIndex],
+                       let typeSystem,
+                       case .functionType = typeSystem.kind(of: typeSystem.makeNonNullable(callbackType))
+                    {
+                        let callback = argumentValues[callbackIndex]
+                        var expandedCallback: [LLVMCAPIBindings.LLVMValueRef] = []
+                        for getter in ["kk_function_value_fn_ptr", "kk_function_value_closure_raw"] {
+                            if let function = declareExternalFunction(named: getter, argumentCount: 1, appendThrownChannel: false),
+                               let value = bindings.buildCall(
+                                   builder, functionType: function.type, callee: function.value,
+                                   arguments: [callback], name: "\(getter)_\(instructionIndex)"
+                               )
+                            {
+                                expandedCallback.append(value)
+                            }
+                        }
+                        if expandedCallback.count == 2 {
+                            argumentValues.replaceSubrange(callbackIndex...callbackIndex, with: expandedCallback)
+                            argumentTypes.replaceSubrange(callbackIndex...callbackIndex, with: [nil, nil])
+                        }
+                    }
+                }
                 let sourceExternalCallSignature = !isInternalCall
                     ? sourceExternalSignature(
                         for: effectiveSymbol,
                         argumentCount: argumentValues.count
                     )
                     : nil
-                let shouldAppendThrownChannel = usesThrownChannel || isInternalCall || sourceExternalCallSignature != nil
+                let shouldAppendThrownChannel = isInternalCall
+                    || (Self.runtimeABIFunctionByName[effectiveExternalName].map { spec in
+                        spec.parameters.contains { $0.name == "outThrown" && $0.type == .nullableIntptrPointer }
+                    }
+                        ?? (usesThrownChannel || sourceExternalCallSignature != nil))
 
                 if let effectiveSymbol,
                    let internalFunction = internalFunctions[effectiveSymbol]
@@ -2400,8 +2810,13 @@ extension NativeEmitter {
                         )
                     )
                 } else {
+                    // Honor the callee symbol's recorded external link name
+                    // (e.g. an imported `name$default` stub carrying its
+                    // `kk_fn_*` link) even without a source-level signature —
+                    // falling back to the raw KIR callee name here emits an
+                    // unresolvable `foo$default` reference.
                     calleeFunction = declareExternalFunction(
-                        named: externalCalleeName,
+                        named: effectiveExternalName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
                     )
@@ -2419,7 +2834,9 @@ extension NativeEmitter {
                     symbols?.functionSignature(for: $0)?.valueParameterIsVararg
                 } ?? []
                 let callReceiverOffset: Int = effectiveSymbol.flatMap {
-                    symbols?.functionSignature(for: $0)?.receiverType == nil ? 0 : 1
+                    guard let signature = symbols?.functionSignature(for: $0) else { return nil }
+                    return sourceExternalCallSignature?.parameters.count == signature.parameterTypes.count
+                        ? 0 : sourceReceiverTypes(for: $0, signature: signature).count
                 } ?? 0
                 let isRuntimeCallbackRawABIInternalCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
@@ -2649,6 +3066,8 @@ extension NativeEmitter {
                         currentBlock = continueBlock
                         bindings.positionBuilder(builder, at: continueBlock)
                     }
+                } else if usesThrownChannel {
+                    storeResult(thrownResult, zeroValue)
                 }
 
             case let .virtualCall(symbol, callee, receiver, arguments, result, usesThrownChannel, thrownResult, dispatch):
@@ -2659,6 +3078,52 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+                // Use the declared signature, not the substituted call-site
+                // type: generic members returning T keep the raw handle ABI
+                // even when invoked as String. Getters may require recovering
+                // the property's type from the synthetic accessor symbol.
+                let virtualCallDeclaredAggregateResult: Bool? = {
+                    guard typeLowering != nil else {
+                        return nil
+                    }
+                    if calleeName == "get",
+                       argumentValues.count == 1,
+                       let symbol,
+                       let property = symbols?.propertySymbol(forAccessor: symbol)
+                    {
+                        return isStringAggregateType(symbols?.propertyType(for: property))
+                    }
+                    if let signature = symbol.flatMap({ symbols?.functionSignature(for: $0) }) {
+                        return isStringAggregateType(signature.returnType)
+                    }
+                    return nil
+                }()
+                // The `Throwable.message` vtable slot uses the raw String?
+                // handle ABI: runtime-allocated exceptions answer it with a
+                // runtime bridge, and Kotlin getters are registered through a
+                // raw-return bridge (`appendObjectVtablePropertyAccessorRegistrations`).
+                let isThrowableMessageVirtualGetter: Bool = {
+                    guard case let .vtable(slot) = dispatch,
+                          calleeName == "get",
+                          argumentValues.count == 1,
+                          let symbols,
+                          let typeSystem,
+                          let receiverType = module.arena.exprType(receiver),
+                          case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                    else {
+                        return false
+                    }
+                    return symbols.throwableMessageGetterSlot(
+                        for: receiverClass.classSymbol,
+                        interner: interner
+                    ) == slot
+                }()
+                let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
+                    && calleeName == "get"
+                    && argumentValues.count == 1
+                    && typeLowering != nil
+                    && (virtualCallDeclaredAggregateResult
+                        ?? isStringAggregateType(result.flatMap { module.arena.exprType($0) }))
                 let isThrowableToStringVirtualCall: Bool = {
                     guard case .vtable = dispatch,
                           let symbols
@@ -2688,7 +3153,8 @@ extension NativeEmitter {
                 }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
-                    argumentCount: argumentValues.count
+                    argumentCount: argumentValues.count,
+                    resolvedSymbol: symbol
                 ) ?? calleeName
 
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
@@ -2730,7 +3196,7 @@ extension NativeEmitter {
                     else {
                         return nil
                     }
-                    let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+                    let parameters = sourceReceiverTypes(for: effectiveSymbol, signature: signature) + signature.parameterTypes
                     guard parameters.count == argumentValues.count else {
                         return nil
                     }
@@ -2742,6 +3208,7 @@ extension NativeEmitter {
                 // thrown channel. Keep the indirect function type consistent with
                 // that source-backed ABI (KSP-712).
                 let shouldAppendThrownChannel = usesThrownChannel
+                    || isThrowableMessageVirtualGetter
                     || isInternalCall
                     || sourceExternalCallSignature != nil
                     || virtualSourceCallSignature != nil
@@ -2767,8 +3234,44 @@ extension NativeEmitter {
                     nil
                 }
 
-                let calleeFunction: LLVMFunction? = if let effectiveSymbol,
-                                                       let internalFunction = internalFunctions[effectiveSymbol]
+                // Itable slots carry the interface member's signature: a
+                // String-returning member is invoked through the flat aggregate
+                // convention on every call path (real implementations register
+                // flat getters, bridged by itableBridgeSymbolForMethod when the
+                // impl ABI differs). The unnamed `__v` fallback must therefore
+                // declare the aggregate return for itable String results rather
+                // than the raw Int handle used by runtime-registered members,
+                // which keeps the indirect-call ABI independent of whether the
+                // getter's KIRFunction happens to be emitted in this module.
+                //
+                // The call-site result type only decides this when the
+                // accessor's declared type is unavailable: a generic
+                // `val value: T` erases to the raw pointer ABI even when this
+                // call site reads it as `Lazy<String>.value`, so a resolved
+                // non-aggregate declaration must suppress the flat path.
+                let virtualItableFlatAggregateResult = if let result,
+                                                          virtualCallDeclaredAggregateResult != false,
+                                                          typeLowering != nil
+                {
+                    switch dispatch {
+                    case .itable, .itableDynamic:
+                        isStringAggregateExpr(result)
+                    default:
+                        false
+                    }
+                } else {
+                    false
+                }
+
+                let calleeFunction: LLVMFunction? = if isThrowableMessageVirtualGetter {
+                    // Only carries the indirect-call type `(Int, Int*) -> Int`.
+                    declareExternalFunction(
+                        named: "__kk_throwable_message__vslot",
+                        argumentCount: 1,
+                        appendThrownChannel: true
+                    )
+                } else if let effectiveSymbol,
+                          let internalFunction = internalFunctions[effectiveSymbol]
                 {
                     internalFunction
                 } else if let fallbackInternal {
@@ -2794,13 +3297,21 @@ extension NativeEmitter {
                     // the indirect-call type. Fold arity into the name: a property getter
                     // and an unrelated same-named method (e.g. "get") can share
                     // `externalCalleeName` in one body, and the plain-name cache would
-                    // size both to the larger arity.
+                    // size both to the larger arity. The `_s` suffix marks a
+                    // source-ABI aggregate return (see `virtualCallReturnsAggregate`)
+                    // so it cannot alias the raw `Int`-returning shape.
                     declareExternalFunction(
-                        named: "\(externalCalleeName)__v\(argumentValues.count)",
+                        named: "\(externalCalleeName)__v\(argumentValues.count)\(virtualCallReturnsAggregate || virtualItableFlatAggregateResult ? "_s" : "")",
                         parameterTypes: Array<LLVMCAPIBindings.LLVMTypeRef?>(
                             repeating: int64Type, count: argumentValues.count
                         ) + (shouldAppendThrownChannel ? [outThrownPointerType] : []),
-                        returnType: int64Type
+                        returnType: virtualCallReturnsAggregate || virtualItableFlatAggregateResult
+                            ? loweredLLVMType(
+                                for: result.flatMap { module.arena.exprType($0) },
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                            : int64Type
                     )
                 }
 
@@ -2815,6 +3326,8 @@ extension NativeEmitter {
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall
                     && typeLowering != nil
                     && (virtualSourceCallSignature == nil || isThrowableToStringVirtualCall)
+                    && !virtualCallReturnsAggregate
+                    && !virtualItableFlatAggregateResult
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
@@ -2894,13 +3407,67 @@ extension NativeEmitter {
                 }
 
                 guard let lookupFn = lookupFunction else { continue }
-                guard let fptrRaw = bindings.buildCall(
+                guard var fptrRaw = bindings.buildCall(
                     builder,
                     functionType: lookupFn.type,
                     callee: lookupFn.value,
                     arguments: lookupArgs,
                     name: "lookup_raw_\(instructionIndex)"
                 ) else { continue }
+
+                // Runtime list boxes have no generated List itable. Only the
+                // concrete Kotlin search defaults may fill that missing slot;
+                // a source implementation's override still wins when present.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   ["indexOf", "lastIndexOf"].contains(interner.resolve(member.name)),
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   let defaultPointer = bindings.buildPtrToInt(
+                       builder, value: calleeFunction.value, type: int64Type,
+                       name: "list_search_default_\(instructionIndex)"
+                   ),
+                   let hasOverride = bindings.buildICmpNotEqual(
+                       builder, lhs: fptrRaw, rhs: zeroValue,
+                       name: "list_search_override_\(instructionIndex)"
+                   ),
+                   let searchPointer = bindings.buildSelect(
+                       builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
+                       name: "list_search_dispatch_\(instructionIndex)"
+                   )
+                {
+                    fptrRaw = searchPointer
+                }
+
+                // Native dispatcher tags have no Kotlin itable. Use the exact
+                // source default selected by this compilation's symbol/layout;
+                // Kotlin objects must retain their dynamically resolved override.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   ["get", "minusKey"].contains(interner.resolve(member.name)),
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "coroutines", "ContinuationInterceptor"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   let defaultPointer = bindings.buildPtrToInt(
+                       builder, value: calleeFunction.value, type: int64Type,
+                       name: "dispatcher_default_\(instructionIndex)"
+                   ),
+                   let selectMethod = declareExternalFunction(
+                       named: "__kk_dispatcher_default_method", argumentCount: 3, appendThrownChannel: false
+                   ),
+                   let method = bindings.buildCall(
+                       builder, functionType: selectMethod.type, callee: selectMethod.value,
+                       arguments: [lookupReceiver, fptrRaw, defaultPointer],
+                       name: "dispatcher_dispatch_\(instructionIndex)"
+                   )
+                {
+                    fptrRaw = method
+                }
 
                 // Guard against null vtable/itable lookup: if fptrRaw == 0
                 // call kk_dispatch_error runtime trap instead of falling back
@@ -2986,7 +3553,17 @@ extension NativeEmitter {
                 bindings.positionBuilder(builder, at: mergeBlock)
                 currentBlock = mergeBlock
                 let mergedValue: LLVMCAPIBindings.LLVMValueRef
-                if isRuntimeCallbackRawABIVirtualCall,
+                if isThrowableMessageVirtualGetter,
+                   let result,
+                   let vCallValue
+                {
+                    mergedValue = isStringAggregateExpr(result)
+                        ? bridgeRuntimeRawToStringAggregate(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_throwable_message"
+                        ) ?? vCallValue
+                        : vCallValue
+                } else if isRuntimeCallbackRawABIVirtualCall,
                    let result,
                    isStringAggregateExpr(result),
                    let vCallValue
@@ -2994,15 +3571,6 @@ extension NativeEmitter {
                     mergedValue = bridgeRuntimeRawToStringAggregate(
                         vCallValue,
                         suffix: "\(instructionIndex)_virtual_callback_result"
-                    ) ?? vCallValue
-                } else if shouldBridgeVirtualExternalStringABI,
-                          let result,
-                          isStringAggregateExpr(result),
-                          let vCallValue
-                {
-                    mergedValue = bridgeRuntimeRawToStringAggregate(
-                        vCallValue,
-                        suffix: "\(instructionIndex)_virtual_result"
                     ) ?? vCallValue
                 } else if isInternalCall,
                           let result,
@@ -3016,6 +3584,27 @@ extension NativeEmitter {
                         to: resultExprType,
                         suffix: "\(instructionIndex)_virtual_internal_result"
                     )
+                } else if let result,
+                          let resultExprType = module.arena.exprType(result),
+                          let vCallValue,
+                          isStringAggregateType(resultExprType) != bindings.isAggregateStructValue(vCallValue)
+                {
+                    // The emitted callee ABI and the result's expected
+                    // representation can disagree on string-aggregate-ness for
+                    // itable or source-backed virtual calls — e.g. a flat
+                    // aggregate getter result consumed as the raw i64 handle by
+                    // a generic caller. Normalize by the value's actual shape.
+                    if isStringAggregateType(resultExprType) {
+                        mergedValue = bridgeRuntimeRawToStringAggregate(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_result"
+                        ) ?? vCallValue
+                    } else {
+                        mergedValue = bridgeStringAggregateToRuntimeRaw(
+                            vCallValue,
+                            suffix: "\(instructionIndex)_virtual_flat_result"
+                        ) ?? vCallValue
+                    }
                 } else {
                     mergedValue = vCallValue ?? zeroValue
                 }
@@ -3292,7 +3881,11 @@ extension NativeEmitter {
                 }
                 _ = bindings.buildRet(builder, value: returnValue)
 
-            case let .nonLocalReturn(value):
+            case .resumeNonLocalReturn:
+                assertionFailure("resumeNonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
+                continue
+
+            case let .nonLocalReturn(value, _):
                 // Non-local returns should have been lowered by InlineLoweringPass.
                 // If one reaches codegen, it indicates a lowering bug. Emit a
                 // trap in debug builds; in release builds fall back to a return
@@ -3344,11 +3937,13 @@ extension NativeEmitter {
                 guard !raw.isEmpty else { continue }
                 let effective = effectiveExternalCalleeNameForArity(raw, argumentCount: arguments.count)
                 maxCount[effective, default: 0] = max(maxCount[effective, default: 0], arguments.count)
-            case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                let name = interner.resolve(callee)
-                guard !name.isEmpty else { continue }
-                let receiverPlusArgs = 1 + arguments.count
-                maxCount[name, default: 0] = max(maxCount[name, default: 0], receiverPlusArgs)
+            case .virtualCall:
+                // Generic virtual calls use an arity-qualified declaration
+                // (for example, `size__v1`) solely as the indirect-call type.
+                // Folding their receiver-plus-argument count into the plain
+                // external name can widen an unrelated direct runtime bridge
+                // declaration such as `__kk_map_size(i64)` to four parameters.
+                continue
             default:
                 break
             }
@@ -3370,8 +3965,18 @@ extension NativeEmitter {
             || calleeName == "kk_string_struct_get_length"
     }
 
-    private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {
-        switch calleeName {
+    private static func runtimePrimitiveAlias(
+        for calleeName: String,
+        argumentCount: Int,
+        resolvedSymbol: SymbolID?
+    ) -> String? {
+        if ["and", "or", "xor"].contains(calleeName),
+           let resolvedSymbol,
+           resolvedSymbol != .invalid
+        {
+            return nil
+        }
+        return switch calleeName {
         case "and": "kk_bitwise_and"
         case "or": "kk_bitwise_or"
         case "xor": "kk_bitwise_xor"

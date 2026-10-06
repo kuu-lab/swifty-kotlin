@@ -75,6 +75,10 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
                 initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+                if declaredType == nil,
+                   sema.bindings.callableRefKind(for: initializer) != nil {
+                    sema.bindings.inferredCallableReferenceSymbols.insert(localSymbol)
+                }
             }
 
             if let declaredType {
@@ -128,13 +132,26 @@ final class LocalDeclTypeChecker {
                     }
                 }
             } else if let initializerType {
-                localType = initializerType
+                // `val x = ClassName` holds the class's companion object.
+                localType = initializer.flatMap {
+                    driver.helpers.retypeClassNameAsCompanionValue(
+                        $0, currentType: initializerType, ast: ast, sema: sema
+                    )
+                } ?? initializerType
             } else {
                 localType = sema.types.errorType
             }
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if isMutable, initializer != nil, !isDelegated,
+           ctx.dataFlow.localStability.isNeverReassigned(id)
+        {
+            ctx.dataFlow.stableMutableReceivers.insert(localSymbol)
+        }
+        if isMutable {
+            ctx.dataFlow.localDeclarations[localSymbol] = id
+        }
         sema.bindings.bindIdentifier(id, symbol: localSymbol)
         // Propagate collection marks through local variable declarations
         // so that `val list = listOf(1,2,3); list.size` still recognizes
@@ -166,8 +183,9 @@ final class LocalDeclTypeChecker {
                     sema.bindings.markFloatingPointRangeExpr(id)
                     sema.bindings.markFloatingPointRangeSymbol(localSymbol)
                     if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: initializer) {
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
-                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol)
+                        let endExclusive = sema.bindings.isOpenFloatingPointRangeExpr(initializer)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id, endExclusive: endExclusive)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol, endExclusive: endExclusive)
                     }
                 }
             }
@@ -196,10 +214,25 @@ final class LocalDeclTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> TypeID {
+        let ast = ctx.ast
         let interner = ctx.interner
 
-        let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if let local = locals[name] {
+            // Reassignment drops any smart cast narrowing applied to the local
+            // inside the current branch, so both the constraint and the binding
+            // use the declared type again.
+            let declaredType = ctx.sema.symbols.propertyType(for: local.symbol) ?? local.type
+            // A lambda literal assigned to a local (e.g. a recursive
+            // `lateinit var` closure such as `fact = { ... fact(it - 1) ... }`)
+            // may reference the target from inside its own body. That read is
+            // deferred until the closure is later invoked, not evaluated
+            // immediately, so mark the local initialized before inferring the
+            // RHS: the lambda body type-checks against a snapshot of `locals`
+            // taken at that point, and it must see the target as available.
+            if case .lambdaLiteral = ast.arena.expr(value) {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isMutable, local.isInitialized {
                 ctx.semaCtx.diagnostics.error(
@@ -208,10 +241,6 @@ final class LocalDeclTypeChecker {
                     range: range
                 )
             } else {
-                // Reassignment drops any smart cast narrowing applied to the local
-                // inside the current branch, so both the constraint and the binding
-                // use the declared type again.
-                let declaredType = ctx.sema.symbols.propertyType(for: local.symbol) ?? local.type
                 driver.emitSubtypeConstraint(
                     left: valueType,
                     right: declaredType,
@@ -220,7 +249,19 @@ final class LocalDeclTypeChecker {
                     sema: ctx.sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                // A stable nullable local assigned a non-null value remains
+                // non-null until its next assignment, including captured
+                // locals written directly in their own local function.
+                let mutatedInClosure = ctx.dataFlow.localDeclarations[local.symbol].map {
+                    ctx.dataFlow.localStability.isMutatedInClosure($0, sema: ctx.sema)
+                } ?? false
+                let assignedType = !mutatedInClosure
+                    && ctx.sema.types.nullability(of: declaredType) == .nullable
+                    && ctx.sema.types.nullability(of: valueType) == .nonNull
+                    && valueType != ctx.sema.types.errorType
+                    ? ctx.sema.types.makeNonNullable(declaredType) : declaredType
+                locals[name] = (assignedType, local.symbol, local.isMutable, true)
+                locals.invalidateMembers(root: local.symbol)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
                     if let flowElementType = ctx.sema.bindings.flowElementType(forExpr: value) {
@@ -234,13 +275,30 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        if let implicitReceiverType = ctx.implicitReceiverType,
-           let member = driver.helpers.lookupMemberProperty(
-               named: name,
-               receiverType: ctx.sema.types.makeNonNullable(implicitReceiverType),
-               sema: ctx.sema
-           )
+        var implicitReceiverMember: (symbol: SymbolID, type: TypeID)?
+        for receiverType in ctx.implicitReceiverMemberLookupTypes() {
+            if let member = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: ctx.sema.types.makeNonNullable(receiverType),
+                sema: ctx.sema
+            ) {
+                implicitReceiverMember = member
+                break
+            }
+        }
+        if let member = implicitReceiverMember
         {
+            let (_, invisible) = ctx.filterByVisibility([member.symbol])
+            if let property = invisible.first {
+                driver.helpers.emitVisibilityError(
+                    for: property,
+                    name: interner.resolve(name),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+            }
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
             let propSymbol = ctx.sema.symbols.symbol(member.symbol)
             if let propSymbol,
@@ -282,8 +340,9 @@ final class LocalDeclTypeChecker {
             return parentSym.kind == .package || (ctx.implicitReceiverType != nil
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         }) {
-            ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
+            ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             if !propSymbol.flags.contains(.mutable), !ctx.allowsValPropertyInitialization {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
@@ -304,6 +363,10 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
+        // No assignment target was resolved; still type-check the RHS (with no
+        // useful expected type) so its sub-expressions get bound types and any
+        // diagnostics inside it are still reported.
+        _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if !dslBlockedIDs.isEmpty {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-DSLMARKER",

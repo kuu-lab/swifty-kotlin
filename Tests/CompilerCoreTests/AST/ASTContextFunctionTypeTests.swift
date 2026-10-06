@@ -14,6 +14,12 @@ struct ASTContextFunctionTypeTests {
         return renderTypeRef(underlyingType, in: ast, interner: ctx.interner)
     }
 
+    @Test(arguments: ["String?.() -> Int", "String? .() -> Int", "suspend String?.() -> Int", "suspend String? .() -> Int"])
+    func testNullableFunctionReceiverIsNotANullableFunction(_ type: String) throws {
+        let rendered = try renderedHandlerType(from: "typealias Handler = \(type)")
+        #expect(rendered == type.replacingOccurrences(of: "? .", with: "?."))
+    }
+
     @Test
     func testBuildASTParsesContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
@@ -66,6 +72,60 @@ struct ASTContextFunctionTypeTests {
         #expect(funDecl.valueParams.count == 1)
         let blockType = try #require(funDecl.valueParams.first?.type)
         #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(Int) () -> String")
+    }
+
+    /// KUU-915: the first parentheses after `fun <R>` belong to the receiver,
+    /// while the parentheses after the name contain the value parameters.
+    @Test
+    func testSuspendFunctionTypeExtensionReceiver() throws {
+        let source = """
+        package demo
+        internal fun <R> (suspend () -> R).fireAndForget() {
+            this.hashCode()
+        }
+        """
+        let (ast, ctx) = try buildASTModule(from: source)
+        #expect(!ctx.diagnostics.hasError)
+        let function = try #require(firstFunDecl(named: "fireAndForget", in: ast, interner: ctx.interner))
+        let receiver = try #require(function.receiverType)
+        #expect(renderTypeRef(receiver, in: ast, interner: ctx.interner) == "suspend () -> R")
+        #expect(function.valueParams.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func testSuspendFunctionTypeLocalAnnotations(inLambda: Bool) throws {
+        let declarations = """
+        val block: suspend () -> Int = { 42 }
+        var transform: suspend (Int) -> Int = { it + 1 }
+        val receiver: suspend String.() -> Int = { length }
+        val nullable: (suspend () -> Int)? = null
+        """
+        let source = inLambda
+            ? "fun main() = runBlocking { \(declarations) }"
+            : "fun main() { \(declarations) }"
+        let (ast, ctx) = try buildASTModule(from: source, includeStdlib: false)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let expected = [
+            "block": "suspend () -> Int",
+            "transform": "suspend (Int) -> Int",
+            "receiver": "suspend String.() -> Int",
+            "nullable": "suspend () -> Int?",
+        ]
+        var checked = Set<String>()
+        for expr in ast.arena.exprs {
+            guard case let .localDecl(nameID, _, annotation?, _, _, _) = expr else { continue }
+            let name = ctx.interner.resolve(nameID)
+            guard let expectedType = expected[name] else { continue }
+            guard case let .functionType(_, _, _, _, isSuspend, nullable) = ast.arena.typeRef(annotation) else {
+                Issue.record("Expected a function type for \(name), not a named 'suspend' type")
+                continue
+            }
+            #expect(isSuspend)
+            #expect(nullable == (name == "nullable"))
+            #expect(renderTypeRef(annotation, in: ast, interner: ctx.interner) == expectedType)
+            checked.insert(name)
+        }
+        #expect(checked == Set(expected.keys))
     }
 
     private func renderTypeRef(_ typeRefID: TypeRefID, in ast: ASTModule, interner: StringInterner) -> String {

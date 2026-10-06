@@ -350,7 +350,8 @@ extension ASTModelsTests {
         let bodyID = arena.appendExpr(.intLiteral(1, r))
         let catchBodyID = arena.appendExpr(.intLiteral(2, r))
         let finallyID = arena.appendExpr(.intLiteral(3, r))
-        let catchClause = CatchClause(paramName: interner.intern("e"), paramTypeName: interner.intern("Exception"), body: catchBodyID, range: r)
+        let paramType = arena.appendTypeRef(.named(path: [interner.intern("Exception")], args: [], nullable: false))
+        let catchClause = CatchClause(paramName: interner.intern("e"), paramType: paramType, body: catchBodyID, range: r)
 
         let tryExpr = Expr.tryExpr(body: bodyID, catchClauses: [catchClause], finallyExpr: finallyID, range: r)
         if case let .tryExpr(b, cc, f, _) = tryExpr {
@@ -452,7 +453,7 @@ extension ASTModelsTests {
         let param = ValueParamDecl(name: interner.intern("a"), type: TypeRefID(rawValue: 0))
         let typeRefID = arena.appendTypeRef(.named(path: [interner.intern("Int")], args: [], nullable: false))
         let localFun = Expr.localFunDecl(name: interner.intern("helper"), valueParams: [param], returnType: typeRefID, body: .expr(bodyID, r), isSuspend: true, range: r)
-        if case let .localFunDecl(name, params, ret, body, isSuspend, _) = localFun {
+        if case let .localFunDecl(name, _, params, ret, body, isSuspend, _) = localFun {
             #expect(name == interner.intern("helper"))
             #expect(params.count == 1)
             #expect(ret == typeRefID)

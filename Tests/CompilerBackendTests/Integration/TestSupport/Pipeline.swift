@@ -125,6 +125,8 @@ func runToLowering(_ ctx: CompilationContext) throws {
 func withCompiledLibrary(
     source: String,
     moduleName: String,
+    includeStdlib: Bool = true,
+    allowDefaultStdlibLibrary: Bool = true,
     body: (String) throws -> Void
 ) throws {
     let libraryBase = FileManager.default.temporaryDirectory
@@ -136,7 +138,9 @@ func withCompiledLibrary(
             inputs: [path],
             moduleName: moduleName,
             emit: .library,
-            outputPath: libraryBase
+            outputPath: libraryBase,
+            includeStdlib: includeStdlib,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         try runToKIR(ctx)
         try LoweringPhase().run(ctx)

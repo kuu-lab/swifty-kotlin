@@ -631,11 +631,11 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
+    func testCodegenMaterializedSequenceReversedReturnsElementsInReverseOrder() throws {
         let source = """
         fun main() {
-            println(sequenceOf(1, 2, 3, 4).reversed().toList())
-            println(emptySequence<Int>().reversed().toList())
+            println(sequenceOf(1, 2, 3, 4).toList().reversed())
+            println(emptySequence<Int>().toList().reversed())
         }
         """
 

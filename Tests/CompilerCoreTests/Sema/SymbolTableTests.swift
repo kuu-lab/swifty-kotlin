@@ -479,4 +479,42 @@ struct SymbolTableTests {
         symbols.setParentSymbol(parent, for: child)
         #expect(symbols.parentSymbol(for: child) == parent)
     }
+
+    // MARK: - Lazy imported metadata
+
+    /// The lazy `.kklib` loader re-enters the table (`lookupAll`, `define`,
+    /// `setFunctionSignature`, ...) while applying an imported record, and an
+    /// accessor holds the table lock while materializing the shell. The table
+    /// lock must be recursive; a plain NSLock self-deadlocks on this path.
+    @Test
+    func testLazyMetadataLoaderReentryFromAccessorDoesNotDeadlock() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let name = interner.intern("shell")
+        let fqName = [interner.intern("pkg"), name]
+        let shell = symbols.define(
+            kind: .property,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public
+        )
+        var loaderRan = false
+        symbols.setLazyImportedMetadataLoader { _ in
+            loaderRan = true
+            _ = symbols.lookupAll(fqName: fqName)
+            let colliding = symbols.define(
+                kind: .property,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                isExtensionProperty: true
+            )
+            #expect(colliding == shell)
+        }
+
+        _ = symbols.extensionPropertyReceiverType(for: shell)
+        #expect(loaderRan)
+    }
 }

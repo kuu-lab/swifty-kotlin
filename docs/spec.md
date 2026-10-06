@@ -225,7 +225,10 @@ public struct Diagnostic: Equatable {
 }
 
 public final class DiagnosticEngine: @unchecked Sendable {
+    public static let defaultMaxDiagnosticsPerFile: Int   // 1_000
     public var diagnostics: [Diagnostic] { get }
+
+    public init(maxDiagnosticsPerFile: Int = defaultMaxDiagnosticsPerFile)
 
     public func emit(_ d: Diagnostic)
     public func error(_ code: String, _ message: String, range: SourceRange?, codeActions: [DiagnosticCodeAction])
@@ -251,6 +254,8 @@ public final class DiagnosticEngine: @unchecked Sendable {
 ```
 
 表示フォーマットは human-readable text と LSP-compatible JSON（`DiagnosticsFormat`）を持つ。
+
+重複検査は `Set` による平均 O(1) で、ファイル (`primaryRange.start.file`、range なしは共通バケット) ごとに `maxDiagnosticsPerFile` 件まで保持する。上限超過分は破棄し、ファイルごとに 1 件だけ `KSWIFTK-PIPELINE-0005` の打ち切り diagnostic を発行する（破棄物に `.error` が含まれた時点で notice も `.error` に昇格し、error 喪失時に exit code が成功にならないことを保証する）。
 
 ---
 
@@ -652,6 +657,7 @@ public enum Nullability { case nonNull, nullable }
 public enum TypeKind {
     case error
     case unit
+    case nullableUnit // Unit? carries a value or the null sentinel
     case nothing
     case any(Nullability)
 
@@ -957,6 +963,15 @@ hard error; the compiler does not fall back to injecting bundled sources.
 
 **注意**：この方式は Kotlin の inline / reified を跨モジュールで成立させるために必須。
 
+## J14.4 Kotlin/Native `.klib` の消費（実験的）
+
+`-I` のサーチパス上にある Kotlin/Native 形式 `.klib`（packed ZIP / unpacked ディレクトリ）も import・実行できる。`.kklib` とは別フォーマットで、protobuf 直列化された Kotlin IR を直接読み、`SymbolTable`/`TypeSystem`/`KIR` にマテリアライズする（パイプライン詳細は `docs/ARCHITECTURE.md` §13.1）。
+
+* 対象: `abi_version` 2.3.x（2.4.x は best-effort、`KSWIFTK-LIB-0027`）
+* manifest `depends` は検証され依存順でモジュール初期化が走る（欠落は `KSWIFTK-LIB-0030` 警告）
+* `.klib` はコンパイル済みオブジェクトを持たないため、body すべてが consumer 側の KIR に翻訳されて実行される。未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + abort
+* 制約: default 引数の `$default` stub 経由呼び出し、expect/actual、インラインの再 materialization は未対応
+
 ---
 
 # Doc J15: LLVM Backend 実装境界（`CompilerBackend`）
@@ -1004,6 +1019,8 @@ final class LLVMBackend {
 ```
 
 `RuntimeLinkInfo` 型は存在しない。link に必要な library/search path は `CompilerOptions` が保持し、runtime object discovery と executable link は `LinkPhase` が担当する。
+
+`LinkPhase` が生成するエントリラッパ（`LLVMEntryPointObjectEmitter`）の終了ステータス規約: 正常終了は常に `0`、未捕捉例外は `1`（`KSWIFTK-LINK-0003` を stderr に出力）。`main` 自身の戻り値は終了ステータスに使わない — Kotlin で非ゼロを返す手段は `kotlin.system.exitProcess` だけであり、これは `__kk_system_exitProcess`（`Never`）としてプロセスを直接終了させるためラッパを通らない。なお kotlinc は戻り値型が `Unit` でない `main` をエントリポイントと認めない（`Main-Class` なしの jar を出す）が、kswiftc はこれを受理して値を捨てる: `runBlocking` / `coroutineScope` / `Deferred.await` を `Any` 返しとしてモデル化している都合上、`fun main() = runBlocking { ... }` は本体に関わらず非 `Unit` になるため、拒否すると正当なコードが通らなくなる。
 
 ## J15.3 文字列・配列・例外・コルーチンの呼び出し境界
 
@@ -1122,6 +1139,8 @@ public func kk_coroutine_suspended() -> UnsafeMutableRawPointer
 * codegen は `ret == kk_coroutine_suspended()` で比較する。
 
 ## J17.2 `suspend fun` の lowering（固定アルゴリズム）
+
+Sema は overload 解決とラムダ型推論の完了後、suspend 関数・suspend 関数値の呼び出し文脈を検査する。非 suspend 文脈からの呼び出しは `KSWIFTK-SEMA-0307` で拒否する。suspend 関数・suspend ラムダは呼び出しを許可し、通常のラムダは inline 引数（noinline / crossinline を除く）の場合だけ外側の文脈を継承する。名前付き関数、デフォルト引数、クラス・object の初期化処理はそれぞれ独立した文脈を持つ。関数参照の取得自体は suspension point ではない。
 
 ### 入力
 

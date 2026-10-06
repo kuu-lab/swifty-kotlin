@@ -7,13 +7,18 @@ import Testing
 @Suite
 struct LoweringCodegenRegressionTests {
     @Test
-    func testKxMiniRunBlockingDelayExecutableReturnsExpectedExitCode() throws {
+    func testKxMiniRunBlockingDelayExecutableProducesSuspendResult() throws {
+        // The suspend result is observed on stdout rather than through the
+        // process status: `main`'s own value is discarded by the entry wrapper
+        // (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let source = """
         suspend fun delayedValue(): Int {
             delay(1)
             return 42
         }
-        fun main(): Any? = runBlocking(delayedValue)
+        fun main() {
+            println(runBlocking(delayedValue))
+        }
         """
 
         try withTemporaryFile(contents: source) { path in
@@ -37,14 +42,8 @@ struct LoweringCodegenRegressionTests {
             }
 
             #expect(FileManager.default.fileExists(atPath: outputPath))
-            do {
-                _ = try CommandRunner.run(executable: outputPath, arguments: [])
-                Issue.record("Expected non-zero exit")
-            } catch let CommandRunnerError.nonZeroExit(failed) {
-                #expect(failed.exitCode == 42)
-            } catch {
-                Issue.record("Unexpected error: \(error)")
-            }
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.stdout.trimmingCharacters(in: .newlines) == "42")
         }
     }
 }

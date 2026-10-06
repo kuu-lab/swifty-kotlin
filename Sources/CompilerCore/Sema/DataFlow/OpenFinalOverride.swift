@@ -285,7 +285,7 @@ extension DataFlowSemaPhase {
                 )
                 validateOverrideOpenness(
                     memberMeta: memberMeta,
-                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
                     ctx: ctx
                 )
                 validateVisibilityConstraints(
@@ -442,12 +442,16 @@ extension DataFlowSemaPhase {
         // Rule 3: Check for invalid modifier combinations based on context
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
-        // Rule 3a: abstract members cannot be in final classes
-        if memberMeta.hasAbstract && ownerSym.flags.contains(.finalMember) {
+        // Rule 3a: abstract members require an abstract owner, even if the class is open.
+        // Interfaces and enum classes can declare abstract members without an abstract modifier.
+        if memberMeta.hasAbstract,
+           !ownerSym.flags.contains(.abstractType),
+           ownerSym.kind != .interface,
+           ownerSym.kind != .enumClass {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be abstract in final class '\(ownerName)'. Final classes cannot contain abstract members.",
+                "'\(memberName)' cannot be abstract in non-abstract class '\(ownerName)'. Abstract members require an abstract class.",
                 range: memberMeta.range
             )
         }
@@ -493,22 +497,12 @@ extension DataFlowSemaPhase {
 
     private func validateOverrideOpenness(
         memberMeta: MemberMeta,
-        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
 
-        // Find the member symbol by looking in the owner's children
-        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-
-        let memberSymbol = ctx.symbols.children(ofFQName: ownerSym.fqName).first { childID in
-            guard let childSym = ctx.symbols.symbol(childID) else { return false }
-            return childSym.name == memberMeta.name &&
-                   (childSym.kind == .function || childSym.kind == .property)
-        }
-
-        guard let memberSymID = memberSymbol,
-              let memberSym = ctx.symbols.symbol(memberSymID) else { return }
+        guard let memberSym = ctx.symbols.symbol(memberSymbol) else { return }
 
         // Check if this is an override member
         if memberMeta.hasOverride {
@@ -1315,6 +1309,8 @@ extension DataFlowSemaPhase {
                 guard let child = symbols.symbol(childID) else {
                     continue
                 }
+                guard child.fqName == sym.fqName + [child.name] else { continue }
+                guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 let isMatch = child.kind == .function
                     || child.kind == .property
                 guard isMatch, child.name == memberName else {

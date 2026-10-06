@@ -1,5 +1,23 @@
 # stdlib gap summary (source-based)
 
+## KSP-1586 wiring update (2026-10-06)
+
+The counts below are the original `kotlin.*` source-surface audit, not a live
+completion count for external kotlinx libraries. kotlinx-io / kotlinx-coroutines
+resource wiring is pinned by `BundledStdlibOrderingTests`, including bytestring,
+files, channels, flow, selects, and test sources. The diff harness already
+acquires io core 0.9.1, bytestring 0.9.1, and coroutines core 1.10.2 by import
+detection; dependency-selection regression coverage and configuration are in
+`Scripts/test_diff_kotlinc_dependencies.sh` and `Scripts/README.md`.
+
+The direct-declaration, interface, Any-contract, and degraded-semantics policies
+are documented in [stdlib-pipeline.md](../stdlib-pipeline.md).
+`flow_error_handling.kt` is already unskipped; its finite-flow checks do not
+establish complete exception/retry or scheduler parity. API implementation
+status remains owned by the individual KSP-1545–KSP-1583 tickets.
+
+## Original audit counts
+
 Official ABI entries (kotlin.* native, excluding built-in primitives): 3502
 KSwiftK source surface entries: 1623
 Missing (heuristic): 2678

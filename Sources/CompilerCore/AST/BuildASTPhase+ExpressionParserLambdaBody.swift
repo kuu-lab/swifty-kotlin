@@ -14,7 +14,8 @@ extension BuildASTPhase.ExpressionParser {
         if let parsedExpr = BuildASTPhase.ExpressionParser(
             tokens: bodySlice,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse() {
             return parsedExpr
         }
@@ -45,7 +46,8 @@ extension BuildASTPhase.ExpressionParser {
             guard let statement = astArena.expr(statementID) else { return false }
             switch statement {
             case .localDecl, .localAssign, .memberAssign, .indexedAssign,
-                 .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
+                 .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign,
+                 .localFunDecl, .localNominalDecl:
                 return true
             default:
                 return false
@@ -81,16 +83,28 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
+        let phase = BuildASTPhase(diagnostics: diagnostics)
+        if let localFun = phase.parseLocalFunDeclExpr(
+            from: Array(group), interner: interner, astArena: astArena
+        ) {
+            return localFun
+        }
         if let localDecl = parseLocalDeclFromSlice(group) {
             return localDecl
         }
         if let localAssign = parseLocalAssignFromSlice(group) {
             return localAssign
         }
+        if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
+            from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
+        ) {
+            return nominalDecl
+        }
         return BuildASTPhase.ExpressionParser(
             tokens: group,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ).parse()
     }
 
@@ -101,7 +115,8 @@ extension BuildASTPhase.ExpressionParser {
 
         switch lastExpr {
         case .localDecl, .localAssign, .memberAssign, .indexedAssign,
-             .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl:
+             .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign,
+             .localFunDecl, .localNominalDecl:
             return nil
         default:
             _ = statements.popLast()

@@ -1,0 +1,63 @@
+symbol fq=golden.sema.atomicArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String>;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicArray<String>
+symbol fq=golden.sema.atomicArrayOfNullsFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String?>;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicArray<String?>
+symbol fq=golden.sema.atomicArrayType.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayType[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String?>;ret=kotlin.concurrent.atomics.AtomicArray<String?>;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String?>] ret=kotlin.concurrent.atomics.AtomicArray<String?>
+symbol fq=golden.sema.atomicBooleanFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicBoolean
+symbol fq=golden.sema.atomicBooleanType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicBoolean?
+symbol fq=golden.sema.atomicIntArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicIntArray
+symbol fq=golden.sema.atomicIntArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicIntArray?
+symbol fq=golden.sema.atomicIntFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicInt
+symbol fq=golden.sema.atomicIntType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicInt?
+symbol fq=golden.sema.atomicLongArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicLongArray
+symbol fq=golden.sema.atomicLongArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicLongArray?
+symbol fq=golden.sema.atomicLongFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicLong
+symbol fq=golden.sema.atomicLongType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicLong?
+symbol fq=golden.sema.atomicNativePtrType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicNativePtr?;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.concurrent.atomics.AtomicNativePtr?
+symbol fq=golden.sema.atomicReferenceType.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicReferenceType[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=kotlin.concurrent.atomics.AtomicReference<String>;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicReference<String>] ret=kotlin.concurrent.atomics.AtomicReference<String>
+file fstdlib_kotlin_concurrent_atomics_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class,kotlinx.cinterop.ExperimentalForeignApi::class)]
+  decl golden.sema.atomicIntType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt?;origin=fixture] fun atomicIntType sym=golden.sema.atomicIntType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt?;origin=fixture]
+  decl golden.sema.atomicLongType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong?;origin=fixture] fun atomicLongType sym=golden.sema.atomicLongType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong?;origin=fixture]
+  decl golden.sema.atomicBooleanType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean?;origin=fixture] fun atomicBooleanType sym=golden.sema.atomicBooleanType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean?;origin=fixture]
+  decl golden.sema.atomicReferenceType[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=kotlin.concurrent.atomics.AtomicReference<String>;names=[value];origin=fixture] fun atomicReferenceType sym=golden.sema.atomicReferenceType[kind=fun;params=kotlin.concurrent.atomics.AtomicReference<String>;ret=kotlin.concurrent.atomics.AtomicReference<String>;names=[value];origin=fixture]
+  decl golden.sema.atomicArrayType[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String?>;ret=kotlin.concurrent.atomics.AtomicArray<String?>;names=[value];origin=fixture] fun atomicArrayType sym=golden.sema.atomicArrayType[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String?>;ret=kotlin.concurrent.atomics.AtomicArray<String?>;names=[value];origin=fixture]
+  decl golden.sema.atomicNativePtrType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicNativePtr?;origin=fixture] fun atomicNativePtrType sym=golden.sema.atomicNativePtrType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicNativePtr?;origin=fixture]
+  decl golden.sema.atomicIntArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray?;origin=fixture] fun atomicIntArrayType sym=golden.sema.atomicIntArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray?;origin=fixture]
+  decl golden.sema.atomicLongArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray?;origin=fixture] fun atomicLongArrayType sym=golden.sema.atomicLongArrayType[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray?;origin=fixture]
+  decl golden.sema.atomicBooleanFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean;origin=fixture] fun atomicBooleanFactory sym=golden.sema.atomicBooleanFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicBoolean;origin=fixture]
+  decl golden.sema.atomicIntFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt;origin=fixture] fun atomicIntFactory sym=golden.sema.atomicIntFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicInt;origin=fixture]
+  decl golden.sema.atomicLongFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong;origin=fixture] fun atomicLongFactory sym=golden.sema.atomicLongFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLong;origin=fixture]
+  decl golden.sema.atomicIntArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray;origin=fixture] fun atomicIntArrayFactory sym=golden.sema.atomicIntArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicIntArray;origin=fixture]
+  decl golden.sema.atomicLongArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture] fun atomicLongArrayFactory sym=golden.sema.atomicLongArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicLongArray;origin=fixture]
+  decl golden.sema.atomicArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String>;origin=fixture] fun atomicArrayFactory sym=golden.sema.atomicArrayFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String>;origin=fixture]
+  decl golden.sema.atomicArrayOfNullsFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String?>;origin=fixture] fun atomicArrayOfNullsFactory sym=golden.sema.atomicArrayOfNullsFactory[kind=fun;params=;ret=kotlin.concurrent.atomics.AtomicArray<String?>;origin=fixture]
+expr e@18:35 name(null) type=Nothing?
+expr e@19:37 name(null) type=Nothing?
+expr e@20:43 name(null) type=Nothing?
+expr e@21:84 name(value) type=kotlin.concurrent.atomics.AtomicReference<String> ref=golden.sema.atomicReferenceType.$1.value[kind=vparam;origin=fixture]
+expr e@22:74 name(value) type=kotlin.concurrent.atomics.AtomicArray<String?> ref=golden.sema.atomicArrayType.$0.value[kind=vparam;origin=fixture]
+expr e@23:47 name(null) type=Nothing?
+expr e@24:45 name(null) type=Nothing?
+expr e@25:47 name(null) type=Nothing?
+expr e@27:59 bool(true) type=Boolean
+expr e@27:45 call callee=e@27:45#1 args=[_:e@27:59] type=kotlin.concurrent.atomics.AtomicBoolean call=kotlin.concurrent.atomics.AtomicBoolean[kind=fun;params=Boolean;ret=kotlin.concurrent.atomics.AtomicBoolean;names=[value]]
+expr e@28:47 int(1) type=Int
+expr e@28:37 call callee=e@28:37#1 args=[_:e@28:47] type=kotlin.concurrent.atomics.AtomicInt call=kotlin.concurrent.atomics.AtomicInt[kind=fun;params=Int;ret=kotlin.concurrent.atomics.AtomicInt;names=[value]]
+expr e@29:50 long(1) type=Long
+expr e@29:39 call callee=e@29:39#1 args=[_:e@29:50] type=kotlin.concurrent.atomics.AtomicLong call=kotlin.concurrent.atomics.AtomicLong[kind=fun;params=Long;ret=kotlin.concurrent.atomics.AtomicLong;names=[value]]
+expr e@30:62 int(2) type=Int
+expr e@30:67 name(it) type=Int ref=s-0
+expr e@30:65 lambda params=[] body=e@30:67 label=AtomicIntArray type=(Int) -> Int
+expr e@30:47 call callee=e@30:47#1 args=[_:e@30:62,_:e@30:65] type=kotlin.concurrent.atomics.AtomicIntArray call=kotlin.concurrent.atomics.AtomicIntArray[kind=fun;params=Int,fn{p=Int;ret=Int};ret=kotlin.concurrent.atomics.AtomicIntArray;names=[size,init]]
+expr e@31:65 int(2) type=Int
+expr e@31:70 name(it) type=Int ref=s-1
+expr e@31:70#1 memberCall recv=e@31:70 callee=toLong args=[] type=Long
+expr e@31:68 lambda params=[] body=e@31:70#1 label=AtomicLongArray type=(Int) -> Long
+expr e@31:49 call callee=e@31:49#1 args=[_:e@31:65,_:e@31:68] type=kotlin.concurrent.atomics.AtomicLongArray call=kotlin.concurrent.atomics.AtomicLongArray[kind=fun;params=Int,fn{p=Int;ret=Long};ret=kotlin.concurrent.atomics.AtomicLongArray;names=[size,init]]
+expr e@32:61 int(2) type=Int
+expr e@32:66 name(it) type=Int ref=s-2
+expr e@32:66#1 memberCall recv=e@32:66 callee=toString args=[] type=String
+expr e@32:64 lambda params=[] body=e@32:66#1 label=AtomicArray type=(Int) -> String
+expr e@32:49 call callee=e@32:49#1 args=[_:e@32:61,_:e@32:64] type=kotlin.concurrent.atomics.AtomicArray<String> call=kotlin.concurrent.atomics.AtomicArray[kind=fun;params=Int,fn{p=Int;ret=T0};ret=kotlin.concurrent.atomics.AtomicArray<T0>;gen=1;reified=[0];names=[size,init]] targs=[String]
+expr e@33:76 int(2) type=Int
+expr e@33:57 call callee=e@33:57#1 args=[_:e@33:76] type=kotlin.concurrent.atomics.AtomicArray<String?> call=kotlin.concurrent.atomics.atomicArrayOfNulls[kind=fun;params=Int;ret=kotlin.concurrent.atomics.AtomicArray<T0?>;gen=1;names=[size]] targs=[String]

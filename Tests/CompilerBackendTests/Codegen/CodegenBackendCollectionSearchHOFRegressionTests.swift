@@ -9,6 +9,22 @@ import Testing
 @Suite
 struct CodegenBackendCollectionSearchHOFRegressionTests {
 
+    @Test(arguments: [false, true])
+    func codegenListBinarySearchByGenericSelector(useArtifact: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/list_binary_search_by_generic_selector.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListBinarySearchByGenericSelector",
+            expected: "2\n-3\n2\n2\n-3\n2\n2\n1\n1\n1\n1\n1\n-1\n-3\nselector threw\n",
+            allowDefaultStdlibLibrary: useArtifact
+        )
+    }
+
     @Test
     func codegenListFirstAndLastPredicateUseSourceImplementation() throws {
         let source = """

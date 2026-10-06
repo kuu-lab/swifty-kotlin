@@ -1,0 +1,63 @@
+symbol fq=Child.<init>[kind=ctor;recv=Child;params=;ret=Child;origin=fixture] kind=constructor vis=private flags=_ sig=recv=Child params=[] ret=Child
+symbol fq=Child.read[kind=fun;recv=Child;params=;ret=String;origin=fixture] kind=function vis=public flags=_ sig=recv=Child params=[] ret=String
+symbol fq=Child[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=Counter.<init>.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Counter.<init>[kind=ctor;recv=Counter;params=Int;ret=Counter;names=[value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=Counter params=[Int] ret=Counter
+symbol fq=Counter.next[kind=fun;recv=Counter;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=Counter params=[] ret=Int
+symbol fq=Counter.value[kind=prop;type=Int;mutable;origin=fixture] kind=property vis=private flags=mutable type=Int
+symbol fq=Counter[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=Parent.label[kind=prop;type=String;origin=fixture] kind=property vis=protected flags=_ type=String
+symbol fq=Parent[kind=class;origin=fixture] kind=class vis=private flags=openType
+symbol fq=Sink.$class0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=Sink.<init>.$1.stored[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Sink.<init>[kind=ctor;recv=Sink<T0>;params=T0;ret=Sink<T0>;gen=1;classGen=1;names=[stored];origin=fixture] kind=constructor vis=private flags=_ sig=recv=Sink<Sink.$class0.T> params=[Sink.$class0.T] ret=Sink<Sink.$class0.T>
+symbol fq=Sink.accept.$2.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Sink.accept[kind=fun;recv=Sink<T0>;params=T0;ret=Unit;gen=1;classGen=1;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=Sink<Sink.$class0.T> params=[Sink.$class0.T] ret=Unit
+symbol fq=Sink.stored[kind=prop;type=T0;origin=fixture] kind=property vis=private flags=_ type=Sink.$class0.T
+symbol fq=Sink[kind=class;gen=1;variance=[n];origin=fixture] kind=class vis=private flags=_
+symbol fq=Visible.<init>.$3.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Visible.<init>[kind=ctor;recv=Visible;params=Int;ret=Visible;names=[value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=Visible params=[Int] ret=Visible
+symbol fq=Visible.value[kind=prop;type=Int;origin=fixture] kind=property vis=internal flags=_ type=Int
+symbol fq=Visible[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=__local_0.sink[kind=local;type=Sink<String>;origin=fixture] kind=local vis=private flags=_ type=Sink<String>
+symbol fq=__local_1.counter[kind=local;type=Counter;origin=fixture] kind=local vis=private flags=_ type=Counter
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fprimary_constructor_property_visibility package=_
+  decl Sink[kind=class;gen=1;variance=[n];origin=fixture] class Sink sym=Sink[kind=class;gen=1;variance=[n];origin=fixture]
+  decl Counter[kind=class;origin=fixture] class Counter sym=Counter[kind=class;origin=fixture]
+  decl Parent[kind=class;origin=fixture] class Parent sym=Parent[kind=class;origin=fixture]
+  decl Child[kind=class;origin=fixture] class Child sym=Child[kind=class;origin=fixture]
+  decl Visible[kind=class;origin=fixture] class Visible sym=Visible[kind=class;origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@2:36 name(stored) type=Sink.$class0.T ref=Sink.stored[kind=prop;type=T0;origin=fixture]
+expr e@2:46 name(value) type=Sink.$class0.T ref=Sink.accept.$2.value[kind=vparam;origin=fixture]
+expr e@2:36#1 binary(equal) lhs=e@2:36 rhs=e@2:46 type=Boolean
+expr e@2:28 call callee=e@2:28#1 args=[_:e@2:36#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:32 int(1) type=Int
+expr e@5:23 compoundAssign(plusAssign) name=value value=e@5:32 type=Unit ref=Counter.value[kind=prop;type=Int;mutable;origin=fixture]
+expr e@5:42 name(value) type=Int ref=Counter.value[kind=prop;type=Int;mutable;origin=fixture]
+expr e@5:35 return value=e@5:42 type=Nothing
+expr e@9:26 name(label) type=String ref=Parent.label[kind=prop;type=String;origin=fixture]
+expr e@8:30 string(protected) type=String
+expr e@13:40 string(same) type=String
+expr e@13:30 call callee=e@13:30#1 args=[_:e@13:40] type=Sink<Any> call=Sink.<init>[kind=ctor;recv=Sink<T0>;params=T0;ret=Sink<T0>;gen=1;classGen=1;names=[stored];origin=fixture] targs=[Any]
+expr e@13:5 localDecl sink mutable=0 type=Sink<String> init=e@13:30 type=Unit ref=__local_0.sink[kind=local;type=Sink<String>;origin=fixture]
+expr e@14:5 name(sink) type=Sink<String> ref=__local_0.sink[kind=local;type=Sink<String>;origin=fixture]
+expr e@14:17 string(same) type=String
+expr e@14:5#1 memberCall recv=e@14:5 callee=accept args=[_:e@14:17] type=Unit call=Sink.accept[kind=fun;recv=Sink<T0>;params=T0;ret=Unit;gen=1;classGen=1;names=[value];origin=fixture] targs=[String]
+expr e@15:5 name(sink) type=Sink<String> ref=__local_0.sink[kind=local;type=Sink<String>;origin=fixture]
+expr e@15:17 string(different) type=String
+expr e@15:5#1 memberCall recv=e@15:5 callee=accept args=[_:e@15:17] type=Unit call=Sink.accept[kind=fun;recv=Sink<T0>;params=T0;ret=Unit;gen=1;classGen=1;names=[value];origin=fixture] targs=[String]
+expr e@16:27 int(3) type=Int
+expr e@16:19 call callee=e@16:19#1 args=[_:e@16:27] type=Counter call=Counter.<init>[kind=ctor;recv=Counter;params=Int;ret=Counter;names=[value];origin=fixture]
+expr e@16:5 localDecl counter mutable=0 type=_ init=e@16:19 type=Unit ref=__local_1.counter[kind=local;type=Counter;origin=fixture]
+expr e@17:13 name(counter) type=Counter ref=__local_1.counter[kind=local;type=Counter;origin=fixture]
+expr e@17:13#1 memberCall recv=e@17:13 callee=next args=[] type=Int call=Counter.next[kind=fun;recv=Counter;params=;ret=Int;origin=fixture]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:13 call callee=e@18:13#1 args=[] type=Child call=Child.<init>[kind=ctor;recv=Child;params=;ret=Child;origin=fixture]
+expr e@18:13#2 memberCall recv=e@18:13 callee=read args=[] type=String call=Child.read[kind=fun;recv=Child;params=;ret=String;origin=fixture]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#2] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@19:21 int(7) type=Int
+expr e@19:13 call callee=e@19:13#1 args=[_:e@19:21] type=Visible call=Visible.<init>[kind=ctor;recv=Visible;params=Int;ret=Visible;names=[value];origin=fixture]
+expr e@19:13#2 memberCall recv=e@19:13 callee=value args=[] type=Int ref=Visible.value[kind=prop;type=Int;origin=fixture]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

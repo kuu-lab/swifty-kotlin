@@ -1,28 +1,28 @@
-symbol fq=golden.sema.Animal[kind=class] kind=class vis=public flags=abstractType|openType
-symbol fq=golden.sema.Box[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.Circle.radius[kind=prop] kind=property vis=public flags=_ type=Double
-symbol fq=golden.sema.Circle[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.Container[kind=class] kind=class vis=public flags=abstractType|openType
-symbol fq=golden.sema.Dog[kind=class] kind=class vis=public flags=_
-symbol fq=golden.sema.Pet[kind=class] kind=class vis=public flags=abstractType|openType
-symbol fq=golden.sema.Shape[kind=class] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.Animal[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.Box[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.Circle.radius[kind=prop;type=Double;origin=fixture] kind=property vis=public flags=_ type=Double
+symbol fq=golden.sema.Circle[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.Container[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.Dog[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.Pet[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.Shape[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
 file fabstract_class package=golden.sema
-  decl golden.sema.Shape[kind=class] class Shape sym=golden.sema.Shape[kind=class]
-  decl golden.sema.Circle[kind=class] class Circle sym=golden.sema.Circle[kind=class]
-  decl golden.sema.Animal[kind=class] class Animal sym=golden.sema.Animal[kind=class]
-  decl golden.sema.Pet[kind=class] class Pet sym=golden.sema.Pet[kind=class]
-  decl golden.sema.Dog[kind=class] class Dog sym=golden.sema.Dog[kind=class]
-  decl golden.sema.Container[kind=class] class Container sym=golden.sema.Container[kind=class]
-  decl golden.sema.Box[kind=class] class Box sym=golden.sema.Box[kind=class]
+  decl golden.sema.Shape[kind=class;origin=fixture] class Shape sym=golden.sema.Shape[kind=class;origin=fixture]
+  decl golden.sema.Circle[kind=class;origin=fixture] class Circle sym=golden.sema.Circle[kind=class;origin=fixture]
+  decl golden.sema.Animal[kind=class;origin=fixture] class Animal sym=golden.sema.Animal[kind=class;origin=fixture]
+  decl golden.sema.Pet[kind=class;origin=fixture] class Pet sym=golden.sema.Pet[kind=class;origin=fixture]
+  decl golden.sema.Dog[kind=class;origin=fixture] class Dog sym=golden.sema.Dog[kind=class;origin=fixture]
+  decl golden.sema.Container[kind=class;origin=fixture] class Container sym=golden.sema.Container[kind=class;origin=fixture]
+  decl golden.sema.Box[kind=class;origin=fixture] class Box sym=golden.sema.Box[kind=class;origin=fixture]
 expr e@6:33 string(shape) type=String
 expr e@10:35 double(3.14) type=Double
-expr e@10:42 name(radius) type=Double ref=golden.sema.Circle.radius[kind=prop]
+expr e@10:42 name(radius) type=Double ref=golden.sema.Circle.radius[kind=prop;type=Double;origin=fixture]
 expr e@10:35#1 binary(multiply) lhs=e@10:35 rhs=e@10:42 type=Double
-expr e@10:51 name(radius) type=Double ref=golden.sema.Circle.radius[kind=prop]
+expr e@10:51 name(radius) type=Double ref=golden.sema.Circle.radius[kind=prop;type=Double;origin=fixture]
 expr e@10:35#2 binary(multiply) lhs=e@10:35#1 rhs=e@10:51 type=Double
 expr e@11:33 string(circle) type=String
 expr e@25:36 string(woof) type=String
 expr e@26:38 string(dog) type=String
 expr e@27:36 string(canine) type=String
 expr e@28:34 string(human) type=String
-expr e@36:40 call callee=e@36:40#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList[kind=fun;params=;gen=1] targs=[String]
+expr e@36:40 call callee=e@36:40#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[String]

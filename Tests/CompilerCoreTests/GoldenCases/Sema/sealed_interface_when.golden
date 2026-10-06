@@ -1,16 +1,16 @@
-symbol fq=Add[kind=class] kind=class vis=public flags=_
-symbol fq=Expr[kind=iface] kind=interface vis=public flags=sealedType
-symbol fq=Literal[kind=class] kind=class vis=public flags=_
-symbol fq=Multiply[kind=class] kind=class vis=public flags=_
-symbol fq=eval.$0.e[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=eval[kind=fun;params=Expr] kind=function vis=public flags=_ sig=recv=_ params=[Expr] ret=String
+symbol fq=Add[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Expr[kind=iface;origin=fixture] kind=interface vis=public flags=sealedType
+symbol fq=Literal[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Multiply[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=eval.$0.e[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=eval[kind=fun;params=Expr;ret=String;names=[e];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Expr] ret=String
 file fsealed_interface_when package=_
-  decl Expr[kind=iface] interface Expr sym=Expr[kind=iface]
-  decl Literal[kind=class] class Literal sym=Literal[kind=class]
-  decl Add[kind=class] class Add sym=Add[kind=class]
-  decl Multiply[kind=class] class Multiply sym=Multiply[kind=class]
-  decl eval[kind=fun;params=Expr] fun eval sym=eval[kind=fun;params=Expr]
-expr e@7:18 name(e) type=Expr ref=eval.$0.e[kind=vparam]
+  decl Expr[kind=iface;origin=fixture] interface Expr sym=Expr[kind=iface;origin=fixture]
+  decl Literal[kind=class;origin=fixture] class Literal sym=Literal[kind=class;origin=fixture]
+  decl Add[kind=class;origin=fixture] class Add sym=Add[kind=class;origin=fixture]
+  decl Multiply[kind=class;origin=fixture] class Multiply sym=Multiply[kind=class;origin=fixture]
+  decl eval[kind=fun;params=Expr;ret=String;names=[e];origin=fixture] fun eval sym=eval[kind=fun;params=Expr;ret=String;names=[e];origin=fixture]
+expr e@7:18 name(e) type=Expr ref=eval.$0.e[kind=vparam;origin=fixture]
 expr e@7:18#1 isCheck expr=e@7:18 type=Literal type=Boolean
 expr e@8:23 string(literal) type=String
 expr e@7:18#2 isCheck expr=e@7:18 type=Add type=Boolean

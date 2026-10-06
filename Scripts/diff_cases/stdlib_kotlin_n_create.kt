@@ -1,3 +1,4 @@
+@file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
 @Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
 fun main() {
     val marker: Any = kotlin.createFailure(RuntimeException("boom"))

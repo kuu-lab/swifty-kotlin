@@ -1,7 +1,7 @@
 import Foundation
 
 /// A source edit that can be applied by a diagnostic code action.
-public struct DiagnosticTextEdit: Equatable, Sendable {
+public struct DiagnosticTextEdit: Hashable, Sendable {
     /// The source range to replace. An empty range represents insertion.
     public let range: SourceRange
     /// The replacement text, or an empty string for deletion.
@@ -14,7 +14,7 @@ public struct DiagnosticTextEdit: Equatable, Sendable {
 }
 
 /// Describes a single code action (quick-fix) that an LSP client can offer to the user.
-public struct DiagnosticCodeAction: Equatable, Sendable {
+public struct DiagnosticCodeAction: Hashable, Sendable {
     /// Human-readable title shown in the editor UI.
     public let title: String
     /// LSP code action kind (e.g. "quickfix", "refactor").
@@ -104,7 +104,13 @@ enum DiagnosticRegistry {
     }
 
     private static let suppressionAliases: [String: [String]] = [
+        "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
+        "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        "INVISIBLE_MEMBER": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
+        "INVISIBLE_REFERENCE": ["KSWIFTK-SEMA-0040", "KSWIFTK-SEMA-0041", "KSWIFTK-SEMA-0044"],
+        "NON_PUBLIC_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
+        "PROTECTED_CALL_FROM_PUBLIC_INLINE": ["KSWIFTK-SEMA-0045"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
         "DEPRECATION_ERROR": ["KSWIFTK-SEMA-DEPRECATED"],
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
@@ -140,13 +146,19 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-LEX-0004",
             pass: "LEX",
             defaultSeverity: .error,
-            summary: "Invalid escape sequence in string."
+            summary: "Unescaped line break in string literal."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-LEX-0006",
             pass: "LEX",
             defaultSeverity: .error,
             summary: "Malformed number literal (overflow or bad format)."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LEX-0007",
+            pass: "LEX",
+            defaultSeverity: .error,
+            summary: "String template nesting exceeds the supported depth."
         ),
     ]
 
@@ -207,6 +219,36 @@ enum DiagnosticRegistry {
             pass: "PARSE",
             defaultSeverity: .error,
             summary: "Expression nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0013",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Structured syntax nesting exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0014",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected an identifier after '::'."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0015",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected ',' or ')' after call argument."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0016",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected 'catch' or 'finally' after 'try' block."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0017",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Imports are only allowed in the beginning of file."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
@@ -356,6 +398,18 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Invalid operator application."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0044",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access internal member of the bundled stdlib."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0045",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Public-API inline function cannot access a non-public-API declaration."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0050",
@@ -551,6 +605,24 @@ enum DiagnosticRegistry {
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-CYCLE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cyclic supertype reference detected during nominal layout synthesis."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-DEPTH",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Inheritance chain exceeds the maximum supported depth."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-SUPER-COUNT",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Nominal type count exceeds the supported maximum."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0171",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -621,6 +693,25 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Type parameter's upper bounds combine two or more mutually exclusive class types."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0306",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Super-call omits an argument with a default value.",
+            codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0307",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Infix notation requires the infix modifier."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0308",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Suspend function can only be called from a coroutine or another suspend function."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
@@ -729,6 +820,48 @@ enum DiagnosticRegistry {
             defaultSeverity: .warning,
             summary: "Library discovery: search path warning."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0025",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib container is unreadable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0026",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib manifest is missing or invalid."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0027",
+            pass: "LIB",
+            defaultSeverity: .error,
+            summary: "Kotlin .klib version is unsupported."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0028",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib recognized; declaration import pending."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0029",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib body contains unsupported serialized IR."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0030",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Kotlin .klib dependency missing from the library search path."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-LIB-0031",
+            pass: "LIB",
+            defaultSeverity: .warning,
+            summary: "Duplicate library declaration ignored; first on the search path wins."
+        ),
     ]
 
     // MARK: - KIR generation pass (KIR)
@@ -774,6 +907,17 @@ enum DiagnosticRegistry {
             pass: "CORO",
             defaultSeverity: .error,
             summary: "Coroutine lowering failure."
+        ),
+    ]
+
+    // MARK: - Inline lowering pass (INL)
+
+    static let inlDescriptors: [DiagnosticDescriptor] = [
+        DiagnosticDescriptor(
+            code: "KSWIFTK-INL-0001",
+            pass: "INL",
+            defaultSeverity: .error,
+            summary: "Mandatory inline expansion left an unexpanded call to a bodyless callee."
         ),
     ]
 
@@ -844,6 +988,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Codegen phase failed to emit requested artifacts."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PIPELINE-0005",
+            pass: "PIPELINE",
+            defaultSeverity: .error,
+            summary: "Per-file diagnostic limit reached; further diagnostics were suppressed."
+        ),
     ]
 
     // MARK: - Internal compiler error (ICE)
@@ -895,6 +1045,7 @@ enum DiagnosticRegistry {
             + typeDescriptors
             + libDescriptors
             + kirDescriptors
+            + inlDescriptors
             + coroDescriptors
             + backendDescriptors
             + linkDescriptors

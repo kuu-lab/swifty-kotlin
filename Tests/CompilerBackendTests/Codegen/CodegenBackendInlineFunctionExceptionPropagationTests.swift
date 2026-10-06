@@ -68,6 +68,25 @@ struct CodegenBackendInlineFunctionExceptionPropagationTests {
     }
 
     @Test
+    func testCodegenInlineFunctionTryCatchCatchesExpandedLambdaException() throws {
+        let source = """
+        inline fun tryOrInt(default: Int, block: () -> Int): Int =
+            try { block() } catch (e: Exception) { default }
+
+        fun main() {
+            println(tryOrInt(-4) { "x".toInt() })
+            println(tryOrInt(-4) { "12".toInt() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "InlineFunctionTryCatchExpandedLambda",
+            expected: "-4\n12\n"
+        )
+    }
+
+    @Test
     func testCodegenInlineFunctionInternalCatchHandlesLambdaException() throws {
         let source = """
         inline fun <T> runIt(block: () -> T): T {

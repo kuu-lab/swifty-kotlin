@@ -7,6 +7,110 @@ import Testing
 @Suite
 struct CodegenBackendVirtualDispatchTests {
 
+    @Test(arguments: [true, false])
+    func testNestedGenericOverridesDispatchThroughItable(allowDefaultStdlibLibrary: Bool) throws {
+        try assertKotlinOutput(
+            try diffCaseSource("generic_method_itable_dispatch.kt"),
+            moduleName: "NestedGenericItableDispatch",
+            expected: "1\n7\n8\n9\n11\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testGeneratedCoroutineUsesCustomInterceptorOverrides(allowDefaultStdlibLibrary: Bool) throws {
+        try assertKotlinOutput(
+            try diffCaseSource("coroutine_generated_interception.kt"),
+            moduleName: "GeneratedCoroutineInterceptorDispatch",
+            expected: """
+            true
+            true
+            true
+            true
+            calls=1
+            completed-releases=0
+            42
+            resumes=0,releases=0
+            true
+            true
+            false
+            true
+            calls=1
+            release-identity=true
+            completed-releases=1
+            42
+            resumes=1,releases=1
+            true
+            true
+            false
+            true
+            calls=1
+            release-identity=true
+            completed-releases=1
+            body failure
+            resumes=1,releases=1
+            true
+            true
+            false
+            true
+            calls=1
+            release-identity=true
+            completed-releases=1
+            start failure
+            resumes=1,releases=1
+            suspended-releases=0
+            true
+            release-identity=true
+            delayed=73,releases=1
+            true
+            ordinary-calls=1
+
+            """,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testCustomMutableEntrySetValueDispatchesThroughInterface(allowDefaultStdlibLibrary: Bool) throws {
+        try assertKotlinOutput(
+            try diffCaseSource("custom_mutable_map_entry_set_value.kt"),
+            moduleName: "CustomMutableEntrySetValue",
+            expected: "custom\n1\n1\n4\n4\n9\n2\n5\nnull\nbefore\nnull\nnull\nafter\n3\n8\n8\nruntime\n8\ncaught\n10\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testInterfaceBlockBodyMinimalReproducer(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        interface I {
+            fun f(): Int { return 1 }
+        }
+        class C : I
+
+        fun main() {
+            println(C().f())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu947InterfaceBlockBody",
+            expected: "1\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testInterfaceBlockBodiesDispatchAcrossImplementations(allowDefaultStdlibLibrary: Bool) throws {
+        let source = try diffCaseSource("kuu947_interface_method_bodies.kt")
+        try assertKotlinOutput(
+            source,
+            moduleName: "Kuu947InterfaceBlockBodyDispatch",
+            expected: "1\n1\n7\n3\n3\n1\n42\ntotal:41\n43\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testOpenClassVirtualDispatchChoosesConcreteOverride() throws {
         let source = """

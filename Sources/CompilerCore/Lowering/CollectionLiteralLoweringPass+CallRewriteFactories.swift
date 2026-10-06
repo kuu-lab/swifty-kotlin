@@ -20,6 +20,7 @@ extension CollectionLiteralConstructionLoweringPass {
             objectValue: result,
             nominalSymbol: resolved.symbol.id,
             sema: sema,
+            cache: ctx.nominalDispatchCache,
             arena: module.arena,
             interner: ctx.interner,
             instructions: &loweredBody
@@ -141,6 +142,8 @@ extension CollectionLiteralConstructionLoweringPass {
                             symbols: ctx.sema?.symbols,
                             interner: ctx.interner,
                             arena: module.arena,
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             into: &loweredBody
                         )
                         storedArg = boxedResult
@@ -175,7 +178,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         // --- Rewrite ArrayList()/HashSet()/LinkedHashSet()/HashMap()/LinkedHashMap() constructors ---
-        // 0 args → empty collection; 1 int arg (capacity) → empty collection;
+        // 0 args → empty collection; 1 int arg (capacity) → checked empty ArrayList / empty collection;
         // 1 collection arg → copy.
         if isStdlibArrayListConstructor(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             if arguments.count == 1,
@@ -189,6 +192,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
                 if let result { state.listExprIDs.insert(result.rawValue) }
+                return true
+            }
+
+            if arguments.count == 1 {
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: ctx.interner.intern("__kk_array_list_new_checked"),
+                    arguments: arguments,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult
+                ))
                 return true
             }
 
@@ -227,6 +242,27 @@ extension CollectionLiteralConstructionLoweringPass {
                     result: result,
                     canThrow: false,
                     thrownResult: nil
+                ))
+                if let result { state.setExprIDs.insert(result.rawValue) }
+                return true
+            }
+
+            if isHashSetConstructor, (arguments.count == 1 || arguments.count == 2) {
+                let loadFactor: KIRExprID
+                if arguments.count == 2 {
+                    loadFactor = arguments[1]
+                } else {
+                    let floatType = ctx.sema?.types.floatType
+                    loadFactor = module.arena.appendExpr(.floatLiteral(0.75), type: floatType)
+                    loweredBody.append(.constValue(result: loadFactor, value: .floatLiteral(0.75)))
+                }
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: ctx.interner.intern("__kk_hash_set_new_checked"),
+                    arguments: [arguments[0], loadFactor],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult
                 ))
                 if let result { state.setExprIDs.insert(result.rawValue) }
                 return true
@@ -307,8 +343,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // `kk_map_count` branch that used to sit here. It was unreachable:
         // `Stdlib/kotlin/collections/MapHOF.kt` provides
         // `Map<K, V>.count(predicate)` as bundled Kotlin source, and
-        // `registerMapHigherOrderMembers`'s `registerMember` helper
-        // (`HeaderHelpers+SyntheticMapStubs.swift`) skips registering the
+        // The historical synthetic Map registration path also skipped the
         // competing synthetic `count` member whenever
         // `bundledIndex.contains(ownerFQName: mapFQName, name: "count",
         // arity: 1)` is true, which it is here — so there is no non-source-backed
@@ -399,6 +434,8 @@ extension CollectionLiteralConstructionLoweringPass {
                             symbols: ctx.sema?.symbols,
                             interner: ctx.interner,
                             arena: module.arena,
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             into: &loweredBody
                         )
                         storedArg = boxedResult
@@ -454,21 +491,25 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf() -> fresh instance via kk_map_of(null, null, 0).
-                // linkedMapOf() -> kk_linked_hash_map_of instead (KUU-556: it's
-                // declared to return LinkedHashMap<K, V>, now a real HashMap
-                // subclass with its own runtime tag; hashMapOf()/mutableMapOf()
-                // keep the pre-existing generic tag -- a known, separately
-                // tracked gap, not introduced by this change).
+                // KUU-646: `__kk_map_of` is now the read-only `Map` tag used by
+                // `mapOf`. Mutable factories take the same split List/Set
+                // already use: hashMapOf → HashMap, mutableMapOf/linkedMapOf →
+                // LinkedHashMap (Kotlin's mutableMapOf returns LinkedHashMap).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullKeysExpr, value: .intLiteral(0)))
                 let nullValsExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
+                let runtimeCallee: InternedString
+                if callee == lookup.hashMapOfName {
+                    runtimeCallee = lookup.kkHashMapOfName
+                } else {
+                    runtimeCallee = lookup.kkLinkedHashMapOfName
+                }
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    callee: runtimeCallee,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -544,9 +585,17 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 loweredBody.append(.call(
                     symbol: nil,
-                    // KUU-556: linkedMapOf(pairs) also gets its own runtime tag;
-                    // see the count == 0 branch above for the rationale.
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    // KUU-646: mapOf keeps the read-only Map tag; hashMapOf /
+                    // mutableMapOf / linkedMapOf use their concrete mutable tags.
+                    callee: {
+                        if callee == lookup.hashMapOfName {
+                            return lookup.kkHashMapOfName
+                        }
+                        if callee == lookup.mutableMapOfName || callee == lookup.linkedMapOfName {
+                            return lookup.kkLinkedHashMapOfName
+                        }
+                        return lookup.kkMapOfName
+                    }(),
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
                     canThrow: false,

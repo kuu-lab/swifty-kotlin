@@ -1,6 +1,8 @@
 // Generic value comparison (kk_compare_any) and its helpers.
 // Split out from `RuntimeStringStdlib.swift`.
 
+import RuntimeABI
+
 @_cdecl("kk_compare_any")
 public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     if lhsRaw == rhsRaw {
@@ -23,15 +25,15 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     {
         switch (lhsValue, rhsValue) {
         case let (.floating(lhs), .floating(rhs)):
-            return runtimeCompareFloating(lhs, rhs)
+            return runtimeCompareFloatingValues(lhs, rhs)
         case let (.floating(lhs), .integer(rhs)):
-            return runtimeCompareFloating(lhs, Double(rhs))
+            return runtimeCompareFloatingValues(lhs, Double(rhs))
         case let (.floating(lhs), .unsignedInteger(rhs)):
-            return runtimeCompareFloating(lhs, Double(rhs))
+            return runtimeCompareFloatingValues(lhs, Double(rhs))
         case let (.integer(lhs), .floating(rhs)):
-            return runtimeCompareFloating(Double(lhs), rhs)
+            return runtimeCompareFloatingValues(Double(lhs), rhs)
         case let (.unsignedInteger(lhs), .floating(rhs)):
-            return runtimeCompareFloating(Double(lhs), rhs)
+            return runtimeCompareFloatingValues(Double(lhs), rhs)
         case let (.integer(lhs), .integer(rhs)):
             if lhs == rhs {
                 return 0
@@ -45,9 +47,9 @@ public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
         // Mixed signed/unsigned only arises comparing statically-incompatible
         // Kotlin types (e.g. Long vs ULong); fall back to a Double approximation.
         case let (.integer(lhs), .unsignedInteger(rhs)):
-            return runtimeCompareFloating(Double(lhs), Double(rhs))
+            return runtimeCompareFloatingValues(Double(lhs), Double(rhs))
         case let (.unsignedInteger(lhs), .integer(rhs)):
-            return runtimeCompareFloating(Double(lhs), Double(rhs))
+            return runtimeCompareFloatingValues(Double(lhs), Double(rhs))
         }
     }
 
@@ -62,19 +64,6 @@ private enum RuntimeComparableScalar {
     case integer(Int)
     case unsignedInteger(UInt)
     case floating(Double)
-}
-
-private func runtimeCompareFloating(_ lhs: Double, _ rhs: Double) -> Int {
-    if lhs.isNaN {
-        return rhs.isNaN ? 0 : 1
-    }
-    if rhs.isNaN {
-        return -1
-    }
-    if lhs == rhs {
-        return 0
-    }
-    return lhs < rhs ? -1 : 1
 }
 
 private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? {
@@ -115,14 +104,30 @@ private func runtimeComparableScalar(from raw: Int) -> RuntimeComparableScalar? 
 }
 
 func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
-    let lhsCodeUnits = Array(lhs.utf16)
-    let rhsCodeUnits = Array(rhs.utf16)
-    let sharedCount = Swift.min(lhsCodeUnits.count, rhsCodeUnits.count)
-    for index in 0 ..< sharedCount {
-        let difference = Int(lhsCodeUnits[index]) - Int(rhsCodeUnits[index])
-        if difference != 0 {
-            return difference
+    var lhsIterator = KotlinStringSurrogateEncoding.UTF16CodeUnits(lhs).makeIterator()
+    var rhsIterator = KotlinStringSurrogateEncoding.UTF16CodeUnits(rhs).makeIterator()
+    while true {
+        switch (lhsIterator.next(), rhsIterator.next()) {
+        case let (lhsUnit?, rhsUnit?):
+            let difference = Int(lhsUnit) - Int(rhsUnit)
+            if difference != 0 {
+                return difference
+            }
+        case (nil, nil):
+            return 0
+        case (.some, nil):
+            return 1 + countRemaining(lhsIterator)
+        case (nil, .some):
+            return -(1 + countRemaining(rhsIterator))
         }
     }
-    return lhsCodeUnits.count - rhsCodeUnits.count
+}
+
+private func countRemaining(_ iterator: KotlinStringSurrogateEncoding.UTF16CodeUnits.Iterator) -> Int {
+    var iterator = iterator
+    var count = 0
+    while iterator.next() != nil {
+        count += 1
+    }
+    return count
 }

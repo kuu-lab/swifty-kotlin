@@ -1,0 +1,25 @@
+symbol fq=golden.sema.bounds.$0.parameter[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bounds[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.collections.List<kotlin.reflect.KType>;names=[parameter];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=kotlin.collections.List<kotlin.reflect.KType>
+symbol fq=golden.sema.classifier.$1.parameter[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.classifier[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KClassifier;names=[parameter];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=kotlin.reflect.KClassifier
+symbol fq=golden.sema.name.$2.parameter[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.name[kind=fun;params=kotlin.reflect.KTypeParameter;ret=String;names=[parameter];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=String
+symbol fq=golden.sema.reified.$3.parameter[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.reified[kind=fun;params=kotlin.reflect.KTypeParameter;ret=Boolean;names=[parameter];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=Boolean
+symbol fq=golden.sema.variance.$4.parameter[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.variance[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KVariance;names=[parameter];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KTypeParameter] ret=kotlin.reflect.KVariance
+file fstdlib_kotlin_reflect_KTypeParameter_KTypeParameter_n package=golden.sema
+  decl golden.sema.name[kind=fun;params=kotlin.reflect.KTypeParameter;ret=String;names=[parameter];origin=fixture] fun name sym=golden.sema.name[kind=fun;params=kotlin.reflect.KTypeParameter;ret=String;names=[parameter];origin=fixture]
+  decl golden.sema.reified[kind=fun;params=kotlin.reflect.KTypeParameter;ret=Boolean;names=[parameter];origin=fixture] fun reified sym=golden.sema.reified[kind=fun;params=kotlin.reflect.KTypeParameter;ret=Boolean;names=[parameter];origin=fixture]
+  decl golden.sema.bounds[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.collections.List<kotlin.reflect.KType>;names=[parameter];origin=fixture] fun bounds sym=golden.sema.bounds[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.collections.List<kotlin.reflect.KType>;names=[parameter];origin=fixture]
+  decl golden.sema.variance[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KVariance;names=[parameter];origin=fixture] fun variance sym=golden.sema.variance[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KVariance;names=[parameter];origin=fixture]
+  decl golden.sema.classifier[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KClassifier;names=[parameter];origin=fixture] fun classifier sym=golden.sema.classifier[kind=fun;params=kotlin.reflect.KTypeParameter;ret=kotlin.reflect.KClassifier;names=[parameter];origin=fixture]
+expr e@8:47 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.name.$2.parameter[kind=vparam;origin=fixture]
+expr e@8:47#1 memberCall recv=e@8:47 callee=name args=[] type=String ref=kotlin.reflect.KTypeParameter.name[kind=prop;type=String]
+expr e@10:51 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.reified.$3.parameter[kind=vparam;origin=fixture]
+expr e@10:51#1 memberCall recv=e@10:51 callee=isReified args=[] type=Boolean ref=kotlin.reflect.KTypeParameter.isReified[kind=prop;type=Boolean]
+expr e@12:54 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.bounds.$0.parameter[kind=vparam;origin=fixture]
+expr e@12:54#1 memberCall recv=e@12:54 callee=upperBounds args=[] type=kotlin.collections.List<out kotlin.reflect.KType> ref=kotlin.reflect.KTypeParameter.upperBounds[kind=prop;type=kotlin.collections.List<out kotlin.reflect.KType>]
+expr e@14:54 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.variance.$4.parameter[kind=vparam;origin=fixture]
+expr e@14:54#1 memberCall recv=e@14:54 callee=variance args=[] type=kotlin.reflect.KVariance ref=kotlin.reflect.KTypeParameter.variance[kind=prop;type=kotlin.reflect.KVariance]
+expr e@16:58 name(parameter) type=kotlin.reflect.KTypeParameter ref=golden.sema.classifier.$1.parameter[kind=vparam;origin=fixture]

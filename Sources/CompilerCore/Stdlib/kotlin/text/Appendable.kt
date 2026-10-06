@@ -7,22 +7,13 @@
 
 package kotlin.text
 
-import kotlin.internal.KsSymbolName
-
-/**
- * The append contract shared by StringBuilder and other mutable character
- * sinks. The runtime links are retained because StringBuilder is backed by a
- * runtime handle and does not populate ordinary object itable entries.
- */
+/** The append contract shared by StringBuilder and other mutable character sinks. */
 public interface Appendable {
-    @KsSymbolName("__kk_string_builder_append_char")
-    public external fun append(value: Char): Appendable
+    public fun append(value: Char): Appendable
 
-    @KsSymbolName("__kk_string_builder_append_obj")
-    public external fun append(value: CharSequence?): Appendable
+    public fun append(value: CharSequence?): Appendable
 
-    @KsSymbolName("__kk_string_builder_append_range")
-    public external fun append(value: CharSequence?, startIndex: Int, endIndex: Int): Appendable
+    public fun append(value: CharSequence?, startIndex: Int, endIndex: Int): Appendable
 }
 
 /** Appends a line feed character (`\n`) to this Appendable. */

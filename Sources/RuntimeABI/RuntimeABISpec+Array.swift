@@ -22,6 +22,16 @@ public extension RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_tag_type",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "typeID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_of_nulls",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),
@@ -44,6 +54,16 @@ public extension RuntimeABISpec {
             name: "kk_runtime_register_data_class",
             parameters: [
                 RuntimeABIParameter(name: "classID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_runtime_register_data_class_fields",
+            parameters: [
+                RuntimeABIParameter(name: "classID", type: .intptr),
+                RuntimeABIParameter(name: "mask", type: .intptr),
             ],
             returnType: .intptr,
             section: "Array",

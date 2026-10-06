@@ -12,11 +12,30 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.CoroutineContext
 import kotlin.internal.InlineOnly
 import kotlin.internal.KsSymbolName
 
 @KsSymbolName("kk_coroutine_suspended")
 private external fun coroutineSuspended(): Any
+
+@KsSymbolName("__kk_continuation_intercepted")
+private external fun <T> interceptContinuation(
+    continuation: Continuation<T>,
+    interceptorKey: CoroutineContext.Key<ContinuationInterceptor>
+): Continuation<T>
+
+/**
+ * Returns the intercepted runtime continuation, or this continuation unchanged
+ * when it is not backed by the runtime interception mechanism.
+ *
+ * KSwiftK uses Swift-owned continuation handles instead of ContinuationImpl;
+ * the bridge owns the representation check and dispatcher adaptation.
+ */
+@SinceKotlin("1.3")
+public fun <T> Continuation<T>.intercepted(): Continuation<T> =
+    interceptContinuation(this, ContinuationInterceptor.Key)
 
 /**
  * Marker returned by a coroutine that suspended before producing its result.
@@ -66,16 +85,28 @@ internal fun <T> startCoroutineUninterceptedOrReturnFallback(
     return (function as Function1<Continuation<T>, Any?>).invoke(completion)
 }
 
-/** Receiver-bearing fallback for [startCoroutineUninterceptedOrReturnFallback]. */
-@Suppress("UNCHECKED_CAST")
+/**
+ * Markers for the receiver-bearing coroutine intrinsics. They are bodiless so
+ * inlining leaves the call in place; the coroutine lowering pass rewrites it
+ * into the runtime entry-point ABI (a suspend function value cannot be invoked
+ * through a `Function2` cast). The create marker also accepts boxed suspend
+ * callables for ordinary public builders; the start marker remains link-only.
+ */
+@KsSymbolName("kk_start_coroutine_unintercepted_or_return_with_receiver")
 @PublishedApi
-internal fun <R, T> startCoroutineUninterceptedOrReturnFallback(
+internal external fun <R, T> startCoroutineUninterceptedOrReturnWithReceiver(
     function: suspend R.() -> T,
     receiver: R,
     completion: Continuation<T>
-): Any? {
-    return (function as Function2<Any?, Any?, Any?>).invoke(receiver, completion)
-}
+): Any?
+
+@KsSymbolName("kk_create_coroutine_unintercepted_with_receiver")
+@PublishedApi
+internal external fun <R, T> createCoroutineUninterceptedWithReceiver(
+    function: suspend R.() -> T,
+    receiver: R,
+    completion: Continuation<T>
+): Continuation<Unit>
 
 /**
  * The runtime continuation is already suitable for KSwiftK's coroutine ABI.

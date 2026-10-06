@@ -1,4 +1,4 @@
-// SKIP-DIFF (KSP-959): the helpers are internal @PublishedApi stdlib APIs.
+// SKIP-DIFF (DEBT-DIFF-001): KSP-959 helpers are internal @PublishedApi stdlib APIs.
 // Run this candidate directly with kswiftc; reference kotlinc requires friend access.
 package kotlin.collections
 

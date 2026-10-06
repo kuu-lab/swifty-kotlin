@@ -9,6 +9,83 @@ import Testing
 
 extension AnnotationSemanticTests {
 
+    @Test(arguments: ["val", "var"])
+    func testUntargetedAnnotationsAcceptConstructorPropertyParameters(propertyKind: String) throws {
+        let source = """
+        @Target(AnnotationTarget.PROPERTY)
+        annotation class PropertyOnly
+        @Target(AnnotationTarget.FIELD)
+        annotation class FieldOnly
+        @Target(AnnotationTarget.VALUE_PARAMETER)
+        annotation class ParamOnly
+        @Target(AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.PROPERTY, AnnotationTarget.FIELD)
+        annotation class ParamPropertyField
+
+        sealed class PartData(
+            @Deprecated("Use release instead", level = DeprecationLevel.WARNING)
+            public \(propertyKind) dispose: () -> Unit,
+        )
+        class PropertyExample(@PropertyOnly \(propertyKind) x: Int)
+        class FieldExample(@FieldOnly \(propertyKind) x: Int)
+        class ParamExample(@ParamOnly \(propertyKind) x: Int)
+        class MultiTargetExample(@ParamPropertyField \(propertyKind) x: Int)
+        class ExplicitPropertyExample(@property:PropertyOnly \(propertyKind) x: Int)
+        class ExplicitFieldExample(@field:FieldOnly \(propertyKind) x: Int)
+        class ExplicitParamExample(@param:ParamOnly \(propertyKind) x: Int)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter(isError)
+            #expect(errors.isEmpty, "Constructor \(propertyKind) annotations should be accepted: \(errors)")
+        }
+    }
+
+    @Test func testConstructorPropertyParameterAnnotationsPreserveTargetRestrictions() throws {
+        let sources = [
+            "@PropertyOnly x: Int",
+            "@FieldOnly x: Int",
+            "@Deprecated(\"old\") x: Int",
+            "@GetterOnly val x: Int",
+            "@SetterOnly var x: Int",
+            "@FunctionOnly val x: Int",
+            "@param:Deprecated(\"old\") val x: Int",
+            "@param:PropertyOnly var x: Int",
+            "@property:ParamOnly val x: Int",
+            "@field:PropertyOnly var x: Int",
+        ].enumerated().map { index, parameter in
+            """
+            package sample\(index)
+            @Target(AnnotationTarget.PROPERTY)
+            annotation class PropertyOnly
+            @Target(AnnotationTarget.FIELD)
+            annotation class FieldOnly
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class ParamOnly
+            @Target(AnnotationTarget.PROPERTY_GETTER)
+            annotation class GetterOnly
+            @Target(AnnotationTarget.PROPERTY_SETTER)
+            annotation class SetterOnly
+            @Target(AnnotationTarget.FUNCTION)
+            annotation class FunctionOnly
+
+            class Example(\(parameter))
+            """
+        }
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                let diagnostics = diagnosticsForPath(path, in: ctx)
+                let targetErrors = diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
+                #expect(targetErrors.count == 1, "Expected one annotation-target error: \(diagnostics)")
+                #expect(targetErrors.allSatisfy(isError))
+            }
+        }
+    }
+
     @Test func testConstructorValueParamEnumEntrySema() throws {
         let sources: [String] = [
             // testConstructorOnlyAnnotationAcceptedOnPrimaryConstructor

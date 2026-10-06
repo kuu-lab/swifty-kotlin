@@ -901,5 +901,97 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 """ + "\n"
         )
     }
+
+    // BUG-267: delegated properties inside object expressions must emit
+    // delegate storage, initializer calls, and synthesized get/set accessors
+    // for both explicit (`o.x`) and implicit (`x` inside a member) receivers.
+    @Test
+    func testCodegenObjectLiteralLazyDelegateBothReceivers() throws {
+        let source = """
+        fun main() {
+            val o = object {
+                val x: Int by lazy { 42 }
+                fun show(): Int = x
+            }
+            println(o.x)
+            println(o.show())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralLazyDelegateBothReceivers",
+            expected:
+                """
+                42
+                42
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralCustomDelegateReadWriteCompound() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+
+        class IntBox(var v: Int) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = v
+            operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
+                v = value
+            }
+        }
+
+        fun main() {
+            val m = object {
+                var count: Int by IntBox(7)
+                fun read(): Int = count
+                fun bump() { count += 1 }
+            }
+            println(m.count)
+            m.count = 8
+            println(m.count)
+            println(m.read())
+            m.bump()
+            println(m.count)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralCustomDelegateReadWriteCompound",
+            expected:
+                """
+                7
+                8
+                8
+                9
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralLazyDelegateCapturesOuterLocal() throws {
+        let source = """
+        fun main() {
+            val base = 20
+            val captured = object {
+                val x: Int by lazy { base + 1 }
+                fun show(): Int = x
+            }
+            println(captured.x)
+            println(captured.show())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralLazyDelegateCapturesOuterLocal",
+            expected:
+                """
+                21
+                21
+                """ + "\n"
+        )
+    }
 }
 #endif

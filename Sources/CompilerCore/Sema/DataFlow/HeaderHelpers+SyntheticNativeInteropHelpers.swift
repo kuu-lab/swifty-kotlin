@@ -366,10 +366,10 @@ extension DataFlowSemaPhase {
             }
 
             // Use typeParameterSymbols to create a unique FQName discriminator for
-            // value parameters.  Without this, overloads that differ only in receiver
-            // type (e.g. CPointer<T1>.plus vs CPointer<T2>.plus) share the same
-            // parameter FQName, causing define() to return the same SymbolID for
-            // all of them and the last setPropertyType call to win.
+            // value parameters.  Without this, overloads that differ only in the
+            // receiver's type parameter share the same parameter FQName, causing
+            // define() to return the same SymbolID for all of them and the last
+            // setPropertyType call to win.
             let paramFQNameDiscriminator: [InternedString] = typeParameterSymbols.isEmpty
                 ? []
                 : [interner.intern("$tp" + typeParameterSymbols.map { String($0.rawValue) }.joined(separator: "_"))]

@@ -68,7 +68,7 @@ public fun String.trim(): String {
 /**
  * Returns a string with leading and trailing characters matching [predicate] removed.
  */
-public fun String.trim(predicate: (Char) -> Boolean): String {
+public inline fun String.trim(predicate: (Char) -> Boolean): String {
     var start = 0
     var end = length
     while (start < end) {
@@ -101,7 +101,7 @@ public fun String.trimStart(): String {
 /**
  * Returns a string with leading characters matching [predicate] removed.
  */
-public fun String.trimStart(predicate: (Char) -> Boolean): String {
+public inline fun String.trimStart(predicate: (Char) -> Boolean): String {
     var i = 0
     while (i < length) {
         if (!predicate(this[i])) break
@@ -129,7 +129,7 @@ public fun String.trimEnd(): String {
 /**
  * Returns a string with trailing characters matching [predicate] removed.
  */
-public fun String.trimEnd(predicate: (Char) -> Boolean): String {
+public inline fun String.trimEnd(predicate: (Char) -> Boolean): String {
     var i = length
     while (i > 0) {
         if (!predicate(this[i - 1])) break

@@ -59,7 +59,7 @@ extension CollectionLiteralConstructionLoweringPass {
             receiverID,
             module: module,
             sema: ctx.sema,
-            interner: ctx.interner,
+            lookup: lookup,
             state: &state
         )
 

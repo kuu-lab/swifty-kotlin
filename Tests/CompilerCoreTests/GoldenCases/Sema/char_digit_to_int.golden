@@ -1,17 +1,17 @@
-symbol fq=__local_0.d[kind=local] kind=local vis=private flags=_ type=Int
-symbol fq=__local_1.n[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=__local_2.r[kind=local] kind=local vis=private flags=_ type=Int?
-symbol fq=testDigitConversion.$0.c[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=testDigitConversion[kind=fun;params=Char] kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Unit
+symbol fq=__local_0.d[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.n[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_2.r[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=testDigitConversion.$0.c[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=testDigitConversion[kind=fun;params=Char;ret=Unit;names=[c];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Char] ret=Unit
 file fchar_digit_to_int package=_
-  decl testDigitConversion[kind=fun;params=Char] fun testDigitConversion sym=testDigitConversion[kind=fun;params=Char]
-expr e@2:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam]
-expr e@2:13#1 memberCall recv=e@2:13 callee=digitToInt args=[] type=Int call=kotlin.text.digitToInt[kind=fun;recv=Char;params=]
-expr e@2:5 localDecl d mutable=0 type=_ init=e@2:13#1 type=Unit ref=__local_0.d[kind=local]
-expr e@3:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam]
-expr e@3:13#1 memberCall recv=e@3:13 callee=digitToIntOrNull args=[] type=Int? call=kotlin.text.digitToIntOrNull[kind=fun;recv=Char;params=]
-expr e@3:5 localDecl n mutable=0 type=_ init=e@3:13#1 type=Unit ref=__local_1.n[kind=local]
-expr e@4:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam]
+  decl testDigitConversion[kind=fun;params=Char;ret=Unit;names=[c];origin=fixture] fun testDigitConversion sym=testDigitConversion[kind=fun;params=Char;ret=Unit;names=[c];origin=fixture]
+expr e@2:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam;origin=fixture]
+expr e@2:13#1 memberCall recv=e@2:13 callee=digitToInt args=[] type=Int call=kotlin.text.digitToInt[kind=fun;recv=Char;params=;ret=Int]
+expr e@2:5 localDecl d mutable=0 type=_ init=e@2:13#1 type=Unit ref=__local_0.d[kind=local;type=Int;origin=fixture]
+expr e@3:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam;origin=fixture]
+expr e@3:13#1 memberCall recv=e@3:13 callee=digitToIntOrNull args=[] type=Int? call=kotlin.text.digitToIntOrNull[kind=fun;recv=Char;params=;ret=Int?]
+expr e@3:5 localDecl n mutable=0 type=_ init=e@3:13#1 type=Unit ref=__local_1.n[kind=local;type=Int?;origin=fixture]
+expr e@4:13 name(c) type=Char ref=testDigitConversion.$0.c[kind=vparam;origin=fixture]
 expr e@4:32 int(16) type=Int
-expr e@4:13#1 memberCall recv=e@4:13 callee=digitToIntOrNull args=[_:e@4:32] type=Int? call=kotlin.text.digitToIntOrNull[kind=fun;recv=Char;params=Int]
-expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13#1 type=Unit ref=__local_2.r[kind=local]
+expr e@4:13#1 memberCall recv=e@4:13 callee=digitToIntOrNull args=[_:e@4:32] type=Int? call=kotlin.text.digitToIntOrNull[kind=fun;recv=Char;params=Int;ret=Int?;names=[radix]]
+expr e@4:5 localDecl r mutable=0 type=_ init=e@4:13#1 type=Unit ref=__local_2.r[kind=local;type=Int?;origin=fixture]

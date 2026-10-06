@@ -4,65 +4,47 @@
 import Foundation
 import RuntimeABI
 
-func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
-    Array(runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars)
-}
-
 func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
-    runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
+    if let box = runtimeStringBox(fromRaw: raw) {
+        return box.utf16CodeUnits
+    }
+    return runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
 
 /// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
 /// surrogate markers back to their original values.
 func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
-    var result: [UInt16] = []
-    result.reserveCapacity(value.utf16.count)
-    for scalar in value.unicodeScalars {
-        let scalarValue = scalar.value
-        if let codeUnitValue = KotlinStringSurrogateEncoding.codeUnitValue(for: scalarValue) {
-            result.append(UInt16(codeUnitValue))
-        } else if scalarValue <= 0xFFFF {
-            result.append(UInt16(scalarValue))
-        } else {
-            let offset = scalarValue - 0x10000
-            result.append(UInt16(0xD800 + (offset >> 10)))
-            result.append(UInt16(0xDC00 + (offset & 0x03FF)))
-        }
-    }
-    return result
+    KotlinStringSurrogateEncoding.utf16CodeUnits(value)
 }
 
+/// Appends `value`'s Kotlin UTF-16 code units to `units` without building an
+/// intermediate array.
+func runtimeAppendKotlinUTF16CodeUnits(of value: String, to units: inout [UInt16]) {
+    units.reserveCapacity(units.count + value.utf16.count)
+    units.append(contentsOf: KotlinStringSurrogateEncoding.UTF16CodeUnits(value))
+}
+
+/// The Kotlin UTF-16 code unit at `index`, scanning scalars only until the
+/// target is reached instead of materializing the whole code-unit array.
+/// Returns nil when `index` is out of bounds; identical to
+/// `runtimeKotlinStringUTF16CodeUnits(value)[index]` for in-range indexes.
+func runtimeKotlinStringUTF16CodeUnit(_ value: String, at index: Int) -> UInt16? {
+    guard index >= 0 else { return nil }
+    for (offset, unit) in KotlinStringSurrogateEncoding.UTF16CodeUnits(value).enumerated() {
+        if offset == index { return unit }
+    }
+    return nil
+}
+
+/// UTF-16 code-unit count without allocating the unit array.
 func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
-    runtimeKotlinStringUTF16CodeUnits(value).count
+    KotlinStringSurrogateEncoding.UTF16CodeUnits(value).reduce(0) { count, _ in count + 1 }
 }
 
 /// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
 /// isolated surrogates through the compiler/runtime marker representation.
 func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
-    var result = ""
-    result.reserveCapacity(units.count)
-    var index = 0
-    while index < units.count {
-        let codeUnit = UInt32(units[index])
-        if (0xD800 ... 0xDBFF).contains(codeUnit),
-           index + 1 < units.count,
-           (0xDC00 ... 0xDFFF).contains(UInt32(units[index + 1]))
-        {
-            let low = UInt32(units[index + 1])
-            let combined = 0x10000 + ((codeUnit - 0xD800) << 10) + (low - 0xDC00)
-            result.unicodeScalars.append(UnicodeScalar(combined)!)
-            index += 2
-        } else if let markerValue = KotlinStringSurrogateEncoding.markerValue(for: codeUnit),
-                  let marker = UnicodeScalar(markerValue)
-        {
-            result.unicodeScalars.append(marker)
-            index += 1
-        } else {
-            result.unicodeScalars.append(UnicodeScalar(codeUnit)!)
-            index += 1
-        }
-    }
-    return result
+    KotlinStringSurrogateEncoding.fromUTF16CodeUnits(units)
 }
 
 /// Kotlin String equality compares the underlying UTF-16 code-unit sequence.
@@ -70,11 +52,7 @@ func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
 /// the default Kotlin String equality contract.
 @inline(__always)
 func runtimeStringsEqual(_ lhs: String, _ rhs: String) -> Bool {
-    lhs.utf16.elementsEqual(rhs.utf16)
-}
-
-func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -> String {
-    String(String.UnicodeScalarView(scalars))
+    KotlinStringSurrogateEncoding.UTF16CodeUnits(lhs).elementsEqual(KotlinStringSurrogateEncoding.UTF16CodeUnits(rhs))
 }
 
 func runtimeStringFromRaw(_ raw: Int) -> String? {
@@ -101,9 +79,21 @@ func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
 
 func runtimeCharacterFromRaw(_ raw: Int) -> String {
     guard let scalar = runtimeUnicodeScalarFromRaw(raw) else {
+        // A lone surrogate half is a valid Kotlin Char; keep it (as the
+        // isolated-surrogate marker) so it can recombine into a pair later.
+        var code = raw
+        if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+           runtimeIsObjectPointer(pointer),
+           let charBox = tryCast(pointer, to: RuntimeCharBox.self)
+        {
+            code = Int(charBox.value)
+        }
+        if (0xD800 ... 0xDFFF).contains(code) {
+            return runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)])
+        }
         return "?"
     }
-    return String(scalar)
+    return KotlinStringSurrogateEncoding.encode(String(scalar))
 }
 
 func runtimeUnicodeScalarFromRaw(_ raw: Int) -> UnicodeScalar? {
@@ -122,12 +112,9 @@ func runtimeIsObjectPointer(_ pointer: UnsafeMutableRawPointer) -> Bool {
     }
 }
 
+/// Boxes an internal escaped string. Foreign UTF-8 enters via kk_string_from_utf8.
 func runtimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
+    registerRuntimeObject(RuntimeStringBox(value))
 }
 
 func runtimeMakeListRaw(_ values: [Int]) -> Int {
@@ -142,7 +129,7 @@ func runtimeMakeListRaw(_ values: [Int]) -> Int {
 func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     let box = RuntimeArrayBox(length: values.count)
     for (index, value) in values.enumerated() {
-        box.elements[index] = value
+        box[index] = value
     }
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -216,7 +203,7 @@ func runtimeStringIndexOfFirstFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeStringIndexOfFirst(
-        scalars: runtimeStringScalars(strRaw),
+        units: runtimeStringUTF16CodeUnits(strRaw),
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         outThrown: outThrown
@@ -227,7 +214,7 @@ func runtimeStringIndexOfLastFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeStringIndexOfLast(
-        scalars: runtimeStringScalars(strRaw),
+        units: runtimeStringUTF16CodeUnits(strRaw),
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         outThrown: outThrown
@@ -235,7 +222,7 @@ func runtimeStringIndexOfLastFromRaw(
 }
 
 private func runtimeStringIndexOfFirst(
-    scalars: [UnicodeScalar],
+    units: [UInt16],
     fnPtr: Int,
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
@@ -243,8 +230,8 @@ private func runtimeStringIndexOfFirst(
     outThrown?.pointee = 0
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
+    for (index, unit) in units.enumerated() {
+        let charRaw = Int(unit)
         var thrown = 0
         let result = lambda(closureRaw, charRaw, &thrown)
         if thrown != 0 {
@@ -259,7 +246,7 @@ private func runtimeStringIndexOfFirst(
 }
 
 private func runtimeStringIndexOfLast(
-    scalars: [UnicodeScalar],
+    units: [UInt16],
     fnPtr: Int,
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
@@ -268,8 +255,8 @@ private func runtimeStringIndexOfLast(
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var lastIdx = -1
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
+    for (index, unit) in units.enumerated() {
+        let charRaw = Int(unit)
         var thrown = 0
         let result = lambda(closureRaw, charRaw, &thrown)
         if thrown != 0 {
@@ -283,25 +270,128 @@ private func runtimeStringIndexOfLast(
     return lastIdx
 }
 
-func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
-    if source.isEmpty {
-        return [""]
+/// Applies full case mapping only to valid Unicode runs. NUL and isolated
+/// surrogate units are uncased boundaries and must survive foreign string APIs.
+/// Decode before mapping and re-encode afterwards so literal private-use scalars
+/// cannot be confused with the runtime's escaped surrogate representation.
+func runtimeKotlinCaseMapped(_ source: String, mapping: (String) -> String) -> String {
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [UInt16] = []
+    result.reserveCapacity(units.count)
+    var start = 0
+    var index = 0
+
+    func appendMappedRun(endingAt end: Int) {
+        guard start < end else { return }
+        let run = String(decoding: units[start ..< end], as: UTF16.self)
+        result.append(contentsOf: mapping(run).utf16)
     }
 
-    var result: [String] = []
-    var cursor = source.startIndex
-    while true {
-        if limit > 0 && result.count == limit - 1 {
-            result.append(String(source[cursor...]))
-            return result
+    while index < units.count {
+        let unit = units[index]
+        if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
+           (0xDC00 ... 0xDFFF).contains(units[index + 1])
+        {
+            // Keep valid pairs together for supplementary-plane case mappings.
+            index += 2
+            continue
         }
-        guard let match = source.range(of: delimiter, range: cursor ..< source.endIndex) else {
-            result.append(String(source[cursor...]))
-            return result
+        if unit == 0 || (0xD800 ... 0xDFFF).contains(unit) {
+            appendMappedRun(endingAt: index)
+            result.append(unit)
+            start = index + 1
         }
-        result.append(String(source[cursor ..< match.lowerBound]))
-        cursor = match.upperBound
+        index += 1
     }
+    appendMappedRun(endingAt: units.count)
+    return runtimeKotlinStringFromUTF16CodeUnits(result)
+}
+
+/// `String.lowercase()` with the unconditional Unicode mappings plus the
+/// context-sensitive Final_Sigma rule (Σ -> ς at the end of a word, else σ),
+/// which `String.lowercased()` does not apply.
+func runtimeKotlinLowercased(_ source: String) -> String {
+    let scalars = Array(source.unicodeScalars)
+    guard scalars.contains(where: { $0.value == 0x3A3 }) else { return source.lowercased() }
+
+    func lowercased(_ range: Range<Int>) -> String {
+        var view = String.UnicodeScalarView()
+        view.append(contentsOf: scalars[range])
+        return String(view).lowercased()
+    }
+    func isFinalSigma(at index: Int) -> Bool {
+        var before = index - 1
+        while before >= 0, scalars[before].properties.isCaseIgnorable { before -= 1 }
+        guard before >= 0, scalars[before].properties.isCased else { return false }
+        var after = index + 1
+        while after < scalars.count, scalars[after].properties.isCaseIgnorable { after += 1 }
+        return after >= scalars.count || !scalars[after].properties.isCased
+    }
+
+    var result = ""
+    var segmentStart = 0
+    for index in scalars.indices where scalars[index].value == 0x3A3 {
+        result += lowercased(segmentStart ..< index)
+        result += isFinalSigma(at: index) ? "\u{3C2}" : "\u{3C3}"
+        segmentStart = index + 1
+    }
+    return result + lowercased(segmentStart ..< scalars.count)
+}
+
+func runtimeSplitString(_ source: String, delimiter: String, limit: Int = 0) -> [String] {
+    runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: false, limit: limit)
+}
+
+/// Index of the first occurrence of `needle` in `units` at or after `start`,
+/// comparing UTF-16 code units the way Kotlin's `indexOf` does. Foundation's
+/// `range(of:)` is unsuitable: it matches canonically equivalent sequences
+/// ("e\u{301}" ~ "é") and applies full case folding (ß ~ SS).
+private func runtimeIndexOfCodeUnits(
+    _ needle: [UInt16],
+    in units: [UInt16],
+    from start: Int,
+    ignoreCase: Bool
+) -> Int? {
+    let lastStart = units.count - needle.count
+    guard start <= lastStart else { return nil }
+    var candidate = start
+    while candidate <= lastStart {
+        var offset = 0
+        while offset < needle.count {
+            let lhs = units[candidate + offset]
+            let rhs = needle[offset]
+            if lhs != rhs, !(ignoreCase && runtimeCharsEqualIgnoringCase(lhs, rhs)) { break }
+            offset += 1
+        }
+        if offset == needle.count { return candidate }
+        candidate += 1
+    }
+    return nil
+}
+
+func runtimeReplacingStringCodeUnits(
+    _ source: String, old: String, new: String, ignoreCase: Bool = false, firstOnly: Bool = false
+) -> String {
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    let needle = runtimeKotlinStringUTF16CodeUnits(old)
+    let replacement = runtimeKotlinStringUTF16CodeUnits(new)
+    var result: [UInt16] = []
+    var cursor = 0
+    while cursor <= units.count,
+          let match = runtimeIndexOfCodeUnits(needle, in: units, from: cursor, ignoreCase: ignoreCase)
+    {
+        result.append(contentsOf: units[cursor ..< match])
+        result.append(contentsOf: replacement)
+        cursor = match + needle.count
+        if firstOnly { break }
+        if needle.isEmpty {
+            if cursor == units.count { break }
+            result.append(units[cursor])
+            cursor += 1
+        }
+    }
+    result.append(contentsOf: units[cursor ..< units.count])
+    return runtimeKotlinStringFromUTF16CodeUnits(result)
 }
 
 func runtimeSplitStringLimit(
@@ -310,23 +400,61 @@ func runtimeSplitStringLimit(
     ignoreCase: Bool,
     limit: Int
 ) -> [String] {
+    if delimiter.isEmpty {
+        return runtimeSplitStringOnEmptyDelimiter(source, limit: limit)
+    }
     if source.isEmpty {
         return [""]
     }
 
-    let options: String.CompareOptions = ignoreCase ? [.caseInsensitive] : []
+    let units = runtimeKotlinStringUTF16CodeUnits(source)
+    let needle = runtimeKotlinStringUTF16CodeUnits(delimiter)
+    func piece(_ range: Range<Int>) -> String {
+        runtimeKotlinStringFromUTF16CodeUnits(Array(units[range]))
+    }
     var result: [String] = []
-    var cursor = source.startIndex
+    var cursor = 0
     while true {
         if limit > 0, result.count == limit - 1 {
-            result.append(String(source[cursor...]))
+            result.append(piece(cursor ..< units.count))
             return result
         }
-        guard let match = source.range(of: delimiter, options: options, range: cursor ..< source.endIndex) else {
-            result.append(String(source[cursor...]))
+        guard let match = runtimeIndexOfCodeUnits(needle, in: units, from: cursor, ignoreCase: ignoreCase) else {
+            result.append(piece(cursor ..< units.count))
             return result
         }
-        result.append(String(source[cursor ..< match.lowerBound]))
-        cursor = match.upperBound
+        result.append(piece(cursor ..< match))
+        cursor = match + needle.count
     }
+}
+
+/// Splits at every UTF-16 code-unit boundary, including the boundaries at both
+/// ends of the source. Kotlin treats an empty string delimiter as a zero-width
+/// match at each such position.
+private func runtimeSplitStringOnEmptyDelimiter(_ source: String, limit: Int) -> [String] {
+    let codeUnits = runtimeKotlinStringUTF16CodeUnits(source)
+    var result: [String] = []
+    result.reserveCapacity(limit > 0 ? min(limit, codeUnits.count + 2) : codeUnits.count + 2)
+
+    var fieldStart = 0
+    var matchPosition = 0
+    while matchPosition <= codeUnits.count {
+        if limit > 0 && result.count == limit - 1 {
+            break
+        }
+        result.append(
+            runtimeKotlinStringFromUTF16CodeUnits(
+                Array(codeUnits[fieldStart ..< matchPosition])
+            )
+        )
+        fieldStart = matchPosition
+        matchPosition += 1
+    }
+
+    result.append(
+        runtimeKotlinStringFromUTF16CodeUnits(
+            Array(codeUnits[fieldStart ..< codeUnits.count])
+        )
+    )
+    return result
 }

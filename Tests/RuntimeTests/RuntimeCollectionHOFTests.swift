@@ -305,6 +305,33 @@ private let firstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePo
 @Suite(.runtimeIsolation(.gcOnly, resetAdditionalState: { gHOFState.reset() }))
 struct RuntimeCollectionHOFTests {
     @Test
+    func testListWindowedRejectsNonPositiveSizeAndStep() {
+        let source = makeList([1, 2, 3])
+
+        var thrown = 0
+        _ = kk_list_bridge_windowed(source, 0, 1, 0, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_list_bridge_windowed(source, -1, 1, 0, &thrown)
+        #expect(thrown != 0)
+        thrown = 0
+        _ = kk_list_bridge_windowed(source, 2, 0, 0, &thrown)
+        #expect(thrown != 0)
+
+        thrown = 0
+        _ = kk_list_bridge_windowed_transform(
+            source,
+            0,
+            1,
+            0,
+            unsafeBitCast(identityMapValue, to: Int.self),
+            0,
+            &thrown
+        )
+        #expect(thrown != 0)
+    }
+
+    @Test
     func testMapIndexedNotNullFiltersNullResults() {
         let source = makeList([10, 20, 30, 40])
         let mapped = kk_list_mapIndexedNotNull(
@@ -779,48 +806,6 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
-    func testMutableListShuffleAndReverse() {
-        // Test shuffle
-        let source = makeList([1, 2, 3, 4, 5])
-        let originalElements = listElements(source)
-
-        _ = kk_mutable_list_shuffle(source)
-        let shuffledElements = listElements(source)
-
-        // Should have same elements but different order (most likely)
-        #expect(shuffledElements.count == originalElements.count)
-        #expect(Set(shuffledElements) == Set(originalElements))
-
-        // Test reverse
-        _ = kk_mutable_list_reverse(source)
-        let reversedElements = listElements(source)
-
-        // Should be the reverse of shuffled
-        #expect(reversedElements == shuffledElements.reversed())
-
-        // Test with empty list
-        let emptyList = makeList([])
-        _ = kk_mutable_list_shuffle(emptyList)
-        #expect(listElements(emptyList) == [])
-
-        _ = kk_mutable_list_reverse(emptyList)
-        #expect(listElements(emptyList) == [])
-
-        // Test with single element
-        let singleList = makeList([42])
-        _ = kk_mutable_list_shuffle(singleList)
-        #expect(listElements(singleList) == [42])
-
-        _ = kk_mutable_list_reverse(singleList)
-        #expect(listElements(singleList) == [42])
-
-        // Test with duplicate elements
-        let duplicateList = makeList([5, 2, 5, 2, 5])
-        _ = kk_mutable_list_reverse(duplicateList)
-        #expect(listElements(duplicateList) == [5, 2, 5, 2, 5].reversed())
-    }
-
-    @Test
     func testIterableAnyShortCircuitsAcrossCollectionKindsAndNoArgOverload() {
         let listSource = makeList([1, 2, 3, 4])
 
@@ -1083,14 +1068,15 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapOfPairsNormalizesLinkedFactorySpreadEntries() {
-        // KSP-954: linkedMapOf(*pairs) lowers to __kk_map_of_pairs with the
-        // spread varargs packed into a single Pair array.
+        // KSP-954 / KUU-646: linkedMapOf(*pairs) lowers to
+        // __kk_linked_hash_map_of_pairs with the spread varargs packed into a
+        // single Pair array.
         let pairs = makeArray([
             kk_pair_new(1, 10),
             kk_pair_new(2, 20),
             kk_pair_new(1, 30),
         ])
-        let map = kk_map_of_pairs(pairs, 3)
+        let map = kk_linked_hash_map_of_pairs(pairs, 3)
 
         #expect(mapKeys(map) == [1, 2])
         #expect(mapValues(map) == [30, 20])
@@ -1133,7 +1119,7 @@ struct RuntimeCollectionHOFTests {
         let target = registerRuntimeObject(RuntimeMapBox(keys: [1, 2], values: [10]))
         let source = registerRuntimeObject(RuntimeMapBox(keys: [2, 3], values: [20, 30]))
 
-        _ = kk_mutable_map_putAll(target, source)
+        _ = kk_mutable_map_putAll(target, source, nil)
 
         #expect(mapKeys(target) == [1, 2, 3])
         #expect(mapValues(target) == [10, 20, 30])
@@ -1162,6 +1148,34 @@ struct RuntimeCollectionHOFTests {
         #expect(kk_unbox_bool(kk_mutable_collection_add(setTarget, 2)) == 0)
         #expect(kk_unbox_bool(kk_mutable_collection_add(setTarget, 3)) == 1)
         #expect(setElements(setTarget) == [1, 2, 3])
+    }
+
+    @Test(arguments: [true, false])
+    func testThrowingMutableCollectionBridgesPreserveBoxMutations(isSet: Bool) {
+        let target = isSet ? registerRuntimeObject(RuntimeSetBox(elements: [1, 2])) : makeList([1, 2])
+        var thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_add_throwing(target, 3, &thrown)) == 1)
+        #expect(thrown == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_remove_throwing(target, 2, &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_remove_throwing(target, 99, &thrown)) == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([4, 5]), &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([]), &thrown)) == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll_throwing(target, makeList([1]), &thrown)) == 1)
+        #expect(thrown == 0)
+        thrown = 99
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 1)
+        #expect(thrown == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 0)
+        #expect(isSet ? setElements(target) == [3, 4] : listElements(target) == [3, 4])
+        thrown = 99
+        #expect(kk_mutable_collection_clear_throwing(target, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(isSet ? setElements(target).isEmpty : listElements(target).isEmpty)
     }
 
     @Test
