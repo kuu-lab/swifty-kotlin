@@ -208,6 +208,7 @@ final class CoroutineLoweringPass: LoweringPass {
             let loweredSemaSymbol = loweredFunctionSymbol.semaSymbol
             let suspendLoweringPlan = analyzeSuspendLoweringPlan(
                 originalBody: suspendFunction.body,
+                module: module,
                 suspendFunctionSymbols: suspendFunctionSymbols,
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames

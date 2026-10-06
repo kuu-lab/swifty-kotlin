@@ -138,7 +138,13 @@ struct RuntimeCoroutineScopeAsyncTests {
         let handle = kk_coroutine_scope_async_with_cont(scope, override, 1, entry, continuation, 1)
         let state = try #require(runtimeContinuationState(from: continuation))
         #expect(state.makeContinuationContext().name == "child")
-        #expect(state.scope === runtimeCoroutineScope(from: scope))
+        // The continuation's scope is a fresh child scope carrying the async
+        // task's Job — nested builders must attach to the task, not the
+        // receiver scope (DeferredCoroutine contract).
+        let task = try #require(runtimeAsyncTask(from: handle))
+        #expect(state.scope !== runtimeCoroutineScope(from: scope))
+        #expect(state.scope?.job === task.completionJob)
+        #expect(state.scope?.context.jobHandleRaw == handle)
         #expect(kk_kxmini_async_await(handle, 0) == 1)
         #expect(kk_coroutine_scope_wait(scope) == runtimeNullSentinelInt)
     }

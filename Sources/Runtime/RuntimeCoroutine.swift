@@ -4189,18 +4189,30 @@ public func kk_coroutine_scope_async_with_cont(
           scopeSlotRaw >= 0
     else { runtimeStructuredPanic("CoroutineScope.async received an invalid scope or continuation") }
     let context = scope.context.plus(resolveToCoroutineContext(contextRaw))
-    state.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
-    state.scope = scope
+    // The block's coroutineContext gains the async task's Job (kotlinx's
+    // DeferredCoroutine contract), so `this` and any nested builder observe a
+    // child scope whose Job is the task's — not the receiver scope's.
+    let childScope = RuntimeCoroutineScope(context: context)
+    let childHandle = runtimeRegisterObject(childScope)
+    state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
+    state.scope = childScope
     state.builderContext = context
     if context.dispatcher == 0 {
         state.eventLoop = RuntimeEventLoop.current
     }
-    return runtimeScopeAsync(scope: scope, context: context, start: start, yieldsDeferredResult: true) { task in
+    return runtimeScopeAsync(
+        scope: scope, context: context, start: start,
+        yieldsDeferredResult: true,
+        prepare: { task, handle in
+            context.jobHandleRaw = handle
+            childScope.adoptJob(task.completionJob)
+        }
+    ) { task in
         state.jobHandle = task.completionJob
         task.completionJob.continuationState = state
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw, continuation: continuation,
-            scope: scope, job: task.completionJob, onFinished: runtimeAsyncTaskCompletion(task)
+            scope: childScope, job: task.completionJob, onFinished: runtimeAsyncTaskCompletion(task)
         )
     }
 }
@@ -4245,12 +4257,23 @@ public func kk_coroutine_scope_async(
         resolvedEntryPointRaw = entryPointRaw
         captures = [closureRaw]
     }
-    return runtimeScopeAsync(scope: scope, context: context, start: start, yieldsDeferredResult: true) { task in
-        RuntimeCoroutineScope.current = scope
+    // Same DeferredCoroutine contract as the continuation path: the block runs
+    // on a child scope whose context Job is this task's job.
+    let childScope = RuntimeCoroutineScope(context: context)
+    let childHandle = runtimeRegisterObject(childScope)
+    return runtimeScopeAsync(
+        scope: scope, context: context, start: start,
+        yieldsDeferredResult: true,
+        prepare: { task, handle in
+            context.jobHandleRaw = handle
+            childScope.adoptJob(task.completionJob)
+        }
+    ) { task in
+        RuntimeCoroutineScope.current = childScope
         var thrown = 0
         let result = runtimeInvokeSuspendLauncherThunk(
             entryPointRaw: resolvedEntryPointRaw,
-            receiver: scopeHandle,
+            receiver: childHandle,
             captures: captures,
             outThrown: &thrown
         )
