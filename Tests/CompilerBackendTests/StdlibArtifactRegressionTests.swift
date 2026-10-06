@@ -80,6 +80,57 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1339: Unit literals and returned values share identity at erased boundaries.
+    @Test(arguments: [false, true])
+    func testUnitReturnSingleton(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/unit_return_singleton.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "UnitReturnSingleton",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            true
+            true
+            true
+            true
+            true
+            true
+            w
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            false
+            false
+            false
+            false
+            true
+            boxed
+            kotlin.Unit
+
+            """)
+        }
+    }
+
     /// KUU-971: nullable channel exception messages survive source and artifact compilation.
     @Test(arguments: [false, true])
     func testChannelExceptionsNullableMessage(useArtifact: Bool) throws {

@@ -81,6 +81,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_fgt"),
             ctx.interner.intern("kk_op_fge"),
         ]
+        let unitEqualityCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_structural_eq"),
+            ctx.interner.intern("kk_structural_ne"),
+        ]
 
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
         // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
@@ -590,6 +596,23 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             operand: boxedArguments[i], resultExpr: result,
                             module: module, types: types, symbols: symbols,
                             boxingCalleeTable: boxingCalleeTable, newBody: &newBody
+                        )
+                    }
+                }
+                // Unit may arrive as a raw builtin value or an erased singleton
+                // handle. Compare singleton handles for both representations,
+                // including when-branch equality emitted by OperatorLowering.
+                if signature == nil, let types,
+                   unitEqualityCallees.contains(effectiveCallee)
+                {
+                    for i in boxedArguments.indices {
+                        guard let argType = intrinsicArgType(boxedArguments[i], arena: module.arena, types: types),
+                              case .unit = types.kind(of: argType),
+                              let boxCallee = boxingCalleeTable.boxCallee(for: .unit, requireNonNull: true)
+                        else { continue }
+                        boxedArguments[i] = emitNonThrowingCall(
+                            callee: boxCallee, arg: boxedArguments[i], resultType: types.anyType,
+                            arena: module.arena, into: &newBody
                         )
                     }
                 }

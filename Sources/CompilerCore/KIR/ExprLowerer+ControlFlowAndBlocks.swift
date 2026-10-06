@@ -692,6 +692,13 @@ extension ExprLowerer {
                 }
             }
             if let boundIdentifierSymbol = sema.bindings.identifierSymbols[exprID] {
+                // Unit uses the builtin value representation, including when
+                // its public singleton symbol comes from bundled Kotlin source.
+                if boundIdentifierSymbol == sema.types.unitClassSymbol {
+                    let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                    instructions.append(.constValue(result: unit, value: .unit))
+                    return unit
+                }
                 // A bare `ClassName` value expression (not `ClassName.member()`,
                 // which resolves through ordinary member lookup) that names a
                 // class/interface/enum with a companion object is, per Kotlin's
