@@ -243,6 +243,7 @@ public fun minOf(a: Double, vararg other: Double): Double {
 
 public inline fun maxOf(a: UByte, b: UByte): UByte = if (a >= b) a else b
 public inline fun maxOf(a: UByte, b: UByte, c: UByte): UByte = maxOf(maxOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun maxOf(a: UByte, vararg other: UByte): UByte {
     var result = a
     var i = 0
@@ -255,6 +256,7 @@ public fun maxOf(a: UByte, vararg other: UByte): UByte {
 
 public inline fun minOf(a: UByte, b: UByte): UByte = if (a <= b) a else b
 public inline fun minOf(a: UByte, b: UByte, c: UByte): UByte = minOf(minOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun minOf(a: UByte, vararg other: UByte): UByte {
     var result = a
     var i = 0
@@ -267,6 +269,7 @@ public fun minOf(a: UByte, vararg other: UByte): UByte {
 
 public inline fun maxOf(a: UShort, b: UShort): UShort = if (a >= b) a else b
 public inline fun maxOf(a: UShort, b: UShort, c: UShort): UShort = maxOf(maxOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun maxOf(a: UShort, vararg other: UShort): UShort {
     var result = a
     var i = 0
@@ -279,6 +282,7 @@ public fun maxOf(a: UShort, vararg other: UShort): UShort {
 
 public inline fun minOf(a: UShort, b: UShort): UShort = if (a <= b) a else b
 public inline fun minOf(a: UShort, b: UShort, c: UShort): UShort = minOf(minOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun minOf(a: UShort, vararg other: UShort): UShort {
     var result = a
     var i = 0
@@ -291,6 +295,7 @@ public fun minOf(a: UShort, vararg other: UShort): UShort {
 
 public inline fun maxOf(a: UInt, b: UInt): UInt = if (a >= b) a else b
 public inline fun maxOf(a: UInt, b: UInt, c: UInt): UInt = maxOf(maxOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun maxOf(a: UInt, vararg other: UInt): UInt {
     var result = a
     var i = 0
@@ -303,6 +308,7 @@ public fun maxOf(a: UInt, vararg other: UInt): UInt {
 
 public inline fun minOf(a: UInt, b: UInt): UInt = if (a <= b) a else b
 public inline fun minOf(a: UInt, b: UInt, c: UInt): UInt = minOf(minOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun minOf(a: UInt, vararg other: UInt): UInt {
     var result = a
     var i = 0
@@ -315,6 +321,7 @@ public fun minOf(a: UInt, vararg other: UInt): UInt {
 
 public inline fun maxOf(a: ULong, b: ULong): ULong = if (a >= b) a else b
 public inline fun maxOf(a: ULong, b: ULong, c: ULong): ULong = maxOf(maxOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun maxOf(a: ULong, vararg other: ULong): ULong {
     var result = a
     var i = 0
@@ -327,6 +334,7 @@ public fun maxOf(a: ULong, vararg other: ULong): ULong {
 
 public inline fun minOf(a: ULong, b: ULong): ULong = if (a <= b) a else b
 public inline fun minOf(a: ULong, b: ULong, c: ULong): ULong = minOf(minOf(a, b), c)
+@ExperimentalUnsignedTypes
 public fun minOf(a: ULong, vararg other: ULong): ULong {
     var result = a
     var i = 0

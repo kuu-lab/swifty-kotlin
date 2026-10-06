@@ -78,6 +78,7 @@ public fun ImmutableBlob.toByteArray(startIndex: Int = 0, endIndex: Int = size):
 @Suppress("DEPRECATION_ERROR")
 @Deprecated("ImmutableBlob is deprecated. Use ByteArray instead.")
 @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
+@ExperimentalUnsignedTypes
 public fun ImmutableBlob.toUByteArray(startIndex: Int = 0, endIndex: Int = size): UByteArray {
     if (startIndex < 0 || endIndex > size || startIndex > endIndex) {
         throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: $size")

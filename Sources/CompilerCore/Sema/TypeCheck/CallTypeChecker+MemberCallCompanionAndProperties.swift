@@ -57,6 +57,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         var getterCandidates: [SymbolID] = []
+        var propertyForGetter: [SymbolID: SymbolID] = [:]
         func hasDispatchReceiverOrImport(for candidate: SymbolID) -> Bool {
             guard let owner = sema.symbols.parentSymbol(for: candidate),
                   let ownerSymbol = sema.symbols.symbol(owner),
@@ -101,6 +102,7 @@ extension CallTypeChecker {
             }
             if !getterCandidates.contains(getterAccessor) {
                 getterCandidates.append(getterAccessor)
+                propertyForGetter[getterAccessor] = candidate
             }
         }
         func isUnavailableKotlinMathProperty(_ candidate: SymbolID) -> Bool {
@@ -258,6 +260,14 @@ extension CallTypeChecker {
             range: range,
             diagnostics: ctx.semaCtx.diagnostics
         )
+        if let property = propertyForGetter[chosen], property != deprecationCheckTarget {
+            driver.helpers.checkOptIn(
+                for: property,
+                ctx: ctx,
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return sema.types.anyType
         }

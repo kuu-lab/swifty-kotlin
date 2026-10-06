@@ -98,6 +98,7 @@ public fun ByteString(vararg bytes: Byte): ByteString {
     return ByteString.wrap(array)
 }
 
+@OptIn(ExperimentalUnsignedTypes::class)
 public fun ByteString(vararg bytes: UByte): ByteString {
     if (bytes.isEmpty()) return ByteString.EMPTY
     val array = ByteArray(bytes.size)

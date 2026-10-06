@@ -104,6 +104,7 @@ public class Uuid private constructor(
             return Uuid(msb, lsb)
         }
 
+        @ExperimentalUnsignedTypes
         public fun fromUByteArray(ubyteArray: UByteArray): Uuid {
             if (ubyteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("ubyteArray.size must be 16, was ${ubyteArray.size}")
@@ -287,6 +288,7 @@ public class Uuid private constructor(
         return bytes
     }
 
+    @ExperimentalUnsignedTypes
     public fun toUByteArray(): UByteArray {
         val msb = mostSignificantBits
         val lsb = leastSignificantBits
