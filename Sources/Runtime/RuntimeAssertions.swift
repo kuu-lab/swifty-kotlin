@@ -842,6 +842,8 @@ func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
         return "java.lang.Error"
     case "kotlin.OutOfMemoryError":
         return "java.lang.OutOfMemoryError"
+    case "kotlin.StackOverflowError":
+        return "java.lang.StackOverflowError"
     case "kotlin.ConcurrentModificationException":
         return "java.util.ConcurrentModificationException"
     case "kotlin.NoSuchElementException":
