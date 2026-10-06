@@ -13,7 +13,10 @@ extension CoroutineLoweringPass {
     ) -> KIRLoweringEmitContext {
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(originalBody.count)
-        let liveOutByInstruction = computeLiveOutByInstruction(originalBody)
+        let liveOutByInstruction = computeLiveOutByInstruction(
+            originalBody,
+            arena: module.arena
+        )
         var liveAfterCurrentInstruction: Set<KIRExprID> = []
 
         func appendIntConstantInBody(_ value: Int64) -> KIRExprID {
