@@ -26,7 +26,14 @@ private external fun <T> __kkChannelCreate(capacity: Int): Channel<T>
 // Two explicit overloads mirror the previous synthetic factory bridges.
 public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 
-public fun <T> Channel(capacity: Int): Channel<T> = __kkChannelCreate(capacity)
+// Upstream `Channel(capacity)` is `Channel(capacity, BufferOverflow.SUSPEND)`:
+// the Channel.Factory sentinels (RENDEZVOUS / CONFLATED / BUFFERED /
+// UNLIMITED / OPTIONAL_CHANNEL) are valid capacity arguments, so this factory
+// delegates to the policy-aware bridge instead of letting kk_channel_create
+// clamp negatives to a rendezvous channel (KUU-1415: Channel(Channel.BUFFERED)
+// and produce(capacity = Channel.BUFFERED) silently produced capacity 0).
+public fun <T> Channel(capacity: Int): Channel<T> =
+    Channel(capacity, BufferOverflow.SUSPEND)
 
 // The residual runtime bridges return an Int flag (0/1); convert to Boolean in
 // Kotlin so the ABI return width matches the c-soft `@_cdecl` signatures.
