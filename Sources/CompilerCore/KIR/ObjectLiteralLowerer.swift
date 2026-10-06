@@ -632,6 +632,18 @@ final class ObjectLiteralLowerer {
         } ?? driver.ctx.currentFunctionSymbol.flatMap {
             sema.symbols.functionSignature(for: $0)?.receiverType
         }
+        // An extension property's bare reference uses the extension receiver;
+        // the enclosing instance is a separate leading accessor argument.
+        if let extensionType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = activeReceiverType,
+           sema.types.isSubtype(
+               sema.types.makeNonNullable(receiverType),
+               sema.types.makeNonNullable(extensionType)
+           )
+        {
+            return activeReceiver
+        }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
            let receiverType = activeReceiverType,

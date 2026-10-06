@@ -975,6 +975,7 @@ extension CallLowerer {
             args: args,
             ast: ast,
             sema: sema,
+            arena: arena,
             interner: interner,
             instructions: &instructions.instructions
         ) {
@@ -1455,6 +1456,21 @@ func resolveVirtualDispatchKind(
        MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
     {
         return nil
+    }
+    // An extension accessor is parented by its property; dispatch on the
+    // property's enclosing class, using its synthetic getter/setter slot.
+    if parentSymbol.kind == .property,
+       parentSymbol.flags.contains(.memberExtension),
+       let owner = sema.symbols.parentSymbol(for: parentID),
+       sema.symbols.symbol(owner)?.kind == .class,
+       sema.symbols.symbol(owner)?.flags.contains(.abstractType) == true
+           || !sema.symbols.directSubtypes(of: owner).isEmpty,
+       let ownerLayout = sema.symbols.nominalLayout(for: owner)
+    {
+        let kind: PropertyAccessorKind = sema.symbols.extensionPropertySetterAccessor(for: parentID) == callee
+            ? .setter : .getter
+        let slotSymbol = SyntheticSymbolScheme.propertyAccessorSymbol(for: parentID, kind: kind)
+        return ownerLayout.vtableSlots[slotSymbol].map { .vtable(slot: $0) }
     }
     guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
     if parentSymbol.kind == .interface {

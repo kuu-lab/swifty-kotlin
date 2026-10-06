@@ -53,6 +53,39 @@ extension CallLowerer {
             ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
     }
 
+    /// Supply the dispatch receiver shared by getter, setter and compound updates.
+    func propertyAccessorArguments(
+        for accessor: SymbolID,
+        arguments: [KIRExprID],
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard let owner = memberExtensionOwnerSymbol(for: accessor, sema: sema) else {
+            return arguments
+        }
+        if let receiver = memberExtensionDispatchReceiver(
+            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        ) {
+            return [receiver] + arguments
+        }
+        if sema.symbols.symbol(owner)?.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return [receiver] + arguments
+        }
+        return arguments
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
