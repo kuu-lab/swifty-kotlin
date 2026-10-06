@@ -2378,6 +2378,7 @@ public func kk_coroutine_call_direct_suspend(
     if let childState {
         childState.scope = callerState.scope
         childState.jobHandle = callerState.jobHandle
+        childState.builderContext = callerState.builderContext
         childState.flowCollectContext = callerState.flowCollectContext
         childState.resumesInline = callerState.resumesInline
         callerState.bindSuspendedCallChild(childState)

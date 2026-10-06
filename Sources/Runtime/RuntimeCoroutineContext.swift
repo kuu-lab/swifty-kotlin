@@ -838,7 +838,8 @@ public func kk_context_release(_ contextRaw: Int) {
 
 /// withContext with a full CoroutineContext (not just a dispatcher tag).
 /// Extracts the dispatcher from the context and delegates to the dispatcher-
-/// aware withContext, while propagating context elements (name, handler).
+/// aware withContext, while installing the child context (name, handler,
+/// dispatcher and a fresh child Job) the block's ambient context exposes.
 @_cdecl("kk_with_context_full")
 public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
     let resolvedCtx = resolveToCoroutineContext(contextRaw)
@@ -846,35 +847,83 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         ? resolvedCtx.dispatcher
         : RuntimeDispatcherTag.defaultDispatcher
 
-    var restoreJobHandle: (@Sendable (Int) -> Void)?
-    if let contState = runtimeContinuationState(from: continuation) {
-        if let name = resolvedCtx.name, let scope = contState.scope {
-            scope.name = name
-        }
-        if let overrideJob = runtimeJobHandle(from: resolvedCtx.jobHandleRaw) {
-            let savedJobHandle = contState.jobHandle
-            let isNonCancellable = resolvedCtx.jobHandleRaw == kk_non_cancellable_instance()
-            // Upstream exposes the block's own Job, not the NonCancellable
-            // singleton. It is detached from the cancelled outer Job but can
-            // still be cancelled explicitly from inside the block.
-            let blockJob = isNonCancellable ? runtimeJobHandle(from: kk_job_new()) : nil
-            blockJob?.continuationState = contState
-            contState.jobHandle = blockJob ?? overrideJob
-            let shieldedCaller = isNonCancellable ? RuntimeContinuationState.current : nil
-            shieldedCaller?.beginCancellationShield()
-            restoreJobHandle = { [weak contState] thrown in
-                if thrown != 0 {
-                    _ = blockJob?.completeExceptionally(with: thrown)
-                } else {
-                    _ = blockJob?.complete(with: 0)
-                }
-                contState?.jobHandle = savedJobHandle
-                shieldedCaller?.endCancellationShield()
-            }
-        }
-    }
+    let restoreJobHandle = runtimeInstallWithContextChildContext(
+        overrideContext: resolvedCtx,
+        continuation: continuation
+    )
 
     return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, restoreJobHandle: restoreJobHandle)
+}
+
+/// KUU-1398: kotlinx's `withContext` runs its block under a child context —
+/// `parent + overrides` plus a fresh child Job (the `ScopeCoroutine`) — so the
+/// ambient `coroutineContext` inside the block is a different object carrying
+/// the override's elements and a new Job, whatever the override contains.
+///
+/// Installs that child context on the block's continuation state and returns
+/// the one-shot restore closure `kk_with_context_impl` invokes when the block
+/// has genuinely finished (across all of its completion paths). Returns nil
+/// when the continuation carries no state to mutate.
+private func runtimeInstallWithContextChildContext(
+    overrideContext resolvedCtx: RuntimeCoroutineContext,
+    continuation: Int
+) -> (@Sendable (Int) -> Void)? {
+    guard let contState = runtimeContinuationState(from: continuation) else {
+        return nil
+    }
+
+    // `withContext(EmptyCoroutineContext)` is a no-op on the JVM: the merged
+    // context is the same instance, so no child coroutine or Job is created.
+    if resolvedCtx.dispatcher == 0, resolvedCtx.name == nil,
+       resolvedCtx.exceptionHandler == nil, resolvedCtx.jobHandleRaw == 0
+    {
+        return nil
+    }
+
+    // The block inherits the *caller's* ambient context — the fresh
+    // continuation state still has no scope/job of its own — merged with the
+    // override's elements (right-hand side wins per `+`).
+    let savedBuilderContext = contState.builderContext
+    let savedJobHandle = contState.jobHandle
+    let parentContext = RuntimeContinuationState.current?.makeContinuationContext()
+        ?? RuntimeCoroutineScope.current?.context
+        ?? RuntimeCoroutineContext()
+    contState.builderContext = parentContext.plus(resolvedCtx)
+
+    // The block's ambient Job is always a fresh child. It is parented to the
+    // override's own Job element when the context carries one — except
+    // NonCancellable, which leaves it detached from the enclosing Job's
+    // cancellation — and to the ambient Job otherwise.
+    let overrideJob = runtimeJobHandle(from: resolvedCtx.jobHandleRaw)
+    let isNonCancellable = resolvedCtx.jobHandleRaw == kk_non_cancellable_instance()
+    let blockJobRaw = kk_job_new()
+    let blockJob = runtimeJobHandle(from: blockJobRaw)
+    // The block reports its failure through the continuation's throw channel;
+    // failing the parent job here would surface a CancellationException that
+    // swallows the block's real error.
+    blockJob?.propagatesFailureToParent = false
+    blockJob?.continuationState = contState
+    if !isNonCancellable, let blockJob {
+        let parentJob = overrideJob
+            ?? runtimeJobHandle(from: parentContext.jobHandleRaw)
+            ?? runtimeAsyncTask(from: parentContext.jobHandleRaw)?.completionJob
+            ?? RuntimeJobHandle.current
+        parentJob?.registerChild(blockJobRaw)
+    }
+    contState.jobHandle = blockJob
+
+    let shieldedCaller = isNonCancellable ? RuntimeContinuationState.current : nil
+    shieldedCaller?.beginCancellationShield()
+    return { [weak contState] thrown in
+        if thrown != 0 {
+            _ = blockJob?.completeExceptionally(with: thrown)
+        } else {
+            _ = blockJob?.complete(with: 0)
+        }
+        contState?.jobHandle = savedJobHandle
+        contState?.builderContext = savedBuilderContext
+        shieldedCaller?.endCancellationShield()
+    }
 }
 
 /// Check if a raw Int value is a known dispatcher tag.
@@ -1129,7 +1178,10 @@ private final class WithContextResultBox: @unchecked Sendable {
 /// and context elements (name, exception handler) are propagated.
 @_cdecl("kk_with_context")
 public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
-    kk_with_context_impl(dispatcherRaw, blockFnPtr, continuation, restoreJobHandle: nil)
+    // A bare dispatcher tag still gets the child-context treatment: on JVM
+    // every `withContext` installs a fresh child Job and exposes the
+    // dispatcher element in the ambient context, not just reschedules.
+    kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
 }
 
 /// Shared implementation behind the `kk_with_context` ABI entry point.
@@ -1144,14 +1196,8 @@ func kk_with_context_impl(
     _ continuation: Int,
     restoreJobHandle: (@Sendable (Int) -> Void)?
 ) -> Int {
-    // A single element (not just a composed context) must propagate its Job/name/handler.
-    if !isDispatcherTag(dispatcherRaw), dispatcherRaw != 0,
-       isRegisteredRuntimeObjectPointer(dispatcherRaw)
-    {
-        restoreJobHandle?(0)
-        return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
-    }
-
+    // `kk_with_context_full` resolves the context argument first, so this
+    // always receives a dispatcher tag (0/unknown values fall to Default).
     let resolvedDispatcher = switch dispatcherRaw {
     case RuntimeDispatcherTag.defaultDispatcher,
          RuntimeDispatcherTag.ioDispatcher,
