@@ -49,6 +49,76 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1320: reified enumValues specializes in both stdlib modes.
+    @Test(arguments: [false, true])
+    func testReifiedEnumValues(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/enum_values_reified.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ReifiedEnumValues", emit: .executable, outputPath: outputBase,
+                stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\n[X, Y, Z]\n[A, B]\n[]\n[SOURCE, BINARY, RUNTIME]\n[A, B]\n[A, B]\n")
+        }
+    }
+
+    @Test
+    func testReifiedEnumValuesThroughInlineLibrary() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stdlib = try testStdlibArtifactPath()
+        let librarySource = directory.appendingPathComponent("Factory.kt").path
+        let libraryOutput = directory.appendingPathComponent("Factory").path
+        try """
+        package factory
+        inline fun <reified T : Enum<T>> values(unused: Int = 0): List<T> = enumValues<T>().toList()
+        inline fun <reified T : Enum<T>> nestedValues(): List<T> = values<T>()
+        """.write(toFile: librarySource, atomically: true, encoding: .utf8)
+        let library = makeCompilationContext(
+            inputs: [librarySource], moduleName: "EnumFactory", emit: .library,
+            outputPath: libraryOutput, stdlibLibraryPath: stdlib
+        )
+        try runToLowering(library)
+        try assertNoDiagnosticErrors(library)
+        try CodegenPhase().run(library)
+        let source = """
+        import factory.values
+        import factory.nestedValues
+        enum class E { A, B }
+        fun main() {
+            println(values<E>())
+            println(nestedValues<E>())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let output = directory.appendingPathComponent("consumer").path
+            let consumer = makeCompilationContext(
+                inputs: [path], moduleName: "EnumFactoryConsumer", emit: .executable, outputPath: output,
+                searchPaths: [libraryOutput + ".kklib"], stdlibLibraryPath: stdlib
+            )
+            try runToLowering(consumer)
+            try assertNoDiagnosticErrors(consumer)
+            try CodegenPhase().run(consumer)
+            try LinkPhase().run(consumer)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\n[A, B]\n")
+        }
+    }
+
     /// KUU-1301: chunked transforms escape into nested sequence/iterator objects.
     /// Exercise both source injection and imported stdlib callback ABIs.
     @Test(arguments: [false, true])

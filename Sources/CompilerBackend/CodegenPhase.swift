@@ -274,16 +274,21 @@ public final class CodegenPhase: CompilerPhase {
             guard case let .function(function) = decl, function.isInline else {
                 continue
             }
-            guard let symbol = sema.symbols.symbol(function.symbol) else {
+            let mangled: String
+            if let symbol = sema.symbols.symbol(function.symbol) {
+                mangled = mangler.mangle(
+                    moduleName: ctx.options.moduleName, symbol: symbol,
+                    symbols: sema.symbols, types: sema.types,
+                    nameResolver: { ctx.interner.resolve($0) }
+                )
+            } else if ctx.interner.resolve(function.name).hasSuffix("$default"),
+                      let linkName = functionLinkNamesBySymbol[function.symbol] {
+                // Reified default stubs also require call-site expansion. Their
+                // existing metadata link name identifies the serialized body.
+                mangled = linkName
+            } else {
                 continue
             }
-            let mangled = mangler.mangle(
-                moduleName: ctx.options.moduleName,
-                symbol: symbol,
-                symbols: sema.symbols,
-                types: sema.types,
-                nameResolver: { ctx.interner.resolve($0) }
-            )
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
