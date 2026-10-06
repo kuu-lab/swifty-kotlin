@@ -5,6 +5,36 @@ import Testing
 
 @Suite
 struct CodegenBackendSuspendReceiverFunctionValueTests {
+    @Test(arguments: [true, false])
+    func testRunTestAcceptsSuspendExtensionReferences(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        import kotlinx.coroutines.test.*
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        suspend fun TestScope.fnBody() {
+            println("fnref t0=$currentTime")
+            advanceTimeBy(9)
+            println("fnref t1=$currentTime")
+        }
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        fun main() {
+            runTest(testBody = TestScope::fnBody)
+            val typed: suspend TestScope.() -> Unit = TestScope::fnBody
+            runTest(testBody = typed)
+            val inferred = TestScope::fnBody
+            runTest(testBody = inferred)
+            println("done")
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "RunTestSuspendExtensionReferences",
+            expected: "fnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\ndone\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testDeepRecursiveTrampolineKeepsStoredCapturedEntry() throws {
         let source = """
