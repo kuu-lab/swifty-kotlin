@@ -110,4 +110,84 @@ struct RuntimeIoFileSystemTests {
         _ = __kk_io_fs_resolve(missing, &thrown)
         #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.files.FileNotFoundException")
     }
+
+    @Test func openWriteAndReadRoundTripBytesAndHonorAppend() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("data.bin")
+        var thrown = 0
+
+        let writeFd = __kk_io_fs_open_write(runtimeMakeStringRaw(file.path), 0, &thrown)
+        #expect(thrown == 0)
+        #expect(writeFd >= 0)
+        let payload = kk_array_new(4)
+        for (index, value) in [Int(0x41), 0, -1, Int(0x7F)].enumerated() {
+            _ = kk_array_set(payload, index, value, &thrown)
+        }
+        _ = __kk_io_fs_write(writeFd, payload, 0, 4, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_io_fs_close(writeFd, &thrown)
+        #expect(thrown == 0)
+        #expect(try Data(contentsOf: file) == Data([0x41, 0x00, 0xFF, 0x7F]))
+
+        // append = 0 truncates; append = 1 extends.
+        let truncateFd = __kk_io_fs_open_write(runtimeMakeStringRaw(file.path), 0, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_io_fs_close(truncateFd, &thrown)
+        #expect(try Data(contentsOf: file).isEmpty)
+        let appendFd = __kk_io_fs_open_write(runtimeMakeStringRaw(file.path), 1, &thrown)
+        #expect(thrown == 0)
+        _ = __kk_io_fs_write(appendFd, payload, 0, 4, &thrown)
+        _ = __kk_io_fs_close(appendFd, &thrown)
+        #expect(try Data(contentsOf: file) == Data([0x41, 0x00, 0xFF, 0x7F]))
+
+        let readFd = __kk_io_fs_open_read(runtimeMakeStringRaw(file.path), &thrown)
+        #expect(thrown == 0)
+        #expect(readFd >= 0)
+        let destination = kk_array_new(8)
+        let readCount = __kk_io_fs_read(readFd, destination, 0, 8, &thrown)
+        #expect(thrown == 0)
+        #expect(readCount == 4)
+        for (index, value) in [Int(0x41), 0, -1, Int(0x7F)].enumerated() {
+            #expect(kk_array_get(destination, index, &thrown) == value)
+        }
+        // EOF yields 0 bytes; a zero-length request also yields 0 without error.
+        #expect(__kk_io_fs_read(readFd, destination, 0, 8, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_io_fs_read(readFd, destination, 4, 0, &thrown) == 0)
+        _ = __kk_io_fs_close(readFd, &thrown)
+        #expect(thrown == 0)
+    }
+
+    @Test func openFailuresThrowFileNotFoundAndClosedDescriptorsThrowIOException() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var thrown = 0
+        let missing = runtimeMakeStringRaw(root.appendingPathComponent("missing").path)
+        #expect(__kk_io_fs_open_read(missing, &thrown) == -1)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.files.FileNotFoundException")
+        // Directories are rejected at open, matching JVM FileInputStream/FileOutputStream.
+        #expect(__kk_io_fs_open_read(runtimeMakeStringRaw(root.path), &thrown) == -1)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.files.FileNotFoundException")
+        #expect(__kk_io_fs_open_write(runtimeMakeStringRaw(root.path), 0, &thrown) == -1)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.files.FileNotFoundException")
+        let orphaned = runtimeMakeStringRaw(root.appendingPathComponent("no/such/dir/file").path)
+        #expect(__kk_io_fs_open_write(orphaned, 0, &thrown) == -1)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.files.FileNotFoundException")
+
+        let file = root.appendingPathComponent("file")
+        try Data([1]).write(to: file)
+        let fd = __kk_io_fs_open_read(runtimeMakeStringRaw(file.path), &thrown)
+        #expect(thrown == 0)
+        #expect(fd >= 0)
+        _ = __kk_io_fs_close(fd, &thrown)
+        #expect(thrown == 0)
+        let scratch = kk_array_new(1)
+        _ = __kk_io_fs_read(-1, scratch, 0, 1, &thrown)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.IOException")
+        _ = __kk_io_fs_write(-1, scratch, 0, 1, &thrown)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.IOException")
+        _ = __kk_io_fs_close(-1, &thrown)
+        #expect(runtimeThrowableBox(from: thrown)?.exceptionFQName == "kotlinx.io.IOException")
+    }
 }
