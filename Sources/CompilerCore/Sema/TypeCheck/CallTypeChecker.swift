@@ -2425,6 +2425,75 @@ final class CallTypeChecker {
                 }
             }
         }
+        // Explicit call-site type arguments carry the same contextual
+        // information as an expected return type: `W2<T, Unit>(D(t, 1))`
+        // must check the nested `D(t, 1)` against the substituted parameter
+        // type `D<T, Unit>`. The block above skips expected-type seeding
+        // when explicit args are present because they take precedence, so
+        // derive the substitution from the explicit arguments themselves.
+        // An override is only applied when every candidate that maps the
+        // argument position agrees on the substituted parameter type —
+        // otherwise a context derived for one overload would poison the
+        // argument for another (e.g. the `Map` overload's expected type
+        // breaking `Int`-typed arguments for the `Int` overload).
+        if !explicitTypeArgs.isEmpty {
+            var substitutedTypesByIndex: [Int: [TypeID]] = [:]
+            for candidate in candidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate)
+                else {
+                    continue
+                }
+                let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
+                let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+                guard signature.typeParameterSymbols.count >= typeArgOffset + explicitTypeArgs.count
+                else {
+                    continue
+                }
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                var substitution: [TypeVarID: TypeID] = [:]
+                for (index, explicitTypeArg) in explicitTypeArgs.enumerated() {
+                    let symbol = signature.typeParameterSymbols[typeArgOffset + index]
+                    guard let typeVar = typeVarBySymbol[symbol] else { continue }
+                    substitution[typeVar] = explicitTypeArg
+                }
+                for index in args.indices {
+                    guard isInferableNestedCallExpr(args[index].expr, ast: ast),
+                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                    else {
+                        continue
+                    }
+                    let substitutedType = sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    // A substituted parameter still carrying candidate-owned
+                    // type variables is not usable as contextual evidence;
+                    // that candidate abstains rather than vetoing.
+                    guard !ctx.resolver.containsTypeVariable(
+                        substitutedType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: sema.types
+                    )
+                    else {
+                        continue
+                    }
+                    let seen = substitutedTypesByIndex[index] ?? []
+                    if !seen.contains(substitutedType) {
+                        substitutedTypesByIndex[index] = seen + [substitutedType]
+                    }
+                }
+            }
+            for (index, types) in substitutedTypesByIndex {
+                guard types.count == 1, let substitutedType = types.first else {
+                    continue
+                }
+                if let existing = expectedTypeOverrides[index], existing != substitutedType {
+                    continue
+                }
+                expectedTypeOverrides[index] = substitutedType
+            }
+        }
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {

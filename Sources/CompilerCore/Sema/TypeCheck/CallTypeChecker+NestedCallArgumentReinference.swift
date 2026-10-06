@@ -1,6 +1,7 @@
 /// Helpers split from `CallTypeChecker.swift`:
 /// Re-inference of nested generic call arguments whose element type collapsed
-/// to `Nothing` before the enclosing call's constraint set was known.
+/// to `Nothing`, or whose own resolution failed outright, before the
+/// enclosing call's constraint set was known.
 ///
 /// Argument type checking is eager: `mutableListOf()` infers
 /// `MutableList<Nothing>` with no expected type, and that `Nothing` then
@@ -9,13 +10,22 @@
 /// the nested call's type variable in the outer constraint set instead, so
 /// `collectInto(mutableListOf(), 1)` infers `MutableList<Int>`.
 ///
+/// A nested call can also fail entirely when a type parameter only appears
+/// in positions the expected type would fix: `D(t, 1)` inside
+/// `W1(D(t, 1), 0)` cannot infer `R` on its own and reports
+/// `KSWIFTK-SEMA-INFER`, leaving the argument typed `error`. The partial
+/// substitution probed from the nested call's own arguments (`D<T, R>` with
+/// `T` bound from `t`) still lets the outer parameter `D<T, T>` bind its
+/// variable from the resolved side, after which `R` is re-inferred as `T`.
+///
 /// The helpers here recover the same result at the TypeCheck layer: when a
 /// call fails to resolve, find arguments that are still-inferable nested
 /// calls (no explicit type arguments) whose inferred type contains
-/// `Nothing`, derive their expected type from the candidate's partially
-/// substituted parameter or that parameter's declared bound, re-infer the
-/// argument expression, and resolve once more. The retry only runs after a
-/// failed resolution, so calls that already work are unaffected.
+/// `Nothing` or the error marker, derive their expected type from the
+/// candidate's partially substituted parameter or that parameter's declared
+/// bound, re-infer the argument expression, and resolve once more. The
+/// retry only runs after a failed resolution, so calls that already work
+/// are unaffected.
 extension CallTypeChecker {
     /// Whether `type` contains `Nothing` anywhere inside its generic
     /// arguments (e.g. `MutableList<Nothing>`), which marks an uninferred
@@ -41,6 +51,37 @@ extension CallTypeChecker {
         case let .functionType(functionType):
             return functionType.params.contains { typeContainsNothingType($0, sema: sema, depth: depth + 1) }
                 || typeContainsNothingType(functionType.returnType, sema: sema, depth: depth + 1)
+        default:
+            return false
+        }
+    }
+
+    /// Whether `type` contains the error marker anywhere inside its generic
+    /// arguments — the residue of a nested call whose own inference failed
+    /// (e.g. `D(t, 1)` reporting `KSWIFTK-SEMA-INFER` before the enclosing
+    /// call's expected type was known).
+    func typeContainsErrorType(_ type: TypeID, sema: SemaModule, depth: Int = 0) -> Bool {
+        guard depth < 8 else {
+            return false
+        }
+        if type == sema.types.errorType {
+            return true
+        }
+        switch sema.types.kind(of: type) {
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    return typeContainsErrorType(inner, sema: sema, depth: depth + 1)
+                case .star:
+                    return false
+                }
+            }
+        case let .intersection(parts):
+            return parts.contains { typeContainsErrorType($0, sema: sema, depth: depth + 1) }
+        case let .functionType(functionType):
+            return functionType.params.contains { typeContainsErrorType($0, sema: sema, depth: depth + 1) }
+                || typeContainsErrorType(functionType.returnType, sema: sema, depth: depth + 1)
         default:
             return false
         }
@@ -202,12 +243,126 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// A best-effort partial type for a nested call whose own resolution
+    /// failed (its recorded expression type is the error marker). Probes the
+    /// nested callee's own arguments and substitutes what they already prove,
+    /// keeping the callee's still-unresolved type parameters in place:
+    /// `D(t, 1)` with `t: T` yields `D<T, R>` where `R` stays a parameter.
+    ///
+    /// The enclosing candidate can then decompose that partial type against
+    /// its parameter (`D<T, T>`) and bind the positions the nested call did
+    /// resolve, which is what a unified constraint system would see. The
+    /// returned `unboundTypeVarBySymbol` marks the nested callee parameters
+    /// left unresolved — constraints mentioning them equate a free variable
+    /// with an enclosing one and must be dropped before solving.
+    /// Returns nil for member calls and for candidates that cannot produce a
+    /// partial type.
+    func partiallyInferredNestedCallType(
+        _ expr: ExprID,
+        ctx: TypeInferenceContext
+    ) -> (type: TypeID, unboundTypeVarBySymbol: [SymbolID: TypeVarID])? {
+        let sema = ctx.sema
+        let ast = ctx.ast
+        guard case let .call(calleeID, _, nestedArgs, _) = ast.arena.expr(expr),
+              case let .nameRef(calleeName, _) = ast.arena.expr(calleeID)
+        else {
+            return nil
+        }
+        // A callee name can resolve to the class symbol rather than its
+        // constructors (`D(t, 1)` looks up `D`, the class), so expand nominal
+        // symbols into their `<init>` overloads the way `inferCallExpr` does.
+        let nameMatches = ctx.cachedScopeLookup(calleeName)
+        var nestedCandidates = ctx.filterByVisibility(
+            nameMatches.filter { candidate in
+                let kind = ctx.cachedSymbol(candidate)?.kind
+                return kind == .function || kind == .constructor
+            }
+        ).visible
+        for symbolID in nameMatches {
+            guard let symbol = ctx.cachedSymbol(symbolID),
+                  symbol.kind == .class || symbol.kind == .enumClass,
+                  !symbol.flags.contains(.abstractType)
+            else {
+                continue
+            }
+            let initName = ctx.interner.intern("<init>")
+            nestedCandidates += ctx.filterByVisibility(
+                sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
+            ).visible
+        }
+        for candidate in nestedCandidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  !signature.typeParameterSymbols.isEmpty
+            else {
+                continue
+            }
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var knownArgumentTypes: [Int: TypeID] = [:]
+            for (index, nestedArg) in nestedArgs.enumerated() {
+                guard let parameterIndex = parameterIndexForCallArgument(
+                    at: index,
+                    label: nestedArg.label,
+                    in: signature,
+                    sema: sema
+                ),
+                    let argumentType = sema.bindings.exprType(for: nestedArg.expr),
+                    argumentType != sema.types.errorType
+                else {
+                    continue
+                }
+                knownArgumentTypes[parameterIndex] = argumentType
+            }
+            let partialSubstitution = ctx.resolver.probeArgumentTypeSubstitution(
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                knownArgumentTypes: knownArgumentTypes,
+                typeSystem: sema.types,
+                blameRange: ast.arena.exprRange(expr)
+            )
+            let partialType = sema.types.substituteTypeParameters(
+                in: signature.returnType,
+                substitution: partialSubstitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            var unboundTypeVarBySymbol: [SymbolID: TypeVarID] = [:]
+            for symbol in signature.typeParameterSymbols {
+                guard let variable = typeVarBySymbol[symbol] else { continue }
+                if partialSubstitution[variable] == nil {
+                    unboundTypeVarBySymbol[symbol] = variable
+                }
+            }
+            return (partialType, unboundTypeVarBySymbol)
+        }
+        return nil
+    }
+
+    /// Whether either operand of `constraint` is a type that still mentions
+    /// one of the nested callee's unresolved type parameters. Such a
+    /// constraint would equate a free variable with an enclosing candidate's
+    /// variable, so it is not usable as outer inference evidence.
+    private func constraintMentionsUnboundNestedParameters(
+        _ constraint: VariableConstraint,
+        unboundTypeVarBySymbol: [SymbolID: TypeVarID],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        func mentions(_ operand: ConstraintOperand) -> Bool {
+            guard case let .type(type) = operand else { return false }
+            return ctx.resolver.containsTypeVariable(
+                type,
+                typeVarBySymbol: unboundTypeVarBySymbol,
+                typeSystem: ctx.sema.types
+            )
+        }
+        return mentions(constraint.left) || mentions(constraint.right)
+    }
+
     /// Retry overload resolution after re-inferring nested-call arguments
-    /// whose inferred type still contains `Nothing`.
+    /// whose inferred type still contains `Nothing` or failed outright.
     ///
     /// Only invoked after the first resolution produced a diagnostic. Each
     /// candidate contributes a partial substitution probed from the
-    /// non-deferred arguments; deferred arguments are then re-inferred under
+    /// non-deferred arguments plus the resolved positions of any
+    /// failed nested call; deferred arguments are then re-inferred under
     /// their derived expected types and the full call is resolved once more.
     /// Returns the successful resolution, or nil to keep the original
     /// diagnostic.
@@ -233,7 +388,8 @@ extension CallTypeChecker {
         for (index, argument) in args.enumerated() {
             guard !lambdaLiteralIndices.contains(index),
                   index < argTypes.count,
-                  typeContainsNothingType(argTypes[index], sema: sema),
+                  typeContainsNothingType(argTypes[index], sema: sema)
+                      || typeContainsErrorType(argTypes[index], sema: sema),
                   isInferableNestedCallExpr(argument.expr, ast: ast)
             else {
                 continue
@@ -242,6 +398,16 @@ extension CallTypeChecker {
         }
         guard !deferredIndices.isEmpty else {
             return nil
+        }
+        // Nested calls that failed their first pass carry no usable argument
+        // type; probe their own arguments once per call so every candidate's
+        // parameter position can still constrain the outer type variables
+        // the resolved positions align with.
+        var nestedEvidence: [Int: (type: TypeID, unboundTypeVarBySymbol: [SymbolID: TypeVarID])] = [:]
+        for index in deferredIndices where typeContainsErrorType(argTypes[index], sema: sema) {
+            if let evidence = partiallyInferredNestedCallType(args[index].expr, ctx: ctx) {
+                nestedEvidence[index] = evidence
+            }
         }
         for candidate in candidates {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
@@ -260,7 +426,7 @@ extension CallTypeChecker {
                 }
                 knownArgumentTypes[parameterIndex] = type
             }
-            let partialSubstitution = ctx.resolver.probeArgumentTypeSubstitution(
+            var partialSubstitution = ctx.resolver.probeArgumentTypeSubstitution(
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
                 knownArgumentTypes: knownArgumentTypes,
@@ -268,9 +434,52 @@ extension CallTypeChecker {
                 blameRange: range,
                 implicitReceiverType: implicitReceiverType
             )
+            // Fold in the resolved positions of each failed nested call:
+            // `D<T, R>` against parameter `D<T, T>` binds the outer `T` from
+            // the nested call's own evidence. Positions still held by the
+            // nested callee's unbound parameters are dropped — they would
+            // equate a free variable with the enclosing one.
+            for (index, evidence) in nestedEvidence {
+                guard let parameterIndex = parameterIndexForCallArgument(
+                    at: index,
+                    label: args[index].label,
+                    in: signature,
+                    sema: sema
+                ), parameterIndex < signature.parameterTypes.count else {
+                    continue
+                }
+                let evidenceConstraints = ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: evidence.type,
+                    supertype: signature.parameterTypes[parameterIndex],
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: sema.types,
+                    blameRange: range
+                ).filter {
+                    !constraintMentionsUnboundNestedParameters(
+                        $0,
+                        unboundTypeVarBySymbol: evidence.unboundTypeVarBySymbol,
+                        ctx: ctx
+                    )
+                }
+                guard !evidenceConstraints.isEmpty else {
+                    continue
+                }
+                let evidenceSolution = ConstraintSolver().solve(
+                    vars: ctx.resolver.usedTypeVariables(from: evidenceConstraints),
+                    constraints: evidenceConstraints,
+                    typeSystem: sema.types
+                )
+                guard evidenceSolution.isSuccess else {
+                    continue
+                }
+                for (variable, boundType) in evidenceSolution.substitution
+                where partialSubstitution[variable] == nil && boundType != sema.types.errorType {
+                    partialSubstitution[variable] = boundType
+                }
+            }
             let diagnosticsCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
             var retryArgTypes = argTypes
-            var didReinfer = false
+            var reinferredIndices: [Int] = []
             for index in deferredIndices {
                 guard let parameterIndex = parameterIndexForCallArgument(
                     at: index,
@@ -280,7 +489,7 @@ extension CallTypeChecker {
                 ), parameterIndex < signature.parameterTypes.count,
                    let expectedArgumentType = deferredArgumentExpectedType(
                        parameterType: signature.parameterTypes[parameterIndex],
-                       argumentType: argTypes[index],
+                       argumentType: nestedEvidence[index]?.type ?? argTypes[index],
                        signature: signature,
                        partialSubstitution: partialSubstitution,
                        typeVarBySymbol: typeVarBySymbol,
@@ -295,9 +504,9 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: expectedArgumentType
                 )
-                didReinfer = true
+                reinferredIndices.append(index)
             }
-            guard didReinfer else {
+            guard !reinferredIndices.isEmpty else {
                 ctx.semaCtx.diagnostics.rollback(to: diagnosticsCheckpoint)
                 continue
             }
@@ -317,6 +526,14 @@ extension CallTypeChecker {
                 ctx: ctx
             )
             if retried.diagnostic == nil {
+                // The re-inferred arguments succeeded, so the failed first
+                // pass's diagnostics inside their ranges (e.g. the nested
+                // call's `KSWIFTK-SEMA-INFER`) are stale — drop them.
+                for index in reinferredIndices {
+                    if let argumentRange = ast.arena.exprRange(args[index].expr) {
+                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                    }
+                }
                 return retried
             }
             ctx.semaCtx.diagnostics.rollback(to: diagnosticsCheckpoint)

@@ -676,14 +676,77 @@ final class ControlFlowTypeChecker {
         var thenLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
         let thenCtx = ctx.copying(flowState: branch.trueState)
-        let thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
+        var thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
         var elseLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
         var elseCompletes = true
         let resolvedType: TypeID
         if let elseExpr {
             let elseCtx = ctx.copying(flowState: branch.falseState)
-            let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+            var elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+            // A nested call in a branch can leave a type parameter
+            // unresolved because it is only fixed by the sibling branch's
+            // type — kotlinc solves both branches under one constraint
+            // system. When a branch failed to infer, no contextual expected
+            // type was provided, and the sibling produced a usable type,
+            // retry the failing branch against that sibling type so
+            // `if (b) OD<Boolean, Boolean>(false) else OD(false)` resolves.
+            func retriableBranchExpr(_ expr: ExprID) -> Bool {
+                switch ast.arena.expr(expr) {
+                case .call, .memberCall, .ifExpr:
+                    return true
+                default:
+                    return false
+                }
+            }
+            if expectedType == nil, elseType == sema.types.errorType,
+               thenType != sema.types.errorType, thenType != sema.types.nothingType,
+               retriableBranchExpr(elseExpr)
+            {
+                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                var retryLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &retryLocals, sema: sema)
+                let retried = driver.inferExpr(
+                    elseExpr,
+                    ctx: elseCtx,
+                    locals: &retryLocals,
+                    expectedType: thenType,
+                    isStatementContext: isStatementContext
+                )
+                if retried != sema.types.errorType {
+                    elseType = retried
+                    elseLocals = retryLocals
+                    if let elseRange = ast.arena.exprRange(elseExpr) {
+                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
+                    }
+                } else {
+                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                }
+            }
+            if expectedType == nil, thenType == sema.types.errorType,
+               elseType != sema.types.errorType, elseType != sema.types.nothingType,
+               retriableBranchExpr(thenExpr)
+            {
+                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                var retryLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &retryLocals, sema: sema)
+                let retried = driver.inferExpr(
+                    thenExpr,
+                    ctx: thenCtx,
+                    locals: &retryLocals,
+                    expectedType: elseType,
+                    isStatementContext: isStatementContext
+                )
+                if retried != sema.types.errorType {
+                    thenType = retried
+                    thenLocals = retryLocals
+                    if let thenRange = ast.arena.exprRange(thenExpr) {
+                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
+                    }
+                } else {
+                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                }
+            }
             resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
                 expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
             ))

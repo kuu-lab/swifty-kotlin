@@ -252,6 +252,35 @@ public final class DiagnosticEngine: @unchecked Sendable {
         _diagnostics.removeSubrange(count...)
     }
 
+    /// Removes error diagnostics whose primary range lies inside `range`,
+    /// wherever they appear in the emission order. TypeCheck re-inference
+    /// retries use this after a nested expression that failed its first pass
+    /// (e.g. `KSWIFTK-SEMA-INFER` on `D(t, 1)` inside `W1(D(t, 1), 0)`)
+    /// succeeds under an expected type: the failed pass's diagnostics inside
+    /// that expression's range are stale and must not surface. Keeps
+    /// `_emittedDiagnostics` and the per-file counts consistent, unlike a
+    /// bare `rollback(to:)` which only truncates the array tail.
+    public func removeErrorDiagnostics(containedIn range: SourceRange) {
+        lock.lock()
+        defer { lock.unlock() }
+        _diagnostics.removeAll { diagnostic in
+            guard diagnostic.severity == .error,
+                  let primaryRange = diagnostic.primaryRange,
+                  range.contains(primaryRange)
+            else {
+                return false
+            }
+            let bucket = fileBucket(for: diagnostic)
+            if _truncationNoticeByFile[bucket] == diagnostic {
+                _truncationNoticeByFile.removeValue(forKey: bucket)
+            } else {
+                _diagnosticCountByFile[bucket, default: 0] -= 1
+            }
+            _emittedDiagnostics.remove(diagnostic)
+            return true
+        }
+    }
+
     /// Sort the diagnostics array in-place by source location for deterministic
     /// ordering after parallel phases where lock-acquisition order is arbitrary.
     public func sortBySourceLocation() {
