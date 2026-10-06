@@ -721,6 +721,18 @@ final class CallTypeChecker {
         {
             let intType = sema.types.intType
             let calleeNameStr = interner.resolve(calleeName)
+            // Intrinsic allocation bypasses normal constructor resolution, but
+            // still uses the source-backed array class's opt-in contract.
+            if let arraySymbol = sema.symbols.lookup(
+                fqName: [interner.intern("kotlin"), calleeName]
+            ) {
+                driver.helpers.checkOptIn(
+                    for: arraySymbol,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             let countType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,

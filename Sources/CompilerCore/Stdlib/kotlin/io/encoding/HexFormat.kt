@@ -477,6 +477,7 @@ public fun String.hexToByteArray(format: HexFormat = defaultHexFormat()): ByteAr
 }
 
 @ExperimentalStdlibApi
+@ExperimentalUnsignedTypes
 public fun String.hexToUByteArray(format: HexFormat = defaultHexFormat()): UByteArray {
     val values = parseByteValues(this, format)
     return UByteArray(values.size) { values[it].toUByte() }
