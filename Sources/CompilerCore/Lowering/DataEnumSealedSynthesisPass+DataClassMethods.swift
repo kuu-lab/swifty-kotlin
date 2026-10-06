@@ -178,6 +178,39 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
+        // A local data class restores enclosing captures from its instance
+        // fields inside <init>. Preserve those fields before running the new
+        // instance's initializers; body properties themselves are reinitialized.
+        let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: owner.id)
+        if !capturedSymbols.isEmpty {
+            let selfRef = module.arena.appendExpr(.symbolRef(selfParamSymbol), type: receiverType)
+            body.append(.constValue(result: selfRef, value: .symbolRef(selfParamSymbol)))
+            let layout = sema.symbols.nominalLayout(for: owner.id)
+            for capturedSymbol in capturedSymbols {
+                guard let offset = layout?.fieldOffsets[capturedSymbol] else { continue }
+                let offsetExpr = module.arena.appendExpr(.intLiteral(Int64(offset)), type: intType)
+                body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(offset))))
+                let captureSymbol = sema.symbols.symbol(capturedSymbol)
+                let isMutableLocal = captureSymbol?.kind == .local
+                    && captureSymbol?.flags.contains(.mutable) == true
+                let captureType = isMutableLocal ? sema.types.anyType
+                    : (sema.bindings.capturedLocalType(for: capturedSymbol)
+                        ?? sema.symbols.propertyType(for: capturedSymbol) ?? sema.types.anyType)
+                let value = module.arena.appendTemporary(type: captureType)
+                body.append(.call(
+                    symbol: nil, callee: interner.intern("kk_array_get_inbounds"),
+                    arguments: [selfRef, offsetExpr], result: value,
+                    canThrow: false, thrownResult: nil
+                ))
+                let stored = module.arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: nil, callee: interner.intern("kk_array_set"),
+                    arguments: [allocatedObjectExpr, offsetExpr, value], result: stored,
+                    canThrow: false, thrownResult: nil
+                ))
+            }
+        }
+
         let resultExpr = module.arena.appendTemporary(type: receiverType
         )
         body.append(.call(

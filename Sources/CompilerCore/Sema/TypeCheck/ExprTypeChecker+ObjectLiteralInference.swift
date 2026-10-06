@@ -438,6 +438,7 @@ extension ExprTypeChecker {
         _ memberProperties: [DeclID],
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
+        markAsSynthetic: Bool = true,
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
         let ast = ctx.ast
@@ -450,7 +451,8 @@ extension ExprTypeChecker {
             else {
                 continue
             }
-            var propertyFlags: SymbolFlags = [.synthetic]
+            // Data synthesis selects source properties from the constructor header.
+            var propertyFlags: SymbolFlags = markAsSynthetic ? [.synthetic] : []
             if propertyDecl.modifiers.contains(.override) { propertyFlags.insert(.overrideMember) }
             if propertyDecl.modifiers.contains(.open) { propertyFlags.insert(.openType) }
             if propertyDecl.modifiers.contains(.abstract) { propertyFlags.insert(.abstractType) }
