@@ -2022,6 +2022,12 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: elem) else {
         return "\(elem)"
     }
+    // KUU-1352: coroutine job/task handles live in the liveness registry, not
+    // objectPointers — render kotlinx's `Name{State}@hex` before the
+    // pointer-type gate drops them into the numeric fallback.
+    if let rendered = runtimeJobHandleDebugString(elem) {
+        return rendered
+    }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
@@ -2156,6 +2162,12 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let resultBox = tryCast(ptr, to: RuntimeResultBox.self) {
         return runtimeResultToString(resultBox, render: runtimeElementToString)
+    }
+    // KUU-1352: a bound Job wrapper box (Job()/SupervisorJob()/
+    // CompletableDeferred/JobSupport subclass). Runs after the Any.toString
+    // override checks so a declared override still wins.
+    if let rendered = runtimeJobWrapperDebugString(elem) {
+        return rendered
     }
     // Registered object of a type this renderer does not know: keep it
     // recognisable as an object instead of leaking its address as a number,

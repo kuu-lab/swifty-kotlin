@@ -904,8 +904,11 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// `kk_op_is` job-family nominal recovery.
     var isDeferredResult = false
 
-    init(atomicStart: Bool = false) {
+    init(atomicStart: Bool = false, debugName: String? = nil) {
         self.atomicStart = atomicStart
+        // KUU-1352: the task IS the kotlinx coroutine object; its toString
+        // delegates to the completion job's name/state.
+        completionJob.debugName = debugName
         if atomicStart {
             completionJob.markStarted()
         }
@@ -1382,6 +1385,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// coroutine-job claim (AbstractCoroutine-family, like kotlinx's
     /// BlockingCoroutine/StandaloneCoroutine jobs).
     var nominalJobTypeID: Int64 = 0
+    /// KUU-1352: kotlinx `toDebugString()` class name for jobs that have no
+    /// bound source wrapper — set by the launcher that mints the handle
+    /// (`"BlockingCoroutine"`, `"StandaloneCoroutine"`, ...). Bound wrapper
+    /// jobs ignore this: `runtimeJobToStringName` resolves their name from
+    /// the wrapper class's nominal ID instead, like kotlinx's
+    /// `classSimpleName`.
+    var debugName: String? = nil
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
@@ -1501,6 +1511,23 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         hasStartedExecuting = false
         lock.unlock()
+    }
+
+    /// KUU-1352: kotlinx `JobSupport.stateString` mapping — the `{State}`
+    /// component of `toString()`. Exceptional completion renders as
+    /// `Cancelled` (a failed `Deferred` prints `{Cancelled}` on the JVM).
+    func toStringStateName() -> String {
+        lock.lock()
+        let current = state
+        lock.unlock()
+        switch current {
+        case .new: return "New"
+        case .active: return "Active"
+        case .completing: return "Completing"
+        case .cancelling: return "Cancelling"
+        case .cancelled, .failed: return "Cancelled"
+        case .completed: return "Completed"
+        }
     }
 
     func registerChild(_ childHandle: Int) {
@@ -2132,6 +2159,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     @discardableResult
     func installJob(defaultCancellationMessage: String = "CancellationException") -> RuntimeJobHandle {
         let scopeJob = RuntimeJobHandle(defaultCancellationMessage: defaultCancellationMessage)
+        // KUU-1352: kotlinx names these ScopeCoroutine / SupervisorCoroutine.
+        scopeJob.debugName = isSupervisor ? "SupervisorCoroutine" : "ScopeCoroutine"
         scopeJob.propagatesFailureToParent = false
         scopeJob.isSupervisorMarker = isSupervisor
         scopeJob.markStarted()
@@ -3000,6 +3029,7 @@ public func kk_kxmini_run_blocking(
     // silently succeed but subsequent suspension points (e.g. delay()) would
     // never observe the cancellation.
     let job = RuntimeJobHandle()
+    job.debugName = "BlockingCoroutine"
     return runSuspendEntryLoop(
         entryPointRaw: entryPointRaw,
         functionID: functionID,
@@ -3048,6 +3078,7 @@ func runtimeStartLaunchedBody(
 @_cdecl("kk_kxmini_launch")
 public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3114,6 +3145,7 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
 @_cdecl("kk_kxmini_launch_lazy")
 public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "LazyStandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3172,6 +3204,7 @@ public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> In
 @_cdecl("kk_kxmini_launch_lazy_with_cont")
 public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "LazyStandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3249,6 +3282,7 @@ public func kk_kxmini_launch_undispatched_with_cont(_ entryPointRaw: Int, _ cont
 
 private func runtimeLaunchUndispatched(entryPointRaw: Int, continuation: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3382,6 +3416,7 @@ public func kk_kxmini_run_blocking_with_cont(
     // caller. Callers (e.g. the `runBlocking`/suspend-value thunks) branch on this
     // slot to rethrow; dropping it silently swallowed the exception.
     let ownedJob = contState?.jobHandle == nil ? RuntimeJobHandle() : nil
+    ownedJob?.debugName = "BlockingCoroutine"
     if let ownedJob {
         ownedJob.markStarted()
         ownedJob.continuationState = contState
@@ -3416,6 +3451,7 @@ public func kk_suspend_coroutine(_ fnPtr: Int, _ closureRaw: Int, _ continuation
 @_cdecl("kk_kxmini_launch_with_cont")
 public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3491,8 +3527,9 @@ public func kk_kxmini_async_atomic_with_cont(_ entryPointRaw: Int, _ continuatio
 }
 
 private func runtimeAsyncScheduled(entryPointRaw: Int, continuation: Int, atomicStart: Bool = false) -> Int {
-    let task = RuntimeAsyncTask(atomicStart: atomicStart)
+    let task = RuntimeAsyncTask(atomicStart: atomicStart, debugName: "DeferredCoroutine")
     task.isDeferredResult = true
+    task.markScheduledForLaunch()
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
 
     let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
@@ -3569,7 +3606,7 @@ public func kk_kxmini_async_lazy_with_cont(_ entryPointRaw: Int, _ continuation:
 }
 
 private func runtimeAsyncLazy(entryPointRaw: Int, continuation: Int) -> Int {
-    let task = RuntimeAsyncTask()
+    let task = RuntimeAsyncTask(debugName: "LazyDeferredCoroutine")
     task.isDeferredResult = true
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
     let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
@@ -3613,8 +3650,9 @@ public func kk_kxmini_async_undispatched_with_cont(_ entryPointRaw: Int, _ conti
 }
 
 private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> Int {
-    let task = RuntimeAsyncTask()
+    let task = RuntimeAsyncTask(debugName: "DeferredCoroutine")
     task.isDeferredResult = true
+    task.markScheduledForLaunch()
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
     let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
     if let contState = runtimeContinuationState(from: continuation) {
@@ -3668,6 +3706,7 @@ func runtimeKxMiniProduceWithCont(
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
     job.producerChannel = channelHandle
+    job.debugName = "ProducerCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3715,6 +3754,7 @@ public func kk_kxmini_produce_with_cont(_ entryPointRaw: Int, _ continuation: In
 @_cdecl("kk_kxmini_launch_with_dispatcher")
 public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID: Int, _ dispatcherRaw: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -3779,6 +3819,7 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
 @_cdecl("kk_kxmini_launch_with_dispatcher_and_cont")
 public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ continuation: Int, _ dispatcherRaw: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -4027,6 +4068,7 @@ private func runtimeCompleteLaunchJobExceptionally(
 @_cdecl("kk_kxmini_launch_with_exception_handler")
 public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ functionID: Int, _ handlerRaw: Int) -> Int {
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -4611,7 +4653,6 @@ private func runtimeScopeLaunch(
             // inherit the child's name/dispatcher and attach to the child.
             context.jobHandleRaw = handle
             childScope.adoptJob(task.completionJob)
-            if start != 1 { task.markScheduledForLaunch() }
             parent?.registerChild(handle)
         }
     ) { task in
@@ -4628,8 +4669,19 @@ private func runtimeScopeAsync(
     prepare: ((RuntimeAsyncTask, Int) -> Void)? = nil,
     body: @escaping @Sendable (RuntimeAsyncTask) -> Void
 ) -> Int {
-    let task = RuntimeAsyncTask(atomicStart: start == 2)
+    // KUU-1352: the kotlinx coroutine class this builder mints —
+    // (Lazy)DeferredCoroutine for `async`, (Lazy)StandaloneCoroutine for
+    // `launch`; the LAZY start mode owns the `Lazy` prefix.
+    let task = RuntimeAsyncTask(
+        atomicStart: start == 2,
+        debugName: yieldsDeferredResult
+            ? (start == 1 ? "LazyDeferredCoroutine" : "DeferredCoroutine")
+            : (start == 1 ? "LazyStandaloneCoroutine" : "StandaloneCoroutine")
+    )
     task.isDeferredResult = yieldsDeferredResult
+    // KUU-1352: a scheduled (non-LAZY) coroutine is Active from the moment the
+    // builder returns — kotlinx has no `New` state for it.
+    if start != 1 { task.markScheduledForLaunch() }
     let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
     prepare?(task, handle)
     if registerWithScope { scope.registerChild(handle) }
@@ -4678,6 +4730,7 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_launch received invalid scope handle")
     }
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -4732,6 +4785,7 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_launch_with_cont received invalid scope handle")
     }
     let job = RuntimeJobHandle()
+    job.debugName = "StandaloneCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -5044,6 +5098,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     }
     let job = RuntimeJobHandle()
     job.producerChannel = channelHandle
+    // KUU-1352: shared with `actor` (bundled actor lowers to the same entry),
+    // so actor jobs also print ProducerCoroutine rather than upstream's
+    // ActorCoroutine — the ABI carries no discriminator.
+    job.debugName = "ProducerCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -5151,6 +5209,7 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     }
     let job = RuntimeJobHandle()
     job.producerChannel = channelHandle
+    job.debugName = "ProducerCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
@@ -5442,6 +5501,7 @@ private func runTimeoutBlock(
 
     let blockContinuation = kk_coroutine_continuation_new(entryPointRaw)
     let blockJob = RuntimeJobHandle()
+    blockJob.debugName = "TimeoutCoroutine"
     if let blockState = runtimeContinuationState(from: blockContinuation) {
         blockState.launcherArgs = runtimeContinuationState(from: continuation)?.launcherArgs ?? [:]
         blockState.scope = scope
@@ -5962,6 +6022,90 @@ func runtimeJobFamilyNominalTypeID(rawValue: Int) -> Int64? {
         return runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.ChildHandle")
     }
     return nil
+}
+
+/// KUU-1352: kotlinx `JobSupport.toString()` — `"<name>{<state>}@<hex>"`.
+/// Resolves raw `RuntimeJobHandle`/`RuntimeAsyncTask` handles through the
+/// liveness registry: job handles reached via `coroutineContext.job` and
+/// `launch`/`async` results are not GC-registered object pointers, so the
+/// generic renderers must consult this before their `isObjectPointer` gate.
+/// Returns nil for values that are not live job-family handles so the
+/// existing numeric fallback still applies.
+func runtimeJobHandleDebugString(_ rawValue: Int) -> String? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue),
+          let live = RuntimeLiveHandles.resolve(ptr)
+    else { return nil }
+    let job: RuntimeJobHandle
+    if let task = live as? RuntimeAsyncTask {
+        job = task.completionJob
+    } else if let jobHandle = live as? RuntimeJobHandle {
+        job = jobHandle
+    } else {
+        return nil
+    }
+    // kotlinx's `object NonCancellable : Job` overrides toString to a bare name.
+    if job === runtimeNonCancellableJob {
+        return "NonCancellable"
+    }
+    return runtimeJobDebugString(job)
+}
+
+/// KUU-1352: the wrapper half of `runtimeJobHandleDebugString` — a bound
+/// `RuntimeObjectBox` (`Job()`, `SupervisorJob()`, `CompletableDeferred`, a
+/// `JobSupport` subclass instance) renders through its job's debug string.
+/// Callers must invoke this AFTER their `runtimeAnyToStringOverride` check so
+/// a `toString()` explicitly declared on a JobSupport subclass still wins,
+/// matching kotlinx dispatch.
+func runtimeJobWrapperDebugString(_ rawValue: Int) -> String? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else { return nil }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer,
+          let box = tryCast(ptr, to: RuntimeObjectBox.self),
+          case .job(let job) = RuntimeJobOrTask(box)
+    else { return nil }
+    if job === runtimeNonCancellableJob {
+        return "NonCancellable"
+    }
+    return runtimeJobDebugString(job)
+}
+
+private func runtimeJobDebugString(_ job: RuntimeJobHandle) -> String {
+    "\(runtimeJobToStringName(job)){\(job.toStringStateName())}@\(String(job.sourceIdentityHandle, radix: 16))"
+}
+
+/// KUU-1352: the `nameString()` half of kotlinx's `toDebugString()`. Bound
+/// wrapper jobs take their wrapper class's simple name (kotlinx's
+/// `classSimpleName`) — except `CompletableJobImpl`, the bundled `Job()`/
+/// `SupervisorJob()` wrapper, which upstream renders as `JobImpl`/
+/// `SupervisorJobImpl`. Raw handles minted by the launch/async/runBlocking/
+/// produce launchers carry their kotlinx class name in `debugName`.
+private func runtimeJobToStringName(_ job: RuntimeJobHandle) -> String {
+    let nominalID = job.nominalJobTypeID
+    if nominalID == runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CompletableJobImpl")
+        || nominalID == runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.JobImpl")
+    {
+        return job.isSupervisorMarker ? "SupervisorJobImpl" : "JobImpl"
+    }
+    if nominalID == runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CompletableDeferredImpl") {
+        return "CompletableDeferredImpl"
+    }
+    if nominalID != 0, let name = runtimeNominalSimpleName(nominalID) {
+        return name
+    }
+    return job.debugName ?? "JobImpl"
+}
+
+/// The metadata simple name for a stable nominal class ID, when the class's
+/// `__kk_kclass_register_metadata` entry exists (user-defined JobSupport
+/// subclasses render under their own name).
+private func runtimeNominalSimpleName(_ nominalID: Int64) -> String? {
+    let typeToken = Int(
+        (nominalID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+    )
+    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
 }
 
 /// Registers the job-family nominal hierarchy edges once (mirrors
