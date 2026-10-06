@@ -62,10 +62,17 @@ public func kk_empty_array() -> Int {
     return kk_array_new(0)
 }
 
+/// `arrayOfNulls(size)` backs this bridge. Like `kk_array_new_checked`, a
+/// negative size must raise `NegativeArraySizeException` instead of silently
+/// clamping to an empty array (KUU-1382).
 @_cdecl("kk_array_of_nulls")
-public func kk_array_of_nulls(_ length: Int) -> Int {
+public func kk_array_of_nulls(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard length >= 0 else {
+        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        return 0
+    }
     let box = RuntimeArrayBox(length: length)
-    box.elements = Array(repeating: runtimeNullSentinelInt, count: max(0, length))
+    box.elements = Array(repeating: runtimeNullSentinelInt, count: length)
     return registerRuntimeObject(box)
 }
 

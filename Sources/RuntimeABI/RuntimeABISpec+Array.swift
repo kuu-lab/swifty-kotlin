@@ -35,10 +35,10 @@ public extension RuntimeABISpec {
             name: "kk_array_of_nulls",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Array",
-            isThrowing: false
+            section: "Array"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_new",
