@@ -18,6 +18,14 @@ extension CallLowerer {
             return nil
         }
 
+        // kotlin.Unit is a namespace-qualified builtin value, not a nominal
+        // object handle. Use the same representation as bare Unit literals.
+        if symbolID == sema.types.unitClassSymbol {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: symbolID)
             ?? sema.types.anyType
@@ -118,6 +126,39 @@ extension CallLowerer {
               let callBinding = sema.bindings.callBinding(for: exprID)
         else {
             return nil
+        }
+
+        // Qualified `kotlin.reflect.typeOf<T>()` expands through the same
+        // intrinsic lowering as the unqualified call (KSP-1323).
+        if let typeOfResult = lowerTypeOfCallExpr(
+            exprID,
+            calleeExpr: exprID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return typeOfResult
+        }
+
+        // Qualified `kotlin.comparisons.minOf(...)`/`maxOf(...)` calls fold
+        // through the same inline comparison lowering as the unqualified
+        // spelling (KUU-965). The source-backed overloads exist only for
+        // Sema overload resolution — CallLowerer never emits them as real
+        // symbols — so falling through to lowerResolvedCallBody leaves an
+        // undefined `minOf`/`maxOf` reference at link time.
+        if let comparisonResult = lowerComparisonSpecialCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return comparisonResult
         }
 
         let chosen = callBinding.chosenCallee

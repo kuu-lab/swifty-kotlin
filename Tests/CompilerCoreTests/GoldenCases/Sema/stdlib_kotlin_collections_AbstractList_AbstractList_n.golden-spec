@@ -1,0 +1,5 @@
+version=1
+stdlib-profile=source
+target=kotlin.collections.AbstractList.indexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]
+target=kotlin.collections.AbstractList.lastIndexOf[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=T0;gen=1]
+target=kotlin.collections.AbstractList.subList[kind=fun;recv=kotlin.collections.AbstractList<T0>;params=Int,Int;gen=1]

@@ -1,0 +1,9 @@
+symbol fq=Secret[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=reveal.$0.secret[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=reveal[kind=fun;params=Secret;ret=Int;names=[secret];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Secret] ret=Int
+file fprimary_constructor_private_access package=_
+  decl Secret[kind=class;origin=fixture] class Secret sym=Secret[kind=class;origin=fixture]
+  decl reveal[kind=fun;params=Secret;ret=Int;names=[secret];origin=fixture] fun reveal sym=reveal[kind=fun;params=Secret;ret=Int;names=[secret];origin=fixture]
+expr e@2:35 name(secret) type=Secret ref=reveal.$0.secret[kind=vparam;origin=fixture]
+expr e@2:35#1 memberCall recv=e@2:35 callee=value args=[] type=<error>
+diagnostic severity=error code=KSWIFTK-SEMA-0040 at=2:35 msg=Cannot access 'value': it is private.

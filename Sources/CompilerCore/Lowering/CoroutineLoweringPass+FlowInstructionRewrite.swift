@@ -8,10 +8,16 @@ extension CoroutineLoweringPass {
         flowExprIDs: inout Set<Int32>,
         remainingConsumes: inout [Int32: Int],
         symbolByExprRaw: [Int32: SymbolID],
-        names: FlowLoweringNames
+        names: FlowLoweringNames,
+        isFlowScopeFunction: Bool
     ) -> KIRLoweringEmitContext {
         var loweredBody = KIRLoweringEmitContext()
         loweredBody.instructions.reserveCapacity(originalBody.count)
+        let liveOutByInstruction = computeLiveOutByInstruction(
+            originalBody,
+            arena: module.arena
+        )
+        var liveAfterCurrentInstruction: Set<KIRExprID> = []
 
         func appendIntConstantInBody(_ value: Int64) -> KIRExprID {
             let expr = module.arena.appendTemporary(type: ctx.sema?.types.intType ?? TypeID.invalid
@@ -87,7 +93,9 @@ extension CoroutineLoweringPass {
             if let count = remainingConsumes[sourceHandle.rawValue], count > 0 {
                 let nextCount = count - 1
                 remainingConsumes[sourceHandle.rawValue] = nextCount
-                return (sourceHandle, nextCount == 0 ? sourceHandle : nil)
+                // A lexical last consume can still repeat through a loop back-edge.
+                let canRelease = nextCount == 0 && !liveAfterCurrentInstruction.contains(sourceHandle)
+                return (sourceHandle, canRelease ? sourceHandle : nil)
             }
             return (sourceHandle, nil)
         }
@@ -162,6 +170,7 @@ extension CoroutineLoweringPass {
         }
 
         for (index, instruction) in originalBody.enumerated() {
+            liveAfterCurrentInstruction = liveOutByInstruction[index] ?? []
             loweredBody.currentSourceRange = index < originalLocations.count
                 ? originalLocations[index]
                 : nil
@@ -200,7 +209,15 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
-                if callee == names.emit, arguments.count == 1, !hasRealDeclaration(symbol, in: ctx) {
+                // KUU-963: the bare `emit` intrinsic exists only inside a
+                // `flow { }` builder's scope. A name-only `emit` anywhere
+                // else (e.g. a `Sink.emit` member that stayed unbound) must
+                // keep its own dispatch instead of being swallowed by the
+                // Flow runtime bridge.
+                // Collector failures must use the original exception slot so
+                // upstream catch/finally blocks run before collection aborts.
+                if callee == names.emit, arguments.count == 1, isFlowScopeFunction,
+                   !hasRealDeclaration(symbol, in: ctx) {
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: names.kkFlowEmit,
@@ -210,8 +227,8 @@ extension CoroutineLoweringPass {
                             appendIntConstantInBody(RuntimeFlowTag.emit.rawValue),
                         ],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil,
+                        canThrow: true,
+                        thrownResult: thrownResult,
                         isSuperCall: isSuperCall
                     ))
                     continue

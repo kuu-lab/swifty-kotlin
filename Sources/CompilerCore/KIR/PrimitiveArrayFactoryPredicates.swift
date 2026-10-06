@@ -41,3 +41,54 @@ func isPrimitiveArrayType(
         && symbol.name != knownNames.array
         && knownNames.isArrayLikeName(symbol.name)
 }
+
+/// The local representation of a primitive vararg is its Kotlin primitive
+/// array, not List<T>.  Keep the signature's element type unchanged for call
+/// resolution; only the callee local and packed argument use this type.
+func primitiveVarargArrayType(
+    elementType: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> TypeID? {
+    guard case let .primitive(primitive, .nonNull) = sema.types.kind(of: elementType) else {
+        return nil
+    }
+    let arrayName = interner.intern(primitive.kotlinName + "Array")
+    guard let arraySymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), arrayName]) else {
+        return nil
+    }
+    return sema.types.make(.classType(ClassType(
+        classSymbol: arraySymbol,
+        args: [],
+        nullability: .nonNull
+    )))
+}
+
+/// Returns the runtime nominal type ID for an array-shaped Kotlin type.
+///
+/// Arrays share one runtime storage representation, so lowering must preserve
+/// the static array class at the point where the value is allocated or copied.
+func runtimeArrayNominalTypeID(
+    _ type: TypeID?,
+    sema: SemaModule,
+    interner: StringInterner
+) -> Int64? {
+    guard let type,
+          let (classType, symbol) = resolveClassTypeSymbol(
+              sema.types.makeNonNullable(type),
+              sema: sema
+          ),
+          classType.args.isEmpty || symbol.name == KnownCompilerNames(interner: interner).array
+    else {
+        return nil
+    }
+    let knownNames = KnownCompilerNames(interner: interner)
+    guard knownNames.isArrayLikeName(symbol.name) else {
+        return nil
+    }
+    return RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: symbol.id,
+        sema: sema,
+        interner: interner
+    )
+}

@@ -31,15 +31,30 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: getter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         var getterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            // Match the property-based receiver parameter used by KIR accessors.
+            getterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
         }
         let getterType = inferFunctionBodyType(
-            getter.body, ctx: accessorCtx, locals: &getterLocals,
+            getter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: inferredPropertyType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &getterLocals,
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
@@ -118,7 +133,7 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let getValueExpectedType = result
-            ?? mutableMapDelegateValueType(delegateType, sema: sema, interner: interner)
+            ?? mapDelegateValueType(delegateType, sema: sema, interner: interner)
         let getValueResolution = resolvePropertyDelegateFunction(
             named: getValueName,
             receiverType: delegateType,
@@ -148,11 +163,11 @@ extension DeclTypeChecker {
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
             if result == nil {
-                // MutableMap's source-backed getValue uses the exact value type
+                // Map's source-backed getValue uses the exact value type
                 // from its receiver. The `V1 : V` return type is represented as a
                 // separate source type parameter, so recover that bound here when
                 // projected receiver lookup cannot substitute it automatically.
-                result = mutableMapDelegateValueType(delegateType, sema: sema, interner: interner)
+                result = mapDelegateValueType(delegateType, sema: sema, interner: interner)
                     ?? getValueSig.returnType
             }
             getValueResolved = true
@@ -466,7 +481,14 @@ extension DeclTypeChecker {
         )
         var extensionCandidates: [SymbolID] = []
         var seen: Set<SymbolID> = []
-        for candidate in scopeCandidates + bundledCandidates where seen.insert(candidate).inserted {
+        // Default-imported collection delegate operators are not covered by
+        // the atomic-only bundled extension fallback.
+        let mapCandidates = bundledMapDelegateCandidates(
+            named: name,
+            sema: sema,
+            interner: interner
+        )
+        for candidate in scopeCandidates + bundledCandidates + mapCandidates where seen.insert(candidate).inserted {
             extensionCandidates.append(candidate)
         }
         // A MutableMap delegate has both the Map and MutableMap getValue
@@ -504,24 +526,6 @@ extension DeclTypeChecker {
             return extensionResolution
         }
 
-        // MutableMap's source-backed delegated accessors are top-level bundled
-        // extensions whose projected receiver is not exposed by the generic
-        // importless bundled-extension fallback. Recover only these declarations
-        // after ordinary member and visible-extension resolution has been attempted.
-        if isMutableMapDelegateType(receiverType, sema: sema, interner: interner),
-           let mutableMapResolution = resolve(
-               bundledMutableMapDelegateCandidates(
-                   named: name,
-                   sema: sema,
-                   interner: interner
-               )
-           )
-        {
-            if let diagnostic = mutableMapResolution.diagnostic {
-                ctx.semaCtx.diagnostics.emit(diagnostic)
-            }
-            return mutableMapResolution
-        }
         return nil
     }
 
@@ -542,7 +546,7 @@ extension DeclTypeChecker {
         ]
     }
 
-    private func mutableMapDelegateValueType(
+    private func mapDelegateValueType(
         _ type: TypeID,
         sema: SemaModule,
         interner: StringInterner
@@ -550,11 +554,8 @@ extension DeclTypeChecker {
         guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
               classType.args.count == 2,
               let symbol = sema.symbols.symbol(classType.classSymbol),
-              symbol.fqName == [
-                  interner.intern("kotlin"),
-                  interner.intern("collections"),
-                  interner.intern("MutableMap"),
-              ]
+              symbol.fqName == [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Map")]
+                || symbol.fqName == [interner.intern("kotlin"), interner.intern("collections"), interner.intern("MutableMap")]
         else {
             return nil
         }
@@ -564,7 +565,7 @@ extension DeclTypeChecker {
         }
     }
 
-    private func bundledMutableMapDelegateCandidates(
+    private func bundledMapDelegateCandidates(
         named: InternedString,
         sema: SemaModule,
         interner: StringInterner
@@ -573,6 +574,7 @@ extension DeclTypeChecker {
             guard let symbol = sema.symbols.symbol(candidateID),
                   symbol.kind == .function,
                   symbol.flags.contains(.operatorFunction),
+                  Array(symbol.fqName.dropLast()) == [interner.intern("kotlin"), interner.intern("collections")],
                   sema.symbols.isSourceBackedSymbol(candidateID),
                   let signature = sema.symbols.functionSignature(for: candidateID),
                   let receiverType = signature.receiverType,
@@ -583,11 +585,8 @@ extension DeclTypeChecker {
             else {
                 return false
             }
-            return receiverSymbol.fqName == [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("MutableMap"),
-            ]
+            return receiverSymbol.fqName == [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Map")]
+                || receiverSymbol.fqName == [interner.intern("kotlin"), interner.intern("collections"), interner.intern("MutableMap")]
         }
     }
 
@@ -786,6 +785,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: setter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         if !property.isVar {
@@ -796,6 +796,11 @@ extension DeclTypeChecker {
             )
         }
         var setterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            setterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (
@@ -809,7 +814,15 @@ extension DeclTypeChecker {
             finalPropertyType, setterValueSymbol, true, true
         )
         let setterType = inferFunctionBodyType(
-            setter.body, ctx: accessorCtx, locals: &setterLocals,
+            setter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: sema.types.unitType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &setterLocals,
             expectedType: sema.types.unitType
         )
         driver.emitSubtypeConstraint(

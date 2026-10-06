@@ -447,10 +447,10 @@ public final class BuildASTPhase: CompilerPhase {
         var imports: [ImportDecl] = []
         var topLevelDecls: [DeclID] = []
         var scriptBody: [ExprID] = []
-        // Top-level `fun` declarations materialized as real file-scope FunDecls
-        // below; passed to `blockExpressions` so script mode doesn't also nest
-        // them as shadowing local functions inside the synthesized `main()` body.
-        var materializedFunDeclNodeIDs: Set<NodeID> = []
+        // Top-level declarations materialized as real file-scope decls below;
+        // passed to `blockExpressions` so script mode doesn't also nest them
+        // as shadowing local decls inside the synthesized `main()` body.
+        var materializedDeclNodeIDs: Set<NodeID> = []
         let rootNode = cst.node(root)
         let fileAnnotations = declarationAnnotations(from: root, in: cst, interner: interner)
             .filter { $0.useSiteTarget == "file" }
@@ -468,7 +468,13 @@ public final class BuildASTPhase: CompilerPhase {
             case .importHeader:
                 let path = extractQualifiedPath(from: nodeID, in: cst, interner: interner, isPackageHeader: false)
                 let alias = extractImportAlias(from: nodeID, in: cst, interner: interner)
-                imports.append(ImportDecl(range: node.range, path: path, alias: alias))
+                let isWildcard = collectTokens(from: nodeID, in: cst).contains { token in
+                    if case .symbol(.star) = token.kind {
+                        return true
+                    }
+                    return false
+                }
+                imports.append(ImportDecl(range: node.range, path: path, alias: alias, isWildcard: isWildcard))
 
             case .importList:
                 for importChild in cst.children(of: nodeID) {
@@ -477,12 +483,19 @@ public final class BuildASTPhase: CompilerPhase {
                     guard importNode.kind == .importHeader else { continue }
                     let path = extractQualifiedPath(from: importNodeID, in: cst, interner: interner, isPackageHeader: false)
                     let alias = extractImportAlias(from: importNodeID, in: cst, interner: interner)
-                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias))
+                    let isWildcard = collectTokens(from: importNodeID, in: cst).contains { token in
+                        if case .symbol(.star) = token.kind {
+                            return true
+                        }
+                        return false
+                    }
+                    imports.append(ImportDecl(range: importNode.range, path: path, alias: alias, isWildcard: isWildcard))
                 }
 
             case .classDecl:
                 let decl = Decl.classDecl(makeClassDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .interfaceDecl:
                 let decl = Decl.interfaceDecl(makeInterfaceDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -491,11 +504,12 @@ public final class BuildASTPhase: CompilerPhase {
             case .objectDecl:
                 let decl = Decl.objectDecl(makeObjectDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .funDecl:
                 let decl = Decl.funDecl(makeFunDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
-                materializedFunDeclNodeIDs.insert(nodeID)
+                materializedDeclNodeIDs.insert(nodeID)
 
             case .propertyDecl where !isScript:
                 let decl = Decl.propertyDecl(makePropertyDecl(from: nodeID, in: cst, interner: interner, astArena: arena))
@@ -525,7 +539,7 @@ public final class BuildASTPhase: CompilerPhase {
                 in: cst,
                 interner: interner,
                 astArena: arena,
-                excludingNodeIDs: materializedFunDeclNodeIDs
+                excludingNodeIDs: materializedDeclNodeIDs
             )
             scriptBody = scriptExprs
 
@@ -683,11 +697,12 @@ public final class BuildASTPhase: CompilerPhase {
         var activeDeclsByFile = state.activeDeclsByFileRawID
         var tokenCountsByFile = state.tokenCountsByFileRawID
 
+        let tokenCountByFileID = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1.count) })
         let changedFiles: [ASTFile] = changedRawIDs.sorted().map { rawID in
             activeDeclsByFile[rawID] = allDeclsByFile[rawID] ?? []
             let fileID = FileID(rawValue: rawID)
-            if let tokens = ctx.tokensByFile.first(where: { $0.0 == fileID })?.1 {
-                tokenCountsByFile[rawID] = tokens.count
+            if let tokenCount = tokenCountByFileID[fileID] {
+                tokenCountsByFile[rawID] = tokenCount
             }
             return ASTFile(
                 fileID: fileID,

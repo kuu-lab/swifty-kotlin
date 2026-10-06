@@ -135,6 +135,12 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
   `__` prefix（ユーザー補完・公開 API 面に出さない）
 - パーサは `external` 修飾子を受理済み（`KotlinParser+Utilities.swift`）。Sema は
   `@KsSymbolName` を externalLinkName として記録し、KIR/Codegen は既存の外部呼び出し経路をそのまま使う
+- **インターフェース型レシーバの `external fun` 拡張もそのまま宣言できる**:
+  KSP-443 が owner+name 解決用に生成する合成メンバエイリアスには
+  `.extensionMemberAlias` フラグが立ち、vtable/itable レイアウト
+  （`LayoutSynthesis.orderedOwnMethods`）とクラスデリゲーションの forwarder 合成
+  （`Inheritance.swift`）から除外される。実行時ディスパッチには影響しないため、
+  「通常引数に取るトップレベル関数＋非 external ラッパー」の2段構成は不要（KUU-545）
 - **ABI 突合を機械化する**: 「stdlib ソース中の全 `@KsSymbolName` 値が `RuntimeABISpec` に宣言され、
   型署名が一致する」ことをテストで enforcing にする。これにより
   `runtime-abi-external-link-validation-gaps.md` の検証ギャップは注釈⇔Spec の突合に一本化される
@@ -217,25 +223,41 @@ case あたりの stdlib 再コンパイルを回避する。
 > 補足: 並行メモが提案していた別基準（Smoke 相当の入力で wall-clock 15%未満 or 200ms未満）との
 > すり合わせは決着済み。実測に基づき上記 +100ms トリガーを採用した（`docs/refactoring-metrics.md`）。
 
-## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007)
+## 8. golden / diff_kotlinc への影響 (RF-STDLIB-007 → RF-GOLDEN-008 で改訂)
 
 - golden（Lexer/Parser/Sema/Diagnostics）は **ユーザー入力ファイルのみ**を対象とし、
   `__bundled_*` 由来のトークン・AST・診断はダンプに含めない（既にパス名で判別可能）
-- ただし Sema golden のシンボル ID は bundled ソースの宣言数に影響される。
-  §4 の決定的順序（辞書順・ユーザーより先）を不変条件とし、stdlib 変更時は
-  `UPDATE_GOLDEN=1` での一括更新を許容する（更新 diff が機械的であることを PR でレビュー）
+- Sema golden の通常 body は RF-GOLDEN-007/008 の fixture-owned 契約
+  （`GoldenSemaRenderingContract.fixtureOwned`、既定）で描画する:
+  - `symbol` 行は fixture 所有の宣言（RF-GOLDEN-002 の `.fixture` / `.unknown` origin）に限定する。
+    bundled / stub / member-alias / imported の外部宣言は `flags=` / `sig=` / `type=` の
+    メタデータ行を出さない
+  - `call=` / `ref=` / `type=` / `targs=` / `sig=` の参照キーは RF-GOLDEN-006 の公開宣言キーで表記する。
+    戻り型・境界・引数名・default/vararg/nonlocal・throws・variance・underlying を含み、
+    stdlib の実装方式（synthetic stub / source-backed / member alias / imported）の差は
+    公開キーへ投影されない
+- stdlib 宣言のメタデータ契約は `.golden-spec` の `target=` を持つ対象指定ケースの
+  `section stdlib-targets` が担当する。spec・期待値・profile・担当重複は
+  `GoldenHarnessCaseDiscovery.preflightAllSuites` の全量ゲートが検査する（RF-GOLDEN-013）
+- **更新方針**: 実装詳細だけの変化（synthetic↔source-backed 切替・内部 flag・
+  未参照宣言の追加・alias/declSite/シンボル ID の揺れ）では通常 Golden を更新しない。
+  公開 API / 解決先の意味変更・出力仕様移行（契約フォーマット改版）時の
+  `UPDATE_GOLDEN=1` 一括更新は許容する（更新 diff が機械的であることを PR でレビュー）。
+  §4 の決定的順序（辞書順・ユーザーより先）は不変条件
 - stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う
   （warning 含めゼロを CI で enforcing にする）
 - `diff_kotlinc.sh`: 移行した各 API に対応する diff ケースを `Scripts/diff_cases/` に**必ず追加**する。
   kotlinc と意図的に挙動を変えない限り `// SKIP-DIFF` は使わない
 
-実装ステータス（2026-07-06）:
+実装ステータス（2026-10-04、RF-GOLDEN-008 時点）:
 
 - `LoadSourcesPhase` は bundled / residual stdlib sources を `__bundled_*` path の辞書順に登録し、
   `Tests/CompilerCoreTests/Driver/BundledStdlibOrderingTests.swift` が「bundled がユーザー入力より先」
   と「bundled 同士が辞書順」を固定している
-- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` で bundled declSite symbols を
-  除外し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が 0 件になる状態を維持する
+- Sema golden は `Sources/GoldenHarnessSupport/GoldenHarnessDump.swift` の fixture-owned 契約で
+  fixture 所有 symbol のみを描画し、`rg '__bundled_' Tests/CompilerCoreTests/GoldenCases` が
+  0 件になる状態を維持する。参照キーは公開宣言キー表記で、外部 symbol のメタデータは
+  対象指定ケースの `section stdlib-targets` と `GoldenHarnessInventoryTests` の全量ゲートが担保する
 - Diagnostics golden / CLI diagnostics は `DiagnosticEngine.render` / `renderJSON` が source location、
   severity、code、message で render 時ソートする
 - `Scripts/diff_kotlinc.sh` は `find | sort` の case discovery、interleaved sharding、parallel worker logs の
@@ -269,13 +291,13 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticClockStubs.swift` | 174 | (c) | KSP-712 reclassified: `Clock.now()` remains a hidden runtime dispatch bridge and `Clock.System` bootstrap anchor; public `Clock.System.now()` is bundled Kotlin source. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
-| `HeaderHelpers+SyntheticCoercionStubs.swift` | 654 | (b)+(c) | KSP-1531 numeric conversion classification; range/coercion source migration is tracked separately. |
+| `HeaderHelpers+SyntheticCoercionStubs.swift` | 360 | (c) | **KSP-1544 (KUU-588) で (c) 確定（2026-09-16。ゲート G は CI 待ち、`[x]` 化は TODO.md 側）**: (b) 分は全て source-backed 化済み — range/coercion（`coerceIn`/`coerceAtLeast`/`coerceAtMost`）は `ranges/RangeCoercion.kt`、`Float.toByte()/toShort()`・`Double.toByte()/toShort()` は `Numbers.kt`（`toInt().toX()` 合成 + `warningSince=1.3`/`errorSince=1.5` の error-level deprecated メタデータで本家と同じく未抑制呼び出しは error）。残置 (c) は Int×9 / Long×9 / `Double.toFloat` の言語コア・プリミティブ cast（KSP-1531 分類表どおり lowering が `kk_*` へ直接写像する ABI/residual 面。`kk_int_to_int` identity 登録を含む）。併せて dead code として `kotlin.math` package bootstrap（Math bucket の `ensureSyntheticPackageHierarchy` が常に先行するため到達不能）と `syntheticDeprecatedAnnotationsForCoercion`（`toChar` 専用だが登録対象が既に 0 件）を削除。 |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 0 (deleted) | (b) migrated | **完了・ファイル削除済み**（KSP-699）。KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残っていた factory 関数 bootstrap stub 19 件のうち `arrayListOf` 以外は既に bundled source で skip されており、最後の `arrayListOf` を `CollectionFactories.kt` へ移行して登録ごと削除した（`hashSetOf`/`hashMapOf` は `hash.kt`、`linkedSetOf`/`linkedMapOf` は `linked.kt`）。呼び出し側は共有 factory lowering 経路を維持（要素 boxing と runtime タグのため）。 |
 | `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 1061 | (c) | **KSP-1542 完了（2026-09-16、PR #6784）**: `Collection`/`Iterable`/`Iterator` 系の nominal 宣言は KSP-700（PR #6837）などの bundled Kotlin source を正規経路とし、この Swift ファイルは `--no-stdlib`/precompiled metadata 用 fallback と、runtime box の itable 未登録を迂回する (c) bridge 残余を保持する。`Collection.E`/`Iterable.E`/`Iterator.T` は既存 symbol を再利用して source header collection との孤立化・重複を防ぐ。`__kk_collection_isEmpty`/`__kk_collection_size`/`kk_op_contains`/`__kk_collection_containsAll`/`kk_list_iterator`/`kk_iterable_iterator`/`__kk_mutable_collection_*`/`kk_iterator_hasNext`/`kk_iterator_next` は残置する。`kk_list_random`/`kk_list_randomOrNull` も KSP-1509（PR #6818）後なお no-stdlib/precompiled fallback が参照するため維持する。Set-backed interface dispatch の回帰は `Scripts/diff_cases/collection_interface_set_backed_dispatch.kt` で固定し、PR #6784 の Swift test/Backend/Runtime/CLI/LSP/Repository/kotlinc Diff の全 CI shard が green であることを確認済み。 |
 | `HeaderHelpers+SyntheticComparableResiduals.swift` | 68 | (c) | **KSP-700 で (c) 確定（2026-09-15）**: 旧 `+SyntheticComparableAndCollectionStubs.swift` の3分割先の一つ。`Comparable<in T>`/`compareTo` は bundled Kotlin source（`Comparable.kt`、KSP-797）で完結し、この行の型シェル lookup は `--no-stdlib`/precompiled-metadata フォールバックのみ。残る呼び出し先（`HeaderHelpers+SyntheticComparableHelpers.swift`）は Int/Double 等プリミティブ型を `Comparable<Self>` へ symbol-table レベルで適合させる処理で、プリミティブが宣言可能な supertype list を持たないコンパイラ組込型である以上 Kotlin source で代替できない。`registerOpenEndRangeComparableUpperBound`/`patchSyntheticClosedRangeTypeParameterUpperBound`（`HeaderHelpers+SyntheticRangeProgressionStubs.swift` 定義）への呼び出しは Range モジュール側（KSP-714）の担当のため現状維持。 |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 117 | (c) | 上記の呼び出し先。`setupPrimitiveComparableImplementations`（Int/Long/Double/Float/Char/Boolean/UInt/ULong/UByte/UShort を `Comparable<Self>` へ適合、Companion anchor 込み）。言語コアの組込宣言に相当し KSP-700 後も (c) 恒久残留。KUU-586 で `registerSyntheticPrimitiveCompanionAnchors`（旧 `+SyntheticMathStubs.swift` の Byte/Long/Short nominal + Companion anchor）を移設——同一の `ensureSyntheticPrimitiveCompanionSymbol` 実装を共用する。 |
 | `HeaderHelpers+SyntheticCollectionResiduals.swift` | 260 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。`registerSyntheticCollectionStubs` はorchestrator——Iterable/Collection/MutableCollection/MutableIterable/List/AbstractList/MutableList/Map/MutableMap の残余登録を正しい順序で呼び出すため、KSP-700 後も残置。Set/MutableSet の nominal shell 登録は KSP-704 で除去し、bundled source の早期 header predeclaration に移した。`registerSyntheticRandomAccessStub` は `RandomAccess.kt`（KSP-669）を lookup-or-fallback するのみで実質 (c)。`makeComparableTypeParam` ヘルパーは `HeaderHelpers+SyntheticMutableListStubs.swift`/`+SyntheticMapStubs.swift` から使用中。 |
-| `HeaderHelpers+SyntheticListResiduals.swift` | 241 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。**KSP-700（2026-09-15）**: `List<E>.get`/`isEmpty`/`listIterator()`/`listIterator(index)` と `MutableList` の共変 iterator override を `Stdlib/kotlin/collections/List.kt`/`MutableList.kt` へ source 化し、既存 `__kk_list_get`/`kk_list_is_empty`/`kk_list_iterator`/`kk_list_iterator_at` link name を再利用した。`registerListGetOperator` は bundled source がない場合だけの fallback へ縮小し、移行済みの ListIterator/MutableListIterator synthetic member 登録と dead な set-ops/toMap/asSequence/contentEquals 登録を削除。残る List/AbstractList nominal fallback と `registerListTransformMembers`（別ファイル `+SyntheticListTransformMembers.swift` 定義、(b) 残・M3）は非 bundled/precompiled context の residual 責務として維持。 |
+| `HeaderHelpers+SyntheticListResiduals.swift` | 241 | (c)/(b) 混在 | 旧ファイルの3分割先の一つ。**KSP-700（2026-09-15）**: `List<E>.get`/`isEmpty`/`listIterator()`/`listIterator(index)` と `MutableList` の共変 iterator override を `Stdlib/kotlin/collections/List/List.kt`/`MutableList.kt` へ source 化し、既存 `__kk_list_get`/`kk_list_is_empty`/`kk_list_iterator`/`kk_list_iterator_at` link name を再利用した。`registerListGetOperator` は bundled source がない場合だけの fallback へ縮小し、移行済みの ListIterator/MutableListIterator synthetic member 登録と dead な set-ops/toMap/asSequence/contentEquals 登録を削除。**KSP-1063（2026-09-26）**: `List.size`（`__kk_collection_size` link）と `List.iterator`（`kk_list_iterator` link）の claimable synthetic stub を追加し、`List/List.kt` の source decl が claim して引き継ぐ形にした。`List.iterator` の `Iterable` alias を抑止して `Iterable.iterator` の KSP-998 stub を維持。残る List/AbstractList nominal fallback と `registerListTransformMembers`（別ファイル `+SyntheticListTransformMembers.swift` 定義、(b) 残・M3）は非 bundled/precompiled context の residual 責務として維持。 |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-1520）。既存の `kotlin/Comparator.kt` を `predeclareBundledComparatorHeaders` で早期 nominal 宣言し、`String.Companion.CASE_INSENSITIVE_ORDER` の初期参照を解決する。Comparator 固有の synthetic itable/vtable anchor は不要になったが、共有 `__kk_compare_with_comparator` と runtime singleton は保持する。 |
 | `HeaderHelpers+SyntheticComparisonStubs.swift` | 157 | (b) | **完了・ファイル削除済み**（KSP-684）。トップレベル `maxWith`/`minWith` は `Stdlib/kotlin/comparisons/Comparisons.kt` へ移行し、残る比較ヘルパーは source-backed Comparator member と共有比較コアで管理する。 |
 | `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
@@ -290,11 +312,11 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
 | `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
 | `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | ~~520~~ | ~~(a)~~ | ~~`java.nio.file` / files utility surface; target-out cleanup.~~ **削除済み** (CLEANUP-STUB-110, 2026-09-03)。`FileTime` の Path 共有部分は保持。 |
-| `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
+| `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 207 | (c) | Function0..22 interfaces are compiler-known residuals. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
 | `HeaderHelpers+SyntheticInstantStubs.swift` | 272 | (c) | KSP-712 reclassified: Instant.Companion bootstrap and hidden source bridges remain; Instant public properties, arithmetic, comparison, and factories are bundled Kotlin source, while handle/OS-clock core remains runtime-owned. |
-| `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` に分離。 |
+| `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`、Sequence の未移行メンバーは `HeaderHelpers+SyntheticSequenceResidualStubs.swift` に分離。 |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` | 1694 | (c) | CLEANUP-STUB-107 で `HeaderHelpers+SyntheticFileIOStubs.swift` を置き換え。File 自身の facade は削除済みで、bare shell・コンストラクタ・`path` と、Reader/BufferedReader/Writer/BufferedWriter/InputStream/OutputStream 共有ファミリのみ残す。`kotlin.io.FileSystemException`（KSP-619）と `Files.kt`（KSP-483）の実働ブリッジであり、CLEANUP-STUB-115（Path）完了までは削除できない residual scaffolding。 |
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
@@ -318,13 +340,14 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticMutableCollectionArrayAddAll.swift` | 109 | (b) | M3 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableCollectionIterableAddAll.swift` | 104 | (b) | M3 mutable collection helper source migration. |
 | `HeaderHelpers+SyntheticMutableCollectionSequenceAddAll.swift` | 101 | (b) | M3/M4 mutable collection helper source migration. |
-| `HeaderHelpers+SyntheticMutableListStubs.swift` | 1549 | (b) | M3 mutable list shell and member migration. |
+| `HeaderHelpers+SyntheticMutableListStubs.swift` | 821 | (b) | M3 mutable list shell and member migration. KSP-1503 で `MutableList`/`AbstractMutableList` の要素追加・削除メンバ（`set`/`add`/`add(index)`/`removeAt`/`removeFirst*`/`removeLast*`/`clear`/`removeAll`/`retainAll`/`plusAssign`/`minusAssign`）を `MutableList.kt` へ移し、残るは `registerMutableListSort*`/`registerMutableListShuffleMember`/`registerMutableListReverseMember`（KSP-1504）と `registerMutableListAddAll*`（KSP-705）のみ。 |
 | `HeaderHelpers+SyntheticNativeConcurrentCommon.swift` | 736 | (c) | RF-STUB-004 shared NativeConcurrent helper body. |
 | `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` | 2715 | (c) | RF-STUB-004 consolidated NativeConcurrent registration table and entry point. |
 | `HeaderHelpers+SyntheticNativeDataStubs.swift` | 821 | (c) | Native data/runtime support; declarative residual candidate. |
 | `HeaderHelpers+SyntheticNativeFunctionAnnotationStubs.swift` | 85 | (a) | `kotlin.js.nativeGetter/nativeSetter/nativeInvoke`; cleanup candidate. |
 | `HeaderHelpers+SyntheticNativeInteropHelpers.swift` | 1292 | (c) | Kotlin/Native interop helper surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticNativeInteropStubs.swift` | 386 | (c) | Kotlin/Native interop annotations/types. |
+| `HeaderHelpers+SyntheticNativePlatformStubs.swift` | 397 | (c) | Kotlin/Native `Platform` source-backed fallback and synthetic `MemoryModel` enum surface. |
 | `HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift` | 759 | (c) | Native ref runtime support; constructor/member/property surface moved to `SyntheticStubSurfaceSpec+NativeRefRuntime.swift` for RF-STUB-003. |
 | `HeaderHelpers+SyntheticOnErrorActionStubs.swift` | 120 | (a) | ~~File-tree walk support; cleanup with file-walk surface.~~ **完了・ファイル削除済み**（CLEANUP-STUB-114, 2026-08-14）。OnErrorAction は synthetic enum / 登録以外に参照がなく、`copyRecursively` の既存 FileIO bridge は保持。 |
 | `HeaderHelpers+SyntheticPairTripleStubs.swift` | 409 | (b) | Public `Pair`/`Triple` source migration candidate. |
@@ -344,9 +367,9 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticRegexStubs.swift` | deleted | (b) | ~~Regex public stdlib source migration candidate.~~ **完了・ファイル削除済み**（KSP-1521, 2026-08-23）。`MatchResult` / `Destructured` の nominal anchor は bundled Kotlin source に統合し、engine bridge は保持。 |
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
 | `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | deleted | (b) | `run`/`with`/`apply`/`let`/`also`/`takeIf`/`takeUnless` は bundled `kotlin/Standard.kt` へ移行済み。`use`/`usePinned`/`useContents` は compiler residual として別経路に残る。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
-| `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | deleted | (b) | ~~M4 sequence registration helper surface.~~ **完了・ファイル削除済み**（KSP-1519, 2026-09-13）。トップレベル `sequence`/`iterator` builder は `Stdlib/kotlin/sequences/SequenceBuilder.kt` へ移行。`registerSyntheticSystemMember`/`registerSyntheticTopLevelFunction`（汎用ヘルパー）は `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` へ、`registerSyntheticSequenceStub`/`ensureSyntheticSequenceStub`（`Sequence` interface 自体の fallback shell）は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` へ退避。`yield`/`yieldAll` の `__kk_sequence_builder_*` への解決は Lowering 層の名前文字列書き換え（下記 (c) 表）による恒久仕様のため対象外。 |
-| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-694）。KSP-441〜446/KSP-308 での Kotlin 化に伴い不要スタブを削除、未移行の純残余（`random`/`randomOrNull`/`forEach`/`forEachIndexed`/`firstNotNullOf`/`firstNotNullOfOrNull`/`takeLast`/`takeLastWhile`/`shuffled`/`reversed`/`filterIsInstance`）は `+SyntheticSequenceResidualStubs.swift`（419行）へ移行。 |
-| `HeaderHelpers+SyntheticSequenceResidualStubs.swift` | 419 | (b) | M4 sequence residual stubs (`random`, `randomOrNull`, `forEach`, `forEachIndexed`, `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`, `takeLastWhile`, `shuffled`, `reversed`, `filterIsInstance`). |
+| `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | deleted | (b) | ~~M4 sequence registration helper surface.~~ **完了・ファイル削除済み**（KSP-1519, 2026-09-13）。トップレベル `sequence`/`iterator` builder は `Stdlib/kotlin/sequences/SequenceBuilder.kt` へ移行。`registerSyntheticSystemMember`/`registerSyntheticTopLevelFunction`（汎用ヘルパー）は `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` へ、`registerSyntheticSequenceStub`/`ensureSyntheticSequenceStub`（`Sequence` interface 自体の fallback shell）は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` へ退避。残余メンバーは `HeaderHelpers+SyntheticSequenceResidualStubs.swift` に分離。`yield`/`yieldAll` の `__kk_sequence_builder_*` への解決は Lowering 層の名前文字列書き換え（下記 (c) 表）による恒久仕様のため対象外。 |
+| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-694）。KSP-441〜446/KSP-308 での Kotlin 化に伴い不要スタブを削除、未移行の純残余は `+SyntheticSequenceResidualStubs.swift` へ移行。KUU-1258 で Kotlin に存在しない `Sequence.takeLast`/`takeLastWhile`/`reversed` の登録を削除。 |
+| `HeaderHelpers+SyntheticSequenceResidualStubs.swift` | 235 | (b) | M4 sequence residual stubs (`random`, `randomOrNull`) plus their shared registration and type helpers. |
 | `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 0 (deleted) | (b) migrated | **完了（KSP-704、2026-09-16）**: Set/MutableSet の nominal shell と HOF 関連の source-backed 宣言を `Stdlib/kotlin/collections/Set.kt`/`MutableSet.kt`/`SetHOF.kt` に集約し、`HashSet.kt`/`LinkedHashSet.kt` の source-backed nominal declarations と併せて旧合成 Set stub を削除。`size` は property link-name 注釈の制約を private external helper で吸収し、MutableSet の mutation default body は `__kk_mutable_set_*` demoted bridges に Lowering から接続する。Set box の opaque layout に対応する direct size/mutation routing を保持し、既存 Set diff と HashSet/LinkedHashSet 生成ケース 11件で確認済み。 |
 | `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | ~~`repeat` source migration~~ **完了・ファイル削除済み**（KSP-604、`Stdlib/kotlin/Standard.kt`）。 |
@@ -354,13 +377,12 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
 | `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
-| `HeaderHelpers+SyntheticTODOAndIOStubs.swift` | 3698 | (b) | Mixed TODO, IO, system, duration, collection factories。~~`HeaderHelpers+SyntheticFileIOStubs.swift` を統合済み。~~ **誤記だったため削除**（#5780以降ずれていた。実際には別ファイルとして併存しており、CLEANUP-STUB-107 で `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` に置き換えられた）。 |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
 | `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | ~~`java.net.URL`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-124, 2026-08-14)。公開 URL surface と URL runtime/ABI exports を除去し、Network の HTTP request builder handoff は保持。 |
-| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
+| `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-709）。`UIntRange`/`ULongRange` class shells と `start` override は `Stdlib/kotlin/ranges/UIntRange/Stdlib.kt`/`ULongRange/Stdlib.kt`、残余メンバーは既存 bundled RangeHOF/RangeIterators/RangeMembership と progression クラスに集約。`kk_uint_range_*`/`kk_ulong_range_*` public ブリッジは `__kk_` に降格。 |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
 
@@ -549,7 +571,9 @@ should follow the same shape:
    `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs` (CLEANUP-STUB-127/128).
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
-   `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`.
+   `SyntheticRandomStubs`. `SyntheticTODOAndIOStubs` was split by KUU-587 into
+   the responsibility-specific Sequence residual, Native platform, and
+   compiler-known Function type registrations.
    `SyntheticAtomicStubs` split complete (KSP-695), and its obsolete entrypoint
    was removed by KSP-696: see the responsibility-specific Atomic rows above.
 3. After RF-STDLIB-003, migrate one narrow (b) slice end-to-end and use it as the
@@ -591,6 +615,30 @@ TODO.md の「23 スタブファイル」も同じく 2026-07-01 時点の値。
 **KSP-499 以降が触るスタブファイルはこの2つのみ**（棚卸し時点の分割ファイル群は現存しない）。
 
 #### (c) 残留（`__kk_` 降格のみ）— 118 関数
+
+##### `Continuation.intercepted` source owner と実行モデル（KUU-975）
+
+公開拡張 `fun <T> Continuation<T>.intercepted(): Continuation<T>` の唯一の owner は
+`kotlin/coroutines/intrinsics/IntrinsicsNative.kt`。synthetic 宣言を削除し、Kotlin 本体から
+private `@KsSymbolName("__kk_continuation_intercepted")` bridge を呼ぶ。
+理由コードは **GC・continuation / メモリ表現**: KSwiftK の生成 continuation は Swift 所有の
+`RuntimeContinuationState` であり、Kotlin/Native の `ContinuationImpl` ではない。
+Kotlin heap の通常の Continuation は Swift object として cast せず同一 handle を返す。
+既存の Swift `KKContinuation` の dispatcher adaptation は runtime に残す。
+`kk_*` → `__kk_*` は 1 対 1 の降格であり ABI 関数総数は増えない。
+`RuntimeABISpec.specVersion` は登録変更から自動再計算される。
+
+KUU-1164 で生成 state に completion context の保持、source-defined interceptor の
+interface dispatch、intercepted result cache、完了時の release を追加した。
+private bridge は Kotlin source の `ContinuationInterceptor.Key` を受け取り、通常の
+source Continuation の context は読まず、生成 state のみ context lookup を行う。
+native dispatcher wrapper の resume は元の生成 state に戻る。
+Swift `KKContinuation` の dispatcher wrapper は wrapper 自身の再 interception は identity だが、
+元 continuation に対する複数回の呼び出しの cache は持たない。
+生成 continuation の custom `ContinuationInterceptor` は
+[KUU-1164](https://linear.app/kuu/issue/KUU-1164/生成-coroutine-の-intercepted-が-completion-context-の) で対応済み。
+通常の source Continuation の identity、context getter 非評価、空 context の生成 continuation、
+既存 native dispatcher の resume は Sema/source+artifact 実行テストと kotlinc diff で固定する。
 
 | 系統 | 代表シンボル | 数 | ファイル |
 |---|---|---:|---|
@@ -790,8 +838,32 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1244 adds two private launch bridges (reason: GC・continuation):
+   `__kk_coroutine_scope_launch_context` and its `_with_cont` counterpart.
+   A stored suspend block uses the function-value ABI, while a lowered literal
+   needs a native continuation with capture and receiver slots. Both enter the
+   same child-scope scheduler; the public context/start/block contract is owned
+   by bundled `CoroutineScope.launch`. The existing no-stdlib launcher bridges
+   remain, so `__kk_*` increases by two. `RuntimeABISpec.coroutineFunctions`
+   registers both signatures and the canonical hash updates `specVersion`.
+   KUU-1312 adds one private bridge, `__kk_mutable_list_as_reversed` (reason:
+   metadata). Read-only and mutable `asReversed` overloads require distinct runtime
+   view identities even with the same backing list; Kotlin cannot register the
+   native `RuntimeListBox` nominal type. The existing read-only bridge remains,
+   so `__kk_*` increases by one. Scope is limited to mutable reversed-view creation;
+   `RuntimeABISpec.collectionHOFFunctions` registers the ABI and its canonical hash
+   automatically updates `specVersion`.
+   KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
+   representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
+   not Kotlin object slots; the bridge returns their JVM-style text as a flat
+   String. It is shared with Any/print/collection rendering. Public dispatch
+   remains in bundled `java/util/Locale.kt`; no synthetic member is added.
+   `RuntimeABISpec.localeFunctions` registers the ABI and automatically changes
+   the computed `specVersion`. The `__kk_*` export count increases by one.
+
 3. **性能エスケープハッチは実測必須**: ベンチ数値（KSP-INF-007 の基盤）を添付できない限り、
    性能を理由とした Swift 残留・(c) 分類を認めない。
+
 4. **二重 oracle**: 移行タスクは diff_kotlinc ケースに加え、bundled .kt を実行して期待値比較する
    自己完結テスト（KSP-INF-006）を必須にする（テンプレート T 手順7）。
 5. **Capability Matrix**: 言語機能ブロッカーは KSP-CAP-* として独立起票し、各移行タスクは必要 CAP を
@@ -813,13 +885,93 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 10. **粒度**: 1 タスク = 1 PR。目安「削除対象 kk_* ≤ 15・単一責務・golden 更新1回」。
     超えると判明したら枝番でなく新番号で分割する。
 
+### kotlinx-io / kotlinx-coroutines の追加方針（KSP-1586）
+
+`Stdlib/kotlinx/io/` と `Stdlib/kotlinx/coroutines/` も通常の bundled source として
+辞書順に注入される。`BundledStdlibOrderingTests.testKotlinxBundledFilenamesAreInjected`
+で io core / bytestring / files / unsafe、coroutines core / channels / flow / selects /
+sync / test のファイル名を明示的に固定する。これはリソース配線の確認であり、各 API の
+実装完了や本家との挙動一致は個別の実装チケットで検証する。
+
+- **expect → 直接宣言**: 単一ターゲットなので `expect`/`actual` の対は対象 platform の
+  本体を持つ通常の宣言へ置換する。例: io の `-CommonPlatform.kt` の例外クラス、
+  `Core.kt` の POSIX 改行、`SegmentPool.kt` の native no-op pool。
+- **sealed → plain interface**: これは一律変換ではない。io の `Source` / `Sink` は
+  現在も sealed interface を維持する。`SharedFlow` / `StateFlow` など plain interface
+  として提供する面は、sealed の継承制限や exhaustive `when` まで本家同等とは扱わない。
+- **Any 契約**: `equals(Any?)` / `hashCode()` / `toString()` は本家の型・値契約を保つ
+  （例: `ByteString` の内容比較）。既存の `Job.cancel(cause: Any?)` /
+  `completeExceptionally(Any?)` のような広い bridge 契約は、型付き upstream 契約との
+  差として扱い、宣言が存在するだけで本家一致を計上しない。
+- **縮退意味論**: 実装ファイルと台帳に具体的な差を記録する。現在の SharedFlow /
+  StateFlow の `collect` は有限 snapshot、`limitedParallelism` は検証後に同じ dispatcher
+  を返す。coroutines-test は実時間の blocking loop を使い、仮想時計の実行メソッドは
+  no-op、`runTest` の timeout は未強制。これらを完全な scheduler 対応として報告しない。
+
+JVM diff oracle の jar 選択は import 検出で行う（`requires_kotlinx_io` 相当）。
+io 0.9.1 / coroutines 1.10.2 の取得・checksum・手動 classpath の設定は
+[`Scripts/README.md`](../Scripts/README.md) を参照。`kotlinx.coroutines.test` は core jar
+だけでは提供されないため、test artifact が必要な reference ケースは手動 classpath で
+依存一式を供給する。縮退 API を使うケースは candidate-only テストで範囲を固定する。
+
 ### 構造逸脱台帳（§13-8）
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
+| `kotlinx/coroutines/selects/Select.kt` / `SelectClauses.kt`（KSP-1579） | 登録順に readiness を poll し、未成立なら `yield()`。`selectUnbiased` も同順序。句登録は `SelectBuilder<R>` の member extension（KUU-962）で callback 戻り型を builder の R に接続する（`clause` 経由でも直接 `onReceive` 等でも同じ R）。builder スコープ外の句呼び出しはトップレベル拡張と登録中 builder の thread-local（`__kk_select_builder_exchange`）を使用する。第一級 channel 句は要素型を `Any?` に消去し、`Deferred<T>.onAwait` 関数は型付きで、第一級 property は `Deferred<*>` / `Any?` に消去する。`Mutex.onLock` の owner は追跡しない | atomic な句登録・選択、unbiased ordering、型付き property、owner-aware mutex | issue で順次評価を許容。builder inference / member extension dispatch は [KUU-954](https://linear.app/kuu/issue/KUU-954/receiver-builder-内のコールバック結果から型引数を推論できないselectbuild-dsl) の推論機構に依存。型付き property・owner-aware Mutex と coroutine scheduler の対応後に本家形へ戻す |
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |
 | `uuid/Uuid.kt`（KSP-1502） | `generateV7()`/`generateV7NonMonotonicAt()` の乱数を専用 CSPRNG バイト列でなく既存 `random()`（`__kk_uuid_random` ブリッジ）の出力から抽出して転用 | `ByteArray(10)` を `secureRandomBytes()` で都度生成 | 新規ブリッジ追加が§13-2の入場審査コストに見合うと判断された場合（現状は不要と判断） |
 | `collections/LinkedHashMap.kt`（KSP-703） | `LinkedHashMap<K, V>` が本来無関係な `MutableMap<K, V>` interface への typealias になっており、diff オラクル（`kotlinc-jvm`）・kotlin-native いずれの本家形とも一致しない。`HashMap()`/`LinkedHashMap()` はどちらも `CollectionLiteralLoweringPass`（`+LookupTables+Map.swift` の `mutableMapConstructorNames`）が名前で認識し runtime map box を直接構築するため、機能上は区別できず `is HashMap`/`is LinkedHashMap` が本来持つべき非対称性がない | diff オラクルの `kotlinc-jvm` では `HashMap`/`LinkedHashMap` は java.util の別クラスで `LinkedHashMap extends HashMap`（実測: `HashMap() is LinkedHashMap<*, *>` は false、`LinkedHashMap() is HashMap<*, *>` は true）。kotlin-native は逆に `HashMap` が `LinkedHashMap` への typealias（`actual typealias LinkedHashMap<K, V> = HashMap<K, V>`）で同一型になるが、diff オラクルには使われない | `LinkedHashSet` と同様に `LinkedHashMap` を concrete class へ昇格し、`class LinkedHashMap<K, V> : HashMap<K, V>` として JVM 参照形の一方向継承（`is HashMap` のみ真）を再現する構造変更。`linkedHashMapRuntimeTypeID` 新設・Sema/Lowering の construction 経路拡張を伴うため独立タスク化が必要 |
 | `kotlinx/cinterop/StableRef.kt`（KSP-1217） | `asStableRef()` を通常の型パラメータ版 `fun <T : Any> COpaquePointer.asStableRef(): StableRef<T>` として実装 | `inline fun <reified T : Any> CPointer<*>.asStableRef(): StableRef<T>` | 拡張関数の receiver 型に対する `inline`/`reified` の組み合わせの実績が無いため据え置き。`get()` の unchecked cast で機能的には等価。実績確認・CAP 起票され次第、本家形へ復元 |
+
+#### Scope factory integration boundary
+
+`CoroutineScope.coroutineContext` reads use bundled `__kkScopeContext`: opaque
+runtime builder handles read the ambient context, while source objects invoke
+their actual interface getter. `__kk_coroutine_scope_is_runtime` adds one internal
+ABI entry (MEMORY_REPRESENTATION: runtime handles and Kotlin objects have distinct
+layouts); it only queries the existing live-handle registry. Job factories bind
+raw jobs to source wrappers and public hierarchy queries preserve live wrapper
+identity without retaining a wrapper through its job.
+
+`CoroutineContext.Element.key`, `Job.key`, and `CoroutineDispatcher.key` reads
+use bundled `__kkCoroutineElementKey` for the same representation boundary.
+Native jobs/tasks return `Job.Key` and scheduler handles return
+`ContinuationInterceptor.Key`; source objects invoke their actual key getter.
+`__kk_job_is_runtime` is an internal MEMORY_REPRESENTATION bridge that identifies
+raw job/task objects, excluding Kotlin wrappers with their own getter slots.
+### Coroutine nominal/master integration
+
+`CoroutineContext.get`, `fold`, `plus`, and `minusKey` preserve source-defined
+overrides through the stable context itable slots (0–3), falling back to the
+native fixed-key representation for runtime handles. `fold` converts its split
+callback ABI into a Kotlin function value before invoking a source override.
+`__kk_context_plus_dispatch` adds one internal MEMORY_REPRESENTATION bridge
+for this boundary; the `+` and `+=` operators use the same throwing dispatch
+as `plus`, emitted before try/catch lowering.
+
+`__kk_dispatcher_immediate` bridges the memory representation of scheduler tags
+(`Dispatchers.Main`) and source-defined `MainCoroutineDispatcher` objects. The
+compiler passes the generated getter slot; tags return themselves and Kotlin
+objects retain virtual getter dispatch. This adds one `__kk_*` bridge (reason:
+memory representation) without changing scheduler behavior.
+
+Inherited `ContinuationInterceptor.get`/`minusKey` calls on native dispatchers
+select the source-backed Kotlin default using `__kk_dispatcher_default_method`;
+the compiler supplies its function pointer instead of assigning fixed itable
+slots. Kotlin receivers retain their resolved overrides and thrown channels.
+`__kk_is_native_dispatcher` lets these defaults avoid the Kotlin `key` getter
+for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
+new `__kk_*` entries are memory-representation bridges: native schedulers have
+no source-object layout, and neither bridge implements context-key semantics.
+
+`__kk_dispatcher_named` exposes Default, IO, and Unconfined as named runtime
+objects (KUU-1300), preserving identity after erasure to `Any` without confusing
+integer values with scheduler tags. This adds one internal bridge with reason
+`MEMORY_REPRESENTATION`: native dispatchers have no Kotlin object layout or
+`toString` vtable. Objects resolve to the existing scheduler tags for coroutine
+context operations, retaining the object handle for element identity and fold.
+IO and Unconfined retain their existing Default scheduler compatibility;
+this bridge does not implement a separate IO pool or an unconfined event loop.

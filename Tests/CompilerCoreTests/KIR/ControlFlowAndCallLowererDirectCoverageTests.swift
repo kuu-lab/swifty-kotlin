@@ -4,6 +4,60 @@ import Testing
 
 @Suite
 struct ControlFlowAndCallLowererDirectCoverageTests {
+    @Test(arguments: [false, true], [false, true])
+    func resultCallbackAdapterKeepsErasedReturn(
+        hasCallableInfo: Bool, hasClosureParam: Bool
+    ) throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [], returnType: fixture.types.booleanType,
+            isSuspend: false, nullability: .nonNull
+        )))
+        let source = appendTypedExpr(
+            .nameRef(fixture.interner.intern("block"), makeRange()),
+            type: functionType, fixture: fixture
+        )
+        let callable = fixture.kirArena.appendTemporary(type: functionType)
+        let closure = fixture.kirArena.appendTemporary(type: fixture.types.intType)
+        let symbol = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "block"])
+        if hasCallableInfo {
+            fixture.driver.ctx.registerCallableValue(
+                callable, symbol: symbol, callee: fixture.interner.intern("block"),
+                captureArguments: [closure], hasClosureParam: hasClosureParam
+            )
+        }
+        var instructions: [KIRInstruction] = []
+        let arguments = fixture.driver.callLowerer.makeClosureThunkExpandedArguments(
+            loweredArgID: callable, argExprID: source, returnsErasedValue: true,
+            sema: fixture.sema, arena: fixture.kirArena, interner: fixture.interner,
+            instructions: &instructions
+        )
+        #expect(arguments.count == 2)
+        guard case let .symbolRef(adapterSymbol)? = fixture.kirArena.expr(arguments[0]) else {
+            Issue.record("Expected callback adapter function pointer")
+            return
+        }
+        let adapter = try #require(fixture.kirArena.function(for: adapterSymbol))
+        #expect(adapter.returnType == fixture.types.anyType)
+        #expect(adapter.params.count == 1)
+        #expect(arguments[1] == (hasCallableInfo ? closure : callable))
+        #expect(adapter.body.contains {
+            guard case .returnValue = $0 else { return false }
+            return true
+        })
+        let call = try #require(adapter.body.compactMap { instruction -> InternedString? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+            return callee
+        }.first)
+        #expect(fixture.interner.resolve(call) == (hasCallableInfo ? "block" : "kk_function_invoke_0"))
+        if !hasCallableInfo {
+            #expect(adapter.body.contains {
+                guard case .rethrow = $0 else { return false }
+                return true
+            })
+        }
+    }
+
     @Test func testControlFlowLowererCatchBindingAndLegacyTypeResolution() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
@@ -11,7 +65,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         let catchExprID = fixture.astArena.appendExpr(.intLiteral(0, range))
         let catchClause = CatchClause(
             paramName: fixture.interner.intern("e"),
-            paramTypeName: fixture.interner.intern("Int"),
+            paramType: fixture.astArena.appendTypeRef(.named(path: [fixture.interner.intern("Int")], args: [], nullable: false)),
             body: catchExprID,
             range: range
         )
@@ -25,6 +79,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let resolvedExisting = fixture.driver.controlFlowLowerer.resolveCatchClauseBinding(
             catchClause,
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
@@ -34,7 +89,7 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         let fallbackExprID = fixture.astArena.appendExpr(.intLiteral(1, range))
         let fallbackClause = CatchClause(
             paramName: fixture.interner.intern("x"),
-            paramTypeName: fixture.interner.intern("Long"),
+            paramType: fixture.astArena.appendTypeRef(.named(path: [fixture.interner.intern("Long")], args: [], nullable: false)),
             body: fallbackExprID,
             range: range
         )
@@ -43,15 +98,23 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let resolvedFallback = fixture.driver.controlFlowLowerer.resolveCatchClauseBinding(
             fallbackClause,
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
         #expect(resolvedFallback.parameterSymbol == fallbackSymbol)
         #expect(fixture.types.kind(of: resolvedFallback.parameterType) == .primitive(.long, .nonNull))
 
+        func namedRef(_ path: [String]) -> TypeRefID {
+            fixture.astArena.appendTypeRef(
+                .named(path: path.map { fixture.interner.intern($0) }, args: [], nullable: false)
+            )
+        }
+
         #expect(
             fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
                 nil,
+                ast: fixture.ast,
                 sema: fixture.sema,
                 interner: fixture.interner
             ) == fixture.types.anyType
@@ -68,7 +131,8 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         for (name, expectedKind) in builtinNames {
             let resolved = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-                fixture.interner.intern(name),
+                namedRef([name]),
+                ast: fixture.ast,
                 sema: fixture.sema,
                 interner: fixture.interner
             )
@@ -77,7 +141,8 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
 
         let classSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["CustomThrowable"])
         let resolvedClass = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-            fixture.interner.intern("CustomThrowable"),
+            namedRef(["CustomThrowable"]),
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
@@ -86,8 +151,21 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
             .classType(ClassType(classSymbol: classSymbol, args: [], nullability: .nonNull))
         )
 
+        let qualifiedClassSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "QualifiedThrowable"])
+        let resolvedQualified = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
+            namedRef(["pkg", "QualifiedThrowable"]),
+            ast: fixture.ast,
+            sema: fixture.sema,
+            interner: fixture.interner
+        )
+        #expect(
+            fixture.types.kind(of: resolvedQualified) ==
+            .classType(ClassType(classSymbol: qualifiedClassSymbol, args: [], nullability: .nonNull))
+        )
+
         let unresolvedType = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
-            fixture.interner.intern("MissingType"),
+            namedRef(["MissingType"]),
+            ast: fixture.ast,
             sema: fixture.sema,
             interner: fixture.interner
         )
@@ -99,6 +177,25 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         )
         #expect(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.errorType, sema: fixture.sema))
         #expect(!(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema)))
+    }
+
+    /// `catch (e: Exception)` must keep its runtime type check: an `Error`
+    /// (e.g. `TODO()`'s NotImplementedError) is a Throwable but not an
+    /// Exception, so only `Throwable` may skip the check as a catch-all.
+    @Test func testOnlyThrowableIsCatchAllClassType() {
+        let fixture = makeKIRDirectLoweringFixture()
+        func classType(_ name: String) -> TypeID {
+            let symbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["kotlin", name])
+            return fixture.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        }
+        let lowerer = fixture.driver.controlFlowLowerer
+        let throwableType = classType("Throwable")
+        let exceptionType = classType("Exception")
+        let errorType = classType("Error")
+
+        #expect(lowerer.isCatchAllType(throwableType, sema: fixture.sema, interner: fixture.interner))
+        #expect(!lowerer.isCatchAllType(exceptionType, sema: fixture.sema, interner: fixture.interner))
+        #expect(!lowerer.isCatchAllType(errorType, sema: fixture.sema, interner: fixture.interner))
     }
 
     @Test func testControlFlowLowererForwardersEmitInstructions() {

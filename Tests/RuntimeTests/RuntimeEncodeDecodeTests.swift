@@ -6,6 +6,24 @@ import Testing
 
 @Suite
 struct RuntimeEncodeDecodeTests {
+    @Test(arguments: [
+        (3, [0xff, 0xfe, 0x41, 0], "A"),
+        (3, [0xfe, 0xff, 0, 0x41], "A"),
+        (4, [0, 0x41, 0xd8, 0x3d, 0xde, 0], "A😀"),
+        (5, [0x41, 0, 0x3d, 0xd8, 0, 0xde], "A😀"),
+        (5, [0, 0xd8, 0x41, 0], "\u{FFFD}"),
+        (4, [0xd8, 0, 0xff], "\u{FFFD}"),
+        (5, [0x41], "\u{FFFD}"),
+        (6, [0xff, 0xfe, 0, 0, 0x41, 0, 0, 0], "A"),
+        (7, [0, 0, 0xfe, 0xff, 0, 0, 0, 0x41], "A"),
+        (8, [0, 0xf6, 1, 0], "😀"),
+        (7, [0, 0, 0xd8, 0], "\u{FFFD}"),
+        (8, [0x41, 0], "\u{FFFD}"),
+    ])
+    func testDecodeToStringUnicodeCharsets(sample: (Int, [Int], String)) {
+        let result = __kk_bytearray_decodeToString_charset(makeListRaw(sample.1), sample.0)
+        #expect(extractSwiftString(result) == sample.2)
+    }
 
     // MARK: - Helpers
 
@@ -49,6 +67,33 @@ struct RuntimeEncodeDecodeTests {
         let box = RuntimeArrayBox(length: elements.count)
         box.elements = elements
         return registerRuntimeObject(box)
+    }
+
+    private func expectMalformedInputException(_ thrown: Int) throws {
+        let box = try #require(runtimeThrowableBox(from: thrown))
+        #expect(box.exceptionFQName == "java.nio.charset.MalformedInputException")
+        #expect(box.message == runtimeMalformedInputExceptionDefaultMessage)
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeMalformedInputExceptionBox.self))
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.text.CharacterCodingException"))
+        #expect(box.exceptionHierarchyFQNames.contains("kotlin.Exception"))
+    }
+
+    @Test
+    func testCharsetCanonicalNames() {
+        let charsets: [(Int, String)] = [
+            (__kk_charset_utf_8(), "UTF-8"),
+            (__kk_charset_iso_8859_1(), "ISO-8859-1"),
+            (__kk_charset_us_ascii(), "US-ASCII"),
+            (__kk_charset_utf_16(), "UTF-16"),
+            (__kk_charset_utf_16be(), "UTF-16BE"),
+            (__kk_charset_utf_16le(), "UTF-16LE"),
+            (__kk_charset_utf_32(), "UTF-32"),
+            (__kk_charset_utf_32be(), "UTF-32BE"),
+            (__kk_charset_utf_32le(), "UTF-32LE"),
+        ]
+        for (tag, name) in charsets {
+            #expect(extractSwiftString(__kk_charset_name(tag)) == name)
+        }
     }
 
     // MARK: - encodeToByteArray: basic ASCII round-trip
@@ -291,11 +336,19 @@ struct RuntimeEncodeDecodeTests {
     }
 
     @Test
-    func testDecodeToStringRangeStrictMalformedUTF8Throws() {
+    func testDecodeToStringRangeStrictMalformedUTF8Throws() throws {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
         _ = __kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 1, &thrown)
-        #expect(thrown != 0)
+        try expectMalformedInputException(thrown)
+    }
+
+    @Test
+    func testToKStringStrictMalformedUTF8ThrowsMalformedInputException() throws {
+        var thrown = 0
+        let byteArray = makeArrayRaw([0x61, Int(Int8(bitPattern: 0xE9)), 0x62])
+        _ = __kk_byteArray_toKString(byteArray, 0, 3, 1, &thrown)
+        try expectMalformedInputException(thrown)
     }
 
     @Test

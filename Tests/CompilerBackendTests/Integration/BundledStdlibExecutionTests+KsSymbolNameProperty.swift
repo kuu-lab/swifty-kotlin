@@ -17,4 +17,19 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: false
         )
     }
+
+    @Test
+    func testOptimizedKsSymbolNamePropertyUsesRuntimeBridgeABI() throws {
+        try assertKotlinOutput(
+            """
+            fun main() {
+                val pair = Pair("left", "right")
+                println(pair.first)
+            }
+            """,
+            moduleName: "OptimizedKsSymbolNameProperty",
+            expected: "left\n",
+            optLevel: .O2
+        )
+    }
 }

@@ -1,5 +1,7 @@
 import Foundation
 
+let maximumImportedNominalLayoutValue = 1_000_000
+
 extension DataFlowSemaPhase {
     func parseImportedFieldOffsets(
         token: String,
@@ -208,8 +210,31 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         metadataPath: String,
-        interner: StringInterner
+        interner: StringInterner,
+        indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]? = nil
     ) {
+        let declaredLayoutValues = [
+            record.declaredFieldCount,
+            record.declaredInstanceSizeWords,
+            record.declaredVtableSize,
+            record.declaredItableSize,
+        ].compactMap { $0 }
+        let slotValues = record.fieldOffsets.map(\.offset)
+            + record.vtableSlots.map(\.slot)
+            + record.itableSlots.map(\.slot)
+        guard declaredLayoutValues.allSatisfy({ (0 ... maximumImportedNominalLayoutValue).contains($0) }),
+              slotValues.allSatisfy({ (0 ... maximumImportedNominalLayoutValue).contains($0) }),
+              record.fieldOffsets.count <= maximumImportedNominalLayoutValue,
+              record.vtableSlots.count <= maximumImportedNominalLayoutValue,
+              record.itableSlots.count <= maximumImportedNominalLayoutValue
+        else {
+            diagnoseInvalidImportedLayout(
+                diagnostics: diagnostics,
+                metadataPath: metadataPath,
+                symbol: symbol
+            )
+            return
+        }
         guard !record.fieldOffsets.isEmpty || !record.vtableSlots.isEmpty || !record.itableSlots.isEmpty else {
             return
         }
@@ -259,7 +284,8 @@ extension DataFlowSemaPhase {
                 typeSignature: entry.typeSignature,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                indexedBindingsBySymbol: indexedBindingsBySymbol
             ) else {
                 let fq = entry.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 diagnostics.warning(
@@ -286,14 +312,24 @@ extension DataFlowSemaPhase {
         }
 
         let objectHeaderWords = 2
-        let maxFieldOffsetSize = (resolvedFieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
+        let (maxFieldOffsetSize, fieldOffsetOverflow) =
+            (resolvedFieldOffsets.values.max() ?? (objectHeaderWords - 1)).addingReportingOverflow(1)
         let instanceFieldCount = max(record.declaredFieldCount ?? 0, resolvedFieldOffsets.count)
+        let (headerAndFields, fieldCountOverflow) = objectHeaderWords.addingReportingOverflow(instanceFieldCount)
+        let (maxVTableSize, vtableSlotOverflow) = (resolvedVTableSlots.values.max() ?? -1).addingReportingOverflow(1)
+        let (maxITableSize, itableSlotOverflow) = (resolvedITableSlots.values.max() ?? -1).addingReportingOverflow(1)
+        guard !fieldOffsetOverflow, !fieldCountOverflow, !vtableSlotOverflow, !itableSlotOverflow else {
+            diagnoseInvalidImportedLayout(
+                diagnostics: diagnostics,
+                metadataPath: metadataPath,
+                symbol: symbol
+            )
+            return
+        }
         let instanceSizeWords = max(
             record.declaredInstanceSizeWords ?? 0,
-            max(objectHeaderWords + instanceFieldCount, maxFieldOffsetSize)
+            max(headerAndFields, maxFieldOffsetSize)
         )
-        let maxVTableSize = (resolvedVTableSlots.values.max() ?? -1) + 1
-        let maxITableSize = (resolvedITableSlots.values.max() ?? -1) + 1
         if let declaredVTableSize = record.declaredVtableSize,
            declaredVTableSize >= 0,
            declaredVTableSize < maxVTableSize
@@ -336,6 +372,18 @@ extension DataFlowSemaPhase {
         )
     }
 
+    private func diagnoseInvalidImportedLayout(
+        diagnostics: DiagnosticEngine,
+        metadataPath: String,
+        symbol: SymbolID
+    ) {
+        diagnostics.warning(
+            "KSWIFTK-LIB-0003",
+            "Invalid nominal layout values in metadata at \(metadataPath) for symbol \(symbol.rawValue)",
+            range: nil
+        )
+    }
+
     private func resolveImportedFieldSymbol(
         _ fqName: [InternedString],
         symbols: SymbolTable
@@ -355,18 +403,34 @@ extension DataFlowSemaPhase {
         typeSignature: String?,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding]?
     ) -> SymbolID? {
         let allSymbolIDs = symbols.lookupAll(fqName: fqName)
-        let candidates = allSymbolIDs
+        let functionSymbols = allSymbolIDs
             .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .function }
+        let candidates = functionSymbols
             .filter { symbol in
-                guard symbol.kind == .function,
-                      let signature = symbols.functionSignature(for: symbol.id)
-                else {
+                guard let signature = symbols.functionSignature(for: symbol.id) else {
                     return false
                 }
                 return signature.parameterTypes.count == arity && signature.isSuspend == isSuspend
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+
+        // Decoding a member signature can recursively materialize its nominal
+        // owner before that member's signature has been stored. Resolve the
+        // owner's vtable entry from the compact index shape/body in that case
+        // instead of treating the in-progress member as missing.
+        let indexedCandidates = functionSymbols
+            .filter { symbol in
+                guard let record = indexedBindingsBySymbol?[symbol.id]?.record else {
+                    return false
+                }
+                return record.kind == .function
+                    && record.arity == arity
+                    && record.isSuspend == isSuspend
             }
             .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
@@ -384,10 +448,15 @@ extension DataFlowSemaPhase {
             }) {
                 return exact.id
             }
+            if let exact = indexedCandidates.first(where: { candidate in
+                indexedBindingsBySymbol?[candidate.id]?.record.typeSignature == typeSignature
+            }) {
+                return exact.id
+            }
             // Fall back to legacy arity-only resolution for metadata that lacks a signature.
         }
 
-        return candidates.first?.id
+        return candidates.first?.id ?? indexedCandidates.first?.id
     }
 
     private func resolveImportedPropertySymbol(

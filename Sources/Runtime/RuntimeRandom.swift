@@ -84,16 +84,13 @@ public func __kk_random_seed_entropy() -> Int {
 // MARK: - SecureRandom (STDLIB-101)
 
 final class SecureRandomBox {
-    private var seeded: SeededRandomBox?
-
-    func setSeed(_ seed: Int) {
-        seeded = SeededRandomBox(seed: seed)
-    }
+    // java.security.SecureRandom.setSeed only supplements a CSPRNG's entropy
+    // and must never make output reproducible. SystemRandomNumberGenerator
+    // accepts no seed input, so the compatibility entry point is a no-op
+    // rather than a switch onto a deterministic stream.
+    func setSeed(_: Int) {}
 
     private func nextBits() -> UInt64 {
-        if let seeded {
-            return seeded.nextBits()
-        }
         var rng = SystemRandomNumberGenerator()
         return rng.next()
     }
@@ -104,15 +101,16 @@ final class SecureRandomBox {
 }
 
 /// Extract a SeededRandomBox from a raw receiver value.
-/// Returns `nil` when the receiver is 0 (= Random.Default / companion object).
+/// Returns `nil` when the receiver is 0 (= Random.Default / companion object)
+/// or when the handle belongs to a normal compiled Kotlin object.
 private func seededBox(from raw: Int) -> SeededRandomBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+    let isSeededRandomPointer = runtimeStorage.withGCLock { state in
+        state.seededRandomPointers.contains(UInt(bitPattern: ptr))
     }
-    guard isObjectPointer else {
+    guard isSeededRandomPointer else {
         return nil
     }
     return Unmanaged<SeededRandomBox>.fromOpaque(ptr).takeUnretainedValue()
@@ -195,7 +193,9 @@ private func runtimeCreateSeededRandom(seed: Int) -> Int {
     let box = SeededRandomBox(seed: seed)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        state.seededRandomPointers.insert(key)
     }
     return Int(bitPattern: ptr)
 }
@@ -363,7 +363,7 @@ public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ o
     let first = uint32Payload(range.first)
     let last = uint32Payload(range.last)
     guard range.step != 0, first <= last else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Range is empty.")
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Range is empty.")
         return Int(first)
     }
     let exclusiveUpper = last == UInt64(UInt32.max) ? UInt64(UInt32.max) + 1 : last + 1
@@ -393,8 +393,8 @@ public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     }
     // Fill each element with a random byte in [-128, 127] (Kotlin's Byte range).
     var filled: [Int] = []
-    filled.reserveCapacity(list.elements.count)
-    for _ in list.elements {
+    filled.reserveCapacity(list.count)
+    for _ in 0..<list.count {
         filled.append(runtimeRandomByte(receiver: receiver))
     }
     return registerRuntimeObject(RuntimeListBox(elements: filled))
@@ -421,28 +421,26 @@ public func kk_random_nextBytes_range(
 ) -> Int {
     outThrown?.pointee = 0
     if let list = runtimeListBox(from: arrayRaw) {
-        var elements = list.elements
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= elements.count else {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= list.count else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(elements.count)."
+                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(list.count)."
             )
             return arrayRaw
         }
         for index in fromIndex..<toIndex {
-            elements[index] = runtimeRandomByte(receiver: receiver)
+            list[index] = runtimeRandomByte(receiver: receiver)
         }
-        list.elements = elements
         return arrayRaw
     }
     if let array = runtimeArrayBox(from: arrayRaw) {
-        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+                message: "Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
             )
             return arrayRaw
         }
         for index in fromIndex..<toIndex {
-            array.elements[index] = runtimeRandomByte(receiver: receiver)
+            array[index] = runtimeRandomByte(receiver: receiver)
         }
         return arrayRaw
     }
@@ -462,7 +460,7 @@ public func kk_random_nextUBytes_size(_ receiver: Int, _ size: Int, _ outThrown:
     }
     let array = RuntimeArrayBox(length: size)
     for index in 0..<size {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return registerRuntimeObject(array)
 }
@@ -471,8 +469,8 @@ public func kk_random_nextUBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    for index in array.elements.indices {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+    for index in 0 ..< array.count {
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return arrayRaw
 }
@@ -491,14 +489,14 @@ public func kk_random_nextUBytes_range(
         )
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
-    guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+    guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random.nextUBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+            message: "Random.nextUBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.count)."
         )
         return arrayRaw
     }
     for index in fromIndex..<toIndex {
-        array.elements[index] = runtimeRandomUByte(receiver: receiver)
+        array[index] = runtimeRandomUByte(receiver: receiver)
     }
     return arrayRaw
 }

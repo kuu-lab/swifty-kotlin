@@ -20,7 +20,7 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         case blocking(DispatchSemaphore)
         case coroutine(Int)
     }
-    private var waiters: [Waiter] = []
+    private var waiters = RuntimeFIFOQueue<Waiter>()
 
     var isLocked: Bool {
         lock.lock()
@@ -61,32 +61,39 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         }
         if continuation == 0 {
             let sema = DispatchSemaphore(value: 0)
-            waiters.append(.blocking(sema))
+            waiters.enqueue(.blocking(sema))
             lock.unlock()
-            sema.wait()
+            // A blocking (non-suspend-context) acquisition may be running on a
+            // runBlocking event loop, where the holder that will release is
+            // itself a coroutine queued on that loop; keep draining rather than
+            // park the only thread that can run it.
+            runtimeWaitDrainingEventLoop(sema)
             return 0
         }
-        waiters.append(.coroutine(continuation))
+        waiters.enqueue(.coroutine(continuation))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
     /// Release the lock.  If there are pending waiters, the first one is
     /// resumed on a GCD queue.
-    func unlock() {
+    ///
+    /// Returns `0` on success. Unlocking a mutex that is not held returns an
+    /// `IllegalStateException` handle, matching kotlinx.coroutines `Mutex.unlock`.
+    @discardableResult
+    func unlock() -> Int {
         lock.lock()
         guard isHeld else {
             lock.unlock()
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Mutex.unlock() called on an unlocked mutex")
+            return runtimeAllocateIllegalStateException(message: "This mutex is not locked")
         }
-        while !waiters.isEmpty {
-            let waiter = waiters.removeFirst()
+        while let waiter = waiters.dequeue() {
             switch waiter {
             case let .blocking(sema):
                 // Keep isHeld = true — ownership transfers to the blocking waiter.
                 lock.unlock()
                 sema.signal()
-                return
+                return 0
             case let .coroutine(continuation):
                 if runtimeSyncContinuationIsCancelled(continuation) {
                     continue
@@ -94,11 +101,12 @@ final class RuntimeMutexHandle: @unchecked Sendable {
                 // Keep the mutex held — ownership transfers to the resumed waiter.
                 lock.unlock()
                 runtimeSyncResume(continuation)
-                return
+                return 0
             }
         }
         isHeld = false
         lock.unlock()
+        return 0
     }
 }
 
@@ -117,7 +125,7 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         case blocking(DispatchSemaphore)
         case coroutine(Int)
     }
-    private var waiters: [Waiter] = []
+    private var waiters = RuntimeFIFOQueue<Waiter>()
 
     init(permits: Int) {
         precondition(permits >= 0, "Semaphore permits must be non-negative")
@@ -157,28 +165,36 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         }
         if continuation == 0 {
             let sema = DispatchSemaphore(value: 0)
-            waiters.append(.blocking(sema))
+            waiters.enqueue(.blocking(sema))
             lock.unlock()
-            sema.wait()
+            // A blocking (non-suspend-context) acquisition may be running on a
+            // runBlocking event loop, where the holder that will release is
+            // itself a coroutine queued on that loop; keep draining rather than
+            // park the only thread that can run it.
+            runtimeWaitDrainingEventLoop(sema)
             return 0
         }
-        waiters.append(.coroutine(continuation))
+        waiters.enqueue(.coroutine(continuation))
         lock.unlock()
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
     /// Release a permit.  If waiters are pending, the first one is resumed
     /// (or unblocked) and the permit transfers directly to it.
-    func release() {
+    ///
+    /// Returns `0` on success. Releasing more permits than `maxPermits`
+    /// returns an `IllegalStateException` handle, matching kotlinx.coroutines
+    /// `Semaphore.release`.
+    @discardableResult
+    func release() -> Int {
         lock.lock()
-        while !waiters.isEmpty {
-            let waiter = waiters.removeFirst()
+        while let waiter = waiters.dequeue() {
             switch waiter {
             case let .blocking(sema):
                 // Permit transfers directly to the blocking waiter.
                 lock.unlock()
                 sema.signal()
-                return
+                return 0
             case let .coroutine(continuation):
                 if runtimeSyncContinuationIsCancelled(continuation) {
                     continue
@@ -186,15 +202,18 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
                 // Permit transfers directly to the resumed waiter.
                 lock.unlock()
                 runtimeSyncResume(continuation)
-                return
+                return 0
             }
         }
         guard permits < maxPermits else {
             lock.unlock()
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Semaphore.release() exceeded acquired permits")
+            return runtimeAllocateIllegalStateException(
+                message: "The number of released permits cannot be greater than \(maxPermits)"
+            )
         }
         permits += 1
         lock.unlock()
+        return 0
     }
 }
 
@@ -239,12 +258,16 @@ public func kk_mutex_lock(_ handle: Int, _ continuation: Int) -> Int {
 }
 
 @_cdecl("kk_mutex_unlock")
-public func kk_mutex_unlock(_ handle: Int) -> Int {
+public func kk_mutex_unlock(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_unlock received invalid mutex handle")
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-    mutex.unlock()
+    let thrown = mutex.unlock()
+    if thrown != 0 {
+        runtimeSetThrown(outThrown, thrown)
+    }
     return 0
 }
 
@@ -286,12 +309,16 @@ public func kk_semaphore_acquire(_ handle: Int, _ continuation: Int) -> Int {
 }
 
 @_cdecl("kk_semaphore_release")
-public func kk_semaphore_release(_ handle: Int) -> Int {
+public func kk_semaphore_release(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_release received invalid semaphore handle")
     }
     let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
-    semaphore.release()
+    let thrown = semaphore.release()
+    if thrown != 0 {
+        runtimeSetThrown(outThrown, thrown)
+    }
     return 0
 }
 

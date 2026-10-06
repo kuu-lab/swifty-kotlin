@@ -31,6 +31,20 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_box_byte",
+            parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_box_short",
+            parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_box_ubyte",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -195,6 +209,15 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_double",
+            parameters: [
+                RuntimeABIParameter(name: "obj", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_unbox_double_nonnull",
             parameters: [
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],

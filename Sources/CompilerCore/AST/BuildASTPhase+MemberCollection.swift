@@ -98,7 +98,8 @@ extension BuildASTPhase {
                     name: name,
                     annotations: annotations,
                     constructorArgs: constructorArgs,
-                    memberFunctions: members.functions
+                    memberFunctions: members.functions,
+                    memberProperties: members.properties
                 ))
             }
             return entries
@@ -276,15 +277,26 @@ extension BuildASTPhase {
             return []
         }
         guard let introducerIndex = firstTopLevelKeywordIndex(in: tokens, matching: [declarationKeyword]),
-              introducerIndex + 1 < tokens.count,
-              let name = internedIdentifier(from: tokens[introducerIndex + 1], interner: interner),
-              name == declName
+              introducerIndex + 1 < tokens.count
         else {
             return []
         }
-        let nameIndex = introducerIndex + 1
-
-        var index = nameIndex + 1
+        // An unnamed `companion object : Supertype { ... }` has no identifier
+        // between `object` and the supertype colon, so the supertype list starts
+        // right after the introducer instead of after a name.
+        let isUnnamedObject = declarationKeyword == .object
+            && tokens[introducerIndex + 1].kind == .symbol(.colon)
+        var index: Int
+        if isUnnamedObject {
+            index = introducerIndex + 1
+        } else {
+            guard let name = internedIdentifier(from: tokens[introducerIndex + 1], interner: interner),
+                  name == declName
+            else {
+                return []
+            }
+            index = introducerIndex + 2
+        }
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         // Primary constructors may use the explicit `constructor` keyword with an
@@ -385,7 +397,9 @@ extension BuildASTPhase {
         if exprTokens.isEmpty {
             delegateExpr = nil
         } else {
-            let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: exprTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             delegateExpr = parser.parse()
         }
 
@@ -473,7 +487,7 @@ extension BuildASTPhase {
     }
 
     /// Splits the token run between the parentheses of a superclass constructor
-    /// invocation on top-level commas and parses each chunk as an expression.
+    /// invocation on top-level commas and parses each chunk as a call argument.
     private func parseSuperTypeConstructorArgs(
         _ tokens: [Token],
         interner: StringInterner,
@@ -485,9 +499,14 @@ extension BuildASTPhase {
 
         func flush() {
             guard !current.isEmpty else { return }
-            let parser = ExpressionParser(tokens: current, interner: interner, astArena: astArena)
-            if let exprID = parser.parse() {
-                args.append(CallArgument(expr: exprID))
+            let parser = ExpressionParser(
+                tokens: current, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
+            // Parse as a call argument (not a bare expression) so `name = value`
+            // labels and `*spread` survive; otherwise `Base(y = 1, x = 2)`
+            // degrades to positional assignment expressions.
+            if let argument = parser.parseCallArgument() {
+                args.append(argument)
             }
             current.removeAll(keepingCapacity: true)
         }
@@ -688,7 +707,9 @@ extension BuildASTPhase {
         guard !exprTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         return parser.parse()
     }
 }

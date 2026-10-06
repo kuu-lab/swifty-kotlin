@@ -1,5 +1,35 @@
 
-typealias LocalBindings = [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)]
+struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
+    typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
+    private var bindings: [InternedString: Value]
+    var memberFlow: [DataFlowReference: VariableFlowState] = [:]
+
+    init(dictionaryLiteral elements: (InternedString, Value)...) {
+        bindings = Dictionary(uniqueKeysWithValues: elements)
+    }
+
+    subscript(name: InternedString) -> Value? {
+        get { bindings[name] }
+        set { bindings[name] = newValue }
+    }
+
+    var values: Dictionary<InternedString, Value>.Values { bindings.values }
+    var isEmpty: Bool { bindings.isEmpty }
+
+    func makeIterator() -> Dictionary<InternedString, Value>.Iterator {
+        bindings.makeIterator()
+    }
+
+    func merging(_ other: LocalBindings, uniquingKeysWith combine: (Value, Value) throws -> Value) rethrows -> LocalBindings {
+        var merged = self
+        merged.bindings = try bindings.merging(other.bindings, uniquingKeysWith: combine)
+        return merged
+    }
+
+    mutating func invalidateMembers(root: SymbolID) {
+        memberFlow = memberFlow.filter { $0.key.root != root }
+    }
+}
 
 /// Dispatch hub for type checking. Replaces the monolithic extension-based splitting
 /// of `TypeCheckSemaPhase` with independent delegate classes.
@@ -8,9 +38,13 @@ typealias LocalBindings = [InternedString: (type: TypeID, symbol: SymbolID, isMu
 /// recursive calls (e.g. `inferExpr` → `inferCallExpr` → `inferExpr`) can be
 /// dispatched through the driver rather than sharing a single fat class instance.
 final class TypeCheckDriver {
+    /// Lexical boundaries retained until overload and lambda inference finish.
+    var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
+    let sourceManager: SourceManager?
     let solver: ConstraintSolver
     let resolver: OverloadResolver
     let dataFlow: DataFlowAnalyzer
@@ -42,6 +76,7 @@ final class TypeCheckDriver {
         ast: ASTModule,
         sema: SemaModule,
         semaCtx: SemaModule,
+        sourceManager: SourceManager? = nil,
         solver: ConstraintSolver,
         resolver: OverloadResolver,
         dataFlow: DataFlowAnalyzer,
@@ -56,6 +91,7 @@ final class TypeCheckDriver {
         self.ast = ast
         self.sema = sema
         self.semaCtx = semaCtx
+        self.sourceManager = sourceManager
         self.solver = solver
         self.resolver = resolver
         self.dataFlow = dataFlow
@@ -77,13 +113,56 @@ final class TypeCheckDriver {
         expectedType: TypeID? = nil,
         isStatementContext: Bool = false
     ) -> TypeID {
-        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if let subjectType = ctx.whenSubjectTypes[id] {
+            return subjectType
+        }
+        let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        if !suspendingCallNames(for: id).isEmpty {
+            callSuspensionContexts[id] = ctx.suspensionContext
+        }
+        checkInlineCallVisibility(id, ctx: ctx)
+        return type
+    }
+
+    private func checkInlineCallVisibility(_ id: ExprID, ctx: TypeInferenceContext) {
+        guard let callerID = ctx.currentDeclSymbol,
+              let caller = sema.symbols.symbol(callerID),
+              caller.flags.contains(.inlineFunction),
+              ctx.visibilityChecker.isPublicAPI(caller),
+              let binding = sema.bindings.callBinding(for: id),
+              let callee = sema.symbols.symbol(binding.chosenCallee),
+              !ctx.visibilityChecker.isPublicAPI(callee, allowProtected: false),
+              let range = ast.arena.exprRange(id),
+              !diagnostics.diagnostics.contains(where: {
+                  $0.code == "KSWIFTK-SEMA-0045" && $0.primaryRange == range
+              })
+        else { return }
+        diagnostics.error(
+            "KSWIFTK-SEMA-0045",
+            "Public-API inline function cannot access non-public-API declaration '\(interner.resolve(callee.name))'.",
+            range: range
+        )
     }
 
     // MARK: - Module-Level Type Checking
 
     func typeCheckModule(fileScopes: [Int32: FileScope], files: [ASTFile]) {
-        let checker = VisibilityChecker(symbols: sema.symbols)
+        let invisibleAccessFiles = Set(files.compactMap { file -> Int32? in
+            file.annotations.contains { annotation in
+                guard KnownCompilerAnnotation.suppress.matches(annotation.name) else {
+                    return false
+                }
+                return annotation.arguments.contains { argument in
+                    let code = argument.filter { $0 != "\"" && $0 != "'" }
+                    return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                }
+            } ? file.fileID.rawValue : nil
+        })
+        let checker = VisibilityChecker(
+            symbols: sema.symbols,
+            sourceManager: sourceManager,
+            invisibleAccessFiles: invisibleAccessFiles
+        )
 
         for file in files {
             guard let fileScope = fileScopes[file.fileID.rawValue] else {

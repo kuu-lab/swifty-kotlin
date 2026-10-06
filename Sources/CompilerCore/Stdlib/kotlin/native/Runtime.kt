@@ -8,6 +8,12 @@
 
 package kotlin.native
 
+import kotlin.internal.KsSymbolName
+
+@Deprecated("Initializing runtime is not possible in the new memory model.")
+@DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
+public fun initRuntimeIfNeeded() {}
+
 /**
  * Exception thrown when a top-level variable is accessed from an incorrect execution context.
  */
@@ -18,3 +24,28 @@ public class IncorrectDereferenceException : RuntimeException {
 
     public constructor(message: String) : super(message)
 }
+
+@kotlin.experimental.ExperimentalNativeApi
+public typealias ReportUnhandledExceptionHook = (Throwable) -> Unit
+
+@kotlin.experimental.ExperimentalNativeApi
+@IgnorableReturnValue
+@KsSymbolName("kk_native_setUnhandledExceptionHook")
+public external fun setUnhandledExceptionHook(
+    hook: ReportUnhandledExceptionHook?
+): ReportUnhandledExceptionHook?
+
+@kotlin.experimental.ExperimentalNativeApi
+@SinceKotlin("1.6")
+@KsSymbolName("kk_native_getUnhandledExceptionHook")
+public external fun getUnhandledExceptionHook(): ReportUnhandledExceptionHook?
+
+@kotlin.experimental.ExperimentalNativeApi
+@SinceKotlin("1.6")
+@KsSymbolName("kk_native_processUnhandledException")
+public external fun processUnhandledException(throwable: Throwable): Unit
+
+@kotlin.experimental.ExperimentalNativeApi
+@SinceKotlin("1.6")
+@KsSymbolName("kk_native_terminateWithUnhandledException")
+public external fun terminateWithUnhandledException(throwable: Throwable): Nothing

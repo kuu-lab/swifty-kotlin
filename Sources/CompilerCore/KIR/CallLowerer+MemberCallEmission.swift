@@ -2,30 +2,138 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func memberExtensionOwnerSymbol(for callee: SymbolID, sema: SemaModule) -> SymbolID? {
+        sema.symbols.memberExtensionOwnerSymbol(for: callee)
+    }
+
+    func memberExtensionDispatchReceiver(
+        for callee: SymbolID,
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
+              let ownerInfo = sema.symbols.symbol(owner)
+        else { return nil }
+        // A receiver found under an owner that merely *reaches* the dispatch
+        // owner (a subtype like `Derived` for `Base`, or an `inner class`
+        // instance that must hop through its `$outer` link) is not yet a
+        // value of the owner's type — chain it, and reject values that
+        // cannot reach `owner` at all instead of passing them as-is.
+        func resolveToOwner(_ exprID: KIRExprID?) -> KIRExprID? {
+            exprID.flatMap {
+                resolveOuterChainValue(
+                    from: $0,
+                    to: owner,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+        }
+        if let marked = callExprID
+            .flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) })
+            .flatMap({ driver.ctx.localValue(for: $0) }),
+           let resolved = resolveToOwner(marked)
+        {
+            return resolved
+        }
+        if let direct = driver.ctx.capturedOuterReceiverExprID(for: owner) {
+            return direct
+        }
+        if let reachingOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           let resolved = resolveToOwner(driver.ctx.capturedOuterReceiverExprID(for: reachingOwner))
+        {
+            return resolved
+        }
+        if let receiver = resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+            ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
+        {
+            return receiver
+        }
+        // Imported object/companion extensions have no enclosing dispatch
+        // receiver. Their source bodies still require the singleton before
+        // the extension receiver, including primitive property getters.
+        // Imported companion extensions can bind as ordinary member calls,
+        // including property getters. They still need the singleton dispatch
+        // receiver even when no lexical receiver is active.
+        if ownerInfo.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return receiver
+        }
+        return nil
+    }
+
+    /// Supply the dispatch receiver shared by getter, setter and compound updates.
+    func propertyAccessorArguments(
+        for accessor: SymbolID,
+        arguments: [KIRExprID],
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        if let receiver = memberExtensionDispatchReceiver(
+            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        ) {
+            return [receiver] + arguments
+        }
+        return arguments
+    }
+
     func sequenceBuilderRuntimeCalleeName(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let chosenCallee,
               let symbol = sema.symbols.symbol(chosenCallee),
               symbol.fqName.count == 4,
-              symbol.fqName[0] == interner.intern("kotlin"),
-              symbol.fqName[1] == interner.intern("sequences"),
-              symbol.fqName[2] == interner.intern("SequenceScope")
+              symbol.fqName[0] == knownNames.kotlin,
+              symbol.fqName[1] == knownNames.sequences,
+              symbol.fqName[2] == knownNames.sequenceScope
         else {
             return nil
         }
 
-        switch interner.resolve(calleeName) {
-        case "yield":
+        switch calleeName {
+        case knownNames.yield:
             return interner.intern("__kk_sequence_builder_yield")
-        case "yieldAll":
-            return interner.intern("__kk_sequence_builder_yieldAll")
+        case knownNames.yieldAll:
+            return interner.intern("__kk_sequence_builder_yieldAll_checked")
         default:
             return nil
         }
+    }
+
+    /// Whether `symbol` is a `const val` whose value `tryFoldConstMemberProperty`
+    /// inlines at the use site.
+    func isFoldableConstProperty(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) -> Bool {
+        guard let symInfo = sema.symbols.symbol(symbol),
+              symInfo.flags.contains(.constValue)
+        else {
+            return false
+        }
+        return propertyConstantInitializers[symbol] != nil
+            || sema.symbols.constValueExprKind(for: symbol) != nil
     }
 
     func tryFoldConstMemberProperty(
@@ -41,8 +149,9 @@ extension CallLowerer {
         guard args.isEmpty else { return nil }
         let callBinding = sema.bindings.callBindings[exprID]
         guard let chosen = callBinding?.chosenCallee,
-              let symInfo = sema.symbols.symbol(chosen),
-              symInfo.flags.contains(.constValue)
+              isFoldableConstProperty(
+                  chosen, sema: sema, propertyConstantInitializers: propertyConstantInitializers
+              )
         else {
             return nil
         }
@@ -79,6 +188,21 @@ extension CallLowerer {
             receiverType = sema.types.makeNonNullable(receiverType)
         }
         return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
+    }
+
+    /// Whether `exprID`'s type is a primitive (numeric or Char), i.e. one of
+    /// the types the built-in `kk_op_*` arithmetic intrinsics actually accept.
+    /// A non-primitive argument (a user class, String, ...) means the callee
+    /// name only *looks* like a primitive operator; the real applicable
+    /// candidate is whatever Sema resolved (e.g. a user's
+    /// `operator fun Int.times(v: Vec)` extension), so the primitive fast
+    /// path in `shouldLowerPrimitiveInv`'s callers must not claim the call.
+    func isNumericPrimitiveOperand(_ exprID: ExprID, sema: SemaModule) -> Bool {
+        let type = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
+        if case .primitive = sema.types.kind(of: type) {
+            return true
+        }
+        return false
     }
 
     func appendReceiverToMemberArguments(
@@ -191,18 +315,96 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
         sourceArgExprs: [ExprID] = [],
-        sourceArgLabels: [InternedString?] = []
+        sourceArgLabels: [InternedString?] = [],
+        callExprID: ExprID? = nil
     ) {
+        let knownNames = KnownCompilerNames(interner: interner)
         var finalArguments = arguments
+        let memberExtensionDispatchReceiver = chosenCallee.flatMap {
+            self.memberExtensionDispatchReceiver(
+                for: $0,
+                callExprID: callExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        if let memberExtensionDispatchReceiver {
+            finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+        }
+        if let chosenCallee,
+           let localValue = driver.ctx.localValue(for: chosenCallee),
+           let callable = driver.ctx.callableValueInfo(for: localValue)
+        {
+            finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
+        }
+        if let chosenCallee,
+           let scopeBuilderLink = sema.symbols.externalLinkName(for: chosenCallee),
+           (scopeBuilderLink == "kk_coroutine_scope_async" || scopeBuilderLink == "__kk_coroutine_scope_launch_context"),
+           finalArguments.count == 4
+        {
+            for parameterIndex in 0 ..< 2 where normalized.defaultMask & (1 << parameterIndex) != 0 {
+                let zero = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zero, value: .intLiteral(0)))
+                finalArguments[parameterIndex + 1] = zero
+            }
+            if let handleSymbol = sema.symbols.lookupAll(fqName: ["kotlinx", "coroutines", "__kkScopeHandle"].map { interner.intern($0) }).first(where: {
+                   sema.symbols.symbol($0)?.kind == .function
+               }),
+               let handleInfo = sema.symbols.symbol(handleSymbol)
+            {
+                let scopeHandle = arena.appendTemporary(type: sema.types.anyType)
+                instructions.append(.call(
+                    symbol: handleSymbol,
+                    callee: handleInfo.name,
+                    arguments: [finalArguments[0]],
+                    result: scopeHandle,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                finalArguments[0] = scopeHandle
+            }
+            // Keep captures visible to suspend liveness before launcher rewriting.
+            finalArguments.append(contentsOf: driver.ctx.callableValueInfo(for: finalArguments[3])?.captureArguments ?? [])
+            instructions.append(.call(
+                symbol: chosenCallee, callee: interner.intern(scopeBuilderLink),
+                arguments: finalArguments, result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return
+        }
         // Enum entry implementations are stored as ordinary functions whose
         // first argument is the ordinal-backed enum value. Route the resolved
         // enum member through the predeclared ordinal dispatcher before any
         // runtime-name or virtual-dispatch rewriting can select the abstract
         // declaration itself.
+        //
+        // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
+        // or any interface member) that more than one enum class in this
+        // compilation registers entry-body dispatch for. A single
+        // base-symbol-keyed reverse lookup (`SymbolID -> dispatch helper`)
+        // would have the second such enum processed silently overwrite the
+        // first's registration. Resolve the helper directly under the
+        // *receiver's own* enum class fqName instead (deterministic from
+        // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
+        // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
+        // cross-resolve to each other's dispatch helper.
         if normalized.defaultMask == 0,
            !isSuperCall,
            let chosenCallee,
-           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
+           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let (_, receiverClassSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverClassSymbol.kind == .enumClass,
+           let dispatchSymbol = {
+               let helperName = NameMangler.enumEntryDispatchHelperName(for: chosenCalleeInfo, interner: interner)
+               return sema.symbols.lookupAll(fqName: receiverClassSymbol.fqName + [helperName]).first { id in
+                   sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+               }
+           }(),
            let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
            let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
            dispatchSignature.typeParameterSymbols.isEmpty,
@@ -261,6 +463,38 @@ extension CallLowerer {
         // either way), but silently dropping any captured values (`bonus`)
         // for one that does capture, since nothing ever threaded the actual
         // closure environment through.
+        // Member-extension calls carry TWO leading receiver slots here --
+        // [dispatch, extension, ...valueArgs] once the dispatch receiver was
+        // inserted above -- while the callee signature counts only the
+        // extension receiver. Without the override, value-parameter index 0
+        // (e.g. a `suspend (E) -> R` block) would be matched against the
+        // extension receiver slot, so its function value silently stayed a
+        // raw `symbolRef` and crossed the kklib boundary with an ABI the
+        // callee's kk_suspend_function_invoke cannot drive (aggregate
+        // params, KUU-962).
+        adaptCoroutineLauncherBlock(
+            chosenCallee: chosenCallee,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions, arguments: &finalArguments
+        )
+        // Kotlin coroutine builders accept a suspend function as their extension
+        // receiver. Preserve the same boxed callable ABI as value parameters.
+        if let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let receiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           case let .functionType(functionType) = sema.types.kind(of: receiverType),
+           functionType.isSuspend,
+           sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) != true {
+            let receiverIndex = memberExtensionDispatchReceiver == nil ? 0 : 1
+            finalArguments[receiverIndex] = materializeFunctionValueArgument(
+                loweredArgID: finalArguments[receiverIndex],
+                argExprID: receiver.expr,
+                functionType: functionType,
+                sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            )
+        }
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -268,7 +502,8 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: &finalArguments
+            arguments: &finalArguments,
+            valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil
         )
         if normalized.defaultMask != 0,
            let chosenCallee,
@@ -285,39 +520,52 @@ extension CallLowerer {
             )
         }
         if normalized.defaultMask != 0,
-           let chosenCallee,
-           (sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
-            sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)) != nil)
+           let chosenCallee
         {
-            appendReifiedTypeTokens(
-                chosenCallee: chosenCallee,
-                callBinding: callBinding,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            appendDefaultMaskArgument(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-            let stubName = interner.intern(interner.resolve(calleeName) + "$default")
-            let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: chosenCallee)
-            instructions.append(.call(
-                symbol: stubSym,
-                callee: stubName,
-                arguments: finalArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: isSuperCall,
-                qualifiedSuperType: qualifiedSuperType
-            ))
-            return
+            // KUU-655: an override that inherits its defaults never has its
+            // own stub; resolve to the base declaration's stub instead (see
+            // `defaultStubOwnerSymbol`).
+            let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema)
+            if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
+                sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
+            {
+                appendReifiedTypeTokens(
+                    chosenCallee: chosenCallee,
+                    callBinding: callBinding,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                // KUU-655: a `super.f()` call that omits a defaulted
+                // argument must resolve the default *and* dispatch
+                // statically to the overridden implementation, never
+                // virtually to the runtime type's own override -- see the
+                // reserved mask bit 30 decoded in
+                // `CallSupportLowerer.generateDefaultStubFunction`.
+                let effectiveMask = isSuperCall ? (normalized.defaultMask | (Int64(1) << 30)) : normalized.defaultMask
+                appendDefaultMaskArgument(
+                    effectiveMask,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions,
+                    arguments: &finalArguments
+                )
+                let stubName = interner.intern(interner.resolve(calleeName) + "$default")
+                let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
+                instructions.append(.call(
+                    symbol: stubSym,
+                    callee: stubName,
+                    arguments: finalArguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                return
+            }
         }
 
         appendReifiedTypeTokens(
@@ -340,7 +588,8 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
-        if loweredCallee == interner.intern("__kk_double_range_contains"),
+        let loweredCalleeText = interner.resolve(loweredCallee)
+        if loweredCalleeText == "__kk_double_range_contains",
            sourceArgExprs.count == 1,
            finalArguments.count >= 2,
            sema.types.makeNonNullable(
@@ -364,7 +613,7 @@ extension CallLowerer {
         // KUU-600: Regex.replace's transform uses the runtime callback ABI.
         // Its Kotlin function-value argument must be split into the raw
         // function pointer and closure environment expected by the bridge.
-        if loweredCallee == interner.intern("__kk_regex_replace_lambda"),
+        if loweredCalleeText == "__kk_regex_replace_lambda",
            finalArguments.count == 3,
            sourceArgExprs.count == 2
         {
@@ -377,12 +626,30 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
+        if (loweredCalleeText == "kk_coroutine_scope_launch" || loweredCalleeText == "kk_coroutine_scope_async"),
+           !finalArguments.isEmpty,
+           let handleSymbol = sema.symbols.lookupAll(fqName: ["kotlinx", "coroutines", "__kkScopeHandle"].map { interner.intern($0) }).first(where: {
+               sema.symbols.symbol($0)?.kind == .function
+           }),
+           let handleInfo = sema.symbols.symbol(handleSymbol)
+        {
+            let scopeHandle = arena.appendTemporary(type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: handleSymbol,
+                callee: handleInfo.name,
+                arguments: [finalArguments[0]],
+                result: scopeHandle,
+                canThrow: true,
+                thrownResult: nil
+            ))
+            finalArguments[0] = scopeHandle
+        }
         // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
         // variables. The receiver scope is finalArguments[0] and the suspend lambda
         // reference is finalArguments[1]; inject the lambda's captures after it so the
         // coroutine lowering can thread them through the continuation (mirrors the free
         // launch/withContext capture injection in CallLowerer).
-        if loweredCallee == interner.intern("kk_coroutine_scope_launch"),
+        if loweredCalleeText == "kk_coroutine_scope_launch",
            finalArguments.count >= 2,
            let callableInfo = driver.ctx.callableValueInfo(for: finalArguments[1]),
            !callableInfo.captureArguments.isEmpty
@@ -401,8 +668,27 @@ extension CallLowerer {
             interner: interner
         )
         let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
-        let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+        let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
+            memberName: interner.resolve(calleeName),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
+        let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
+        let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
+            memberName: interner.resolve(calleeName),
+            receiverExpr: receiver.expr,
+            receiverType: receiverType,
+            chosenCallee: chosenCallee,
+            sema: sema,
+            interner: interner
+        )
+        let usesRuntimeRangeMember = rangeInterfaceCallee.map { $0 == loweredCallee } == true
+        // Remapped runtime bridges must not retain a source symbol whose own
+        // external link would override the concrete runtime callee.
+        let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember || usesRuntimeRangeMember
             ? nil
             : chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
@@ -411,7 +697,7 @@ extension CallLowerer {
         // resolution, while this path preserves the stdlib's empty-range and NaN
         // behavior without dispatching synthetic range accessors through an
         // unpopulated itable.
-        if interner.resolve(calleeName) == "coerceIn",
+        if calleeName == knownNames.coerceIn,
            sourceArgExprs.count == 1,
            sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
         {
@@ -454,7 +740,7 @@ extension CallLowerer {
                 return
             }
         }
-        if loweredCallee == interner.intern("kk_worker_execute"),
+        if loweredCalleeText == "kk_worker_execute",
            finalArguments.count == 4,
            sourceArgExprs.count == 3
         {
@@ -476,7 +762,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
-        if loweredCallee == interner.intern("kk_worker_execute_after"),
+        if loweredCalleeText == "kk_worker_execute_after",
            finalArguments.count == 3,
            sourceArgExprs.count == 2
         {
@@ -490,8 +776,26 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + operationArgs
         }
+        // CoroutineContext.fold(initial, operation): the kk_context_fold cdecl
+        // takes (contextRaw, initial, fnPtr, closureRaw, outThrown), so the
+        // operation lambda must expand to a (fnPtr, closureRaw) pair like the
+        // collection-HOF callable arguments.
+        if loweredCalleeText == "kk_context_fold",
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let operationArgs = makeCollectionHOFExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1]] + operationArgs
+        }
         let isComparatorBinarySearch: Bool = {
-            guard loweredCallee == interner.intern("binarySearch"),
+            guard loweredCalleeText == "binarySearch",
                   let chosenCallee,
                   let signature = sema.symbols.functionSignature(for: chosenCallee)
             else {
@@ -502,7 +806,7 @@ extension CallLowerer {
                 else {
                     return false
                 }
-                return interner.resolve(symbol.name) == "Comparator"
+                return symbol.name == knownNames.comparator
             }
         }()
         if isComparatorBinarySearch {
@@ -528,7 +832,7 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("__kk_byteArray_toKString")
+           loweredCalleeText == "__kk_byteArray_toKString"
         {
             materializeByteArrayToKStringDefaultArguments(
                 normalized.defaultMask,
@@ -539,7 +843,7 @@ extension CallLowerer {
                 arguments: &finalArguments
             )
         }
-        if loweredCallee == interner.intern("kk_list_zip_transform"),
+        if loweredCalleeText == "kk_list_zip_transform",
            finalArguments.count == 3
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -552,7 +856,7 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        let isStringRuntimeHOFCallee = switch interner.resolve(loweredCallee) {
+        let isStringRuntimeHOFCallee = switch loweredCalleeText {
         case "kk_string_indexOfFirst",
              "kk_string_indexOfLast":
             true
@@ -571,11 +875,11 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
-            || loweredCallee == interner.intern("kk_sequence_takeLastWhile")
-            || loweredCallee == interner.intern("kk_sequence_indexOfLast"),
+        if loweredCalleeText == "kk_sequence_firstNotNullOf"
+            || loweredCalleeText == "kk_sequence_firstNotNullOfOrNull"
+            || loweredCalleeText == "kk_sequence_indexOfFirst"
+            || loweredCalleeText == "kk_sequence_takeLastWhile"
+            || loweredCalleeText == "kk_sequence_indexOfLast",
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -587,7 +891,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_sequence_elementAtOrElse"),
+        if loweredCalleeText == "kk_sequence_elementAtOrElse",
            finalArguments.count == 3
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -599,10 +903,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("__kk_iterable_firstNotNullOf")
-            || loweredCallee == interner.intern("__kk_iterable_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("__kk_iterable_any")
-            || loweredCallee == interner.intern("__kk_iterable_all"),
+        if loweredCalleeText == "__kk_iterable_firstNotNullOf"
+            || loweredCalleeText == "__kk_iterable_firstNotNullOfOrNull"
+            || loweredCalleeText == "__kk_iterable_any"
+            || loweredCalleeText == "__kk_iterable_all",
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -614,15 +918,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        let resultFunction1Callees: Set<InternedString> = [
-            interner.intern("kk_runtime_result_get_or_else"),
-            interner.intern("kk_runtime_result_map"),
-            interner.intern("kk_runtime_result_on_success"),
-            interner.intern("kk_runtime_result_on_failure"),
-            interner.intern("kk_runtime_result_recover"),
-            interner.intern("kk_runtime_result_recover_catching"),
-        ]
-        if resultFunction1Callees.contains(loweredCallee),
+        if Self.resultFunction1CalleeNames.contains(loweredCalleeText),
            finalArguments.count == 2,
            sourceArgExprs.count == 1
         {
@@ -636,7 +932,7 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0]] + callbackArgs
         }
-        if loweredCallee == interner.intern("kk_runtime_result_fold"),
+        if loweredCalleeText == "kk_runtime_result_fold",
            finalArguments.count == 3,
            sourceArgExprs.count == 2
         {
@@ -658,10 +954,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0]] + successArgs + failureArgs
         }
-        if loweredCallee == interner.intern("kk_channel_send")
-            || loweredCallee == interner.intern("kk_channel_receive")
-            || loweredCallee == interner.intern("kk_mutex_lock")
-            || loweredCallee == interner.intern("kk_semaphore_acquire")
+        if loweredCalleeText == "kk_channel_send"
+            || loweredCalleeText == "kk_channel_receive"
+            || loweredCalleeText == "kk_mutex_lock"
+            || loweredCalleeText == "kk_semaphore_acquire"
         {
             let continuationExpr = arena.appendExpr(
                 .intLiteral(0),
@@ -722,7 +1018,8 @@ extension CallLowerer {
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
+               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
            )
@@ -731,19 +1028,22 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCallee == interner.intern("__kk_system_currentTimeMillis")
-            || loweredCallee == interner.intern("__kk_system_nanoTime")
-            || loweredCallee == interner.intern("__kk_system_process_start_nanos")
-            || loweredCallee == interner.intern("__kk_system_gc")
-            || loweredCallee == interner.intern("__kk_runtime_getRuntime")
-            || loweredCallee == interner.intern("__kk_runtime_totalMemory")
-            || loweredCallee == interner.intern("__kk_runtime_freeMemory")
-            || loweredCallee == interner.intern("__kk_runtime_maxMemory")
-            || loweredCallee == interner.intern("kk_instant_now")
-            || loweredCallee == interner.intern("kk_clock_system_now") {
+        if let chosenCallee, runtimeExternalOmitsObjectReceiver(chosenCallee, sema: sema) {
+            callArguments = Array(callArguments.dropFirst())
+        } else if loweredCalleeText == "__kk_system_currentTimeMillis"
+            || loweredCalleeText == "__kk_system_nanoTime"
+            || loweredCalleeText == "__kk_system_process_start_nanos"
+            || loweredCalleeText == "__kk_system_gc"
+            || loweredCalleeText == "__kk_runtime_getRuntime"
+            || loweredCalleeText == "__kk_runtime_totalMemory"
+            || loweredCalleeText == "__kk_runtime_freeMemory"
+            || loweredCalleeText == "__kk_runtime_maxMemory"
+            || loweredCalleeText == "kk_instant_now"
+            || loweredCalleeText == "kk_clock_system_now" {
             callArguments = []
         }
         if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            chosenCallee: chosenCallee,
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
@@ -763,12 +1063,12 @@ extension CallLowerer {
             ))
             return
         }
-        let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
+        let throwingCallees = Self.throwingMemberCalleeNames
         let needsOutThrown = needsThrownChannel(calleeName: loweredCallee, interner: interner)
         let thrownResult: KIRExprID? = needsOutThrown
             ? arena.appendTemporary(type: sema.types.nullableAnyType)
             : nil
-        let canThrow = throwingCallees.contains(loweredCallee) || thrownResult != nil
+        let canThrow = throwingCallees.contains(loweredCalleeText) || thrownResult != nil
         instructions.append(.call(
             symbol: callSymbol,
             callee: loweredCallee,
@@ -792,90 +1092,104 @@ extension CallLowerer {
         }
     }
 
-    /// Cached set of runtime callee names whose `.call` should be emitted
-    /// with `canThrow: true`. Hoisted from per-call `interner.intern()`
-    /// invocations to avoid repeated interning in the hot lowering path.
-    private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
-        Set([
-            interner.intern("kk_list_random"),
-            interner.intern("kk_iterable_iterator"),
-            interner.intern("kk_sequence_takeLast"),
-            interner.intern("__kk_iterable_firstNotNullOf"),
-            interner.intern("__kk_iterable_firstNotNullOfOrNull"),
-            interner.intern("__kk_iterable_any"),
-            interner.intern("__kk_iterable_all"),
-            interner.intern("__kk_iterable_requireNoNulls"),
-            interner.intern("__kk_string_codePointCount_from"),
-            interner.intern("__kk_string_codePointCount_range"),
-            interner.intern("__kk_kclass_cast"),
-            interner.intern("kk_range_first_predicate"),
-            interner.intern("kk_range_last_predicate"),
-            interner.intern("__kk_range_random"),
-            interner.intern("__kk_range_random_random"),
-            interner.intern("__kk_char_range_random"),
-            interner.intern("__kk_char_range_random_random"),
-            interner.intern("__kk_random_nextInt_rangeObject"),
-            interner.intern("__kk_random_nextLong_rangeObject"),
-            interner.intern("kk_range_reduce"),
-            interner.intern("kk_range_reduceIndexed"),
-            interner.intern("__kk_long_range_random"),
-            interner.intern("__kk_long_range_random_random"),
-            interner.intern("__kk_uint_range_random"),
-            interner.intern("__kk_uint_range_random_random"),
-            interner.intern("__kk_ulong_range_random"),
-            interner.intern("__kk_ulong_range_random_random"),
-            interner.intern("__kk_int_progression_fromClosedRange"),
-            interner.intern("__kk_long_progression_fromClosedRange"),
-            interner.intern("__kk_uint_progression_fromClosedRange"),
-            interner.intern("__kk_ulong_progression_fromClosedRange"),
-            interner.intern("__kk_char_progression_fromClosedRange"),
-            interner.intern("__kk_op_step"),
-            interner.intern("__kk_char_range_step"),
-            interner.intern("kk_sequence_reduceOrNull"),
-            interner.intern("kk_sequence_reduceRight"),
-            interner.intern("kk_sequence_reduce"),
-            interner.intern("kk_sequence_scan"),
-            interner.intern("kk_sequence_reduceIndexed"),
-            interner.intern("kk_sequence_reduceIndexedOrNull"),
-            interner.intern("kk_sequence_reduceRightIndexed"),
-            interner.intern("kk_sequence_reduceRightOrNull"),
-            interner.intern("kk_sequence_reduceRightIndexedOrNull"),
-            interner.intern("kk_sequence_runningFold"),
-            interner.intern("kk_sequence_runningReduceIndexed"),
-            interner.intern("kk_sequence_sortedBy"),
-            interner.intern("kk_sequence_sortedByDescending"),
-            interner.intern("kk_sequence_takeLastWhile"),
-            interner.intern("kk_sequence_firstNotNullOf"),
-            interner.intern("kk_sequence_firstNotNullOfOrNull"),
-            interner.intern("kk_sequence_indexOfFirst"),
-            interner.intern("kk_sequence_indexOfLast"),
-            interner.intern("kk_map_mapKeysTo"),
-            interner.intern("kk_map_mapValuesTo"),
-            interner.intern("kk_sequence_mapNotNull"),
-            interner.intern("kk_sequence_mapIndexedNotNull"),
-            interner.intern("kk_sequence_firstNotNullOf"),
-            interner.intern("kk_sequence_firstNotNullOfOrNull"),
-            interner.intern("kk_sequence_mapIndexed"),
-            interner.intern("kk_sequence_filterIndexed"),
-            interner.intern("kk_sequence_elementAt"),
-            interner.intern("kk_sequence_min"),
-            interner.intern("kk_sequence_ifEmpty"),
-            interner.intern("kk_sequence_first"),
-            interner.intern("kk_sequence_random"),
-            interner.intern("kk_sequence_last"),
-            interner.intern("kk_sequence_max"),
-            interner.intern("kk_sequence_firstOrNull"),
-            interner.intern("kk_sequence_single"),
-            interner.intern("kk_sequence_singleOrNull"),
-            interner.intern("kk_sequence_randomOrNull"),
-            interner.intern("kk_sequence_count"),
-            interner.intern("kk_sequence_to_list"),
-            interner.intern("kk_sequence_runningFoldIndexed"),
-            interner.intern("kk_sequence_scanIndexed"),
-        ])
-    }
+    /// Runtime callee names whose `.call` should be emitted with
+    /// `canThrow: true`.
+    private static let throwingMemberCalleeNames: Set<String> = [
+        "kk_list_random",
+        "kk_iterable_iterator",
+        "kk_iterator_next",
+        "kk_list_iterator_next",
+        "kk_sequence_takeLast",
+        "__kk_iterable_firstNotNullOf",
+        "__kk_iterable_firstNotNullOfOrNull",
+        "__kk_iterable_any",
+        "__kk_iterable_all",
+        "__kk_iterable_requireNoNulls",
+        "__kk_string_codePointCount_from",
+        "__kk_string_codePointCount_range",
+        "__kk_kclass_cast",
+        "kk_range_first_predicate",
+        "kk_range_last_predicate",
+        "__kk_range_first_orThrow",
+        "__kk_range_last_orThrow",
+        "__kk_uint_range_first_orThrow",
+        "__kk_uint_range_last_orThrow",
+        "__kk_ulong_range_first_orThrow",
+        "__kk_ulong_range_last_orThrow",
+        "__kk_range_random",
+        "__kk_range_random_random",
+        "__kk_char_range_random",
+        "__kk_char_range_random_random",
+        "__kk_random_nextInt_rangeObject",
+        "__kk_random_nextLong_rangeObject",
+        "kk_range_reduce",
+        "kk_range_reduceIndexed",
+        "__kk_long_range_random",
+        "__kk_long_range_random_random",
+        "__kk_uint_range_random",
+        "__kk_uint_range_random_random",
+        "__kk_ulong_range_random",
+        "__kk_ulong_range_random_random",
+        "__kk_int_progression_fromClosedRange",
+        "__kk_long_progression_fromClosedRange",
+        "__kk_uint_progression_fromClosedRange",
+        "__kk_ulong_progression_fromClosedRange",
+        "__kk_char_progression_fromClosedRange",
+        "__kk_op_step",
+        "__kk_char_range_step",
+        "kk_sequence_reduceOrNull",
+        "kk_sequence_reduceRight",
+        "kk_sequence_reduce",
+        "kk_sequence_scan",
+        "kk_sequence_reduceIndexed",
+        "kk_sequence_reduceIndexedOrNull",
+        "kk_sequence_reduceRightIndexed",
+        "kk_sequence_reduceRightOrNull",
+        "kk_sequence_reduceRightIndexedOrNull",
+        "kk_sequence_runningFold",
+        "kk_sequence_runningReduceIndexed",
+        "kk_sequence_sortedBy",
+        "kk_sequence_sortedByDescending",
+        "kk_sequence_takeLastWhile",
+        "kk_sequence_firstNotNullOf",
+        "kk_sequence_firstNotNullOfOrNull",
+        "kk_sequence_indexOfFirst",
+        "kk_sequence_indexOfLast",
+        "kk_map_mapKeysTo",
+        "kk_map_mapValuesTo",
+        "kk_sequence_mapNotNull",
+        "kk_sequence_mapIndexedNotNull",
+        "kk_sequence_mapIndexed",
+        "kk_sequence_filterIndexed",
+        "kk_sequence_elementAt",
+        "kk_sequence_min",
+        "kk_sequence_ifEmpty",
+        "kk_sequence_first",
+        "kk_sequence_random",
+        "kk_sequence_last",
+        "kk_sequence_max",
+        "kk_sequence_firstOrNull",
+        "kk_sequence_single",
+        "kk_sequence_singleOrNull",
+        "kk_sequence_randomOrNull",
+        "kk_sequence_count",
+        "kk_sequence_to_list",
+        "kk_sequence_runningFoldIndexed",
+        "kk_sequence_scanIndexed",
+    ]
+
+    /// Runtime callee names whose `Result`-style callbacks expand inline.
+    private static let resultFunction1CalleeNames: Set<String> = [
+        "kk_runtime_result_get_or_else",
+        "kk_runtime_result_map",
+        "kk_runtime_result_on_success",
+        "kk_runtime_result_on_failure",
+        "kk_runtime_result_recover",
+        "kk_runtime_result_recover_catching",
+    ]
 
     private func listWindowChunkMemberSourceBridgeCall(
+        chosenCallee: SymbolID?,
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
@@ -888,11 +1202,23 @@ extension CallLowerer {
             || isSetLikeType(receiverType, sema: sema, interner: interner)
             || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
+        let knownNames = KnownCompilerNames(interner: interner)
         guard isListWindowChunkReceiver else {
             return nil
         }
 
-        if interner.resolve(calleeName) == "zip",
+        if calleeName == knownNames.zip,
+           let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
+        {
+            // Array and primitive-array zip extensions use their selected
+            // Kotlin bodies, including overloads whose argument is an Iterable.
+            return nil
+        }
+
+        if calleeName == knownNames.zip,
            let firstArgument = sourceArgExprs.first,
            let firstArgumentType = sema.bindings.exprTypes[firstArgument],
            isGenericKotlinArrayType(
@@ -908,29 +1234,29 @@ extension CallLowerer {
 
         let callee: String
         let canThrow: Bool
-        switch (interner.resolve(calleeName), argumentCount) {
-        case ("chunked", 2):
+        switch (calleeName, argumentCount) {
+        case (knownNames.chunked, 2):
             callee = "__kk_list_chunked"
-            canThrow = false
-        case ("chunked", 4):
+            canThrow = true
+        case (knownNames.chunked, 4):
             callee = "__kk_list_chunked_transform"
             canThrow = true
-        case ("windowed", 4):
+        case (knownNames.windowed, 4):
             callee = "__kk_list_windowed"
-            canThrow = false
-        case ("windowed", 6):
+            canThrow = true
+        case (knownNames.windowed, 6):
             callee = "__kk_list_windowed_transform"
             canThrow = true
-        case ("zip", 2):
+        case (knownNames.zip, 2):
             callee = "__kk_list_zip"
             canThrow = false
-        case ("zip", 4):
+        case (knownNames.zip, 4):
             callee = "__kk_list_zip_transform"
             canThrow = true
-        case ("zipWithNext", 1):
+        case (knownNames.zipWithNext, 1):
             callee = "__kk_list_zipWithNext"
             canThrow = false
-        case ("zipWithNext", 3):
+        case (knownNames.zipWithNext, 3):
             callee = "__kk_list_zipWithNextTransform"
             canThrow = true
         default:

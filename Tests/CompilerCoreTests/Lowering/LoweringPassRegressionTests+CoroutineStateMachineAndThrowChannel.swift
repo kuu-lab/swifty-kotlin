@@ -89,6 +89,37 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testMixedBuilderYieldAllPreservesInitialProbeThrowChannel() throws {
+        let source = """
+        fun main() {
+            val seq = sequence<Int> {
+                yield(1)
+                try {
+                    yieldAll(iterator<Int> { if (false) yield(99); throw IllegalArgumentException("nested") })
+                } catch (e: IllegalArgumentException) { yield(2) }
+            }
+            println(seq.toList())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let functions = findAllKIRFunctions(in: try #require(ctx.kir))
+            let calls = functions.flatMap { function in
+                function.body.compactMap { instruction -> (Bool, KIRExprID?)? in
+                    guard case let .call(_, callee, _, _, canThrow, thrown, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "__kk_sequence_builder_yieldAll_checked"
+                    else { return nil }
+                    return (canThrow, thrown)
+                }
+            }
+            #expect(!calls.isEmpty)
+            #expect(calls.allSatisfy { $0.0 && $0.1 != nil })
+        }
+    }
+
+    @Test
     func testCoroutineLoweringRewritesRangeLoopSequenceBuildersToCPSRuntimeABI() throws {
         let source = """
         fun main() {

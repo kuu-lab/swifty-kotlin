@@ -7,6 +7,8 @@
 
 package kotlinx.coroutines.flow
 
+import kotlinx.coroutines.channels.BufferOverflow
+
 // MIGRATION-FLOW-002 (KSP-675)
 // SharedFlow / MutableSharedFlow migrated from the dedicated runtime handle
 // (kk_mutable_shared_flow_create / kk_mutable_shared_flow_emit /
@@ -18,19 +20,59 @@ package kotlinx.coroutines.flow
 // replays the buffered snapshot and returns instead of suspending forever on a
 // live subscription. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
 
-public interface SharedFlow<out T> {
+public interface SharedFlow<out T> : Flow<T> {
     public val replayCache: List<T>
 
     public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
+// Keep the mutable contract separate from its snapshot implementation so that
+// MutableStateFlow can also implement it, as in kotlinx.coroutines.
+public interface MutableSharedFlow<T> : SharedFlow<T>, FlowCollector<T> {
+    public val subscriptionCount: StateFlow<Int>
+
+    public fun tryEmit(value: T): Boolean
+
+    public fun resetReplayCache()
+}
+
+public fun <T> MutableSharedFlow(
+    replay: Int = 0,
+    extraBufferCapacity: Int = 0,
+    onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
+): MutableSharedFlow<T> = SnapshotMutableSharedFlow<T>(replay, extraBufferCapacity, onBufferOverflow)
+
+private class SnapshotMutableSharedFlow<T>(
+    private val replay: Int,
+    extraBufferCapacity: Int,
+    onBufferOverflow: BufferOverflow
+) : MutableSharedFlow<T> {
     private val buffer: MutableList<T> = mutableListOf()
+    private var subscribers: MutableStateFlow<Int>? = null
+
+    init {
+        require(replay >= 0) { "replay cannot be negative" }
+        require(extraBufferCapacity >= 0) { "extraBufferCapacity cannot be negative" }
+        require(onBufferOverflow == BufferOverflow.SUSPEND || replay > 0 || extraBufferCapacity > 0) {
+            "non-default onBufferOverflow requires positive replay or extraBufferCapacity"
+        }
+    }
+
+    override val subscriptionCount: StateFlow<Int>
+        get() = subscriptionCounter()
+
+    private fun subscriptionCounter(): MutableStateFlow<Int> {
+        val existing = subscribers
+        if (existing != null) return existing
+        val counter = MutableStateFlow(0)
+        subscribers = counter
+        return counter
+    }
 
     override val replayCache: List<T>
         get() = buffer.toList()
 
-    public fun tryEmit(value: T): Boolean {
+    override fun tryEmit(value: T): Boolean {
         if (replay > 0) {
             buffer.add(value)
             while (buffer.size > replay) {
@@ -40,13 +82,24 @@ public class MutableSharedFlow<T>(private val replay: Int) : SharedFlow<T> {
         return true
     }
 
-    public suspend fun emit(value: T) {
+    override suspend fun emit(value: T) {
         tryEmit(value)
     }
 
+    override fun resetReplayCache() {
+        buffer.clear()
+    }
+
     override suspend fun collect(collector: suspend (T) -> Unit) {
-        for (value in replayCache) {
-            collector(value)
+        val snapshot = replayCache
+        val counter = subscriptionCounter()
+        counter.value = counter.value + 1
+        try {
+            for (value in snapshot) {
+                collector(value)
+            }
+        } finally {
+            counter.value = counter.value - 1
         }
     }
 }

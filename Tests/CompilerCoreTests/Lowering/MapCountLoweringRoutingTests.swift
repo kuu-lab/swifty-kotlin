@@ -9,8 +9,8 @@ import Testing
 /// `Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean): Int`, but
 /// `CollectionLiteralLoweringPass+CallRewriteFactories.swift` still carried a
 /// `map.count(predicate)` -> `kk_map_count` rewrite branch. It was
-/// unreachable — `registerMapHigherOrderMembers`'s `registerMember` helper
-/// (`HeaderHelpers+SyntheticMapStubs.swift`) skips registering the competing
+/// unreachable — the historical synthetic Map registration path skipped the
+/// competing
 /// synthetic `count` member whenever `bundledIndex.contains(ownerFQName:
 /// mapFQName, name: "count", arity: 1)` is true, which it always is once
 /// KSP-430 bundled `MapHOF.kt`, so a resolved `count(predicate)` call on a

@@ -83,6 +83,10 @@ fi
 # Make sure any selected build system is applied to every invocation.
 kswiftk_append_build_system_flag swift_build_args
 
+# Keep compiler flags identical to the ones swift_test.sh appends so the
+# incremental cache is not invalidated between build and test invocations.
+kswiftk_append_testing_plugin_path swift_build_args
+
 # Enable swiftbuild's integrated compilation cache if requested.
 kswiftk_setup_compile_cache_env
 

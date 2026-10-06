@@ -163,7 +163,8 @@ enum GoldenHarnessTargetSection {
             if !signature.reifiedTypeParameterIndices.isEmpty {
                 parts.append("reified=[\(signature.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ","))]")
             }
-            if signature.valueParameterAllowsNonLocalReturn.contains(false) {
+            if symbol.flags.contains(.inlineFunction)
+                && signature.valueParameterAllowsNonLocalReturn.contains(false) {
                 let marks = signature.valueParameterAllowsNonLocalReturn.map { $0 ? "1" : "0" }
                 parts.append("nonlocal=[\(marks.joined(separator: ","))]")
             }

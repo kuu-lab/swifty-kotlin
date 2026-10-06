@@ -324,6 +324,60 @@ extension BuildKIRRegressionTests {
         #expect(fallbackCallees.contains("inv"))
     }
 
+    @Test(arguments: [PrimitiveType.ubyte, .ushort, .uint, .ulong, .int, .long])
+    func testSafePrimitiveInvUnboxesNullableReceiverAfterNullCheck(primitive: PrimitiveType) throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let nonNullType = fixture.types.make(.primitive(primitive, .nonNull))
+        let nullableType = fixture.types.makeNullable(nonNullType)
+        let receiver = appendTypedExpr(
+            .nameRef(fixture.interner.intern("value"), makeRange()),
+            type: nullableType,
+            fixture: fixture
+        )
+        let invName = fixture.interner.intern("inv")
+        let exprID = appendSafeMemberExpr(
+            receiver: receiver,
+            callee: invName,
+            args: [],
+            type: nullableType,
+            fixture: fixture
+        )
+        var emit = KIRLoweringEmitContext()
+        _ = fixture.driver.callLowerer.lowerSafeMemberCallExpr(
+            exprID,
+            receiverExpr: receiver,
+            calleeName: invName,
+            args: [],
+            shared: fixture.makeShared(),
+            emit: &emit
+        )
+
+        let invIndex = try #require(emit.instructions.firstIndex { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return fixture.interner.resolve(callee) == "kk_op_inv"
+        })
+        guard case let .call(_, _, arguments, _, _, _, _, _) = emit.instructions[invIndex] else {
+            Issue.record("Expected an inv call")
+            return
+        }
+        let invReceiver = try #require(arguments.first)
+        #expect(fixture.kirArena.exprType(invReceiver) == nonNullType)
+        let copyIndex = try #require(emit.instructions.firstIndex { instruction in
+            guard case let .copy(from, to) = instruction else { return false }
+            return to == invReceiver && fixture.kirArena.exprType(from) == nullableType
+        })
+        #expect(copyIndex < invIndex)
+        try #require(copyIndex > 0)
+        guard case .label = emit.instructions[copyIndex - 1] else {
+            Issue.record("Receiver unboxing must follow the non-null branch label")
+            return
+        }
+        #expect(emit.instructions[..<copyIndex].contains { instruction in
+            if case .jumpIfNotNull = instruction { return true }
+            return false
+        })
+    }
+
     @Test func testDirectSafeMemberCallUnresolvedCoroutineMemberRenames() {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()

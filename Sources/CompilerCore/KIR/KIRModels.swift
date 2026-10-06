@@ -80,6 +80,11 @@ public enum KIRDispatchKind: Equatable, Sendable {
     case itableDynamic(interfaceTypeID: Int64, methodSlot: Int)
 }
 
+public enum KIRReturnTarget: Hashable, Sendable {
+    case function(SymbolID)
+    case importedFunction(InternedString)
+}
+
 public enum KIRInstruction: Equatable, Sendable {
     case nop
     case beginBlock
@@ -104,9 +109,16 @@ public enum KIRInstruction: Equatable, Sendable {
     case returnUnit
     case returnValue(KIRExprID)
     /// Non-local return from a lambda passed to an inline function.
-    /// During inline expansion this is converted into a real return
-    /// from the enclosing (caller) function.
-    case nonLocalReturn(KIRExprID?)
+    /// The target identifies the lexical function, even after inline expansion.
+    case nonLocalReturn(KIRExprID?, target: KIRReturnTarget? = nil)
+    /// Lexical cleanup or function exit retained until inline expansion completes.
+    /// The value slot carries the original return representation without boxing.
+    case beginNonLocalReturnScope(value: KIRExprID, target: Int32, function: KIRReturnTarget? = nil)
+    case endNonLocalReturnScope
+    case resumeNonLocalReturn(KIRExprID)
+    /// Eager cleanup must not re-enter finally blocks already being executed.
+    case beginFinallyCleanup(skipping: Int)
+    case endFinallyCleanup
     /// Sentinel markers delimiting an already-wrapped finally guard region.
     /// `appendThrowAwareInstructions` passes instructions between these
     /// sentinels through verbatim to prevent double-wrapping.
@@ -211,15 +223,31 @@ public final class KIRArena {
     public private(set) var exprTypes: [KIRExprID: TypeID] = [:]
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
+    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI;
+    /// copied from the lowering context for post-build passes
+    /// (see `KIRLoweringContext.receiverFirstLauncherLambdaSymbols`).
+    var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
 
     private let parallelLock = NSLock()
     var isParallelTransformActive = false
+
+    /// Lazily-built index of function declarations keyed by symbol, giving
+    /// `function(for:)` O(1) amortized lookup instead of a linear scan over
+    /// every declaration. `nil` means "not built yet"; once built it is
+    /// maintained incrementally by `appendDecl` (first-occurrence wins,
+    /// matching the old scan order) and invalidated when a transform changes
+    /// a function's symbol, in which case it is rebuilt on the next query.
+    private var functionIndexBySymbol: [SymbolID: Int]?
 
     public init() {}
 
     public func appendDecl(_ decl: KIRDecl) -> KIRDeclID {
         let id = KIRDeclID(rawValue: Int32(declarations.count))
         declarations.append(decl)
+        if case let .function(function) = decl,
+           functionIndexBySymbol?[function.symbol] == nil {
+            functionIndexBySymbol?[function.symbol] = Int(id.rawValue)
+        }
         return id
     }
 
@@ -285,12 +313,48 @@ public final class KIRArena {
     }
 
     public func function(for symbol: SymbolID) -> KIRFunction? {
-        declarations.lazy.compactMap { decl -> KIRFunction? in
-            guard case let .function(function) = decl, function.symbol == symbol else {
-                return nil
+        // Worker closures may query during parallel transforms; use the
+        // plain scan there so the lazy index is never mutated concurrently.
+        guard !isParallelTransformActive else {
+            return declarations.lazy.compactMap { decl -> KIRFunction? in
+                guard case let .function(function) = decl, function.symbol == symbol else {
+                    return nil
+                }
+                return function
+            }.first
+        }
+        if functionIndexBySymbol == nil {
+            var index: [SymbolID: Int] = [:]
+            index.reserveCapacity(declarations.count)
+            for (declarationIndex, decl) in declarations.enumerated() {
+                guard case let .function(function) = decl,
+                      index[function.symbol] == nil
+                else {
+                    continue
+                }
+                index[function.symbol] = declarationIndex
             }
-            return function
-        }.first
+            functionIndexBySymbol = index
+        }
+        guard let declarationIndex = functionIndexBySymbol?[symbol] else {
+            // The index covers every function declaration currently in the
+            // arena, so a miss means `symbol` names no function here.
+            return nil
+        }
+        guard case let .function(function) = declarations[declarationIndex],
+              function.symbol == symbol
+        else {
+            // A stale index entry should be impossible (transforms that
+            // change a function's symbol invalidate the index); fall back to
+            // the linear scan rather than trusting it.
+            return declarations.lazy.compactMap { decl -> KIRFunction? in
+                guard case let .function(function) = decl, function.symbol == symbol else {
+                    return nil
+                }
+                return function
+            }.first
+        }
+        return function
     }
 
     public func expr(_ id: KIRExprID) -> KIRExprKind? {
@@ -348,7 +412,11 @@ public final class KIRArena {
             guard case let .function(function) = declarations[index] else {
                 continue
             }
-            declarations[index] = .function(transform(function))
+            let transformed = transform(function)
+            if transformed.symbol != function.symbol {
+                functionIndexBySymbol = nil
+            }
+            declarations[index] = .function(transformed)
         }
     }
 
@@ -360,7 +428,11 @@ public final class KIRArena {
         let count = functionIndices.count
         guard count > 4 else {
             for (index, function) in functionIndices {
-                declarations[index] = .function(transform(function))
+                let transformed = transform(function)
+                if transformed.symbol != function.symbol {
+                    functionIndexBySymbol = nil
+                }
+                declarations[index] = .function(transformed)
             }
             return
         }
@@ -378,6 +450,9 @@ public final class KIRArena {
             }
             for i in 0..<count {
                 if let result = work.results[i] {
+                    if result.symbol != functionIndices[i].1.symbol {
+                        functionIndexBySymbol = nil
+                    }
                     declarations[functionIndices[i].0] = .function(result)
                 }
             }
@@ -415,6 +490,9 @@ public final class KIRModule {
     public let files: [KIRFile]
     public let arena: KIRArena
     public private(set) var executedLowerings: [String]
+    public private(set) var stage: KIRStage
+    package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
+    package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
     /// Callee names that are known non-throwing, registered by earlier passes
     /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
@@ -438,10 +516,15 @@ public final class KIRModule {
         featuresScanned = false
     }
 
-    public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
+    public init(
+        files: [KIRFile],
+        arena: KIRArena,
+        executedLowerings: [String] = []
+    ) {
         self.files = files
         self.arena = arena
         self.executedLowerings = executedLowerings
+        self.stage = .raw
     }
 
     public func scanFeatures() {
@@ -514,6 +597,39 @@ public final class KIRModule {
 
     public func recordLowering(_ name: String) {
         executedLowerings.append(name)
+    }
+
+    /// Validate a lowering pass boundary before running the pass.
+    ///
+    /// The exact input-stage check is intentionally debug-only: this is a
+    /// development-time ordering contract, while `stage` remains available
+    /// in all configurations for inspection and future pipeline consumers.
+    func validateLoweringStage(
+        passName: String,
+        required: KIRStage,
+        produced: KIRStage
+    ) throws {
+        #if DEBUG
+        guard stage == required else {
+            throw KIRStageViolation.unexpectedInput(
+                passName: passName,
+                required: required,
+                actual: stage
+            )
+        }
+        guard produced >= required else {
+            throw KIRStageViolation.regressingOutput(
+                passName: passName,
+                required: required,
+                produced: produced
+            )
+        }
+        #endif
+    }
+
+    /// Record the stage established by a successfully completed pass.
+    func advanceLoweringStage(to stage: KIRStage) {
+        self.stage = stage
     }
 
     public func dump(interner: StringInterner, symbols: SymbolTable?) -> String {
@@ -618,14 +734,24 @@ public final class KIRModule {
             return "returnUnit"
         case let .returnValue(value):
             return "return r\(value.rawValue)"
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, target):
             if let value {
-                return "nonLocalReturn r\(value.rawValue)"
+                return "nonLocalReturn r\(value.rawValue)" + (target.map { " target=\($0)" } ?? "")
             } else {
-                return "nonLocalReturnUnit"
+                return "nonLocalReturnUnit" + (target.map { " target=\($0)" } ?? "")
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target, function):
+            return "beginNonLocalReturnScope r\(value.rawValue), L\(target)" + (function.map { " function=\($0)" } ?? "")
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn r\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
         }
@@ -648,6 +774,9 @@ final class KIRContext {
     let options: CompilerOptions
     let interner: StringInterner
     let sema: SemaModule?
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per factory-call rewrite.
+    let nominalDispatchCache = KIRNominalDispatchCache()
 
     init(
         diagnostics: DiagnosticEngine,

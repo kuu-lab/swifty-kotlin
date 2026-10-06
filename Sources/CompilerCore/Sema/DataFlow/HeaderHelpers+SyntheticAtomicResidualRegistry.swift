@@ -90,7 +90,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             constructorLinkName: "kk_atomic_ref_create",
-            externalLinkPrefix: "__kk_atomic_ref"
+            externalLinkPrefix: "__kk_atomic_ref",
+            includeGetAndSetAlias: true
         )
 
         // Array atomics retain their responsibility-specific synthetic shells and
@@ -137,42 +138,70 @@ extension DataFlowSemaPhase {
             enumType: memoryOrderType,
             symbols: symbols
         )
-        registerAtomicTypeAlias(
-            aliasName: "AtomicInt",
-            aliasPackageFQName: atomicsPkg,
-            targetName: "AtomicInt",
-            targetPackageFQName: concurrentPkg,
+        // KSP-1100: the canonical kotlin.concurrent.atomics nominal
+        // declarations are source-backed class shells in
+        // Stdlib/kotlin/concurrent/atomics/Stdlib.kt. These residual
+        // synthetic surfaces are claimed by the bundled declarations and keep
+        // the receiver members runtime-backed until the sibling tickets
+        // migrate them. The atomics -> kotlin.concurrent typealiases are
+        // removed: upstream declares real classes in this package.
+        // KUU-1365: the canonical atomics package matches the JVM/common
+        // API surface — no `value` property (Native-only; rejected by the
+        // JVM reference kotlinc the diff harness checks against).
+        registerAtomicScalarFamily(
+            packageFQName: atomicsPkg,
+            className: "AtomicInt",
+            constructorLinkName: "kk_atomic_int_create",
+            valueType: intType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "__kk_atomic_int",
+            includeArithmetic: true,
+            includeValueProperty: false,
+            compareAndSetLinkName: "kk_atomic_int_compareAndSet",
             symbols: symbols,
             interner: interner,
             types: types
         )
-        registerAtomicTypeAlias(
-            aliasName: "AtomicLong",
-            aliasPackageFQName: atomicsPkg,
-            targetName: "AtomicLong",
-            targetPackageFQName: concurrentPkg,
+        registerAtomicScalarFamily(
+            packageFQName: atomicsPkg,
+            className: "AtomicLong",
+            constructorLinkName: "kk_atomic_long_create",
+            valueType: longType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "__kk_atomic_long",
+            includeArithmetic: true,
+            includeValueProperty: false,
+            compareAndSetLinkName: "kk_atomic_long_compareAndSet",
             symbols: symbols,
             interner: interner,
             types: types
         )
-        registerAtomicTypeAlias(
-            aliasName: "AtomicBoolean",
-            aliasPackageFQName: atomicsPkg,
-            targetName: "AtomicBoolean",
-            targetPackageFQName: concurrentPkg,
+        registerAtomicScalarFamily(
+            packageFQName: atomicsPkg,
+            className: "AtomicBoolean",
+            constructorLinkName: "kk_atomic_bool_create",
+            valueType: boolType,
+            boolType: boolType,
+            unitType: unitType,
+            prefix: "__kk_atomic_bool",
+            includeArithmetic: false,
+            includeCompareAndSet: false,
+            includeValueProperty: false,
             symbols: symbols,
             interner: interner,
             types: types
         )
-        registerAtomicTypeAlias(
-            aliasName: "AtomicReference",
-            aliasPackageFQName: atomicsPkg,
-            targetName: "AtomicReference",
-            targetPackageFQName: concurrentPkg,
+        registerAtomicReferenceStubs(
+            ownerPackage: atomicsPkg,
+            ownerPackageSymbol: symbols.lookup(fqName: atomicsPkg) ?? .invalid,
             symbols: symbols,
-            interner: interner,
             types: types,
-            typeParameterNames: ["T"]
+            interner: interner,
+            constructorLinkName: "kk_atomic_ref_create",
+            externalLinkPrefix: "__kk_atomic_ref",
+            includeValueProperty: false
         )
         registerAtomicNativePtrSurface(
             packageFQName: atomicsPkg,
@@ -211,6 +240,10 @@ extension DataFlowSemaPhase {
             types: types
         )
 
+        // KUU-1365: canonical atomics arrays keep the JVM/common `*At`
+        // surface only — no operator get/set, no `length`, and none of the
+        // Native/Java alias methods (getAndSet / getAndAdd / addAndGet /
+        // *AndGet / *AndIncrement / *AndDecrement).
         registerAtomicArrayFamily(
             packageFQName: atomicsPkg,
             className: "AtomicIntArray",
@@ -220,13 +253,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_int_array",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeIndexOperators: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -240,13 +267,7 @@ extension DataFlowSemaPhase {
             unitType: unitType,
             prefix: "kk_atomic_long_array",
             includeArithmetic: true,
-            includeIncrementAndGetAlias: true,
-            includeGetAndIncrementAlias: true,
-            includeGetAndDecrementAlias: true,
-            includeGetAndSetAlias: true,
-            includeGetAndAddAlias: true,
-            includeDecrementAndGetAlias: true,
-            includeAddAndGetAlias: true,
+            includeIndexOperators: false,
             symbols: symbols,
             interner: interner,
             types: types
@@ -260,18 +281,11 @@ extension DataFlowSemaPhase {
             interner: interner,
             types: types
         )
-        registerAtomicArrayOfNullsFactory(
-            packageFQName: atomicsPkg,
-            symbols: symbols,
-            interner: interner,
-            types: types
-        )
-        registerAtomicArrayOfFactory(
-            packageFQName: atomicsPkg,
-            symbols: symbols,
-            interner: interner,
-            types: types
-        )
+        // `atomicArrayOfNulls` is source-backed by
+        // Stdlib/kotlin/concurrent/atomics/Stdlib.kt (KSP-1100) and links
+        // `kk_atomic_ref_array_new` directly. `atomicArrayOf` was a phantom
+        // factory with no counterpart in the real API (KUU-1365); it is no
+        // longer registered.
 
         // Lock.withLock is source-backed; retain only its synthetic type shell.
         let lockSymbol = ensureClassSymbol(

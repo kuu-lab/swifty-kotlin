@@ -238,7 +238,20 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID
                 )
             }
-        case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
+        case let .propertyDecl(property):
+            for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                for annotation in accessor.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: accessor.kind == .getter ? .getter : .setter,
+                        ownerRange: accessor.range, decl: decl, file: file,
+                        propertySymbol: symbolID, symbols: symbols,
+                        diagnostics: diagnostics, interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+        case .typeAliasDecl, .enumEntryDecl:
             break
         }
     }
@@ -261,7 +274,9 @@ extension DataFlowSemaPhase {
         for annotation in param.annotations {
             let site: AnnotationUsageSite
             switch annotation.useSiteTarget?.lowercased() {
-            case nil, "param", "setparam":
+            case nil:
+                site = param.isProperty ? .constructorPropertyParameter : .valueParameter
+            case "param", "setparam":
                 site = .valueParameter
             case "field":
                 site = .paramField
@@ -336,6 +351,18 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
+            return
+        }
+
+        if case .getter = site,
+           symbols.annotations(for: annotationSymbolID).contains(where: {
+               KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
+           }) {
+            diagnostics.error(
+                "KSWIFTK-SEMA-OPT-IN-GETTER",
+                "Opt-in requirement marker annotation cannot be used on getter.",
+                range: ownerRange
+            )
             return
         }
 
@@ -518,60 +545,6 @@ extension DataFlowSemaPhase {
         return resolvedSymbol.fqName == builtInTargetFQName
     }
 
-    private func resolveAnnotationSymbol(
-        named rawName: String,
-        in file: ASTFile,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID? {
-        let parts = rawName.split(separator: ".").map(String.init)
-
-        if parts.count > 1 {
-            let fqName = parts.map { interner.intern($0) }
-            if let symbol = symbols.lookup(fqName: fqName),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
-        }
-
-        let shortName = interner.intern(parts.last ?? rawName)
-        let samePackageFQName = file.packageFQName + [shortName]
-        if let symbol = symbols.lookup(fqName: samePackageFQName),
-           symbols.symbol(symbol)?.kind == .annotationClass
-        {
-            return symbol
-        }
-
-        for importDecl in file.imports {
-            if let alias = importDecl.alias, alias == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            if importDecl.path.last == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            if let packageSymbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(packageSymbol)?.kind == .package
-            {
-                if let child = symbols.children(ofFQName: importDecl.path).compactMap({ symbols.symbol($0) }).first(where: { $0.kind == .annotationClass && $0.name == shortName }) {
-                    return child.id
-                }
-            }
-        }
-
-        return symbols.lookupByShortName(shortName).first(where: { symbols.symbol($0)?.kind == .annotationClass })
-    }
-
     private func parseAnnotationTargets(from arguments: [String]) -> Set<String> {
         let knownTargets: Set<String> = [
             "CLASS",
@@ -634,6 +607,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .constructorPropertyParameter:
+            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -709,6 +684,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .constructorPropertyParameter:
+            return "a constructor property parameter"
         case .enumEntry:
             return "an enum entry"
         case .property:
@@ -789,6 +766,7 @@ extension DataFlowSemaPhase {
         case function
         case constructor
         case valueParameter
+        case constructorPropertyParameter
         case enumEntry
         case property(explicitUseSiteTarget: Bool)
         case getter

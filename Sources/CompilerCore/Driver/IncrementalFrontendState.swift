@@ -1,6 +1,7 @@
 
 public struct IncrementalFrontendState: Codable {
-    public static let supportedVersion = 1
+    // Version 3 preserves explicit type annotations on when subject declarations.
+    public static let supportedVersion = 3
 
     public let version: Int
     public let buildConfigurationHash: String

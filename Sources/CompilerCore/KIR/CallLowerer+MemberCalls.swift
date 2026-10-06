@@ -9,6 +9,8 @@ extension CallLowerer {
     // declaredMemberFunctions/nestedClasses/supertypes moved to ordinary
     // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
     //
+    // objectInstance/sealedSubclasses are source-declared KClass properties
+    // whose native boxes use the runtime registry instead of source itables.
     // The remaining names stay here:
     // - findAnnotation/findAssociatedObject take a reified type argument,
     //   which this compiler only supports via a small special-cased
@@ -17,7 +19,7 @@ extension CallLowerer {
     //   `declaredMember`-prefixed variants exist upstream); diff cases rely
     //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject", "properties",
+        "findAnnotation", "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses",
     ]
 
     func lowerMemberCallExpr(
@@ -34,6 +36,85 @@ extension CallLowerer {
         let arena = shared.arena
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
+
+        if sema.bindings.callableValueCalls[exprID]?.extensionCallableExpr != nil {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let result = tryLowerLexicalExtensionCallableInvocation(
+                exprID,
+                receiverExpr: receiverExpr,
+                loweredReceiverID: receiver,
+                calleeName: calleeName,
+                args: args,
+                shared: shared,
+                emit: &instructions
+            ) {
+                return result
+            }
+        }
+
+        if sema.bindings.isInvokeOperatorCall(exprID),
+           let property = sema.bindings.identifierSymbol(for: exprID),
+           sema.symbols.symbol(property)?.kind == .property,
+           let propertyType = sema.symbols.propertyType(for: property),
+           let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
+           let signature = sema.symbols.functionSignature(for: chosen),
+           signature.parameterTypes.count <= 5,
+           sema.symbols.externalLinkName(for: chosen)?.hasPrefix("kk_function_invoke") == true {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let function = lowerStoredMemberPropertyReadValue(
+                propertySymbol: property, receiverExpr: receiverExpr, loweredReceiverID: receiver,
+                resultType: propertyType, ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions.instructions
+            ) {
+                let values = args.map { argument in
+                    let value = driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+                    return boxValueForAnySlot(value, sourceType: arena.exprType(value) ?? sema.types.anyType,
+                        types: sema.types, symbols: sema.symbols, interner: interner, arena: arena,
+                        requireNonNull: true, into: &instructions.instructions)
+                }
+                let callee = signature.parameterTypes.count == 1 ? "kk_function_invoke"
+                    : "kk_function_invoke_\(signature.parameterTypes.count)"
+                let result = arena.appendTemporary(type: sema.bindings.exprType(for: exprID))
+                instructions.instructions.append(.call(symbol: nil, callee: interner.intern(callee),
+                    arguments: [function] + values, result: result, canThrow: true, thrownResult: nil))
+                return result
+            }
+        }
+
+        // BUG-274: whichever specialized lowering strategy below actually
+        // handles this member call/access, it targets a real member of
+        // `chosenCallee`'s (or, for a property-like access bound only via
+        // `identifierSymbol`, that symbol's) owner. When that owner is a
+        // source-backed object/companion, its state must not be touched
+        // before its lazy clinit-equivalent has run — and several of the
+        // strategies below construct the receiver value directly instead of
+        // lowering `receiverExpr` through the ordinary bare-name path
+        // (`ExprLowerer`'s ``.nameRef`` case, where an external qualifier
+        // like `Comp.member()` would otherwise trigger this on its own),
+        // most notably a same-class-body reference such as
+        // `Companion.member()`. Keying off the resolved target's owner,
+        // rather than chasing every receiver-construction shortcut
+        // individually, covers all of them uniformly. A no-op for anything
+        // that isn't a source-backed object/companion (see `objectLazyInit`).
+        //
+        // A `const val` read is the exception: Kotlin inlines it at the use
+        // site and never runs the owner's clinit (`O.C` must not print
+        // `O`'s `init` output). The predicate mirrors
+        // `tryFoldConstMemberProperty`'s, so whenever this skips the guard
+        // the read is folded; any path that declines to fold still lowers
+        // the receiver or the property through its own guarded route.
+        if let targetSymbol = sema.bindings.callBindings[exprID]?.chosenCallee
+            ?? sema.bindings.identifierSymbol(for: exprID),
+           !isFoldableConstProperty(
+               targetSymbol, sema: sema, propertyConstantInitializers: propertyConstantInitializers
+           ),
+           let ownerSymbol = sema.symbols.parentSymbol(for: targetSymbol)
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                instructions: &instructions.instructions
+            )
+        }
 
         if let lateinitStatus = tryLowerLateinitIsInitialized(
             exprID,
@@ -127,6 +208,22 @@ extension CallLowerer {
             return primitiveCompareResult
         }
 
+        // ── non-escaping Comparable<Char> local .compareTo → kk_char_compareTo ──
+        if let comparableCharResult = tryLowerComparableCharCompareTo(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return comparableCharResult
+        }
+
         // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte() on an erased
         //    receiver → kk_number_to_primitive(receiver, slot, kind) (KSP-1540) ──
         if let numberConversionResult = tryLowerNumberConversion(
@@ -173,8 +270,7 @@ extension CallLowerer {
             }
             return sema.bundledIndex.contains(
                 ownerFQName: ownerSymbol.fqName,
-                name: calleeName,
-                arity: args.count
+                name: calleeName
             )
         }()
         if isFlowReceiver, !hasBundledFlowDeclaration {
@@ -279,6 +375,7 @@ extension CallLowerer {
         // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
+           !sema.bindings.boundClassRefExprs.contains(receiverExpr),
            let classRefTargetType = sema.bindings.classRefTargetType(for: receiverExpr)
         {
             let callee = interner.resolve(calleeName)
@@ -332,6 +429,33 @@ extension CallLowerer {
             return scopeResult
         }
 
+        // Explicit `.invoke(...)` on a receiver whose own type is a function
+        // type (e.g. `f.invoke(3)`, `ef.invoke(5, 6)`) -- unlike the
+        // receiver-lambda sugar just below, `receiverExpr` here IS the
+        // callable value itself, not a separate dispatch receiver.
+        if interner.resolve(calleeName) == "invoke",
+           sema.bindings.callableValueCalls[exprID] != nil,
+           case .functionType = sema.types.kind(
+               of: sema.types.makeNonNullable(sema.bindings.exprType(for: receiverExpr) ?? sema.types.anyType)
+           )
+        {
+            let loweredReceiverID = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
+                exprID,
+                calleeName: calleeName,
+                args: args,
+                loweredReceiverID: loweredReceiverID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions
+            ) {
+                return invokeResult
+            }
+        }
+
         // Receiver-lambda invocation: `receiver.localVar()` where localVar has
         // a function-with-receiver type (e.g. `sb.action()` with action: StringBuilder.() -> Unit).
         // Some frontends may also encode the receiver as the first parameter of a regular
@@ -341,6 +465,64 @@ extension CallLowerer {
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            case let .localValue(localSym) = callableBinding.target,
            let receiverExprType = sema.bindings.exprType(for: receiverExpr) {
+            // Member-property callable invocation: `receiver.prop(args)` where
+            // `prop` is a function-typed member property (KUU-482/BUG-250).
+            // The property symbol is not a local value, so the local-value arm
+            // below cannot resolve it — read `receiver.prop` through the
+            // ordinary member-read path, then invoke the function value
+            // through the runtime kk_function_invoke* ABI.
+            if sema.symbols.symbol(localSym)?.kind == .property,
+               let invokeCallee = runtimeCallableInvokeCallee(
+                   callableValueCallBinding: callableBinding,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                let loweredReceiverID = driver.lowerExpr(
+                    receiverExpr,
+                    shared: shared,
+                    emit: &instructions
+                )
+                if let functionValue = lowerStoredMemberPropertyReadValue(
+                    propertySymbol: localSym,
+                    receiverExpr: receiverExpr,
+                    loweredReceiverID: loweredReceiverID,
+                    resultType: callableBinding.functionType,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions.instructions
+                ) {
+                    let loweredArgIDs = args.map { argument in
+                        driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+                    }
+                    var invokeArgs = normalizedCallableValueArguments(
+                        providedArguments: loweredArgIDs,
+                        callableValueCallBinding: callableBinding,
+                        sema: sema
+                    )
+                    if fnType.receiver != nil {
+                        // `val action: R.() -> T` invoked as `receiver.action(args)`:
+                        // the call-site receiver is the lambda's dispatch receiver,
+                        // passed right after the function value (mirroring the
+                        // local-value arm below).
+                        invokeArgs.insert(loweredReceiverID, at: 0)
+                    }
+                    let boundType = sema.bindings.exprTypes[exprID] ?? fnType.returnType
+                    let result = arena.appendTemporary(type: boundType)
+                    instructions.append(.call(
+                        symbol: localSym,
+                        callee: invokeCallee,
+                        arguments: [functionValue] + invokeArgs,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
             let maybeReceiverFnType: (FunctionType, Bool)
             if fnType.receiver != nil {
                 maybeReceiverFnType = (fnType, fnType.params.count == args.count)
@@ -421,8 +603,43 @@ extension CallLowerer {
             }
         }
 
+        // Explicit `invoke` sugar on a function-typed value:
+        // `f.invoke(args)` / `prop.invoke(args)` (KUU-644). Sema binds a
+        // CallableValueCallBinding with `target == nil`, so the lowered
+        // receiver expression itself is the function object to invoke.
+        if let callableBinding = sema.bindings.callableValueCalls[exprID],
+           callableBinding.target == nil,
+           case .functionType = sema.types.kind(of: callableBinding.functionType),
+           let invokeCallee = runtimeCallableInvokeCallee(
+               callableValueCallBinding: callableBinding,
+               sema: sema,
+               interner: interner
+           )
+        {
+            let functionValue = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            let loweredArgIDs = args.map { argument in
+                driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
+            }
+            let invokeArgs = normalizedCallableValueArguments(
+                providedArguments: loweredArgIDs,
+                callableValueCallBinding: callableBinding,
+                sema: sema
+            )
+            let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendTemporary(type: boundType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: invokeCallee,
+                arguments: [functionValue] + invokeArgs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+
         let effectiveCalleeName = if sema.bindings.isInvokeOperatorCall(exprID) {
-            interner.intern("invoke")
+            KnownCompilerNames(interner: interner).invoke
         } else {
             calleeName
         }

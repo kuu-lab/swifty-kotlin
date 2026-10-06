@@ -7,7 +7,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
     ) {
         guard propertyDecl.modifiers.contains(.const) else {
             return
@@ -48,19 +49,14 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        // Record the compile-time constant value from the initializer.
-        // When no explicit type annotation is present, also validate that
-        // the initializer is a compile-time constant literal; if not,
-        // reject the declaration since const val requires a constant.
+        // Seed literal values for type inference. References are evaluated
+        // after type checking has bound all initializers to their symbols.
         if let initExpr = propertyDecl.initializer {
             let constCollector = ConstantCollector()
-            if let constKind = constCollector.literalConstantExpr(initExpr, ast: ast) {
-                symbols.setConstValueExprKind(constKind, for: propertySymbol)
-            } else {
-                diagnostics.error(
-                    "KSWIFTK-SEMA-0083",
-                    "'const val' initializer must be a compile-time constant expression.",
-                    range: propertyDecl.range
+            if let constKind = constCollector.literalConstantExpr(initExpr, ast: ast, interner: interner) {
+                symbols.setConstValueExprKind(
+                    constCollector.convertConstant(constKind, to: resolvedType, types: types),
+                    for: propertySymbol
                 )
             }
         }

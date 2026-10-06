@@ -35,7 +35,8 @@ extension BuildASTPhase {
             startIndex: startIndex,
             isMutable: isMutable,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ) {
             return destructuringResult
         }
@@ -44,7 +45,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 self.parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
@@ -72,7 +75,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }
@@ -90,7 +95,8 @@ extension BuildASTPhase {
     static func parseDestructuringDeclarationStatement(
         from statementTokens: [Token],
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil
     ) -> ExprID? {
         var startIndex = 0
         while startIndex < statementTokens.count,
@@ -116,7 +122,8 @@ extension BuildASTPhase {
             startIndex: startIndex,
             isMutable: isMutable,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
     }
 
@@ -127,7 +134,8 @@ extension BuildASTPhase {
         startIndex: Int,
         isMutable: Bool,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil
     ) -> ExprID? {
         // After val/var keyword, expect `(` — but the CST parser may insert
         // a `missing(identifier)` token before it when it expects a property name.
@@ -239,7 +247,9 @@ extension BuildASTPhase {
         guard !initializerTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: initializerTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: initializerTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initializerExpr = parser.parse() else {
             return nil
         }

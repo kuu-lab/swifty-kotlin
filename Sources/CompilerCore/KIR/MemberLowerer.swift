@@ -6,6 +6,42 @@ final class MemberLowerer {
         self.driver = driver
     }
 
+    private func synthesizeNestedCompanionInitializers(
+        _ declIDs: [DeclID],
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        var initializers: [KIRDeclID] = []
+        for declID in declIDs {
+            guard let decl = shared.ast.arena.decl(declID),
+                  let symbol = shared.sema.bindings.declSymbols[declID]
+            else { continue }
+            let companionDeclID: DeclID?
+            var nestedDecls: [DeclID]
+            switch decl {
+            case let .classDecl(nested):
+                companionDeclID = nested.companionObject
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            case let .interfaceDecl(nested):
+                companionDeclID = nested.companionObject
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            case let .objectDecl(nested):
+                companionDeclID = nil
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            default: continue
+            }
+            if let companionDeclID { nestedDecls.append(companionDeclID) }
+            initializers.append(contentsOf: synthesizeNestedCompanionInitializers(nestedDecls, shared: shared))
+            guard let companionDeclID,
+                  let companionSymbol = shared.sema.bindings.declSymbols[companionDeclID],
+                  driver.ctx.objectLazyInit(for: companionSymbol) == nil
+            else { continue }
+            initializers.append(contentsOf: driver.synthesizeCompanionInitializerIfNeeded(
+                companionDeclID: companionDeclID, ownerSymbol: symbol, shared: shared
+            ))
+        }
+        return initializers
+    }
+
     func lowerMemberDecls(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
@@ -21,6 +57,16 @@ final class MemberLowerer {
     ) -> (directMembers: [KIRDeclID], allDecls: [KIRDeclID]) {
         var directMembers: [KIRDeclID] = []
         var allDecls: [KIRDeclID] = []
+
+        // Enclosing function bodies can access nested types' companions. Register
+        // their lazy initializers before lowering those accesses, as for top-level types.
+        allDecls.append(contentsOf: synthesizeNestedCompanionInitializers(
+            nestedClasses + nestedObjects,
+            shared: KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+        ))
 
         for declID in memberFunctions {
             lowerSingleMemberFunction(
@@ -164,18 +210,37 @@ final class MemberLowerer {
             // same situation — a write through a base-typed reference must
             // dispatch to the actual runtime type's setter the same way a
             // read dispatches to the getter above.
-            if !hasCustomSetterBody, !hasDelegate, !isInterfaceContext, needsVirtualAccessor,
+            if !hasCustomSetterBody, !hasDelegate,
                propFlags?.contains(.mutable) == true,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
-                synthesizeStoredPropertySetterAccessor(
-                    propertySymbol: symbol,
-                    ownerSymbol: ownerSymbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    allDecls: &allDecls
-                )
+                let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
+                if isInterfaceContext, !isExternalLinked {
+                    // An abstract interface `var`'s setter had no registered
+                    // symbol at all (unlike its getter, which
+                    // `synthesizeInterfacePropertyGetterStub` above already
+                    // covers) — anything that referenced it by symbol, such
+                    // as a `by`-delegation forwarder falling back to the
+                    // interface's own declaration for a class that has no
+                    // concrete override, linked against an undefined name.
+                    synthesizeInterfacePropertySetterStub(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                } else if !isInterfaceContext, needsVirtualAccessor {
+                    synthesizeStoredPropertySetterAccessor(
+                        propertySymbol: symbol,
+                        ownerSymbol: ownerSymbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        allDecls: &allDecls
+                    )
+                }
             }
 
             // Lower delegated property: emit delegate storage global and
@@ -283,35 +348,37 @@ final class MemberLowerer {
                         compilationCtx: compilationCtx
                     ))
                 }
-                let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+                let shared = KIRLoweringSharedContext(
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
+                let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                    classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+                )
+                let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                    symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+                )))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
                 allDecls.append(contentsOf: nestedAllDecls)
+                allDecls.append(contentsOf: forwardingDecls)
 
                 // Lower constructors for nested classes (inner and static).
                 // Without this, nested class constructors would not be emitted
                 // into KIR and codegen would produce undefined symbol references.
-                if let compilationCtx {
-                    let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
-                    let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                    let shared = KIRLoweringSharedContext(
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers
+                let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
+                let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                for ctorSymbol in ctorSymbols {
+                    let ctorDecls = driver.lowerConstructor(
+                        ctorSymbol: ctorSymbol,
+                        ctorFQName: ctorFQName,
+                        classDecl: nested,
+                        ownerSymbol: symbol,
+                        shared: shared
                     )
-                    for ctorSymbol in ctorSymbols {
-                        let ctorDecls = driver.lowerConstructor(
-                            ctorSymbol: ctorSymbol,
-                            ctorFQName: ctorFQName,
-                            classDecl: nested,
-                            ownerSymbol: symbol,
-                            shared: shared,
-                            compilationCtx: compilationCtx
-                        )
-                        allDecls.append(contentsOf: ctorDecls)
-                    }
+                    allDecls.append(contentsOf: ctorDecls)
                 }
             case let .interfaceDecl(nestedInterface):
                 // Interface properties have no backing storage of their own, but
@@ -363,20 +430,43 @@ final class MemberLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 compilationCtx: compilationCtx
             )
-            let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: nestedDirect)))
+            let shared = KIRLoweringSharedContext(
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+            )
+            let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+                symbol: symbol, memberDecls: nestedDirect + forwardingDecls
+            )))
             directMembers.append(kirID)
             allDecls.append(kirID)
             allDecls.append(contentsOf: nestedAll)
+            allDecls.append(contentsOf: forwardingDecls)
 
             // Nested objects that implement interfaces need a heap-backed global
             // and initializer so interface-typed receivers can use dynamic
             // itable dispatch. Without this, a source-backed extension such as
             // TimeSource.measureTime reaches TimeSource.markNow() with an object
             // that has no registered interface entry.
-            let hasInterfaceSupertypes = sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
-                sema.symbols.symbol(superSymbol)?.kind == .interface
+            // A non-Any class superclass needs it too: the implicit `super(...)`
+            // call and the superclass's field storage only exist once the
+            // singleton is actually allocated (BUG-264). Companions are
+            // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
+            // their allocation and super delegation.
+            let isCompanion = nested.modifiers.contains(.companion)
+            let needsRuntimeInitialization = !isCompanion && sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
+                let kind = sema.symbols.symbol(superSymbol)?.kind
+                if kind == .interface {
+                    return true
+                }
+                return (kind == .class || kind == .enumClass)
+                    && superSymbol != sema.types.anyClassSymbol
             }
-            if hasInterfaceSupertypes {
+            if needsRuntimeInitialization {
                 let objectType = sema.types.make(.classType(ClassType(
                     classSymbol: symbol, args: [], nullability: .nonNull
                 )))
@@ -473,12 +563,47 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
+                // Member extensions (`fun T.m(...)` declared inside a class or
+                // interface) carry two receivers: the dispatch receiver
+                // (`this@Owner`, the enclosing instance) followed by the
+                // extension receiver (bare `this`). Emit the dispatch receiver
+                // as an implicit leading parameter so calls lower to
+                // [dispatch, extension, args] like JVM member extensions.
+                if function.receiverType != nil,
+                   let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                   [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+                {
+                    let ownerArgs: [TypeArg] = signature.typeParameterSymbols
+                        .prefix(signature.classTypeParameterCount)
+                        .map { .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))) }
+                    let dispatchReceiverType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerSymbol, args: ownerArgs, nullability: .nonNull
+                    )))
+                    let dispatchReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+                    params.append(KIRParameter(symbol: dispatchReceiverSymbol, type: dispatchReceiverType))
+                    let dispatchReceiverExpr = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: dispatchReceiverType)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: dispatchReceiverSymbol)
+                    driver.ctx.setLocalValue(dispatchReceiverExpr, for: ownerSymbol)
+                    driver.ctx.setLocalDeclaredType(dispatchReceiverType, for: ownerSymbol)
+                    driver.ctx.setQualifiedThisReceiver(dispatchReceiverExpr, for: ownerInfo.name)
+                    driver.ctx.setCapturedOuterReceiver(dispatchReceiverExpr, for: ownerSymbol)
+                }
                 let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
                 params.append(KIRParameter(symbol: receiverSymbol, type: receiverType))
+                driver.ctx.setLocalDeclaredType(receiverType, for: receiverSymbol)
                 driver.ctx.setImplicitReceiver(
                     symbol: receiverSymbol,
                     exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
                 )
+                if function.receiverType == nil,
+                   let owner = sema.symbols.parentSymbol(for: symbol),
+                   let receiver = driver.ctx.activeImplicitReceiverExprID()
+                {
+                    driver.ctx.setCapturedOuterReceiver(receiver, for: owner)
+                    driver.ctx.setLocalValue(receiver, for: owner)
+                    driver.ctx.setLocalDeclaredType(receiverType, for: owner)
+                }
             }
             let isVararg = driver.callSupportLowerer.normalizeBoolFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
             for (index, (paramSymbol, paramType)) in zip(signature.valueParameterSymbols, signature.parameterTypes).enumerated() {
@@ -658,7 +783,8 @@ final class MemberLowerer {
         }
 
         for param in params where param.symbol != driver.ctx.activeImplicitReceiverSymbol() {
-            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            let paramExpr = driver.ctx.localValue(for: param.symbol)
+                ?? arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: param.symbol)
         }

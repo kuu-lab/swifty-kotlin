@@ -1,0 +1,148 @@
+#if canImport(Testing)
+import Testing
+
+extension BundledStdlibExecutionTests {
+    /// KUU-851 regression: source-backed callable properties must dispatch
+    /// through their interface getter for user implementations.
+    @Test
+    func testUserCallableImplementationsDispatchPropertiesThroughInterfaces() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KCallable
+            import kotlin.reflect.KProperty
+            import kotlin.reflect.KType
+            import kotlin.reflect.KParameter
+            import kotlin.reflect.KTypeParameter
+            import kotlin.reflect.KVisibility
+
+            abstract class CallableMetadata : KCallable<Int> {
+                override val annotations = emptyList<Annotation>()
+                override val parameters = emptyList<KParameter>()
+                override val typeParameters = emptyList<KTypeParameter>()
+                override val visibility = KVisibility.PUBLIC
+                override val isFinal = true
+                override val isOpen = false
+                override val isAbstract = false
+                override val isSuspend = false
+                override val returnType: KType
+                    get() = throw UnsupportedOperationException()
+                override fun call(vararg args: Any?): Int = throw UnsupportedOperationException()
+                override fun callBy(args: Map<KParameter, Any?>): Int = throw UnsupportedOperationException()
+            }
+
+            class CallableImpl(override val name: String) : CallableMetadata()
+
+            class PropertyImpl(override val name: String) : CallableMetadata(), KProperty<Int> {
+                override val isLateinit = false
+                override val isConst = false
+                override val getter: KProperty.Getter<Int>
+                    get() = throw UnsupportedOperationException()
+            }
+
+            fun main() {
+                println(CallableImpl("callable-direct").name)
+                val callable: KCallable<Int> = CallableImpl("callable-interface")
+                println(callable.name)
+                try {
+                    callable.returnType
+                    println("callable returnType did not throw")
+                } catch (e: Throwable) {
+                    println("callable returnType threw")
+                }
+
+                println(PropertyImpl("property-direct").name)
+                val property: KProperty<Int> = PropertyImpl("property-interface")
+                println(property.name)
+                try {
+                    property.returnType
+                    println("property returnType did not throw")
+                } catch (e: Throwable) {
+                    println("property returnType threw")
+                }
+            }
+            """,
+            expectedOutput: [
+                "callable-direct",
+                "callable-interface",
+                "callable returnType threw",
+                "property-direct",
+                "property-interface",
+                "property returnType threw",
+            ].joined(separator: "\n") + "\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
+    /// Runtime KProperty stubs (delegate `property:` arguments) register their
+    /// KCallable getters through the runtime itable. `name` returns a Kotlin
+    /// String, so the registered bridge must satisfy the flat-string sret ABI —
+    /// a regression returning the raw handle instead corrupted the receiver's
+    /// stack slot and made `Map.getValue`'s `property.name` lookup produce
+    /// garbage keys ("Key <pointer> is missing in the map").
+    @Test
+    func testRuntimeKPropertyStubsDispatchNameThroughInterface() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KProperty
+
+            class D {
+                operator fun getValue(thisRef: Any?, property: KProperty<*>): Int {
+                    println(property.name)
+                    return 1
+                }
+            }
+
+            fun main() {
+                val v: Int by D()
+                println(v)
+                val m: Map<String, Int> = mapOf("delegatedValue" to 42)
+                val delegatedValue: Int by m
+                println(delegatedValue)
+            }
+            """,
+            expectedOutput: "v\n1\n42\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
+
+    /// Runtime-registered `KCallable.name` itable shims return the raw String
+    /// handle, but the itable call site expects the flat String aggregate.
+    /// x86-64 SysV happens to pass that result through a hidden first-argument
+    /// pointer the shim can detect; AArch64 returns it in x0-x3, so property
+    /// references read through `KProperty<*>`/`KCallable<*>` crashed there.
+    /// The same interface call site must still dispatch user implementations.
+    @Test
+    func testInterfaceTypedCallableNameMixesRuntimeReferencesAndUserImplementations() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KCallable
+            import kotlin.reflect.KMutableProperty
+            import kotlin.reflect.KProperty
+            import kotlin.reflect.KType
+
+            class Counter(var count: Int)
+
+            class NamedCallable(override val name: String) : KCallable<Int> {
+                override val returnType: KType
+                    get() = throw UnsupportedOperationException()
+            }
+
+            fun describe(callable: KCallable<*>): String = callable.name
+
+            fun main() {
+                val ref: KProperty<*> = Counter::count
+                println(ref.name)
+                val mutableRef: KMutableProperty<*> = Counter::count
+                println(mutableRef.name)
+                val nullableRef: KProperty<*>? = Counter(2)::count
+                println(nullableRef?.name)
+                val callables: List<KCallable<*>> = listOf(Counter::count, NamedCallable("user"))
+                println(callables.map { describe(it) })
+            }
+            """,
+            expectedOutput: "count\ncount\ncount\n[count, user]\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
+}
+#endif

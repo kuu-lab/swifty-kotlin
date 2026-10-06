@@ -2,6 +2,7 @@
 extension CoroutineLoweringPass {
     func analyzeSuspendLoweringPlan(
         originalBody: [KIRInstruction],
+        module: KIRModule,
         suspendFunctionSymbols: Set<SymbolID>,
         suspendFunctionNames: Set<InternedString>,
         runtimeSuspendCallNames: Set<InternedString>
@@ -12,7 +13,10 @@ extension CoroutineLoweringPass {
             suspendFunctionNames: suspendFunctionNames,
             runtimeSuspendCallNames: runtimeSuspendCallNames
         )
-        let liveOutByInstruction = computeLiveOutByInstruction(originalBody)
+        let liveOutByInstruction = computeLiveOutByInstruction(
+            originalBody,
+            arena: module.arena
+        )
 
         var transitionsByResumeLabel: [Int64: SuspendTransition] = [:]
         var transitionSourceIndexes: Set<Int> = []
@@ -333,7 +337,10 @@ extension CoroutineLoweringPass {
         )
     }
 
-    func computeLiveOutByInstruction(_ instructions: [KIRInstruction]) -> [Int: Set<KIRExprID>] {
+    func computeLiveOutByInstruction(
+        _ instructions: [KIRInstruction],
+        arena: KIRArena
+    ) -> [Int: Set<KIRExprID>] {
         guard !instructions.isEmpty else {
             return [:]
         }
@@ -357,7 +364,31 @@ extension CoroutineLoweringPass {
                 labelToInstructionIndex: labelToInstructionIndex
             )
             successorsByInstruction[index] = successors
-            useByInstruction[index] = usedExprIDs(in: instruction)
+            var uses = usedExprIDs(in: instruction)
+            // The suspend-call-site rewrite later replaces launcher calls
+            // (launch/async/produce/runTest/sequence-build) with a fresh
+            // continuation plus kk_coroutine_launcher_arg_set stores that read
+            // the callable's captured exprs. Those uses are not in the original
+            // body, so mark the capture arguments live here — otherwise a
+            // capture first stored pre-suspend and read post-resume is never
+            // spilled and reloads as 0.
+            switch instruction {
+            case let .call(_, _, arguments, _, _, _, _, _):
+                for argument in arguments {
+                    if let captures = arena.callableValueInfo(for: argument)?.captureArguments {
+                        uses.formUnion(captures)
+                    }
+                }
+            case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
+                for argument in [receiver] + arguments {
+                    if let captures = arena.callableValueInfo(for: argument)?.captureArguments {
+                        uses.formUnion(captures)
+                    }
+                }
+            default:
+                break
+            }
+            useByInstruction[index] = uses
             defByInstruction[index] = definedExprIDs(in: instruction)
         }
 

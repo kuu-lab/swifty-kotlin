@@ -21,9 +21,10 @@ public inline operator fun <T> Iterator<T>.iterator(): Iterator<T> = this
 
 public data class IndexedValue<out T>(public val index: Int, public val value: T)
 
-// KSP-977
-// Iterable.forEach is bundled source; keep the receiver-specific runtime
-// bridges for other collection families unchanged.
+// KSP-977 / KUU-604
+// Iterable.forEach and forEachIndexed stay inline so a direct return in their
+// lambdas can escape the enclosing caller. Compatibility-only runtime bridges
+// remain available for receiver-specific dispatch paths.
 public inline fun <T> Iterable<T>.forEach(action: (T) -> Unit): Unit {
     val iterator = iterator()
     while (iterator.hasNext()) {
@@ -31,7 +32,7 @@ public inline fun <T> Iterable<T>.forEach(action: (T) -> Unit): Unit {
     }
 }
 
-public fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
+public inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     var index = 0
     val iterator = iterator()
     while (iterator.hasNext()) {
@@ -73,7 +74,7 @@ public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
 /**
  * Performs the given [operation] on each element of the iterator.
  */
-public fun <T> Iterator<T>.forEach(operation: (T) -> Unit): Unit {
+public inline fun <T> Iterator<T>.forEach(operation: (T) -> Unit): Unit {
     while (hasNext()) {
         operation(next())
     }

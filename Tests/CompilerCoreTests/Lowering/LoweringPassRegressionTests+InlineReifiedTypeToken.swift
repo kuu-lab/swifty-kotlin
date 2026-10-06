@@ -136,14 +136,16 @@ extension LoweringPassRegressionTests {
         #expect(returnExpr == callerResultExpr)
 
         // The hidden token argument should reach the result register.  ABILowering
-        // may rewrite an Int-typed copy into a kk_unbox_int call, so accept either
-        // form and then verify the source expression is the original token literal.
+        // may rewrite an Int-typed copy into a primitive unbox call, so accept
+        // either legacy or static form and then verify the source expression is
+        // the original token literal.
         let tokenSourceExpr: KIRExprID? = loweredMain.body.compactMap { instruction -> KIRExprID? in
             if case let .copy(from, to) = instruction, to == callerResultExpr {
                 return from
             }
             if case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
-               ctx.interner.resolve(callee) == "kk_unbox_int",
+               (ctx.interner.resolve(callee) == "kk_unbox_int"
+                   || ctx.interner.resolve(callee) == "kk_unbox_int_static"),
                arguments == [callerTokenExpr],
                result == callerResultExpr
             {

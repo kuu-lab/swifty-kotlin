@@ -18,10 +18,17 @@ extension CallLowerer {
             return nil
         }
 
-        guard let callee = ast.arena.expr(calleeExpr),
-              case let .nameRef(name, _) = callee,
-              interner.resolve(name) == "typeOf"
-        else {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard let callee = ast.arena.expr(calleeExpr) else {
+            return nil
+        }
+        switch callee {
+        case let .nameRef(name, _):
+            guard name == knownNames.typeOf else { return nil }
+        case let .memberCall(_, member, _, _, _):
+            // Fully-qualified `kotlin.reflect.typeOf<T>()` (KSP-1323).
+            guard member == knownNames.typeOf else { return nil }
+        default:
             return nil
         }
 
@@ -68,6 +75,8 @@ extension CallLowerer {
         func makeNullabilityExpr(for type: TypeID) -> KIRExprID {
             let isNullable: Int64 = {
                 switch sema.types.kind(of: type) {
+                case .nullableUnit:
+                    return 1
                 case let .primitive(_, nullability):
                     return nullability == .nullable ? 1 : 0
                 case let .classType(ct):
@@ -82,6 +91,8 @@ extension CallLowerer {
                     return nullability == .nullable ? 1 : 0
                 case let .stringStruct(nullability):
                     return nullability == .nullable ? 1 : 0
+                case let .functionType(functionType):
+                    return functionType.nullability == .nullable ? 1 : 0
                 default:
                     return 0
                 }
@@ -124,15 +135,33 @@ extension CallLowerer {
                 return projectionExpr
             }
 
-            let tokenExpr = makeTypeTokenExpr(for: type)
+            // A nullable KType has the same classifier as its non-null counterpart.
+            let tokenExpr = makeTypeTokenExpr(for: sema.types.makeNonNullable(type))
+            emitClassLiteralMetadataRegistration(
+                classRefTargetType: sema.types.makeNonNullable(type), typeTokenExpr: tokenExpr,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             let nameHintExpr = makeNameHintExpr(for: type)
-            let typeArguments: [TypeArg] = switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            let typeArguments: [TypeArg]
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
             case let .classType(classType):
-                classType.args
+                typeArguments = classType.args
             case let .kClassType(kClassType):
-                [.invariant(kClassType.argument)]
+                typeArguments = [.invariant(kClassType.argument)]
+            case let .functionType(functionType):
+                // KUU-1084: KType.arguments for a function type is the
+                // parameter types followed by the return type (Kotlin
+                // FunctionN order: context receivers, extension receiver,
+                // value parameters, return type).
+                var argumentTypes = functionType.contextReceivers
+                if let receiver = functionType.receiver {
+                    argumentTypes.append(receiver)
+                }
+                argumentTypes.append(contentsOf: functionType.params)
+                argumentTypes.append(functionType.returnType)
+                typeArguments = argumentTypes.map { .invariant($0) }
             default:
-                []
+                typeArguments = []
             }
 
             let argsListExpr: KIRExprID
@@ -257,7 +286,12 @@ extension CallLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // Reflection reports Kotlin modality, not the internal inheritance flags.
+        let isSealed = symbol.flags.contains(.sealedType)
+        let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
+        if isAbstract { flags |= 1 << 7 }
+        if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
+        if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
         // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
@@ -304,6 +338,10 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitKClassDisplayNameRegistration(
+            symbol: objectSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         // STDLIB-REFLECT-065: Register annotations for this type.
         emitKClassAnnotationRegistration(

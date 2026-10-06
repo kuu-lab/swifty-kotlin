@@ -1,0 +1,61 @@
+symbol fq=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.ranges.OpenEndRange<Int>
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.openEndRangeContains.$0.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeContains.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
+symbol fq=golden.sema.openEndRangeCrossContains.$1.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeCrossContains.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeCrossContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Byte;ret=Boolean;names=[range,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Byte] ret=Boolean
+symbol fq=golden.sema.openEndRangeEndExclusive.$2.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeEndExclusive[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>] ret=Int
+symbol fq=golden.sema.openEndRangeInOperator.$3.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeInOperator.$3.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeInOperator[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>,Int] ret=Boolean
+symbol fq=golden.sema.openEndRangeIsEmpty.$4.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeIsEmpty[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Boolean;names=[range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>] ret=Boolean
+symbol fq=golden.sema.openEndRangeStart.$5.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.openEndRangeStart[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.OpenEndRange<Int>] ret=Int
+file fstdlib_kotlin_ranges_OpenEndRange_OpenEndRange_n package=golden.sema
+  decl golden.sema.openEndRangeStart[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture] fun openEndRangeStart sym=golden.sema.openEndRangeStart[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture]
+  decl golden.sema.openEndRangeEndExclusive[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture] fun openEndRangeEndExclusive sym=golden.sema.openEndRangeEndExclusive[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Int;names=[range];origin=fixture]
+  decl golden.sema.openEndRangeContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] fun openEndRangeContains sym=golden.sema.openEndRangeContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture]
+  decl golden.sema.openEndRangeIsEmpty[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Boolean;names=[range];origin=fixture] fun openEndRangeIsEmpty sym=golden.sema.openEndRangeIsEmpty[kind=fun;params=kotlin.ranges.OpenEndRange<Int>;ret=Boolean;names=[range];origin=fixture]
+  decl golden.sema.openEndRangeInOperator[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture] fun openEndRangeInOperator sym=golden.sema.openEndRangeInOperator[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Int;ret=Boolean;names=[range,value];origin=fixture]
+  decl golden.sema.openEndRangeCrossContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Byte;ret=Boolean;names=[range,value];origin=fixture] fun openEndRangeCrossContains sym=golden.sema.openEndRangeCrossContains[kind=fun;params=kotlin.ranges.OpenEndRange<Int>,Byte;ret=Boolean;names=[range,value];origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@3:56 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeStart.$5.range[kind=vparam;origin=fixture]
+expr e@3:56#1 memberCall recv=e@3:56 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start[kind=prop;type=T0]
+expr e@5:63 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeEndExclusive.$2.range[kind=vparam;origin=fixture]
+expr e@5:63#1 memberCall recv=e@5:63 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive[kind=prop;type=T0]
+expr e@8:5 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeContains.$0.range[kind=vparam;origin=fixture]
+expr e@8:20 name(value) type=Int ref=golden.sema.openEndRangeContains.$0.value[kind=vparam;origin=fixture]
+expr e@8:5#1 memberCall recv=e@8:5 callee=contains args=[_:e@8:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.IntRange;params=Int;ret=Boolean;names=[value]]
+expr e@10:62 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeIsEmpty.$4.range[kind=vparam;origin=fixture]
+expr e@10:62#1 memberCall recv=e@10:62 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.OpenEndRange.isEmpty[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>]] targs=[Int]
+expr e@13:5 name(value) type=Int ref=golden.sema.openEndRangeInOperator.$3.value[kind=vparam;origin=fixture]
+expr e@13:14 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeInOperator.$3.range[kind=vparam;origin=fixture]
+expr e@13:5#1 inExpr lhs=e@13:5 rhs=e@13:14 type=Boolean call=kotlin.ranges.OpenEndRange.contains[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[Int]
+expr e@16:5 name(range) type=kotlin.ranges.OpenEndRange<Int> ref=golden.sema.openEndRangeCrossContains.$1.range[kind=vparam;origin=fixture]
+expr e@16:20 name(value) type=Byte ref=golden.sema.openEndRangeCrossContains.$1.value[kind=vparam;origin=fixture]
+expr e@16:5#1 memberCall recv=e@16:5 callee=contains args=[_:e@16:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.IntRange;params=Byte;ret=Boolean;names=[value]]
+expr e@19:35 int(1) type=Int
+expr e@19:39 int(5) type=Int
+expr e@19:35#1 binary(rangeUntil) lhs=e@19:35 rhs=e@19:39 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeUntil[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]
+expr e@19:5 localDecl open mutable=0 type=OpenEndRange<Int> init=e@19:35#1 type=Unit ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@20:13 name(open) type=kotlin.ranges.OpenEndRange<Int> ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@20:13#1 memberCall recv=e@20:13 callee=start args=[] type=Int ref=kotlin.ranges.OpenEndRange.start[kind=prop;type=T0]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:13 name(open) type=kotlin.ranges.OpenEndRange<Int> ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@21:13#1 memberCall recv=e@21:13 callee=endExclusive args=[] type=Int ref=kotlin.ranges.OpenEndRange.endExclusive[kind=prop;type=T0]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@22:13 name(open) type=kotlin.ranges.OpenEndRange<Int> ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@22:27 int(3) type=Int
+expr e@22:13#1 memberCall recv=e@22:13 callee=contains args=[_:e@22:27] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.IntRange;params=Int;ret=Boolean;names=[value]]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@23:13 name(open) type=kotlin.ranges.OpenEndRange<Int> ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@23:13#1 memberCall recv=e@23:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.OpenEndRange.isEmpty[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>]] targs=[Int]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@24:13 int(3) type=Int
+expr e@24:18 name(open) type=kotlin.ranges.OpenEndRange<Int> ref=__local_0.open[kind=local;type=kotlin.ranges.OpenEndRange<Int>;origin=fixture]
+expr e@24:13#1 inExpr lhs=e@24:13 rhs=e@24:18 type=Boolean call=kotlin.ranges.OpenEndRange.contains[kind=fun;recv=kotlin.ranges.OpenEndRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[Int]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

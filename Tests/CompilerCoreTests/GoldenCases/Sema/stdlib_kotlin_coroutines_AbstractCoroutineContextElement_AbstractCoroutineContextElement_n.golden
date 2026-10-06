@@ -1,0 +1,49 @@
+symbol fq=Alternate.<init>[kind=ctor;recv=Alternate;params=;ret=Alternate;origin=fixture] kind=constructor vis=private flags=_ sig=recv=Alternate params=[] ret=Alternate
+symbol fq=Alternate.Key[kind=obj;origin=fixture] kind=object vis=public flags=_
+symbol fq=Alternate[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=Element.<init>[kind=ctor;recv=Element;params=;ret=Element;origin=fixture] kind=constructor vis=private flags=_ sig=recv=Element params=[] ret=Element
+symbol fq=Element.Key[kind=obj;origin=fixture] kind=object vis=public flags=_
+symbol fq=Element[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=__local_0.concrete[kind=local;type=Element;origin=fixture] kind=local vis=private flags=_ type=Element
+symbol fq=__local_1.base[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.AbstractCoroutineContextElement
+symbol fq=__local_2.alternate[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.AbstractCoroutineContextElement
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_coroutines_AbstractCoroutineContextElement_AbstractCoroutineContextElement_n package=_
+  decl Element[kind=class;origin=fixture] class Element sym=Element[kind=class;origin=fixture]
+  decl Alternate[kind=class;origin=fixture] class Alternate sym=Alternate[kind=class;origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@5:57 name(Key) type=Element.Key ref=Element.Key[kind=obj;origin=fixture]
+expr e@11:55 name(Alternate) type=Alternate ref=Alternate[kind=class;origin=fixture]
+expr e@11:55#1 memberCall recv=e@11:55 callee=Key args=[] type=Alternate.Key ref=Alternate.Key[kind=obj;origin=fixture]
+expr e@9:59 name(Element) type=Element ref=Element[kind=class;origin=fixture]
+expr e@9:59#1 memberCall recv=e@9:59 callee=Key args=[] type=Element.Key ref=Element.Key[kind=obj;origin=fixture]
+expr e@15:20 call callee=e@15:20#1 args=[] type=Element call=Element.<init>[kind=ctor;recv=Element;params=;ret=Element;origin=fixture]
+expr e@15:5 localDecl concrete mutable=0 type=_ init=e@15:20 type=Unit ref=__local_0.concrete[kind=local;type=Element;origin=fixture]
+expr e@16:49 name(concrete) type=Element ref=__local_0.concrete[kind=local;type=Element;origin=fixture]
+expr e@16:5 localDecl base mutable=0 type=AbstractCoroutineContextElement init=e@16:49 type=Unit ref=__local_1.base[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture]
+expr e@17:13 name(concrete) type=Element ref=__local_0.concrete[kind=local;type=Element;origin=fixture]
+expr e@17:13#1 memberCall recv=e@17:13 callee=key args=[] type=kotlin.coroutines.CoroutineContext.Key<*> ref=kotlin.coroutines.AbstractCoroutineContextElement.key[kind=prop;type=kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@17:30 name(Element) type=Element ref=Element[kind=class;origin=fixture]
+expr e@17:30#1 memberCall recv=e@17:30 callee=Key args=[] type=Element.Key ref=Element.Key[kind=obj;origin=fixture]
+expr e@17:13#2 binary(identityEqual) lhs=e@17:13#1 rhs=e@17:30#1 type=Boolean
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:13 name(base) type=kotlin.coroutines.AbstractCoroutineContextElement ref=__local_1.base[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture]
+expr e@18:13#1 memberCall recv=e@18:13 callee=key args=[] type=kotlin.coroutines.CoroutineContext.Key<*> ref=kotlin.coroutines.AbstractCoroutineContextElement.key[kind=prop;type=kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@18:26 name(Element) type=Element ref=Element[kind=class;origin=fixture]
+expr e@18:26#1 memberCall recv=e@18:26 callee=Key args=[] type=Element.Key ref=Element.Key[kind=obj;origin=fixture]
+expr e@18:13#2 binary(identityEqual) lhs=e@18:13#1 rhs=e@18:26#1 type=Boolean
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@19:54 call callee=e@19:54#1 args=[] type=Alternate call=Alternate.<init>[kind=ctor;recv=Alternate;params=;ret=Alternate;origin=fixture]
+expr e@19:5 localDecl alternate mutable=0 type=AbstractCoroutineContextElement init=e@19:54 type=Unit ref=__local_2.alternate[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture]
+expr e@20:13 name(alternate) type=kotlin.coroutines.AbstractCoroutineContextElement ref=__local_2.alternate[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture]
+expr e@20:13#1 memberCall recv=e@20:13 callee=key args=[] type=kotlin.coroutines.CoroutineContext.Key<*> ref=kotlin.coroutines.AbstractCoroutineContextElement.key[kind=prop;type=kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@20:31 name(Alternate) type=Alternate ref=Alternate[kind=class;origin=fixture]
+expr e@20:31#1 memberCall recv=e@20:31 callee=Key args=[] type=Alternate.Key ref=Alternate.Key[kind=obj;origin=fixture]
+expr e@20:13#2 binary(identityEqual) lhs=e@20:13#1 rhs=e@20:31#1 type=Boolean
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:13 name(alternate) type=kotlin.coroutines.AbstractCoroutineContextElement ref=__local_2.alternate[kind=local;type=kotlin.coroutines.AbstractCoroutineContextElement;origin=fixture]
+expr e@21:13#1 memberCall recv=e@21:13 callee=key args=[] type=kotlin.coroutines.CoroutineContext.Key<*> ref=kotlin.coroutines.AbstractCoroutineContextElement.key[kind=prop;type=kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@21:31 name(Element) type=Element ref=Element[kind=class;origin=fixture]
+expr e@21:31#1 memberCall recv=e@21:31 callee=Key args=[] type=Element.Key ref=Element.Key[kind=obj;origin=fixture]
+expr e@21:13#2 binary(identityEqual) lhs=e@21:13#1 rhs=e@21:31#1 type=Boolean
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

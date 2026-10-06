@@ -59,6 +59,18 @@ struct ABIMismatchRuntimeExportParityTests {
     }
 
     @Test
+    func testSchedulerClockUsesWordABI() throws {
+        let specs = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
+        for name in ["kk_test_scope_current_time", "kk_test_scheduler_current_time"] {
+            let spec = try #require(specs[name])
+            #expect(spec.returnType == .intptr)
+            #expect(spec.parameters.map(\.type) == [.intptr])
+        }
+        let advance = try #require(specs["kk_test_scheduler_advance_time_by"])
+        #expect(advance.parameters.map(\.type) == [.intptr, .intptr])
+    }
+
+    @Test
     func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
         let expected: [(name: String, isThrowing: Bool)] = [
             ("kk_duration_parse", true),
@@ -69,8 +81,23 @@ struct ABIMismatchRuntimeExportParityTests {
             ("kk_sequence_contains", false),
             ("kk_sequence_elementAtOrNull", false),
             ("__kk_mutable_list_add", true),
+            ("__kk_mutable_collection_add", false),
+            ("__kk_mutable_collection_remove", false),
+            ("__kk_mutable_collection_clear", false),
+            ("__kk_mutable_collection_addAll", false),
+            ("__kk_mutable_collection_removeAll", false),
+            ("__kk_mutable_collection_retainAll", false),
+            ("__kk_mutable_collection_add_throwing", true),
+            ("__kk_mutable_collection_remove_throwing", true),
+            ("__kk_mutable_collection_clear_throwing", true),
+            ("__kk_mutable_collection_addAll_throwing", true),
+            ("__kk_mutable_collection_removeAll_throwing", true),
+            ("__kk_mutable_collection_retainAll_throwing", true),
             ("__kk_mutable_set_add", true),
+            ("__kk_mutable_set_remove", true),
             ("__kk_mutable_map_put", true),
+            ("__kk_mutable_map_remove", true),
+            ("__kk_mutable_map_clear", true),
         ]
         let exportsByName = Dictionary(grouping: try runtimeExportedABIs(), by: \.name)
         let specsByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
@@ -195,24 +222,6 @@ struct ABIMismatchRuntimeExportParityTests {
             // treatment as the KSP-426 block above).
             "kk_list_shuffled",
             "kk_list_shuffled_random",
-            "__kk_mutable_list_sort",
-            "__kk_mutable_list_sortBy",
-            "__kk_mutable_list_sortByDescending",
-            "__kk_mutable_list_sortByDescending_primitive",
-            "__kk_mutable_list_sortBy_primitive",
-            "__kk_mutable_list_sortDescending",
-            "__kk_mutable_list_sortDescending_primitive",
-            "__kk_mutable_list_sortWith",
-            "__kk_mutable_list_sort_primitive",
-            "kk_mutable_list_sort",
-            "kk_mutable_list_sortBy",
-            "kk_mutable_list_sortByDescending",
-            "kk_mutable_list_sortByDescending_primitive",
-            "kk_mutable_list_sortBy_primitive",
-            "kk_mutable_list_sortDescending",
-            "kk_mutable_list_sortDescending_primitive",
-            "kk_mutable_list_sortWith",
-            "kk_mutable_list_sort_primitive",
             "kk_list_zip_transform",
             // KSP-688: List slice/take/drop HOFs are source-backed in
             // kotlin.collections.ListSliceTakeDrop.kt; their compatibility
@@ -258,6 +267,10 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_map_minus",
             "kk_map_none",
             "kk_map_plus",
+            "kk_native_atomic_ref_compareAndSet",
+            "kk_native_atomic_ref_compareAndSwap",
+            "kk_native_atomic_ref_create",
+            "kk_native_atomic_ref_load",
             "kk_long_range_firstOrNull",
             "kk_long_range_lastOrNull",
         ]

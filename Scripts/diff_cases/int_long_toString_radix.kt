@@ -28,4 +28,18 @@ fun main() {
     } catch (e: IllegalArgumentException) {
         println("toString-invalid-radix")
     }
+
+    try {
+        1L.toString(1)
+        println("no-throw")
+    } catch (e: IllegalArgumentException) {
+        println("toString-invalid-radix-long")
+    }
+
+    try {
+        1L.toString(37)
+        println("no-throw")
+    } catch (e: IllegalArgumentException) {
+        println("toString-invalid-radix-long")
+    }
 }

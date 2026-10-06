@@ -7,7 +7,7 @@ import kotlin.internal.KsSymbolName
  * handle. Public operations are implemented in Kotlin; only the small mutable
  * buffer bridge below crosses into the runtime.
  */
-public class StringBuilder : Appendable, CharSequence {
+public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder> {
     constructor()
     constructor(content: String)
     constructor(content: CharSequence)
@@ -18,14 +18,14 @@ public class StringBuilder : Appendable, CharSequence {
 
     override operator fun get(index: Int): Char {
         checkElementIndex(index)
-        return toString()[index]
+        return __kk_string_builder_get(index)
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
         toString().substring(startIndex, endIndex)
 
     override fun append(value: Char): StringBuilder =
-        __kk_string_builder_append_obj(value.toString())
+        __kk_string_builder_append_char(value)
 
     override fun append(value: CharSequence?): StringBuilder {
         if (value == null) return append("null")
@@ -65,8 +65,11 @@ public class StringBuilder : Appendable, CharSequence {
     fun append(value: Short): StringBuilder =
         __kk_string_builder_append_obj(value.toString())
 
-    fun append(value: CharArray): StringBuilder =
-        appendRange(value, 0, value.size)
+    // JVM's CharArray platform overload accepts nullable arguments, but throws on null.
+    fun append(value: CharArray?): StringBuilder {
+        if (value == null) throw NullPointerException()
+        return appendRange(value, 0, value.size)
+    }
 
     fun append(str: CharArray, offset: Int, len: Int): StringBuilder {
         if (offset < 0 || len < 0 || offset > str.size - len) {
@@ -287,14 +290,33 @@ public class StringBuilder : Appendable, CharSequence {
         __kk_string_builder_clear()
 
     fun reverse(): StringBuilder {
+        val length = this.length
+        if (length <= 1) return this
+
         val current = toString()
-        var result = ""
-        var index = current.length - 1
-        while (index >= 0) {
-            result = result + current[index]
-            index -= 1
+        val chars = CharArray(length)
+        var index = 0
+        while (index < length) {
+            chars[index] = current[length - 1 - index]
+            index += 1
         }
-        return resetTo(result)
+
+        // KUU-641: restore valid surrogate pairs swapped by the unit reversal,
+        // matching Kotlin/JVM AbstractStringBuilder.reverse().
+        index = 0
+        while (index < length - 1) {
+            val first = chars[index]
+            val second = chars[index + 1]
+            if (first.isLowSurrogate() && second.isHighSurrogate()) {
+                chars[index] = second
+                chars[index + 1] = first
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+
+        return clear().append(chars)
     }
 
     fun deleteCharAt(index: Int): StringBuilder {
@@ -399,16 +421,27 @@ public class StringBuilder : Appendable, CharSequence {
     }
 
     fun capacity(): Int =
-        currentLength() + 16
+        __kk_string_builder_capacity()
 
-    fun ensureCapacity(minimumCapacity: Int): Unit {
-    }
+    fun ensureCapacity(minimumCapacity: Int): Unit =
+        __kk_string_builder_ensure_capacity(minimumCapacity)
 
-    fun trimToSize(): Unit {
-    }
+    fun trimToSize(): Unit =
+        __kk_string_builder_trim_to_size()
 
     override fun toString(): String =
         __kk_string_builder_toString()
+
+    override operator fun compareTo(other: StringBuilder): Int {
+        val limit = if (length < other.length) length else other.length
+        var index = 0
+        while (index < limit) {
+            val difference = this[index].code - other[index].code
+            if (difference != 0) return difference
+            index++
+        }
+        return length - other.length
+    }
 
     private fun insertString(index: Int, value: String): StringBuilder {
         return __kk_string_builder_insert_obj(index, value)
@@ -458,6 +491,9 @@ public class StringBuilder : Appendable, CharSequence {
     @KsSymbolName("__kk_string_builder_append_obj")
     private external fun __kk_string_builder_append_obj(value: Any?): StringBuilder
 
+    @KsSymbolName("__kk_string_builder_append_char")
+    private external fun __kk_string_builder_append_char(value: Char): StringBuilder
+
     @KsSymbolName("__kk_string_builder_append_char_array")
     private external fun __kk_string_builder_append_char_array(value: CharArray, startIndex: Int, endIndex: Int): StringBuilder
 
@@ -491,11 +527,23 @@ public class StringBuilder : Appendable, CharSequence {
     @KsSymbolName("__kk_string_builder_toString")
     private external fun __kk_string_builder_toString(): String
 
+    @KsSymbolName("__kk_string_builder_get")
+    private external fun __kk_string_builder_get(index: Int): Char
+
     @KsSymbolName("__kk_string_builder_length_prop")
     private external fun __kk_string_builder_length(): Int
 
     @KsSymbolName("__kk_string_builder_clear")
     private external fun __kk_string_builder_clear(): StringBuilder
+
+    @KsSymbolName("__kk_string_builder_capacity")
+    private external fun __kk_string_builder_capacity(): Int
+
+    @KsSymbolName("__kk_string_builder_ensure_capacity")
+    private external fun __kk_string_builder_ensure_capacity(minimumCapacity: Int): Unit
+
+    @KsSymbolName("__kk_string_builder_trim_to_size")
+    private external fun __kk_string_builder_trim_to_size(): Unit
 }
 
 public fun buildString(builderAction: StringBuilder.() -> Unit): String {

@@ -40,9 +40,11 @@ extension DataFlowSemaPhase {
         let enumName = interner.intern("Enum")
         let enumFQName = kotlinPkg + [enumName]
         let enumSymbol = ensureEnumClassSymbol(symbols: symbols, interner: interner, kotlinPkg: kotlinPkg)
-        let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
-        types.setNominalTypeParameterSymbols([enumTypeParamSymbol], for: enumSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: enumSymbol)
+        if types.nominalTypeParameterSymbols(for: enumSymbol).isEmpty {
+            let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
+            types.setNominalTypeParameterSymbols([enumTypeParamSymbol], for: enumSymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: enumSymbol)
+        }
         registerEnumNameOrdinalProperties(
             symbols: symbols,
             types: types,

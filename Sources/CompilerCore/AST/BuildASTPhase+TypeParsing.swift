@@ -45,6 +45,14 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> TypeRefID? {
         let tokens = collectTokens(from: nodeID, in: arena)
+        return declarationReceiverType(from: tokens, interner: interner, astArena: astArena)
+    }
+
+    func declarationReceiverType(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> TypeRefID? {
         guard let paramsOpenIndex = functionParameterOpenParenIndex(in: tokens),
               paramsOpenIndex > 0
         else {
@@ -53,7 +61,7 @@ extension BuildASTPhase {
 
         var nameIndex: Int?
         for index in stride(from: paramsOpenIndex - 1, through: 0, by: -1)
-            where TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
+            where TypeRefParserCore.isDeclarationNameToken(tokens[index].kind) {
             nameIndex = index
             break
         }
@@ -100,12 +108,12 @@ extension BuildASTPhase {
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
     }
 
-    func declarationContextReceiverTypes(
+    func declarationContextReceivers(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> [TypeRefID] {
+    ) -> [ContextReceiverDecl] {
         let allTokens = collectTokens(from: nodeID, in: arena)
         // Context receivers are declaration modifiers, so they always precede `fun`.
         // Restricting the scan keeps a `context(...)` function type in the parameter
@@ -125,7 +133,7 @@ extension BuildASTPhase {
         var index = contextIndex + 2
         var depth = 1
         var current: [Token] = []
-        var refs: [TypeRefID] = []
+        var items: [ContextReceiverDecl] = []
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -134,15 +142,15 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                        refs.append(ref)
+                    if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                        items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
-                if let ref = parseTypeRef(from: current, interner: interner, astArena: astArena) {
-                    refs.append(ref)
+                if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                    items.append(ContextReceiverDecl(name: item.name, type: item.ref))
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -150,7 +158,62 @@ extension BuildASTPhase {
             }
             index += 1
         }
-        return refs
+        return items
+    }
+
+    /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
+    /// `context(_: Context)`). Split the leading `name :` off so the receiver type still
+    /// parses, returning the name (nil for unnamed or `_`) alongside the type ref.
+    private func parseContextReceiverItem(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (name: InternedString?, ref: TypeRefID)? {
+        var name: InternedString?
+        var typeTokens = tokens
+        if typeTokens.count > 2,
+           typeTokens[1].kind == .symbol(.colon)
+        {
+            switch typeTokens[0].kind {
+            case let .identifier(ident):
+                if interner.resolve(ident) != "_" {
+                    name = ident
+                }
+                typeTokens = Array(typeTokens.dropFirst(2))
+            case let .backtickedIdentifier(ident):
+                name = ident
+                typeTokens = Array(typeTokens.dropFirst(2))
+            default:
+                break
+            }
+        }
+        guard let ref = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return (name, ref)
+    }
+
+    private func contextReceiverDecl(
+        from tokens: [Token],
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> ContextReceiverDecl? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            if depth.isAtTopLevel, token.kind == .symbol(.colon), index > 0, index + 1 < tokens.count {
+                let name = internedIdentifier(from: tokens[index - 1], interner: interner)
+                let typeTokens = Array(tokens[(index + 1)...])
+                guard let type = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
+                    return nil
+                }
+                return ContextReceiverDecl(name: name, type: type)
+            }
+            depth.track(token.kind)
+        }
+        guard let type = parseTypeRef(from: tokens, interner: interner, astArena: astArena) else {
+            return nil
+        }
+        return ContextReceiverDecl(type: type)
     }
 
     func declarationReturnType(
@@ -340,6 +403,44 @@ extension BuildASTPhase {
         return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
     }
 
+    /// True when the `get`/`set` token at `index` is followed by a `( ... )`
+    /// parameter list (and an optional `: Type`) whose body is the next
+    /// sibling `.block` node, i.e. a same-line `get() { ... }` accessor.
+    private func isSiblingBlockAccessorHeader(
+        at index: Int,
+        in children: [SyntaxChild],
+        arena: SyntaxArena,
+        previous: Token?
+    ) -> Bool {
+        if let previous {
+            switch previous.kind {
+            case .symbol(.dot), .symbol(.questionDot): return false
+            default: break
+            }
+        }
+        var following: [Token] = []
+        for child in children[(index + 1)...] {
+            switch child {
+            case let .token(tokenID):
+                guard let token = resolveToken(tokenID, in: arena) else { continue }
+                following.append(token)
+            case let .node(childID):
+                guard arena.node(childID).kind == .block,
+                      following.first?.kind == .symbol(.lParen)
+                else {
+                    return false
+                }
+                let afterClose = skipBalancedBracket(
+                    in: following, from: 0, open: .symbol(.lParen), close: .symbol(.rParen)
+                )
+                // `get()` alone, or `get(): Type`, directly before the block.
+                return afterClose == following.count
+                    || (afterClose < following.count && following[afterClose].kind == .symbol(.colon))
+            }
+        }
+        return false
+    }
+
     func propertyHeadTokens(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -348,7 +449,8 @@ extension BuildASTPhase {
         var tokens: [Token] = []
         var inlineAccessorScanEnd = 0
         var enteredNestedBlock = false
-        for child in arena.children(of: nodeID) {
+        let children = Array(arena.children(of: nodeID))
+        for (childIndex, child) in children.enumerated() {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
@@ -359,6 +461,15 @@ extension BuildASTPhase {
                         case .softKeyword(.get), .softKeyword(.set):
                             if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
                                 return Array(tokens.prefix(idx))
+                            }
+                            // `var p: Int get() { ... }` keeps the getter's
+                            // block as a sibling node, so the direct tokens
+                            // end at `get()` and the scan above cannot see a
+                            // body. Use the following children instead.
+                            if isSiblingBlockAccessorHeader(
+                                at: childIndex, in: children, arena: arena, previous: tokens.last
+                            ) {
+                                return tokens
                             }
                         default:
                             break
@@ -372,6 +483,12 @@ extension BuildASTPhase {
             case let .node(childID):
                 let childKind = arena.node(childID).kind
                 if childKind == .propertyAccessor {
+                    // A later accessor child may follow an inline expression
+                    // getter. Its '=' belongs to the getter, not an initializer.
+                    let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+                    if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
+                        return Array(tokens.prefix(idx))
+                    }
                     return tokens
                 }
                 if childKind == .block {
@@ -461,6 +578,11 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
+        // `fun (() -> R).name(` / `fun (T)?.name(`: a parenthesized receiver
+        // type precedes the function name, so its `(` is not the parameter list.
+        if let afterReceiver = indexAfterParenthesizedReceiver(in: tokens, from: index) {
+            index = afterReceiver
+        }
         while index < tokens.count {
             let kind = tokens[index].kind
             if kind == .symbol(.lParen) {
@@ -472,6 +594,27 @@ extension BuildASTPhase {
             index += 1
         }
         return nil
+    }
+
+    /// When `tokens[index]` opens a parenthesized receiver type that is followed
+    /// by `.` / `?.` (optionally after `?`), returns the index just past that
+    /// separator; otherwise nil.
+    func indexAfterParenthesizedReceiver(in tokens: [Token], from index: Int) -> Int? {
+        guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
+            return nil
+        }
+        var probe = skipBalancedBracket(
+            in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen)
+        )
+        if probe < tokens.count, tokens[probe].kind == .symbol(.question) {
+            probe += 1
+        }
+        guard probe < tokens.count,
+              tokens[probe].kind == .symbol(.dot) || tokens[probe].kind == .symbol(.questionDot)
+        else {
+            return nil
+        }
+        return probe + 1
     }
 
     func parseTypeRef(

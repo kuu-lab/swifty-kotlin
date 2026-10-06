@@ -52,7 +52,7 @@ public fun <R> IntArray.flatMap(transform: (Int) -> List<R>): List<R> {
     return result
 }
 
-public fun IntArray.forEach(action: (Int) -> Unit) {
+public inline fun IntArray.forEach(action: (Int) -> Unit) {
     var i = 0
     while (i < this.size) {
         action(this[i])
@@ -1189,6 +1189,49 @@ public fun ShortArray.joinToString(
 }
 
 // --- UIntArray ---
+
+public fun UIntArray.elementAt(index: Int): UInt = this[index]
+
+public fun UIntArray.indexOf(element: UInt): Int {
+    var i = 0
+    while (i < this.size) {
+        if (this[i] == element) return i
+        i++
+    }
+    return -1
+}
+
+public inline fun UIntArray.forEachIndexed(action: (Int, UInt) -> Unit) {
+    var i = 0
+    while (i < this.size) {
+        action(i, this[i])
+        i++
+    }
+}
+
+public fun UIntArray.maxOrNull(): UInt? {
+    if (this.size == 0) return null
+    var max = this[0]
+    var i = 1
+    while (i < this.size) {
+        val element = this[i]
+        if (element > max) max = element
+        i++
+    }
+    return max
+}
+
+public fun UIntArray.minOrNull(): UInt? {
+    if (this.size == 0) return null
+    var min = this[0]
+    var i = 1
+    while (i < this.size) {
+        val element = this[i]
+        if (element < min) min = element
+        i++
+    }
+    return min
+}
 
 public fun <R> UIntArray.map(transform: (UInt) -> R): List<R> {
     val result = mutableListOf<R>()

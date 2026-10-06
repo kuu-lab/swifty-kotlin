@@ -58,6 +58,37 @@ struct CodegenBackendStringEdgeCasesTests {
     }
 
     @Test
+    func testCodegenReplaceFirstCharCharSequenceOverload() throws {
+        // KUU-654: `{ it.lowercase() }` / `{ it.uppercase() }` return String, so they
+        // must bind to replaceFirstChar((Char) -> CharSequence), not the Char overload.
+        let source = """
+        fun main() {
+            println("aBc".replaceFirstChar { it.lowercase() })
+            println("aBc".replaceFirstChar { it.uppercase() })
+            println("aBc".replaceFirstChar { it.lowercaseChar() })
+            println("aBc".replaceFirstChar { it.uppercaseChar() })
+            println("".replaceFirstChar { it.lowercase() })
+            println("x".replaceFirstChar { "YY" })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ReplaceFirstCharCharSequence",
+            expected:
+                """
+                aBc
+                ABc
+                aBc
+                ABc
+
+                YY
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testCodegenCompilesSubstringAfterLastEdgeCases() throws {
         let source = """
         fun main() {

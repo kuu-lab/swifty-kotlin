@@ -57,26 +57,114 @@ public fun Long.countTrailingZeroBits(): Int {
 
 // KSP-644: highest/lowest one-bit operations are source-backed extensions.
 
-public fun Int.highestOneBit(): Int {
+public fun Int.takeHighestOneBit(): Int {
     if (this == 0) return 0
     if (this < 0) return Int.MIN_VALUE
     return 1 shl (31 - countLeadingZeroBits())
 }
 
-public fun Int.lowestOneBit(): Int = this and (-this)
+public fun Int.takeLowestOneBit(): Int = this and (-this)
 
-public fun Int.takeHighestOneBit(): Int = highestOneBit()
-
-public fun Int.takeLowestOneBit(): Int = lowestOneBit()
-
-public fun Long.highestOneBit(): Long {
+public fun Long.takeHighestOneBit(): Long {
     if (this == 0L) return 0L
     if (this < 0L) return Long.MIN_VALUE
     return 1L shl (63 - countLeadingZeroBits())
 }
 
-public fun Long.lowestOneBit(): Long = this and (-this)
+public fun Long.takeLowestOneBit(): Long = this and (-this)
 
-public fun Long.takeHighestOneBit(): Long = highestOneBit()
+// KUU-1098: bit-count and one-bit extensions for the remaining integer types,
+// mirroring the real Kotlin stdlib formulas (operands masked to their width).
 
-public fun Long.takeLowestOneBit(): Long = lowestOneBit()
+public fun Byte.countOneBits(): Int = (toInt() and 0xFF).countOneBits()
+
+public fun Byte.countLeadingZeroBits(): Int =
+    (toInt() and 0xFF).countLeadingZeroBits() - (Int.SIZE_BITS - Byte.SIZE_BITS)
+
+public fun Byte.countTrailingZeroBits(): Int = (toInt() or 0x100).countTrailingZeroBits()
+
+public fun Byte.takeHighestOneBit(): Byte = (toInt() and 0xFF).takeHighestOneBit().toByte()
+
+public fun Byte.takeLowestOneBit(): Byte = toInt().takeLowestOneBit().toByte()
+
+public fun Short.countOneBits(): Int = (toInt() and 0xFFFF).countOneBits()
+
+public fun Short.countLeadingZeroBits(): Int =
+    (toInt() and 0xFFFF).countLeadingZeroBits() - (Int.SIZE_BITS - Short.SIZE_BITS)
+
+public fun Short.countTrailingZeroBits(): Int = (toInt() or 0x10000).countTrailingZeroBits()
+
+public fun Short.takeHighestOneBit(): Short = (toInt() and 0xFFFF).takeHighestOneBit().toShort()
+
+public fun Short.takeLowestOneBit(): Short = toInt().takeLowestOneBit().toShort()
+
+public fun UInt.countOneBits(): Int = toInt().countOneBits()
+
+public fun UInt.countLeadingZeroBits(): Int = toInt().countLeadingZeroBits()
+
+public fun UInt.countTrailingZeroBits(): Int = toInt().countTrailingZeroBits()
+
+public fun UInt.takeHighestOneBit(): UInt = toInt().takeHighestOneBit().toUInt()
+
+public fun UInt.takeLowestOneBit(): UInt = toInt().takeLowestOneBit().toUInt()
+
+public fun ULong.countOneBits(): Int = toLong().countOneBits()
+
+public fun ULong.countLeadingZeroBits(): Int = toLong().countLeadingZeroBits()
+
+public fun ULong.countTrailingZeroBits(): Int = toLong().countTrailingZeroBits()
+
+public fun ULong.takeHighestOneBit(): ULong = toLong().takeHighestOneBit().toULong()
+
+public fun ULong.takeLowestOneBit(): ULong = toLong().takeLowestOneBit().toULong()
+
+public fun UByte.countOneBits(): Int = toUInt().countOneBits()
+
+public fun UByte.countLeadingZeroBits(): Int = toByte().countLeadingZeroBits()
+
+public fun UByte.countTrailingZeroBits(): Int = toByte().countTrailingZeroBits()
+
+public fun UByte.takeHighestOneBit(): UByte = toInt().takeHighestOneBit().toUByte()
+
+public fun UByte.takeLowestOneBit(): UByte = toInt().takeLowestOneBit().toUByte()
+
+public fun UShort.countOneBits(): Int = toUInt().countOneBits()
+
+public fun UShort.countLeadingZeroBits(): Int = toShort().countLeadingZeroBits()
+
+public fun UShort.countTrailingZeroBits(): Int = toShort().countTrailingZeroBits()
+
+public fun UShort.takeHighestOneBit(): UShort = toInt().takeHighestOneBit().toUShort()
+
+public fun UShort.takeLowestOneBit(): UShort = toInt().takeLowestOneBit().toUShort()
+
+// KUU-1257: reuse signed rotations while preserving the unsigned bit pattern.
+public fun UInt.rotateLeft(bitCount: Int): UInt = toInt().rotateLeft(bitCount).toUInt()
+
+public fun UInt.rotateRight(bitCount: Int): UInt = toInt().rotateRight(bitCount).toUInt()
+
+public fun ULong.rotateLeft(bitCount: Int): ULong = toLong().rotateLeft(bitCount).toULong()
+
+public fun ULong.rotateRight(bitCount: Int): ULong = toLong().rotateRight(bitCount).toULong()
+
+// KUU-1277: rotate within the receiver width, excluding sign extension from
+// the logical right shift. Mask counts before subtraction to handle Int extremes.
+public fun Byte.rotateLeft(bitCount: Int): Byte =
+    ((toInt() shl (bitCount and 7)) or ((toInt() and 0xFF) ushr (8 - (bitCount and 7)))).toByte()
+
+public fun Byte.rotateRight(bitCount: Int): Byte =
+    ((toInt() shl (8 - (bitCount and 7))) or ((toInt() and 0xFF) ushr (bitCount and 7))).toByte()
+
+public fun Short.rotateLeft(bitCount: Int): Short =
+    ((toInt() shl (bitCount and 15)) or ((toInt() and 0xFFFF) ushr (16 - (bitCount and 15)))).toShort()
+
+public fun Short.rotateRight(bitCount: Int): Short =
+    ((toInt() shl (16 - (bitCount and 15))) or ((toInt() and 0xFFFF) ushr (bitCount and 15))).toShort()
+
+public fun UByte.rotateLeft(bitCount: Int): UByte = toByte().rotateLeft(bitCount).toUByte()
+
+public fun UByte.rotateRight(bitCount: Int): UByte = toByte().rotateRight(bitCount).toUByte()
+
+public fun UShort.rotateLeft(bitCount: Int): UShort = toShort().rotateLeft(bitCount).toUShort()
+
+public fun UShort.rotateRight(bitCount: Int): UShort = toShort().rotateRight(bitCount).toUShort()

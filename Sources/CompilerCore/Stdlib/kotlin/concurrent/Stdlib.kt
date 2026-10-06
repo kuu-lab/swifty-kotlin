@@ -13,20 +13,6 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-@SinceKotlin("1.9")
-@ExperimentalStdlibApi
-public class AtomicArray<T> private constructor()
-
-@SinceKotlin("1.9")
-public class AtomicInt private constructor()
-
-@SinceKotlin("1.9")
-public class AtomicLong private constructor()
-
-@SinceKotlin("1.9")
-public class AtomicReference<T> private constructor()
-
-@SinceKotlin("1.9")
 @ExperimentalStdlibApi
 public inline fun AtomicIntArray(size: Int, init: (Int) -> Int): AtomicIntArray {
     val result = AtomicIntArray(size)

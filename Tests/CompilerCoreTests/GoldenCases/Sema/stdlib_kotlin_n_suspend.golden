@@ -1,8 +1,9 @@
-symbol fq=golden.sema.makeSuspendFunction[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=suspend () -> String
-symbol fq=golden.sema.sourceSuspend[kind=fun;params=;susp] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=String suspend=1
+symbol fq=golden.sema.makeSuspendFunction[kind=fun;params=;ret=fn{su;p=;ret=String};origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=suspend () -> String
+symbol fq=golden.sema.sourceSuspend[kind=fun;params=;ret=String;susp;origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=String suspend=1
 file fstdlib_kotlin_n_suspend package=golden.sema
-  decl golden.sema.sourceSuspend[kind=fun;params=;susp] fun sourceSuspend suspend=1 sym=golden.sema.sourceSuspend[kind=fun;params=;susp]
-  decl golden.sema.makeSuspendFunction[kind=fun;params=] fun makeSuspendFunction sym=golden.sema.makeSuspendFunction[kind=fun;params=]
+  decl golden.sema.sourceSuspend[kind=fun;params=;ret=String;susp;origin=fixture] fun sourceSuspend suspend=1 sym=golden.sema.sourceSuspend[kind=fun;params=;ret=String;susp;origin=fixture]
+  decl golden.sema.makeSuspendFunction[kind=fun;params=;ret=fn{su;p=;ret=String};origin=fixture] fun makeSuspendFunction sym=golden.sema.makeSuspendFunction[kind=fun;params=;ret=fn{su;p=;ret=String};origin=fixture]
 expr e@3:39 string(ok) type=String
-expr e@6:15 call callee=e@6:15#1 args=[] type=String call=golden.sema.sourceSuspend[kind=fun;params=;susp]
-expr e@6:5 lambda params=[] body=e@6:15 type=suspend () -> String
+expr e@6:15 call callee=e@6:15#1 args=[] type=String call=golden.sema.sourceSuspend[kind=fun;params=;ret=String;susp;origin=fixture]
+expr e@6:13 lambda params=[] body=e@6:15 label=suspend type=suspend () -> String
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=suspend () -> String call=kotlin.suspend[kind=fun;params=fn{su;p=;ret=T0};ret=fn{su;p=;ret=T0};gen=1;nonlocal=[0];names=[block]] targs=[String]

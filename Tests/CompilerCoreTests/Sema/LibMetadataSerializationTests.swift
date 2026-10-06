@@ -2,9 +2,298 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 
 @Suite
 struct LibMetadataSerializationTests {
+    @Test(arguments: [SymbolKind.function, .property])
+    func memberExtensionFlagSurvivesMetadataRoundTrip(kind: SymbolKind) throws {
+        let record = MetadataRecord(
+            kind: kind, fqName: "demo.C.sum", isMemberExtension: true,
+            receiverOwnerFQName: "demo.C", typeSignature: "F1<Ldemo.C;,I>"
+        )
+        let encoder = MetadataEncoder()
+        for serialized in [encoder.serialize([record]), encoder.serializeIndexed([record])] {
+            let decoded = MetadataDecoder().decode(serialized)
+            #expect(try #require(decoded.first).isMemberExtension)
+        }
+        let file = try #require(IndexedMetadataFile(data: Data(encoder.serializeIndexed([record]).utf8)))
+        let entry = try #require(file.entries.first)
+        #expect(try #require(file.record(for: entry)).isMemberExtension)
+    }
+
+    @Test func testImportedCompletionHandlerKeepsNonLocalReturnMask() throws {
+        TestStdlibCache.shared.prepare()
+        try withTemporaryFiles(contents: [
+            """
+            import kotlinx.coroutines.*
+            fun register(job: Job) {
+                job.invokeOnCompletion { println(it) }
+                job.invokeOnCompletion(true, false) { println(it) }
+            }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .executable, allowDefaultStdlibLibrary: true)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let functions = sema.symbols.allSymbols().filter {
+                $0.fqName.map(ctx.interner.resolve) == ["kotlinx", "coroutines", "invokeOnCompletion"]
+            }
+            #expect(functions.count == 2)
+            for function in functions {
+                let signature = try #require(sema.symbols.functionSignature(for: function.id))
+                #expect(signature.valueParameterAllowsNonLocalReturn == Array(repeating: false, count: signature.parameterTypes.count))
+            }
+        }
+    }
+
+    @Test func testIndexedMetadataRoundTripUsesByteOffsets() throws {
+        let records = [
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_first",
+                fqName: "demo.first",
+                arity: 1,
+                receiverOwnerFQName: "demo.Receiver",
+                typeSignature: "F1<I,I>",
+                externalLinkName: "_kk_first"
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_kk_日本語",
+                fqName: "demo.日本語",
+                typeSignature: "I"
+            ),
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_kk_owner",
+                fqName: "demo.Owner",
+                companionObjectFQName: "demo.Owner.Companion"
+            ),
+        ]
+
+        let serialized = MetadataEncoder().serializeIndexed(records)
+        #expect(serialized.hasPrefix("kklib-metadata-v2\n"))
+        let file = try #require(IndexedMetadataFile(data: Data(serialized.utf8)))
+        #expect(file.entries.count == records.count)
+        #expect(file.entries[0].offset < file.entries[1].offset)
+        #expect(file.entries.allSatisfy { $0.length > 0 })
+        #expect(file.entries[0].record.receiverOwnerFQName == "demo.Receiver")
+        #expect(file.entries[2].record.companionObjectFQName == "demo.Owner.Companion")
+        #expect(file.entries.compactMap { file.record(for: $0).map(\.fqName) } == records.map(\.fqName))
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.map(\.fqName) == records.map(\.fqName))
+        #expect(decoded[0].receiverOwnerFQName == "demo.Receiver")
+        #expect(decoded[2].companionObjectFQName == "demo.Owner.Companion")
+    }
+
+    @Test func testIndexedLibraryImportDefersBodyUntilSignatureQuery() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        try """
+        {
+          "formatVersion": 1,
+          "moduleName": "LazyMetadata",
+          "metadata": "metadata.bin"
+        }
+        """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+
+        let records = [
+            MetadataRecord(kind: .package, mangledName: "_", fqName: "lazy"),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_used",
+                fqName: "lazy.used",
+                arity: 1,
+                receiverOwnerFQName: "lazy.Receiver",
+                typeSignature: "F1<I,I>"
+            ),
+            MetadataRecord(kind: .function, mangledName: "_kk_unused", fqName: "lazy.unused", arity: 1, typeSignature: "F1<I,I>"),
+        ]
+        try MetadataEncoder().serializeIndexed(records)
+            .write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyConsumer",
+            emit: .kirDump,
+            searchPaths: [libDir.path]
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        let work = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+
+        let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
+        let unused = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "unused" })
+        let package = try #require(work.importedBindings.first { $0.record.kind == .package })
+        #expect(work.lazyLoaderState != nil)
+        #expect(!used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(used.record.receiverOwnerFQName?.map { ctx.interner.resolve($0) } == ["lazy", "Receiver"])
+        #expect(symbols.parentSymbol(for: used.symbol) == package.symbol)
+        #expect(symbols.functionSignature(for: used.symbol)?.parameterTypes.count == 1)
+        #expect(used.isMaterialized)
+        #expect(!unused.isMaterialized)
+        #expect(symbols.parentSymbol(for: unused.symbol) == nil)
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test func testLazyImportedMetadataLoaderRunsOncePerSymbol() {
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let interner = StringInterner()
+        let name = interner.intern("Imported")
+        let symbol = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: [name],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        let typeName = interner.intern("ImportedType")
+        let typeSymbol = symbols.define(
+            kind: .class,
+            name: typeName,
+            fqName: [typeName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        let functionName = interner.intern("importedFunction")
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: [functionName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.importedLibrary]
+        )
+        var loadCount = 0
+        symbols.setLazyImportedMetadataLoader { loadedSymbol in
+            #expect(loadedSymbol == symbol || loadedSymbol == typeSymbol || loadedSymbol == functionSymbol)
+            loadCount += 1
+        }
+
+        #expect(symbols.lookupByShortName(functionName) == [functionSymbol])
+        #expect(loadCount == 0)
+        _ = symbols.functionSignature(for: functionSymbol)
+        _ = symbols.functionSignature(for: functionSymbol)
+        _ = symbols.directSupertypes(for: symbol)
+        _ = symbols.directSupertypes(for: symbol)
+        _ = types.directNominalSupertypes(for: typeSymbol)
+        _ = types.directNominalSupertypes(for: typeSymbol)
+
+        #expect(loadCount == 3)
+    }
+
+    @Test func testIndexedStdlibNominalGenericsSurviveSyntheticRegistration() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyGenericConsumer",
+            stdlibLibraryPath: stdlibPath
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        let phase = DataFlowSemaPhase()
+        _ = phase.loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+        phase.registerSyntheticCollectionStubs(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner,
+            bundledIndex: .empty
+        )
+        let listSymbol = try #require(symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("List"),
+        ]))
+        let iterableSymbol = try #require(symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("Iterable"),
+        ]))
+
+        let lifted = try #require(types.liftedNominalSupertypeArgs(
+            from: listSymbol,
+            childArgs: [.out(types.stringType)],
+            to: iterableSymbol
+        ))
+
+        let liftedType: TypeID? = switch try #require(lifted.first) {
+        case let .invariant(type), let .in(type), let .out(type): type
+        case .star: nil
+        }
+        #expect(liftedType == types.stringType)
+        let unresolvedLayoutWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0004" }
+        #expect(
+            unresolvedLayoutWarnings.isEmpty,
+            "Indexed stdlib layout entries must resolve during recursive lazy materialization: \(unresolvedLayoutWarnings.map(\.message))"
+        )
+        #expect(!diagnostics.hasError)
+    }
+
+    @Test func testIndexedStdlibCompanionPropertyMaterializesFromShell() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "LazyCompanionConsumer",
+            stdlibLibraryPath: stdlibPath
+        )
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let diagnostics = DiagnosticEngine()
+        let importedInlineFunctions = ImportedInlineFunctionStore()
+        _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: importedInlineFunctions
+        )
+
+        let ownerFQName = ["kotlin", "KotlinVersion"].map(ctx.interner.intern)
+        let companionFQName = ownerFQName + [ctx.interner.intern("Companion")]
+        let currentFQName = companionFQName + [ctx.interner.intern("CURRENT")]
+        let owner = try #require(symbols.lookup(fqName: ownerFQName))
+        let companion = try #require(symbols.lookup(fqName: companionFQName))
+        let current = try #require(symbols.lookup(fqName: currentFQName))
+
+        #expect(symbols.companionObjectSymbol(for: owner) == companion)
+        #expect(symbols.parentSymbol(for: companion) == owner)
+        #expect(symbols.parentSymbol(for: current) == companion)
+        #expect(symbols.propertyType(for: current) != nil)
+        #expect(!diagnostics.hasError)
+    }
+
     // MARK: - MetadataSerializer Round-Trip Tests
 
     @Test func testMetadataEncoderDecoderRoundTripForFunctionRecord() {
@@ -68,6 +357,23 @@ struct LibMetadataSerializationTests {
         #expect(r.fieldOffsets == "ext.Box.x@2,ext.Box.y@3")
         #expect(r.vtableSlots == "ext.Box.get#0#0@0")
         #expect(r.itableSlots == "ext.IFace@0")
+    }
+
+    @Test func testMetadataRoundTripPreservesObjectLazyInitializerLink() throws {
+        let record = MetadataRecord(
+            kind: .object,
+            mangledName: "_kk_ext_Singleton",
+            fqName: "ext.Singleton",
+            objectInitializerLinkName: "_kk_object_init",
+            objectLazyInitializerLinkName: "_kk_object_lazy_init"
+        )
+
+        let serialized = MetadataEncoder().serialize([record])
+        #expect(serialized.contains("objectLazyInitLink=_kk_object_lazy_init"))
+
+        let decoded = try #require(MetadataDecoder().decode(serialized).first)
+        #expect(decoded.objectInitializerLinkName == "_kk_object_init")
+        #expect(decoded.objectLazyInitializerLinkName == "_kk_object_lazy_init")
     }
 
     @Test func testSyntheticValueClassAnchorPreservesUnderlyingTypeMetadata() throws {
@@ -506,6 +812,151 @@ struct LibMetadataSerializationTests {
         }
     }
 
+    @Test func testMetadataEncoderDecoderRoundTripPreservesCallableTypeParameters() {
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "_kk_ext_pair",
+            fqName: "ext.pair",
+            arity: 1,
+            typeSignature: "F1<T11,T11>",
+            callableTypeParameterSignatures: ["T10", "T11"],
+            reifiedTypeParameterIndices: [0]
+        )
+        let encoder = MetadataEncoder()
+        let serialized = encoder.serialize([record])
+        #expect(serialized.contains("callTParams=T10,T11"))
+
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].callableTypeParameterSignatures == ["T10", "T11"])
+    }
+
+    // KUU-546: a "phantom" type parameter declared *before* a structural one
+    // (e.g. `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
+    // where only C appears in the signature) cannot be positioned by the
+    // structural scan or by the KSP-1217 count-only fallback. `callTParams`
+    // records the declaration order per callable: index 0 restores R's
+    // placeholder -- the same placeholder the bound `MutableCollection<in R>`
+    // (`N<T10>` below) and `reified=0` reference.
+    @Test func testMetadataImportRestoresInterspersedPhantomTypeParameterOrder() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtInterspersedTypeParam",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=4
+        interface _kk_ext_MC fq=ext.MC schema=v1
+        function _kk_ext_filterTo fq=ext.filterTo schema=v1 arity=1 suspend=0 inline=0 operator=0 reified=0 sig=F1<T11,T11> callTParams=T10,T11 typeBounds=|TGV4dC5NQzxOPFQxMD4+Ow==
+        typeParameter _kk_ext_filterTo_R fq=ext.filterTo.$1.R schema=v1
+        typeParameter _kk_ext_filterTo_C fq=ext.filterTo.$1.C schema=v1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "InterspersedTypeParamImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let filterToSymbol = sema.symbols.allSymbols().first { symbol in
+                ctx.interner.resolve(symbol.name) == "filterTo" && symbol.kind == .function
+            }
+            let filterToSymbolID = try #require(filterToSymbol?.id)
+            let signature = try #require(sema.symbols.functionSignature(for: filterToSymbolID))
+            #expect(signature.typeParameterSymbols.count == 2)
+            #expect(signature.reifiedTypeParameterIndices == [0])
+            // The structural parameter C (`T11`) must sit at index 1, leaving
+            // index 0 for the phantom R (`T10`).
+            guard case let .typeParam(paramTypeParam) = sema.types.kind(of: signature.parameterTypes[0]) else {
+                Issue.record("expected the value parameter to be a type parameter reference")
+                return
+            }
+            #expect(paramTypeParam.symbol == signature.typeParameterSymbols[1])
+            // C's bound `MC<in R>` (self-contained stand-in for
+            // `MutableCollection<in R>`) references the phantom R placeholder,
+            // which is typeParameterSymbols[0].
+            let bounds = signature.typeParameterUpperBoundsList[1]
+            #expect(bounds.count == 1)
+            guard case let .classType(boundClass) = sema.types.kind(of: bounds[0]),
+                  case let .in(boundArg) = boundClass.args.first,
+                  case let .typeParam(boundTypeParam) = sema.types.kind(of: boundArg)
+            else {
+                Issue.record("expected C's bound to be a class type over a type parameter")
+                return
+            }
+            #expect(boundTypeParam.symbol == signature.typeParameterSymbols[0])
+        }
+    }
+
+    // KUU-546: `.typeParameter` records are grouped by owner FQ name, so the
+    // KSP-1217 fallback cannot disambiguate type parameters across overloads
+    // that share one FQ name. `callTParams` lives on each function record, so
+    // every overload restores its own declared list: here a fully-phantom
+    // zero-arity overload declares 2 parameters while its sibling declares 1.
+    @Test func testMetadataImportRestoresTypeParametersForOverloadedOwner() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtOverloadedTypeParam",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=5
+        function _kk_ext_ov_a fq=ext.ov schema=v1 arity=0 suspend=0 inline=0 operator=0 sig=F0<U> callTParams=T20,T30
+        function _kk_ext_ov_b fq=ext.ov schema=v1 arity=1 suspend=0 inline=0 operator=0 sig=F1<I,T21> callTParams=T21
+        typeParameter _kk_ext_ov_a_T fq=ext.ov.$1.T schema=v1
+        typeParameter _kk_ext_ov_a_U fq=ext.ov.$1.U schema=v1
+        typeParameter _kk_ext_ov_b_T fq=ext.ov.$2.T schema=v1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "OverloadedTypeParamImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let overloads = sema.symbols.allSymbols().filter { symbol in
+                ctx.interner.resolve(symbol.name) == "ov" && symbol.kind == .function
+            }
+            #expect(overloads.count == 2)
+            let signatures = try overloads.map { try #require(sema.symbols.functionSignature(for: $0.id)) }
+            let phantomOverload = try #require(signatures.first { $0.parameterTypes.isEmpty })
+            #expect(phantomOverload.typeParameterSymbols.count == 2)
+            let structuralOverload = try #require(signatures.first { $0.parameterTypes.count == 1 })
+            #expect(structuralOverload.typeParameterSymbols.count == 1)
+            guard case let .typeParam(returnTypeParam) = sema.types.kind(of: structuralOverload.returnType) else {
+                Issue.record("expected the return type to be a type parameter reference")
+                return
+            }
+            #expect(returnTypeParam.symbol == structuralOverload.typeParameterSymbols[0])
+        }
+    }
+
     // MARK: - MetadataDecoder.symbolKindFromMetadata Unit Tests
 
     @Test func testSymbolKindFromMetadataReturnsCorrectKindForAllTokens() {
@@ -699,6 +1150,40 @@ struct LibMetadataSerializationTests {
         #expect(decoded[0].kind == .typeAlias)
         #expect(decoded[0].fqName == "demo.ID")
         #expect(decoded[0].typeSignature == "L")
+    }
+
+    /// The lazy loader closure lives on the symbol table itself, so capturing
+    /// the table strongly would retain the entire import state for the life of
+    /// the process — leaking every compilation's symbols and decoded records.
+    @Test func testLazyMetadataLoaderDoesNotRetainSymbolTable() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlibPath = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        weak var weakSymbols: SymbolTable?
+        weak var weakTypes: TypeSystem?
+        do {
+            let ctx = makeCompilationContext(
+                inputs: [],
+                moduleName: "LazyLoaderLifetime",
+                stdlibLibraryPath: stdlibPath
+            )
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            types.symbolTable = symbols
+            let diagnostics = DiagnosticEngine()
+            let importedInlineFunctions = ImportedInlineFunctionStore()
+            _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: ctx.interner,
+                importedInlineFunctions: importedInlineFunctions
+            )
+            weakSymbols = symbols
+            weakTypes = types
+        }
+        #expect(weakSymbols == nil, "SymbolTable must deallocate once the import scope ends")
+        #expect(weakTypes == nil, "TypeSystem must deallocate once the import scope ends")
     }
 }
 #endif

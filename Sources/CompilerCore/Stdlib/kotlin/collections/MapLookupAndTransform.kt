@@ -11,11 +11,13 @@ import kotlin.reflect.KProperty
 // RuntimeCollectionHOF.swift (kk_map_getOrElse, kk_mutable_map_getOrPut,
 // kk_map_toList) and RuntimeCollections.swift (kk_map_orEmpty).
 //
-// Remaining bridges: Map's four abstract properties (size/keys/values/
-// entries) use the runtime-backed placeholders registered by
-// `HeaderHelpers+SyntheticMapStubs.swift` for built-in map boxes (isEmpty/get
-// moved to @KsSymbolName directly on Map.kt in KSP-703). The entry bridge
-// tags each entry with the runtime map-entry type so `toString` prints
+// Remaining bridges: Map's four runtime-backed property links and MutableMap's
+// mutation links are registered as direct residual ABI members because built-in
+// map boxes bypass itable registration (isEmpty/get use direct @KsSymbolName
+// bridges in Map/Map.kt). The residual Map.Entry shell keeps the runtime
+// key/value accessors available until nested source declarations can be
+// collected in the same pass. The entry bridge tags each entry with the
+// runtime map-entry type so `toString` prints
 // `k=v`; the `withDefault` state remains stored on the runtime map box
 // (`__kk_map_withDefault` / `__kk_map_has_default` / `__kk_map_implicit_default`).
 
@@ -33,7 +35,8 @@ public inline operator fun <K, V> Map<out K, V>.get(key: K): V? =
     (this as Map<K, V>).get(key)
 
 @KsSymbolName("__kk_mutable_map_iterator")
-private external fun <K, V> __kk_mutable_map_iterator(
+@PublishedApi
+internal external fun <K, V> __kk_mutable_map_iterator(
     map: MutableMap<K, V>
 ): MutableIterator<MutableMap.MutableEntry<K, V>>
 
@@ -44,7 +47,8 @@ private external fun <K, V> __kk_mutable_map_withDefault(
 ): MutableMap<K, V>
 
 @KsSymbolName("__kk_mutable_map_remove")
-private external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
+@PublishedApi
+internal external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
 
 // Kotlin 2.3.10 defines Map.contains as the key-membership operator.
 public inline operator fun <K, V> Map<out K, V>.contains(key: K): Boolean = containsKey(key)

@@ -172,10 +172,20 @@ struct CodegenBackendStringNumericParsingTests {
             println(" 0.5 ".toFloat())
             println("NaN".toFloat())
             println("Infinity".toFloat())
+            println("1f".toFloat())
+            println("1.5d".toFloat())
             println("0.5".toFloatOrNull())
+            println("1f".toFloatOrNull())
+            println("1.5d".toFloatOrNull())
+            println("inf".toFloatOrNull())
+            println("nan".toFloatOrNull())
+            println("infinity".toFloatOrNull())
+            println("-nan".toFloatOrNull())
+            println("INFINITY".toFloatOrNull())
             println("abc".toFloatOrNull())
             println(" ".toFloatOrNull())
             try { "abc".toFloat() } catch (e: Throwable) { println("invalid") }
+            try { "inf".toFloat() } catch (e: Throwable) { println("invalid-inf") }
             try { "  ".toFloat() } catch (e: Throwable) { println("empty") }
         }
         """
@@ -191,10 +201,20 @@ struct CodegenBackendStringNumericParsingTests {
                 0.5
                 NaN
                 Infinity
+                1.0
+                1.5
                 0.5
+                1.0
+                1.5
+                null
+                null
+                null
+                null
+                null
                 null
                 null
                 invalid
+                invalid-inf
                 empty
                 """
                 + "\n"

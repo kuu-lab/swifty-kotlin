@@ -110,11 +110,13 @@ struct BundledStdlibOrderingTests {
             for expected in [
                 "__bundled_kotlin/native/Annotations.kt",
                 "__bundled_kotlin/native/BitSet.kt",
+                "__bundled_kotlin/native/Blob.kt",
                 "__bundled_kotlin/native/FreezingIsDeprecated.kt",
                 "__bundled_kotlin/native/ObsoleteNativeApi.kt",
                 "__bundled_kotlin/native/Platform.kt",
                 "__bundled_kotlin/native/Runtime.kt",
                 "__bundled_kotlin/native/ThrowableExtensions.kt",
+                "__bundled_kotlin/native/simd.kt",
                 "__bundled_kotlin/native/concurrent/Atomics.kt",
                 "__bundled_kotlin/native/concurrent/Freezing.kt",
                 "__bundled_kotlin/native/concurrent/Internal.kt",
@@ -132,6 +134,130 @@ struct BundledStdlibOrderingTests {
             // Annotations.kt and `ObsoleteNativeApi`/`FreezingIsDeprecated` split into
             // their own files; the old grab-bag filename must not come back.
             #expect(!nativePaths.contains("__bundled_kotlin/native/ObjCInterop.kt"))
+        }
+    }
+
+    @Test
+    func testKotlinxIoFoundationUsesUpstreamFilenames() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try LoadSourcesPhase().run(ctx)
+            let paths = Set(ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) })
+            for name in ["Annotations.kt", "-Util.kt", "-CommonPlatform.kt", "ByteStrings.kt", "Buffers.kt"] {
+                #expect(paths.contains("__bundled_kotlinx/io/\(name)"))
+            }
+            #expect(!paths.contains("__bundled_kotlinx/io/IOExceptions.kt"))
+        }
+    }
+
+    /// KSP-1586: Pin the kotlinx resource paths independently of the on-disk
+    /// inventory so renames and missing bundled resources cannot pass silently.
+    @Test
+    func testKotlinxBundledFilenamesAreInjected() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try LoadSourcesPhase().run(ctx)
+            let paths = Set(ctx.sourceManager.fileIDs().map { ctx.sourceManager.path(of: $0) })
+            for expected in [
+                "__bundled_kotlinx/coroutines/AbstractCoroutine.kt",
+                "__bundled_kotlinx/coroutines/Annotations.kt",
+                "__bundled_kotlinx/coroutines/Await.kt",
+                "__bundled_kotlinx/coroutines/Builders.common.kt",
+                "__bundled_kotlinx/coroutines/Builders.kt",
+                "__bundled_kotlinx/coroutines/CancellableContinuation.kt",
+                "__bundled_kotlinx/coroutines/CompletableDeferred.kt",
+                "__bundled_kotlinx/coroutines/CompletableJob.kt",
+                "__bundled_kotlinx/coroutines/CopyableThrowable.kt",
+                "__bundled_kotlinx/coroutines/CoroutineDispatcher.kt",
+                "__bundled_kotlinx/coroutines/CoroutineElementKey.kt",
+                "__bundled_kotlinx/coroutines/CoroutineId.kt",
+                "__bundled_kotlinx/coroutines/CoroutineName.kt",
+                "__bundled_kotlinx/coroutines/CoroutineScope.kt",
+                "__bundled_kotlinx/coroutines/Deferred.kt",
+                "__bundled_kotlinx/coroutines/Delay.kt",
+                "__bundled_kotlinx/coroutines/DispatchedTask.kt",
+                "__bundled_kotlinx/coroutines/Dispatchers.kt",
+                "__bundled_kotlinx/coroutines/Disposables.kt",
+                "__bundled_kotlinx/coroutines/Exceptions.kt",
+                "__bundled_kotlinx/coroutines/Executors.kt",
+                "__bundled_kotlinx/coroutines/Job.kt",
+                "__bundled_kotlinx/coroutines/JobSupport.kt",
+                "__bundled_kotlinx/coroutines/MainCoroutineDispatcher.kt",
+                "__bundled_kotlinx/coroutines/NonCancellable.kt",
+                "__bundled_kotlinx/coroutines/Scopes.kt",
+                "__bundled_kotlinx/coroutines/ThreadPoolDispatcher.kt",
+                "__bundled_kotlinx/coroutines/Timeout.kt",
+                "__bundled_kotlinx/coroutines/channels/Actor.kt",
+                "__bundled_kotlinx/coroutines/channels/BufferOverflow.kt",
+                "__bundled_kotlinx/coroutines/channels/Channel.kt",
+                "__bundled_kotlinx/coroutines/channels/ChannelResult.kt",
+                "__bundled_kotlinx/coroutines/channels/Channels.kt",
+                "__bundled_kotlinx/coroutines/channels/Produce.kt",
+                "__bundled_kotlinx/coroutines/flow/Builders.kt",
+                "__bundled_kotlinx/coroutines/flow/Channels.kt",
+                "__bundled_kotlinx/coroutines/flow/Collect.kt",
+                "__bundled_kotlinx/coroutines/flow/Collection.kt",
+                "__bundled_kotlinx/coroutines/flow/Count.kt",
+                "__bundled_kotlinx/coroutines/flow/Distinct.kt",
+                "__bundled_kotlinx/coroutines/flow/Emitters.kt",
+                "__bundled_kotlinx/coroutines/flow/Errors.kt",
+                "__bundled_kotlinx/coroutines/flow/Flow.kt",
+                "__bundled_kotlinx/coroutines/flow/FlowCollector.kt",
+                "__bundled_kotlinx/coroutines/flow/Limit.kt",
+                "__bundled_kotlinx/coroutines/flow/Logic.kt",
+                "__bundled_kotlinx/coroutines/flow/Merge.kt",
+                "__bundled_kotlinx/coroutines/flow/Reduce.kt",
+                "__bundled_kotlinx/coroutines/flow/Scope.kt",
+                "__bundled_kotlinx/coroutines/flow/Share.kt",
+                "__bundled_kotlinx/coroutines/flow/SharedFlow.kt",
+                "__bundled_kotlinx/coroutines/flow/SharingStarted.kt",
+                "__bundled_kotlinx/coroutines/flow/StateFlow.kt",
+                "__bundled_kotlinx/coroutines/flow/Transform.kt",
+                "__bundled_kotlinx/coroutines/flow/Zip.kt",
+                "__bundled_kotlinx/coroutines/internal/Scopes.kt",
+                "__bundled_kotlinx/coroutines/selects/Select.kt",
+                "__bundled_kotlinx/coroutines/selects/SelectClauses.kt",
+                "__bundled_kotlinx/coroutines/sync/Sync.kt",
+                "__bundled_kotlinx/coroutines/test/TestBuilders.kt",
+                "__bundled_kotlinx/coroutines/test/TestCoroutineScheduler.kt",
+                "__bundled_kotlinx/coroutines/test/TestDispatcher.kt",
+                "__bundled_kotlinx/coroutines/test/TestScope.kt",
+                "__bundled_kotlinx/io/-CommonPlatform.kt",
+                "__bundled_kotlinx/io/-Util.kt",
+                "__bundled_kotlinx/io/Annotations.kt",
+                "__bundled_kotlinx/io/Buffer.kt",
+                "__bundled_kotlinx/io/Buffers.kt",
+                "__bundled_kotlinx/io/ByteStrings.kt",
+                "__bundled_kotlinx/io/Core.kt",
+                "__bundled_kotlinx/io/JvmCore.kt",
+                "__bundled_kotlinx/io/PeekSource.kt",
+                "__bundled_kotlinx/io/RawSink.kt",
+                "__bundled_kotlinx/io/RawSource.kt",
+                "__bundled_kotlinx/io/RealSink.kt",
+                "__bundled_kotlinx/io/RealSource.kt",
+                "__bundled_kotlinx/io/Segment.kt",
+                "__bundled_kotlinx/io/SegmentPool.kt",
+                "__bundled_kotlinx/io/Sink.kt",
+                "__bundled_kotlinx/io/Sinks.kt",
+                "__bundled_kotlinx/io/SinksJvm.kt",
+                "__bundled_kotlinx/io/Source.kt",
+                "__bundled_kotlinx/io/Sources.kt",
+                "__bundled_kotlinx/io/SourcesJvm.kt",
+                "__bundled_kotlinx/io/Utf8.kt",
+                "__bundled_kotlinx/io/bytestring/Base64.kt",
+                "__bundled_kotlinx/io/bytestring/ByteString.kt",
+                "__bundled_kotlinx/io/bytestring/ByteStringBuilder.kt",
+                "__bundled_kotlinx/io/bytestring/Hex.kt",
+                "__bundled_kotlinx/io/bytestring/unsafe/Annotations.kt",
+                "__bundled_kotlinx/io/bytestring/unsafe/UnsafeByteStringOperations.kt",
+                "__bundled_kotlinx/io/files/FileNotFoundException.kt",
+                "__bundled_kotlinx/io/files/FileSystem.kt",
+                "__bundled_kotlinx/io/files/Paths.kt",
+                "__bundled_kotlinx/io/internal/-Utf8.kt",
+                "__bundled_kotlinx/io/unsafe/UnsafeBufferOperations.kt",
+            ] {
+                #expect(paths.contains(expected), "Missing bundled source \(expected)")
+            }
         }
     }
 
