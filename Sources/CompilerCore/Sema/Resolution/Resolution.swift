@@ -284,6 +284,7 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        var starProjectedReceiverParameters: Set<SymbolID> = []
         // A nominal member's leading type parameters belong to the declaring
         // class/interface. Constrain them from the dispatch receiver, not an
         // unrelated extension receiver. Otherwise an inherited
@@ -335,6 +336,27 @@ extension OverloadResolver {
                     nullability: .nonNull
                 )))
             }()
+            if case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType) {
+                let methodBounds = Array(signature.typeParameterUpperBoundsList
+                    .dropFirst(signature.classTypeParameterCount).joined())
+                    + signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).flatMap {
+                        ctx.symbols.typeParameterUpperBounds(for: $0)
+                    }
+                for (parameter, argument) in zip(
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwner.args
+                ) {
+                    if case .star = argument,
+                       !signature.parameterTypes.contains(where: {
+                           ctx.types.typeContainsTypeParam($0, symbol: parameter)
+                       }),
+                       !methodBounds.contains(where: {
+                           ctx.types.typeContainsTypeParam($0, symbol: parameter)
+                       })
+                    {
+                        starProjectedReceiverParameters.insert(parameter)
+                    }
+                }
+            }
             constraints.append(contentsOf: decomposeSubtypeConstraint(
                 subtype: receiverOwnerType,
                 supertype: ownerType,
@@ -527,6 +549,7 @@ extension OverloadResolver {
             signature: signature,
             substitution: substitution,
             typeVarBySymbol: typeVarBySymbol,
+            starProjectedReceiverParameters: starProjectedReceiverParameters,
             range: call.range,
             ctx: ctx
         ) {
