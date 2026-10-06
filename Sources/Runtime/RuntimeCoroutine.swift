@@ -737,13 +737,29 @@ final class RuntimeContinuationState: @unchecked Sendable {
         let builder = builderContext
         // Merge `inherited.plus(builderContext)` without allocating so the
         // canonicalizer lookup below is allocation-free on a hit: the
-        // builder's dispatcher/name/handler win when present (KUU-1387).
-        let builderDispatcher = builder?.dispatcher ?? 0
+        // builder's dispatcher/name/handler win when present (KUU-1387). A
+        // handle-only dispatcher element (the event loop, or one propagated
+        // by a withContext merge) occupies the slot the same way a tag does.
+        let builderHasDispatcher = (builder?.dispatcherElementHandle ?? 0) != 0
+        let mergedDispatcher = builderHasDispatcher
+            ? (builder?.dispatcher ?? 0)
+            : (inherited?.dispatcher ?? 0)
+        var mergedDispatcherHandle = builderHasDispatcher
+            ? (builder?.dispatcherHandleRaw ?? 0)
+            : (inherited?.dispatcherHandleRaw ?? 0)
+        // KUU-1395: a coroutine bound to a runBlocking event loop exposes the
+        // loop's element as its `ContinuationInterceptor` — the runtime
+        // analogue of kotlinx's BlockingEventLoop — whenever nothing else
+        // occupies the dispatcher slot (an explicit dispatcher wins on JVM
+        // too).
+        if mergedDispatcher == 0 && mergedDispatcherHandle == 0,
+           let elementRaw = eventLoop?.elementHandle()
+        {
+            mergedDispatcherHandle = elementRaw
+        }
         return runtimeCanonicalCoroutineContext(
-            dispatcher: builderDispatcher != 0 ? builderDispatcher : (inherited?.dispatcher ?? 0),
-            dispatcherHandleRaw: builderDispatcher != 0
-                ? (builder?.dispatcherHandleRaw ?? 0)
-                : (inherited?.dispatcherHandleRaw ?? 0),
+            dispatcher: mergedDispatcher,
+            dispatcherHandleRaw: mergedDispatcherHandle,
             name: (builder?.name ?? inherited?.name) ?? scope?.name,
             nameHandleRaw: builder?.name != nil
                 ? (builder?.nameHandleRaw ?? 0)
@@ -2063,6 +2079,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     init(isSupervisor: Bool = false, context: RuntimeCoroutineContext = RuntimeCoroutineContext()) {
         self.isSupervisor = isSupervisor
         self.context = context
+        self.name = context.name
         RuntimeLiveHandles.register(self)
     }
 
@@ -5818,6 +5835,17 @@ public func kk_job_key_get(_ receiver: Int) -> Int {
     case .job, .task:
         return kk_job_key()
     case .other:
+        // Source Job implementers that never bound a runtime job — e.g.
+        // `Job by Job()` delegation, where `super<Job>.key` lands here — still
+        // answer the interface's `key` contract: `Job.key` is `Job.Key`.
+        if let sourceID = runtimeObjectTypeID(rawValue: receiver),
+           runtimeIsAssignable(
+               sourceTypeID: sourceID,
+               targetTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.Job")
+           )
+        {
+            return kk_job_key()
+        }
         return runtimeNullSentinelInt
     }
 }
