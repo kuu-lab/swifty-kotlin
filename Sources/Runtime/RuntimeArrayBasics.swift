@@ -423,11 +423,11 @@ private func kk_uarray_asList(_ arrayRaw: Int, functionName: String) -> Int {
 }
 
 @inline(__always)
-private func kk_array_asList(_ arrayRaw: Int, functionName: String) -> Int {
+private func kk_array_asList(_ arrayRaw: Int, functionName: String, elementKind: RuntimePrimitiveArrayElementKind? = nil) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
     }
-    return registerRuntimeObject(RuntimeListBox(arrayViewOf: array))
+    return registerRuntimeObject(RuntimeListBox(arrayViewOf: array, elementKind: elementKind))
 }
 
 /// Array.asList(): List<T>
@@ -463,25 +463,25 @@ public func kk_byteArray_asList(_ arrayRaw: Int) -> Int {
 /// CharArray.asList(): List<Char>
 @_cdecl("__kk_charArray_asList")
 public func kk_charArray_asList(_ arrayRaw: Int) -> Int {
-    kk_array_asList(arrayRaw, functionName: "__kk_charArray_asList")
+    kk_array_asList(arrayRaw, functionName: "__kk_charArray_asList", elementKind: .char)
 }
 
 /// BooleanArray.asList(): List<Boolean>
 @_cdecl("__kk_booleanArray_asList")
 public func kk_booleanArray_asList(_ arrayRaw: Int) -> Int {
-    kk_array_asList(arrayRaw, functionName: "__kk_booleanArray_asList")
+    kk_array_asList(arrayRaw, functionName: "__kk_booleanArray_asList", elementKind: .boolean)
 }
 
 /// DoubleArray.asList(): List<Double>
 @_cdecl("__kk_doubleArray_asList")
 public func kk_doubleArray_asList(_ arrayRaw: Int) -> Int {
-    kk_array_asList(arrayRaw, functionName: "__kk_doubleArray_asList")
+    kk_array_asList(arrayRaw, functionName: "__kk_doubleArray_asList", elementKind: .double)
 }
 
 /// FloatArray.asList(): List<Float>
 @_cdecl("__kk_floatArray_asList")
 public func kk_floatArray_asList(_ arrayRaw: Int) -> Int {
-    kk_array_asList(arrayRaw, functionName: "__kk_floatArray_asList")
+    kk_array_asList(arrayRaw, functionName: "__kk_floatArray_asList", elementKind: .float)
 }
 
 /// UByteArray.asList(): List<UByte>
