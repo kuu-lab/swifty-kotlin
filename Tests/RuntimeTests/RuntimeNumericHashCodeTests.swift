@@ -144,7 +144,7 @@ struct RuntimeNumericHashCodeTests {
 
         let classID = 5_000_000_000
         let object = kk_object_new(0, classID)
-        #expect(kk_any_hashCode(object, 0) == Int(Int32(truncatingIfNeeded: classID)))
+        #expect(kk_any_hashCode(object, 0) == Int(Int32(truncatingIfNeeded: object)))
     }
 
     @Test
@@ -249,15 +249,17 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
-    func testObjectFallbackHashCodeWrapsAtInt32() {
-        // Non-data-class RuntimeObjectBox: hash starts at classID, then
-        // folds each slot as 31*hash + element. These elements overflow
-        // Int32 mid-fold.
+    func testPlainObjectHashCodeUsesIdentityAndIgnoresFieldMutation() {
         let object = kk_object_new(3, 12_345)
+        let other = kk_object_new(3, 12_345)
+        let hash = kk_any_hashCode(object, 0)
+        #expect(hash == Int(Int32(truncatingIfNeeded: object)))
+        #expect(kk_any_hashCode(other, 0) == Int(Int32(truncatingIfNeeded: other)))
+        #expect(hash != kk_any_hashCode(other, 0))
         _ = kk_array_set(object, 0, 2_000_000_000, nil)
         _ = kk_array_set(object, 1, 1_900_000_000, nil)
         _ = kk_array_set(object, 2, 1_800_000_000, nil)
-        #expect(kk_any_hashCode(object, 0) == -1_207_120_857)
+        #expect(kk_any_hashCode(object, 0) == hash)
     }
 
     // MARK: - Array.contentDeepHashCode (Int32-wrapped deep fold)

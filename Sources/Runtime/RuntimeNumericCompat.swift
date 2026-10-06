@@ -401,12 +401,8 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(tripleBox.third, 0))
         return Int(hash)
     }
-    // Structural hash for data classes, boxed value classes (STDLIB-VALUECLASS),
-    // and other user-defined objects reached via Any.hashCode() — must stay
-    // consistent with runtimeValuesEqual's RuntimeObjectBox case (structural
-    // equality by classID + elements). Without this, equal-by-content boxed
-    // instances compared with `==` reported equal but had different
-    // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
+    // Nominal objects honor user overrides and data-class structural hashes;
+    // plain classes inherit Any's identity hash, matching runtimeValuesEqual.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
         if let setBox = objBox.backingSetBox {
             // Some mutable set implementations use a RuntimeObjectBox shell
@@ -448,11 +444,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             return Int(hash)
         }
 
-        var hash = Int32(truncatingIfNeeded: objBox.classID)
-        for element in objBox.values {
-            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
-        }
-        return Int(hash)
+        return Int(bitPattern: pointer)
     }
     return Int(truncatingIfNeeded: UInt(bitPattern: pointer))
 }
