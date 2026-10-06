@@ -2466,7 +2466,7 @@ extension CallLowerer {
                     callee: interner.intern("__kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
-                    canThrow: false,
+                    canThrow: true,
                     thrownResult: nil
                 ))
                 return result

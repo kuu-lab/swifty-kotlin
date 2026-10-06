@@ -829,6 +829,7 @@ struct ABIMismatchTests {
     @Test
     func kkStringFormatFlatSignatures() throws {
         let formatSpec = try requireSpec("__kk_string_format_flat")
+        #expect(formatSpec.isThrowing)
         #expect(formatSpec.returnType == .nullableUInt8Pointer)
         #expect(formatSpec.parameters.map(\.type) == [
             .nullableConstUInt8Pointer,
@@ -839,9 +840,11 @@ struct ABIMismatchTests {
             .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
+            .nullableIntptrPointer,
         ])
 
         let localeSpec = try requireSpec("__kk_string_format_locale_flat")
+        #expect(localeSpec.isThrowing)
         #expect(localeSpec.returnType == .nullableUInt8Pointer)
         #expect(localeSpec.parameters.map(\.type) == [
             .intptr,
@@ -850,6 +853,7 @@ struct ABIMismatchTests {
             .intptr,
             .intptr,
             .intptr,
+            .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
             .nullableIntptrPointer,
