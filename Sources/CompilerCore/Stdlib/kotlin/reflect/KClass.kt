@@ -15,6 +15,9 @@ package kotlin.reflect
  * value semantics for these declarations.
  */
 public interface KClass<T : Any> : KAnnotatedElement, KClassifier, KDeclarationContainer {
+    public val objectInstance: T?
+    public val sealedSubclasses: List<KClass<out T>>
+
     public override fun equals(other: Any?): Boolean
     public override fun hashCode(): Int
 }

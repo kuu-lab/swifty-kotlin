@@ -164,6 +164,47 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_object",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "objectRaw", type: .intptr),
+                RuntimeABIParameter(name: "initializerRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_object_instance",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_sealed_subclass",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "subclassToken", type: .intptr),
+                RuntimeABIParameter(name: "nameHint", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_sealed_subclasses",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
         // REFL-004: KClass binary metadata registration and accessors
         RuntimeABIFunctionSpec(
             name: "__kk_kclass_register_metadata",

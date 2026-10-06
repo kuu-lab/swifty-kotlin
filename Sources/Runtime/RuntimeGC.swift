@@ -571,6 +571,7 @@ func kk_runtime_reset_metadata() {
     }
     releaseRegisteredRuntimeBoxes(cachedReflectionBoxes)
     runtimeKClassMetadataRegistry.reset()
+    runtimeKClassObjectRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
 }

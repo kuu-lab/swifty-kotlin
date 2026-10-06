@@ -1005,7 +1005,7 @@ final class CallTypeChecker {
         ]
         let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
         let isUnqualifiedTypeOf = calleeName.map {
-            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+            $0 == knownNames.typeOf && locals[$0] == nil
         } ?? false
         if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
             // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
