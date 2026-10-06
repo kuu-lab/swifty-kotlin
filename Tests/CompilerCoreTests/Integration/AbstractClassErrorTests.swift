@@ -5,6 +5,91 @@ import Testing
 
 @Suite struct AbstractClassErrorTests {
 
+    @Test(arguments: ["class", "open class", "final class", "object"])
+    func testAbstractMembersInConcreteOwnerAreRejected(owner: String) throws {
+        let ctx = makeContextFromSource("""
+        \(owner) C {
+            abstract fun f(): Int
+            abstract val value: Int
+            abstract var mutable: Int
+        }
+        """)
+        try runSema(ctx)
+
+        for name in ["f", "value", "mutable"] {
+            #expect(ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                    && $0.severity == .error
+                    && $0.message.contains("'\(name)' cannot be abstract")
+            })
+        }
+    }
+
+    @Test func testConcreteAbstractFunctionCallIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        class C {
+            abstract fun f(): Int
+            fun g(): Int = f()
+        }
+        fun main() {
+            println(C().f())
+            println(C().g())
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                && $0.severity == .error
+                && $0.message.contains("'f' cannot be abstract")
+        })
+    }
+
+    @Test func testNestedConcreteClassCannotUseOuterAbstractness() throws {
+        let ctx = makeContextFromSource("""
+        abstract class Outer {
+            class C {
+                abstract fun f(): Int
+            }
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-MODIFIER-CONFLICT"
+                && $0.severity == .error
+                && $0.message.contains("non-abstract class 'Outer.C'")
+        })
+    }
+
+    @Test(arguments: ["abstract class", "sealed class", "interface"])
+    func testAbstractMembersInAbstractOwnerRemainValid(owner: String) throws {
+        let ctx = makeContextFromSource("""
+        \(owner) C {
+            abstract fun f(): Int
+            abstract val value: Int
+            abstract var mutable: Int
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEnumAbstractMemberWithEntryImplementationRemainsValid() throws {
+        let ctx = makeContextFromSource("""
+        enum class C {
+            ENTRY {
+                override fun f(): Int = 42
+            };
+            abstract fun f(): Int
+        }
+        """)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
     private static let abstractErrorSources: [String] = [
         """
         package sample0
