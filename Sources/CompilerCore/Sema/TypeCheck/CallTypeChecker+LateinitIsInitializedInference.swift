@@ -42,11 +42,33 @@ extension CallTypeChecker {
         }
 
         _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
+        // An unbound `C::p` reference types as `KProperty1`, which has no
+        // `isInitialized` member — defer to normal member resolution so it
+        // reports the standard unresolved-reference diagnostic (kotlinc parity).
+        if sema.bindings.isUnboundCallableRef(receiverID) {
+            return nil
+        }
         if let propertySymbol = sema.bindings.identifierSymbol(for: receiverID),
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            propertyInfo.kind == .property,
            propertyInfo.flags.contains(.lateinitProperty)
         {
+            // kotlinc only permits `::p.isInitialized` where the backing field
+            // is reachable: member fields inside the declaring nominal (or a
+            // nested type within it), top-level fields in the same file.
+            guard isLateinitBackingFieldAccessible(
+                propertySymbol: propertySymbol,
+                propertyInfo: propertyInfo,
+                ctx: ctx,
+                sema: sema
+            ) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "backing field of '\(interner.resolve(propertyInfo.name))' is not accessible at this point.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             let boolType = sema.types.make(.primitive(.boolean, .nonNull))
             if let isInitializedProperty = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
@@ -68,6 +90,36 @@ extension CallTypeChecker {
             range: range
         )
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+    }
+
+    /// `KProperty0.isInitialized` reads the property's backing field, which is
+    /// private to its declaring scope. The reference is legal only where that
+    /// field is reachable: a member property requires the use site inside the
+    /// declaring nominal or a nominal nested within it (an enclosing class —
+    /// e.g. `Host` — does NOT see a companion object's field); a top-level
+    /// property requires the same file.
+    private func isLateinitBackingFieldAccessible(
+        propertySymbol: SymbolID,
+        propertyInfo: SemanticSymbol,
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> Bool {
+        guard let parentSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let parentKind = sema.symbols.symbol(parentSymbol)?.kind
+        else {
+            return true
+        }
+        if parentKind == .package {
+            return propertyInfo.declSite?.start.file == ctx.currentFileID
+        }
+        var scope = ctx.enclosingClassSymbol
+        while let current = scope {
+            if current == parentSymbol {
+                return true
+            }
+            scope = sema.symbols.parentSymbol(for: current)
+        }
+        return false
     }
 
     private func isKProperty0Receiver(
