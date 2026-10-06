@@ -224,13 +224,15 @@ extension BuildASTPhase {
             _ = consume()
             guard let rhs = parseExpression(minPrecedence: infixPrecedence + 1) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), astArena.exprRange(rhs), fallback: token.range)
-            return astArena.appendExpr(.memberCall(
+            let call = astArena.appendExpr(.memberCall(
                 receiver: lhs,
                 callee: calleeName,
                 typeArgs: [],
                 args: [CallArgument(expr: rhs)],
                 range: range
             ))
+            astArena.markInfixCall(call)
+            return call
         }
 
         private func parsePrefixUnary() -> ExprID? {
@@ -399,6 +401,10 @@ extension BuildASTPhase {
             default:
                 nil
             }
+        }
+
+        func labelNameFromToken(_ token: Token) -> InternedString? {
+            token.kind.isLabelName ? tokenText(token) : nil
         }
 
         func identifierFromToken(_ token: Token) -> InternedString? {

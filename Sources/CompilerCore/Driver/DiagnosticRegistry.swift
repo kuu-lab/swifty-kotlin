@@ -690,6 +690,12 @@ enum DiagnosticRegistry {
             codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0307",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Infix notation requires the infix modifier."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,

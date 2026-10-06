@@ -398,6 +398,7 @@ private struct KlibRecordMaterializer {
                 isSuspend: base.base.flags.isSuspend,
                 isInline: base.base.flags.isInline || base.base.flags.isInlineAccessor,
                 isOperator: base.base.flags.isOperator,
+                isInfix: base.base.flags.isInfix,
                 isOverride: !overridden.isEmpty,
                 valueParameterIsVararg: base.regularParameters.map { $0.varargElementType != nil },
                 valueParameterHasDefaultValues: base.regularParameters.map { $0.defaultValueIndex != nil },

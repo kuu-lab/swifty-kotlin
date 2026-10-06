@@ -110,6 +110,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
     public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
+    public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
 }
 
 public struct SemanticSymbol: Sendable {

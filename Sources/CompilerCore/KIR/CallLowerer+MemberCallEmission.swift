@@ -1002,6 +1002,7 @@ extension CallLowerer {
             callArguments = []
         }
         if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            chosenCallee: chosenCallee,
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
@@ -1147,6 +1148,7 @@ extension CallLowerer {
     ]
 
     private func listWindowChunkMemberSourceBridgeCall(
+        chosenCallee: SymbolID?,
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
@@ -1161,6 +1163,17 @@ extension CallLowerer {
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         let knownNames = KnownCompilerNames(interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if calleeName == knownNames.zip,
+           let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           isGenericKotlinArrayType(declaredReceiver, sema: sema, interner: interner)
+        {
+            // KUU-1256: Array zip and user Array extensions use their selected
+            // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }
 

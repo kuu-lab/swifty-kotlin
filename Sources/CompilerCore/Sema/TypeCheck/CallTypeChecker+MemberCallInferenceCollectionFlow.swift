@@ -91,6 +91,7 @@ extension CallTypeChecker {
         if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: receiverType,
+            ctx: ctx,
             sema: sema,
             interner: interner
         ).isEmpty {

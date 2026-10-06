@@ -48,6 +48,37 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
+    @Test
+    func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.system.*
+        fun main() { println(getTimeMillis() > 0); println(getTimeNanos() > 0) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            do {
+                try runSema(ctx)
+            } catch {
+                // Inspect the emitted diagnostics rather than the pipeline error alone.
+            }
+            let sema = try #require(ctx.sema)
+            for name in ["getTimeMillis", "getTimeNanos"] {
+                #expect(ctx.diagnostics.diagnostics.contains {
+                    $0.severity == .error && $0.message.contains("Unresolved function '\(name)'")
+                }, "Expected unresolved removed API, got: \(ctx.diagnostics.diagnostics)")
+                let fq = ["kotlin", "system", name].map { ctx.interner.intern($0) }
+                #expect(sema.symbols.lookupAll(fqName: fq).isEmpty)
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func testStringLengthPropertyReferencesPreserveGetterABI(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -192,6 +223,34 @@ struct StdlibArtifactRegressionTests {
         println(EvenNumbers().size)
     }
     """
+
+    @Test(arguments: [false, true])
+    func testContinuationContextOverrides(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/continuation_context_override.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "ContinuationContextOverrides",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\ngetter\ntrue\ntrue\ntrue\n7\n42\n")
+        }
+    }
 
     @Test
     func testContinuationInterceptorThroughPrecompiledStdlibArtifact() throws {
@@ -2832,6 +2891,58 @@ struct StdlibArtifactRegressionTests {
                 [30]
                 3
                 [6]
+
+                """)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testMutableFlowHierarchy(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1296_mutable_flow_hierarchy.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "MutableFlowHierarchy",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                true
+                false
+                10
+                true
+                12
+                [12]
+                0
+                true
+                [12]
+                true
+                true
+                13
+                state reset unsupported
+                0
+                true
+                [21]
+                []
+                false
+                false
+                null
 
                 """)
         }

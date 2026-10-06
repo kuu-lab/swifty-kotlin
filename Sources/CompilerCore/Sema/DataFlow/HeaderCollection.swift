@@ -1756,7 +1756,10 @@ extension DataFlowSemaPhase {
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, isInline: funDecl.isInline,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                relativeOwnerFQName: package,
+                currentPackageFQName: package,
+                imports: file.imports
             )
             let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
                 resolveTypeRef(

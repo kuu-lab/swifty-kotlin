@@ -15,8 +15,6 @@ internal external fun __kkJobCompleteExceptionally(job: Job, exception: Throwabl
 @KsSymbolName("kk_job_join")
 internal external suspend fun __kkJobJoin(job: Job)
 
-internal object CompletableJobKey : CoroutineContext.Key<Job>
-
 public interface CompletableJob : Job {
     @KsSymbolName("kk_job_complete_unit")
     public fun complete(): Boolean
@@ -32,7 +30,7 @@ internal class CompletableJobImpl(backingJob: Job, parent: Job?) : CompletableJo
     override val isCancelled: Boolean get() = job.isCancelled
 
     override val key: CoroutineContext.Key<*>
-        get() = CompletableJobKey
+        get() = Job.Key
 
     override fun complete(): Boolean = __kkJobComplete(job, Unit)
 

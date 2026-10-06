@@ -812,6 +812,13 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_job_is_runtime",
+            parameters: [RuntimeABIParameter(name: "receiver", type: .intptr)],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_dispatcher_default_method",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
