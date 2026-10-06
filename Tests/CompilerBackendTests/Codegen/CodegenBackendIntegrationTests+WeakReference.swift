@@ -82,5 +82,47 @@ struct CodegenBackendWeakReferenceTests {
             expected: "42\ntrue\nnull\n"
         )
     }
+
+    // KUU-1363: `WeakReference.value` is `get() = this.get()` in bundled
+    // kotlin/native/ref/Weak.kt. The frontend used to truncate the accessor's
+    // `= expr` body at the `get(` member call, so the compiled getter returned
+    // the WeakReference box itself instead of the referent. This test runs the
+    // public contract end to end: value/get return the referent before
+    // clear(), null after it, on both parameterized and star-projected
+    // references, and clearing one reference must not affect another.
+    // (Member calls on a WeakReference<*>-typed reference hit an unrelated
+    // kklib-route bound-check gap, so the star-projected handle only reads
+    // `value`; the shared box is cleared through `second`.)
+    @Test
+    func testCodegenWeakReferenceValueReturnsReferentThenNull() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.ref.WeakReference
+        import kotlin.native.ref.value
+
+        fun main() {
+            val first = WeakReference("x")
+            val second = WeakReference("y")
+            println(first.get())
+            println(first.value)
+            println(second.value)
+            first.clear()
+            println(first.get())
+            println(first.value)
+            println(second.get())
+            val star: WeakReference<*> = second
+            println(star.value)
+            second.clear()
+            println(star.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WeakReferenceValueReturnsReferent",
+            expected: "x\nx\ny\nnull\nnull\ny\ny\nnull\n"
+        )
+    }
 }
 #endif
