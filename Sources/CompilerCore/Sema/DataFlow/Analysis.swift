@@ -194,7 +194,8 @@ final class DataFlowAnalyzer {
             locals: locals,
             ast: ast,
             sema: sema,
-            interner: interner
+            interner: interner,
+            narrowingToNonNull: true
         ), isStable else {
             return base
         }
