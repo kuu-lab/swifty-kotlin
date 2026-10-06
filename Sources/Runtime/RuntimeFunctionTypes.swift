@@ -215,7 +215,8 @@ func runtimeInvokeSuspendFunction(
     case 2: result = kk_function_invoke_2(functionRaw, arguments[0], arguments[1], &thrown)
     case 3: result = kk_function_invoke_3(functionRaw, arguments[0], arguments[1], arguments[2], &thrown)
     case 4: result = kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], &thrown)
-    default: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
+    case 5: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
+    default: result = kk_function_invoke_6(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], &thrown)
     }
     if result != Int(bitPattern: kk_coroutine_suspended()) {
         callerState?.thrownException = thrown
@@ -377,6 +378,31 @@ public func kk_function_invoke_5(
     return function(arg1, arg2, arg3, arg4, arg5, outThrown)
 }
 
+@_cdecl("kk_function_invoke_6")
+public func kk_function_invoke_6(
+    _ functionRaw: Int,
+    _ arg1: Int,
+    _ arg2: Int,
+    _ arg3: Int,
+    _ arg4: Int,
+    _ arg5: Int,
+    _ arg6: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if runtimeFunctionNeedsDispatch(functionRaw) {
+        if let driven = runtimeInvokeSuspendBoxIfNeeded(
+            functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], outThrown: outThrown
+        ) {
+            return driven
+        }
+        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 6, outThrown: outThrown) else { return 0 }
+        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint6.self)
+        return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
+    }
+    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint6.self)
+    return function(arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
+}
+
 @_cdecl("kk_function_create_0")
 public func kk_function_create_0(
     _ bodyRaw: Int,
@@ -452,4 +478,13 @@ public func kk_function_create_5(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 5, outThrown: outThrown)
+}
+
+@_cdecl("kk_function_create_6")
+public func kk_function_create_6(
+    _ bodyRaw: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 6, outThrown: outThrown)
 }

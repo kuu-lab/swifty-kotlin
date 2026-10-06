@@ -143,6 +143,22 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_6",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "arg5", type: .intptr),
+                RuntimeABIParameter(name: "arg6", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_function_invoke_2",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
@@ -187,6 +203,21 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arg3", type: .intptr),
                 RuntimeABIParameter(name: "arg4", type: .intptr),
                 RuntimeABIParameter(name: "arg5", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Delegate"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_function_invoke_6",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "arg5", type: .intptr),
+                RuntimeABIParameter(name: "arg6", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -262,6 +293,16 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_function_create_5",
+            parameters: [
+                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Delegate"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_function_create_6",
             parameters: [
                 RuntimeABIParameter(name: "bodyRaw", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),

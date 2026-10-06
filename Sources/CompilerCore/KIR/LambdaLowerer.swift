@@ -116,6 +116,7 @@ final class LambdaLowerer {
             "kk_suspend_function_invoke_3",
             "kk_suspend_function_invoke_4",
             "kk_suspend_function_invoke_5",
+            "kk_suspend_function_invoke_6",
             "kk_suspend_coroutine",
             "kk_with_timeout",
             "kk_with_timeout_or_null_throwing",
@@ -745,6 +746,8 @@ final class LambdaLowerer {
             createCallee = interner.intern("kk_function_create_4")
         case 5:
             createCallee = interner.intern("kk_function_create_5")
+        case 6:
+            createCallee = interner.intern("kk_function_create_6")
         default:
             return nil
         }

@@ -1709,18 +1709,25 @@ extension CallTypeChecker {
                 interner.intern("flow"),
                 calleeName,
             ]
-            if isCollectionReceiver,
+            if isCollectionReceiver || isSequenceReceiver,
                let chosenCallee = sema.symbols.lookupAll(fqName: asFlowFQName).first(where: { candidate in
                    guard let symbol = sema.symbols.symbol(candidate),
                          symbol.kind == .function,
                          sema.symbols.isSourceBackedSymbol(candidate),
                          let signature = sema.symbols.functionSignature(for: candidate),
                          signature.parameterTypes.isEmpty,
-                         signature.receiverType != nil
+                         let declaredReceiver = signature.receiverType
                    else {
                        return false
                    }
-                   return true
+                   // Multiple bundled `asFlow` overloads exist (Iterable,
+                   // Sequence, Array, primitive arrays, function types); pick
+                   // the one whose declared receiver fits this call site.
+                   return extensionSyntheticFallbackReceiverMatches(
+                       callSiteReceiver: receiverType,
+                       declaredReceiver: declaredReceiver,
+                       sema: sema
+                   )
                })
             {
                 sema.bindings.bindCall(id, binding: CallBinding(
