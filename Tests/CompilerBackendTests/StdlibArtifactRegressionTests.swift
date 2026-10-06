@@ -232,6 +232,49 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-1133: Channel.kt's SendChannel extension must remain visible in all
+    /// ProducerScope builders, alongside the distinct Channel extension.
+    @Test(arguments: [false, true])
+    func testProducerScopeClosedForSend(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1133_producer_scope_closed_for_send.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ProducerScopeClosedForSend",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            channel open: false
+            channel closed: true
+            callbackFlow open: false,false,false
+            callbackFlow closed: true,true,true
+            channelFlow open: false,false,false
+            channelFlow closed: true,true,true
+            produce open: false,false,false
+            produce closed: true,true,true
+
+            """)
+        }
+    }
+
     /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
     @Test
     func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
