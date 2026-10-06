@@ -3055,7 +3055,9 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
             // completes the job exceptionally instead of being silently
             // discarded as a normal `0` result.
             if thrown != 0 {
-                _ = job.completeExceptionally(with: thrown)
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                )
             } else {
                 _ = job.complete(with: result)
             }
@@ -3112,7 +3114,9 @@ public func kk_kxmini_launch_lazy(_ entryPointRaw: Int, _ functionID: Int) -> In
                 job: callerJob
             ) { result, thrown in
                 if thrown != 0 {
-                    _ = job.completeExceptionally(with: thrown)
+                    runtimeCompleteLaunchJobExceptionally(
+                        job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                    )
                 } else {
                     _ = job.complete(with: result)
                 }
@@ -3166,7 +3170,9 @@ public func kk_kxmini_launch_lazy_with_cont(_ entryPointRaw: Int, _ continuation
                 job: callerJob
             ) { result, thrown in
                 if thrown != 0 {
-                    _ = job.completeExceptionally(with: thrown)
+                    runtimeCompleteLaunchJobExceptionally(
+                        job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                    )
                 } else {
                     _ = job.complete(with: result)
                 }
@@ -3253,7 +3259,9 @@ private func runtimeLaunchUndispatched(entryPointRaw: Int, continuation: Int) ->
         job: callerJob
     ) { result, thrown in
         if thrown != 0 {
-            _ = job.completeExceptionally(with: thrown)
+            runtimeCompleteLaunchJobExceptionally(
+                job, with: thrown, parentJob: callerJob, parentScope: callerScope
+            )
         } else {
             _ = job.complete(with: result)
         }
@@ -3413,7 +3421,9 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
             job: callerJob
         ) { result, thrown in
             if thrown != 0 {
-                _ = job.completeExceptionally(with: thrown)
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: callerJob, parentScope: callerScope
+                )
             } else {
                 _ = job.complete(with: result)
             }
@@ -3714,7 +3724,9 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
         RuntimeCoroutineScope.current = nil
         RuntimeJobHandle.current = nil
         if thrown != 0 {
-            _ = job.completeExceptionally(with: thrown)
+            runtimeCompleteLaunchJobExceptionally(
+                job, with: thrown, parentJob: callerJob, parentScope: callerScope
+            )
         } else {
             _ = job.complete(with: result)
         }
@@ -3776,7 +3788,9 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
         RuntimeCoroutineScope.current = nil
         RuntimeJobHandle.current = nil
         if thrown != 0 {
-            _ = job.completeExceptionally(with: thrown)
+            runtimeCompleteLaunchJobExceptionally(
+                job, with: thrown, parentJob: callerJob, parentScope: callerScope
+            )
         } else {
             _ = job.complete(with: result)
         }
@@ -3821,6 +3835,152 @@ public func kk_exception_handler_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+/// kotlinx `handleCoroutineException` for a failed fire-and-forget `launch`
+/// coroutine whose failure no parent absorbed (unparented job or supervisor
+/// parent). A CoroutineExceptionHandler installed in the coroutine's context
+/// consumes the failure. With no handler, mirror the JVM default path — the
+/// thread's uncaughtException handler — which writes
+/// `Exception in thread "<name>" <throwable.toString()>` plus stack frames to
+/// stderr and lets the process continue (JVM exits 0 for supervisor/absent
+/// parents; only exceptions propagating out of `main` exit non-zero, and that
+/// case reaches the KSWIFTK-LINK-0003 panic instead of this helper).
+///
+/// KUU-1422: previously this fallback just printed `CoroutineExceptionHandler:
+/// <message>`, which looked like routine handled output and swallowed the
+/// exception type and stack — uncaught failures were easy to miss entirely.
+func runtimeHandleUncaughtCoroutineException(
+    context: RuntimeCoroutineContext?,
+    exception exceptionRaw: Int
+) {
+    // A thrown CancellationException is cancellation, not a reportable failure
+    // (kotlinx filters it before handleCoroutineException as well).
+    guard exceptionRaw != 0, exceptionRaw != runtimeNullSentinelInt,
+          !runtimeCoroutineIsCancellationResult(exceptionRaw)
+    else { return }
+    if let context, let handler = context.exceptionHandler {
+        handler.handler(runtimeRegisterObject(context), exceptionRaw)
+        return
+    }
+    let threadName: String
+    if Thread.isMainThread {
+        threadName = "main"
+    } else if let name = Thread.current.name, !name.isEmpty {
+        threadName = name
+    } else {
+        threadName = "coroutine"
+    }
+    var lines: [String] = []
+    runtimeUncaughtThrowableLines(
+        from: exceptionRaw, prefix: nil, into: &lines, depth: 0
+    )
+    guard let header = lines.first else {
+        FileHandle.standardError.write(
+            Data("Exception in thread \"\(threadName)\" kotlin.Throwable\n".utf8)
+        )
+        return
+    }
+    var text = "Exception in thread \"\(threadName)\" \(header)\n"
+    for line in lines.dropFirst() {
+        text += line
+        text += "\n"
+    }
+    FileHandle.standardError.write(Data(text.utf8))
+}
+
+/// Append a throwable's header + saved native frames, then its `Suppressed:`
+/// and `Caused by:` chains (same order as the Kotlin-side
+/// `collectThrowableTraceLines` used by `Throwable.stackTraceToString`), to
+/// `lines`. `depth` bounds recursion against corrupt cause cycles.
+private func runtimeUncaughtThrowableLines(
+    from throwableRaw: Int,
+    prefix: String?,
+    into lines: inout [String],
+    depth: Int
+) {
+    guard depth < 16 else { return }
+    var frames = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
+    if let prefix, !frames.isEmpty {
+        frames[0] = prefix + frames[0]
+    }
+    lines.append(contentsOf: frames)
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
+    else { return }
+    for suppressed in throwable.suppressed {
+        runtimeUncaughtThrowableLines(
+            from: suppressed, prefix: "Suppressed: ", into: &lines, depth: depth + 1
+        )
+    }
+    if throwable.cause != 0, throwable.cause != runtimeNullSentinelInt {
+        runtimeUncaughtThrowableLines(
+            from: throwable.cause, prefix: "Caused by: ", into: &lines, depth: depth + 1
+        )
+    }
+}
+
+/// Whether `job` absorbs a child's failure — kotlinx's `childCancelled`
+/// returning true. Supervisor markers decline (the child reports instead).
+/// Every other job absorbs iff `handlesException`: JobSupport's default is
+/// true (coroutine bodies — runBlocking, launch, coroutineScope), while a
+/// `JobImpl` computes it by walking ancestors until a job that handles, so a
+/// chain bottoming out at a bare `Job()`/`NonCancellable` root does NOT
+/// handle the failure and the launch reports it (matching the JVM's
+/// `Exception in thread ...` for `CoroutineScope(Job()).launch { throw }`
+/// and `GlobalScope.launch { throw }`, both of which report there).
+///
+/// The KSwiftK analogs of "a coroutine/body backs this job": a
+/// scope-boundary job installed by a builder (`propagatesFailureToParent ==
+/// false` — its scope surfaces failures through `waitForChildren`), or a job
+/// bound to a suspend-entry-loop continuation (`continuationState != nil` —
+/// the runBlocking driver or a launch/withContext body whose terminal state
+/// is read out by the driving code).
+private func runtimeJobAbsorbsChildFailure(_ job: RuntimeJobHandle) -> Bool {
+    guard !job.isSupervisorMarker else { return false }
+    var current: RuntimeJobHandle? = job
+    var depth = 0
+    while let node = current, depth < 64 {
+        if !node.propagatesFailureToParent || node.continuationState != nil {
+            return true
+        }
+        current = node.parentSnapshot()
+        depth += 1
+    }
+    return current != nil
+}
+
+/// Whether `scope` absorbs a registered child's failure. Only a jobful
+/// scope can absorb (through `runtimeJobAbsorbsChildFailure`); a jobless
+/// scope — a fresh handle minted for `GlobalScope.launch`, a
+/// `CoroutineScope(context)` without a Job — has no Job parent for the
+/// child, which makes the launch a root coroutine on the JVM as well.
+private func runtimeScopeAbsorbsChildFailure(_ scope: RuntimeCoroutineScope) -> Bool {
+    guard let job = scope.job else { return false }
+    return runtimeJobAbsorbsChildFailure(job)
+}
+
+/// Complete a fire-and-forget `launch` job exceptionally, then emit the
+/// JVM-style uncaught report when no registered parent absorbed the failure.
+/// `parentJob`/`parentScope` are the job and scope linkages the launch
+/// registered into; a failure is absorbed when a non-supervisor parent exists
+/// on either axis (it re-surfaces through that parent's wait instead).
+private func runtimeCompleteLaunchJobExceptionally(
+    _ job: RuntimeJobHandle,
+    with exception: Int,
+    parentJob: RuntimeJobHandle?,
+    parentScope: RuntimeCoroutineScope?
+) {
+    let absorbedByJob = parentJob.map(runtimeJobAbsorbsChildFailure) ?? false
+    let absorbedByScope = parentScope.map(runtimeScopeAbsorbsChildFailure) ?? false
+    if !absorbedByJob, !absorbedByScope {
+        // Report BEFORE completing the job: completion wakes joiners
+        // synchronously, and a joiner (or a scope's waitForChildren) may
+        // resume and let the process exit before a post-completion report
+        // is ever written.
+        runtimeHandleUncaughtCoroutineException(context: parentScope?.context, exception: exception)
+    }
+    _ = job.completeExceptionally(with: exception)
 }
 
 /// Launch a coroutine with a CoroutineExceptionHandler.
@@ -3897,7 +4057,9 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
                     handler.handler(0, thrownException)
                     _ = job.complete(with: 0)
                 } else {
-                    _ = job.completeExceptionally(with: thrownException)
+                    runtimeCompleteLaunchJobExceptionally(
+                        job, with: thrownException, parentJob: callerJob, parentScope: callerScope
+                    )
                 }
                 return
             }
@@ -4368,6 +4530,10 @@ private func runtimeScopeLaunch(
     let parent = contextParent === runtimeNonCancellableJob ? nil : contextParent
     let childScope = RuntimeCoroutineScope(context: context)
     let childHandle = runtimeRegisterObject(childScope)
+    // Whether the child is additionally registered into `scope` for
+    // waitForChildren tracking — a scope that observes the failure can absorb
+    // it even when the declared parent (`parent`) is nil or a supervisor.
+    let registerWithScope = additionalContext.jobHandleRaw == 0 || (parent != nil && parent === scope.job)
     let finish: @Sendable (RuntimeAsyncTask, Int, Int) -> Void = { task, _, thrown in
         let priorChildFailure = childScope.childFailureSnapshot()
         if thrown != 0 { childScope.cancel(message: "launch failed", cause: thrown) }
@@ -4378,18 +4544,20 @@ private func runtimeScopeLaunch(
             : (childFailure != 0 && (thrown == 0 || runtimeCoroutineIsCancellationResult(thrown))
                 ? childFailure : thrown)
         if failure != 0 && !runtimeCoroutineIsCancellationResult(failure) {
-            task.completeExceptionally(with: failure)
-            if let parent, !parent.isSupervisorMarker {
+            if let parent, runtimeJobAbsorbsChildFailure(parent) {
                 _ = parent.cancel(cause: failure)
-            } else {
-                let contextHandle = runtimeRegisterObject(context)
-                if let handler = context.exceptionHandler {
-                    handler.handler(contextHandle, failure)
-                } else {
-                    // Use the existing default reporter for an uncaught root failure.
-                    kk_exception_handler_invoke(kk_exception_handler_new(), contextHandle, failure)
-                }
+            } else if !(registerWithScope && runtimeScopeAbsorbsChildFailure(scope)) {
+                // KUU-1422: no parent absorbed the failure (unparented or
+                // supervisor). kotlinx's handleCoroutineException: an explicit
+                // context CoroutineExceptionHandler consumes it, otherwise the
+                // failure gets the JVM-style uncaught report instead of the
+                // quiet default-handler print that made it look handled.
+                // Report before completing the task — completion wakes
+                // joiners synchronously, and they must never resume past an
+                // unflushed report.
+                runtimeHandleUncaughtCoroutineException(context: context, exception: failure)
             }
+            task.completeExceptionally(with: failure)
         } else if failure != 0 {
             task.cancel(cause: failure)
             task.complete(with: 0)
@@ -4399,7 +4567,7 @@ private func runtimeScopeLaunch(
     }
     return runtimeScopeAsync(
         scope: scope, context: context, start: start,
-        registerWithScope: additionalContext.jobHandleRaw == 0 || (parent != nil && parent === scope.job),
+        registerWithScope: registerWithScope,
         prepare: { task, handle in
             // The receiver's context contains the child Job, so nested builders
             // inherit the child's name/dispatcher and attach to the child.
@@ -4504,7 +4672,9 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
             job: nil
         ) { result, thrown in
             if thrown != 0 {
-                _ = job.completeExceptionally(with: thrown)
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: scope.job, parentScope: scope
+                )
             } else {
                 _ = job.complete(with: result)
             }
@@ -4552,7 +4722,9 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
             job: nil
         ) { result, thrown in
             if thrown != 0 {
-                _ = job.completeExceptionally(with: thrown)
+                runtimeCompleteLaunchJobExceptionally(
+                    job, with: thrown, parentJob: scope.job, parentScope: scope
+                )
             } else {
                 _ = job.complete(with: result)
             }
