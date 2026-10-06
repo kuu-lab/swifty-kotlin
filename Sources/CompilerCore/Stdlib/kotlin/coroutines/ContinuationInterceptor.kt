@@ -13,6 +13,7 @@ import kotlin.internal.KsSymbolName
 internal external fun __isNativeDispatcher(element: CoroutineContext.Element): Boolean
 
 public interface ContinuationInterceptor : CoroutineContext.Element {
+    @KsSymbolName("kk_continuation_interceptor_key")
     public companion object Key : CoroutineContext.Key<ContinuationInterceptor>
 
     public fun <T> interceptContinuation(continuation: Continuation<T>): Continuation<T>
