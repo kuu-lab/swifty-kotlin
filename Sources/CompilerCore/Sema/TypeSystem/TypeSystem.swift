@@ -171,6 +171,8 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error:
             false
+        case .nullableUnit:
+            false
         case .unit:
             true
         case let .nothing(n):
@@ -201,6 +203,8 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error, .unit:
             .nonNull
+        case .nullableUnit:
+            .nullable
         case let .nothing(n), let .any(n), let .stringStruct(n), let .primitive(_, n):
             n
         case let .classType(ct):
@@ -236,8 +240,11 @@ public final class TypeSystem {
 
     public func withNullability(_ nullability: Nullability, for type: TypeID) -> TypeID {
         switch kind(of: type) {
-        case .error, .unit:
+        case .error:
             return type
+        case .unit, .nullableUnit:
+            // Unit has two states; platform nullability is conservatively nullable.
+            return nullability == .nonNull ? unitType : make(.nullableUnit)
         case let .intersection(parts):
             // For intersection types, apply nullability to each part
             if nullability == .nonNull {

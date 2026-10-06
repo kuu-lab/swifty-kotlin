@@ -402,7 +402,7 @@ extension CallTypeChecker {
                      let (.any(lNull), .any(rNull)),
                      let (.stringStruct(lNull), .stringStruct(rNull)):
                     return lNull == rNull
-                case (.error, .error), (.unit, .unit):
+                case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
                     return true
                 default:
                     return false
@@ -597,7 +597,7 @@ extension CallTypeChecker {
                      let (.any(lNullability), .any(rNullability)),
                      let (.stringStruct(lNullability), .stringStruct(rNullability)):
                     return lNullability == rNullability
-                case (.error, .error), (.unit, .unit):
+                case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
                     return true
                 default:
                     return false

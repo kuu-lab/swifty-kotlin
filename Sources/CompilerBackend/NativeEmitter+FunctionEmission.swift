@@ -1270,7 +1270,7 @@ extension NativeEmitter {
                 guard let symbol = symbols?.symbol(classType.classSymbol) else { return false }
                 return symbol.kind == .enumClass
                     || symbol.fqName.map(interner.resolve) == ["kotlin", "text", "Charset"]
-            case .unit:
+            case .unit, .nullableUnit:
                 // Safe calls returning Unit use the Int64.min sentinel for
                 // null, while the valid Unit value is raw zero.
                 return true

@@ -161,6 +161,8 @@ public struct KClassType: Hashable, Sendable {
 public enum TypeKind: Hashable {
     case error
     case unit
+    /// A value-bearing Unit slot that can also contain the null sentinel.
+    case nullableUnit
     case nothing(Nullability)
     case any(Nullability)
 

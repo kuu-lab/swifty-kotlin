@@ -657,6 +657,7 @@ public enum Nullability { case nonNull, nullable }
 public enum TypeKind {
     case error
     case unit
+    case nullableUnit // Unit? carries a value or the null sentinel
     case nothing
     case any(Nullability)
 
