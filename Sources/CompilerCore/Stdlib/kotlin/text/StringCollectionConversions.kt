@@ -55,6 +55,33 @@ public fun String.toCharArray(startIndex: Int = 0, endIndex: Int = this.length):
     return result
 }
 
+// KUU-1397: upstream declares the destination-copying overload on String
+// (kotlin.text, since 2.0 — there is no CharSequence.toCharArray in the
+// Kotlin 2.3.10 API surface). Bounds handling mirrors
+// AbstractList.checkBoundsIndexes like Kotlin/Native: out-of-range indices
+// throw IndexOutOfBoundsException, startIndex > endIndex throws
+// IllegalArgumentException, and a second check covers the destination fit.
+@SinceKotlin("2.0")
+@IgnorableReturnValue
+public fun String.toCharArray(
+    destination: CharArray,
+    destinationOffset: Int = 0,
+    startIndex: Int = 0,
+    endIndex: Int = this.length
+): CharArray {
+    if (startIndex < 0 || endIndex > this.length) throw IndexOutOfBoundsException()
+    if (startIndex > endIndex) throw IllegalArgumentException()
+    if (destinationOffset < 0 || destinationOffset + (endIndex - startIndex) > destination.size) {
+        throw IndexOutOfBoundsException()
+    }
+    var index = startIndex
+    while (index < endIndex) {
+        destination[destinationOffset + index - startIndex] = this[index]
+        index++
+    }
+    return destination
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun CharSequence.toTypedArray(): Array<Char> {
     val length = __kk_string_struct_get_length(this)
