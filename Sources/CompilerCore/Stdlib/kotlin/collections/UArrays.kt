@@ -88,6 +88,133 @@ public fun UIntArray.asIntArray(): IntArray = this.__asIntArrayView()
 @ExperimentalUnsignedTypes
 public fun ULongArray.asLongArray(): LongArray = this.__asLongArrayView()
 
+// KUU-1421: copy conversions between signed and unsigned primitive arrays.
+// Unlike the as*Array views above, these return fresh storage. Elements are
+// converted one by one (the same-width toU*/to* reinterpretation), matching
+// upstream _UArrays.kt semantics: byteArrayOf(1, -1).toUByteArray() -> [1, 255].
+
+@ExperimentalUnsignedTypes
+public fun ByteArray.toUByteArray(): UByteArray {
+    val result = UByteArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toUByte()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun ShortArray.toUShortArray(): UShortArray {
+    val result = UShortArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toUShort()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun LongArray.toULongArray(): ULongArray {
+    val result = ULongArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toULong()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.toByteArray(): ByteArray {
+    val result = ByteArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toByte()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.toShortArray(): ShortArray {
+    val result = ShortArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toShort()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun UIntArray.toIntArray(): IntArray {
+    val result = IntArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toInt()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.toLongArray(): LongArray {
+    val result = LongArray(this.size)
+    var i = 0
+    while (i < this.size) {
+        result[i] = this[i].toLong()
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.toUByteArray(): UByteArray = copyOf()
+
+@ExperimentalUnsignedTypes
+public fun UShortArray.toUShortArray(): UShortArray = copyOf()
+
+@ExperimentalUnsignedTypes
+public fun ULongArray.toULongArray(): ULongArray = copyOf()
+
+@ExperimentalUnsignedTypes
+public fun Array<out UByte>.toUByteArray(): UByteArray {
+    val size = this.size
+    val result = UByteArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun Array<out UShort>.toUShortArray(): UShortArray {
+    val size = this.size
+    val result = UShortArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
+@ExperimentalUnsignedTypes
+public fun Array<out ULong>.toULongArray(): ULongArray {
+    val size = this.size
+    val result = ULongArray(size)
+    var i = 0
+    while (i < size) {
+        result[i] = this[i]
+        i++
+    }
+    return result
+}
+
 @ExperimentalUnsignedTypes
 public val UByteArray.size: Int get() = __kkUByteArraySize(this)
 @ExperimentalUnsignedTypes
