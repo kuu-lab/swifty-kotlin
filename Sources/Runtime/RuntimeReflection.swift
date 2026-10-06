@@ -57,10 +57,6 @@ private extension RuntimeKClassBox {
     }
 }
 
-func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
-    "class \(box.reflectionQualifiedName)"
-}
-
 private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> String? {
     switch simpleName {
     case "Array":
