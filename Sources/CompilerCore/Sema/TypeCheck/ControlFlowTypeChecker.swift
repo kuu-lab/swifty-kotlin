@@ -684,7 +684,9 @@ final class ControlFlowTypeChecker {
         if let elseExpr {
             let elseCtx = ctx.copying(flowState: branch.falseState)
             let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-            resolvedType = sema.types.lub([thenType, elseType])
+            resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
+                expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
+            ))
             // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
             // never completes normally, so it vacuously satisfies initialization:
             // control only reaches the code after the `if` through whichever
