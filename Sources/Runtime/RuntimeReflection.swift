@@ -341,7 +341,9 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
 ///   - nameRaw: Opaque pointer to the KKString for the function name.
 ///   - arity: Number of parameters (excluding receiver for member functions).
 ///   - returnTypeRaw: Opaque pointer to the KKString for the return type (0 if unknown).
-///   - isSuspend: 1 if the function is a suspend function, 0 otherwise.
+///   - flags: Packed modifier flags (bit0=suspend, bit1=inline, bit2=operator,
+///            bit3=infix, bit4=external). Legacy callers pass 0/1 for suspend
+///            which is compatible with the packed layout.
 ///   - fnPtr: C function pointer integer for direct dispatch (0 if unavailable).
 ///   - closureRaw: Closure environment pointer (0 for top-level functions).
 @_cdecl("__kk_kfunction_create")
@@ -349,7 +351,7 @@ public func __kk_kfunction_create(
     _ nameRaw: Int,
     _ arity: Int,
     _ returnTypeRaw: Int,
-    _ isSuspend: Int,
+    _ flags: Int,
     _ fnPtr: Int,
     _ closureRaw: Int
 ) -> Int {
@@ -357,7 +359,7 @@ public func __kk_kfunction_create(
         nameRaw: nameRaw,
         arity: arity,
         returnTypeRaw: returnTypeRaw,
-        isSuspend: isSuspend != 0,
+        flags: flags,
         fnPtr: fnPtr,
         closureRaw: closureRaw
     )
@@ -370,7 +372,8 @@ public func __kk_kfunction_create(
 ///   - nameRaw: KKString for the function name.
 ///   - arity: Number of value parameters.
 ///   - returnTypeRaw: KKString for the return type.
-///   - isSuspend: 1 if suspend function.
+///   - flags: Packed modifier flags (see `__kk_kfunction_create`; bit0=suspend,
+///            bit1=inline, bit2=operator, bit3=infix, bit4=external).
 ///   - fnPtr: C function pointer.
 ///   - closureRaw: Closure environment pointer.
 ///   - paramListRaw: Runtime list of KParameter handles (0 for empty).
@@ -380,7 +383,7 @@ public func __kk_kfunction_create_full(
     _ nameRaw: Int,
     _ arity: Int,
     _ returnTypeRaw: Int,
-    _ isSuspend: Int,
+    _ flags: Int,
     _ fnPtr: Int,
     _ closureRaw: Int,
     _ paramListRaw: Int,
@@ -402,7 +405,7 @@ public func __kk_kfunction_create_full(
         nameRaw: nameRaw,
         arity: arity,
         returnTypeRaw: returnTypeRaw,
-        isSuspend: isSuspend != 0,
+        flags: flags,
         fnPtr: fnPtr,
         closureRaw: closureRaw,
         parameterRaws: paramRaws,
@@ -412,12 +415,48 @@ public func __kk_kfunction_create_full(
     return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
+/// Resolves packed modifier flags for a handle that is either a
+/// `RuntimeKFunctionBox` (class member reflection) or a callable-reference
+/// object tagged via `kk_callable_ref_tag_kfunction` (KUU-1357).
+private func runtimeKFunctionFlags(for raw: Int) -> Int {
+    if let box = runtimeKFunctionBox(from: raw) {
+        return box.flags
+    }
+    var flags = 0
+    runtimeStorage.withDelegateLock { state in
+        if let metadata = state.callableRefMetadataByValue[raw], metadata.kind == .function {
+            flags = metadata.modifierFlags
+            if metadata.isSuspend {
+                flags |= RuntimeKFunctionFlags.suspend
+            }
+        }
+    }
+    return flags
+}
+
 @_cdecl("__kk_kfunction_is_suspend")
 public func __kk_kfunction_is_suspend(_ kfunctionRaw: Int) -> Int {
-    guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        return 0
-    }
-    return box.isSuspend ? 1 : 0
+    (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.suspend) != 0 ? 1 : 0
+}
+
+@_cdecl("__kk_kfunction_is_inline")
+public func __kk_kfunction_is_inline(_ kfunctionRaw: Int) -> Int {
+    (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.`inline`) != 0 ? 1 : 0
+}
+
+@_cdecl("__kk_kfunction_is_operator")
+public func __kk_kfunction_is_operator(_ kfunctionRaw: Int) -> Int {
+    (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.`operator`) != 0 ? 1 : 0
+}
+
+@_cdecl("__kk_kfunction_is_infix")
+public func __kk_kfunction_is_infix(_ kfunctionRaw: Int) -> Int {
+    (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.`infix`) != 0 ? 1 : 0
+}
+
+@_cdecl("__kk_kfunction_is_external")
+public func __kk_kfunction_is_external(_ kfunctionRaw: Int) -> Int {
+    (runtimeKFunctionFlags(for: kfunctionRaw) & RuntimeKFunctionFlags.`external`) != 0 ? 1 : 0
 }
 
 /// Returns the list of all KParameter handles for this function.

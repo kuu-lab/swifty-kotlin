@@ -121,7 +121,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
                 RuntimeABIParameter(name: "returnTypeRaw", type: .intptr),
-                RuntimeABIParameter(name: "isSuspend", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
@@ -135,7 +135,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
                 RuntimeABIParameter(name: "returnTypeRaw", type: .intptr),
-                RuntimeABIParameter(name: "isSuspend", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "paramListRaw", type: .intptr),
@@ -165,6 +165,44 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_kfunction_is_suspend",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        // KUU-1357: KFunction modifier flags packed in the create/tag `flags`
+        // argument (bit1=inline, bit2=operator, bit3=infix, bit4=external).
+        RuntimeABIFunctionSpec(
+            name: "__kk_kfunction_is_inline",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kfunction_is_operator",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kfunction_is_infix",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kfunction_is_external",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -297,7 +335,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "name", type: .intptr),
                 RuntimeABIParameter(name: "returnType", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
-                RuntimeABIParameter(name: "isSuspend", type: .intptr),
+                RuntimeABIParameter(name: "flags", type: .intptr),
             ],
             returnType: .intptr,
             section: "Reflection",

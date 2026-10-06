@@ -2341,11 +2341,20 @@ final class LambdaLowerer {
             "kk_callable_ref_tag_kproperty"
         }
 
-        // For function refs, emit the isSuspend flag after the metadata fields.
+        // For function refs, emit the packed modifier flags after the
+        // metadata fields: bit0=suspend, bit1=inline, bit2=operator,
+        // bit3=infix, bit4=external (KUU-1357; matches RuntimeKFunctionFlags).
         var tagArguments: [KIRExprID] = [callableExpr, nameExpr, returnTypeExpr, arityExpr]
         if refKind == .functionRef {
-            let isSuspendExpr = arena.appendExpr(.intLiteral(isSuspendFlag), type: sema.types.intType)
-            instructions.append(.constValue(result: isSuspendExpr, value: .intLiteral(isSuspendFlag)))
+            var flags = isSuspendFlag
+            if let targetSymbol, let target = sema.symbols.symbol(targetSymbol) {
+                if target.flags.contains(.inlineFunction) { flags |= 1 << 1 }
+                if target.flags.contains(.operatorFunction) { flags |= 1 << 2 }
+                if target.flags.contains(.infixFunction) { flags |= 1 << 3 }
+                if sema.symbols.externalLinkName(for: targetSymbol) != nil { flags |= 1 << 4 }
+            }
+            let isSuspendExpr = arena.appendExpr(.intLiteral(flags), type: sema.types.intType)
+            instructions.append(.constValue(result: isSuspendExpr, value: .intLiteral(flags)))
             tagArguments.append(isSuspendExpr)
         }
 
