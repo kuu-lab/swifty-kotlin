@@ -2532,12 +2532,20 @@ final class CallTypeChecker {
                 if let expectedType = expectedCollectionType(withArity: 2) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
+                // Spread arguments contribute their array element (Pair<K, V>),
+                // not the array itself, to the factory's key/value inference.
+                let pairTypes = zip(args, argTypes).map { argument, type in
+                    argument.isSpread
+                        ? (driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
+                            ?? sema.types.errorType)
+                        : type
+                }
                 let keyType: TypeID
                 let valueType: TypeID
                 if explicitTypeArgs.count == 2 {
                     keyType = explicitTypeArgs[0]
                     valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: argTypes, ctx: ctx) {
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: pairTypes, ctx: ctx) {
                     keyType = inferred.keyType
                     valueType = inferred.valueType
                 } else {
