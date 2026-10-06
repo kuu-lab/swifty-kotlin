@@ -5,6 +5,7 @@ final class LocalVariableStabilityAnalyzer {
     private var declarations: Set<ExprID> = []
     private var reassigned: Set<ExprID> = []
     var inPlaceLambdaScopes: Set<ExprID> = []
+    private var mutationValues: [ExprID: [ExprID: (scopes: [ExprID], value: ExprID?)]] = [:]
     private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
     /// Writes in the local function currently being checked are direct writes.
     /// Other deferred scopes still make the captured variable unstable.
@@ -17,21 +18,45 @@ final class LocalVariableStabilityAnalyzer {
     private var declarationDepths: [ExprID: Int] = [:]
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
-        (mutationScopes[declaration] ?? []).contains { scopes in
-            // A write directly in this body is sequenced with its reads,
-            // even when the local function itself is nested in a closure.
-            if let currentLocalFunctionScope, scopes.last == currentLocalFunctionScope { return false }
-            return scopes.contains { scope in
-                if scope == currentLocalFunctionScope { return false }
-                if inPlaceLambdaScopes.contains(scope) { return false }
-                guard let site = lambdaCalls[scope],
-                      let binding = sema.bindings.callBinding(for: site.call),
-                      let parameterIndex = binding.parameterMapping[site.argument],
-                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
-                      signature.valueParameterSymbols.indices.contains(parameterIndex)
-                else { return true }
-                return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
-            }
+        (mutationScopes[declaration] ?? []).contains { isDeferredMutation($0, sema: sema) }
+    }
+
+    /// A captured write cannot invalidate a narrowing if every deferred value
+    /// is already a subtype of the narrowed type. Unknown values stay unsafe.
+    func closureWritesPreserve(
+        _ declaration: ExprID, type: TypeID, ast: ASTModule,
+        sema: SemaModule, localSymbols: Set<SymbolID>
+    ) -> Bool {
+        (mutationValues[declaration] ?? [:]).allSatisfy { _, mutation in
+            guard isDeferredMutation(mutation.scopes, sema: sema) else { return true }
+            guard let value = mutation.value else { return false }
+            // Lambda inference may retain declaration-time flow facts for a
+            // mutable capture, including immutable aliases derived from it. Local
+            // reads therefore cannot yet prove a deferred stored value.
+            guard CaptureAnalyzer().collectCapturedOuterSymbols(
+                in: value, ast: ast, sema: sema, outerSymbols: localSymbols,
+                skipNestedClosures: false
+            ).isEmpty else { return false }
+            guard let valueType = sema.bindings.exprType(for: value),
+                  valueType != sema.types.errorType else { return false }
+            return sema.types.isSubtype(valueType, type)
+        }
+    }
+
+    private func isDeferredMutation(_ scopes: [ExprID], sema: SemaModule) -> Bool {
+        // A write directly in this body is sequenced with its reads,
+        // even when the local function itself is nested in a closure.
+        if let currentLocalFunctionScope, scopes.last == currentLocalFunctionScope { return false }
+        return scopes.contains { scope in
+            if scope == currentLocalFunctionScope { return false }
+            if inPlaceLambdaScopes.contains(scope) { return false }
+            guard let site = lambdaCalls[scope],
+                  let binding = sema.bindings.callBinding(for: site.call),
+                  let parameterIndex = binding.parameterMapping[site.argument],
+                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                  signature.valueParameterSymbols.indices.contains(parameterIndex)
+            else { return true }
+            return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
         }
     }
 
@@ -116,7 +141,14 @@ final class LocalVariableStabilityAnalyzer {
                     flowBarrierReassignments[loop, default: []].insert(declaration)
                 }
                 if let depth = declarationDepths[declaration], depth < closureScopes.count {
-                    mutationScopes[declaration, default: []].insert(Array(closureScopes.dropFirst(depth)))
+                    let scopes = Array(closureScopes.dropFirst(depth))
+                    mutationScopes[declaration, default: []].insert(scopes)
+                    // Compound assignments do not necessarily store the RHS type.
+                    if case .localAssign = expression {
+                        mutationValues[declaration, default: [:]][id] = (scopes, value)
+                    } else {
+                        mutationValues[declaration, default: [:]][id] = (scopes, nil)
+                    }
                 }
             }
             children([value])

@@ -339,7 +339,7 @@ final class DataFlowAnalyzer {
             return nil
         }
         guard let (symbol, currentType, isStable) = resolveStableReference(
-            variableID, locals: locals, ast: ast, sema: sema, interner: interner
+            variableID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingToNonNull: true
         ), isStable else {
             return nil
         }
@@ -397,7 +397,7 @@ final class DataFlowAnalyzer {
         locals: LocalBindings, ast: ASTModule, sema: SemaModule, interner: StringInterner
     ) -> ConditionBranch {
         guard let (symbol, currentType, isStable) = resolveStableReference(
-            exprID, locals: locals, ast: ast, sema: sema, interner: interner
+            exprID, locals: locals, ast: ast, sema: sema, interner: interner, narrowingType: rawTargetType
         ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
         }
