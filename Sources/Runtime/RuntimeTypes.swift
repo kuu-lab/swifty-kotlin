@@ -553,6 +553,9 @@ struct RuntimeCallableRefMetadata {
     let arity: Int
     let kind: RuntimeCallableRefKind
     let isSuspend: Bool
+    /// Packed KFunction modifier flags (bit1=inline, bit2=operator,
+    /// bit3=infix, bit4=external; bit0 suspend lives in `isSuspend`).
+    var modifierFlags: Int = 0
     var invoker: Int = 0
     var environment: Int = 0
     var parameters: Int = 0
@@ -2678,7 +2681,11 @@ struct RuntimeKClassMetadataEntry {
     var displayName: String? = nil
     let qualifiedName: String
     let simpleName: String
-    let supertypeName: String?
+    /// Fully-qualified display names of every direct supertype (class first,
+    /// then interfaces in declaration order), e.g. "kotlin.Comparable<kotlin.Int>".
+    /// The compiler joins them with '|' in `supertypeNameRaw`; the runtime
+    /// splits them back into `KType` elements for `KClass.supertypes`.
+    let supertypeDisplayNames: [String]
     let isDataClass: Bool
     let isSealedClass: Bool
     let isValueClass: Bool
@@ -2863,6 +2870,64 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
 
 let runtimeKMemberRegistry = RuntimeKMemberRegistry()
 
+/// Global registry mapping a class's type token to its companion object's
+/// type token and name-hint string raw handle, populated by
+/// `__kk_kclass_register_companion` (KUU-1357).
+final class RuntimeKCompanionRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [Int: (token: Int, nameRaw: Int)] = [:]
+
+    func register(typeToken: Int, companionToken: Int, companionNameRaw: Int) {
+        guard companionToken != 0 else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        entries[typeToken] = (companionToken, companionNameRaw)
+    }
+
+    func companion(for typeToken: Int) -> (token: Int, nameRaw: Int)? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[typeToken]
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.removeAll()
+    }
+}
+
+let runtimeKCompanionRegistry = RuntimeKCompanionRegistry()
+
+/// Global registry mapping a class's type token to its nested classes'
+/// (typeToken, nameRaw) pairs, populated by `__kk_kclass_register_nested_class`
+/// (KUU-1357 / MIGRATION-REFLECT-002).
+final class RuntimeKNestedClassRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [Int: [(token: Int, nameRaw: Int)]] = [:]
+
+    func register(typeToken: Int, nestedToken: Int, nestedNameRaw: Int) {
+        guard nestedToken != 0 else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        entries[typeToken, default: []].append((nestedToken, nestedNameRaw))
+    }
+
+    func nestedClasses(for typeToken: Int) -> [(token: Int, nameRaw: Int)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[typeToken] ?? []
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.removeAll()
+    }
+}
+
+let runtimeKNestedClassRegistry = RuntimeKNestedClassRegistry()
+
 /// Runtime box for `KClass<T>` metadata references produced by `T::class`.
 /// Stores the type token and an optional name-hint pointer so that
 /// `.simpleName` / `.qualifiedName` can be resolved at runtime.
@@ -2959,6 +3024,16 @@ final class RuntimeKParameterBox {
     }
 }
 
+/// Packed modifier flags carried by KFunction reflection handles.
+/// bit0=suspend, bit1=inline, bit2=operator, bit3=infix, bit4=external.
+enum RuntimeKFunctionFlags {
+    static let suspend: Int = 1 << 0
+    static let `inline`: Int = 1 << 1
+    static let `operator`: Int = 1 << 2
+    static let `infix`: Int = 1 << 3
+    static let `external`: Int = 1 << 4
+}
+
 /// Runtime box for `kotlin.reflect.KFunction<T>`.
 /// Represents a constructor or function member with full reflection metadata (STDLIB-REFLECT-063).
 final class RuntimeKFunctionBox {
@@ -2968,8 +3043,8 @@ final class RuntimeKFunctionBox {
     let arity: Int
     /// Interned KKString raw pointer for the return type descriptor, or 0 if unknown.
     let returnTypeRaw: Int
-    /// Whether this function is declared `suspend`.
-    let isSuspend: Bool
+    /// Packed modifier flags (see `RuntimeKFunctionFlags`).
+    let flags: Int
     /// Raw function pointer used by `call()` dispatch.  Zero when not callable.
     let fnPtr: Int
     /// Closure environment for the callable reference (zero for top-level functions).
@@ -2979,11 +3054,14 @@ final class RuntimeKFunctionBox {
     /// Function type string as a KKString raw handle (e.g. "(Int, Int) -> Int").
     let typeStringRaw: Int
 
+    /// Whether this function is declared `suspend`.
+    var isSuspend: Bool { (flags & RuntimeKFunctionFlags.suspend) != 0 }
+
     init(
         nameRaw: Int,
         arity: Int,
         returnTypeRaw: Int = 0,
-        isSuspend: Bool = false,
+        flags: Int = 0,
         fnPtr: Int = 0,
         closureRaw: Int = 0,
         parameterRaws: [Int] = [],
@@ -2992,7 +3070,7 @@ final class RuntimeKFunctionBox {
         self.nameRaw = nameRaw
         self.arity = arity
         self.returnTypeRaw = returnTypeRaw
-        self.isSuspend = isSuspend
+        self.flags = flags
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
         self.parameterRaws = parameterRaws

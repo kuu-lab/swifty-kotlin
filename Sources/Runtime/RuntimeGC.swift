@@ -578,6 +578,8 @@ func kk_runtime_reset_metadata() {
     runtimeKClassObjectRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
+    runtimeKCompanionRegistry.reset()
+    runtimeKNestedClassRegistry.reset()
 }
 
 func removeRuntimeObjectMetadata(forObjectKey key: UInt) {

@@ -148,6 +148,10 @@ extension CallLowerer {
         "parameters": "__kk_kfunction_get_parameters",
         "valueParameters": "__kk_kfunction_get_value_parameters",
         "isSuspend": "__kk_kfunction_is_suspend",
+        "isInline": "__kk_kfunction_is_inline",
+        "isOperator": "__kk_kfunction_is_operator",
+        "isInfix": "__kk_kfunction_is_infix",
+        "isExternal": "__kk_kfunction_is_external",
         "type": "__kk_kfunction_get_type",
     ]
 

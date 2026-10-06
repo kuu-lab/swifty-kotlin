@@ -1767,7 +1767,8 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
 /// - typeToken: The type token identifying the type.
 /// - qualifiedNameRaw: Runtime string pointer for the qualified name.
 /// - simpleNameRaw: Runtime string pointer for the simple name.
-/// - supertypeNameRaw: Runtime string pointer for the supertype name (0 if none).
+/// - supertypeNameRaw: Runtime string pointer for the supertype display names,
+///   '|'-joined when there is more than one (0 if none).
 /// - flags: Bit-packed flags (bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///          bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///          bit 7=abstract).
@@ -1812,11 +1813,16 @@ public func __kk_kclass_register_metadata_v2(
 ) -> Int {
     let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)) ?? "Unknown"
     let simpleName = extractString(from: UnsafeMutableRawPointer(bitPattern: simpleNameRaw)) ?? "Unknown"
-    let supertypeName: String?
-    if supertypeNameRaw != 0, supertypeNameRaw != runtimeNullSentinelInt {
-        supertypeName = extractString(from: UnsafeMutableRawPointer(bitPattern: supertypeNameRaw))
+    // The compiler joins all direct supertype display names with '|'; Kotlin
+    // qualified type names never contain that character.
+    let supertypeDisplayNames: [String]
+    if supertypeNameRaw != 0, supertypeNameRaw != runtimeNullSentinelInt,
+       let joined = extractString(from: UnsafeMutableRawPointer(bitPattern: supertypeNameRaw)),
+       !joined.isEmpty
+    {
+        supertypeDisplayNames = joined.split(separator: "|").map(String.init)
     } else {
-        supertypeName = nil
+        supertypeDisplayNames = []
     }
 
     let visibility: String
@@ -1831,7 +1837,7 @@ public func __kk_kclass_register_metadata_v2(
     let entry = RuntimeKClassMetadataEntry(
         qualifiedName: qualifiedName,
         simpleName: simpleName,
-        supertypeName: supertypeName,
+        supertypeDisplayNames: supertypeDisplayNames,
         isDataClass: (flags & (1 << 0)) != 0,
         isSealedClass: (flags & (1 << 1)) != 0,
         isValueClass: (flags & (1 << 2)) != 0,
@@ -1989,7 +1995,9 @@ public func __kk_kclass_is_open(_ kclassRaw: Int) -> Int {
     return metadata.isOpen ? 1 : 0
 }
 
-/// Returns the visibility of this KClass as a runtime string ("PUBLIC", "INTERNAL", "PRIVATE", "PROTECTED").
+/// Returns the visibility of this KClass as a `kotlin.reflect.KVisibility`
+/// enum box (PUBLIC=0, PROTECTED=1, INTERNAL=2, PRIVATE=3 — the same ordinal
+/// mapping `__kk_kcallable_get_metadata` uses for callable visibility).
 /// Returns null sentinel if unknown.
 @_cdecl("__kk_kclass_visibility")
 public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
@@ -1997,10 +2005,13 @@ public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
           let metadata = box.metadata else {
         return runtimeNullSentinelInt
     }
-    let utf8 = Array(metadata.visibility.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
+    let names = ["PUBLIC", "PROTECTED", "INTERNAL", "PRIVATE"]
+    let ordinal = names.firstIndex(of: metadata.visibility) ?? 0
+    return kk_enum_box_ordinal(
+        ordinal,
+        runtimeMakeStringRaw(names[ordinal]),
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVisibility"))
+    )
 }
 
 /// Returns the type parameters of this KClass as a runtime list.
@@ -2017,20 +2028,248 @@ public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: indices))
 }
 
-/// Returns the supertypes of this KClass as a runtime list of strings.
-/// Currently returns a list with the single supertype name if present.
-@_cdecl("__kk_kclass_supertypes")
-public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw),
-          let metadata = box.metadata,
-          let superName = metadata.supertypeName else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+// MARK: - KUU-1357: KClass.supertypes (multi-supertype KType list)
+
+/// JVM-parity supertypes for bundled builtin types. kotlin-reflect reports
+/// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,
+/// `kotlin.Cloneable`, …) that Sema does not model, so the display-name lists
+/// are curated here keyed by qualified name. Verified against kotlinc +
+/// kotlin-reflect.
+private let runtimeBuiltinSupertypes: [String: [String]] = {
+    var table: [String: [String]] = [
+        "kotlin.Any": [],
+        "kotlin.Unit": ["kotlin.Any"],
+        "kotlin.Nothing": ["kotlin.Any"],
+        "kotlin.Byte": ["kotlin.Number", "kotlin.Comparable<kotlin.Byte>", "java.io.Serializable"],
+        "kotlin.Short": ["kotlin.Number", "kotlin.Comparable<kotlin.Short>", "java.io.Serializable"],
+        "kotlin.Int": ["kotlin.Number", "kotlin.Comparable<kotlin.Int>", "java.io.Serializable"],
+        "kotlin.Long": ["kotlin.Number", "kotlin.Comparable<kotlin.Long>", "java.io.Serializable"],
+        "kotlin.Float": ["kotlin.Number", "kotlin.Comparable<kotlin.Float>", "java.io.Serializable"],
+        "kotlin.Double": ["kotlin.Number", "kotlin.Comparable<kotlin.Double>", "java.io.Serializable"],
+        "kotlin.UByte": ["kotlin.Comparable<kotlin.UByte>", "kotlin.Any"],
+        "kotlin.UShort": ["kotlin.Comparable<kotlin.UShort>", "kotlin.Any"],
+        "kotlin.UInt": ["kotlin.Comparable<kotlin.UInt>", "kotlin.Any"],
+        "kotlin.ULong": ["kotlin.Comparable<kotlin.ULong>", "kotlin.Any"],
+        "kotlin.Char": ["kotlin.Comparable<kotlin.Char>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.Boolean": ["kotlin.Comparable<kotlin.Boolean>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.String": [
+            "kotlin.Comparable<kotlin.String>", "kotlin.CharSequence",
+            "java.io.Serializable", "kotlin.Any",
+        ],
+        "kotlin.Throwable": ["kotlin.Any", "java.io.Serializable"],
+        "kotlin.Exception": ["kotlin.Throwable"],
+        "kotlin.RuntimeException": ["java.lang.Exception"],
+        "kotlin.Error": ["kotlin.Throwable"],
+        "kotlin.Number": ["kotlin.Any", "java.io.Serializable"],
+        "kotlin.Enum": ["kotlin.Comparable<E>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.Annotation": ["kotlin.Any"],
+        "kotlin.Comparable": ["kotlin.Any"],
+        "kotlin.CharSequence": ["kotlin.Any"],
+        "kotlin.Cloneable": ["kotlin.Any"],
+        "kotlin.collections.Iterable": ["kotlin.Any"],
+        "kotlin.collections.Collection": ["kotlin.collections.Iterable<E>", "kotlin.Any"],
+        "kotlin.collections.MutableCollection": ["kotlin.collections.Iterable<E>", "kotlin.Any"],
+        "kotlin.collections.List": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.MutableList": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.Set": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.MutableSet": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.Map": ["kotlin.Any"],
+        "kotlin.collections.MutableMap": ["kotlin.Any"],
+        "kotlin.collections.Map.Entry": ["kotlin.Any"],
+        "kotlin.collections.MutableMap.MutableEntry": ["kotlin.Any"],
+        "kotlin.collections.Iterator": ["kotlin.Any"],
+        "kotlin.collections.MutableIterator": ["kotlin.Any"],
+        "kotlin.collections.ListIterator": ["kotlin.collections.Iterator<T>", "kotlin.Any"],
+        "kotlin.collections.MutableListIterator": ["kotlin.collections.Iterator<T>", "kotlin.Any"],
+        "kotlin.Array": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.ByteArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.ShortArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.IntArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.LongArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.FloatArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.DoubleArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.CharArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.BooleanArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.UByteArray": ["kotlin.collections.Collection<kotlin.UByte>", "kotlin.Any"],
+        "kotlin.UShortArray": ["kotlin.collections.Collection<kotlin.UShort>", "kotlin.Any"],
+        "kotlin.UIntArray": ["kotlin.collections.Collection<kotlin.UInt>", "kotlin.Any"],
+        "kotlin.ULongArray": ["kotlin.collections.Collection<kotlin.ULong>", "kotlin.Any"],
+        "kotlin.Pair": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.Triple": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.Result": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.text.Regex": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.text.MatchResult": ["kotlin.Any"],
+        "kotlin.ranges.IntRange": [
+            "kotlin.ranges.IntProgression", "kotlin.ranges.ClosedRange<kotlin.Int>",
+            "kotlin.ranges.OpenEndRange<kotlin.Int>",
+        ],
+        "kotlin.ranges.IntProgression": ["kotlin.collections.Iterable<kotlin.Int>", "kotlin.Any"],
+        "kotlin.ranges.CharRange": [
+            "kotlin.ranges.CharProgression", "kotlin.ranges.ClosedRange<kotlin.Char>",
+            "kotlin.ranges.OpenEndRange<kotlin.Char>",
+        ],
+        "kotlin.ranges.CharProgression": ["kotlin.collections.Iterable<kotlin.Char>", "kotlin.Any"],
+        "kotlin.sequences.Sequence": ["kotlin.Any"],
+        "kotlin.reflect.KClass": [
+            "kotlin.reflect.KDeclarationContainer", "kotlin.reflect.KAnnotatedElement",
+            "kotlin.reflect.KClassifier", "kotlin.Any",
+        ],
+        "kotlin.IllegalArgumentException": ["java.lang.RuntimeException"],
+        "kotlin.IllegalStateException": ["java.lang.RuntimeException"],
+        "kotlin.NoSuchElementException": ["java.lang.RuntimeException"],
+        "kotlin.NullPointerException": ["java.lang.RuntimeException"],
+        "kotlin.ClassCastException": ["java.lang.RuntimeException"],
+        "kotlin.IndexOutOfBoundsException": ["java.lang.RuntimeException"],
+        "kotlin.ArrayIndexOutOfBoundsException": ["java.lang.IndexOutOfBoundsException"],
+        "kotlin.AssertionError": ["java.lang.Error"],
+        "kotlin.ArithmeticException": ["java.lang.RuntimeException"],
+        "kotlin.NumberFormatException": ["java.lang.IllegalArgumentException"],
+        "kotlin.ConcurrentModificationException": ["java.lang.RuntimeException"],
+        "kotlin.UnsupportedOperationException": ["java.lang.RuntimeException"],
+        "kotlin.NotImplementedError": ["java.lang.Error"],
+        "kotlin.Function": ["kotlin.Any"],
+    ]
+    for arity in 0...22 {
+        table["kotlin.Function\(arity)"] = ["kotlin.Function<R>", "kotlin.Any"]
     }
-    let utf8 = Array(superName.utf8)
-    let nameRaw = utf8.withUnsafeBufferPointer { buf in
+    return table
+}()
+
+/// Resolves a qualified type name to its runtime type token, mirroring the
+/// builtin-base table in `__kk_type_token_qualified_name` and falling back to
+/// a nominal token whose payload is the FNV name hash used by
+/// `RuntimeTypeCheckToken.stableNominalTypeID`.
+private func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
+    switch name {
+    case "kotlin.Any": return RuntimeTypeTokenEncoding.anyBase
+    case "kotlin.String": return RuntimeTypeTokenEncoding.stringBase
+    case "kotlin.Int": return RuntimeTypeTokenEncoding.intBase
+    case "kotlin.Boolean": return RuntimeTypeTokenEncoding.booleanBase
+    case "kotlin.UInt": return RuntimeTypeTokenEncoding.uintBase
+    case "kotlin.ULong": return RuntimeTypeTokenEncoding.ulongBase
+    case "kotlin.UByte": return RuntimeTypeTokenEncoding.ubyteBase
+    case "kotlin.UShort": return RuntimeTypeTokenEncoding.ushortBase
+    case "kotlin.Byte": return RuntimeTypeTokenEncoding.byteBase
+    case "kotlin.Short": return RuntimeTypeTokenEncoding.shortBase
+    case "kotlin.Long": return RuntimeTypeTokenEncoding.longBase
+    case "kotlin.Double": return RuntimeTypeTokenEncoding.doubleBase
+    case "kotlin.Float": return RuntimeTypeTokenEncoding.floatBase
+    case "kotlin.Char": return RuntimeTypeTokenEncoding.charBase
+    case "kotlin.Nothing": return RuntimeTypeTokenEncoding.nullBase
+    case "kotlin.Unit": return RuntimeTypeTokenEncoding.unitBase
+    default:
+        return RuntimeTypeTokenEncoding.nominalBase
+            | ((runtimeStableNominalTypeID(fqName: name) & RuntimeTypeTokenEncoding.payloadMask)
+                << RuntimeTypeTokenEncoding.payloadShift)
+    }
+}
+
+private func runtimeReflectionStringRaw(_ string: String) -> Int {
+    let utf8 = Array(string.utf8)
+    return utf8.withUnsafeBufferPointer { buf in
         Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: [nameRaw]))
+}
+
+/// Splits a display name such as "kotlin.Comparable<kotlin.Int>" into its
+/// classifier base name and top-level type-argument display names. Returns nil
+/// when the angle brackets are unbalanced.
+private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, args: [String])? {
+    var trimmed = display.trimmingCharacters(in: .whitespaces)
+    if trimmed.hasSuffix("?") {
+        trimmed = String(trimmed.dropLast())
+    }
+    guard let openIndex = trimmed.firstIndex(of: "<") else {
+        return trimmed.isEmpty ? nil : (trimmed, [])
+    }
+    let base = String(trimmed[..<openIndex]).trimmingCharacters(in: .whitespaces)
+    guard !base.isEmpty else { return nil }
+    let argsStart = trimmed.index(after: openIndex)
+    var depth = 0
+    var endIndex: String.Index?
+    var cursor = openIndex
+    while cursor < trimmed.endIndex {
+        let ch = trimmed[cursor]
+        if ch == "<" { depth += 1 }
+        if ch == ">" {
+            depth -= 1
+            if depth == 0 {
+                endIndex = cursor
+                break
+            }
+        }
+        cursor = trimmed.index(after: cursor)
+    }
+    guard let endIndex else { return nil }
+    let inner = trimmed[argsStart..<endIndex]
+    var args: [String] = []
+    var argDepth = 0
+    var argStart = inner.startIndex
+    var index = inner.startIndex
+    while index < inner.endIndex {
+        let ch = inner[index]
+        if ch == "<" { argDepth += 1 }
+        if ch == ">" { argDepth -= 1 }
+        if ch == ",", argDepth == 0 {
+            args.append(String(inner[argStart..<index]).trimmingCharacters(in: .whitespaces))
+            argStart = inner.index(after: index)
+        }
+        index = inner.index(after: index)
+    }
+    let last = String(inner[argStart..<inner.endIndex]).trimmingCharacters(in: .whitespaces)
+    if !last.isEmpty {
+        args.append(last)
+    }
+    return (base, args)
+}
+
+/// Builds a `RuntimeKTypeBox` for a supertype display name: an interned
+/// KClass handle for the base classifier plus parsed type-argument
+/// projections (invariant). Type-parameter display names like `E` produce a
+/// nominal classifier placeholder — there is no KTypeParameter box yet.
+private func runtimeKTypeForSupertypeDisplayName(_ display: String) -> Int {
+    guard let (base, argDisplays) = runtimeSplitTypeDisplayName(display) else {
+        return 0
+    }
+    let baseRaw = runtimeReflectionStringRaw(base)
+    let token = runtimeTypeToken(forQualifiedName: base)
+    let classifierRaw = __kk_kclass_create(Int(token), baseRaw)
+    var argumentRaws: [Int] = []
+    for argDisplay in argDisplays {
+        let argRaw = runtimeKTypeForSupertypeDisplayName(argDisplay)
+        let projection = RuntimeKTypeProjectionBox(typeRaw: argRaw, variance: .invariant)
+        argumentRaws.append(registerRuntimeObject(projection))
+    }
+    let box = RuntimeKTypeBox(
+        classifierRaw: classifierRaw,
+        argumentRaws: argumentRaws,
+        isMarkedNullable: false,
+        typeNameRaw: baseRaw
+    )
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box)
+}
+
+/// Returns the supertypes of this KClass as a runtime list of `KType` handles.
+/// Builtin types are answered from the JVM-parity table; user-defined types
+/// read the '|'-joined display list registered by the compiler.
+@_cdecl("__kk_kclass_supertypes")
+public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let qualifiedName = box.metadata?.qualifiedName ?? {
+        let raw = __kk_type_token_qualified_name(box.typeToken, box.nameHint)
+        return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+    }()
+    let displays = runtimeBuiltinSupertypes[qualifiedName]
+        ?? box.metadata?.supertypeDisplayNames
+        ?? []
+    let elements = displays.compactMap { display -> Int? in
+        let raw = runtimeKTypeForSupertypeDisplayName(display)
+        return raw == 0 ? nil : raw
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
 // MARK: - REFL-005: KClass.isInstance, members, constructors
@@ -2082,11 +2321,62 @@ public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns the nested classes of this KClass as a runtime list of KClass handles.
-/// Currently returns an empty list; nested class metadata registration is not yet
-/// emitted by the compiler (MIGRATION-REFLECT-002).
+/// Nested classes are attached per parent type token via
+/// `__kk_kclass_register_nested_class` (KUU-1357 / MIGRATION-REFLECT-002).
 @_cdecl("__kk_kclass_nested_classes")
 public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
-    return registerRuntimeObject(RuntimeListBox(elements: []))
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let elements = runtimeKNestedClassRegistry.nestedClasses(for: box.typeToken).map {
+        __kk_kclass_create($0.token, $0.nameRaw)
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
+}
+
+/// Registers the companion object's (typeToken, nameHint) pair for a class's
+/// type token. Emitted during class reflection metadata setup (KUU-1357).
+@_cdecl("__kk_kclass_register_companion")
+public func __kk_kclass_register_companion(
+    _ typeToken: Int,
+    _ companionToken: Int,
+    _ companionNameRaw: Int
+) -> Int {
+    runtimeKCompanionRegistry.register(
+        typeToken: typeToken,
+        companionToken: companionToken,
+        companionNameRaw: companionNameRaw
+    )
+    return 0
+}
+
+/// Returns the companion object's `KClass` for this KClass, or the null
+/// sentinel when the class declares no companion (KUU-1357).
+@_cdecl("__kk_kclass_companion_object")
+public func __kk_kclass_companion_object(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw),
+          let entry = runtimeKCompanionRegistry.companion(for: box.typeToken)
+    else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_kclass_create(entry.token, entry.nameRaw)
+}
+
+/// Registers one nested class's (typeToken, nameHint) pair for a class's
+/// type token. Emitted once per nested class during class reflection metadata
+/// setup (KUU-1357 / MIGRATION-REFLECT-002).
+@_cdecl("__kk_kclass_register_nested_class")
+public func __kk_kclass_register_nested_class(
+    _ typeToken: Int,
+    _ nestedToken: Int,
+    _ nestedNameRaw: Int
+) -> Int {
+    runtimeKNestedClassRegistry.register(
+        typeToken: typeToken,
+        nestedToken: nestedToken,
+        nestedNameRaw: nestedNameRaw
+    )
+    return 0
 }
 
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.

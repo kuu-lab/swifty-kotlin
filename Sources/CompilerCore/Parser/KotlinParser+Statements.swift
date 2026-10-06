@@ -43,9 +43,13 @@ extension KotlinParser {
             // token right after one is always a fresh declaration — even when
             // it shares a physical line with the statement that preceded the
             // `;` (e.g. `val y = 1; @Anno constructor() : this(0)`).
+            // A `}` closing a block-bodied member (class/object/fun body) also
+            // self-terminates the declaration in Kotlin, so a same-line
+            // declaration after it is valid (e.g. `class A { class B { } class C }`).
             let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
+            let precededByBlockClose = lastConsumedToken?.kind == .symbol(.rBrace)
             if isDeclarationStart(token.kind), !isObjectExpressionStart(token),
-               hasLeadingNewline(token) || atBlockStart || precededBySemicolon
+               hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose
             {
                 children.append(.node(parseDeclaration()))
                 atBlockStart = false

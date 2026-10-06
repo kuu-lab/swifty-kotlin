@@ -1150,9 +1150,17 @@ extension KIRLoweringDriver {
                 let retTypeInterned = interner.intern(returnTypeName)
                 let retTypeExpr = arena.appendExpr(.stringLiteral(retTypeInterned), type: intType)
                 body.append(.constValue(result: retTypeExpr, value: .stringLiteral(retTypeInterned)))
-                let isSuspendInt = Int64(signature.isSuspend ? 1 : 0)
-                let isSuspendExpr = arena.appendExpr(.intLiteral(isSuspendInt), type: intType)
-                body.append(.constValue(result: isSuspendExpr, value: .intLiteral(isSuspendInt)))
+                // KUU-1357: packed modifier flags — bit0=suspend, bit1=inline,
+                // bit2=operator, bit3=infix, bit4=external. Matches
+                // `RuntimeKFunctionFlags` in the runtime.
+                var functionFlags: Int64 = 0
+                if signature.isSuspend { functionFlags |= 1 << 0 }
+                if childSym.flags.contains(.inlineFunction) { functionFlags |= 1 << 1 }
+                if childSym.flags.contains(.operatorFunction) { functionFlags |= 1 << 2 }
+                if childSym.flags.contains(.infixFunction) { functionFlags |= 1 << 3 }
+                if sema.symbols.externalLinkName(for: childID) != nil { functionFlags |= 1 << 4 }
+                let isSuspendExpr = arena.appendExpr(.intLiteral(functionFlags), type: intType)
+                body.append(.constValue(result: isSuspendExpr, value: .intLiteral(functionFlags)))
                 let fnPtrExpr = arena.appendExpr(.symbolRef(childID), type: intType)
                 body.append(.constValue(result: fnPtrExpr, value: .symbolRef(childID)))
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)

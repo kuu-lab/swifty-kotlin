@@ -298,12 +298,11 @@ extension CallLowerer {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleInterned), type: intType)
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleInterned)))
 
-        let supertypes = sema.symbols.directSupertypes(for: classSymbol)
-        let superClassSymbol = supertypes.first(where: { sema.symbols.symbol($0)?.kind == .class })
         let supertypeNameExpr: KIRExprID
-        if let superClassSymbol, let superSym = sema.symbols.symbol(superClassSymbol) {
-            let superFq = superSym.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            let superIn = interner.intern(superFq)
+        if let joined = kclassSupertypeDisplayNamesJoined(
+            for: classSymbol, sema: sema, interner: interner
+        ) {
+            let superIn = interner.intern(joined)
             supertypeNameExpr = arena.appendExpr(.stringLiteral(superIn), type: intType)
             instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superIn)))
         } else {
@@ -361,6 +360,10 @@ extension CallLowerer {
         ))
         emitKClassDisplayNameRegistration(
             symbol: classSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+        emitKClassCompanionAndNestedRegistration(
+            classSymbol: classSymbol, typeTokenExpr: typeTokenExpr,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
 
