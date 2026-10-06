@@ -3,6 +3,55 @@ import Testing
 
 @Suite
 struct SequenceFactoryLifecycleTests {
+    // KUU-1073: a nullable callback result must infer T = Int, not Int?.
+    @Test(arguments: [
+        "generateSequence { if (true) 1 else null }",
+        "generateSequence { 1 as Int? }",
+        "generateSequence { i = i + 1; if (i <= 3) i else null }",
+        "generateSequence { 1 }",
+    ])
+    func nullableGeneratorLambdaInfersNonNullableElement(expression: String) throws {
+        let source = """
+        fun probe() {
+            var i = 0
+            val values = \(expression)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "generateSequence"
+            })
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(binding.substitutedTypeArguments == [sema.types.intType])
+            let resultType = try #require(sema.bindings.exprType(for: call))
+            guard case let .classType(sequence) = sema.types.kind(of: resultType) else {
+                Issue.record("Expected Sequence<Int>, got \(sema.types.renderType(resultType))")
+                return
+            }
+            #expect(sequence.args == [.invariant(sema.types.intType)])
+        }
+    }
+
+    @Test(arguments: [
+        "val values: Sequence<String> = generateSequence { if (true) 1 else null }",
+        "val values = generateSequence<Int?> { 1 as Int? }",
+    ])
+    func nullableGeneratorStillRejectsIncompatibleTypes(statement: String) throws {
+        try withTemporaryFile(contents: "fun probe() { \(statement) }") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "Expected rejection of \(statement)")
+        }
+    }
+
     @Test(arguments: [
         "Sequence(iterator = { listOf(1).iterator() })",
         "Sequence({ listOf(1).iterator() })",
