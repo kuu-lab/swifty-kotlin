@@ -171,8 +171,13 @@ public class ClosedReceiveChannelException(message: String?) : NoSuchElementExce
 @KsSymbolName("__kk_channel_create_with_policy")
 private external fun <T> __kkChannelCreateWithPolicy(capacity: Int, onBufferOverflow: Int): Channel<T>
 
-public fun <T> Channel(capacity: Int, onBufferOverflow: BufferOverflow): Channel<T> =
-    __kkChannelCreateWithPolicy(capacity, onBufferOverflow.ordinal)
+public fun <T> Channel(capacity: Int, onBufferOverflow: BufferOverflow): Channel<T> {
+    require(capacity >= -2) { "Invalid channel capacity: $capacity, should be >=0" }
+    require(capacity != -1 /* CONFLATED */ || onBufferOverflow == BufferOverflow.SUSPEND) {
+        "CONFLATED capacity cannot be used with non-default onBufferOverflow"
+    }
+    return __kkChannelCreateWithPolicy(capacity, onBufferOverflow.ordinal)
+}
 
 public val Channel.Factory.RENDEZVOUS: Int
     get() = 0

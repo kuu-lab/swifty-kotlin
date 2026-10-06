@@ -1335,4 +1335,79 @@ struct RuntimeChannelTests {
         let nullClosedBox = __kk_channel_result_create(kChannelResultClosed, 0, runtimeNullSentinelInt)
         #expect(__kk_channel_result_cause(nullClosedBox) == runtimeNullSentinelInt)
     }
+
+    // MARK: - KUU-1403: Channel.Factory sentinel capacities
+
+    /// `Channel(Channel.BUFFERED)` (-2) resolves to the default 64-slot buffer
+    /// through the residual `kk_channel_create` bridge: trySend succeeds
+    /// without a receiver until the buffer is full.
+    @Test func bufferedSentinelCapacityUsesDefaultBufferSize() {
+        let channel = kk_channel_create(-2)
+        #expect(runtimeChannelHandle(channel).capacity == 64)
+        for i in 1 ... 64 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        #expect(kk_channel_try_send(channel, 65) == kChannelResultFailed)
+        for i in 1 ... 64 {
+            #expect(channelReceiveValue(channel, 0) == i)
+        }
+        _ = kk_channel_close(channel)
+    }
+
+    /// `Channel(Channel.CONFLATED)` (-1) keeps only the latest value: sends
+    /// never fail while the channel is open, and a receive observes only the
+    /// most recent element.
+    @Test func conflatedSentinelCapacityKeepsLatestValue() {
+        let channel = kk_channel_create(-1)
+        #expect(runtimeChannelHandle(channel).capacity == 1)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 2) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(channel, 3) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel, 0) == 3)
+        // `send` likewise never suspends on a conflated channel.
+        #expect(kk_channel_send(channel, 4, 0) == kChannelResultSuccess)
+        #expect(kk_channel_send(channel, 5, 0) == kChannelResultSuccess)
+        #expect(channelReceiveValue(channel, 0) == 5)
+        _ = kk_channel_close(channel)
+    }
+
+    /// `Channel(Channel.UNLIMITED)` keeps its unbounded buffer: trySend never
+    /// reports a full channel.
+    @Test func unlimitedSentinelCapacityNeverReportsFull() {
+        let channel = kk_channel_create(Int.max)
+        for i in 1 ... 128 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        _ = kk_channel_close(channel)
+    }
+
+    /// `OPTIONAL_CHANNEL` (-3) stays a rendezvous fallback through the residual
+    /// create bridge — the bundled Kotlin factories reject it before reaching
+    /// here, matching upstream's IllegalArgumentException.
+    @Test func optionalChannelSentinelFallsBackToRendezvous() {
+        let channel = kk_channel_create(-3)
+        #expect(runtimeChannelHandle(channel).capacity == 0)
+        #expect(kk_channel_try_send(channel, 1) == kChannelResultFailed)
+        _ = kk_channel_close(channel)
+    }
+
+    /// The with-policy bridge resolves the same sentinels plus the upstream
+    /// `RENDEZVOUS`-with-overflow rule: `Channel(0, DROP_OLDEST)` is a
+    /// one-slot conflated channel, `Channel(BUFFERED, DROP_LATEST)` a one-slot
+    /// channel that keeps the first element.
+    @Test func withPolicyResolvesSentinelsAndRendezvousOverflow() {
+        let dropOldest = __kk_channel_create_with_policy(0, 1)
+        #expect(runtimeChannelHandle(dropOldest).capacity == 1)
+        #expect(kk_channel_try_send(dropOldest, 10) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(dropOldest, 20) == kChannelResultSuccess)
+        #expect(channelReceiveValue(dropOldest, 0) == 20)
+        _ = kk_channel_close(dropOldest)
+
+        let bufferedDropLatest = __kk_channel_create_with_policy(-2, 2)
+        #expect(runtimeChannelHandle(bufferedDropLatest).capacity == 1)
+        #expect(kk_channel_try_send(bufferedDropLatest, 7) == kChannelResultSuccess)
+        #expect(kk_channel_try_send(bufferedDropLatest, 8) == kChannelResultSuccess)
+        #expect(channelReceiveValue(bufferedDropLatest, 0) == 7)
+        _ = kk_channel_close(bufferedDropLatest)
+    }
 }
