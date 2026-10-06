@@ -603,6 +603,7 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: propertyDecl.range
             ) {
+                symbols.insertFlags(.memberExtension, for: memberSymbol)
                 symbols.setExtensionPropertyReceiverType(receiverType, for: memberSymbol)
 
                 let getterSymbol = symbols.define(

@@ -1263,6 +1263,8 @@ struct StdlibArtifactRegressionTests {
         let artifactPath = try Self.buildStdlibArtifact()
 
         let source = """
+        import kotlin.time.Duration.Companion.seconds
+
         fun main() {
             val d1 = 1.seconds
             val d2 = 2.seconds

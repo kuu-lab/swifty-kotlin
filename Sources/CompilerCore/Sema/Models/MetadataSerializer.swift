@@ -1489,6 +1489,7 @@ package final class MetadataEncoder {
                 }
                 fields.append("visibility=\(encoded)")
             }
+            if record.isMemberExtension { fields.append("memberExtension=1") }
             if record.kind == .function || record.kind == .constructor {
                 fields.append("arity=\(record.arity)")
                 fields.append("suspend=\(record.isSuspend ? 1 : 0)")
@@ -1497,7 +1498,6 @@ package final class MetadataEncoder {
                 if record.isOverride {
                     fields.append("override=1")
                 }
-                if record.isMemberExtension { fields.append("memberExtension=1") }
                 if !record.valueParameterIsVararg.isEmpty {
                     let mask = record.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined()
                     fields.append("vararg=\(mask)")
@@ -1728,13 +1728,13 @@ package final class MetadataEncoder {
             }
             fields.append("visibility=\(encoded)")
         }
+        if record.isMemberExtension { fields.append("memberExtension=1") }
         if record.kind == .function || record.kind == .constructor {
             fields.append("arity=\(record.arity)")
             fields.append("suspend=\(record.isSuspend ? 1 : 0)")
             fields.append("inline=\(record.isInline ? 1 : 0)")
             fields.append("operator=\(record.isOperator ? 1 : 0)")
             if record.isOverride { fields.append("override=1") }
-            if record.isMemberExtension { fields.append("memberExtension=1") }
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 fields.append("defaultLink=\(linkName)")
             }
