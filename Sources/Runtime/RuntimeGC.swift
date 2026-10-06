@@ -67,6 +67,10 @@ struct MetadataState {
     /// Same idea, for the coroutine job-family nominal edges
     /// `registerJobFamilyTypeEdgesOnce` installs (KUU-1386).
     var jobFamilyTypeEdgesRegistered = false
+    /// Same idea, for the `CoroutineDispatcher`/`ContinuationInterceptor`
+    /// nominal edges `registerCoroutineDispatcherTypeEdgesOnce` installs
+    /// (KUU-1395).
+    var coroutineDispatcherTypeEdgesRegistered = false
     /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
     var sortedCollectionTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
@@ -564,6 +568,7 @@ func kk_runtime_reset_metadata() {
         state.primitiveTypeEdgesRegistered = false
         state.rangeTypeEdgesRegistered = false
         state.jobFamilyTypeEdgesRegistered = false
+        state.coroutineDispatcherTypeEdgesRegistered = false
         state.sortedCollectionTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.dataClassFieldMasks.removeAll(keepingCapacity: false)

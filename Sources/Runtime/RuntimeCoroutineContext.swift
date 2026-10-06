@@ -69,6 +69,11 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
     /// extras element, which `kotlin.coroutines` resolves as
     /// `minusKey(otherKeys) + other`.
     func plus(_ other: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
+        // The dispatcher/interceptor slot is occupied whenever the other
+        // context carries a dispatcher — a scheduler tag or an element object
+        // with no tag (e.g. a runBlocking event loop, KUU-1395) — so
+        // `ctx + element` replaces it like kotlinx's `+` does.
+        let otherHasDispatcher = other.dispatcherElementHandle != 0
         let otherClaimsJob = other.extras.contains { $0.key == runtimeJobKeyRaw }
         let otherClaimsName = other.extras.contains { $0.key == runtimeCoroutineNameKeyRaw }
         let otherClaimsHandler = other.extras.contains { $0.key == runtimeExceptionHandlerKeyRaw }
@@ -80,13 +85,13 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
                 && !(other.jobHandleRaw != 0 && pair.key == runtimeJobKeyRaw)
                 && !(other.name != nil && pair.key == runtimeCoroutineNameKeyRaw)
                 && !(other.exceptionHandler != nil && pair.key == runtimeExceptionHandlerKeyRaw)
-                && !(other.dispatcher != 0
+                && !(otherHasDispatcher
                      && (pair.key == runtimeContinuationInterceptorKeyRaw
                          || pair.key == runtimeCoroutineDispatcherKeyRaw))
         }
         mergedExtras.append(contentsOf: other.extras)
         return RuntimeCoroutineContext(
-            dispatcher: other.dispatcher != 0 ? other.dispatcher
+            dispatcher: otherHasDispatcher ? other.dispatcher
                 : (otherClaimsDispatcher ? 0 : self.dispatcher),
             name: other.name ?? (otherClaimsName ? nil : self.name),
             exceptionHandler: other.exceptionHandler ?? (otherClaimsHandler ? nil : self.exceptionHandler),
@@ -94,7 +99,7 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
                 : (otherClaimsJob ? 0 : self.jobHandleRaw),
             nameHandleRaw: other.name != nil ? other.nameHandleRaw
                 : (otherClaimsName ? 0 : self.nameHandleRaw),
-            dispatcherHandleRaw: other.dispatcher != 0 ? other.dispatcherHandleRaw
+            dispatcherHandleRaw: otherHasDispatcher ? other.dispatcherHandleRaw
                 : (otherClaimsDispatcher ? 0 : self.dispatcherHandleRaw),
             extras: mergedExtras
         )
@@ -383,6 +388,15 @@ func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: In
         let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
             outThrown?.pointee = 0
             return runtimeCoroutineElementKeyHandle(for: receiver)
+        }
+        return unsafeBitCast(getter, to: Int.self)
+    case 3:
+        // KUU-1395: a dispatcher/interceptor element's `key` is
+        // ContinuationInterceptor.Key — kotlinx's CoroutineDispatcher passes
+        // it to AbstractCoroutineContextElement's constructor.
+        let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
+            outThrown?.pointee = 0
+            return kk_continuation_interceptor_key()
         }
         return unsafeBitCast(getter, to: Int.self)
     default:
@@ -868,17 +882,25 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
     if keyRaw == runtimeCoroutineNameKeyRaw {
         return ctx.name != nil ? ctx.nameHandleRaw : nil
     }
-    if keyRaw == runtimeContinuationInterceptorKeyRaw {
-        return ctx.dispatcher != 0 ? ctx.dispatcherElementHandle
-            : ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw)
-    }
-    if keyRaw == runtimeCoroutineDispatcherKeyRaw {
+    if keyRaw == runtimeContinuationInterceptorKeyRaw || keyRaw == runtimeCoroutineDispatcherKeyRaw {
+        // KUU-1395: `ctx[ContinuationInterceptor]` / `ctx[CoroutineDispatcher]`
+        // resolve the context's dispatcher element. A handle-only element
+        // (the runBlocking event loop) occupies the slot the same way a tag
+        // does, and a tag-only slot resolves to its dispatcher object so the
+        // element answers `is CoroutineDispatcher`.
+        let handle = ctx.dispatcherElementHandle
+        let dispatcherElement: Int? = handle != 0
+            ? (isDispatcherTag(handle) ? runtimeDispatcherObjectHandle(forTag: handle) : handle)
+            : nil
+        if keyRaw == runtimeContinuationInterceptorKeyRaw {
+            return dispatcherElement ?? ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw)
+        }
         // CoroutineDispatcher.Key is a polymorphic sub-key of
         // ContinuationInterceptor: it also accepts elements keyed by the
         // interceptor key.
-        return ctx.dispatcher != 0 ? ctx.dispatcherElementHandle
-            : (ctx.extraElement(for: runtimeCoroutineDispatcherKeyRaw)
-               ?? ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw))
+        return dispatcherElement
+            ?? (ctx.extraElement(for: runtimeCoroutineDispatcherKeyRaw)
+                ?? ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw))
     }
     if keyRaw == runtimeExceptionHandlerKeyRaw {
         return ctx.exceptionHandler.map {
@@ -924,8 +946,16 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
 /// Return the raw handles for the known elements stored in the context.
 private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineContext) -> [Int] {
     var handles: [Int] = []
-    if ctx.dispatcher != 0 {
-        handles.append(ctx.dispatcherElementHandle)
+    // KUU-1395: the dispatcher slot is also occupied by handle-only elements
+    // (the runBlocking event loop), and a tag-only slot folds as its
+    // dispatcher object.
+    let dispatcherHandle = ctx.dispatcherElementHandle
+    if dispatcherHandle != 0 {
+        handles.append(
+            isDispatcherTag(dispatcherHandle)
+                ? runtimeDispatcherObjectHandle(forTag: dispatcherHandle)
+                : dispatcherHandle
+        )
     }
     if ctx.name != nil {
         handles.append(ctx.nameHandleRaw)
@@ -963,6 +993,8 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         return next
     }
     if keyRaw == runtimeContinuationInterceptorKeyRaw || keyRaw == runtimeCoroutineDispatcherKeyRaw {
+        // KUU-1395: `ctx.minusKey(ContinuationInterceptor)` drops the
+        // dispatcher element (the runBlocking event loop included).
         next.dispatcher = 0
         next.dispatcherHandleRaw = 0
         return next
@@ -1120,7 +1152,14 @@ private func runtimeInstallWithContextChildContext(
     let parentContext = RuntimeContinuationState.current?.makeContinuationContext()
         ?? RuntimeCoroutineScope.current?.context
         ?? RuntimeCoroutineContext()
-    contState.builderContext = parentContext.plus(resolvedCtx)
+    let mergedContext = parentContext.plus(resolvedCtx)
+    contState.builderContext = mergedContext
+    // The block runs under the merged child context (kotlinx's ScopeCoroutine):
+    // mirror its CoroutineName onto the ambient scope for the block's duration
+    // so `RuntimeCoroutineScope.current.name` observes the override.
+    let blockScope = contState.scope
+    let savedScopeName = blockScope?.name
+    blockScope?.name = mergedContext.name
 
     // The block's ambient Job is always a fresh child. It is parented to the
     // override's own Job element when the context carries one — except
@@ -1158,6 +1197,7 @@ private func runtimeInstallWithContextChildContext(
         }
         contState?.jobHandle = savedJobHandle
         contState?.builderContext = savedBuilderContext
+        contState?.scope?.name = savedScopeName
         shieldedCaller?.endCancellationShield()
     }
 }
@@ -1297,10 +1337,23 @@ final class RuntimeDispatcher: @unchecked Sendable {
         set { pthreadSetValue(currentDispatcherPthreadKey, newValue) }
     }
 
-    init(queue: DispatchQueue, tag: Int, displayName: String? = nil) {
+    init(
+        queue: DispatchQueue,
+        tag: Int,
+        displayName: String? = nil,
+        nominalTypeFqName: String = "kotlinx.coroutines.CoroutineDispatcher"
+    ) {
         self.queue = queue
         self.tag = tag
         self.displayName = displayName
+        // KUU-1395: a dispatcher object carries CoroutineDispatcher's nominal
+        // identity so `is`/`as?` checks on `Dispatchers.*` values and on the
+        // runBlocking event-loop element answer like kotlinx's.
+        registerCoroutineDispatcherTypeEdgesOnce()
+        runtimeRegisterObjectType(
+            rawValue: Int(bitPattern: Unmanaged.passUnretained(self).toOpaque()),
+            classID: runtimeStableNominalTypeID(fqName: nominalTypeFqName)
+        )
     }
 
     /// Dispatch a closure onto this dispatcher's queue synchronously, setting
@@ -1359,6 +1412,31 @@ private enum RuntimeDispatcherTag {
     static let mainDispatcher: Int = 0x4B4B_4403 // "KKD\x03"
 }
 
+/// KUU-1395: `CoroutineDispatcher` is abstract and never constructed at the
+/// Kotlin level, so no construction site emits its supertype edges; register
+/// the chain to `ContinuationInterceptor`/`Element`/`CoroutineContext` once
+/// here so `is`/`as?` checks on runtime dispatcher objects resolve like
+/// kotlinx's (mirrors `registerJobFamilyTypeEdgesOnce`, KUU-1386).
+func registerCoroutineDispatcherTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.coroutineDispatcherTypeEdgesRegistered { return }
+        func nominalID(_ fqName: String) -> Int64 { runtimeStableNominalTypeID(fqName: fqName) }
+        let dispatcher = nominalID("kotlinx.coroutines.CoroutineDispatcher")
+        let mainDispatcher = nominalID("kotlinx.coroutines.MainCoroutineDispatcher")
+        let interceptor = nominalID("kotlin.coroutines.ContinuationInterceptor")
+        let element = nominalID("kotlin.coroutines.CoroutineContext.Element")
+        let context = nominalID("kotlin.coroutines.CoroutineContext")
+        for (child, parent) in [
+            (dispatcher, element), (dispatcher, interceptor),
+            (mainDispatcher, dispatcher),
+            (interceptor, element), (element, context),
+        ] {
+            state.typeParents[child, default: []].insert(parent)
+        }
+        state.coroutineDispatcherTypeEdgesRegistered = true
+    }
+}
+
 /// Singleton dispatchers. Initialized lazily on first access.
 private let runtimeDefaultDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.global(qos: .default),
@@ -1370,7 +1448,8 @@ private let runtimeIODispatcher = RuntimeDispatcher(
 )
 private let runtimeMainDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.main,
-    tag: RuntimeDispatcherTag.mainDispatcher
+    tag: RuntimeDispatcherTag.mainDispatcher,
+    nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
 )
 
 /// Resolve a raw dispatcher Int to a RuntimeDispatcher instance.
@@ -1389,6 +1468,28 @@ func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
     default:
         runtimeDefaultDispatcher
     }
+}
+
+/// KUU-1395: registered handle for the dispatcher *object* behind a bare
+/// scheduler tag — what `ctx[ContinuationInterceptor]`/`ctx.fold` expose when
+/// the context only recorded the tag. Named singletons are used so the element
+/// is `===`-equal to the `Dispatchers.*` value the tag came from.
+private func runtimeDispatcherObjectHandle(forTag tag: Int) -> Int {
+    let object: RuntimeDispatcher = switch tag {
+    case RuntimeDispatcherTag.ioDispatcher:
+        runtimeNamedDispatchers[1] // "Dispatchers.IO"
+    case RuntimeDispatcherTag.mainDispatcher:
+        runtimeMainDispatcher
+    default:
+        runtimeNamedDispatchers[0] // "Dispatchers.Default"
+    }
+    let pointer = Unmanaged.passUnretained(object).toOpaque()
+    runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: pointer)
+        state.objectPointers.insert(key)
+        state.borrowedObjectPointers.insert(key)
+    }
+    return Int(bitPattern: pointer)
 }
 
 // These globals own the objects; accessors register their pointers idempotently.

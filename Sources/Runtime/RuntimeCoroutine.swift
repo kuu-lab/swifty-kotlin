@@ -737,10 +737,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         let builder = builderContext
         // Merge `inherited.plus(builderContext)` without allocating so the
         // canonicalizer lookup below is allocation-free on a hit: the
-        // builder's dispatcher/name/handler win when present (KUU-1387).
-        let builderDispatcher = builder?.dispatcher ?? 0
+        // builder's dispatcher/name/handler win when present (KUU-1387). A
+        // handle-only dispatcher element (the event loop, or one propagated
+        // by a withContext merge) occupies the slot the same way a tag does.
+        let builderHasDispatcher = (builder?.dispatcherElementHandle ?? 0) != 0
         let mergedName = (builder?.name ?? inherited?.name) ?? scope?.name
-        let mergedDispatcher = builderDispatcher != 0 ? builderDispatcher : (inherited?.dispatcher ?? 0)
+        let mergedDispatcher = builderHasDispatcher
+            ? (builder?.dispatcher ?? 0)
+            : (inherited?.dispatcher ?? 0)
+        var mergedDispatcherHandle = builderHasDispatcher
+            ? (builder?.dispatcherHandleRaw ?? 0)
+            : (inherited?.dispatcherHandleRaw ?? 0)
         let mergedHandler = builder?.exceptionHandler ?? inherited?.exceptionHandler
         // KUU-1405: carry source-defined elements through; builder extras win
         // per key over inherited ones, and any extras claiming a built-in key
@@ -750,14 +757,26 @@ final class RuntimeContinuationState: @unchecked Sendable {
             override: builder?.extras ?? [],
             jobPresent: jobRaw != 0,
             namePresent: mergedName != nil,
-            dispatcherPresent: mergedDispatcher != 0,
+            dispatcherPresent: mergedDispatcher != 0 || mergedDispatcherHandle != 0,
             handlerPresent: mergedHandler != nil
         )
+        // KUU-1395: a coroutine bound to a runBlocking event loop exposes the
+        // loop's element as its `ContinuationInterceptor` — the runtime
+        // analogue of kotlinx's BlockingEventLoop — whenever nothing else
+        // occupies the dispatcher slot (an explicit dispatcher wins on JVM
+        // too).
+        if mergedDispatcher == 0 && mergedDispatcherHandle == 0,
+           !mergedExtras.contains(where: {
+               $0.key == kk_continuation_interceptor_key()
+                   || $0.key == kk_coroutine_dispatcher_key()
+           }),
+           let elementRaw = eventLoop?.elementHandle()
+        {
+            mergedDispatcherHandle = elementRaw
+        }
         return runtimeCanonicalCoroutineContext(
             dispatcher: mergedDispatcher,
-            dispatcherHandleRaw: builderDispatcher != 0
-                ? (builder?.dispatcherHandleRaw ?? 0)
-                : (inherited?.dispatcherHandleRaw ?? 0),
+            dispatcherHandleRaw: mergedDispatcherHandle,
             name: mergedName,
             nameHandleRaw: builder?.name != nil
                 ? (builder?.nameHandleRaw ?? 0)
@@ -2085,6 +2104,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     init(isSupervisor: Bool = false, context: RuntimeCoroutineContext = RuntimeCoroutineContext()) {
         self.isSupervisor = isSupervisor
         self.context = context
+        self.name = context.name
         RuntimeLiveHandles.register(self)
         // The scope handle doubles as the Kotlin-visible `CoroutineScope`
         // value: `this` inside coroutine builder lambdas and the receiver of
@@ -6023,20 +6043,18 @@ public func kk_job_key_get(_ receiver: Int) -> Int {
     case .job, .task:
         return kk_job_key()
     case .other:
-        // KUU-1405: `Job by ...` delegates bind no runtime job on the wrapper
-        // box, yet `Job.key` on JVM still answers Job.Key — the interface's
-        // `key` default is independent of job binding. Keep the null sentinel
-        // only for receivers that are not Job-typed at all.
-        guard object is RuntimeObjectBox,
-              let sourceID = runtimeObjectTypeID(rawValue: receiver),
-              runtimeIsAssignable(
-                  sourceTypeID: sourceID,
-                  targetTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.Job")
-              )
-        else {
-            return runtimeNullSentinelInt
+        // Source Job implementers that never bound a runtime job — e.g.
+        // `Job by Job()` delegation, where `super<Job>.key` lands here — still
+        // answer the interface's `key` contract: `Job.key` is `Job.Key`.
+        if let sourceID = runtimeObjectTypeID(rawValue: receiver),
+           runtimeIsAssignable(
+               sourceTypeID: sourceID,
+               targetTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.Job")
+           )
+        {
+            return kk_job_key()
         }
-        return kk_job_key()
+        return runtimeNullSentinelInt
     }
 }
 

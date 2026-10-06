@@ -5,6 +5,10 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 
 public abstract class CoroutineDispatcher : CoroutineContext.Element, ContinuationInterceptor {
+    // KUU-1395: `CoroutineDispatcher`/`CoroutineDispatcher.Key` evaluates to a
+    // runtime key singleton so `ctx[CoroutineDispatcher]` resolves the
+    // context's dispatcher element (kotlinx's Key is a sub-key of
+    // ContinuationInterceptor, which resolves there too).
     @KsSymbolName("kk_coroutine_dispatcher_key")
     public companion object Key : CoroutineContext.Key<CoroutineDispatcher>
     public override val key: CoroutineContext.Key<*> get() = ContinuationInterceptor.Key

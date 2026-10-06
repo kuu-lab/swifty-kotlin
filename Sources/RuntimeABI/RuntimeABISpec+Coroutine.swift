@@ -772,6 +772,22 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-1395: ContinuationInterceptor/CoroutineDispatcher key singletons —
+        // the runBlocking event-loop element lookup anchors on these.
+        RuntimeABIFunctionSpec(
+            name: "kk_continuation_interceptor_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_coroutine_dispatcher_key",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_create",
             parameters: [
