@@ -1657,71 +1657,6 @@ final class CallTypeChecker {
         // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
-        let isCoroutineLauncher = calleeName == knownNames.runBlocking
-            || calleeName == knownNames.launch
-            || calleeName == knownNames.async
-            || calleeName == knownNames.coroutineScope
-            || calleeName == knownNames.supervisorScope
-        let coroutineLauncherExpectedLambdaType: TypeID?
-        // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
-        // second argument for a trailing lambda. When the first argument is a dispatcher
-        // (non-lambda) and the second is a lambda, treat it as the block argument.
-        let coroutineLauncherLambdaArgIndex: Int? = {
-            guard isCoroutineLauncher
-            else { return nil }
-            if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
-               case .lambdaLiteral = firstArgExpr {
-                return 0
-            }
-            if args.count >= 2,
-               let secondArgExpr = ast.arena.expr(args[1].expr),
-               case .lambdaLiteral = secondArgExpr {
-                return 1
-            }
-            return nil
-        }()
-        if isCoroutineLauncher,
-           let lambdaIndex = coroutineLauncherLambdaArgIndex,
-           lambdaIndex < args.count
-        {
-            let lambdaReturnType: TypeID
-            if calleeName == knownNames.launch {
-                lambdaReturnType = sema.types.unitType
-            } else if calleeName == knownNames.async {
-                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
-                    ?? sema.types.nullableAnyType
-            } else {
-                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
-            }
-            coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType(sema: sema, interner: interner),
-                params: [],
-                returnType: lambdaReturnType,
-                isSuspend: true,
-                nullability: .nonNull
-            )))
-        } else {
-            coroutineLauncherExpectedLambdaType = nil
-        }
-        // Mark lambda arguments passed to KIR-level coroutine launchers so
-        // LambdaLowerer skips the generic escaping-callable-value
-        // materialization path for them: CoroutineLoweringPass+
-        // LauncherSupport.swift's rewriteLauncherCall expects their captures
-        // forwarded via its own launcher-continuation convention (BUG-049),
-        // not bundled into a kk_function_create_N closure object. `produce`
-        // has its own dedicated builder branch above (CORO-075) with an early
-        // return, so it never reaches this general path and is marked there
-        // instead.
-        if calleeName == knownNames.runBlocking
-            || calleeName == knownNames.launch
-            || calleeName == knownNames.async
-        {
-            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
-                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
-            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
-                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
-            }
-        }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
                                                         calleeName == knownNames.withContext
                                                             || calleeName == knownNames.withTimeout
@@ -2296,6 +2231,82 @@ final class CallTypeChecker {
                 )
                 sema.bindings.markInvokeOperatorCall(id)
                 return returnType
+            }
+        }
+
+        // Coroutine-specific contextual types and closure ABI marks apply only
+        // to coroutine API candidates. Same-named user functions must infer
+        // their lambda arguments from their declared parameter types.
+        let hasCoroutineLauncherCandidates = !candidates.isEmpty && candidates.allSatisfy { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.fqName.starts(with: [interner.intern("kotlinx"), interner.intern("coroutines")])
+        }
+        let isCoroutineLauncher = hasCoroutineLauncherCandidates && (
+            calleeName == knownNames.runBlocking
+                || calleeName == knownNames.launch
+                || calleeName == knownNames.async
+                || calleeName == knownNames.coroutineScope
+                || calleeName == knownNames.supervisorScope
+        )
+        let coroutineLauncherExpectedLambdaType: TypeID?
+        // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
+        // second argument for a trailing lambda. When the first argument is a dispatcher
+        // (non-lambda) and the second is a lambda, treat it as the block argument.
+        let coroutineLauncherLambdaArgIndex: Int? = {
+            guard isCoroutineLauncher
+            else { return nil }
+            if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
+               case .lambdaLiteral = firstArgExpr {
+                return 0
+            }
+            if args.count >= 2,
+               let secondArgExpr = ast.arena.expr(args[1].expr),
+               case .lambdaLiteral = secondArgExpr {
+                return 1
+            }
+            return nil
+        }()
+        if isCoroutineLauncher,
+           let lambdaIndex = coroutineLauncherLambdaArgIndex,
+           lambdaIndex < args.count
+        {
+            let lambdaReturnType: TypeID
+            if calleeName == knownNames.launch {
+                lambdaReturnType = sema.types.unitType
+            } else if calleeName == knownNames.async {
+                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
+                    ?? sema.types.nullableAnyType
+            } else {
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
+            }
+            coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType(sema: sema, interner: interner),
+                params: [],
+                returnType: lambdaReturnType,
+                isSuspend: true,
+                nullability: .nonNull
+            )))
+        } else {
+            coroutineLauncherExpectedLambdaType = nil
+        }
+        // Mark lambda arguments passed to KIR-level coroutine launchers so
+        // LambdaLowerer skips the generic escaping-callable-value
+        // materialization path for them: CoroutineLoweringPass+
+        // LauncherSupport.swift's rewriteLauncherCall expects their captures
+        // forwarded via its own launcher-continuation convention (BUG-049),
+        // not bundled into a kk_function_create_N closure object. `produce`
+        // has its own dedicated builder branch above (CORO-075) with an early
+        // return, so it never reaches this general path and is marked there
+        // instead.
+        if isCoroutineLauncher,
+           calleeName == knownNames.runBlocking
+               || calleeName == knownNames.launch
+               || calleeName == knownNames.async
+        {
+            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
+            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
             }
         }
 
