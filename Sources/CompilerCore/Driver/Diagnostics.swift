@@ -48,7 +48,9 @@ public final class DiagnosticEngine: @unchecked Sendable {
     private var _emittedDiagnostics: Set<Diagnostic> = []
     /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
-    private var suppressions: [String: [SourceRange]] = [:]
+    /// `severity` is nil for names that suppress at any severity; some names
+    /// (DEPRECATION vs DEPRECATION_ERROR) only suppress one severity like kotlinc.
+    private var suppressions: [String: [(range: SourceRange, severity: DiagnosticSeverity?)]] = [:]
     private let maxDiagnosticsPerFile: Int
     /// Stored diagnostics per file bucket, excluding truncation notices.
     private var _diagnosticCountByFile: [FileID: Int] = [:]
@@ -68,22 +70,27 @@ public final class DiagnosticEngine: @unchecked Sendable {
 
     /// Register a @Suppress annotation: suppress the given diagnostic code for any
     /// diagnostic whose primary range overlaps or is contained within `range`.
+    /// When the suppression name is severity-constrained (DEPRECATION /
+    /// DEPRECATION_ERROR), only diagnostics of that severity are suppressed.
     public func addSuppression(code: String, range: SourceRange) {
         let expandedCodes = DiagnosticRegistry.suppressionCodes(for: code)
         guard !expandedCodes.isEmpty else {
             return
         }
+        let severity = DiagnosticRegistry.suppressionSeverityConstraint(for: code)
         lock.lock()
         defer { lock.unlock() }
         for expanded in expandedCodes {
-            suppressions[expanded, default: []].append(range)
+            suppressions[expanded, default: []].append((range: range, severity: severity))
         }
     }
 
-    public func isSuppressed(code: String, range: SourceRange) -> Bool {
+    public func isSuppressed(code: String, range: SourceRange, severity: DiagnosticSeverity? = nil) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return suppressions[code]?.contains { $0.contains(range) } == true
+        return suppressions[code]?.contains {
+            $0.range.contains(range) && ($0.severity == nil || $0.severity == severity)
+        } == true
     }
 
     /// Marks the current diagnostic count for `rollback(to:)`.
@@ -108,8 +115,11 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         // Check if this diagnostic is suppressed by a @Suppress annotation.
-        if let ranges = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
-            for suppressRange in ranges where suppressRange.contains(diagRange) {
+        if let entries = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
+            for entry in entries
+            where entry.range.contains(diagRange)
+                && (entry.severity == nil || entry.severity == diagnostic.severity)
+            {
                 return // Suppressed — do not emit.
             }
         }

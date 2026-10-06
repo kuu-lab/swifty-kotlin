@@ -9,7 +9,7 @@ symbol fq=__local_7.programName[kind=local;type=String?;origin=fixture] kind=loc
 symbol fq=__local_8.leakChecker[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_9.cleanersChecker[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
 symbol fq=platformContract[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-file fstdlib_kotlin_native_Platform_Platform_n package=_ annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class),@file:Suppress("DEPRECATION")]
+file fstdlib_kotlin_native_Platform_Platform_n package=_ annotations=[@file:OptIn(kotlin.experimental.ExperimentalNativeApi::class),@file:Suppress("DEPRECATION","DEPRECATION_ERROR")]
   decl platformContract[kind=fun;params=;ret=Int;origin=fixture] fun platformContract sym=platformContract[kind=fun;params=;ret=Int;origin=fixture]
 expr e@7:30 name(Platform) type=kotlin.native.Platform ref=kotlin.native.Platform[kind=obj]
 expr e@7:30#1 memberCall recv=e@7:30 callee=canAccessUnaligned args=[] type=Boolean ref=kotlin.native.Platform.canAccessUnaligned[kind=prop;type=Boolean]

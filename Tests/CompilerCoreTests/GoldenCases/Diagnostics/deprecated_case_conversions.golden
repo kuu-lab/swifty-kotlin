@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "deprecated_case_conversions.kt",
+      "range": {
+        "start": { "line": 3, "character": 12 },
+        "end": { "line": 3, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'kotlin.text.toUpperCase' is deprecated. Use uppercaseChar() instead. Replace with: uppercaseChar()",
+      "codeActions": [{ "title": "Replace with 'uppercaseChar()'", "kind": "quickfix" }]
+    },
+    {
+      "file": "deprecated_case_conversions.kt",
+      "range": {
+        "start": { "line": 4, "character": 12 },
+        "end": { "line": 4, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'kotlin.text.toLowerCase' is deprecated. Use lowercaseChar() instead. Replace with: lowercaseChar()",
+      "codeActions": [{ "title": "Replace with 'lowercaseChar()'", "kind": "quickfix" }]
+    },
+    {
+      "file": "deprecated_case_conversions.kt",
+      "range": {
+        "start": { "line": 5, "character": 12 },
+        "end": { "line": 5, "character": 29 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'kotlin.text.toTitleCase' is deprecated. Use titlecaseChar() instead. Replace with: titlecaseChar()",
+      "codeActions": [{ "title": "Replace with 'titlecaseChar()'", "kind": "quickfix" }]
+    },
+    {
+      "file": "deprecated_case_conversions.kt",
+      "range": {
+        "start": { "line": 6, "character": 12 },
+        "end": { "line": 6, "character": 31 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'kotlin.text.toLowerCase' is deprecated. Use lowercase() instead. Replace with: lowercase()",
+      "codeActions": [{ "title": "Replace with 'lowercase()'", "kind": "quickfix" }]
+    },
+    {
+      "file": "deprecated_case_conversions.kt",
+      "range": {
+        "start": { "line": 7, "character": 12 },
+        "end": { "line": 7, "character": 31 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-DEPRECATED",
+      "source": "kswiftk",
+      "message": "'kotlin.text.toUpperCase' is deprecated. Use uppercase() instead. Replace with: uppercase()",
+      "codeActions": [{ "title": "Replace with 'uppercase()'", "kind": "quickfix" }]
+    }
+  ]
+}
