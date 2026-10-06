@@ -2394,6 +2394,7 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     private var started = false
     private var cpsLoopStarted = false
     private var producerContinuationRaw: Int = 0
+    private var delegatedIterator: Int = 0
     private var failure: Int = 0
     private var failureReported = false
 
@@ -2407,6 +2408,8 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case initial
         /// Producer yielded a value; `yieldedValue` is valid.
         case hasValue
+        case delegating
+        case delegateReady
         /// Producer finished (lambda returned).
         case done
     }
@@ -2436,27 +2439,58 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         return 0
     }
 
-    func probeHasNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Bool {
+    /// Probe once in the producer's catch scope, then suspend until the consumer
+    /// has exhausted the delegate. Never loop over CPS yieldValue calls here.
+    func yieldAll(_ iterator: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        var thrown = 0
+        let hasNext = kk_iterator_hasNext(iterator, &thrown)
+        outThrown?.pointee = thrown
+        if thrown != 0 || hasNext == 0 { return 0 }
         stateLock.lock()
-        let current = state
+        delegatedIterator = iterator
+        state = .delegateReady
         stateLock.unlock()
+        consumerGate.signal()
+        if usesCPSProducer { return Int(bitPattern: kk_coroutine_suspended()) }
+        producerGate.wait()
+        return 0
+    }
 
-        switch current {
-        case .hasValue:
-            return true
-        case .done:
+    func probeHasNext(outThrown: UnsafeMutablePointer<Int>? = nil) -> Bool {
+        outThrown?.pointee = 0
+        while true {
             stateLock.lock()
-            let thrown = failureForProbeLocked()
+            let current = state
+            let delegate = delegatedIterator
             stateLock.unlock()
-            outThrown?.pointee = thrown
-            return false
-        case .initial:
-            awaitProducerYield()
-            stateLock.lock()
-            defer { stateLock.unlock() }
-            let thrown = failureForProbeLocked()
-            outThrown?.pointee = thrown
-            return state == .hasValue
+
+            switch current {
+            case .hasValue, .delegateReady:
+                return true
+            case .done:
+                stateLock.lock()
+                let thrown = failureForProbeLocked()
+                stateLock.unlock()
+                outThrown?.pointee = thrown
+                return false
+            case .delegating:
+                var thrown = 0
+                let hasNext = kk_iterator_hasNext(delegate, &thrown)
+                if thrown != 0 {
+                    // Keep the delegate for retry, as Kotlin's ManyNotReady does.
+                    runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: #function)
+                    return false
+                }
+                stateLock.lock()
+                state = hasNext != 0 ? .delegateReady : .initial
+                if hasNext == 0 { delegatedIterator = 0 }
+                stateLock.unlock()
+                if hasNext != 0 { return true }
+                // The next producer step resumes after yieldAll, exactly once.
+                awaitProducerYield()
+            case .initial:
+                awaitProducerYield()
+            }
         }
     }
 
@@ -2478,8 +2512,18 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         let current = state
         stateLock.unlock()
 
-        if current == .initial {
-            awaitProducerYield()
+        if current == .delegateReady {
+            stateLock.lock()
+            let delegate = delegatedIterator
+            state = .delegating
+            stateLock.unlock()
+            var thrown = 0
+            let value = kk_iterator_next(delegate, &thrown)
+            if thrown != 0 {
+                runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: #function)
+                return 0
+            }
+            return value
         }
 
         stateLock.lock()
@@ -2515,27 +2559,24 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         stateLock.unlock()
 
         switch current {
-        case .hasValue:
+        case .hasValue, .delegateReady:
             return 1
+        case .delegating:
+            return probeHasNext() ? 1 : 0
         case .done:
             return 0
         case .initial:
             let box = self
             requestProducerStep()
             let didSuspend = consumerGate.wait(resumeContinuation: {
-                box.stateLock.lock()
-                let hasValue = box.state == .hasValue
-                box.stateLock.unlock()
-                callerState.resume(with: hasValue ? 1 : 0)
+                callerState.resume(with: box.probeHasNext() ? 1 : 0)
             })
             if didSuspend {
                 return Int(bitPattern: kk_coroutine_suspended())
             }
             // Signal was pending before the continuation could be installed —
             // the producer already yielded, read the result directly.
-            stateLock.lock()
-            defer { stateLock.unlock() }
-            return state == .hasValue ? 1 : 0
+            return probeHasNext() ? 1 : 0
         }
     }
 

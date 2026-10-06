@@ -41,6 +41,42 @@ public func __kk_sequence_builder_yieldAll_checked(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
+    if let builder = runtimeIteratorBuilderBox(from: builderRaw) {
+        var thrown = 0
+        let iterator: Int
+        let isArray = runtimeArrayBox(from: collectionRaw).map { type(of: $0) == RuntimeArrayBox.self } ?? false
+        if runtimeSequenceBox(from: collectionRaw) != nil {
+            iterator = kk_sequence_box_iterator(collectionRaw, &thrown)
+        } else if runtimeListBox(from: collectionRaw) != nil
+            || isArray
+            || runtimeSetBox(from: collectionRaw) != nil
+            || runtimeRangeBox(from: collectionRaw) != nil
+        {
+            iterator = kk_iterable_iterator(collectionRaw, &thrown)
+        } else if let sourceIterator = runtimeSourceIterableIterator(collectionRaw, outThrown: &thrown) {
+            iterator = sourceIterator
+        } else {
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
+            let sequenceIterator = kk_itable_lookup_dynamic(collectionRaw, Int(runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")), 0)
+            if sequenceIterator != 0 {
+                let acquire = unsafeBitCast(
+                    sequenceIterator,
+                    to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+                )
+                iterator = acquire(collectionRaw, &thrown)
+            } else {
+                iterator = collectionRaw
+            }
+        }
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return builder.yieldAll(iterator, outThrown: outThrown)
+    }
     // Iterable ranges need an iterator before delegating to the builder. Their
     // handles are objects, not scalar Int/Long values or iterator handles.
     if runtimeRangeBox(from: collectionRaw) != nil,
@@ -98,6 +134,12 @@ public func __kk_sequence_builder_yieldAll_checked(
 
 @_cdecl("__kk_sequence_builder_yieldAll")
 public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: builderRaw) != nil {
+        var thrown = 0
+        let result = __kk_sequence_builder_yieldAll_checked(builderRaw, collectionRaw, &thrown)
+        runtimePropagateThrownOrTrap(thrown, outThrown: nil, context: #function)
+        return result
+    }
     // STDLIB-563: If the handle is a coroutine builder proxy, yield each element lazily.
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         var thrown = 0
