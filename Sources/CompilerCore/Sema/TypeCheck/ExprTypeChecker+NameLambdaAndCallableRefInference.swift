@@ -941,6 +941,16 @@ extension ExprTypeChecker {
                 }
             }
             if let memberType, memberType != sema.types.errorType {
+                if let reference = ctx.dataFlow.resolveStableReference(
+                    id, locals: locals, ast: ctx.ast, sema: sema, interner: interner
+                ), reference.isStable,
+                   let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                       ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                   )
+                {
+                    sema.bindings.bindExprType(id, type: narrowedType)
+                    return narrowedType
+                }
                 return memberType
             }
             if candidates.isEmpty, memberType == sema.types.errorType {
