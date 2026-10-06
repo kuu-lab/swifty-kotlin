@@ -13,6 +13,55 @@ final class LambdaLowerer {
         self.driver = driver
     }
 
+    /// Materializes the ambient CoroutineScope `this` for a coroutine builder
+    /// lambda (`runBlocking`/`launch`/`async`/`coroutineScope`/`supervisorScope`).
+    /// The lambda's function type carries no receiver parameter, yet `this`
+    /// inside the body sema-binds to CoroutineScope (see
+    /// `coroutineScopeReceiverLambdaExprIDs`). The runtime already tracks the
+    /// right scope for the executing continuation (`state.scope`, lazily
+    /// created at the outermost builder), so fetch it through the same bridge
+    /// implicit CoroutineScope receiver calls use and install it as the
+    /// implicit receiver. Nested receiverless lambdas can then capture it via
+    /// the ordinary implicit-receiver capture machinery.
+    private func installAmbientCoroutineScopeReceiver(
+        exprID: ExprID,
+        functionType: FunctionType?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        lambdaBody: inout [KIRInstruction]
+    ) {
+        guard functionType?.receiver == nil,
+              sema.bindings.isCoroutineScopeReceiverLambdaExpr(exprID)
+        else {
+            return
+        }
+        let scopeType: TypeID = sema.symbols.lookup(fqName: [
+            interner.intern("kotlinx"),
+            interner.intern("coroutines"),
+            interner.intern("CoroutineScope"),
+        ]).map { symbol in
+            sema.types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        } ?? sema.types.anyType
+        let scopeExpr = arena.appendTemporary(type: scopeType)
+        lambdaBody.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_coroutine_current_scope"),
+            arguments: [],
+            result: scopeExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        driver.ctx.setImplicitReceiver(
+            symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+            exprID: scopeExpr
+        )
+    }
+
     private func normalizeHOFPrimitiveParameter(
         _ exprID: KIRExprID,
         type: TypeID,
@@ -409,6 +458,15 @@ final class LambdaLowerer {
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
+
+        installAmbientCoroutineScopeReceiver(
+            exprID: exprID,
+            functionType: functionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            lambdaBody: &lambdaBody
+        )
 
         let loweredBody = driver.lowerExpr(
             bodyExpr,
@@ -1762,6 +1820,15 @@ final class LambdaLowerer {
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
             driver.ctx.registerLambdaParam(symbol: lambdaParameters[valueParamStart + i].symbol, forName: paramName)
         }
+
+        installAmbientCoroutineScopeReceiver(
+            exprID: exprID,
+            functionType: functionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            lambdaBody: &lambdaBody
+        )
 
         // Lower the body
         let loweredBody = driver.lowerExpr(

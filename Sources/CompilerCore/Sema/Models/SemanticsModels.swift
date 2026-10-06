@@ -1388,6 +1388,13 @@ public final class BindingTable {
     /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
     /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
+    /// Tracks lambda literals type-checked with `kotlinx.coroutines.CoroutineScope`
+    /// as their implicit receiver type (coroutine builder lambdas:
+    /// `runBlocking`/`launch`/`async`/`coroutineScope`/`supervisorScope`). Their
+    /// function types carry no receiver parameter, so `this` inside the body
+    /// has no value-parameter to bind to — KIR lowering must materialize it
+    /// from the runtime's current coroutine scope instead.
+    public private(set) var coroutineScopeReceiverLambdaExprIDs: Set<ExprID> = []
     /// Tracks expressions whose expected type comes from a type annotation
     /// written in source (a property or local declaration's `: Type`), as
     /// opposed to an expected type the compiler synthesized while inferring a
@@ -1894,6 +1901,19 @@ public final class BindingTable {
     /// argument (see `coroutineLauncherLambdaExprIDs`).
     public func isCoroutineLauncherLambdaExpr(_ expr: ExprID) -> Bool {
         coroutineLauncherLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a lambda literal whose body resolves `this` against the ambient
+    /// CoroutineScope of a coroutine builder (see
+    /// `coroutineScopeReceiverLambdaExprIDs`).
+    public func markCoroutineScopeReceiverLambdaExpr(_ expr: ExprID) {
+        coroutineScopeReceiverLambdaExprIDs.insert(expr)
+    }
+
+    /// Whether the lambda literal's `this` binds to the ambient CoroutineScope
+    /// (see `coroutineScopeReceiverLambdaExprIDs`).
+    public func isCoroutineScopeReceiverLambdaExpr(_ expr: ExprID) -> Bool {
+        coroutineScopeReceiverLambdaExprIDs.contains(expr)
     }
 
     /// Mark an expression as checked against a source-written type annotation

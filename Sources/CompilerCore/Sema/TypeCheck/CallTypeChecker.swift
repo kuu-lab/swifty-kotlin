@@ -2021,6 +2021,10 @@ final class CallTypeChecker {
             builderContext.isCoroutineBuilderLambdaScope = true
             if let coroutineScopeType = coroutineScopeType(sema: sema, interner: interner) {
                 builderContext = builderContext.with(implicitReceiverType: coroutineScopeType)
+                // `this` inside the lambda binds to this implicit receiver type
+                // even though the function type carries no receiver parameter;
+                // mark it so KIR lowering can materialize the ambient scope.
+                sema.bindings.markCoroutineScopeReceiverLambdaExpr(args[launcherIndex].expr)
             }
             lambdaContextOverrides[launcherIndex] = builderContext
         }

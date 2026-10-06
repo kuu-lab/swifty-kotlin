@@ -1345,6 +1345,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 }
 
+/// Stable nominal type ID of `kotlinx.coroutines.CoroutineScope`, used to tag
+/// `RuntimeCoroutineScope` objects so runtime `is`/`as` checks against the
+/// interface succeed on raw scope handles (KUU-1416).
+private let runtimeCoroutineScopeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlinx.coroutines.CoroutineScope"
+)
+
 /// A coroutine scope that tracks child jobs and supports structured cancellation.
 ///
 /// CORO-003: Scope is no longer stored in Thread Local Storage. Instead it is
@@ -1422,6 +1429,17 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     init(isSupervisor: Bool = false) {
         self.isSupervisor = isSupervisor
         RuntimeLiveHandles.register(self)
+        // The scope handle doubles as the Kotlin-visible `CoroutineScope`
+        // value: `this` inside coroutine builder lambdas and the receiver of
+        // implicit CoroutineScope calls are both this raw pointer. Tag it with
+        // the interface's nominal type ID so `is`/`as`/`as?` checks against
+        // CoroutineScope succeed. Member calls keep dispatching through the
+        // external kk_coroutine_scope_* bridges, which already accept the raw
+        // handle, so no vtable/itable registration is needed for them.
+        runtimeRegisterObjectType(
+            rawValue: Int(bitPattern: Unmanaged.passUnretained(self).toOpaque()),
+            classID: runtimeCoroutineScopeInterfaceTypeID
+        )
     }
 
     deinit {
