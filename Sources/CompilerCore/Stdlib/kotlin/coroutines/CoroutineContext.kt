@@ -12,8 +12,8 @@ import kotlin.internal.KsSymbolName
 // KSP-1131/KSP-1143: the context's abstract operations and `plus` are declared
 // in bundled Kotlin source. The runtime models a context as a fixed-key
 // element collection rather than upstream's `CombinedContext` chain, so the
-// declarations keep bridging to the residual `kk_context_*` runtime ABI
-// instead of carrying Kotlin bodies. KSP-1144 places the Element defaults in
+// declarations bridge native handles to the residual runtime ABI while
+// dispatching source objects to their Kotlin overrides. KSP-1144 places the Element defaults in
 // the same source owner as the upstream stdlib.
 public interface CoroutineContext {
     @KsSymbolName("__kk_context_get_dispatch")
@@ -22,7 +22,7 @@ public interface CoroutineContext {
     @KsSymbolName("kk_context_fold")
     public fun <R> fold(initial: R, operation: (R, Element) -> R): R
 
-    @KsSymbolName("kk_context_plus")
+    @KsSymbolName("__kk_context_plus_dispatch")
     public operator fun plus(context: CoroutineContext): CoroutineContext
 
     @KsSymbolName("__kk_context_minusKey_dispatch")

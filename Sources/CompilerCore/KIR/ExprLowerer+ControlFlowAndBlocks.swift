@@ -2590,7 +2590,21 @@ extension ExprLowerer {
                 if !isStringCompound {
                     let resultType = arena.exprType(lhs) ?? lhsType
                     let resultID = arena.appendTemporary(type: resultType)
-                    instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    if op == .plusAssign,
+                       driver.callLowerer.isCoroutineContextReceiverType(resultType, sema: sema, interner: interner)
+                    {
+                        // Emit before try lowering, just like the context + path.
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("__kk_context_plus_dispatch"),
+                            arguments: [lhs, rhs],
+                            result: resultID,
+                            canThrow: true,
+                            thrownResult: nil
+                        ))
+                    } else {
+                        instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    }
                     // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
                     // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
                     if let wrapped = SmallIntegerWrap.append(

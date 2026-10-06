@@ -225,6 +225,30 @@ public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
     return runtimeRegisterObject(merged)
 }
 
+/// Preserve Kotlin overrides while retaining native context composition.
+@_cdecl("__kk_context_plus_dispatch")
+public func __kk_context_plus_dispatch(
+    _ contextRaw: Int,
+    _ otherRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    // An Element without a plus override inherits this bodyless bridge.
+    // Its itable entry must use native composition rather than re-enter us.
+    let bridge: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = __kk_context_plus_dispatch
+    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 2)
+    if method != unsafeBitCast(bridge, to: Int.self), let result = runtimeSourceInterfaceCall1(
+        contextRaw, otherRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 2,
+        context: "CoroutineContext.plus dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    return kk_context_plus(contextRaw, otherRaw)
+}
+
 /// Fetch a context element by key.
 /// The current runtime recognizes the closed set of coroutine element handles
 /// already modeled in RuntimeCoroutineContext.
@@ -266,6 +290,21 @@ public func kk_context_fold(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
+    // Source methods receive a Kotlin function value, whereas the bridge ABI
+    // receives the callback entry point and its captured environment separately.
+    if kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1) != 0 {
+        let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
+        if let result = runtimeSourceInterfaceCall2(
+            contextRaw, initial, operation,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 1,
+            context: "CoroutineContext.fold dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+    }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     let ctx = resolveToCoroutineContext(contextRaw)
     var acc = initial

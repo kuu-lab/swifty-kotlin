@@ -801,6 +801,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_context_plus_dispatch",
+            parameters: [
+                RuntimeABIParameter(name: "contextRaw", type: .intptr),
+                RuntimeABIParameter(name: "otherRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_context_get",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
