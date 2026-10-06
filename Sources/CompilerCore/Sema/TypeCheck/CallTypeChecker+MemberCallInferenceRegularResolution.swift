@@ -2791,6 +2791,12 @@ extension CallTypeChecker {
                 {
                     return false
                 }
+                // Member extensions require a dispatch receiver in lexical scope.
+                // The scope and dispatch-member paths above already collect them;
+                // global short-name recovery must not make them callable outside it.
+                guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil else {
+                    return false
+                }
                 // A member extension declared in a companion is
                 // callable only when that companion is in lexical
                 // scope or explicitly imported. Scope lookup above
