@@ -2145,22 +2145,20 @@ extension CallLowerer {
                     let sizeArg = normalizedArgIDs[0]
                     let stepArg = valueArgCount >= 2 ? normalizedArgIDs[1] : intLiteral(1)
                     let partialArg = valueArgCount >= 3 ? normalizedArgIDs[2] : intLiteral(0)
-                    let fnPtrExpr: KIRExprID
-                    let envPtrExpr: KIRExprID
-                    if normalizedArgIDs.count > valueArgCount + 1 {
-                        fnPtrExpr = normalizedArgIDs[valueArgCount]
-                        envPtrExpr = normalizedArgIDs[valueArgCount + 1]
-                    } else {
-                        let split = splitCallableLambdaArgument(
-                            normalizedArgIDs[valueArgCount],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        fnPtrExpr = split.fnPtrExpr
-                        envPtrExpr = split.envPtrExpr
-                    }
+                    // `normalizedArgIDs[valueArgCount]` is the transform callable
+                    // in both shapes (unexpanded lambda, or the fnPtr of an
+                    // already-expanded `addCollectionHOFClosureArguments` pair).
+                    let (fnPtrExpr, envPtrExpr) = splitErasedTransformBridgeArgument(
+                        normalizedArgIDs[valueArgCount],
+                        existingEnvPtrID: normalizedArgIDs.count > valueArgCount + 1
+                            ? normalizedArgIDs[valueArgCount + 1]
+                            : nil,
+                        argExprID: args[valueArgCount].expr,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return [loweredReceiverID, sizeArg, stepArg, partialArg, fnPtrExpr, envPtrExpr]
                 }
 
@@ -2172,8 +2170,9 @@ extension CallLowerer {
                         canThrow: true
                     )
                 case "chunked" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    let (fnPtrExpr, envPtrExpr) = splitErasedTransformBridgeArgument(
                         normalizedArgIDs[1],
+                        argExprID: args[1].expr,
                         sema: sema,
                         arena: arena,
                         interner: interner,
@@ -2205,8 +2204,9 @@ extension CallLowerer {
                 case "zip" where !hasHOFLambdaArg && normalizedArgIDs.count == 1:
                     return appendBridgeCall("__kk_list_zip", [loweredReceiverID, normalizedArgIDs[0]])
                 case "zip" where hasHOFLambdaArg && normalizedArgIDs.count == 2:
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    let (fnPtrExpr, envPtrExpr) = splitErasedTransformBridgeArgument(
                         normalizedArgIDs[1],
+                        argExprID: args[1].expr,
                         sema: sema,
                         arena: arena,
                         interner: interner,
@@ -2220,8 +2220,9 @@ extension CallLowerer {
                 case "zipWithNext" where normalizedArgIDs.isEmpty:
                     return appendBridgeCall("__kk_list_zipWithNext", [loweredReceiverID])
                 case "zipWithNext" where hasHOFLambdaArg && normalizedArgIDs.count == 1:
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    let (fnPtrExpr, envPtrExpr) = splitErasedTransformBridgeArgument(
                         normalizedArgIDs[0],
+                        argExprID: args[0].expr,
                         sema: sema,
                         arena: arena,
                         interner: interner,

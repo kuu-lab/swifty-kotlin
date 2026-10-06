@@ -1052,10 +1052,36 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ) {
+            var bridgeArguments = callArguments
+            // The `*_transform` bridges store the callback's raw return into
+            // `List<R>` verbatim. When the args were already expanded to a
+            // `(fnPtr, closureRaw)` pair, the fnPtr still has to present the
+            // erased-`R` (boxed) ABI — re-split it through the adapter so a
+            // concrete Boolean/Char result does not render as `0`/`1`
+            // (KUU-1434).
+            if bridgeCall.callee == interner.intern("__kk_list_chunked_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_windowed_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_zip_transform")
+                || bridgeCall.callee == interner.intern("__kk_list_zipWithNextTransform"),
+               bridgeArguments.count >= 3,
+               let transformArgExprID = sourceArgExprs.last
+            {
+                let split = splitErasedTransformBridgeArgument(
+                    bridgeArguments[bridgeArguments.count - 2],
+                    existingEnvPtrID: bridgeArguments[bridgeArguments.count - 1],
+                    argExprID: transformArgExprID,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                bridgeArguments[bridgeArguments.count - 2] = split.fnPtrExpr
+                bridgeArguments[bridgeArguments.count - 1] = split.envPtrExpr
+            }
             instructions.append(.call(
                 symbol: nil,
                 callee: bridgeCall.callee,
-                arguments: callArguments,
+                arguments: bridgeArguments,
                 result: result,
                 canThrow: bridgeCall.canThrow,
                 thrownResult: bridgeCall.canThrow ? arena.appendTemporary(type: sema.types.nullableAnyType) : nil,

@@ -211,6 +211,89 @@ extension CallLowerer {
         return nil
     }
 
+    /// Splits a `transform` callable bound for a `__kk_list_*_transform`
+    /// runtime bridge into its `(fnPtr, closureRaw)` pair, first wrapping the
+    /// callable in an erased-ABI adapter when its concrete return is a value
+    /// type. The bridges append the callback's raw return into `List<R>`
+    /// verbatim, and `R` elements are `Any`-handled — so a raw Boolean/Char/Int
+    /// result would surface as `0`/`1`/code points instead of `true`/`a`
+    /// (KUU-1434). Reference-returning callables already deliver object
+    /// handles and pass through unchanged.
+    ///
+    /// `existingEnvPtrID` is the closureRaw slot that already belongs to
+    /// `callableArgID` when the caller received a pre-split pair (e.g. via
+    /// `addCollectionHOFClosureArguments`). Opaque callables that carry no
+    /// compile-time `callableValueInfo` — such as a `kk_function_create_N`
+    /// box resolved through `kk_function_value_fn_ptr`/`_closure_raw` — must
+    /// keep that existing pair: re-running the runtime resolution on an
+    /// already-resolved fnPtr loses the captured environment.
+    func splitErasedTransformBridgeArgument(
+        _ callableArgID: KIRExprID,
+        existingEnvPtrID: KIRExprID? = nil,
+        argExprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (fnPtrExpr: KIRExprID, envPtrExpr: KIRExprID) {
+        if let callableInfo = driver.ctx.callableValueInfo(for: callableArgID),
+           let callableType = arena.exprType(callableArgID) ?? sema.bindings.exprTypes[argExprID],
+           case let .functionType(concreteFunctionType) = sema.types.kind(of: sema.types.makeNonNullable(callableType)),
+           functionValueBoxedReturnType(
+               concreteReturnType: concreteFunctionType.returnType,
+               expectedReturnType: sema.types.anyType,
+               sema: sema
+           ) != nil,
+           let adapted = makeCollectionHOFCallableAdapter(
+               callableInfo: callableInfo,
+               loweredArgID: callableArgID,
+               argExprID: argExprID,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               namePrefix: "kk_transform_result_adapter",
+               symbolIDOffsetBase: -730_000,
+               erasedFunctionType: FunctionType(
+                   receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
+                   params: concreteFunctionType.params.map { _ in sema.types.anyType },
+                   returnType: sema.types.anyType,
+                   isSuspend: concreteFunctionType.isSuspend,
+                   isCallableReference: concreteFunctionType.isCallableReference
+               )
+           )
+        {
+            let adaptedExpr = arena.appendExpr(
+                .symbolRef(adapted.symbol),
+                type: arena.exprType(callableArgID) ?? sema.types.anyType
+            )
+            instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adapted.symbol)))
+            driver.ctx.registerCallableValue(
+                adaptedExpr,
+                symbol: adapted.symbol,
+                callee: adapted.callee,
+                captureArguments: adapted.captureArguments,
+                hasClosureParam: adapted.hasClosureParam
+            )
+            return splitCallableLambdaArgument(
+                adaptedExpr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        if let existingEnvPtrID {
+            return (callableArgID, existingEnvPtrID)
+        }
+        return splitCallableLambdaArgument(
+            callableArgID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     /// True for types represented as an erased `Any` handle at runtime: type
     /// parameters and `Any`/`Any?`.
     private func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
