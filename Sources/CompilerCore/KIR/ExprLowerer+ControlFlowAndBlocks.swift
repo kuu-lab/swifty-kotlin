@@ -142,8 +142,14 @@ extension ExprLowerer {
 
         case let .nameRef(name, _):
             let thisID = interner.intern("this")
-            // Resolve lambda param by name (handles collection HOF fallback where identifierSymbols may be unbound).
+            // Resolve lambda param by name (handles collection HOF fallback where
+            // identifierSymbols may be unbound). Sema's binding wins when it names
+            // a different symbol: lambdas inlined into the enclosing scope
+            // (array-constructor init, `repeat`, atomic array factory) never
+            // register their own params in this map, so an `it` inside them would
+            // otherwise read the enclosing lambda's same-named parameter.
             if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
+               sema.bindings.identifierSymbols[exprID].map({ $0 == paramSymbol }) ?? true,
                let localValue = driver.ctx.localValue(for: paramSymbol)
             {
                 return localValue
