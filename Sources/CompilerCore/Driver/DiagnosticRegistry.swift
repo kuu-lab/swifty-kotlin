@@ -103,6 +103,22 @@ enum DiagnosticRegistry {
         return expanded.sorted()
     }
 
+    /// Severity constraint for a user-facing suppression name, or nil when the
+    /// name suppresses the expanded codes at any severity. kotlinc keeps
+    /// DEPRECATION (warning-level) and DEPRECATION_ERROR (error-level) as
+    /// separate diagnostics, so `DEPRECATION` must not silence an error-level
+    /// deprecation and `DEPRECATION_ERROR` must not silence a warning-level one.
+    static func suppressionSeverityConstraint(for requestedCode: String) -> DiagnosticSeverity? {
+        let normalized = requestedCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        return suppressionSeverityConstraints[normalized]
+            ?? suppressionSeverityConstraints[normalized.uppercased()]
+    }
+
+    private static let suppressionSeverityConstraints: [String: DiagnosticSeverity] = [
+        "DEPRECATION": .warning,
+        "DEPRECATION_ERROR": .error,
+    ]
+
     private static let suppressionAliases: [String: [String]] = [
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],

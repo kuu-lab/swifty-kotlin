@@ -37,6 +37,24 @@ public fun String.uppercase(): String {
 }
 
 /**
+ * Returns a copy of this string converted to lower case using Unicode case mapping.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use lowercase() instead.", ReplaceWith("lowercase()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun String.toLowerCase(): String = lowercase()
+
+/**
+ * Returns a copy of this string converted to upper case using Unicode case mapping.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use uppercase() instead.", ReplaceWith("uppercase()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun String.toUpperCase(): String = uppercase()
+
+/**
  * Returns a copy of this string with the first character title-cased if it is lower case.
  *
  * Deprecated by Kotlin, but still provided for compatibility.
