@@ -12,3 +12,11 @@ public external fun <T> CoroutineScope.async(
     start: CoroutineStart = CoroutineStart.DEFAULT,
     block: suspend CoroutineScope.() -> T
 ): Deferred<T>
+
+// The block receives the child scope; context and start match kotlinx.coroutines.
+@KsSymbolName("__kk_coroutine_scope_launch_context")
+public external fun CoroutineScope.launch(
+    context: CoroutineContext = EmptyCoroutineContext,
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    block: suspend CoroutineScope.() -> Unit
+): Job

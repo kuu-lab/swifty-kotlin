@@ -177,6 +177,7 @@ extension CoroutineLoweringPass {
             "produce", "actor", "launch", "async",
             "__kk_produce_launch", "kk_produce", "kk_kxmini_produce_with_cont",
             "kk_coroutine_scope_launch", "kk_coroutine_scope_async",
+            "__kk_coroutine_scope_launch_context",
             "channelFlow", "callbackFlow",
             "kk_channel_flow_create", "kk_callback_flow_create",
         ].map { ctx.interner.intern($0) })

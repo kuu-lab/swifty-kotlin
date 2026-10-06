@@ -333,7 +333,8 @@ extension CallLowerer {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
         if let chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
+           let scopeBuilderLink = sema.symbols.externalLinkName(for: chosenCallee),
+           (scopeBuilderLink == "kk_coroutine_scope_async" || scopeBuilderLink == "__kk_coroutine_scope_launch_context"),
            finalArguments.count == 4
         {
             for parameterIndex in 0 ..< 2 where normalized.defaultMask & (1 << parameterIndex) != 0 {
@@ -360,7 +361,7 @@ extension CallLowerer {
             // Keep captures visible to suspend liveness before launcher rewriting.
             finalArguments.append(contentsOf: driver.ctx.callableValueInfo(for: finalArguments[3])?.captureArguments ?? [])
             instructions.append(.call(
-                symbol: chosenCallee, callee: interner.intern("kk_coroutine_scope_async"),
+                symbol: chosenCallee, callee: interner.intern(scopeBuilderLink),
                 arguments: finalArguments, result: result,
                 canThrow: false, thrownResult: nil
             ))

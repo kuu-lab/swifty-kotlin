@@ -614,7 +614,8 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
 @_cdecl("kk_context_is_active")
 public func kk_context_is_active(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
-    guard let job = runtimeJobHandle(from: ctx.jobHandleRaw) else {
+    guard let job = runtimeJobHandle(from: ctx.jobHandleRaw)
+        ?? runtimeAsyncTask(from: ctx.jobHandleRaw)?.completionJob else {
         return 1 // No Job element: kotlinx.coroutines treats this as active.
     }
     return job.isActiveSnapshot() ? 1 : 0

@@ -838,6 +838,14 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1244 adds two private launch bridges (reason: GC・continuation):
+   `__kk_coroutine_scope_launch_context` and its `_with_cont` counterpart.
+   A stored suspend block uses the function-value ABI, while a lowered literal
+   needs a native continuation with capture and receiver slots. Both enter the
+   same child-scope scheduler; the public context/start/block contract is owned
+   by bundled `CoroutineScope.launch`. The existing no-stdlib launcher bridges
+   remain, so `__kk_*` increases by two. `RuntimeABISpec.coroutineFunctions`
+   registers both signatures and the canonical hash updates `specVersion`.
    KUU-1312 adds one private bridge, `__kk_mutable_list_as_reversed` (reason:
    metadata). Read-only and mutable `asReversed` overloads require distinct runtime
    view identities even with the same backing list; Kotlin cannot register the

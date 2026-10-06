@@ -332,7 +332,9 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        if call.callee == rewrite.ctx.interner.intern("kk_coroutine_scope_async") {
+        if call.callee == rewrite.ctx.interner.intern("kk_coroutine_scope_async")
+            || call.callee == rewrite.ctx.interner.intern("__kk_coroutine_scope_launch_context")
+        {
             return rewriteCoroutineScopeAsyncCall(
                 call: call, symbolByExprRaw: symbolByExprRaw, using: rewrite
             )
