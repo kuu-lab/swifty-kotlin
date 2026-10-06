@@ -243,15 +243,67 @@ struct ConstantCollector {
         }
         switch (lhsConst, rhsConst) {
         case let (.intLiteral(l), .intLiteral(r)):
-            return integerBinaryOp(op, l, r, width: 32).map { .intLiteral($0) }
+            return comparison(op, l, r) ?? integerBinaryOp(op, l, r, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(l), .longLiteral(r)):
-            return integerBinaryOp(op, l, r).map { .longLiteral($0) }
+            return comparison(op, l, r) ?? integerBinaryOp(op, l, r).map { .longLiteral($0) }
         case let (.intLiteral(l), .longLiteral(r)):
-            return integerBinaryOp(op, l, r).map { .longLiteral($0) }
+            return comparison(op, l, r) ?? integerBinaryOp(op, l, r).map { .longLiteral($0) }
         case let (.longLiteral(l), .intLiteral(r)):
-            return integerBinaryOp(op, l, r).map { .longLiteral($0) }
+            return comparison(op, l, r) ?? integerBinaryOp(op, l, r).map { .longLiteral($0) }
+        case let (.charLiteral(l), .intLiteral(r)):
+            // Kotlin Char arithmetic wraps in the UTF-16 code-unit domain.
+            switch op {
+            case .add: return .charLiteral(UInt32(UInt16(truncatingIfNeeded: Int64(l) &+ r)))
+            case .subtract: return .charLiteral(UInt32(UInt16(truncatingIfNeeded: Int64(l) &- r)))
+            default: return nil
+            }
+        case let (.charLiteral(l), .charLiteral(r)):
+            if op == .subtract { return .intLiteral(Int64(l) - Int64(r)) }
+            return comparison(op, l, r)
+        case let (.boolLiteral(l), .boolLiteral(r)):
+            switch op {
+            case .equal: return .boolLiteral(l == r)
+            case .notEqual: return .boolLiteral(l != r)
+            case .logicalAnd: return .boolLiteral(l && r)
+            case .logicalOr: return .boolLiteral(l || r)
+            default: return nil
+            }
+        case let (.stringLiteral(l), .stringLiteral(r)):
+            switch op {
+            case .equal: return .boolLiteral(l == r)
+            case .notEqual: return .boolLiteral(l != r)
+            default: return nil
+            }
+        case let (.floatLiteral(l), .floatLiteral(r)):
+            return comparison(op, Float(l), Float(r))
+        case let (.floatLiteral(l), .doubleLiteral(r)):
+            return comparison(op, Double(Float(l)), r)
+        case let (.doubleLiteral(l), .floatLiteral(r)):
+            return comparison(op, l, Double(Float(r)))
+        case let (.doubleLiteral(l), .doubleLiteral(r)):
+            return comparison(op, l, r)
+        case let (.intLiteral(l), .floatLiteral(r)), let (.longLiteral(l), .floatLiteral(r)):
+            return comparison(op, Float(l), Float(r))
+        case let (.floatLiteral(l), .intLiteral(r)), let (.floatLiteral(l), .longLiteral(r)):
+            return comparison(op, Float(l), Float(r))
+        case let (.intLiteral(l), .doubleLiteral(r)), let (.longLiteral(l), .doubleLiteral(r)):
+            return comparison(op, Double(l), r)
+        case let (.doubleLiteral(l), .intLiteral(r)), let (.doubleLiteral(l), .longLiteral(r)):
+            return comparison(op, l, Double(r))
         default:
             return nil
+        }
+    }
+
+    private func comparison<T: Comparable>(_ op: BinaryOp, _ lhs: T, _ rhs: T) -> KIRExprKind? {
+        switch op {
+        case .equal: .boolLiteral(lhs == rhs)
+        case .notEqual: .boolLiteral(lhs != rhs)
+        case .lessThan: .boolLiteral(lhs < rhs)
+        case .lessOrEqual: .boolLiteral(lhs <= rhs)
+        case .greaterThan: .boolLiteral(lhs > rhs)
+        case .greaterOrEqual: .boolLiteral(lhs >= rhs)
+        default: nil
         }
     }
 
@@ -308,6 +360,12 @@ struct ConstantCollector {
         }
         guard args.isEmpty else { return nil }
         switch name {
+        case "inv" where canFoldMemberCall != nil:
+            switch receiverConst {
+            case let .intLiteral(value): return .intLiteral(Int64(~Int32(truncatingIfNeeded: value)))
+            case let .longLiteral(value): return .longLiteral(~value)
+            default: return nil
+            }
         case "code":
             if case let .charLiteral(scalar) = receiverConst {
                 return .intLiteral(Int64(scalar))
