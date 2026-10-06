@@ -2027,7 +2027,9 @@ final class LambdaLowerer {
             if case let .functionType(functionType) = sema.types.kind(of: callableType) {
                 registerCallableReflection(
                     value: taggedExpr, callableSymbol: callableSymbol, callableName: callableName,
-                    targetSymbol: targetSymbol, parameterTypes: functionType.params, returnType: functionType.returnType,
+                    targetSymbol: targetSymbol,
+                    parameterTypes: (functionType.receiver.map { [$0] } ?? []) + functionType.params,
+                    returnType: functionType.returnType,
                     captures: captureArguments,
                     receiverCount: isUnbound && targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }?.receiverType != nil ? 1 : 0,
                     ast: ast, sema: sema, arena: arena, interner: interner, instructions: &instructions
