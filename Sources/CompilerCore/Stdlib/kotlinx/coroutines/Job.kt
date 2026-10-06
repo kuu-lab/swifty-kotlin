@@ -129,6 +129,11 @@ public fun CoroutineContext.cancel(cause: CancellationException? = null) {
     if (job != null) __kkJobCancel(job, cause)
 }
 
+// kotlinx.coroutines Job.kt: `cancel(message, cause)` wraps the diagnostic
+// message in a CancellationException and delegates to `cancel(cause)`.
+public fun Job.cancel(message: String, cause: Throwable? = null): Unit =
+    cancel(CancellationException(message, cause))
+
 // KUU-CORO-101: Job/CoroutineContext members that were unresolved wherever
 // real-world coroutine code reads its own job (`this.coroutineContext.job`),
 // checks why it stopped (`job.getCancellationException()`), or reacts to
