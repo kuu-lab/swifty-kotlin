@@ -1,5 +1,7 @@
 package kotlin.time
 
+import kotlin.internal.KsSymbolName
+
 // KSP-472
 // Instant member accessors, arithmetic, comparison, and elapsed().
 // Migration source: Sources/Runtime/RuntimeInstant.swift
@@ -194,8 +196,6 @@ private fun instantFloorDiv(value: Long, divisor: Long): Long {
 }
 
 // KSP-472: companion factories
-
-import kotlin.internal.KsSymbolName
 
 @KsSymbolName("kk_instant_now")
 private external fun __kk_instant_now(): Instant

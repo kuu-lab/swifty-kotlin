@@ -3,6 +3,19 @@ import Testing
 
 @Suite
 struct ImportPlacementTests {
+    @Test
+    func bundledStdlibImportsPrecedeDeclarations() {
+        let sources = BundledStdlib.bundledStdlibSources()
+        #expect(!sources.isEmpty)
+        for source in sources {
+            let parsed = parse(String(decoding: source.contents, as: UTF8.self))
+            #expect(
+                !parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0017" },
+                "Import after a declaration in \(source.path)"
+            )
+        }
+    }
+
     @Test(arguments: [
         "val x = 1",
         "var x = 1",
