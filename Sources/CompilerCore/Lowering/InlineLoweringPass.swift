@@ -54,7 +54,8 @@ final class InlineLoweringPass: LoweringPass {
         // imported inline metadata, classified per symbol.
         let index = InlineExpansionIndex(
             module: module,
-            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore()
+            importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore(),
+            reifiedEnumValuesCallee: ctx.interner.intern("$reifiedEnumValues")
         )
 
         // An inline body — or a lambda body that gets spliced into its caller —
@@ -266,6 +267,15 @@ final class InlineLoweringPass: LoweringPass {
                     }
                     continue
                 }
+            }
+
+            // Reified enumValues carries a token rather than value arguments.
+            // Keep it intact for specialization after all nested inline calls;
+            // expanding the bundled placeholder would inline its throw body.
+            if let symbol, ctx.sema?.wellKnownSymbols.enumIntrinsic(for: symbol) == .enumValues,
+               arguments.count == 1 {
+                loweredBody.append(instruction)
+                continue
             }
 
             // The index owns the binding rule: a symbol-known call binds

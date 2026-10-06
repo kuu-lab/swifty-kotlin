@@ -2141,6 +2141,22 @@ extension DataFlowSemaPhase {
                     ),
                     for: stubSymbol
                 )
+                if reifiedCount > 0, let inlineDir = binding.inlineKIRDir {
+                    let directory = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+                    let path = directory.appendingPathComponent(
+                        MetadataEncoder.inlineKIRFileName(for: defaultStubLink)
+                    ).resolvingSymlinksInPath().standardizedFileURL.path
+                    let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+                    // Older libraries may have only a native default stub.
+                    if path.hasPrefix(directory.path + "/"), attributes?[.type] as? FileAttributeType == .typeRegular {
+                        importedInlineFunctions.register(
+                            ImportedInlineFunctionStore.Descriptor(
+                                path: path, signature: symbols.functionSignature(for: stubSymbol),
+                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default")
+                            ), for: stubSymbol
+                        )
+                    }
+                }
             }
             if let abiSig = record.abiReturnTypeSignature,
                let abiReturnType = decodeImportedTypeSignature(

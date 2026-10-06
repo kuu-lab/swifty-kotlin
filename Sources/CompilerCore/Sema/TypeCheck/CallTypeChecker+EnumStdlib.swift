@@ -49,11 +49,25 @@ extension CallTypeChecker {
             return nil
         }
         let typeArg = explicitTypeArgs[0]
-        guard case let .classType(classType) = sema.types.kind(of: typeArg),
-              classType.nullability == .nonNull,
-              let nominalSymbol = sema.symbols.symbol(classType.classSymbol),
-              nominalSymbol.kind == .enumClass
-        else {
+        let enumType: TypeID
+        if case let .classType(classType) = sema.types.kind(of: typeArg),
+           classType.nullability == .nonNull,
+           sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass {
+            enumType = typeArg
+        } else if intrinsic == .enumValues,
+                  case let .typeParam(parameter) = sema.types.kind(of: typeArg),
+                  parameter.nullability == .nonNull,
+                  sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true,
+                  let enumSymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Enum")]),
+                  sema.symbols.typeParameterUpperBounds(for: parameter.symbol).contains(where: { bound in
+                      guard case let .classType(boundClass) = sema.types.kind(of: bound),
+                            boundClass.classSymbol == enumSymbol,
+                            boundClass.nullability == .nonNull,
+                            boundClass.args == [.invariant(typeArg)] else { return false }
+                      return true
+                  }) {
+            enumType = typeArg
+        } else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "`\(interner.resolve(calleeName))` requires exactly one non-nullable enum type argument.",
@@ -61,12 +75,6 @@ extension CallTypeChecker {
             )
             return nil
         }
-
-        let enumType = sema.types.make(.classType(ClassType(
-            classSymbol: classType.classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
 
         switch intrinsic {
         case .enumValues:

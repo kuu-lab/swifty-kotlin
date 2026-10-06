@@ -121,6 +121,12 @@ extension InlineLoweringPass {
                 else {
                     continue
                 }
+                // The reified enum intrinsic is specialized by the next pass,
+                // after tokens have propagated through every inline expansion.
+                if let callSymbol,
+                   ctx.sema?.wellKnownSymbols.enumIntrinsic(for: callSymbol) == .enumValues {
+                    continue
+                }
                 let calleeName = ctx.interner.resolve(callee)
                 let callerName = ctx.interner.resolve(function.name)
                 let cause: String = if let callSymbol, recursive.contains(callSymbol) {

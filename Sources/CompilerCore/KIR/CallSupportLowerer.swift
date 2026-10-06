@@ -447,7 +447,7 @@ final class CallSupportLowerer {
             returnType: signature.returnType,
             body: body,
             isSuspend: signature.isSuspend,
-            isInline: false
+            isInline: !signature.reifiedTypeParameterIndices.isEmpty
         )))
 
         driver.ctx.restoreScope(scopeSnapshot)
