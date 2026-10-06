@@ -126,6 +126,15 @@ extension InlineLoweringPass {
                 else {
                     continue
                 }
+                // The factory call's second argument carries the captured
+                // environment handed to the adapter's leading closure
+                // parameter. Without it the spliced adapter body leaves that
+                // parameter's `symbolRef` dangling in the caller (it reads
+                // back as 0 at runtime), so bind it explicitly for
+                // `lambdaCaptureArguments`.
+                if arguments.count > 1 {
+                    lambdaCaptureArgsByExpr[argExpr] = [arguments[1]]
+                }
                 return fn
             }
         }

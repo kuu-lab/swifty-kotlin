@@ -92,9 +92,12 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
-        let inlineLambdaArguments = collectInlineLambdaArguments(ast: ast, sema: sema)
+        let (inlineLambdaArguments, suspendLambdaArguments) = collectInlineLambdaArguments(ast: ast, sema: sema)
         validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
-        driver.validateSuspensionContexts(inlineLambdaArguments: inlineLambdaArguments)
+        driver.validateSuspensionContexts(
+            inlineLambdaArguments: inlineLambdaArguments,
+            suspendLambdaArguments: suspendLambdaArguments
+        )
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
@@ -139,20 +142,42 @@ final class TypeCheckSemaPhase: CompilerPhase {
         )
     }
 
-    private func collectInlineLambdaArguments(ast: ASTModule, sema: SemaModule) -> Set<ExprID> {
+    /// Collects the lambda arguments whose bodies execute in the caller's own
+    /// control-flow and suspension context:
+    ///
+    /// - `inlineLambdaArguments`: lambdas passed to `inline` callees on
+    ///   parameters that are neither `noinline` nor `crossinline`. These keep
+    ///   the caller's non-local-return and suspension contexts.
+    /// - `suspendLambdaArguments`: lambdas bound to a parameter whose declared
+    ///   type is a `suspend` function type. Such lambdas supply their own
+    ///   suspension context regardless of whether the callee is `inline`,
+    ///   which is required because the lambda's recorded `exprTypes` entry is
+    ///   not always rewritten to the suspend variant after overload
+    ///   resolution picks the bound signature (e.g. `Flow.filter`'s
+    ///   `predicate: suspend (T) -> Boolean`).
+    private func collectInlineLambdaArguments(
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> (inlineLambdaArguments: Set<ExprID>, suspendLambdaArguments: Set<ExprID>) {
         var inlineLambdaArguments: Set<ExprID> = []
-        func recordInlineLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
-            guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
-                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
-            else { return }
+        var suspendLambdaArguments: Set<ExprID> = []
+        func recordLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
+            guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { return }
+            let calleeIsInline = sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true
             for (index, argument) in arguments.enumerated() {
                 let parameterIndex = binding.parameterMapping[index] ?? index
                 guard case .lambdaLiteral = ast.arena.expr(argument),
                       signature.parameterTypes.indices.contains(parameterIndex),
-                      case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+                      case let .functionType(parameterFunction) = sema.types.kind(
+                          of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
+                      )
                 else { continue }
-                if !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
-                    || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
+                if parameterFunction.isSuspend {
+                    suspendLambdaArguments.insert(argument)
+                }
+                if calleeIsInline,
+                   !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
+                       || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 {
                     inlineLambdaArguments.insert(argument)
                 }
@@ -176,15 +201,15 @@ final class TypeCheckSemaPhase: CompilerPhase {
             default:
                 continue
             }
-            recordInlineLambdaArguments(arguments, binding: binding)
+            recordLambdaArguments(arguments, binding: binding)
         }
         // Indexed compound assignments bind get() on the expression itself
         // and keep the element's plusAssign()/plus() call separately.
         for (exprID, binding) in sema.bindings.indexedCompoundAssignElementOperatorBindings {
             guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
-            recordInlineLambdaArguments([value], binding: binding.call)
+            recordLambdaArguments([value], binding: binding.call)
         }
-        return inlineLambdaArguments
+        return (inlineLambdaArguments, suspendLambdaArguments)
     }
 
     private func validateReturnLambdaPaths(

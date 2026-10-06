@@ -2702,6 +2702,17 @@ extension NativeEmitter {
                     name: calleeName,
                     parameterCount: argumentValues.count
                 )
+                // Lowering also writes synthetic `kk_`/`__kk_` labels that name
+                // no real function (e.g. `__kk_kproperty_impl_<id>` wraps the
+                // property implementation symbol, and lambda sites spell
+                // `kk_lambda_<id>` while retaining the callee's symbol). Those
+                // spellings resolve to nothing the emitter can reach by name —
+                // no emitted internal entry, no runtime ABI spec, no declared
+                // LLVM function — so the retained symbol remains the binding.
+                let calleeResolvesToRealTarget = internalFunctionsByLookupKey[calleeLookupKey] != nil
+                    || Self.runtimeABIFunctionByName[calleeName] != nil
+                    || externalFunctions[calleeName] != nil
+                    || bindings.getNamedFunction(module: llvmModule, name: calleeName) != nil
                 let calleeNamesSymbol: Bool = if !calleeIsRuntimeName {
                     true
                 } else if let symbol, symbol != .invalid {
@@ -2710,6 +2721,7 @@ extension NativeEmitter {
                             .map({ $0.hasPrefix("kk_fn_") && $0 == calleeName }) == true
                         || internalFunctionsByLookupKey[calleeLookupKey]?
                             .contains(where: { $0.symbol == symbol }) == true
+                        || !calleeResolvesToRealTarget
                 } else {
                     false
                 }
