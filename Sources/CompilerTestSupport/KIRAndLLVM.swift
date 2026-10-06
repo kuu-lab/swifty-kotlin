@@ -9,27 +9,49 @@ func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
     }
 }
 
+private struct MissingKIRFunctionError: Error {
+    let name: String
+}
+
 func findKIRFunction(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
+    fileID: StaticString = #fileID,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> KIRFunction {
-    let function = findAllKIRFunctions(in: module).first { function in
+    guard let function = findAllKIRFunctions(in: module).first(where: { function in
         interner.resolve(function.name) == name
+    }) else {
+        // 非テストターゲットでは TestingMacros が使えないため #require の代わりに
+        // Issue.record + throw でテスト失敗とする。
+        Issue.record(
+            "KIR function '\(name)' not found in module",
+            severity: .error,
+            sourceLocation: SourceLocation(
+                fileID: fileID.description,
+                filePath: file.description,
+                line: Int(line),
+                column: 1
+            )
+        )
+        throw MissingKIRFunctionError(name: name)
     }
-    return try #require(function, "KIR function '\(name)' not found in module")
+    return function
 }
 
 func findKIRFunctionBody(
     named name: String,
     in module: KIRModule,
     interner: StringInterner,
+    fileID: StaticString = #fileID,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> [KIRInstruction] {
-    let function = try findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
+    let function = try findKIRFunction(
+        named: name, in: module, interner: interner, fileID: fileID, file: file, line: line
+    )
     return function.body
 }
 

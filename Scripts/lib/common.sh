@@ -299,3 +299,21 @@ kswiftk_append_build_system_flag() {
         __flags_array+=(--build-system "$SWIFT_BUILD_SYSTEM")
     fi
 }
+
+# On CLT-only macOS toolchains, libTestingMacros.dylib lives in the nested
+# host/plugins/testing/ directory. Neither the flat plugin scan
+# (-load-resolved-plugin) nor SwiftPM's -plugin-path wiring at
+# swift-tools-version >= 6.2 reaches it, so any file expanding Testing macros
+# (@Test/#expect/#require) fails with "plugin for module 'TestingMacros' not
+# found". When the nested plugin exists but the flat one does not, pass
+# -plugin-path explicitly. No-op on Linux or toolchains with a flat layout.
+kswiftk_append_testing_plugin_path() {
+    local -n __flags_array="$1"
+    [[ "$(uname -s)" == "Darwin" ]] || return 0
+    local swiftc_path plugins_dir
+    swiftc_path="$(xcrun --find swiftc 2>/dev/null)" || return 0
+    plugins_dir="$(cd "$(dirname "$swiftc_path")/../lib/swift/host/plugins" 2>/dev/null && pwd)"
+    [[ -n "$plugins_dir" && -f "$plugins_dir/testing/libTestingMacros.dylib" ]] || return 0
+    [[ -f "$plugins_dir/libTestingMacros.dylib" ]] && return 0
+    __flags_array+=(-Xswiftc -plugin-path -Xswiftc "$plugins_dir/testing")
+}
