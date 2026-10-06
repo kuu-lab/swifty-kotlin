@@ -1092,16 +1092,19 @@ extension OverloadResolver {
         _ symbol: SymbolID,
         typeSystem: TypeSystem
     ) -> Bool {
-        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
-              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        guard let symbols = typeSystem.symbolTable,
+              let declaration = symbols.symbol(symbol),
+              let parentID = symbols.parentSymbol(for: symbol),
+              let parent = symbols.symbol(parentID),
+              declaration.fqName == parent.fqName + [declaration.name]
         else {
             return false
         }
-        return parentKind == .class
-            || parentKind == .interface
-            || parentKind == .object
-            || parentKind == .enumClass
-            || parentKind == .annotationClass
+        return parent.kind == .class
+            || parent.kind == .interface
+            || parent.kind == .object
+            || parent.kind == .enumClass
+            || parent.kind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.

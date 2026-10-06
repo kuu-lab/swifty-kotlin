@@ -2975,7 +2975,31 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let calleeName,
+                if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
+                   let calleeName,
+                   let recovered = resolveOuterImplicitReceiverExtensionCall(
+                       candidates: candidates,
+                       args: args,
+                       preparedArgs: preparedArgs,
+                       range: range,
+                       calleeName: calleeName,
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       ctx: ctx
+                   )
+                {
+                    resolved = recovered.resolved
+                    if resolved.chosenCallee != nil {
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: recovered.receiverSymbol)
+                    } else if let diagnostic = resolved.diagnostic {
+                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
+                if resolved.diagnostic != nil,
+                   let calleeName,
                    let receiverType = ctx.implicitReceiverType,
                    let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
                        id,
@@ -2991,22 +3015,23 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let retried = retryResolutionReinferringNestedCallArguments(
-                    candidates: candidates,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    calleeName: calleeName ?? InternedString(),
-                    explicitTypeArgs: explicitTypeArgs,
-                    expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                    implicitReceiverType: ctx.implicitReceiverType,
-                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
-                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
-                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
-                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                    ctx: ctx,
-                    locals: &locals
-                ) {
+                if resolved.diagnostic != nil,
+                   let retried = retryResolutionReinferringNestedCallArguments(
+                       candidates: candidates,
+                       args: args,
+                       argTypes: argTypes,
+                       range: range,
+                       calleeName: calleeName ?? InternedString(),
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       implicitReceiverType: ctx.implicitReceiverType,
+                       lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                       inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                       blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                       hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                       ctx: ctx,
+                       locals: &locals
+                   ) {
                     resolved = retried
                 }
             }
