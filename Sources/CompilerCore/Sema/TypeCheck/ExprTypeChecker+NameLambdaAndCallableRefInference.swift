@@ -1789,16 +1789,20 @@ extension ExprTypeChecker {
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
             // `Any`/`Any?` expected returns are placeholders the same way:
-            // `inferCallExpr` synthesizes `(args) -> Any` as the contextual
-            // type when a lambda literal is invoked directly (`{ ... }()`)
-            // with no caller-supplied expected type. Adopting it verbatim
-            // would type the call result as `Any` (e.g. `true && { 1; true }()`
-            // then fails `&&`'s Boolean constraint), so the concrete body
-            // return must flow through here too.
+            // `inferCallExpr` synthesizes `() -> Any` as the contextual type
+            // when a lambda literal is invoked directly (`{ ... }()`) with no
+            // caller-supplied expected type. Adopting it verbatim would type
+            // the call result as `Any` (e.g. `true && { 1; true }()` then
+            // fails `&&`'s Boolean constraint), so the concrete body return
+            // must flow through here too. A real parameter type like
+            // `(T, T) -> Any` (the erased-R placeholder used by the synthetic
+            // collection-HOF paths) must keep the expected `Any` return,
+            // though: the emitted thunk's declared return drives boxing at the
+            // erased ABI boundary, and a concrete `Boolean`/`Char` would be
+            // stored raw into `List<R>` and print as `1`/`97`.
             let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
-                || expectedFunctionType.returnType == sema.types.anyType
-                || expectedFunctionType.returnType == sema.types.nullableAnyType
+                || sema.bindings.isDirectlyInvokedLambdaExpr(id)
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

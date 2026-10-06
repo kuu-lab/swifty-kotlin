@@ -3454,6 +3454,7 @@ final class CallTypeChecker {
                     // explicit annotation there (`{ x -> ... }(4)` is rejected,
                     // `{ x: Int -> ... }(4)` is accepted) — so only the optional
                     // caller expected *return* type is propagated here.
+                    sema.bindings.markDirectlyInvokedLambdaExpr(calleeID)
                     contextualCalleeType = sema.types.make(.functionType(FunctionType(
                         params: [],
                         returnType: expectedType ?? sema.types.anyType,
