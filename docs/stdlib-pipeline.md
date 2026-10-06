@@ -891,6 +891,13 @@ ABI entry (MEMORY_REPRESENTATION: runtime handles and Kotlin objects have distin
 layouts); it only queries the existing live-handle registry. Job factories bind
 raw jobs to source wrappers and public hierarchy queries preserve live wrapper
 identity without retaining a wrapper through its job.
+
+`CoroutineContext.Element.key`, `Job.key`, and `CoroutineDispatcher.key` reads
+use bundled `__kkCoroutineElementKey` for the same representation boundary.
+Native jobs/tasks return `Job.Key` and scheduler handles return
+`ContinuationInterceptor.Key`; source objects invoke their actual key getter.
+`__kk_job_is_runtime` is an internal MEMORY_REPRESENTATION bridge that identifies
+raw job/task objects, excluding Kotlin wrappers with their own getter slots.
 ### Coroutine nominal/master integration
 
 `__kk_dispatcher_immediate` bridges the memory representation of scheduler tags

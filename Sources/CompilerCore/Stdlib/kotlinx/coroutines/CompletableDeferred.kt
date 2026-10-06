@@ -15,7 +15,7 @@ internal class CompletableDeferredImpl<T>(parent: Job?) : CompletableDeferred<T>
     override val isCancelled: Boolean get() = job.isCancelled
 
     override val key: CoroutineContext.Key<*>
-        get() = CompletableJobKey
+        get() = Job.Key
 
     override fun complete(value: T): Boolean = __kkJobComplete(job, value)
 

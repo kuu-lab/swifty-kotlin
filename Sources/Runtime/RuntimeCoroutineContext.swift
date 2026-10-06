@@ -442,6 +442,13 @@ func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
     return isDispatcherTag(receiver) || isDispatcherObject
 }
 
+@_cdecl("__kk_job_is_runtime")
+public func kk_job_is_runtime(_ receiver: Int) -> Int {
+    // Source wrappers also resolve to a Job, but have their own getter slots.
+    return resolveLiveRuntimeHandle(receiver, as: RuntimeJobHandle.self) != nil
+        || runtimeAsyncTask(from: receiver) != nil ? 1 : 0
+}
+
 @_cdecl("__kk_is_native_dispatcher")
 public func kk_is_native_dispatcher(_ receiver: Int) -> Int {
     runtimeIsNativeDispatcher(receiver) ? 1 : 0
