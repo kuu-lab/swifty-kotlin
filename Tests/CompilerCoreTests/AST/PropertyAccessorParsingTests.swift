@@ -95,5 +95,42 @@ struct PropertyAccessorParsingTests {
         }
         #expect(ast.arena.expr(exprID) != nil)
     }
+
+    @Test(arguments: ["\n", " ", "; "])
+    func expressionSetterPreservesElvisLambdaOrder(separator: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class V<T : Any> {
+            var stored: T? = null
+            var flag = false
+            var value: T? get() = stored\(separator)set(p) = p?.let { stored = it; flag = false } ?: run { flag = true }
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "value", ofClass: "V", in: ast, interner: ctx.interner))
+        guard case let .expr(exprID, _) = property.setter?.body,
+              case let .binary(.elvis, lhsID, rhsID, _) = ast.arena.expr(exprID),
+              case let .safeMemberCall(_, member, _, letArgs, _) = ast.arena.expr(lhsID),
+              case let .call(calleeID, _, runArgs, _) = ast.arena.expr(rhsID),
+              case let .nameRef(runName, _) = ast.arena.expr(calleeID)
+        else {
+            Issue.record("Expected a safe let call followed by an Elvis run call")
+            return
+        }
+        #expect(ctx.interner.resolve(member) == "let")
+        #expect(ctx.interner.resolve(runName) == "run")
+        #expect(letArgs.count == 1)
+        #expect(runArgs.count == 1)
+        let letArg = try #require(letArgs.first)
+        let runArg = try #require(runArgs.first)
+        guard case let .lambdaLiteral(_, letBody, _, _) = ast.arena.expr(letArg.expr),
+              case let .blockExpr(statements, trailing, _) = ast.arena.expr(letBody),
+              case let .lambdaLiteral(_, runBody, _, _) = ast.arena.expr(runArg.expr),
+              case let .blockExpr(runStatements, runTrailing, _) = ast.arena.expr(runBody)
+        else {
+            Issue.record("Both calls must retain their own lambda bodies")
+            return
+        }
+        #expect(statements.count + (trailing == nil ? 0 : 1) == 2)
+        #expect(runStatements.count + (runTrailing == nil ? 0 : 1) == 1)
+    }
 }
 #endif

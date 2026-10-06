@@ -721,6 +721,18 @@ final class CallTypeChecker {
         {
             let intType = sema.types.intType
             let calleeNameStr = interner.resolve(calleeName)
+            // Intrinsic allocation bypasses normal constructor resolution, but
+            // still uses the source-backed array class's opt-in contract.
+            if let arraySymbol = sema.symbols.lookup(
+                fqName: [interner.intern("kotlin"), calleeName]
+            ) {
+                driver.helpers.checkOptIn(
+                    for: arraySymbol,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             let countType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
@@ -1005,7 +1017,7 @@ final class CallTypeChecker {
         ]
         let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
         let isUnqualifiedTypeOf = calleeName.map {
-            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+            $0 == knownNames.typeOf && locals[$0] == nil
         } ?? false
         if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
             // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
@@ -2532,12 +2544,20 @@ final class CallTypeChecker {
                 if let expectedType = expectedCollectionType(withArity: 2) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
+                // Spread arguments contribute their array element (Pair<K, V>),
+                // not the array itself, to the factory's key/value inference.
+                let pairTypes = zip(args, argTypes).map { argument, type in
+                    argument.isSpread
+                        ? (driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
+                            ?? sema.types.errorType)
+                        : type
+                }
                 let keyType: TypeID
                 let valueType: TypeID
                 if explicitTypeArgs.count == 2 {
                     keyType = explicitTypeArgs[0]
                     valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: argTypes, ctx: ctx) {
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: pairTypes, ctx: ctx) {
                     keyType = inferred.keyType
                     valueType = inferred.valueType
                 } else {
@@ -2975,7 +2995,31 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let calleeName,
+                if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
+                   let calleeName,
+                   let recovered = resolveOuterImplicitReceiverExtensionCall(
+                       candidates: candidates,
+                       args: args,
+                       preparedArgs: preparedArgs,
+                       range: range,
+                       calleeName: calleeName,
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       ctx: ctx
+                   )
+                {
+                    resolved = recovered.resolved
+                    if resolved.chosenCallee != nil {
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: recovered.receiverSymbol)
+                    } else if let diagnostic = resolved.diagnostic {
+                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
+                if resolved.diagnostic != nil,
+                   let calleeName,
                    let receiverType = ctx.implicitReceiverType,
                    let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
                        id,
@@ -2991,22 +3035,23 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let retried = retryResolutionReinferringNestedCallArguments(
-                    candidates: candidates,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    calleeName: calleeName ?? InternedString(),
-                    explicitTypeArgs: explicitTypeArgs,
-                    expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                    implicitReceiverType: ctx.implicitReceiverType,
-                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
-                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
-                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
-                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                    ctx: ctx,
-                    locals: &locals
-                ) {
+                if resolved.diagnostic != nil,
+                   let retried = retryResolutionReinferringNestedCallArguments(
+                       candidates: candidates,
+                       args: args,
+                       argTypes: argTypes,
+                       range: range,
+                       calleeName: calleeName ?? InternedString(),
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       implicitReceiverType: ctx.implicitReceiverType,
+                       lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                       inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                       blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                       hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                       ctx: ctx,
+                       locals: &locals
+                   ) {
                     resolved = retried
                 }
             }
@@ -3753,12 +3798,46 @@ final class CallTypeChecker {
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
         locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
-        inferMemberCallImpl(
+        let result = inferMemberCallImpl(
             id, receiverID: receiverID, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
             safeCall: false
         )
+        guard ctx.ast.arena.isInfixCall(id), result != ctx.sema.types.errorType else {
+            return result
+        }
+        let isInfix: Bool
+        if let binding = ctx.sema.bindings.callBindings[id] {
+            isInfix = ctx.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.infixFunction) == true
+        } else {
+            // Primitive intrinsics have no callable symbol. Only their bitwise
+            // and shift functions support infix notation.
+            let name = ctx.interner.resolve(calleeName)
+            let receiverType = ctx.sema.bindings.exprType(for: receiverID)
+            let primitive = receiverType.map { ctx.sema.types.kind(of: $0) }
+            switch primitive {
+            case .primitive(.int, .nonNull), .primitive(.long, .nonNull):
+                isInfix = ["and", "or", "xor", "shl", "shr", "ushr"].contains(name)
+            case .primitive(.boolean, .nonNull):
+                isInfix = ["and", "or", "xor"].contains(name)
+            case .primitive(.uint, .nonNull), .primitive(.ulong, .nonNull),
+                 .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
+                isInfix = ["and", "or", "xor", "shl", "shr"].contains(name)
+            default:
+                isInfix = false
+            }
+        }
+        guard isInfix else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0307",
+                "'infix' modifier is required on '\(ctx.interner.resolve(calleeName))'.",
+                range: range
+            )
+            ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
+            return ctx.sema.types.errorType
+        }
+        return result
     }
 
     func inferSafeMemberCallExpr(

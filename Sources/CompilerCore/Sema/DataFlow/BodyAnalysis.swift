@@ -95,14 +95,22 @@ extension DataFlowSemaPhase {
             }
 
             let candidates: [SemanticSymbol]
-            if path.count == 1,
-               let relativeOwnerFQName
+            if let relativeOwnerFQName
             {
-                let relativeCandidates = resolveRelativeNominalCandidates(
-                    named: shortName,
+                // Resolve the lexical root before walking a qualified nested name.
+                // For example, Slot.Task inside Ch refers to Ch.Slot.Task.
+                // Qualified type annotations can start at a lexically enclosing
+                // declaration, such as Slot.Closed inside the class owning Slot.
+                let relativeRoots = resolveRelativeNominalCandidates(
+                    named: path[0],
                     relativeTo: relativeOwnerFQName,
                     symbols: symbols
                 )
+                let relativeCandidates = path.count == 1 ? relativeRoots : relativeRoots.flatMap { root in
+                    symbols.lookupAll(fqName: root.fqName + Array(path.dropFirst()))
+                        .compactMap { symbols.symbol($0) }
+                        .filter { isNominalTypeSymbol($0.kind) }
+                }
                 if !relativeCandidates.isEmpty {
                     candidates = relativeCandidates
                 } else {
@@ -115,8 +123,10 @@ extension DataFlowSemaPhase {
                     )
                     if !fqCandidates.isEmpty {
                         candidates = fqCandidates
-                    } else {
+                    } else if path.count == 1 {
                         candidates = symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }
+                    } else {
+                        candidates = []
                     }
                 }
             } else {

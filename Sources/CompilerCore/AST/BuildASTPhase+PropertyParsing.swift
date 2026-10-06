@@ -135,7 +135,6 @@ extension BuildASTPhase {
         // Skip propertyAccessor nodes that represent explicit backing fields
         // (`field = expr` or `field: Type = expr`) — those are handled by
         // `declarationExplicitBackingField`.
-        var accessorTokens: [Token] = []
         var hasAccessorNode = false
         for child in arena.children(of: nodeID) {
             if case let .node(childID) = child,
@@ -163,7 +162,13 @@ extension BuildASTPhase {
                         setter: &setter
                     )
                 } else {
-                    accessorTokens.append(contentsOf: collectTokens(from: childID, in: arena))
+                    let result = parseInlineAccessors(
+                        from: collectTokens(from: childID, in: arena),
+                        nodeRange: arena.node(childID).range,
+                        interner: interner, astArena: astArena
+                    )
+                    if getter == nil { getter = result.getter }
+                    if setter == nil { setter = result.setter }
                 }
             }
         }
@@ -174,8 +179,8 @@ extension BuildASTPhase {
             // child. Parse that direct-token prefix as well, otherwise a
             // `var` with `get() ...; set(...) ...` loses its getter entirely.
             let directTokens = collectDirectTokens(from: nodeID, in: arena)
-            if let accessorStart = inlineAccessorStartIndex(in: directTokens) {
-                let directAccessorTokens = Array(directTokens[accessorStart...])
+            if inlineAccessorStartIndex(in: directTokens) != nil {
+                let directAccessorTokens = directTokens
                 let directResult = parseInlineAccessors(
                     from: directAccessorTokens,
                     nodeRange: arena.node(nodeID).range,
@@ -184,11 +189,6 @@ extension BuildASTPhase {
                 )
                 if getter == nil { getter = directResult.getter }
                 if setter == nil { setter = directResult.setter }
-            }
-            if !accessorTokens.isEmpty {
-                let inlineResult = parseInlineAccessors(from: accessorTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
-                if getter == nil { getter = inlineResult.getter }
-                if setter == nil { setter = inlineResult.setter }
             }
             return (getter, setter)
         }
@@ -278,6 +278,25 @@ extension BuildASTPhase {
         return nil
     }
 
+    /// Keep only an annotation prefix immediately preceding the accessor.
+    /// Earlier property annotations and annotations inside an initializer are
+    /// not accessor annotations.
+    private func accessorAnnotations(from tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
+        for start in tokens.indices where tokens[start].kind == .symbol(.at) {
+            var index = start
+            var annotations: [AnnotationNode] = []
+            while index < tokens.count, tokens[index].kind == .symbol(.at),
+                  let parsed = AnnotationParsingSupport.parseAnnotation(
+                      from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+                  ) {
+                annotations.append(parsed.annotation)
+                index = parsed.nextIndex
+            }
+            if index == tokens.count { return annotations }
+        }
+        return []
+    }
+
     /// Parse inline `get()/set()` accessor declarations from a flat token
     /// stream.  For `val x: T get() = expr`, the tokens after the type
     /// annotation contain `get ( ) = expr` without a wrapping block node.
@@ -299,6 +318,7 @@ extension BuildASTPhase {
                 false
             }
         }) {
+            let annotations = accessorAnnotations(from: Array(remaining[..<startIdx]), interner: interner)
             let token = remaining[startIdx]
             let kind: PropertyAccessorKind
             switch token.kind {
@@ -386,7 +406,7 @@ extension BuildASTPhase {
                     }
                     if exprEnd != remaining.endIndex { break }
                 }
-                let exprTokens = remaining[exprStart ..< exprEnd].filter { $0.kind != .symbol(.semicolon) }
+                let exprTokens = Array(remaining[exprStart ..< exprEnd])
                 if !exprTokens.isEmpty {
                     let parser = ExpressionParser(
                         tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena,
@@ -437,6 +457,7 @@ extension BuildASTPhase {
             let accessor = PropertyAccessorDecl(
                 range: nodeRange,
                 kind: kind,
+                annotations: annotations,
                 parameterName: parameterName,
                 body: body
             )
@@ -459,9 +480,12 @@ extension BuildASTPhase {
         getter: inout PropertyAccessorDecl?,
         setter: inout PropertyAccessorDecl?
     ) {
-        let headerTokens = collectDirectTokens(from: accessorNodeID, in: arena).filter { token in
+        let rawHeaderTokens = collectDirectTokens(from: accessorNodeID, in: arena).filter { token in
             token.kind != .symbol(.semicolon)
         }
+        let annotations = annotationsFromTokens(rawHeaderTokens, interner: interner)
+        guard let accessorStart = inlineAccessorStartIndex(in: rawHeaderTokens, bodyIsSiblingBlock: true) else { return }
+        let headerTokens = Array(rawHeaderTokens[accessorStart...])
         guard let firstToken = headerTokens.first else { return }
 
         let kind: PropertyAccessorKind
@@ -485,6 +509,7 @@ extension BuildASTPhase {
         let accessor = PropertyAccessorDecl(
             range: arena.node(accessorNodeID).range,
             kind: kind,
+            annotations: annotations,
             parameterName: parameterName,
             body: body
         )
@@ -508,9 +533,12 @@ extension BuildASTPhase {
             return
         }
 
-        let headerTokens = collectDirectTokens(from: statementID, in: arena).filter { token in
+        let rawHeaderTokens = collectDirectTokens(from: statementID, in: arena).filter { token in
             token.kind != .symbol(.semicolon)
         }
+        let annotations = annotationsFromTokens(rawHeaderTokens, interner: interner)
+        guard let accessorStart = inlineAccessorStartIndex(in: rawHeaderTokens, bodyIsSiblingBlock: true) else { return }
+        let headerTokens = Array(rawHeaderTokens[accessorStart...])
         guard let firstToken = headerTokens.first else {
             return
         }
@@ -536,6 +564,7 @@ extension BuildASTPhase {
         let accessor = PropertyAccessorDecl(
             range: arena.node(statementID).range,
             kind: kind,
+            annotations: annotations,
             parameterName: parameterName,
             body: body
         )
@@ -619,12 +648,15 @@ extension BuildASTPhase {
         for (position, start) in starts.enumerated() {
             let end = position + 1 < starts.count ? starts[position + 1] : items.count
             var headerTokens: [Token] = []
+            var accessorTokens: [Token] = []
             var firstBlock: NodeID?
             for item in items[start ..< end] {
                 switch item {
                 case let .token(token):
+                    accessorTokens.append(token)
                     if token.kind != .symbol(.semicolon) { headerTokens.append(token) }
                 case let .block(blockID):
+                    accessorTokens.append(contentsOf: collectTokens(from: blockID, in: arena))
                     if firstBlock == nil { firstBlock = blockID }
                 }
             }
@@ -633,11 +665,17 @@ extension BuildASTPhase {
             let accessor = PropertyAccessorDecl(
                 range: arena.node(nodeID).range,
                 kind: kind,
+                annotations: accessorAnnotations(
+                    from: items[..<start].compactMap { item in
+                        if case let .token(token) = item { return token }
+                        return nil
+                    }, interner: interner
+                ),
                 parameterName: kind == .setter
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,
                 body: accessorBody(
-                    headerTokens: headerTokens, firstBlock: firstBlock,
+                    headerTokens: headerTokens, accessorTokens: accessorTokens, firstBlock: firstBlock,
                     in: arena, interner: interner, astArena: astArena
                 )
             )
@@ -662,26 +700,27 @@ extension BuildASTPhase {
             return nodeID
         }.first
         return accessorBody(
-            headerTokens: headerTokens, firstBlock: firstBlock,
+            headerTokens: headerTokens, accessorTokens: collectTokens(from: statementID, in: arena),
+            firstBlock: firstBlock,
             in: arena, interner: interner, astArena: astArena
         )
     }
 
     private func accessorBody(
         headerTokens: [Token],
+        accessorTokens: [Token],
         firstBlock: NodeID?,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
     ) -> FunctionBody {
-        // A block following `get() = call { ... }` is the call's trailing
-        // lambda, not a block-bodied getter. Parse it with the expression.
-        if let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) {
-            var exprTokens = Array(headerTokens[(assignIndex + 1)...])
-            if let trailingBlock = firstBlock {
-                exprTokens.append(contentsOf: collectTokens(from: trailingBlock, in: arena))
-            }
-            exprTokens.removeAll { $0.kind == .symbol(.semicolon) }
+        // Expression accessors can contain several trailing lambdas, separated
+        // by operators or calls. Keep every block in its original token order,
+        // including semicolons separating statements inside lambda bodies.
+        if headerTokens.contains(where: { $0.kind == .symbol(.assign) }),
+           let assignIndex = accessorTokens.firstIndex(where: { $0.kind == .symbol(.assign) })
+        {
+            let exprTokens = Array(accessorTokens[(assignIndex + 1)...])
             if let exprID = ExpressionParser(
                 tokens: ArraySlice(exprTokens), interner: interner,
                 astArena: astArena, diagnostics: diagnostics

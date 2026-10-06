@@ -31,6 +31,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: getter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         var getterLocals: LocalBindings = baseLocals
@@ -778,6 +779,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: setter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         if !property.isVar {

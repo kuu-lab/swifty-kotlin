@@ -37,8 +37,6 @@ public fun <T> MutableSharedFlow<T>.asSharedFlow(): SharedFlow<T> = ReadonlyShar
 
 public fun <T> MutableStateFlow<T>.asStateFlow(): StateFlow<T> = ReadonlyStateFlow(this)
 
-public fun <T> MutableStateFlow<T>.asSharedFlow(): SharedFlow<T> = ReadonlySharedFlow(this)
-
 // Snapshot flows have no live producer/consumer buffer or dispatcher boundary.
 // Like the cold-flow temporal operators, fusion preserves the source instance.
 public fun <T> SharedFlow<T>.buffer(

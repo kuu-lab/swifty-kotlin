@@ -22,7 +22,7 @@ struct ImportPlacementTests {
 
         #expect(parsed.diagnostics.diagnostics.count == 1)
         #expect(diagnostic.severity == .error)
-        #expect(diagnostic.code == "KSWIFTK-PARSE-0016")
+        #expect(diagnostic.code == "KSWIFTK-PARSE-0017")
         #expect(diagnostic.message == "Imports are only allowed in the beginning of file.")
         #expect(diagnostic.primaryRange?.start.offset == body.utf8.count + 1)
         #expect(diagnostic.primaryRange?.end.offset == body.utf8.count + 7)
@@ -38,7 +38,7 @@ struct ImportPlacementTests {
         fun main() { println(x) }
         """)
 
-        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0016"])
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0017"])
         #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
         #expect(parsed.arena.nodes.count { $0.kind == .funDecl } == 1)
     }
@@ -51,7 +51,7 @@ struct ImportPlacementTests {
     ])
     func importVariantsAfterDeclarationsAreRejected(source: String) {
         let parsed = parse(source)
-        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0016"])
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0017"])
         #expect(parsed.arena.nodes.count { $0.kind == .funDecl } == 1)
     }
 
@@ -65,7 +65,7 @@ struct ImportPlacementTests {
         fun after() {}
         """)
 
-        #expect(parsed.diagnostics.diagnostics.map(\.code) == Array(repeating: "KSWIFTK-PARSE-0016", count: 3))
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == Array(repeating: "KSWIFTK-PARSE-0017", count: 3))
         #expect(parsed.arena.nodes.count { $0.kind == .funDecl } == 1)
     }
 

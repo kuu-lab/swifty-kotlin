@@ -3,7 +3,8 @@ struct TypeCheckScopeBuilder {
     func buildFileScopes(
         ast: ASTModule,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) -> [Int32: FileScope] {
         var topLevelSymbolsByPackage = collectTopLevelSymbolsByPackage(ast: ast, sema: sema)
         let librarySymbolsByPackage = collectLibraryTopLevelSymbolsByPackage(sema: sema, interner: interner)
@@ -35,7 +36,8 @@ struct TypeCheckScopeBuilder {
                 wildcardImportScope: wildcardImportScope,
                 topLevelSymbolsByPackage: topLevelSymbolsByPackage,
                 diagnostics: sema.diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: sourceManager
             )
 
             let packageScope = PackageScope(parent: explicitImportScope, symbols: sema.symbols)
@@ -161,9 +163,24 @@ struct TypeCheckScopeBuilder {
         wildcardImportScope: ImportScope,
         topLevelSymbolsByPackage: [[InternedString]: [SymbolID]],
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         var usedAliasNames: Set<InternedString> = []
+        let suppressesInvisibleAccess = file.annotations.contains { annotation in
+            KnownCompilerAnnotation.suppress.matches(annotation.name) && annotation.arguments.contains {
+                let code = $0.filter { $0 != "\"" && $0 != "'" }
+                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+            }
+        }
+        let visibility = VisibilityChecker(
+            symbols: sema.symbols, sourceManager: sourceManager,
+            invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
+        )
+        func isAccessibleWildcardSymbol(_ id: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(id) else { return false }
+            return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
+        }
 
         for importDecl in file.imports {
             if let alias = importDecl.alias {
@@ -229,6 +246,7 @@ struct TypeCheckScopeBuilder {
                         if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
                             continue
                         }
+                        if !isAccessibleWildcardSymbol(packageSymbol) { continue }
                         wildcardImportScope.insert(packageSymbol)
                     }
                 }
@@ -264,6 +282,7 @@ struct TypeCheckScopeBuilder {
                     if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
                         continue
                     }
+                    if !isAccessibleWildcardSymbol(importedSymbol) { continue }
                     wildcardImportScope.insert(importedSymbol)
                 }
             }
@@ -368,6 +387,7 @@ struct TypeCheckScopeBuilder {
             // kotlin.math is not a Kotlin default import; importing it here broke
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],
+            ["kotlin", "jvm"],
             ["kotlin", "ranges"],
             ["kotlin", "reflect"],
             ["kotlin", "sequences"],

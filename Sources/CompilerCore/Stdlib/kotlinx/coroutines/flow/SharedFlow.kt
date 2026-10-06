@@ -26,11 +26,27 @@ public interface SharedFlow<out T> : Flow<T> {
     public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableSharedFlow<T>(
-    private val replay: Int = 0,
+// Keep the mutable contract separate from its snapshot implementation so that
+// MutableStateFlow can also implement it, as in kotlinx.coroutines.
+public interface MutableSharedFlow<T> : SharedFlow<T>, FlowCollector<T> {
+    public val subscriptionCount: StateFlow<Int>
+
+    public fun tryEmit(value: T): Boolean
+
+    public fun resetReplayCache()
+}
+
+public fun <T> MutableSharedFlow(
+    replay: Int = 0,
     extraBufferCapacity: Int = 0,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
-) : SharedFlow<T>, FlowCollector<T> {
+): MutableSharedFlow<T> = SnapshotMutableSharedFlow<T>(replay, extraBufferCapacity, onBufferOverflow)
+
+private class SnapshotMutableSharedFlow<T>(
+    private val replay: Int,
+    extraBufferCapacity: Int,
+    onBufferOverflow: BufferOverflow
+) : MutableSharedFlow<T> {
     private val buffer: MutableList<T> = mutableListOf()
     private var subscribers: MutableStateFlow<Int>? = null
 
@@ -42,7 +58,7 @@ public class MutableSharedFlow<T>(
         }
     }
 
-    public val subscriptionCount: StateFlow<Int>
+    override val subscriptionCount: StateFlow<Int>
         get() = subscriptionCounter()
 
     private fun subscriptionCounter(): MutableStateFlow<Int> {
@@ -56,7 +72,7 @@ public class MutableSharedFlow<T>(
     override val replayCache: List<T>
         get() = buffer.toList()
 
-    public fun tryEmit(value: T): Boolean {
+    override fun tryEmit(value: T): Boolean {
         if (replay > 0) {
             buffer.add(value)
             while (buffer.size > replay) {
@@ -70,7 +86,7 @@ public class MutableSharedFlow<T>(
         tryEmit(value)
     }
 
-    public fun resetReplayCache() {
+    override fun resetReplayCache() {
         buffer.clear()
     }
 

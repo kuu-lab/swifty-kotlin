@@ -107,7 +107,8 @@ extension LambdaLowerer {
         // is registered under the enclosing class (`Derived`), so record the
         // owner that actually reaches it or the lambda loses the receiver.
         if let memberSymbol,
-           let owner = sema.symbols.parentSymbol(for: memberSymbol),
+           let owner = sema.symbols.memberExtensionOwnerSymbol(for: memberSymbol)
+               ?? sema.symbols.parentSymbol(for: memberSymbol),
            let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
            seen.insert(receiverOwner).inserted
         {

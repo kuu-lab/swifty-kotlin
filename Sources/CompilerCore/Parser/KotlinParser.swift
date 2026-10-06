@@ -134,7 +134,7 @@ final class KotlinParser {
             if nodeKind == .importHeader {
                 if sawFileBody {
                     diagnostics.error(
-                        "KSWIFTK-PARSE-0016",
+                        "KSWIFTK-PARSE-0017",
                         "Imports are only allowed in the beginning of file.",
                         range: token.range
                     )

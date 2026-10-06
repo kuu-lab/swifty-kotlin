@@ -17,4 +17,7 @@ fun main() {
     shared.tryEmit(1)
     shared.resetReplayCache()
     shared.asSharedFlow().buffer()
+    val mutableShared: MutableSharedFlow<Int> = state
+    val sharedCount: StateFlow<Int> = mutableShared.subscriptionCount
+    mutableShared.tryEmit(7)
 }

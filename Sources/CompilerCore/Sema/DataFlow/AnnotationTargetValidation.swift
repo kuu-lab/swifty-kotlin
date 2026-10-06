@@ -238,7 +238,20 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID
                 )
             }
-        case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
+        case let .propertyDecl(property):
+            for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                for annotation in accessor.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: accessor.kind == .getter ? .getter : .setter,
+                        ownerRange: accessor.range, decl: decl, file: file,
+                        propertySymbol: symbolID, symbols: symbols,
+                        diagnostics: diagnostics, interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+        case .typeAliasDecl, .enumEntryDecl:
             break
         }
     }
@@ -338,6 +351,18 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
+            return
+        }
+
+        if case .getter = site,
+           symbols.annotations(for: annotationSymbolID).contains(where: {
+               KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
+           }) {
+            diagnostics.error(
+                "KSWIFTK-SEMA-OPT-IN-GETTER",
+                "Opt-in requirement marker annotation cannot be used on getter.",
+                range: ownerRange
+            )
             return
         }
 
@@ -518,61 +543,6 @@ extension DataFlowSemaPhase {
         }
 
         return resolvedSymbol.fqName == builtInTargetFQName
-    }
-
-    private func resolveAnnotationSymbol(
-        named rawName: String,
-        in file: ASTFile,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID? {
-        let parts = rawName.split(separator: ".").map(String.init)
-
-        if parts.count > 1 {
-            let fqName = parts.map { interner.intern($0) }
-            if let symbol = symbols.lookup(fqName: fqName),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
-        }
-
-        let shortName = interner.intern(parts.last ?? rawName)
-        let samePackageFQName = file.packageFQName + [shortName]
-        if let symbol = symbols.lookup(fqName: samePackageFQName),
-           symbols.symbol(symbol)?.kind == .annotationClass
-        {
-            return symbol
-        }
-
-        for importDecl in file.imports {
-            if let alias = importDecl.alias, alias == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            if importDecl.path.last == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            // Non-wildcard imports whose path names a declaration (a class may
-            // share a synthetic package record's FQ name) do not expose the
-            // declaration's neighbours as bare annotation names (KUU-1205).
-            if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
-                if let child = symbols.children(ofFQName: importDecl.path).compactMap({ symbols.symbol($0) }).first(where: { $0.kind == .annotationClass && $0.name == shortName }) {
-                    return child.id
-                }
-            }
-        }
-
-        return symbols.lookupByShortName(shortName).first(where: { symbols.symbol($0)?.kind == .annotationClass })
     }
 
     private func parseAnnotationTargets(from arguments: [String]) -> Set<String> {

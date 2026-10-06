@@ -182,6 +182,26 @@ extension CallLowerer {
         // than the corresponding flat runtime ABI.
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
+        // JVM compares non-null primitive Float/Double identity with IEEE
+        // equality, including signed zero and NaN. Nullable/Any operands
+        // retain reference identity and must not enter this scalar path.
+        if op == .identityEqual || op == .notIdentityEqual,
+           let lhsType, let rhsType,
+           case let .primitive(primitive, .nonNull) = sema.types.kind(of: lhsType),
+           case let .primitive(rhsPrimitive, .nonNull) = sema.types.kind(of: rhsType),
+           primitive == rhsPrimitive,
+           primitive == .float || primitive == .double
+        {
+            let prefix = primitive == .double ? "d" : "f"
+            let suffix = op == .identityEqual ? "eq" : "ne"
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_\(prefix)\(suffix)"),
+                arguments: [lhsID, rhsID], result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
         let nullableStringType = sema.types.makeNullable(stringType)
         let lhsIsString = lhsType == stringType || lhsType == nullableStringType
         let rhsIsString = rhsType == stringType || rhsType == nullableStringType

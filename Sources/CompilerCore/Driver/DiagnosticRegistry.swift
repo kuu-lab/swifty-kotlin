@@ -242,6 +242,12 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-PARSE-0016",
             pass: "PARSE",
             defaultSeverity: .error,
+            summary: "Expected 'catch' or 'finally' after 'try' block."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0017",
+            pass: "PARSE",
+            defaultSeverity: .error,
             summary: "Imports are only allowed in the beginning of file."
         ),
         DiagnosticDescriptor(
@@ -694,6 +700,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Super-call omits an argument with a default value.",
             codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0307",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Infix notation requires the infix modifier."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",

@@ -442,12 +442,16 @@ extension DataFlowSemaPhase {
         // Rule 3: Check for invalid modifier combinations based on context
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
-        // Rule 3a: abstract members cannot be in final classes
-        if memberMeta.hasAbstract && ownerSym.flags.contains(.finalMember) {
+        // Rule 3a: abstract members require an abstract owner, even if the class is open.
+        // Interfaces and enum classes can declare abstract members without an abstract modifier.
+        if memberMeta.hasAbstract,
+           !ownerSym.flags.contains(.abstractType),
+           ownerSym.kind != .interface,
+           ownerSym.kind != .enumClass {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be abstract in final class '\(ownerName)'. Final classes cannot contain abstract members.",
+                "'\(memberName)' cannot be abstract in non-abstract class '\(ownerName)'. Abstract members require an abstract class.",
                 range: memberMeta.range
             )
         }

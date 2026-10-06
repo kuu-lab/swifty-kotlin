@@ -4,6 +4,148 @@ import Testing
 
 @Suite
 struct CompanionClassScopeTests {
+    @Test func nestedSealedInterfaceCompanionPropertyHasConcreteTypeInIfJoin() throws {
+        // The external atomicfu API is supplied by a fixture, not the bundled stdlib.
+        let ctx = makeContextFromSources(["""
+        import kotlinx.atomicfu.*
+
+        class Ch {
+            private sealed interface Slot {
+                companion object { val CLOSED = Closed(null) }
+                data object Empty : Slot
+                data class Closed(val cause: Throwable?) : Slot
+            }
+            private val slot: AtomicRef<Slot> = atomic(Slot.Empty)
+
+            fun close(cause: Throwable?) {
+                val c = if (cause != null) Slot.Closed(cause) else Slot.CLOSED
+                slot.getAndSet(c)
+            }
+            private fun closed(cause: Throwable?) =
+                if (cause != null) Slot.Closed(cause) else Slot.CLOSED
+        }
+        """, """
+        package kotlinx.atomicfu
+        class AtomicRef<T>(private var current: T) {
+            fun getAndSet(value: T): T {
+                val previous = current
+                current = value
+                return previous
+            }
+        }
+        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
+        """])
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Got: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let closed = try #require(sema.symbols.lookup(fqName: [
+            "Ch", "Slot", "Closed",
+        ].map(ctx.interner.intern)))
+        let property = try #require(sema.symbols.lookup(fqName: [
+            "Ch", "Slot", "Companion", "CLOSED",
+        ].map(ctx.interner.intern)))
+        let closedType = sema.types.make(.classType(ClassType(
+            classSymbol: closed, args: [], nullability: .nonNull
+        )))
+        #expect(sema.symbols.propertyType(for: property) == closedType)
+        let function = try #require(sema.symbols.lookup(fqName: [
+            "Ch", "closed",
+        ].map(ctx.interner.intern)))
+        #expect(sema.symbols.functionSignature(for: function)?.returnType == closedType)
+
+        let companion = try #require(sema.symbols.lookup(fqName: [
+            "Ch", "Slot", "Companion",
+        ].map(ctx.interner.intern)))
+        let lazyInitializerName = "__companion_lazy_init_\(companion.rawValue)"
+        let module = try #require(ctx.kir)
+        #expect(findAllKIRFunctions(in: module).filter {
+            ctx.interner.resolve($0.name) == lazyInitializerName
+        }.count == 1)
+        let body = try findKIRFunctionBody(named: "close", in: module, interner: ctx.interner)
+        #expect(body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == lazyInitializerName
+        })
+    }
+
+    @Test(arguments: ["", "Factory"])
+    func deeplyNestedCompanionPropertyResolvesInEarlierFunction(companionName: String) throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            class Inner {
+                private fun closed(flag: Boolean) =
+                    if (flag) Slot.Closed(null) else Slot.CLOSED
+                private sealed interface Slot {
+                    companion object \(companionName) { val CLOSED = Closed(null) }
+                    data class Closed(val cause: Throwable?) : Slot
+                }
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Got: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let closed = try #require(sema.symbols.lookup(fqName: [
+            "Outer", "Inner", "Slot", "Closed",
+        ].map(ctx.interner.intern)))
+        let function = try #require(sema.symbols.lookup(fqName: [
+            "Outer", "Inner", "closed",
+        ].map(ctx.interner.intern)))
+        let closedType = sema.types.make(.classType(ClassType(
+            classSymbol: closed, args: [], nullability: .nonNull
+        )))
+        #expect(sema.symbols.functionSignature(for: function)?.returnType == closedType)
+    }
+
+    @Test func deeplyNestedCompanionInitializerIsRegisteredBeforeOuterFunction() throws {
+        let ctx = makeContextFromSource("""
+        import Outer.Inner.Slot as DeepSlot
+
+        class Outer {
+            fun value() = DeepSlot.VALUE
+            class Inner {
+                interface Slot {
+                    companion object { val VALUE = 42 }
+                }
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Got: \(errors)")
+        let sema = try #require(ctx.sema)
+        let companion = try #require(sema.symbols.lookup(fqName: [
+            "Outer", "Inner", "Slot", "Companion",
+        ].map(ctx.interner.intern)))
+        let initializerName = "__companion_lazy_init_\(companion.rawValue)"
+        let module = try #require(ctx.kir)
+        #expect(findAllKIRFunctions(in: module).filter {
+            ctx.interner.resolve($0.name) == initializerName
+        }.count == 1)
+        let body = try findKIRFunctionBody(named: "value", in: module, interner: ctx.interner)
+        #expect(body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return ctx.interner.resolve(callee) == initializerName
+        })
+    }
+
+    @Test func invalidNestedCompanionPropertyStillReportsTypeError() throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            private sealed interface Slot {
+                companion object { val CLOSED: String = 1 }
+            }
+            fun value() = Slot.CLOSED
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+    }
+
     @Test(arguments: ["", "Factory"])
     func privateCompanionHelpersResolveFromOwner(companionName: String) throws {
         let ctx = makeContextFromSource("""

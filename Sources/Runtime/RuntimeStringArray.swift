@@ -160,29 +160,11 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
 ]
 
-private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
-    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
-        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
-    })
-}()
-
 private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
     Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
         (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
     })
 }()
-
-private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
-    // Nominal type tokens use the same payload as classID, with the nominal
-    // base and nullability bit encoded around it. KClass metadata therefore
-    // provides the source name for user-defined throwable classes as well.
-    let payloadMask: UInt64 = (1 << 55) - 1
-    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
-    let typeToken = Int(truncatingIfNeeded: tokenBits)
-    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
-        ?? runtimeSourceThrowableSimpleNames[classID]
-        ?? "Throwable"
-}
 
 func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
     // Nominal type tokens use the same payload as classID, with the nominal
@@ -221,17 +203,8 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox, raw: Int) -> String {
-    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
-        return typeName
-    }
-    return "\(typeName): \(message)"
-}
-
-/// Raw stack-frame strings for a single throwable. The runtime only provides
-/// the class-specific header line here; Kotlin-side formatting walks cause and
-/// suppressed chains and adds prefixes (KSP-655).
+/// Header and saved native frames for a single throwable. Kotlin-side
+/// formatting walks cause and suppressed chains and adds their prefixes.
 private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
@@ -240,10 +213,12 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return []
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        return [throwable.renderedMessage]
+        let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+        return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object, raw: throwableRaw)]
+        let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+        return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
     return []
 }
@@ -404,7 +379,7 @@ public func __kk_throwable_toString(
             return tryCast(ptr, to: RuntimeObjectBox.self)
         }
         if let object {
-            typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
+            typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
             message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
@@ -1517,8 +1492,13 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
-    // If a compiler-provided name hint is available, use it directly.
+    // Class literals carry the qualified name so reflection works even when
+    // no class metadata has been registered. Keep simpleName unqualified.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
+           let name = hint.split(separator: ".").last {
+            return runtimeMakeStringRaw(String(name))
+        }
         return nameHint
     }
     let name = switch base {
@@ -1564,11 +1544,17 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
     }
 }
 
+private func runtimeKClassQualifiedName(_ name: String) -> String {
+    // This Kotlin platform classifier is a JVM typealias. Keep the Kotlin
+    // type identity in metadata, but expose the JVM reflection name.
+    name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+}
+
 /// Returns the qualified name of the type encoded in the given type token.
 /// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
 /// For nominal (user-defined) types registered metadata takes precedence over
-/// the compiler-supplied name hint, which can carry only the simple name.
+/// the compiler-supplied qualified name hint.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -1608,7 +1594,13 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
     if base == RuntimeTypeTokenEncoding.nominalBase,
        let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
     {
-        return runtimeMakeStringRaw(metadata.qualifiedName)
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
+    }
+    if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)) {
+            return runtimeMakeStringRaw(runtimeKClassQualifiedName(hint))
+        }
+        return nameHint
     }
     return __kk_type_token_simple_name(typeToken, nameHint)
 }
@@ -1660,6 +1652,19 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 // Metadata / memory representation: bound literals inspect the boxed value's classifier.
 @_cdecl("__kk_kclass_of")
 public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       let annotation = tryCast(ptr, to: RuntimeAnnotationBox.self) {
+        if annotation.annotationClassRaw != 0 {
+            return annotation.annotationClassRaw
+        }
+        // Reflected annotations are metadata boxes rather than nominal objects.
+        // Recover their declared class identity instead of the static Annotation bound.
+        let typeID = runtimeStableNominalTypeID(fqName: annotation.annotationFQName)
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
+    }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
             | RuntimeTypeTokenEncoding.nominalBase
@@ -1727,7 +1732,7 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
     if let metadata = box.metadata {
-        return runtimeMakeStringRaw(metadata.qualifiedName)
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
@@ -2743,6 +2748,10 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     guard isObjectPointer else {
         return String(value)
+    }
+    if let dispatcher = tryCast(raw, to: RuntimeDispatcher.self),
+       let name = dispatcher.displayName {
+        return name
     }
     if runtimeIsUnitBox(value) {
         return "kotlin.Unit"

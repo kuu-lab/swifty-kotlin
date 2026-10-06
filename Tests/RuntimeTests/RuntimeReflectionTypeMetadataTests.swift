@@ -14,6 +14,25 @@ struct RuntimeReflectionTypeMetadataTests {
         Int(truncatingIfNeeded: (typeID << 9) | 6)
     }
 
+    @Test func reflectedAnnotationClassUsesDeclaredIdentity() throws {
+        let fqName = "sample.KUU1317Marker"
+        let token = nominalToken(runtimeStableNominalTypeID(fqName: fqName))
+        _ = __kk_kclass_register_metadata(
+            token, makeRuntimeString(fqName), makeRuntimeString("KUU1317Marker"),
+            0, 1 << 6, 0, 0, 0
+        )
+        let expected = __kk_kclass_create(token, 0)
+        for cachedClass in [0, expected] {
+            let value = registerRuntimeObject(RuntimeAnnotationBox(
+                annotationFQName: fqName, arguments: [], annotationClassRaw: cachedClass
+            ))
+            let klass = __kk_kclass_of(value, Int(RuntimeTypeTokenEncoding.anyBase), makeRuntimeString("Any"))
+            #expect(klass == expected)
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_simple_name(klass)) == "KUU1317Marker")
+            #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == fqName)
+        }
+    }
+
     @Test func boundClassReferencesUseBoxedPrimitiveIdentity() throws {
         let values: [(Int, Int64)] = [
             (kk_box_int(1), RuntimeTypeTokenEncoding.intBase),
@@ -50,6 +69,30 @@ struct RuntimeReflectionTypeMetadataTests {
         #expect(try #require(runtimeKClassBox(from: klass)).typeToken == token)
         #expect(runtimeRenderAnyForPrint(__kk_kclass_simple_name(klass)) == "Derived")
         #expect(runtimeRenderAnyForPrint(__kk_kclass_qualified_name(klass)) == "sample.Derived")
+    }
+
+    @Test func kclassToStringUsesQualifiedNamesAcrossRenderers() {
+        let cases: [(Int, String)] = [
+            (Int(RuntimeTypeTokenEncoding.stringBase), "kotlin.String"),
+            (Int(RuntimeTypeTokenEncoding.intBase), "kotlin.Int"),
+        ]
+        for (token, name) in cases {
+            let klass = __kk_kclass_create(token, makeRuntimeString("IgnoredHint"))
+            let expected = "class \(name)"
+            #expect(runtimeElementToString(klass) == expected)
+            #expect(runtimeRenderAnyForPrint(klass) == expected)
+            #expect(extractString(from: kk_any_to_string(klass, 0)) == expected)
+        }
+
+        let token = nominalToken(73002)
+        let klass = __kk_kclass_create(token, makeRuntimeString("Sample"))
+        _ = __kk_kclass_register_metadata(
+            token, makeRuntimeString("sample.Sample"), makeRuntimeString("Sample"),
+            0, 0, 0, 0, 0
+        )
+        #expect(runtimeElementToString(klass) == "class sample.Sample")
+        #expect(runtimeRenderAnyForPrint(klass) == "class sample.Sample")
+        #expect(extractString(from: kk_any_to_string(klass, 0)) == "class sample.Sample")
     }
 
     @Test func reflectionBoxesCarryNominalHierarchyAndSharedNameDispatch() {

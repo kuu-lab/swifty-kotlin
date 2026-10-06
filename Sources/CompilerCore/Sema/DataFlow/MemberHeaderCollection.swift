@@ -281,7 +281,10 @@ extension DataFlowSemaPhase {
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, isInline: funDecl.isInline,
                 diagnostics: diagnostics,
-                enclosingTypeParameters: classLocalTypeParameters
+                enclosingTypeParameters: classLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports
             )
 
             // Merge class type parameters with function's own type parameters.
@@ -603,6 +606,7 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: propertyDecl.range
             ) {
+                symbols.insertFlags(.memberExtension, for: memberSymbol)
                 symbols.setExtensionPropertyReceiverType(receiverType, for: memberSymbol)
 
                 let getterSymbol = symbols.define(

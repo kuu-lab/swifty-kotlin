@@ -61,19 +61,25 @@ extension BuildASTPhase.ExpressionParser {
         }
         var subject: ExprID?
         var subjectVarName: InternedString?
+        var subjectTypeRef: TypeRefID?
         if matches(.symbol(.lParen)) {
             _ = consume()
-            // Check for `val identifier =` subject variable declaration
             if matches(.keyword(.val)),
                let identToken = peek(1),
-               let varName = identifierFromToken(identToken),
-               let eqToken = peek(2),
-               eqToken.kind == .symbol(.assign)
+               let varName = whenSubjectVariableName(from: identToken)
             {
                 subjectVarName = varName
                 _ = consume() // val
                 _ = consume() // identifier
-                _ = consume() // =
+                if let colon = consumeIf(.symbol(.colon)) {
+                    guard let typeRef = parseTypeReference(colon.range, allowFunctionType: true) else {
+                        return nil
+                    }
+                    subjectTypeRef = typeRef
+                }
+                guard consumeIf(.symbol(.assign)) != nil else {
+                    return nil
+                }
             }
             subject = parseExpression(minPrecedence: 0)
             _ = consumeIf(.symbol(.rParen))
@@ -155,7 +161,21 @@ extension BuildASTPhase.ExpressionParser {
         if let subjectVarName {
             astArena.setWhenSubjectVarName(subjectVarName, for: whenExprID)
         }
+        if let subjectTypeRef {
+            astArena.setWhenSubjectTypeRef(subjectTypeRef, for: whenExprID)
+        }
         return whenExprID
+    }
+
+    private func whenSubjectVariableName(from token: Token) -> InternedString? {
+        switch token.kind {
+        case .identifier, .backtickedIdentifier, .softKeyword:
+            return tokenText(token)
+        case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword):
+            return tokenText(token)
+        default:
+            return nil
+        }
     }
 
     private func parseWhenBranchCondition(subject: ExprID?) -> ExprID? {
@@ -402,7 +422,7 @@ extension BuildASTPhase.ExpressionParser {
         var end = returnToken.range.end
         if let atToken = current(), atToken.kind == .symbol(.at),
            let labelToken = peek(1),
-           let labelName = tokenText(labelToken)
+           let labelName = labelNameFromToken(labelToken)
         {
             _ = consume()
             _ = consume()
@@ -689,8 +709,20 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        // Nested expressions can bypass the structured CST parser. Use the
+        // same range and diagnostic so reparsing a CST error reports it once.
+        let nextIsHandler = (matches(.keyword(.catch)) || matches(.keyword(.finally)))
+            && peek(1)?.kind != .symbol(.at)
+        if !nextIsHandler {
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0016",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
+
         var catchClauses: [CatchClause] = []
-        while matches(.keyword(.catch)) {
+        while matches(.keyword(.catch)), peek(1)?.kind != .symbol(.at) {
             let catchToken = consume()!
             let (paramName, paramType) = parseCatchParameter()
             if let catchExpr = parseControlFlowBodyExpression() {
@@ -703,7 +735,7 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         var finallyExpr: ExprID?
-        if matches(.keyword(.finally)) {
+        if matches(.keyword(.finally)), peek(1)?.kind != .symbol(.at) {
             _ = consume()
             finallyExpr = parseControlFlowBodyExpression()
         }
