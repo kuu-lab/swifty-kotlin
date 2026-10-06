@@ -210,14 +210,14 @@ extension NativeEmitter {
                 stringArgumentCount: 1,
                 extraArgumentCount: 1,
                 stringArgumentPositions: [0],
-                canThrow: false
+                canThrow: true
             ),
             "__kk_string_format_locale_flat": FlatStringReturnCallSpec(
                 flatName: "__kk_string_format_locale_flat",
                 stringArgumentCount: 1,
                 extraArgumentCount: 2,
                 stringArgumentPositions: [1],
-                canThrow: false
+                canThrow: true
             ),
         ]
         for spec in Array(specs.values)
@@ -2427,6 +2427,17 @@ extension NativeEmitter {
                 }
 
                 let calleeName = interner.resolve(callee)
+                // Reified enum intrinsics survive only in unspecialized template
+                // bodies. Their serialized KIR is expanded by consumers, while
+                // the native fallback must not reference a bodyless stdlib stub.
+                if calleeName == "$reifiedEnumValues", let symbol,
+                   symbols?.symbol(symbol)?.fqName.map(interner.resolve) == ["kotlin", "enumValues"] {
+                    if let trap = declareExternalFunction(named: "kk_abort_unreachable", argumentCount: 1, appendThrownChannel: false) {
+                        _ = bindings.buildCall(builder, functionType: trap.type, callee: trap.value, arguments: [nullThrownPointer], name: "reified_enum_template")
+                    }
+                    storeResult(result, zeroValue)
+                    continue
+                }
                 var argumentValues = arguments.map(resolveValue)
                 var argumentTypes = arguments.map(module.arena.exprType)
                 let externalCalleeName = Self.runtimePrimitiveAlias(

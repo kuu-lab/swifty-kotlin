@@ -102,11 +102,15 @@ extension CallLowerer {
                 interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [valueID],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
                     thrownResult: nil,
@@ -119,10 +123,14 @@ extension CallLowerer {
             let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: sema.types.unitType)
+            let setterArguments = propertyAccessorArguments(
+                for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: setterSymbol,
                 callee: interner.intern("set"),
-                arguments: [receiverID, valueID],
+                arguments: setterArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -140,10 +148,14 @@ extension CallLowerer {
            let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
         {
             let result = arena.appendTemporary(type: sema.types.unitType)
+            let setterArguments = propertyAccessorArguments(
+                for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: setterSymbol,
                 callee: interner.intern("set"),
-                arguments: [receiverID, valueID],
+                arguments: setterArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -216,11 +228,15 @@ extension CallLowerer {
                 interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [valueID],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
                     thrownResult: nil,
@@ -517,11 +533,15 @@ extension CallLowerer {
             currentValue = itableValue
         } else if let virtualGetterDispatch {
             let result = arena.appendTemporary(type: propType)
+            let virtualAccessorArguments = propertyAccessorArguments(
+                for: virtualGetterDispatch.accessorSymbol, arguments: [receiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.virtualCall(
                 symbol: virtualGetterDispatch.accessorSymbol,
                 callee: interner.intern("get"),
-                receiver: receiverID,
-                arguments: [],
+                receiver: virtualAccessorArguments[0],
+                arguments: Array(virtualAccessorArguments.dropFirst()),
                 result: result,
                 canThrow: false,
                 thrownResult: nil,
@@ -541,10 +561,14 @@ extension CallLowerer {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: propType)
+            let getterArguments = propertyAccessorArguments(
+                for: getterSymbol, arguments: [receiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
-                arguments: [receiverID],
+                arguments: getterArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -756,11 +780,15 @@ extension CallLowerer {
                 // slot (the helper already emitted the call).
             } else if let virtualSetterDispatch {
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: virtualSetterDispatch.accessorSymbol, arguments: [receiverID, newValue], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: virtualSetterDispatch.accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [newValue],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: setterResult,
                     canThrow: false,
                     thrownResult: nil,
@@ -779,10 +807,14 @@ extension CallLowerer {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                let setterArguments = propertyAccessorArguments(
+                    for: setterSymbol, arguments: [receiverID, newValue], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.call(
                     symbol: setterSymbol,
                     callee: interner.intern("set"),
-                    arguments: [receiverID, newValue],
+                    arguments: setterArguments,
                     result: setterResult,
                     canThrow: false,
                     thrownResult: nil

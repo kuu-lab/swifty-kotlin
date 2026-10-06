@@ -133,7 +133,12 @@ extension CallLowerer {
                 return projectionExpr
             }
 
-            let tokenExpr = makeTypeTokenExpr(for: type)
+            // A nullable KType has the same classifier as its non-null counterpart.
+            let tokenExpr = makeTypeTokenExpr(for: sema.types.makeNonNullable(type))
+            emitClassLiteralMetadataRegistration(
+                classRefTargetType: sema.types.makeNonNullable(type), typeTokenExpr: tokenExpr,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             let nameHintExpr = makeNameHintExpr(for: type)
             let typeArguments: [TypeArg]
             switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
@@ -279,7 +284,12 @@ extension CallLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // Reflection reports Kotlin modality, not the internal inheritance flags.
+        let isSealed = symbol.flags.contains(.sealedType)
+        let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
+        if isAbstract { flags |= 1 << 7 }
+        if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
+        if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
         // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }

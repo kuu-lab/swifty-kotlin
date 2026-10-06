@@ -260,20 +260,7 @@ extension KIRLoweringDriver {
             instructions: &body.instructions
         )
 
-        body.append(.returnUnit)
-        body.append(.endBlock)
-
-        let initDeclID = arena.appendDecl(
-            .function(KIRFunction(
-                symbol: initializerSymbol, name: initializerName,
-                params: [], returnType: sema.types.unitType,
-                body: body, isSuspend: false, isInline: false,
-                sourceRange: objectDecl.range
-            ))
-        )
-        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
-
-        var declIDs: [KIRDeclID] = [initDeclID]
+        var declIDs: [KIRDeclID] = []
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
 
@@ -289,6 +276,27 @@ extension KIRLoweringDriver {
                 shared: shared
             ))
         }
+        if let lazyInit = ctx.objectLazyInit(for: objectSymbol) {
+            appendKClassObjectRegistration(
+                objectSymbol: objectSymbol, objectType: objectType,
+                ensureInitSymbol: lazyInit.ensureInitSymbol, shared: shared,
+                instructions: &body.instructions
+            )
+        }
+
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let initDeclID = arena.appendDecl(
+            .function(KIRFunction(
+                symbol: initializerSymbol, name: initializerName,
+                params: [], returnType: sema.types.unitType,
+                body: body, isSuspend: false, isInline: false,
+                sourceRange: objectDecl.range
+            ))
+        )
+        ctx.registerCompanionInitializer(symbol: initializerSymbol, name: initializerName)
+        declIDs.insert(initDeclID, at: 0)
         return declIDs
     }
 
@@ -427,6 +435,7 @@ extension KIRLoweringDriver {
                 receiver: objectValue,
                 loweredArgs: superArgs.map { lowerExpr($0.expr, shared: shared, emit: &body) },
                 spreadFlags: superArgs.map(\.isSpread),
+                argumentLabels: superArgs.map(\.label),
                 callBinding: callBinding,
                 shared: shared,
                 body: &body
@@ -460,6 +469,7 @@ extension KIRLoweringDriver {
             receiver: objectValue,
             loweredArgs: loweredArgs,
             spreadFlags: superArgs.map(\.isSpread),
+            argumentLabels: superArgs.map(\.label),
             callBinding: callBinding,
             sourceArgExprs: superArgs.map(\.expr),
             result: resultID,

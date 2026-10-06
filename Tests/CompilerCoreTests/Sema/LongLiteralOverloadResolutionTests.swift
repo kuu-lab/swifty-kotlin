@@ -4,6 +4,56 @@ import Testing
 
 @Suite
 struct LongLiteralOverloadResolutionTests {
+    // KUU-1240: preserve Byte member resolution after get(Long) adapts its index.
+    @Test(arguments: [false, true])
+    func testLongIndexedByteResultSupportsToInt(useCache: Bool) throws {
+        let source = """
+            class Buf {
+                operator fun get(position: Long): Byte = 0
+            }
+            fun f(b: Buf) {
+                val x = b[0].toInt()
+                val y = b[0L].toInt()
+            }
+            """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], frontendFlags: useCache ? ["sema-cache"] : []
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let fileID = try #require(ctx.sourceManager.fileIDs().first {
+                ctx.sourceManager.path(of: $0) == path
+            })
+            var indexedAccessCount = 0
+            var conversionCount = 0
+            for (index, expr) in ast.arena.exprs.enumerated() {
+                let id = ExprID(rawValue: Int32(index))
+                guard ast.arena.exprRange(id)?.start.file == fileID else { continue }
+                switch expr {
+                case let .indexedAccess(_, indices, _):
+                    indexedAccessCount += 1
+                    let literal = try #require(indices.first)
+                    #expect(sema.bindings.exprType(for: literal) == sema.types.longType)
+                    #expect(sema.bindings.exprType(for: id) == sema.types.byteType)
+                    let chosen = try #require(sema.bindings.callBinding(for: id)?.chosenCallee)
+                    let signature = try #require(sema.symbols.functionSignature(for: chosen))
+                    #expect(signature.parameterTypes == [sema.types.longType])
+                    #expect(signature.returnType == sema.types.byteType)
+                case let .memberCall(_, name, _, _, _) where ctx.interner.resolve(name) == "toInt":
+                    conversionCount += 1
+                    #expect(sema.bindings.exprType(for: id) == sema.types.intType)
+                default:
+                    continue
+                }
+            }
+            #expect(indexedAccessCount == 2)
+            #expect(conversionCount == 2)
+        }
+    }
+
     @Test func testLiteralsBindToSelectedLongParameters() throws {
         let source = """
             fun g(): Long = 0

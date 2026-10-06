@@ -447,7 +447,7 @@ final class CallSupportLowerer {
             returnType: signature.returnType,
             body: body,
             isSuspend: signature.isSuspend,
-            isInline: false
+            isInline: !signature.reifiedTypeParameterIndices.isEmpty
         )))
 
         driver.ctx.restoreScope(scopeSnapshot)
@@ -524,6 +524,7 @@ final class CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        argumentLabels: [InternedString?] = [],
         sourceArgExprs: [ExprID] = [],
         ast: ASTModule,
         sema: SemaModule,
@@ -545,6 +546,17 @@ final class CallSupportLowerer {
         }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
+        // Named vararg arguments contain arrays and use the same packing path
+        // as explicit spread arguments. Ordinary named parameters remain scalar.
+        var spreadFlags = normalizeBoolFlags(spreadFlags, count: providedArguments.count)
+        for (argIndex, paramIndex) in callBinding.parameterMapping
+            where argumentLabels.indices.contains(argIndex)
+            && argumentLabels[argIndex] != nil
+            && isVararg.indices.contains(paramIndex) && isVararg[paramIndex]
+            && spreadFlags.indices.contains(argIndex)
+        {
+            spreadFlags[argIndex] = true
+        }
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
         let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
             chosenCallee,
@@ -592,6 +604,7 @@ final class CallSupportLowerer {
                 anyType: sema.types.anyType,
                 types: sema.types,
                 symbols: sema.symbols,
+                sema: sema,
                 instructions: &instructions
             )
             return NormalizedCallResult(arguments: [packed], defaultMask: 0)
@@ -678,6 +691,7 @@ final class CallSupportLowerer {
                     anyType: sema.types.anyType,
                     types: sema.types,
                     symbols: sema.symbols,
+                    sema: sema,
                     instructions: &instructions
                 )
             }
@@ -767,6 +781,7 @@ final class CallSupportLowerer {
                         anyType: sema.types.anyType,
                         types: sema.types,
                         symbols: sema.symbols,
+                        sema: sema,
                         instructions: &instructions
                     )
                     normalized.append(packed)
@@ -787,22 +802,23 @@ final class CallSupportLowerer {
                 continue
             }
             if isVararg[paramIndex] {
+                let primitiveArrayType = primitiveVarargArrayType(
+                    elementType: signature.parameterTypes[paramIndex],
+                    sema: sema,
+                    interner: interner
+                )
                 let emptyArray = emitArrayNew(
                     count: 0,
                     arena: arena,
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.anyType,
-                    resultType: primitiveVarargArrayType(
-                        elementType: signature.parameterTypes[paramIndex],
-                        sema: sema,
-                        interner: interner
-                    ),
+                    resultType: primitiveArrayType,
                     instructions: &instructions
                 )
-                // Match the non-empty path: a vararg parameter is a List inside the
-                // callee unless the callee preserves raw array varargs.
-                normalized.append(preserveArrayVarargs
+                // Primitive varargs keep raw array storage, just like the
+                // non-empty path. Only reference varargs use the List bridge.
+                normalized.append(preserveArrayVarargs || primitiveArrayType != nil
                     ? emptyArray
                     : emitArrayToList(
                         emptyArray,
@@ -875,6 +891,7 @@ final class CallSupportLowerer {
                     arena: arena,
                     resultType: signature.parameterTypes[paramIndex],
                     sema: sema,
+                    cache: driver.ctx.nominalDispatchCache,
                     into: &instructions
                 )
             }
@@ -934,6 +951,8 @@ final class CallSupportLowerer {
             symbols: sema.symbols,
             interner: interner,
             arena: arena,
+            sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             into: &instructions
         )
     }
@@ -958,6 +977,7 @@ final class CallSupportLowerer {
         anyType: TypeID,
         types: TypeSystem,
         symbols: SymbolTable? = nil,
+        sema: SemaModule? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let hasAnySpread = argIndices.contains { idx in
@@ -1023,6 +1043,7 @@ final class CallSupportLowerer {
                         providedArguments[idx],
                         types: types,
                         symbols: symbols,
+                        sema: sema,
                         arena: arena,
                         interner: interner,
                         anyType: anyType,
@@ -1080,6 +1101,7 @@ final class CallSupportLowerer {
                     providedArguments[argIndex],
                     types: types,
                     symbols: symbols,
+                    sema: sema,
                     arena: arena,
                     interner: interner,
                     anyType: anyType,
@@ -1119,6 +1141,7 @@ final class CallSupportLowerer {
         _ argID: KIRExprID,
         types: TypeSystem,
         symbols: SymbolTable?,
+        sema: SemaModule?,
         arena: KIRArena,
         interner: StringInterner,
         anyType: TypeID,
@@ -1135,6 +1158,8 @@ final class CallSupportLowerer {
             interner: interner,
             arena: arena,
             resultType: anyType,
+            sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             into: &instructions
         )
     }

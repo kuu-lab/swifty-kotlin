@@ -286,7 +286,7 @@ final class ComparableCharEscapeAnalyzer {
             eachNestedNominal(of: objectDecl, depth: depth + 1, visit)
         case let .localNominalDecl(declID, _):
             eachDeclChild(of: declID, depth: depth + 1, visit)
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral,
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral,
              .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef,
              .breakExpr, .continueExpr, .superRef, .thisRef:
             break

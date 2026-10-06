@@ -300,7 +300,7 @@ extension ExprTypeChecker {
             }
             objectOuterReceiverTypes[index].symbol = classSymbol.id
         }
-        let objectCtx = ctx.copying(
+        let objectCtx = ctx.withoutSuspensionContext().copying(
             scope: objectScope,
             implicitReceiverType: objectType,
             enclosingClassSymbol: objectSymbol,
@@ -374,6 +374,16 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // An inherited property belongs to the anonymous instance itself.
+        // Capturing the same symbol would overwrite its inherited field slot.
+        // Explicit outer accesses retain their receiver capture instead.
+        capturedSymbols = Set(capturedSymbols.filter { symbol in
+            guard outerReceiverPropertySymbols.contains(symbol),
+                  let owner = sema.symbols.parentSymbol(for: symbol)
+            else { return true }
+            return !sema.types.isNominalSubtypeSymbol(objectSymbol, of: owner)
+        })
+
         // Mutable outer receiver properties must keep addressing the enclosing
         // instance. Capturing their current values would turn writes into writes
         // to the anonymous object's copy, so capture the receiver once instead.
@@ -438,6 +448,7 @@ extension ExprTypeChecker {
         _ memberProperties: [DeclID],
         ownerFQName: [InternedString],
         ownerSymbol: SymbolID,
+        markAsSynthetic: Bool = true,
         ctx: TypeInferenceContext
     ) -> [DeclID: SymbolID] {
         let ast = ctx.ast
@@ -450,7 +461,12 @@ extension ExprTypeChecker {
             else {
                 continue
             }
-            var propertyFlags: SymbolFlags = [.synthetic]
+            // Data synthesis selects source properties from the constructor header.
+            var propertyFlags: SymbolFlags = markAsSynthetic ? [.synthetic] : []
+            if propertyDecl.modifiers.contains(.override) { propertyFlags.insert(.overrideMember) }
+            if propertyDecl.modifiers.contains(.open) { propertyFlags.insert(.openType) }
+            if propertyDecl.modifiers.contains(.abstract) { propertyFlags.insert(.abstractType) }
+            if propertyDecl.modifiers.contains(.final) { propertyFlags.insert(.finalMember) }
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
@@ -877,6 +893,19 @@ extension ExprTypeChecker {
             nextVtableSlot += 1
         }
 
+        // KUU-1251: inherited methods read properties through the base class's
+        // vtable slots. Local/anonymous overrides must replace those getter
+        // and setter implementations, just as header-time named layouts do.
+        if let owner = sema.symbols.symbol(ownerSymbol) {
+            DataFlowSemaPhase.assignPropertyAccessorVtableSlots(
+                for: owner,
+                symbols: sema.symbols,
+                inheritedVtable: inheritedVtableSlots,
+                vtableSlots: &vtableSlots,
+                nextVtableSlot: &nextVtableSlot
+            )
+        }
+
         // BUG-242: mirror the named-class path
         // (`LayoutSynthesis.synthesizeLayoutForNominal`) by walking this
         // nominal's own transitive interface supertypes and assigning each
@@ -1048,6 +1077,13 @@ extension ExprTypeChecker {
                 ),
                 for: memberSymbol
             )
+            // Resolve the exact overridden signature before inheriting infix;
+            // another overload with the same name and arity may lack it.
+            if DataFlowSemaPhase().nearestOverriddenFunctionCandidates(
+                of: memberSymbol, symbols: sema.symbols, types: sema.types
+            ).contains(where: { sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }) {
+                sema.symbols.insertFlags(.infixFunction, for: memberSymbol)
+            }
             result[functionDeclID] = memberSymbol
         }
 
@@ -1071,6 +1107,7 @@ extension ExprTypeChecker {
         if functionDecl.isSuspend { flags.insert(.suspendFunction) }
         if functionDecl.isInline { flags.insert(.inlineFunction) }
         if functionDecl.modifiers.contains(.operator) { flags.insert(.operatorFunction) }
+        if functionDecl.modifiers.contains(.infix) { flags.insert(.infixFunction) }
         if functionDecl.modifiers.contains(.override) { flags.insert(.overrideMember) }
         if functionDecl.modifiers.contains(.abstract) { flags.insert(.abstractType) }
         if functionDecl.modifiers.contains(.open) { flags.insert(.openType) }

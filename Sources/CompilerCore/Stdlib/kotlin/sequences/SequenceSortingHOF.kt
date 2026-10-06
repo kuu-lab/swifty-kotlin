@@ -46,7 +46,7 @@ public fun <T, R : Comparable<R>> Sequence<T>.sortedByDescending(selector: (T) -
 }
 
 public fun <T : Comparable<T>> Sequence<T>.sortedDescending(): Sequence<T> =
-    sorted().reversed().asSequence()
+    toList().sortedDescending().asSequence()
 
 public fun <T> Sequence<T>.sortedWith(comparator: Comparator<in T>): Sequence<T> {
     val source = this

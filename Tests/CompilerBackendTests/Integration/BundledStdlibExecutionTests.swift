@@ -9,6 +9,33 @@ import Testing
 @Suite
 struct BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testAnnotationClass(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            annotation class A(val v: Int = 1)
+            annotation class B
+            @A
+            class Tagged
+            fun show(annotation: Annotation) {
+                println(annotation.annotationClass)
+                println(annotation.annotationClass.simpleName)
+            }
+            fun main() {
+                println(A().annotationClass)
+                show(A())
+                show(B())
+                val annotation: Annotation? = B()
+                println(annotation?.annotationClass?.simpleName)
+                println(Tagged::class.annotations[0].annotationClass)
+            }
+            """,
+            expectedOutput: "class A\nclass A\nA\nclass B\nB\nB\nclass A\n",
+            moduleName: "KUU1317AnnotationClass",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testCoroutineContextSourceElementBaseDispatch(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """
@@ -748,15 +775,11 @@ struct BundledStdlibExecutionTests {
         try compileAndRunKotlin(
             """
             fun printIntOneBitOperations(value: Int) {
-                println(value.highestOneBit())
-                println(value.lowestOneBit())
                 println(value.takeHighestOneBit())
                 println(value.takeLowestOneBit())
             }
 
             fun printLongOneBitOperations(value: Long) {
-                println(value.highestOneBit())
-                println(value.lowestOneBit())
                 println(value.takeHighestOneBit())
                 println(value.takeLowestOneBit())
             }
@@ -777,42 +800,22 @@ struct BundledStdlibExecutionTests {
             expectedOutput: """
             0
             0
-            0
-            0
-            -2147483648
-            1
             -2147483648
             1
             1073741824
             1
-            1073741824
-            1
-            -2147483648
-            -2147483648
             -2147483648
             -2147483648
             268435456
             8
-            268435456
-            8
-            0
-            0
             0
             0
             -9223372036854775808
-            1
-            -9223372036854775808
-            1
-            4611686018427387904
             1
             4611686018427387904
             1
             -9223372036854775808
             -9223372036854775808
-            -9223372036854775808
-            -9223372036854775808
-            268435456
-            8
             268435456
             8
 
@@ -1222,6 +1225,78 @@ struct BundledStdlibExecutionTests {
             252645135
 
             """
+        )
+    }
+
+    /// KUU-1257: unsigned rotations preserve all bits and use Kotlin shift masking.
+    @Test(arguments: [true, false])
+    func testUnsignedRotationsExecuteThroughBundledKotlin(allowDefaultStdlibLibrary: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/unsigned_rotate.kt"
+        ), encoding: .utf8)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: """
+            4026531855
+            267386880
+            17293822569102704655
+            1148417904979476480
+            0
+            0
+            1
+            1
+            2
+            2147483648
+            2147483648
+            2
+            1
+            1
+            2
+            2147483648
+            2147483648
+            2
+            1
+            1
+            2147483648
+            2
+            4294967295
+            4294967295
+            1
+            1073741824
+            0
+            0
+            1
+            1
+            2
+            9223372036854775808
+            9223372036854775808
+            2
+            1
+            1
+            2
+            9223372036854775808
+            9223372036854775808
+            2
+            1
+            1
+            9223372036854775808
+            2
+            18446744073709551615
+            18446744073709551615
+            1
+            4611686018427387904
+            4026531855
+            267386880
+            17293822569102704655
+            1148417904979476480
+            null
+            null
+
+            """,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 

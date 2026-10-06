@@ -469,6 +469,7 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
         if modifiers.contains(.inline) { value.insert(.inlineFunction) }
         if modifiers.contains(.operator) { value.insert(.operatorFunction) }
+        if modifiers.contains(.infix) { value.insert(.infixFunction) }
     }
 
     private func insertTypeFlags(
@@ -578,7 +579,9 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         newFlags: SymbolFlags = [],
         additionalExisting: [SemanticSymbol] = [],
-        newIsExtensionProperty: Bool = false
+        newIsExtensionProperty: Bool = false,
+        topLevelVisibility: Visibility? = nil,
+        topLevelFileID: FileID? = nil
     ) {
         var existingByID: [SymbolID: SemanticSymbol] = [:]
         for symbol in symbols.lookupAll(fqName: fqName).compactMap({ symbols.symbol($0) }) {
@@ -587,7 +590,12 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
-        let existing = Array(existingByID.values)
+        let existing = existingByID.values.filter { existing in
+            guard let topLevelVisibility, let topLevelFileID else { return true }
+            return !symbols.canCoexistAsFilePrivateTopLevelCallable(
+                kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing
+            )
+        }
         if newFlags.contains(.expectDeclaration) || newFlags.contains(.actualDeclaration) {
             let existingNonPackage = existing.filter {
                 $0.kind != .package && !$0.flags.contains(.synthetic)
@@ -692,7 +700,8 @@ extension DataFlowSemaPhase {
             fqName: toStringFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
@@ -752,7 +761,8 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")
@@ -820,7 +830,8 @@ extension DataFlowSemaPhase {
             fqName: hashCodeFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
@@ -1126,7 +1137,10 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         isInline: Bool,
         diagnostics: DiagnosticEngine,
-        enclosingTypeParameters: [InternedString: SymbolID] = [:]
+        enclosingTypeParameters: [InternedString: SymbolID] = [:],
+        relativeOwnerFQName: [InternedString]? = nil,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = []
     ) -> (typeParameterSymbols: [SymbolID], localTypeParameters: [InternedString: SymbolID], reifiedIndices: Set<Int>) {
         var typeParameterSymbols: [SymbolID] = []
         var localTypeParameters: [InternedString: SymbolID] = [:]
@@ -1164,6 +1178,10 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     localTypeParameters: boundTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
                     usageRange: declSite
                 )
             }

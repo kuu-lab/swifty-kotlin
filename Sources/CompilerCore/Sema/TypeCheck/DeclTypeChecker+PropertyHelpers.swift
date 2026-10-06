@@ -31,15 +31,30 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: getter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         var getterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            // Match the property-based receiver parameter used by KIR accessors.
+            getterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
         }
         let getterType = inferFunctionBodyType(
-            getter.body, ctx: accessorCtx, locals: &getterLocals,
+            getter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: inferredPropertyType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertyGetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &getterLocals,
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
@@ -770,6 +785,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let accessorCtx = driver.helpers.accessorOptInContext(annotations: setter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         if !property.isVar {
@@ -780,6 +796,11 @@ extension DeclTypeChecker {
             )
         }
         var setterLocals: LocalBindings = baseLocals
+        if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            setterLocals[interner.intern("this")] = (
+                receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
+            )
+        }
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (
@@ -793,7 +814,15 @@ extension DeclTypeChecker {
             finalPropertyType, setterValueSymbol, true, true
         )
         let setterType = inferFunctionBodyType(
-            setter.body, ctx: accessorCtx, locals: &setterLocals,
+            setter.body, ctx: accessorCtx.copying(
+                lambdaLabelStack: [],
+                lambdaReturnScopes: [],
+                lambdaDepth: 0,
+                enclosingFunctionReturnType: sema.types.unitType,
+                enclosingFunctionSymbol: sema.symbols.extensionPropertySetterAccessor(for: symbol)
+                    ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol),
+                enclosingLambdaExprIDs: []
+            ), locals: &setterLocals,
             expectedType: sema.types.unitType
         )
         driver.emitSubtypeConstraint(

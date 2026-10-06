@@ -193,7 +193,7 @@ struct RuntimeTypeCheckTokenTests {
             (.primitive(.ulong, .nonNull), "ULong"),
             (.primitive(.ubyte, .nonNull), "UByte"),
             (.primitive(.ushort, .nonNull), "UShort"),
-            (.nothing(.nonNull), "Nothing"),
+            (.nothing(.nonNull), "Void"),
             (.nothing(.nullable), "Nothing"),
         ]
 
@@ -228,6 +228,21 @@ struct RuntimeTypeCheckTokenTests {
             let simpleName = RuntimeTypeCheckToken.simpleName(of: typeID, sema: sema, interner: interner)
             #expect(simpleName == expectedName)
         }
+    }
+
+    @Test func testNothingClassSymbolUsesJvmNames() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        let name = interner.intern("Nothing")
+        let symbol = symbols.define(
+            kind: .class, name: name, fqName: [interner.intern("kotlin"), name],
+            declSite: makeRange(), visibility: .public
+        )
+        let type = types.make(.classType(ClassType(classSymbol: symbol)))
+        #expect(RuntimeTypeCheckToken.simpleName(of: type, sema: sema, interner: interner) == "Void")
+        #expect(RuntimeTypeCheckToken.qualifiedName(of: type, sema: sema, interner: interner) == "java.lang.Void")
     }
 
     @Test func testCatchTokenMatchesIsToken() throws {

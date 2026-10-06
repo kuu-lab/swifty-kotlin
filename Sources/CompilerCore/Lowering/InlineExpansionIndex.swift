@@ -83,7 +83,7 @@ final class InlineExpansionIndex {
     /// Materialized imported bodies fill only symbols no module `inline`
     /// declaration owns; every imported symbol — materialized or still a
     /// descriptor — is marked bodyless.
-    init(module: KIRModule, importedInlineFunctions: ImportedInlineFunctionStore) {
+    init(module: KIRModule, importedInlineFunctions: ImportedInlineFunctionStore, reifiedEnumValuesCallee: InternedString? = nil) {
         var inlineFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
         var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
         var origins: [SymbolID: Origin] = [:]
@@ -107,6 +107,31 @@ final class InlineExpansionIndex {
             origins[symbol] = .imported
         }
         var bodyless = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
+        // A template containing enumValues cannot execute before specialization.
+        // Include inline wrappers and default stubs transitively, so expansion
+        // budget failures diagnose instead of falling back to native templates.
+        if let reifiedEnumValuesCallee {
+            var templates = Set(inlineFunctionsBySymbol.values.filter { function in
+                function.body.contains {
+                    if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == reifiedEnumValuesCallee }
+                    return false
+                }
+            }.map(\.symbol))
+            var changed = true
+            while changed {
+                changed = false
+                for function in inlineFunctionsBySymbol.values where !templates.contains(function.symbol) {
+                    if function.body.contains(where: {
+                        if case let .call(symbol?, _, _, _, _, _, _, _) = $0 { return templates.contains(symbol) }
+                        return false
+                    }) {
+                        templates.insert(function.symbol)
+                        changed = true
+                    }
+                }
+            }
+            bodyless.formUnion(templates)
+        }
         bodyless.formUnion(importedInlineFunctions.functions.keys)
         bodyless.formUnion(importedInlineFunctions.descriptors.keys)
         var originalBodies = allFunctionsBySymbol

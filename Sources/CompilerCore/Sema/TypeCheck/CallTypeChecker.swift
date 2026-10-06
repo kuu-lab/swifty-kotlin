@@ -721,6 +721,18 @@ final class CallTypeChecker {
         {
             let intType = sema.types.intType
             let calleeNameStr = interner.resolve(calleeName)
+            // Intrinsic allocation bypasses normal constructor resolution, but
+            // still uses the source-backed array class's opt-in contract.
+            if let arraySymbol = sema.symbols.lookup(
+                fqName: [interner.intern("kotlin"), calleeName]
+            ) {
+                driver.helpers.checkOptIn(
+                    for: arraySymbol,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             let countType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
@@ -1005,7 +1017,7 @@ final class CallTypeChecker {
         ]
         let isQualifiedReflectTypeOf = calleePath == typeOfIntrinsicFQName
         let isUnqualifiedTypeOf = calleeName.map {
-            $0 == knownNames.typeOf && !isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+            $0 == knownNames.typeOf && locals[$0] == nil
         } ?? false
         if args.isEmpty, isQualifiedReflectTypeOf || isUnqualifiedTypeOf {
             // KSP-1323: the bundled kotlin.reflect.typeOf declaration is the
@@ -1645,71 +1657,6 @@ final class CallTypeChecker {
         // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
         // Kotlin factory functions (Channels.kt) via normal overload resolution.
 
-        let isCoroutineLauncher = calleeName == knownNames.runBlocking
-            || calleeName == knownNames.launch
-            || calleeName == knownNames.async
-            || calleeName == knownNames.coroutineScope
-            || calleeName == knownNames.supervisorScope
-        let coroutineLauncherExpectedLambdaType: TypeID?
-        // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
-        // second argument for a trailing lambda. When the first argument is a dispatcher
-        // (non-lambda) and the second is a lambda, treat it as the block argument.
-        let coroutineLauncherLambdaArgIndex: Int? = {
-            guard isCoroutineLauncher
-            else { return nil }
-            if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
-               case .lambdaLiteral = firstArgExpr {
-                return 0
-            }
-            if args.count >= 2,
-               let secondArgExpr = ast.arena.expr(args[1].expr),
-               case .lambdaLiteral = secondArgExpr {
-                return 1
-            }
-            return nil
-        }()
-        if isCoroutineLauncher,
-           let lambdaIndex = coroutineLauncherLambdaArgIndex,
-           lambdaIndex < args.count
-        {
-            let lambdaReturnType: TypeID
-            if calleeName == knownNames.launch {
-                lambdaReturnType = sema.types.unitType
-            } else if calleeName == knownNames.async {
-                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
-                    ?? sema.types.nullableAnyType
-            } else {
-                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
-            }
-            coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType(sema: sema, interner: interner),
-                params: [],
-                returnType: lambdaReturnType,
-                isSuspend: true,
-                nullability: .nonNull
-            )))
-        } else {
-            coroutineLauncherExpectedLambdaType = nil
-        }
-        // Mark lambda arguments passed to KIR-level coroutine launchers so
-        // LambdaLowerer skips the generic escaping-callable-value
-        // materialization path for them: CoroutineLoweringPass+
-        // LauncherSupport.swift's rewriteLauncherCall expects their captures
-        // forwarded via its own launcher-continuation convention (BUG-049),
-        // not bundled into a kk_function_create_N closure object. `produce`
-        // has its own dedicated builder branch above (CORO-075) with an early
-        // return, so it never reaches this general path and is marked there
-        // instead.
-        if calleeName == knownNames.runBlocking
-            || calleeName == knownNames.launch
-            || calleeName == knownNames.async
-        {
-            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
-                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
-            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
-                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
-            }
-        }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
                                                         calleeName == knownNames.withContext
                                                             || calleeName == knownNames.withTimeout
@@ -1774,8 +1721,12 @@ final class CallTypeChecker {
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                 )
+                // Imported library declarations also carry the synthetic flag.
+                // Include them before argument inference so receiver lambdas on
+                // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
-                    sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                    sema.symbols.isSourceBackedSymbol($0)
+                        || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
@@ -2287,6 +2238,82 @@ final class CallTypeChecker {
             }
         }
 
+        // Coroutine-specific contextual types and closure ABI marks apply only
+        // to coroutine API candidates. Same-named user functions must infer
+        // their lambda arguments from their declared parameter types.
+        let hasCoroutineLauncherCandidates = !candidates.isEmpty && candidates.allSatisfy { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.fqName.starts(with: [interner.intern("kotlinx"), interner.intern("coroutines")])
+        }
+        let isCoroutineLauncher = hasCoroutineLauncherCandidates && (
+            calleeName == knownNames.runBlocking
+                || calleeName == knownNames.launch
+                || calleeName == knownNames.async
+                || calleeName == knownNames.coroutineScope
+                || calleeName == knownNames.supervisorScope
+        )
+        let coroutineLauncherExpectedLambdaType: TypeID?
+        // STDLIB-CORO-072: Support launch(dispatcher) { } by checking both first and
+        // second argument for a trailing lambda. When the first argument is a dispatcher
+        // (non-lambda) and the second is a lambda, treat it as the block argument.
+        let coroutineLauncherLambdaArgIndex: Int? = {
+            guard isCoroutineLauncher
+            else { return nil }
+            if let firstArgExpr = args.first.flatMap({ ast.arena.expr($0.expr) }),
+               case .lambdaLiteral = firstArgExpr {
+                return 0
+            }
+            if args.count >= 2,
+               let secondArgExpr = ast.arena.expr(args[1].expr),
+               case .lambdaLiteral = secondArgExpr {
+                return 1
+            }
+            return nil
+        }()
+        if isCoroutineLauncher,
+           let lambdaIndex = coroutineLauncherLambdaArgIndex,
+           lambdaIndex < args.count
+        {
+            let lambdaReturnType: TypeID
+            if calleeName == knownNames.launch {
+                lambdaReturnType = sema.types.unitType
+            } else if calleeName == knownNames.async {
+                lambdaReturnType = deferredExpectedElementType(expectedType, sema: sema, interner: interner)
+                    ?? sema.types.nullableAnyType
+            } else {
+                lambdaReturnType = expectedType ?? sema.types.nullableAnyType
+            }
+            coroutineLauncherExpectedLambdaType = sema.types.make(.functionType(FunctionType(
+                receiver: coroutineScopeType(sema: sema, interner: interner),
+                params: [],
+                returnType: lambdaReturnType,
+                isSuspend: true,
+                nullability: .nonNull
+            )))
+        } else {
+            coroutineLauncherExpectedLambdaType = nil
+        }
+        // Mark lambda arguments passed to KIR-level coroutine launchers so
+        // LambdaLowerer skips the generic escaping-callable-value
+        // materialization path for them: CoroutineLoweringPass+
+        // LauncherSupport.swift's rewriteLauncherCall expects their captures
+        // forwarded via its own launcher-continuation convention (BUG-049),
+        // not bundled into a kk_function_create_N closure object. `produce`
+        // has its own dedicated builder branch above (CORO-075) with an early
+        // return, so it never reaches this general path and is marked there
+        // instead.
+        if isCoroutineLauncher,
+           calleeName == knownNames.runBlocking
+               || calleeName == knownNames.launch
+               || calleeName == knownNames.async
+        {
+            if let firstArgExpr = args.first, case .lambdaLiteral = ast.arena.expr(firstArgExpr.expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(firstArgExpr.expr)
+            } else if args.count >= 2, case .lambdaLiteral = ast.arena.expr(args[1].expr) {
+                sema.bindings.markCoroutineLauncherLambdaExpr(args[1].expr)
+            }
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         // A generic destination parameter can be constrained from the call's
@@ -2378,8 +2405,16 @@ final class CallTypeChecker {
                         substitution: substitution,
                         typeVarBySymbol: typeVarBySymbol
                     )
+                    // Enclosing type parameters are valid contextual evidence,
+                    // e.g. G<T, T> in `fun <T> make(t: T): W<T> = W(G(t))`.
+                    // Only unresolved variables owned by this candidate prevent
+                    // contextualizing its nested arguments.
                     guard substitutedType != parameterType,
-                          !typeMentionsTypeParameter(substitutedType, sema: sema)
+                          !ctx.resolver.containsTypeVariable(
+                              substitutedType,
+                              typeVarBySymbol: typeVarBySymbol,
+                              typeSystem: sema.types
+                          )
                     else {
                         continue
                     }
@@ -2532,12 +2567,20 @@ final class CallTypeChecker {
                 if let expectedType = expectedCollectionType(withArity: 2) {
                     return (expectedType, typeArgs(from: expectedType))
                 }
+                // Spread arguments contribute their array element (Pair<K, V>),
+                // not the array itself, to the factory's key/value inference.
+                let pairTypes = zip(args, argTypes).map { argument, type in
+                    argument.isSpread
+                        ? (driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
+                            ?? sema.types.errorType)
+                        : type
+                }
                 let keyType: TypeID
                 let valueType: TypeID
                 if explicitTypeArgs.count == 2 {
                     keyType = explicitTypeArgs[0]
                     valueType = explicitTypeArgs[1]
-                } else if let inferred = inferSyntheticMapKeyValueTypes(from: argTypes, ctx: ctx) {
+                } else if let inferred = inferSyntheticMapKeyValueTypes(from: pairTypes, ctx: ctx) {
                     keyType = inferred.keyType
                     valueType = inferred.valueType
                 } else {
@@ -2975,7 +3018,31 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let calleeName,
+                if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
+                   let calleeName,
+                   let recovered = resolveOuterImplicitReceiverExtensionCall(
+                       candidates: candidates,
+                       args: args,
+                       preparedArgs: preparedArgs,
+                       range: range,
+                       calleeName: calleeName,
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       ctx: ctx
+                   )
+                {
+                    resolved = recovered.resolved
+                    if resolved.chosenCallee != nil {
+                        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: recovered.receiverSymbol)
+                    } else if let diagnostic = resolved.diagnostic {
+                        ctx.semaCtx.diagnostics.emit(diagnostic)
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
+                if resolved.diagnostic != nil,
+                   let calleeName,
                    let receiverType = ctx.implicitReceiverType,
                    let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
                        id,
@@ -2991,22 +3058,23 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
-                if let retried = retryResolutionReinferringNestedCallArguments(
-                    candidates: candidates,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    calleeName: calleeName ?? InternedString(),
-                    explicitTypeArgs: explicitTypeArgs,
-                    expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
-                    implicitReceiverType: ctx.implicitReceiverType,
-                    lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
-                    inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
-                    blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
-                    hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                    ctx: ctx,
-                    locals: &locals
-                ) {
+                if resolved.diagnostic != nil,
+                   let retried = retryResolutionReinferringNestedCallArguments(
+                       candidates: candidates,
+                       args: args,
+                       argTypes: argTypes,
+                       range: range,
+                       calleeName: calleeName ?? InternedString(),
+                       explicitTypeArgs: explicitTypeArgs,
+                       expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                       implicitReceiverType: ctx.implicitReceiverType,
+                       lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                       inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                       blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                       hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                       ctx: ctx,
+                       locals: &locals
+                   ) {
                     resolved = retried
                 }
             }
@@ -3082,6 +3150,26 @@ final class CallTypeChecker {
                sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
             {
                 sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+            }
+            // Scope lookup can resolve an inherited outer member before the
+            // receiver tower fallback runs. Preserve the actual enclosing
+            // instance for capture analysis even when its class differs from
+            // the member's declaring class.
+            if sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
+               sema.symbols.functionSignature(for: chosen)?.receiverType != nil,
+               let owner = sema.symbols.parentSymbol(for: chosen),
+               let activeType = ctx.implicitReceiverType,
+               resolveClassType(activeType, sema: sema).map({
+                   sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
+               }) != true,
+               let outerReceiver = ctx.outerReceiverTypes.reversed().first(where: { receiver in
+                   receiver.symbol != nil && resolveClassType(receiver.type, sema: sema).map {
+                       sema.types.isNominalSubtypeSymbol($0.classSymbol, of: owner)
+                   } == true
+               }),
+               let receiverSymbol = outerReceiver.symbol
+            {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
             }
             let adjustedReturnType: TypeID = if let calleeName,
                 let blockArgument = args.first(where: { $0.label == interner.intern("block") }) ?? args.last,
@@ -3282,7 +3370,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: invokeName,
                         args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: callableCalleeType,
@@ -3509,8 +3598,11 @@ final class CallTypeChecker {
                             break
                         }
                     }
-                    return driver.inferExpr(
+                    let inferredType = driver.inferExpr(
                         argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    )
+                    return sourceLevelRangeArgumentType(
+                        argument.expr, inferredType: inferredType, ctx: ctx
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
@@ -3523,7 +3615,8 @@ final class CallTypeChecker {
                             range: range,
                             calleeName: calleeName,
                             args: resolvedArgs,
-                            explicitTypeArgs: explicitTypeArgs
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                         ),
                         expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                         implicitReceiverType: group.receiverType,
@@ -3629,7 +3722,8 @@ final class CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         args: resolvedOuterArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                     implicitReceiverType: outerReceiver.type,
@@ -3649,7 +3743,8 @@ final class CallTypeChecker {
                                 range: range,
                                 calleeName: calleeName,
                                 args: resolvedOuterArgs,
-                                explicitTypeArgs: explicitTypeArgs
+                                explicitTypeArgs: explicitTypeArgs,
+                                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                             ),
                             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
                             implicitReceiverType: receiverType,
@@ -3753,12 +3848,46 @@ final class CallTypeChecker {
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
         locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
-        inferMemberCallImpl(
+        let result = inferMemberCallImpl(
             id, receiverID: receiverID, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,
             expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
             safeCall: false
         )
+        guard ctx.ast.arena.isInfixCall(id), result != ctx.sema.types.errorType else {
+            return result
+        }
+        let isInfix: Bool
+        if let binding = ctx.sema.bindings.callBindings[id] {
+            isInfix = ctx.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.infixFunction) == true
+        } else {
+            // Primitive intrinsics have no callable symbol. Only their bitwise
+            // and shift functions support infix notation.
+            let name = ctx.interner.resolve(calleeName)
+            let receiverType = ctx.sema.bindings.exprType(for: receiverID)
+            let primitive = receiverType.map { ctx.sema.types.kind(of: $0) }
+            switch primitive {
+            case .primitive(.int, .nonNull), .primitive(.long, .nonNull):
+                isInfix = ["and", "or", "xor", "shl", "shr", "ushr"].contains(name)
+            case .primitive(.boolean, .nonNull):
+                isInfix = ["and", "or", "xor"].contains(name)
+            case .primitive(.uint, .nonNull), .primitive(.ulong, .nonNull),
+                 .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
+                isInfix = ["and", "or", "xor", "shl", "shr"].contains(name)
+            default:
+                isInfix = false
+            }
+        }
+        guard isInfix else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0307",
+                "'infix' modifier is required on '\(ctx.interner.resolve(calleeName))'.",
+                range: range
+            )
+            ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
+            return ctx.sema.types.errorType
+        }
+        return result
     }
 
     func inferSafeMemberCallExpr(

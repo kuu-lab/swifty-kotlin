@@ -284,6 +284,21 @@ extension OverloadResolver {
             constraints = receiverConstraints
         }
 
+        // Member extensions infer class parameters from their dispatch receiver;
+        // the extension receiver still constrains the declared receiver type.
+        let memberExtensionOwner = ctx.symbols.memberExtensionOwnerSymbol(for: candidate)
+        let classReceiverType: TypeID? = if let owner = memberExtensionOwner {
+            call.dispatchReceiverTypes.first { receiver in
+                guard case let .classType(receiverClass) = ctx.types.kind(
+                    of: ctx.types.makeNonNullable(receiver)
+                ) else { return false }
+                return ctx.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: owner)
+            }
+        } else {
+            implicitReceiverType
+        }
+
+        var starProjectedReceiverParameters: Set<SymbolID> = []
         // A nominal member's leading type parameters belong to the declaring
         // class/interface. Constrain them from the dispatch receiver, not an
         // unrelated extension receiver. Otherwise an inherited
@@ -291,14 +306,13 @@ extension OverloadResolver {
         // from a Byte/Long argument instead of Int from IntRange, making an
         // inapplicable member steal the call from an exact user extension.
         if !isConstructor,
-           ctx.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
            signature.classTypeParameterCount > 0,
-           let implicitReceiverType,
+           let classReceiverType,
            isNominalMemberFunction(candidate, typeSystem: ctx.types),
            let owner = ctx.symbols.parentSymbol(for: candidate),
-           signature.receiverType == nil || {
+           memberExtensionOwner != nil || signature.receiverType == nil || {
                guard case let .classType(receiverClass) = ctx.types.kind(
-                   of: ctx.types.makeNonNullable(implicitReceiverType)
+                   of: ctx.types.makeNonNullable(classReceiverType)
                ) else {
                    return false
                }
@@ -319,7 +333,7 @@ extension OverloadResolver {
                 nullability: .nonNull
             )))
             let receiverOwnerType: TypeID = {
-                let nonNullReceiverType = ctx.types.makeNonNullable(implicitReceiverType)
+                let nonNullReceiverType = ctx.types.makeNonNullable(classReceiverType)
                 guard case let .classType(receiverClassType) = ctx.types.kind(of: nonNullReceiverType),
                       let liftedArguments = ctx.types.liftedNominalSupertypeArgs(
                           from: receiverClassType.classSymbol,
@@ -327,7 +341,7 @@ extension OverloadResolver {
                           to: owner
                       )
                 else {
-                    return implicitReceiverType
+                    return classReceiverType
                 }
                 return ctx.types.make(.classType(ClassType(
                     classSymbol: owner,
@@ -335,6 +349,27 @@ extension OverloadResolver {
                     nullability: .nonNull
                 )))
             }()
+            if case let .classType(receiverOwner) = ctx.types.kind(of: receiverOwnerType) {
+                let methodBounds = Array(signature.typeParameterUpperBoundsList
+                    .dropFirst(signature.classTypeParameterCount).joined())
+                    + signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).flatMap {
+                        ctx.symbols.typeParameterUpperBounds(for: $0)
+                    }
+                for (parameter, argument) in zip(
+                    signature.typeParameterSymbols.prefix(signature.classTypeParameterCount), receiverOwner.args
+                ) {
+                    if case .star = argument,
+                       !signature.parameterTypes.contains(where: {
+                           ctx.types.typeContainsTypeParam($0, symbol: parameter)
+                       }),
+                       !methodBounds.contains(where: {
+                           ctx.types.typeContainsTypeParam($0, symbol: parameter)
+                       })
+                    {
+                        starProjectedReceiverParameters.insert(parameter)
+                    }
+                }
+            }
             constraints.append(contentsOf: decomposeSubtypeConstraint(
                 subtype: receiverOwnerType,
                 supertype: ownerType,
@@ -372,25 +407,15 @@ extension OverloadResolver {
             return .rejected
         }
 
-        guard appendArgumentConstraints(
-            to: &constraints,
-            call: call,
-            parameterMapping: parameterMapping,
-            signature: signature,
-            typeVarBySymbol: typeVarBySymbol,
-            ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
-            sema: ctx
-        ) else {
-            return .rejected
-        }
-
         // Add equality constraints for explicit type arguments.
         // For constructors, explicit type args bind class type params (offset 0).
         // For regular functions, map to function-own type params (after class type params).
         let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
+        var explicitTypeSubstitution: [TypeVarID: TypeID] = [:]
         for (index, explicitArg) in call.explicitTypeArgs.enumerated() {
             let typeParamSymbol = signature.typeParameterSymbols[typeArgOffset + index]
             if let typeVar = typeVarBySymbol[typeParamSymbol] {
+                explicitTypeSubstitution[typeVar] = explicitArg
                 constraints.append(
                     VariableConstraint(
                         kind: .equal,
@@ -400,6 +425,18 @@ extension OverloadResolver {
                     )
                 )
             }
+        }
+        guard appendArgumentConstraints(
+            to: &constraints,
+            call: call,
+            parameterMapping: parameterMapping,
+            signature: signature,
+            typeVarBySymbol: typeVarBySymbol,
+            explicitTypeSubstitution: explicitTypeSubstitution,
+            ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
+            sema: ctx
+        ) else {
+            return .rejected
         }
         var inputConstraints = constraints
 
@@ -525,6 +562,7 @@ extension OverloadResolver {
             signature: signature,
             substitution: substitution,
             typeVarBySymbol: typeVarBySymbol,
+            starProjectedReceiverParameters: starProjectedReceiverParameters,
             range: call.range,
             ctx: ctx
         ) {
@@ -701,6 +739,7 @@ extension OverloadResolver {
         parameterMapping: [Int: Int],
         signature: FunctionSignature,
         typeVarBySymbol: [SymbolID: TypeVarID],
+        explicitTypeSubstitution: [TypeVarID: TypeID],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
         sema: SemaModule
     ) -> Bool {
@@ -718,17 +757,37 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
+            // Explicit type arguments supply a concrete literal expectation,
+            // while constraints still target the original type parameter.
+            let literalParameterType = typeSystem.substituteTypeParameters(
+                in: paramType,
+                substitution: explicitTypeSubstitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
             let inferredArgType = !arg.isSpread
-                ? (integerLiteralType(arg, parameterType: paramType, types: typeSystem) ?? arg.type)
+                ? (integerLiteralType(arg, parameterType: literalParameterType, types: typeSystem) ?? arg.type)
                 : arg.type
             let argType = !arg.isSpread
                 ? (typeSystem.suspendConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
                 : inferredArgType
 
-            // A spread argument contributes the element type of its array to
-            // the vararg parameter. Recover that type when possible so
-            // overloads such as `split(*arrayOf("..."))` and
-            // `split(*charArrayOf('...'))` are distinguished by the resolver.
+            if arg.label != nil, isVararg[paramIndex] {
+                // A named vararg argument supplies the whole array, even without `*`.
+                guard let elementType = namedVarargArgumentElementType(
+                    argType, parameterType: paramType, sema: sema
+                ) else {
+                    return false
+                }
+                constraints.append(contentsOf: decomposeSubtypeConstraint(
+                    subtype: elementType,
+                    supertype: paramType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: call.range
+                ))
+                continue
+            }
+            // Recover spread element types to distinguish array overloads.
             // Keep the historical unconstrained fallback for synthetic or
             // incomplete test types whose array shape cannot be recovered.
             if arg.isSpread, isVararg[paramIndex] {
@@ -803,9 +862,33 @@ extension OverloadResolver {
     }
 
     /// Returns the source-level element type represented by a spread argument.
+    private func namedVarargArgumentElementType(
+        _ type: TypeID,
+        parameterType: TypeID,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard sema.types.nullability(of: type) != .nullable,
+              let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
+              let interner = sema.interner
+        else {
+            return nil
+        }
+        // Primitive varargs require their primitive array; reference, nullable
+        // primitive, and generic varargs require Array<out T>.
+        let arrayName: String
+        if case let .primitive(primitive, .nonNull) = sema.types.kind(of: parameterType) {
+            arrayName = primitive.kotlinName + "Array"
+        } else {
+            arrayName = "Array"
+        }
+        guard symbol.fqName == [interner.intern("kotlin"), interner.intern(arrayName)] else {
+            return nil
+        }
+        return spreadArgumentElementType(type, sema: sema)
+    }
+
     /// Generic `Array<T>`/collection types carry the element in their first type
-    /// argument; primitive arrays (notably `CharArray`) require the interner to
-    /// identify the nominal class.
+    /// argument; primitive arrays require the interner to identify the class.
     private func spreadArgumentElementType(_ type: TypeID, sema: SemaModule) -> TypeID? {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
@@ -1082,16 +1165,19 @@ extension OverloadResolver {
         _ symbol: SymbolID,
         typeSystem: TypeSystem
     ) -> Bool {
-        guard let parent = typeSystem.symbolTable?.parentSymbol(for: symbol),
-              let parentKind = typeSystem.symbolTable?.symbol(parent)?.kind
+        guard let symbols = typeSystem.symbolTable,
+              let declaration = symbols.symbol(symbol),
+              let parentID = symbols.parentSymbol(for: symbol),
+              let parent = symbols.symbol(parentID),
+              declaration.fqName == parent.fqName + [declaration.name]
         else {
             return false
         }
-        return parentKind == .class
-            || parentKind == .interface
-            || parentKind == .object
-            || parentKind == .enumClass
-            || parentKind == .annotationClass
+        return parent.kind == .class
+            || parent.kind == .interface
+            || parent.kind == .object
+            || parent.kind == .enumClass
+            || parent.kind == .annotationClass
     }
 
     /// Returns true if `lhs` is at least as specific as `rhs`.

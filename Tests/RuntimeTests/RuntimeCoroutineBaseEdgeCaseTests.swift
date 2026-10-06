@@ -319,7 +319,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
             return acc + 1
         }
         let fnPtr = unsafeBitCast(noopFn, to: Int.self)
-        var outThrown = 0
+        var outThrown = 42
         let result = kk_context_fold(emptyCtx, 99, fnPtr, 0, &outThrown)
         #expect(outThrown == 0)
         // Fresh continuation context has no dispatcher / name / handler by default.
@@ -442,8 +442,9 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let nameBox = RuntimeStringBox("Native")
         let nameElem = kk_coroutine_name_create(runtimeRegisterStringBox(nameBox))
         let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9919))
-        let ctx = kk_context_plus(emptyCtx, nameElem)
         var thrown = 42
+        let ctx = __kk_context_plus_dispatch(emptyCtx, nameElem, &thrown)
+        #expect(thrown == 0)
         let retrieved = __kk_context_get_dispatch(ctx, nameElem, &thrown)
         #expect(runtimeStringBoxValue(kk_coroutine_name_get(retrieved)) == "Native")
         #expect(thrown == 0)

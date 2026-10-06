@@ -177,6 +177,7 @@ struct BuildKIRRegressionTests {
             "EnumNameAccessLowering",
             "LambdaClosureConversion",
             "InlineLowering",
+            "ReifiedEnumValuesLowering",
             "CoroutineLowering",
             "IntegerNarrowing",
             "ABILowering",

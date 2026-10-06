@@ -160,6 +160,7 @@ extension OverloadResolver {
         }
         var mapping: [Int: Int] = [:]
         var boundNonVarargParams: Set<Int> = []
+        var boundNamedVarargParams: Set<Int> = []
         var sawNamedArgument = false
         var positionalCursor = 0
         // Highest parameter index bound so far by any argument (named or
@@ -180,6 +181,8 @@ extension OverloadResolver {
                     return nil
                 }
                 if isVararg[paramIndex] {
+                    guard !mapping.values.contains(paramIndex) else { return nil }
+                    boundNamedVarargParams.insert(paramIndex)
                     mapping[argIndex] = paramIndex
                     maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                     continue
@@ -220,6 +223,7 @@ extension OverloadResolver {
                 if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
                 }
+                guard !boundNamedVarargParams.contains(positionalCursor) else { return nil }
                 maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
                 continue
@@ -244,6 +248,7 @@ extension OverloadResolver {
                 return nil
             }
             if isVararg[paramIndex] {
+                guard !boundNamedVarargParams.contains(paramIndex) else { return nil }
                 mapping[argIndex] = paramIndex
                 continue
             }
@@ -410,6 +415,21 @@ extension OverloadResolver {
         if case let .typeParam(typeParam) = supertypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
+            // Contextual lambda inputs can still refer to the candidate's
+            // own parameters. Keep their relationship in the inference graph
+            // rather than treating the left parameter as an opaque Any value.
+            if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
+               let subVariable = typeVarBySymbol[subParameter.symbol],
+               subParameter.nullability == .nonNull,
+               typeParam.nullability == .nonNull
+            {
+                return [VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(subVariable),
+                    right: .variable(variable),
+                    blameRange: blameRange
+                )]
+            }
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
                     // `null` has type `Nothing?`. Although it is compatible

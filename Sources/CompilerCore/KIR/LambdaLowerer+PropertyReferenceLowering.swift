@@ -267,7 +267,7 @@ extension LambdaLowerer {
             targetSymbol: accessor.propertySymbol,
             parameterTypes: shape.arity == 0 ? [] : [accessor.ownerType ?? sema.types.anyType],
             returnType: accessor.propertyType, captures: [wrapperValue], receiverCount: shape.arity,
-            setterSymbol: setterMethodSymbol, sema: sema, arena: arena, interner: interner,
+            setterSymbol: setterMethodSymbol, ast: ast, sema: sema, arena: arena, interner: interner,
             instructions: &instructions
         )
         _ = isUnbound
@@ -656,7 +656,23 @@ extension LambdaLowerer {
             body.append(.constValue(result: expr, value: .symbolRef(symbol)))
             return expr
         }
-        if let fieldOffset,
+        if kind == .getter,
+           let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
+           !externalLinkName.isEmpty
+        {
+            // Runtime-backed properties retain their bridge even when bundled
+            // source declares the property without a getter body.
+            let result = arena.appendTemporary(type: propertyType)
+            body.append(.call(
+                symbol: propertySymbol,
+                callee: interner.intern(externalLinkName),
+                arguments: receiverExpr.map { [$0] } ?? [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.returnValue(result))
+        } else if let fieldOffset,
            let receiverExpr
         {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)

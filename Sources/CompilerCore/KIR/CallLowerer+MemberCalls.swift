@@ -9,6 +9,8 @@ extension CallLowerer {
     // declaredMemberFunctions/nestedClasses/supertypes moved to ordinary
     // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
     //
+    // objectInstance/sealedSubclasses are source-declared KClass properties
+    // whose native boxes use the runtime registry instead of source itables.
     // The remaining names stay here:
     // - findAnnotation/findAssociatedObject take a reified type argument,
     //   which this compiler only supports via a small special-cased
@@ -17,7 +19,7 @@ extension CallLowerer {
     //   `declaredMember`-prefixed variants exist upstream); diff cases rely
     //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject", "properties",
+        "findAnnotation", "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses",
     ]
 
     func lowerMemberCallExpr(

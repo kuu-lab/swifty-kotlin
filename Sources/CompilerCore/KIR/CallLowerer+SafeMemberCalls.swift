@@ -388,7 +388,7 @@ extension CallLowerer {
                 case "shr":
                     isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shr") : nil
                 case "ushr":
-                    isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
+                    (nonNullReceiverType == intType || nonNullReceiverType == longType) && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
                 default:
                     nil
                 }
@@ -404,6 +404,10 @@ extension CallLowerer {
                     instructions.append(.copy(from: nullValue, to: nullableResult))
                     instructions.append(.jump(endLabel))
                     instructions.append(.label(nonNullLabel))
+                    // Give boxing lowering the non-null primitive type so it
+                    // unboxes the receiver before applying the intrinsic.
+                    let nonNullReceiver = arena.appendTemporary(type: nonNullReceiverType)
+                    instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                     let nonNullResult = arena.appendTemporary(type: callResultType)
                     let loweredArgID = driver.lowerExpr(
                         args[0].expr,
@@ -413,7 +417,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: primitiveCallee,
-                        arguments: [loweredReceiverID, loweredArgID],
+                        arguments: [nonNullReceiver, loweredArgID],
                         result: nonNullResult,
                         canThrow: false,
                         thrownResult: nil
@@ -971,6 +975,7 @@ extension CallLowerer {
             args: args,
             ast: ast,
             sema: sema,
+            arena: arena,
             interner: interner,
             instructions: &instructions.instructions
         ) {
@@ -1027,6 +1032,7 @@ extension CallLowerer {
             callBinding: callBinding,
             chosenCallee: chosen,
             spreadFlags: args.map(\.isSpread),
+            argumentLabels: args.map(\.label),
             shared: shared, emit: &instructions
         )
         var finalArguments = safeNormalized.arguments
@@ -1075,6 +1081,18 @@ extension CallLowerer {
                 // to unbox nullable primitives before calling their member.
                 receiverArgument = arena.appendTemporary(type: declaredReceiverType)
                 instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
+            }
+            if sema.symbols.isSourceBackedSymbol(chosen),
+               sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) != true,
+               case let .functionType(functionType) = sema.types.kind(of: declaredReceiverType),
+               functionType.isSuspend {
+                receiverArgument = materializeFunctionValueArgument(
+                    loweredArgID: receiverArgument,
+                    argExprID: receiverExpr,
+                    functionType: functionType,
+                    sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions.instructions
+                )
             }
             finalArguments.insert(receiverArgument, at: 0)
         } else if chosen == nil {
@@ -1438,6 +1456,21 @@ func resolveVirtualDispatchKind(
        MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
     {
         return nil
+    }
+    // An extension accessor is parented by its property; dispatch on the
+    // property's enclosing class, using its synthetic getter/setter slot.
+    if parentSymbol.kind == .property,
+       parentSymbol.flags.contains(.memberExtension),
+       let owner = sema.symbols.parentSymbol(for: parentID),
+       sema.symbols.symbol(owner)?.kind == .class,
+       sema.symbols.symbol(owner)?.flags.contains(.abstractType) == true
+           || !sema.symbols.directSubtypes(of: owner).isEmpty,
+       let ownerLayout = sema.symbols.nominalLayout(for: owner)
+    {
+        let kind: PropertyAccessorKind = sema.symbols.extensionPropertySetterAccessor(for: parentID) == callee
+            ? .setter : .getter
+        let slotSymbol = SyntheticSymbolScheme.propertyAccessorSymbol(for: parentID, kind: kind)
+        return ownerLayout.vtableSlots[slotSymbol].map { .vtable(slot: $0) }
     }
     guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
     if parentSymbol.kind == .interface {

@@ -5,22 +5,33 @@ final class LocalVariableStabilityAnalyzer {
     private var declarations: Set<ExprID> = []
     private var reassigned: Set<ExprID> = []
     var inPlaceLambdaScopes: Set<ExprID> = []
-    private var mutationScopes: [ExprID: Set<ExprID>] = [:]
+    private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
+    /// Writes in the local function currently being checked are direct writes.
+    /// Other deferred scopes still make the captured variable unstable.
+    var currentLocalFunctionScope: ExprID?
     private var closureScopes: [ExprID] = []
+    private var flowBarrierScopes: [ExprID] = []
+    private var flowBarrierReassignments: [ExprID: Set<ExprID>] = [:]
     private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
     // Only writes from a deeper deferred scope invalidate local smart casts.
     private var declarationDepths: [ExprID: Int] = [:]
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
-        (mutationScopes[declaration] ?? []).contains { scope in
-            if inPlaceLambdaScopes.contains(scope) { return false }
-            guard let site = lambdaCalls[scope],
-                  let binding = sema.bindings.callBinding(for: site.call),
-                  let parameterIndex = binding.parameterMapping[site.argument],
-                  let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
-                  signature.valueParameterSymbols.indices.contains(parameterIndex)
-            else { return true }
-            return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
+        (mutationScopes[declaration] ?? []).contains { scopes in
+            // A write directly in this body is sequenced with its reads,
+            // even when the local function itself is nested in a closure.
+            if let currentLocalFunctionScope, scopes.last == currentLocalFunctionScope { return false }
+            return scopes.contains { scope in
+                if scope == currentLocalFunctionScope { return false }
+                if inPlaceLambdaScopes.contains(scope) { return false }
+                guard let site = lambdaCalls[scope],
+                      let binding = sema.bindings.callBinding(for: site.call),
+                      let parameterIndex = binding.parameterMapping[site.argument],
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+                      signature.valueParameterSymbols.indices.contains(parameterIndex)
+                else { return true }
+                return !isInPlaceParameter(parameterIndex, function: binding.chosenCallee, sema: sema)
+            }
         }
     }
 
@@ -41,6 +52,10 @@ final class LocalVariableStabilityAnalyzer {
 
     func isNeverReassigned(_ declaration: ExprID) -> Bool {
         declarations.contains(declaration) && !reassigned.contains(declaration)
+    }
+
+    func isReassigned(_ declaration: ExprID, within expression: ExprID) -> Bool {
+        flowBarrierReassignments[expression]?.contains(declaration) == true
     }
 
     func analyze(_ body: FunctionBody, ast: ASTModule) {
@@ -97,8 +112,11 @@ final class LocalVariableStabilityAnalyzer {
         case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
             if let declaration = locals[name] {
                 reassigned.insert(declaration)
+                for loop in flowBarrierScopes {
+                    flowBarrierReassignments[loop, default: []].insert(declaration)
+                }
                 if let depth = declarationDepths[declaration], depth < closureScopes.count {
-                    mutationScopes[declaration, default: []].formUnion(closureScopes.dropFirst(depth))
+                    mutationScopes[declaration, default: []].insert(Array(closureScopes.dropFirst(depth)))
                 }
             }
             children([value])
@@ -124,16 +142,24 @@ final class LocalVariableStabilityAnalyzer {
             locals.removeValue(forKey: name)
         case let .forExpr(variable, iterable, body, _, _):
             children([iterable])
+            flowBarrierScopes.append(id)
             scoped(body, hiding: variable.map { [$0] } ?? [])
+            flowBarrierScopes.removeLast()
         case let .forDestructuringExpr(names, iterable, body, _):
             children([iterable])
+            flowBarrierScopes.append(id)
             scoped(body, hiding: names.compactMap { $0 })
+            flowBarrierScopes.removeLast()
         case let .whileExpr(condition, body, _, _):
+            flowBarrierScopes.append(id)
             children([condition])
             scoped(body)
+            flowBarrierScopes.removeLast()
         case let .doWhileExpr(body, condition, _, _):
+            flowBarrierScopes.append(id)
             scoped(body)
             scoped(condition)
+            flowBarrierScopes.removeLast()
         case let .ifExpr(condition, thenBody, elseBody, _):
             children([condition])
             scoped(thenBody)
@@ -191,7 +217,7 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             visitNominal(declaration, ast: ast, locals: locals)
             closureScopes.removeLast()
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
              .charLiteral, .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr, .superRef, .thisRef:
             break
         }

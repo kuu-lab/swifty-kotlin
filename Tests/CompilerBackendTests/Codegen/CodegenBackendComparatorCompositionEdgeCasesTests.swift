@@ -8,6 +8,42 @@ import Testing
 struct CodegenBackendComparatorCompositionEdgeCasesTests {
 
     @Test(arguments: [0, 2], [false, true])
+    func testBundledComparatorFactoriesPreserveFunctionCaptures(optimization: Int, stdlibFromSource: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu_1283_comparator_factories.kt"
+        ), encoding: .utf8)
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "BundledComparatorFactories",
+            expected: "made\n-1\n[1, 2, 3]\n[3, 2, 1]\n[3, 2, 1]\n"
+                + "[2, 4, 1, 3]\n[4, 2, 3, 1]\n[2, 4, 1, 3]\n-1\n-1\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: !stdlibFromSource
+        )
+    }
+
+    @Test(arguments: [0, 2], [false, true])
+    func testThenComparingBinaryLambda(optimization: Int, stdlibFromSource: Bool) throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/comparator_then_comparing.kt"
+        ), encoding: .utf8)
+        try assertKotlinOutput(
+            source,
+            moduleName: "ComparatorThenComparing",
+            expected: "0\n-1\n1\n0\n7\n1\n2\n-2\n0\n9\n-2\n2\n2\n-1\n",
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            allowDefaultStdlibLibrary: !stdlibFromSource
+        )
+    }
+
+    @Test(arguments: [0, 2], [false, true])
     func testCodegenCompareByDataClassDirectCompare(optimization: Int, stdlibFromSource: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()

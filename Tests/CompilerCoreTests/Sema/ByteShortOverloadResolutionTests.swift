@@ -5,6 +5,36 @@ import Testing
 /// BUG-186: Byte/Short overloads must be distinct and resolve to the correct overload.
 @Suite
 struct ByteShortOverloadResolutionTests {
+    @Test func unsignedLiteralComparisonVarargsPreferUInt() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            println(maxOf(1u, 2u, 3u, 4u))
+            println(minOf(1u, 2u, 3u, 4u))
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        for name in ["maxOf", "minOf"] {
+            let call = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .call(callee, _, args, _) = expr, args.count == 4,
+                      case let .nameRef(identifier, _) = ast.arena.expr(callee) else { return false }
+                return ctx.interner.resolve(identifier) == name
+            })
+            #expect(sema.bindings.exprType(for: call) == sema.types.uintType)
+            let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+            let signature = try #require(sema.symbols.functionSignature(for: chosen))
+            #expect(signature.typeParameterSymbols.isEmpty)
+            #expect(signature.parameterTypes == [sema.types.uintType, sema.types.uintType])
+            #expect(signature.valueParameterIsVararg == [false, true])
+        }
+        let warnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.message.contains("ExperimentalUnsignedTypes")
+        }
+        #expect(warnings.count == 2)
+    }
+
     @Test func testIntegerLiteralsResolveAndBindToVarargElementType() throws {
         let source = """
             package sample

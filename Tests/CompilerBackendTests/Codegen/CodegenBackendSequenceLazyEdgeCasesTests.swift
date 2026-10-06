@@ -9,6 +9,60 @@ import Testing
 @Suite
 struct CodegenBackendSequenceLazyEdgeCasesTests {
 
+    // KUU-1073: infer non-null elements from nullable no-argument callbacks.
+    @Test(arguments: [false, true])
+    func testNullableGenerateSequenceLambdaInference(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun main() {
+            val b = generateSequence { if (true) 1 else null }
+            println(b.take(3).toList())
+            var i = 0
+            val c = generateSequence { i = i + 1; if (i <= 3) i else null }
+            println(c.toList())
+            println(generateSequence { 1 as Int? }.take(2).toList())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableGenerateSequenceLambdaInference",
+            expected: "[1, 1, 1]\n[1, 2, 3]\n[1, 1]\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    // KUU-1325: both stdlib modes must preserve the callback's value argument
+    // and terminate on null, including lambdas without a closure parameter.
+    @Test(arguments: [false, true])
+    func testSeededGenerateSequenceCallbackABI(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun nextValue(value: Int): Int? = if (value < 8) value * 2 else null
+
+        fun main() {
+            println(generateSequence(0) { it + 1 }.take(3).toList())
+            val iterator = generateSequence(1) { it + 1 }.iterator()
+            println(iterator.next())
+            println(iterator.next())
+            println(generateSequence(5) { null }.firstOrNull())
+            println(generateSequence(5) { null }.toList())
+            println(generateSequence(1) { if (it < 8) it * 2 else null }.toList())
+            println(generateSequence(1, ::nextValue).toList())
+            val step = 2
+            val limit = 7
+            val captured = generateSequence(1) { if (it < limit) it + step else null }
+            println(captured.toList())
+            println(captured.toList())
+            println(generateSequence { 42 }.take(2).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SeededGenerateSequenceCallbackABI",
+            expected: "[0, 1, 2]\n1\n2\n5\n[5]\n[1, 2, 4, 8]\n[1, 2, 4, 8]\n[1, 3, 5, 7]\n[1, 3, 5, 7]\n[42, 42]\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testSequenceMapTakeEvaluatesOnlyNeededElements() throws {
         let source = """

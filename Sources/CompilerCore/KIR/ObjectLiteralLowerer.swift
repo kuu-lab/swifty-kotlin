@@ -261,6 +261,15 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        appendObjectAnyToStringRegistration(
+            objectValue: objectValue,
+            nominalSymbol: objectSymbol,
+            driver: driver,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         // Seed `lateinit` fields with the null sentinel before the
         // superclass constructor runs (a fresh object's fields are 0, which
         // the lateinit read path would take for a live value).
@@ -533,6 +542,7 @@ final class ObjectLiteralLowerer {
             receiver: objectValue,
             loweredArgs: loweredArgs,
             spreadFlags: objectDecl.superTypeConstructorArgs.map(\.isSpread),
+            argumentLabels: objectDecl.superTypeConstructorArgs.map(\.label),
             callBinding: callBinding,
             sourceArgExprs: objectDecl.superTypeConstructorArgs.map(\.expr),
             result: resultID,
@@ -608,6 +618,12 @@ final class ObjectLiteralLowerer {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
             }
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+            if let capturedOwner = sema.symbols.symbol(capturedSymbol),
+               [.class, .interface, .enumClass, .object].contains(capturedOwner.kind)
+            {
+                driver.ctx.setCapturedOuterReceiver(loadedExpr, for: capturedSymbol)
+                driver.ctx.setQualifiedThisReceiver(loadedExpr, for: capturedOwner.name)
+            }
             if let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: ownerSymbol),
                capturedReceiver.receiverSymbol == capturedSymbol
             {
@@ -621,6 +637,18 @@ final class ObjectLiteralLowerer {
             driver.ctx.localDeclaredType(for: $0)
         } ?? driver.ctx.currentFunctionSymbol.flatMap {
             sema.symbols.functionSignature(for: $0)?.receiverType
+        }
+        // An extension property's bare reference uses the extension receiver;
+        // the enclosing instance is a separate leading accessor argument.
+        if let extensionType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+           let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+           let receiverType = activeReceiverType,
+           sema.types.isSubtype(
+               sema.types.makeNonNullable(receiverType),
+               sema.types.makeNonNullable(extensionType)
+           )
+        {
+            return activeReceiver
         }
         if let owner = sema.symbols.parentSymbol(for: symbol),
            let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
@@ -756,7 +784,12 @@ final class ObjectLiteralLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // Reflection reports Kotlin modality, not the internal inheritance flags.
+        let isSealed = symbol.flags.contains(.sealedType)
+        let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
+        if isAbstract { flags |= 1 << 7 }
+        if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
+        if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
         if symbol.kind == .object {
@@ -938,10 +971,9 @@ final class ObjectLiteralLowerer {
                 }
                 continue
             }
-            // Object-literal member properties are not flagged `.overrideMember`
-            // in Sema, so every non-delegated property gets a getter accessor;
-            // the itable registration only wires up the ones that match an
-            // interface property, and any extra getter is simply unused.
+            // Every non-delegated property gets a getter accessor, including
+            // non-virtual properties used directly by object-literal reads.
+            // Dispatch registration wires up the class/interface overrides.
             if let getter = propertyDecl.getter, getter.body != .unit {
                 driver.memberLowerer.lowerAccessorBody(
                     accessorBody: getter.body,

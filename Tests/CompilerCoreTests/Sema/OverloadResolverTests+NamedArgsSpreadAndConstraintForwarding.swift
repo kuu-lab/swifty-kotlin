@@ -165,7 +165,7 @@ extension OverloadResolverTests {
         #expect(resolved.chosenCallee == nil)
     }
 
-    @Test func testResolveCallAcceptsNamedVarargArgument() {
+    @Test func testResolveCallRejectsRepeatedNamedVarargArgument() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -190,8 +190,8 @@ extension OverloadResolverTests {
             ]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        #expect(resolved.chosenCallee == fn)
-        #expect(resolved.parameterMapping == [0: 0, 1: 0])
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
     }
 
     @Test func testResolveCallHandlesMissingParameterSymbols() {

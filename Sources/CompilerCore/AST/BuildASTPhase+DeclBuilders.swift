@@ -94,7 +94,11 @@ extension BuildASTPhase {
             ),
             superTypeEntries: declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena),
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
-            enumEntries: declarationEnumEntries(from: nodeID, in: arena, interner: interner, astArena: astArena, diagnostics: diagnostics),
+            // Parsing ordinary class bodies as enum entries can mistake an init
+            // condition for a constructor argument and check it outside init scope.
+            enumEntries: modifiers.contains(.enumModifier)
+                ? declarationEnumEntries(from: nodeID, in: arena, interner: interner, astArena: astArena, diagnostics: diagnostics)
+                : [],
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
             classBodyInitOrder: declarationClassBodyInitOrder(
                 from: nodeID, in: arena, interner: interner,

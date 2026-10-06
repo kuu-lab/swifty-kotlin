@@ -101,9 +101,8 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
 }
 
 // KSP-1021: MutableList collection APIs migrated to Kotlin source.
-// The existing runtime reversed-view bridge is intentionally shared with the
-// read-only List.asReversed implementation in ListCollectionOps.kt.
-@KsSymbolName("__kk_list_as_reversed")
+// A separate bridge preserves the mutable view identity at runtime.
+@KsSymbolName("__kk_mutable_list_as_reversed")
 private external fun <T> __kk_mutable_list_as_reversed(list: MutableList<T>): MutableList<T>
 
 public fun <T> MutableList<T>.asReversed(): MutableList<T> {

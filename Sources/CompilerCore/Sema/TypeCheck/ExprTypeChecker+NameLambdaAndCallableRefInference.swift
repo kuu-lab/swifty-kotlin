@@ -503,6 +503,16 @@ extension ExprTypeChecker {
                 && (parentSym.kind == .class || parentSym.kind == .object || parentSym.kind == .interface))
         })
         if let propSymbol = implicitReceiverMember?.symbol ?? scopeVisibleProperty {
+            let (_, invisible) = ctx.filterByVisibility([propSymbol.id])
+            if let property = invisible.first {
+                driver.helpers.emitVisibilityError(
+                    for: property,
+                    name: interner.resolve(name),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             if implicitReceiverMember != nil {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
@@ -828,10 +838,6 @@ extension ExprTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        if name == knownNames.null {
-            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
-            return sema.types.nullableNothingType
-        }
         if name == knownNames.thisName,
            let receiverType = ctx.implicitReceiverType
         {
@@ -945,6 +951,16 @@ extension ExprTypeChecker {
                 }
             }
             if let memberType, memberType != sema.types.errorType {
+                if let reference = ctx.dataFlow.resolveStableReference(
+                    id, locals: locals, ast: ctx.ast, sema: sema, interner: interner
+                ), reference.isStable,
+                   let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                       ctx.flowState.includingMembers(from: locals), reference: reference.symbol
+                   )
+                {
+                    sema.bindings.bindExprType(id, type: narrowedType)
+                    return narrowedType
+                }
                 return memberType
             }
             if candidates.isEmpty, memberType == sema.types.errorType {
@@ -1311,6 +1327,9 @@ extension ExprTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?
     ) -> TypeID {
+        let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
+        ctx.dataFlow.localStability.currentLocalFunctionScope = nil
+        defer { ctx.dataFlow.localStability.currentLocalFunctionScope = previousFunctionScope }
         let ast = ctx.ast
         let sema = ctx.sema
 
@@ -1569,14 +1588,18 @@ extension ExprTypeChecker {
         // store the underlying function type so KIR lowering can generate
         // the correct callable.
         if samConversion, let expectedType, let expectedFunctionType {
-            driver.emitSubtypeConstraint(
-                left: inferredBodyType,
-                right: expectedFunctionType.returnType,
-                range: ast.arena.exprRange(body),
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
+            // Unit-returning SAM lambdas discard the body's value, just like
+            // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
+            if expectedFunctionType.returnType != sema.types.unitType {
+                driver.emitSubtypeConstraint(
+                    left: inferredBodyType,
+                    right: expectedFunctionType.returnType,
+                    range: ast.arena.exprRange(body),
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             sema.bindings.markSamConversion(id)
             let underlyingFuncType = sema.types.make(.functionType(expectedFunctionType))
             sema.bindings.bindSamUnderlyingFunctionType(id, type: underlyingFuncType)
@@ -1713,15 +1736,11 @@ extension ExprTypeChecker {
 
         // ── T::class  — reified type-parameter class reference ──────────
         if member == KnownCompilerNames(interner: interner).className,
-           ast.arena.callableRefReceiverTypeRef(for: id) != nil
+           let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id)
         {
-            ctx.semaCtx.diagnostics.error(
-                "KSWIFTK-SEMA-0022",
-                "Type arguments are not allowed on the left-hand side of '::class'.",
-                range: range
+            return inferExplicitArrayClassRef(
+                id, receiverTypeRef: receiverTypeRef, range: range, ctx: ctx
             )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
         }
 
         if member == KnownCompilerNames(interner: interner).className,
@@ -1740,6 +1759,11 @@ extension ExprTypeChecker {
         if member == KnownCompilerNames(interner: interner).className,
            let receiver
         {
+            if let result = inferQualifiedClassRefExpr(
+                id, receiver: receiver, range: range, ctx: ctx, locals: locals
+            ) {
+                return result
+            }
             return inferExprReceiverClassRef(
                 id, receiver: receiver, range: range, ctx: ctx, locals: &locals
             )
@@ -2011,32 +2035,22 @@ extension ExprTypeChecker {
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
             } else {
-                if let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
-                {
-                    let propertyCandidates = sema.symbols.lookupAll(
-                        fqName: owner.fqName + [member]
-                    ).filter { symbolID in
-                        guard let symbol = ctx.cachedSymbol(symbolID) else {
-                            return false
-                        }
-                        // Member-extension properties are unreferenceable in
-                        // every `::` form, the same as member-extension
-                        // functions; `extensionPropertyReceiverType` is set
-                        // only when the member declares an extension receiver.
-                        return (symbol.kind == .property || symbol.kind == .field)
-                            && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
-                    }
-                    if let propertySymbol = propertyCandidates.first {
-                        return bindPropertyCallableRef(
-                            id,
-                            propertySymbol: propertySymbol,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
-                            isUnbound: unboundClassType != nil,
-                            expectedType: expectedType,
-                            sema: sema,
-                            interner: interner
-                        )
-                    }
+                // Property references use the same inheritance-aware lookup as
+                // ordinary member reads (for example MutableList<Int>::size).
+                if let property = driver.helpers.lookupMemberProperty(
+                    named: member,
+                    receiverType: nonNullReceiver,
+                    sema: sema
+                ), sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil {
+                    return bindPropertyCallableRef(
+                        id,
+                        propertySymbol: property.symbol,
+                        ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                        isUnbound: unboundClassType != nil,
+                        expectedType: expectedType,
+                        sema: sema,
+                        interner: interner
+                    )
                 }
                 // REFL-EXTPROP: a package-level extension property (e.g. `val
                 // String.length: Int` in Stdlib/kotlin/String.kt) is registered
@@ -2768,6 +2782,107 @@ extension ExprTypeChecker {
         }
     }
 
+    /// Resolve bare classifier paths without interpreting a segment as a constructor call.
+    private func inferQualifiedClassRefExpr(
+        _ id: ExprID,
+        receiver: ExprID,
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let ast = ctx.ast
+        var segments: [(expr: ExprID, name: InternedString)] = []
+        func collect(_ expr: ExprID) -> Bool {
+            switch ast.arena.expr(expr) {
+            case let .nameRef(name, _):
+                segments.append((expr, name))
+                return true
+            case let .memberCall(owner, name, typeArguments, arguments, _):
+                guard arguments.isEmpty, typeArguments.isEmpty,
+                      !ast.arena.isExplicitCall(expr), collect(owner) else { return false }
+                segments.append((expr, name))
+                return true
+            default:
+                return false
+            }
+        }
+        guard collect(receiver), segments.count > 1,
+              let first = segments.first
+        else { return nil }
+        if let local = locals[first.name], sema.symbols.symbol(local.symbol)?.kind != .function {
+            return nil
+        }
+        if let implicitReceiver = ctx.implicitReceiverType,
+           driver.helpers.lookupMemberProperty(
+               named: first.name, receiverType: sema.types.makeNonNullable(implicitReceiver), sema: sema
+           ) != nil {
+            return nil
+        }
+
+        func isClassifier(_ symbol: SemanticSymbol) -> Bool {
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass: true
+            default: false
+            }
+        }
+        // Values retain lexical priority; uninvoked functions do not qualify a type path.
+        let roots = ctx.scope.lookup(first.name, matching: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind != .function && symbol.kind != .constructor
+        })
+        var path: [InternedString] = []
+        var resolved: [(ExprID, SymbolID)] = []
+        for (index, segment) in segments.enumerated() {
+            let candidates: [SymbolID]
+            if index == 0, !roots.isEmpty {
+                candidates = roots
+            } else {
+                candidates = sema.symbols.lookupAll(fqName: path + [segment.name])
+            }
+            let symbols = candidates.compactMap { ctx.cachedSymbol($0) }
+            if symbols.contains(where: { !isClassifier($0) && $0.kind != .package
+                && $0.kind != .function && $0.kind != .constructor }) {
+                return nil
+            }
+            if let classifier = symbols.first(where: isClassifier) {
+                path = classifier.fqName
+                resolved.append((segment.expr, classifier.id))
+            } else {
+                // Package prefixes need no runtime receiver or expression binding.
+                guard resolved.isEmpty else { return nil }
+                path.append(segment.name)
+            }
+        }
+        guard let target = resolved.last, target.0 == receiver else { return nil }
+        for (expr, symbolID) in resolved {
+            guard let symbol = ctx.cachedSymbol(symbolID) else { return nil }
+            guard ctx.visibilityChecker.isAccessible(
+                symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+            ) else {
+                driver.helpers.emitVisibilityError(
+                    for: symbol, name: ctx.interner.resolve(symbol.name), range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
+            driver.helpers.checkDeprecation(
+                for: symbolID, sema: sema, interner: ctx.interner, range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: symbolID, ctx: ctx, range: range, diagnostics: ctx.semaCtx.diagnostics
+            )
+            sema.bindings.bindIdentifier(expr, symbol: symbolID)
+            sema.bindings.bindExprType(expr, type: sema.types.make(.classType(ClassType(classSymbol: symbolID))))
+        }
+        let targetType = sema.types.make(.classType(ClassType(classSymbol: target.1)))
+        sema.bindings.bindClassRefTargetType(id, type: targetType)
+        let result = sema.types.makeKClassType(argument: targetType)
+        sema.bindings.bindExprType(id, type: result)
+        return result
+    }
+
     private func inferClassRefExpr(
         _ id: ExprID,
         receiver: ExprID,
@@ -2858,6 +2973,22 @@ extension ExprTypeChecker {
         if receiverType == sema.types.errorType {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
+        }
+        // A qualified classifier such as `Outer.Nested` is a static class
+        // literal, even when Outer has a companion value. Do not evaluate it
+        // as a bound receiver; constructor calls and properties stay bound.
+        if case let .memberCall(_, _, _, args, _) = ctx.ast.arena.expr(receiver),
+           args.isEmpty, !ctx.ast.arena.isExplicitCall(receiver),
+           let symbolID = sema.bindings.identifierSymbol(for: receiver),
+           let symbol = sema.symbols.symbol(symbolID),
+           symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
+               || symbol.kind == .annotationClass || symbol.kind == .object
+        {
+            let targetType = sema.types.makeNonNullable(receiverType)
+            sema.bindings.bindClassRefTargetType(id, type: targetType)
+            let kClassType = sema.types.makeKClassType(argument: targetType)
+            sema.bindings.bindExprType(id, type: kClassType)
+            return kClassType
         }
         var visited: Set<TypeID> = []
         let isFlowNonNull: Bool

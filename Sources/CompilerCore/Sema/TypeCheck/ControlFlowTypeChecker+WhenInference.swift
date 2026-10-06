@@ -17,7 +17,31 @@ extension ControlFlowTypeChecker {
         let boolType = sema.types.booleanType
 
         if let subjectID {
-            let subjectType = driver.inferExpr(subjectID, ctx: ctx, locals: &locals)
+            let declaredType = ast.arena.whenSubjectTypeRef(for: id).map {
+                driver.helpers.resolveTypeRef(
+                    $0, ast: ast, sema: sema, interner: interner,
+                    scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: ctx, usageRange: range
+                )
+            }
+            if declaredType != nil {
+                sema.bindings.markSourceDeclaredExpectedType(subjectID)
+            }
+            let initializerType = driver.inferExpr(
+                subjectID, ctx: ctx, locals: &locals, expectedType: declaredType
+            )
+            if let declaredType {
+                driver.emitSubtypeConstraint(
+                    left: initializerType, right: declaredType,
+                    range: ast.arena.exprRange(subjectID), solver: ConstraintSolver(),
+                    sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
+            let subjectType = declaredType ?? initializerType
+            var ctx = ctx
+            if declaredType != nil {
+                ctx.whenSubjectTypes[subjectID] = subjectType
+            }
 
             // Register `when (val x = expr)` subject variable into locals so
             // that branch bodies and guards can reference it.
@@ -33,6 +57,7 @@ extension ControlFlowTypeChecker {
                     visibility: .private,
                     flags: []
                 )
+                sema.symbols.setPropertyType(subjectType, for: subjectVarSymbol)
                 locals[subjectVarName] = (subjectType, subjectVarSymbol, false, true)
                 sema.bindings.bindIdentifier(id, symbol: subjectVarSymbol)
             }
@@ -72,11 +97,11 @@ extension ControlFlowTypeChecker {
             let hasExplicitNullBranch = branches.contains { branch in
                 branch.conditions.contains { cond in
                     guard let conditionExpr = ast.arena.expr(cond),
-                          case let .nameRef(name, _) = conditionExpr
+                          case .nullLiteral = conditionExpr
                     else {
                         return false
                     }
-                    return name == KnownCompilerNames(interner: interner).null
+                    return true
                 }
             }
             var branchTypes: [TypeID] = []
@@ -95,11 +120,11 @@ extension ControlFlowTypeChecker {
 
             func isNullCondition(_ conditionID: ExprID) -> Bool {
                 guard let conditionExpr = ast.arena.expr(conditionID),
-                      case let .nameRef(name, _) = conditionExpr
+                      case .nullLiteral = conditionExpr
                 else {
                     return false
                 }
-                return name == KnownCompilerNames(interner: interner).null
+                return true
             }
 
             func recordCoverage(for conditionID: ExprID, conditionType: TypeID) {
@@ -159,11 +184,10 @@ extension ControlFlowTypeChecker {
                     }
                     covered.insert(interner.intern("false"))
 
+                case .nullLiteral:
+                    hasNullCase = true
+
                 case let .nameRef(name, _):
-                    if name == KnownCompilerNames(interner: interner).null {
-                        hasNullCase = true
-                        return
-                    }
                     guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                         covered.insert(name)
                         return
@@ -455,6 +479,11 @@ extension ControlFlowTypeChecker {
 
             // A non-exhaustive `when` can fall through with no value (Unit); do not let
             // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let completingLocals = zip(branchTypes, allBranchLocals)
+                .filter { $0.0 != sema.types.nothingType }.map(\.1)
+            mergeNullableBranchAssignments(
+                completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
+            )
             let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
@@ -585,6 +614,11 @@ extension ControlFlowTypeChecker {
 
             // A non-exhaustive `when` can fall through with no value (Unit); do not let
             // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let completingLocals = zip(branchTypes, allBranchLocals)
+                .filter { $0.0 != sema.types.nothingType }.map(\.1)
+            mergeNullableBranchAssignments(
+                completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
+            )
             let type = sema.types.lub(isExhaustive || !isStatementContext ? branchTypes : branchTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type

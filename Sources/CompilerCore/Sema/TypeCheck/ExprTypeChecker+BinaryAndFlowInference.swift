@@ -403,7 +403,15 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
-        if hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
+        // String/Char concatenation and applicable operator overloads return above.
+        // A textual RHS alone must not enable the primitive arithmetic fallback.
+        let hasInvalidTextAddition = op == .add && (
+            sema.types.isString(rhs)
+                || driver.callChecker.syntheticCharSequenceType(sema: sema).map {
+                    sema.types.isSubtype(sema.types.makeNonNullable(rhs), $0)
+                } == true
+        )
+        if hasInvalidTextAddition || hasInvalidBuiltinCharArithmetic(op: op, lhs: lhs, rhs: rhs, sema: sema) {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
@@ -460,9 +468,7 @@ extension ExprTypeChecker {
 
         switch op {
         case .add:
-            if sema.types.isString(lhs) || sema.types.isString(rhs) {
-                type = stringType
-            } else if lhs == charType && rhs == intType {
+            if lhs == charType && rhs == intType {
                 // Char + Int -> Char
                 type = charType
             } else if lhs == doubleType || rhs == doubleType {

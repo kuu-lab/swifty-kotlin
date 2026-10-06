@@ -134,8 +134,11 @@ extension CallLowerer {
             )
         } ?? functionType.returnType
 
-        let callResult = arena.appendTemporary(type: functionType.returnType
-        )
+        // Generic callbacks may already return an erased, boxed value. Use
+        // the emitted callable's ABI type rather than its contextual type.
+        let callableReturnType = arena.function(for: callableInfo.symbol)?.returnType
+            ?? functionType.returnType
+        let callResult = arena.appendTemporary(type: callableReturnType)
         let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
         body.append(.call(
             symbol: callableInfo.symbol,

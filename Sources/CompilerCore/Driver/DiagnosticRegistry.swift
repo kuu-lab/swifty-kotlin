@@ -233,6 +233,24 @@ enum DiagnosticRegistry {
             summary: "Expected an identifier after '::'."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0015",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected ',' or ')' after call argument."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0016",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Expected 'catch' or 'finally' after 'try' block."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0017",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Imports are only allowed in the beginning of file."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
@@ -682,6 +700,18 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Super-call omits an argument with a default value.",
             codeActions: [DiagnosticCodeAction(title: "Specify all arguments explicitly")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0307",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Infix notation requires the infix modifier."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0308",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Suspend function can only be called from a coroutine or another suspend function."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",

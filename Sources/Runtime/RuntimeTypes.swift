@@ -562,6 +562,7 @@ struct RuntimeCallableRefMetadata {
     var setterInvoker: Int = 0
     var setterParameters: Int = 0
     var property: Int = 0
+    var annotations: [RuntimeAnnotationRecord] = []
 }
 
 final class RuntimeFunctionValueBox {
@@ -598,7 +599,7 @@ final class RuntimeListBox {
     private enum Storage {
         case direct(DirectStorage)
         case reversedViewOf(RuntimeListBox)
-        case arrayViewOf(RuntimeArrayBox)
+        case arrayViewOf(RuntimeArrayBox, RuntimePrimitiveArrayElementKind?)
         case dequeViewOf(RuntimeArrayDequeBox)
         case subList(RuntimeListSlice)
         /// Live view for `MutableMap.values`: reads the backing map's
@@ -645,8 +646,35 @@ final class RuntimeListBox {
         storage = .reversedViewOf(base)
     }
 
-    init(arrayViewOf base: RuntimeArrayBox) {
-        storage = .arrayViewOf(base)
+    init(arrayViewOf base: RuntimeArrayBox, elementKind: RuntimePrimitiveArrayElementKind? = nil) {
+        storage = .arrayViewOf(base, elementKind)
+    }
+
+    // Primitive arrays store raw words; generic list consumers require boxed values.
+    private func arrayViewValue(_ value: RuntimeValue, kind: RuntimePrimitiveArrayElementKind?) -> RuntimeValue {
+        guard let kind else { return value }
+        let raw = value.legacyRawValue
+        switch kind {
+        case .boolean: return RuntimeValue(raw: kk_box_bool(raw))
+        case .char: return RuntimeValue(raw: kk_box_char(raw))
+        case .float: return RuntimeValue(raw: kk_box_float(raw))
+        case .double: return RuntimeValue(raw: kk_box_double_nonnull(raw))
+        case .long: return RuntimeValue(raw: kk_box_long_nonnull(raw))
+        default: return value
+        }
+    }
+
+    private func arrayStorageValue(_ value: RuntimeValue, kind: RuntimePrimitiveArrayElementKind?) -> RuntimeValue {
+        guard let kind else { return value }
+        let raw = runtimeCollectionABIValue(value)
+        switch kind {
+        case .boolean: return RuntimeValue(raw: kk_unbox_bool_static(raw))
+        case .char: return RuntimeValue(raw: kk_unbox_char_static(raw))
+        case .float: return RuntimeValue(raw: kk_unbox_float_static(raw))
+        case .double: return RuntimeValue(raw: kk_unbox_double_nonnull_static(raw))
+        case .long: return RuntimeValue(raw: kk_unbox_long(raw))
+        default: return value
+        }
     }
 
     init(dequeViewOf base: RuntimeArrayDequeBox) {
@@ -668,8 +696,8 @@ final class RuntimeListBox {
                 return direct.values
             case .reversedViewOf(let base):
                 return Array(base.values.reversed())
-            case .arrayViewOf(let base):
-                return base.values
+            case .arrayViewOf(let base, let kind):
+                return kind == nil ? base.values : base.values.map { arrayViewValue($0, kind: kind) }
             case .dequeViewOf(let base):
                 return base.values
             case .subList(let slice):
@@ -688,8 +716,8 @@ final class RuntimeListBox {
                 direct.values = newValue
             case .reversedViewOf(let base):
                 base.values = Array(newValue.reversed())
-            case .arrayViewOf(let base):
-                base.values = newValue
+            case .arrayViewOf(let base, let kind):
+                base.values = kind == nil ? newValue : newValue.map { arrayStorageValue($0, kind: kind) }
             case .dequeViewOf(let base):
                 base.values = newValue
             case .subList(let slice):
@@ -753,7 +781,7 @@ final class RuntimeListBox {
             return direct.values.count
         case .reversedViewOf(let base):
             return base.count
-        case .arrayViewOf(let base):
+        case .arrayViewOf(let base, _):
             return base.count
         case .dequeViewOf(let base):
             return base.count
@@ -774,8 +802,8 @@ final class RuntimeListBox {
             return direct.values[index]
         case .reversedViewOf(let base):
             return base.value(at: base.count - 1 - index)
-        case .arrayViewOf(let base):
-            return base.values[index]
+        case .arrayViewOf(let base, let kind):
+            return arrayViewValue(base.values[index], kind: kind)
         case .dequeViewOf(let base):
             return base.element(at: index)!
         case .subList(let slice):
@@ -801,8 +829,8 @@ final class RuntimeListBox {
                 )
             case .reversedViewOf(let base):
                 base[base.count - 1 - index] = newValue
-            case .arrayViewOf(let base):
-                base[index] = newValue
+            case .arrayViewOf(let base, let kind):
+                base[index] = arrayStorageValue(RuntimeValue(raw: newValue), kind: kind).legacyRawValue
             case .dequeViewOf(let base):
                 let previous = base.element(at: index)!
                 base.setValue(RuntimeValue(raw: newValue, anyFallbackTag: previous.anyFallbackTag), at: index)
@@ -827,8 +855,8 @@ final class RuntimeListBox {
             )
         case .reversedViewOf(let base):
             base.setValue(value, at: base.count - 1 - index)
-        case .arrayViewOf(let base):
-            base.setValue(value, at: index)
+        case .arrayViewOf(let base, let kind):
+            base.setValue(arrayStorageValue(value, kind: kind), at: index)
         case .dequeViewOf(let base):
             base.setValue(value, at: index)
         case .subList(let slice):
@@ -3612,7 +3640,21 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
+    private func childReference(at index: Int) -> Int? {
+        // Traverse backing storage without allocating temporary primitive boxes.
+        switch storage {
+        case .arrayViewOf(let base, let kind):
+            return kind == nil ? base.values[index].childReferenceRawValue : nil
+        case .reversedViewOf(let base):
+            return base.childReference(at: base.count - 1 - index)
+        case .subList(let slice):
+            return slice.base.childReference(at: slice.fromIndex + index)
+        default:
+            return value(at: index).childReferenceRawValue
+        }
+    }
+
+    var childRefs: [Int] { indices.compactMap { childReference(at: $0) } }
 }
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {

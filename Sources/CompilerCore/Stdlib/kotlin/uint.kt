@@ -29,6 +29,7 @@ internal fun uintToDouble(value: Int): Double =
 // KSP-790: Keep the primitive UIntArray factory source-backed.
 // The compiler's vararg representation is a generic array, so copy each
 // element into the primitive array rather than returning the vararg directly.
+@ExperimentalUnsignedTypes
 public inline fun uintArrayOf(vararg elements: UInt): UIntArray {
     val result = UIntArray(elements.size)
     var index = 0

@@ -75,7 +75,8 @@ final class TypeCheckSemaPhase: CompilerPhase {
         let fileScopes = driver.scopeBuilder.buildFileScopes(
             ast: ast,
             sema: sema,
-            interner: ctx.interner
+            interner: ctx.interner,
+            sourceManager: ctx.sourceManager
         )
 
         // Expression type inference recurses with large per-frame contexts
@@ -91,7 +92,9 @@ final class TypeCheckSemaPhase: CompilerPhase {
             work.run()
         }
 
-        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics)
+        let inlineLambdaArguments = collectInlineLambdaArguments(ast: ast, sema: sema)
+        validateReturnLambdaPaths(ast: ast, sema: sema, diagnostics: ctx.diagnostics, inlineLambdaArguments: inlineLambdaArguments)
+        driver.validateSuspensionContexts(inlineLambdaArguments: inlineLambdaArguments)
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
@@ -136,34 +139,57 @@ final class TypeCheckSemaPhase: CompilerPhase {
         )
     }
 
-    private func validateReturnLambdaPaths(ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine) {
-        guard !sema.bindings.functionReturnLambdaPaths.isEmpty
-            || !sema.bindings.lambdaReturnLambdaPaths.isEmpty else { return }
+    private func collectInlineLambdaArguments(ast: ASTModule, sema: SemaModule) -> Set<ExprID> {
         var inlineLambdaArguments: Set<ExprID> = []
-        for (callExprID, binding) in sema.bindings.callBindings {
+        func recordInlineLambdaArguments(_ arguments: [ExprID], binding: CallBinding) {
             guard sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
                   let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
-            else { continue }
-            let arguments: [CallArgument]
-            switch ast.arena.expr(callExprID) {
-            case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
-                arguments = args
-            default:
-                continue
-            }
+            else { return }
             for (index, argument) in arguments.enumerated() {
                 let parameterIndex = binding.parameterMapping[index] ?? index
-                guard case .lambdaLiteral = ast.arena.expr(argument.expr),
+                guard case .lambdaLiteral = ast.arena.expr(argument),
                       signature.parameterTypes.indices.contains(parameterIndex),
                       case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
                 else { continue }
                 if !signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                     || signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 {
-                    inlineLambdaArguments.insert(argument.expr)
+                    inlineLambdaArguments.insert(argument)
                 }
             }
         }
+        for (callExprID, binding) in sema.bindings.callBindings {
+            let arguments: [ExprID]
+            switch ast.arena.expr(callExprID) {
+            case let .call(_, _, args, _), let .memberCall(_, _, _, args, _),
+                 let .safeMemberCall(_, _, _, args, _):
+                arguments = args.map(\.expr)
+            case let .binary(_, _, rhs, _), let .compoundAssign(_, _, rhs, _),
+                 let .memberCompoundAssign(_, _, _, rhs, _):
+                arguments = [rhs]
+            case let .inExpr(lhs, _, _), let .notInExpr(lhs, _, _):
+                arguments = [lhs]
+            case let .indexedAccess(_, indices, _), let .indexedCompoundAssign(_, _, indices, _, _):
+                arguments = indices
+            case let .indexedAssign(_, indices, value, _):
+                arguments = indices + [value]
+            default:
+                continue
+            }
+            recordInlineLambdaArguments(arguments, binding: binding)
+        }
+        // Indexed compound assignments bind get() on the expression itself
+        // and keep the element's plusAssign()/plus() call separately.
+        for (exprID, binding) in sema.bindings.indexedCompoundAssignElementOperatorBindings {
+            guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
+            recordInlineLambdaArguments([value], binding: binding.call)
+        }
+        return inlineLambdaArguments
+    }
+
+    private func validateReturnLambdaPaths(
+        ast: ASTModule, sema: SemaModule, diagnostics: DiagnosticEngine, inlineLambdaArguments: Set<ExprID>
+    ) {
         let returnPaths = sema.bindings.functionReturnLambdaPaths.merging(
             sema.bindings.lambdaReturnLambdaPaths, uniquingKeysWith: { _, lambdaPath in lambdaPath }
         )

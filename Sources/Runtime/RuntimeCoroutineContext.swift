@@ -12,24 +12,36 @@ private let runtimeCoroutineContextInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.CoroutineContext"
 )
 
+private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.coroutines.EmptyCoroutineContext"
+)
+
 /// A coroutine context is a keyed collection of context elements.
 /// Elements include: dispatcher, Job, CoroutineName, CoroutineExceptionHandler.
 /// Contexts compose via the `+` operator (right-hand side wins for same key).
 final class RuntimeCoroutineContext: @unchecked Sendable {
     var dispatcher: Int  // 0 means "inherit from parent"
+    var dispatcherHandleRaw: Int
     var name: String?
     var nameHandleRaw: Int
     var exceptionHandler: RuntimeExceptionHandlerBox?
     var jobHandleRaw: Int
+
+    /// Context operations expose the original element; scheduling uses its tag.
+    var dispatcherElementHandle: Int {
+        dispatcherHandleRaw != 0 ? dispatcherHandleRaw : dispatcher
+    }
 
     init(
         dispatcher: Int = 0,
         name: String? = nil,
         exceptionHandler: RuntimeExceptionHandlerBox? = nil,
         jobHandleRaw: Int = 0,
-        nameHandleRaw: Int = 0
+        nameHandleRaw: Int = 0,
+        dispatcherHandleRaw: Int = 0
     ) {
         self.dispatcher = dispatcher
+        self.dispatcherHandleRaw = dispatcherHandleRaw
         self.name = name
         self.nameHandleRaw = nameHandleRaw != 0 ? nameHandleRaw
             : name.map { runtimeRegisterObject(RuntimeCoroutineNameBox(name: $0)) } ?? 0
@@ -44,7 +56,8 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
             name: other.name ?? self.name,
             exceptionHandler: other.exceptionHandler ?? self.exceptionHandler,
             jobHandleRaw: other.jobHandleRaw != 0 ? other.jobHandleRaw : self.jobHandleRaw,
-            nameHandleRaw: other.name != nil ? other.nameHandleRaw : self.nameHandleRaw
+            nameHandleRaw: other.name != nil ? other.nameHandleRaw : self.nameHandleRaw,
+            dispatcherHandleRaw: other.dispatcher != 0 ? other.dispatcherHandleRaw : self.dispatcherHandleRaw
         )
     }
 }
@@ -210,10 +223,43 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
 /// a RuntimeCoroutineNameBox, or a RuntimeExceptionHandlerBox.
 @_cdecl("kk_context_plus")
 public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
+    // The source-backed empty singleton is the identity on either side.
+    // Preserve the operand itself before converting to the runtime's closed
+    // element representation, which cannot retain arbitrary source Elements.
+    if runtimeObjectTypeID(rawValue: rightRaw) == runtimeEmptyCoroutineContextTypeID {
+        return leftRaw
+    }
+    if runtimeObjectTypeID(rawValue: leftRaw) == runtimeEmptyCoroutineContextTypeID {
+        return rightRaw
+    }
     let leftCtx = resolveToCoroutineContext(leftRaw)
     let rightCtx = resolveToCoroutineContext(rightRaw)
     let merged = leftCtx.plus(rightCtx)
     return runtimeRegisterObject(merged)
+}
+
+/// Preserve Kotlin overrides while retaining native context composition.
+@_cdecl("__kk_context_plus_dispatch")
+public func __kk_context_plus_dispatch(
+    _ contextRaw: Int,
+    _ otherRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    // An Element without a plus override inherits this bodyless bridge.
+    // Its itable entry must use native composition rather than re-enter us.
+    let bridge: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = __kk_context_plus_dispatch
+    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 2)
+    if method != unsafeBitCast(bridge, to: Int.self), let result = runtimeSourceInterfaceCall1(
+        contextRaw, otherRaw,
+        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+        methodSlot: 2,
+        context: "CoroutineContext.plus dispatch",
+        outThrown: outThrown
+    ) {
+        return result
+    }
+    return kk_context_plus(contextRaw, otherRaw)
 }
 
 /// Fetch a context element by key.
@@ -257,6 +303,21 @@ public func kk_context_fold(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
+    // Source methods receive a Kotlin function value, whereas the bridge ABI
+    // receives the callback entry point and its captured environment separately.
+    if kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1) != 0 {
+        let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
+        if let result = runtimeSourceInterfaceCall2(
+            contextRaw, initial, operation,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 1,
+            context: "CoroutineContext.fold dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+    }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     let ctx = resolveToCoroutineContext(contextRaw)
     var acc = initial
@@ -312,6 +373,11 @@ public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
        let ctx = tryCast(ptr, to: RuntimeCoroutineContext.self)
     {
         return ctx.dispatcher
+    }
+    if isRegisteredRuntimeObjectPointer(contextRaw),
+       let ptr = UnsafeMutableRawPointer(bitPattern: contextRaw),
+       let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self) {
+        return dispatcher.tag
     }
     return 0
 }
@@ -442,6 +508,13 @@ func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
     return isDispatcherTag(receiver) || isDispatcherObject
 }
 
+@_cdecl("__kk_job_is_runtime")
+public func kk_job_is_runtime(_ receiver: Int) -> Int {
+    // Source wrappers also resolve to a Job, but have their own getter slots.
+    return resolveLiveRuntimeHandle(receiver, as: RuntimeJobHandle.self) != nil
+        || runtimeAsyncTask(from: receiver) != nil ? 1 : 0
+}
+
 @_cdecl("__kk_is_native_dispatcher")
 public func kk_is_native_dispatcher(_ receiver: Int) -> Int {
     runtimeIsNativeDispatcher(receiver) ? 1 : 0
@@ -487,10 +560,10 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
        let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self)
     {
-        return ctx.dispatcher == dispatcher.tag ? ctx.dispatcher : nil
+        return ctx.dispatcher == dispatcher.tag ? ctx.dispatcherElementHandle : nil
     }
     if isDispatcherTag(keyRaw) {
-        return ctx.dispatcher == keyRaw ? ctx.dispatcher : nil
+        return ctx.dispatcher == keyRaw ? ctx.dispatcherElementHandle : nil
     }
     if keyRaw != 0,
        let ptr = UnsafeMutableRawPointer(bitPattern: keyRaw),
@@ -515,7 +588,7 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
 private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineContext) -> [Int] {
     var handles: [Int] = []
     if ctx.dispatcher != 0 {
-        handles.append(ctx.dispatcher)
+        handles.append(ctx.dispatcherElementHandle)
     }
     if ctx.name != nil {
         handles.append(ctx.nameHandleRaw)
@@ -536,7 +609,8 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
         name: ctx.name,
         exceptionHandler: ctx.exceptionHandler,
         jobHandleRaw: ctx.jobHandleRaw,
-        nameHandleRaw: ctx.nameHandleRaw
+        nameHandleRaw: ctx.nameHandleRaw,
+        dispatcherHandleRaw: ctx.dispatcherHandleRaw
     )
     if keyRaw == runtimeCoroutineNameKeyRaw {
         next.name = nil
@@ -549,12 +623,14 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
     {
         if next.dispatcher == dispatcher.tag {
             next.dispatcher = 0
+            next.dispatcherHandleRaw = 0
         }
         return next
     }
     if isDispatcherTag(keyRaw) {
         if next.dispatcher == keyRaw {
             next.dispatcher = 0
+            next.dispatcherHandleRaw = 0
         }
         return next
     }
@@ -590,7 +666,8 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
 @_cdecl("kk_context_is_active")
 public func kk_context_is_active(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
-    guard let job = runtimeJobHandle(from: ctx.jobHandleRaw) else {
+    guard let job = runtimeJobHandle(from: ctx.jobHandleRaw)
+        ?? runtimeAsyncTask(from: ctx.jobHandleRaw)?.completionJob else {
         return 1 // No Job element: kotlinx.coroutines treats this as active.
     }
     return job.isActiveSnapshot() ? 1 : 0
@@ -708,6 +785,9 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     if let ctx = tryCast(ptr, to: RuntimeCoroutineContext.self) {
         return ctx
     }
+    if let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self) {
+        return RuntimeCoroutineContext(dispatcher: dispatcher.tag, dispatcherHandleRaw: raw)
+    }
     if let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
         return RuntimeCoroutineContext(name: nameBox.name, nameHandleRaw: raw)
     }
@@ -732,6 +812,7 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
 final class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
     let tag: Int
+    let displayName: String?
 
     /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
     private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
@@ -742,9 +823,10 @@ final class RuntimeDispatcher: @unchecked Sendable {
         set { pthreadSetValue(currentDispatcherPthreadKey, newValue) }
     }
 
-    init(queue: DispatchQueue, tag: Int) {
+    init(queue: DispatchQueue, tag: Int, displayName: String? = nil) {
         self.queue = queue
         self.tag = tag
+        self.displayName = displayName
     }
 
     /// Dispatch a closure onto this dispatcher's queue synchronously, setting
@@ -820,7 +902,12 @@ private let runtimeMainDispatcher = RuntimeDispatcher(
 /// Resolve a raw dispatcher Int to a RuntimeDispatcher instance.
 /// Returns the Default dispatcher for unrecognized values.
 func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
-    switch raw {
+    if isRegisteredRuntimeObjectPointer(raw),
+       let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+       let dispatcher = tryCast(ptr, to: RuntimeDispatcher.self) {
+        return dispatcher
+    }
+    return switch raw {
     case RuntimeDispatcherTag.ioDispatcher:
         runtimeIODispatcher
     case RuntimeDispatcherTag.mainDispatcher:
@@ -828,6 +915,32 @@ func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
     default:
         runtimeDefaultDispatcher
     }
+}
+
+// These globals own the objects; accessors register their pointers idempotently.
+// IO and Unconfined preserve the existing Default scheduler compatibility behavior.
+private let runtimeNamedDispatchers: [RuntimeDispatcher] = [
+    RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
+                      displayName: "Dispatchers.Default"),
+    RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
+                      displayName: "Dispatchers.IO"),
+    RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
+                      displayName: "Dispatchers.Unconfined"),
+]
+
+@_cdecl("__kk_dispatcher_named")
+public func kk_dispatcher_named(_ kind: Int) -> Int {
+    guard runtimeNamedDispatchers.indices.contains(kind) else {
+        runtimeStructuredPanic("__kk_dispatcher_named: invalid dispatcher kind")
+    }
+    let object = runtimeNamedDispatchers[kind]
+    let pointer = Unmanaged.passUnretained(object).toOpaque()
+    runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: pointer)
+        state.objectPointers.insert(key)
+        state.borrowedObjectPointers.insert(key)
+    }
+    return Int(bitPattern: pointer)
 }
 
 @_cdecl("kk_dispatcher_default")

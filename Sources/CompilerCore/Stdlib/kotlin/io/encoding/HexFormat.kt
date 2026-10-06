@@ -224,19 +224,15 @@ private fun applyNumberFormat(rawHex: String, format: HexFormat): String {
 
 // ─── toHexString ───────────────────────────────────────────────────────────────
 
-@ExperimentalStdlibApi
 public fun Int.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this.toLong() and 0xffffffffL, 8), format)
 
-@ExperimentalStdlibApi
 public fun Long.toHexString(format: HexFormat = defaultHexFormat()): String =
     applyNumberFormat(hexDigitsOf(this, 16), format)
 
-@ExperimentalStdlibApi
 public fun ByteArray.toHexString(format: HexFormat = defaultHexFormat()): String =
     toHexString(0, size, format)
 
-@ExperimentalStdlibApi
 public fun ByteArray.toHexString(
     startIndex: Int = 0,
     endIndex: Int = size,
@@ -342,15 +338,12 @@ private fun parseHexNumber(receiver: String, format: HexFormat, maxDigits: Int):
 
 // ─── hexTo* (signed) ─────────────────────────────────────────────────────────
 
-@ExperimentalStdlibApi
 public fun String.hexToInt(format: HexFormat = defaultHexFormat()): Int =
     parseHexNumber(this, format, 8).toInt()
 
-@ExperimentalStdlibApi
 public fun String.hexToShort(format: HexFormat = defaultHexFormat()): Short =
     parseHexNumber(this, format, 4).toShort()
 
-@ExperimentalStdlibApi
 public fun String.hexToLong(format: HexFormat = defaultHexFormat()): Long =
     parseHexNumber(this, format, 16)
 
@@ -362,19 +355,15 @@ public fun String.hexToLong(format: HexFormat = defaultHexFormat()): Long =
 // currently produces a value that still prints/compares as negative.
 // Flagged for follow-up separately.
 
-@ExperimentalStdlibApi
 public fun String.hexToUByte(format: HexFormat = defaultHexFormat()): UByte =
     parseHexNumber(this, format, 2).toUByte()
 
-@ExperimentalStdlibApi
 public fun String.hexToUShort(format: HexFormat = defaultHexFormat()): UShort =
     parseHexNumber(this, format, 4).toUShort()
 
-@ExperimentalStdlibApi
 public fun String.hexToUInt(format: HexFormat = defaultHexFormat()): UInt =
     parseHexNumber(this, format, 8).toUInt()
 
-@ExperimentalStdlibApi
 public fun String.hexToULong(format: HexFormat = defaultHexFormat()): ULong =
     parseHexNumber(this, format, 16).toULong()
 
@@ -470,13 +459,12 @@ private fun parseByteValues(receiver: String, format: HexFormat): List<Int> {
     return values
 }
 
-@ExperimentalStdlibApi
 public fun String.hexToByteArray(format: HexFormat = defaultHexFormat()): ByteArray {
     val values = parseByteValues(this, format)
     return ByteArray(values.size) { values[it].toByte() }
 }
 
-@ExperimentalStdlibApi
+@ExperimentalUnsignedTypes
 public fun String.hexToUByteArray(format: HexFormat = defaultHexFormat()): UByteArray {
     val values = parseByteValues(this, format)
     return UByteArray(values.size) { values[it].toUByte() }

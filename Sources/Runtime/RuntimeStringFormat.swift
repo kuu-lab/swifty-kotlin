@@ -45,7 +45,7 @@ private struct RuntimeFormatSpecifier {
             token += ".\(precision)"
         }
         switch normalizedConversion {
-        case "d", "i", "x", "o":
+        case "d", "x", "o":
             token += "ll"
         default:
             break
@@ -56,10 +56,7 @@ private struct RuntimeFormatSpecifier {
 }
 
 private enum RuntimeParsedFormatToken {
-    case escapedPercent(next: Int)
-    case newline(next: Int)
     case specifier(RuntimeFormatSpecifier, next: Int)
-    case invalid
 }
 
 // MARK: - Resource limits for String.format (KUU-804)
@@ -71,8 +68,8 @@ internal let runtimeFormatMaxOutputBudget = 100_000
 
 private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "(", "<"]
 private let runtimeSupportedFormatConversions: Set<Character> = [
-    "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
-    "h", "H", "t", "T",
+    "s", "S", "b", "B", "d", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
+    "h", "H", "t", "T", "%", "n",
 ]
 /// Java `Formatter` date/time conversion suffixes. These are case-sensitive
 /// (`Y` vs `y`, `H` vs `h`).
@@ -82,8 +79,111 @@ private let runtimeSupportedDateTimeConversions: Set<Character> = [
     "R", "T", "r", "D", "F", "c",
 ]
 
-private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) -> String {
+private func runtimeValidateFormatSpecifier(_ specifier: RuntimeFormatSpecifier) throws {
+    func fail(_ kind: String) throws {
+        throw RuntimeFormatError(kind: kind, message: "Invalid format: %\(specifier.flags)\(specifier.conversion)")
+    }
+    let flags = Set(specifier.flags)
+    if flags.count != specifier.flags.count { try fail("DuplicateFormatFlagsException") }
+    let conversion = specifier.normalizedConversion
+    let numeric = "doxfega".contains(conversion)
+    if !numeric && specifier.precision != nil && "ct%n".contains(conversion) {
+        try fail("IllegalFormatPrecisionException")
+    }
+    if conversion == "n" {
+        if specifier.width != nil { try fail("IllegalFormatWidthException") }
+        if !flags.isEmpty { try fail("IllegalFormatFlagsException") }
+        return
+    }
+    if numeric && (flags.contains("-") || flags.contains("0")) && specifier.width == nil {
+        try fail("MissingFormatWidthException")
+    }
+    if numeric && (flags.isSuperset(of: ["+", " "]) || flags.isSuperset(of: ["-", "0"])) {
+        try fail("IllegalFormatFlagsException")
+    }
+    if numeric && specifier.precision != nil && "dox".contains(conversion) {
+        try fail("IllegalFormatPrecisionException")
+    }
+    let allowed: String
+    switch conversion {
+    case "s": allowed = "-#<"
+    case "b", "h", "c", "t": allowed = "-<"
+    case "d": allowed = "-+ 0,(<"
+    case "o", "x": allowed = "-#0<"
+    case "f": allowed = "-+ 0#,(<"
+    case "e": allowed = "-+ 0#(<"
+    case "g": allowed = "-+ 0,(<"
+    case "a": allowed = "-+ 0#<"
+    case "%": allowed = "-"
+    default: allowed = ""
+    }
+    if flags.contains(where: { !allowed.contains($0) }) {
+        try fail(conversion == "%" ? "IllegalFormatFlagsException" : "FormatFlagsConversionMismatchException")
+    }
+    if !numeric && flags.contains("-") && specifier.width == nil {
+        try fail("MissingFormatWidthException")
+    }
+}
+
+private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: RuntimeFormatSpecifier) throws {
+    let conversion = specifier.normalizedConversion
+    if conversion == "s", specifier.flags.contains("#") {
+        // Formattable is not supported; all current arguments use ordinary %s.
+        throw RuntimeFormatError(kind: "FormatFlagsConversionMismatchException", message: "# with s")
+    }
+    if runtimeFormatArgumentIsNull(value) { return }
+    if "sbh".contains(conversion) { return }
+    var integral = value.tag == RuntimeValue.rawTag
+    var character = value.tag == RuntimeValue.charTag
+    var floating = false
+    var dateTime = false
+    if value.tag == RuntimeValue.rawTag,
+       let pointer = UnsafeMutableRawPointer(bitPattern: value.payload0), runtimeIsObjectPointer(pointer) {
+        integral = tryCast(pointer, to: RuntimeIntBox.self) != nil || tryCast(pointer, to: RuntimeLongBox.self) != nil
+        character = tryCast(pointer, to: RuntimeCharBox.self) != nil
+        floating = tryCast(pointer, to: RuntimeFloatBox.self) != nil || tryCast(pointer, to: RuntimeDoubleBox.self) != nil
+        dateTime = tryCast(pointer, to: RuntimeLongBox.self) != nil
+            || tryCast(pointer, to: RuntimeInstantBox.self) != nil || tryCast(pointer, to: RuntimeJSDateBox.self) != nil
+        // Java's %c accepts Byte/Short/Int, but not Long.
+        if conversion == "c", tryCast(pointer, to: RuntimeLongBox.self) != nil { integral = false }
+    } else if value.tag == RuntimeValue.rawTag {
+        // Preserve unboxed legacy Runtime callers; Kotlin Any? values are boxed.
+        dateTime = true
+        floating = true
+    }
+    let valid: Bool
+    switch conversion {
+    case "d", "o", "x": valid = integral
+    case "f", "e", "g", "a": valid = floating
+    case "c": valid = integral || character
+    case "t": valid = dateTime
+    default: valid = true
+    }
+    if !valid {
+        throw RuntimeFormatError(kind: "IllegalFormatConversionException", message: "Invalid argument for \(specifier.conversion)")
+    }
+    if conversion == "c" {
+        let codePoint = runtimeFormatIntegerValue(value)
+        if codePoint < 0 || codePoint > 0x10ffff {
+            throw RuntimeFormatError(kind: "IllegalFormatCodePointException", message: String(codePoint))
+        }
+    }
+}
+
+private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) throws -> String {
     let characters = Array(template)
+    // Formatter validates the entire template before consuming any arguments.
+    var validationCursor = 0
+    while validationCursor < characters.count {
+        if characters[validationCursor] == "%" {
+            if case let .specifier(specifier, next) = try runtimeParseFormatToken(characters, start: validationCursor) {
+                try runtimeValidateFormatSpecifier(specifier)
+                validationCursor = next
+            }
+        } else {
+            validationCursor += 1
+        }
+    }
     var cursor = 0
     var implicitArgumentIndex = 0
     /// Index of the argument selected by the most recent specifier
@@ -91,32 +191,33 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
     var lastArgumentIndex: Int?
     var result = ""
     var remainingBudget = runtimeFormatMaxOutputBudget
+    var outputStopped = false
 
     while cursor < characters.count {
         guard characters[cursor] == "%" else {
             let ch = characters[cursor]
             let byteCount = ch.utf8.count
-            guard byteCount <= remainingBudget else {
-                break
+            if byteCount > remainingBudget { outputStopped = true }
+            if !outputStopped {
+                result.append(ch)
+                remainingBudget -= byteCount
             }
-            result.append(ch)
-            remainingBudget -= byteCount
             cursor += 1
             continue
         }
 
-        switch runtimeParseFormatToken(characters, start: cursor) {
-        case let .escapedPercent(next):
-            guard 1 <= remainingBudget else { break }
-            result.append("%")
-            remainingBudget -= 1
-            cursor = next
-        case let .newline(next):
-            guard 1 <= remainingBudget else { break }
-            result.append("\n")
-            remainingBudget -= 1
-            cursor = next
+        switch try runtimeParseFormatToken(characters, start: cursor) {
         case let .specifier(specifier, next):
+            if specifier.conversion == "%" || specifier.conversion == "n" {
+                let rendered = specifier.conversion == "n" ? "\n" : runtimeApplyStringWidth("%", specifier: specifier)
+                if rendered.utf8.count > remainingBudget { outputStopped = true }
+                if !outputStopped {
+                    result += rendered
+                    remainingBudget -= rendered.utf8.count
+                }
+                cursor = next
+                continue
+            }
             // The `<` flag overrides an explicit `%n$` index and relative
             // indexing does not consume the ordinary (implicit) index,
             // matching `java.util.Formatter`.
@@ -136,38 +237,35 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
             if let argumentIndex, arguments.indices.contains(argumentIndex) {
                 argument = arguments[argumentIndex]
             } else {
-                argument = RuntimeValue(raw: runtimeNullSentinelInt)
+                throw RuntimeFormatError(kind: "MissingFormatArgumentException", message: String(characters[cursor ..< next]))
             }
-            let rendered = runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
+            try runtimeValidateFormatArgument(argument, specifier: specifier)
+            if outputStopped {
+                cursor = next
+                continue
+            }
+            let rendered = runtimeFormatArgumentIsNull(argument) && specifier.normalizedConversion != "b"
+                ? runtimeApplyStringWidth(runtimeFormatStringValue(argument, specifier: specifier, locale: locale), specifier: specifier)
+                : runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
             let renderedBytes = rendered.utf8.count
             guard renderedBytes <= remainingBudget else {
+                outputStopped = true
                 cursor = next
-                break
+                continue
             }
             result += rendered
             remainingBudget -= renderedBytes
             cursor = next
-        case .invalid:
-            guard 1 <= remainingBudget else { break }
-            result.append("%")
-            remainingBudget -= 1
-            cursor += 1
         }
     }
 
     return result
 }
 
-private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> RuntimeParsedFormatToken {
+private func runtimeParseFormatToken(_ characters: [Character], start: Int) throws -> RuntimeParsedFormatToken {
     var cursor = start + 1
     guard cursor < characters.count else {
-        return .invalid
-    }
-    if characters[cursor] == "%" {
-        return .escapedPercent(next: cursor + 1)
-    }
-    if characters[cursor] == "n" {
-        return .newline(next: cursor + 1)
+        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
     }
 
     let initialDigitsStart = cursor
@@ -178,7 +276,7 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
     if cursor < characters.count, characters[cursor] == "$", initialDigitsStart < cursor {
         let indexString = String(characters[initialDigitsStart ..< cursor])
         guard let index = Int(indexString), index > 0, index <= runtimeFormatMaxArgumentIndex else {
-            return .invalid
+            throw RuntimeFormatError(kind: "IllegalFormatArgumentIndexException", message: indexString)
         }
         explicitArgumentIndex = index - 1
         cursor += 1
@@ -200,7 +298,7 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
     if widthStart < cursor {
         let widthString = String(characters[widthStart ..< cursor])
         guard let parsedWidth = Int(widthString), parsedWidth >= 0, parsedWidth <= runtimeFormatMaxWidth else {
-            return .invalid
+            throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: widthString)
         }
         width = parsedWidth
     }
@@ -217,33 +315,33 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
             guard let parsedPrecision = Int(precisionDigits),
                   parsedPrecision >= 0,
                   parsedPrecision <= runtimeFormatMaxPrecision else {
-                return .invalid
+                throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: precisionDigits)
             }
             precision = parsedPrecision
         } else {
-            precision = 0
+            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: ".")
         }
     }
 
     // Java Formatter has no C-style length modifiers. Do not consume `h`/`t`
     // here: they are conversions (`%h` hash, `%t*` date/time), not lengths.
     guard cursor < characters.count else {
-        return .invalid
+        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
     }
 
     let conversion = characters[cursor]
     guard runtimeSupportedFormatConversions.contains(conversion) else {
-        return .invalid
+        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
     }
     var next = cursor + 1
     var dateTimeConversion: Character?
     if conversion == "t" || conversion == "T" {
         guard next < characters.count else {
-            return .invalid
+            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
         }
         let suffix = characters[next]
         guard runtimeSupportedDateTimeConversions.contains(suffix) else {
-            return .invalid
+            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
         }
         dateTimeConversion = suffix
         next += 1
@@ -272,12 +370,13 @@ private func runtimeRenderFormattedArgument(
         let rendered = runtimeFormatStringValue(value, specifier: specifier, locale: locale)
         return runtimeApplyStringWidth(rendered, specifier: specifier)
     case "b":
-        let value = runtimeFormatBooleanValue(value)
+        let boolean = runtimeFormatBooleanValue(value)
+        let value = specifier.precision.map { String(boolean.prefix($0)) } ?? boolean
         let normalized = specifier.conversion.isUppercase
             ? runtimeFormatUppercase(value, locale: locale)
             : value
         return runtimeApplyStringWidth(normalized, specifier: specifier)
-    case "d", "i":
+    case "d":
         let value = Int64(runtimeFormatIntegerValue(value))
         let rendered = String(format: specifier.cStyleToken, arguments: [value])
         return runtimeLocalizeFormattedNumber(
@@ -1102,22 +1201,34 @@ public func __kk_string_format_flat(
     _ argsArrayRaw: Int,
     _ outLength: UnsafeMutablePointer<Int>?,
     _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeRegisterFlatString(
-        runtimeFormatString(template, values: arguments),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    outThrown?.pointee = 0
+    do {
+        return runtimeRegisterFlatString(
+            try runtimeFormatString(template, values: arguments),
+            outLength: outLength,
+            outByteCount: outByteCount,
+            outHash: outHash
+        )
+    } catch let error as RuntimeFormatError {
+        outThrown?.pointee = runtimeAllocateFormatException(error)
+        outLength?.pointee = 0
+        outByteCount?.pointee = 0
+        outHash?.pointee = 0
+        return nil
+    } catch {
+        preconditionFailure("Unexpected format error")
+    }
 }
 
 @_cdecl("__kk_string_format_locale")
-public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
         locale = nil
@@ -1132,7 +1243,15 @@ public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ args
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, values: arguments, locale: locale))
+    outThrown?.pointee = 0
+    do {
+        return runtimeMakeStringRaw(try runtimeFormatString(template, values: arguments, locale: locale))
+    } catch let error as RuntimeFormatError {
+        outThrown?.pointee = runtimeAllocateFormatException(error)
+        return runtimeNullSentinelInt
+    } catch {
+        preconditionFailure("Unexpected format error")
+    }
 }
 
 @_cdecl("__kk_string_format_locale_flat")
@@ -1145,7 +1264,8 @@ public func __kk_string_format_locale_flat(
     _ argsArrayRaw: Int,
     _ outLength: UnsafeMutablePointer<Int>?,
     _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
@@ -1160,10 +1280,21 @@ public func __kk_string_format_locale_flat(
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    return runtimeRegisterFlatString(
-        runtimeFormatString(template, values: arguments, locale: locale),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    outThrown?.pointee = 0
+    do {
+        return runtimeRegisterFlatString(
+            try runtimeFormatString(template, values: arguments, locale: locale),
+            outLength: outLength,
+            outByteCount: outByteCount,
+            outHash: outHash
+        )
+    } catch let error as RuntimeFormatError {
+        outThrown?.pointee = runtimeAllocateFormatException(error)
+        outLength?.pointee = 0
+        outByteCount?.pointee = 0
+        outHash?.pointee = 0
+        return nil
+    } catch {
+        preconditionFailure("Unexpected format error")
+    }
 }

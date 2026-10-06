@@ -398,6 +398,7 @@ public enum PropertyAccessorKind: Equatable, Codable {
 
 public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
+    public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
     public let parameterName: InternedString?
     public let body: FunctionBody
@@ -405,11 +406,13 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public init(
         range: SourceRange,
         kind: PropertyAccessorKind,
+        annotations: [AnnotationNode] = [],
         parameterName: InternedString? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
         self.kind = kind
+        self.annotations = annotations
         self.parameterName = parameterName
         self.body = body
     }

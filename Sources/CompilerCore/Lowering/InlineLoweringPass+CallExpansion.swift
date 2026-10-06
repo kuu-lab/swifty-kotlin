@@ -473,6 +473,7 @@ extension InlineLoweringPass {
                 let erasedInvokeReturnType = erasedInvoke
                     ? InlineErasedLambdaABI.importedLambdaInvokeReturnType(
                         inlineTarget: inlineTarget,
+                        invokedParameter: symbol,
                         typeSubstitution: inlineTypeSubstitution,
                         ctx: ctx
                     )

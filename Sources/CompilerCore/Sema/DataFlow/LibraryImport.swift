@@ -196,6 +196,9 @@ extension DataFlowSemaPhase {
             if record.isOperator, record.kind == .function {
                 flags.insert(.operatorFunction)
             }
+            if record.isInfix, record.kind == .function {
+                flags.insert(.infixFunction)
+            }
             if record.isMemberExtension { flags.insert(.memberExtension) }
             // Overrides must stay marked so member lookup can shadow the
             // supertype declaration instead of reporting an ambiguity.
@@ -1648,6 +1651,7 @@ extension DataFlowSemaPhase {
         let isSuspend: Bool
         let isInline: Bool
         let isOperator: Bool
+        let isInfix: Bool
         let isOverride: Bool
         let isMemberExtension: Bool
         let receiverOwnerFQName: [InternedString]?
@@ -1723,6 +1727,7 @@ extension DataFlowSemaPhase {
             isSuspend: Bool = false,
             isInline: Bool = false,
             isOperator: Bool = false,
+            isInfix: Bool = false,
             isOverride: Bool = false,
             isMemberExtension: Bool = false,
             receiverOwnerFQName: [InternedString]? = nil,
@@ -1785,6 +1790,7 @@ extension DataFlowSemaPhase {
             self.isSuspend = isSuspend
             self.isInline = isInline
             self.isOperator = isOperator
+            self.isInfix = isInfix
             self.isOverride = isOverride
             self.isMemberExtension = isMemberExtension
             self.receiverOwnerFQName = receiverOwnerFQName
@@ -2135,6 +2141,22 @@ extension DataFlowSemaPhase {
                     ),
                     for: stubSymbol
                 )
+                if reifiedCount > 0, let inlineDir = binding.inlineKIRDir {
+                    let directory = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
+                    let path = directory.appendingPathComponent(
+                        MetadataEncoder.inlineKIRFileName(for: defaultStubLink)
+                    ).resolvingSymlinksInPath().standardizedFileURL.path
+                    let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+                    // Older libraries may have only a native default stub.
+                    if path.hasPrefix(directory.path + "/"), attributes?[.type] as? FileAttributeType == .typeRegular {
+                        importedInlineFunctions.register(
+                            ImportedInlineFunctionStore.Descriptor(
+                                path: path, signature: symbols.functionSignature(for: stubSymbol),
+                                name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default")
+                            ), for: stubSymbol
+                        )
+                    }
+                }
             }
             if let abiSig = record.abiReturnTypeSignature,
                let abiReturnType = decodeImportedTypeSignature(

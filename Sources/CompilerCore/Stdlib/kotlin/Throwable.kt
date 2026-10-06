@@ -32,6 +32,9 @@ public open class Throwable {
     public open val cause: Throwable?
         get() = __kkThrowableCause(this)
 
+    public val suppressed: Array<Throwable>
+        get() = __kkThrowableSuppressedRaw(this)
+
     public fun getStackTrace(): Array<String> = __kkThrowableRawStackFrames(this)
 
     public override fun toString(): String = __kkThrowableToString(this)

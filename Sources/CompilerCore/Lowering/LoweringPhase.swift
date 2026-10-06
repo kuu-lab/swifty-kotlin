@@ -46,6 +46,7 @@ public final class LoweringPhase: CompilerPhase {
             EnumNameAccessLoweringPass(),
             LambdaClosureConversionPass(),
             InlineLoweringPass(),
+            ReifiedEnumValuesLoweringPass(),
             CoroutineLoweringPass(),
             // Must run after every pass that emits integer arithmetic builtins
             // (Operator/For/Inline/...) and before ABILoweringPass so the inserted

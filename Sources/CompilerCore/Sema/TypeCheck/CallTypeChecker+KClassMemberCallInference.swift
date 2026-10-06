@@ -44,6 +44,12 @@ extension CallTypeChecker {
             return nil
         }
 
+        if args.isEmpty, let propertyType = bindKClassNativeProperty(
+            id, name: calleeName, argument: classRefTargetType, sema: sema, interner: interner
+        ) {
+            return propertyType
+        }
+
         if calleeName == interner.intern("java"), args.isEmpty {
             let javaTypeArgument = javaClassTypeArgument(
                 from: classRefTargetType,
@@ -143,6 +149,19 @@ extension CallTypeChecker {
 
         guard let kClassArgumentType = kClassReceiverArgumentType(receiverType, sema: sema, interner: interner) else {
             return nil
+        }
+
+        let nativeArgumentType: TypeID
+        if let classType = resolveClassType(sema.types.makeNonNullable(receiverType), sema: sema),
+           case .in = classType.args.first {
+            nativeArgumentType = sema.types.anyType
+        } else {
+            nativeArgumentType = kClassArgumentType
+        }
+        if args.isEmpty, let propertyType = bindKClassNativeProperty(
+            id, name: calleeName, argument: nativeArgumentType, sema: sema, interner: interner
+        ) {
+            return propertyType
         }
 
         if calleeName == interner.intern("java"), args.isEmpty {
@@ -317,6 +336,36 @@ extension CallTypeChecker {
         }
         sema.bindings.bindExprType(id, type: returnType)
         return returnType
+    }
+
+    /// Native KClass boxes have no source itable; preserve the source property's
+    /// generic contract while binding the dedicated KClass representation.
+    private func bindKClassNativeProperty(
+        _ id: ExprID, name: InternedString, argument: TypeID,
+        sema: SemaModule, interner: StringInterner
+    ) -> TypeID? {
+        let result: TypeID
+        switch interner.resolve(name) {
+        case "objectInstance":
+            result = sema.types.makeNullable(argument)
+        case "sealedSubclasses":
+            guard let kClassSymbol = sema.types.kClassInterfaceSymbol else { return nil }
+            let element = sema.types.make(.classType(ClassType(
+                classSymbol: kClassSymbol, args: [.out(argument)], nullability: .nonNull
+            )))
+            result = makeSyntheticListType(
+                symbols: sema.symbols, types: sema.types, interner: interner, elementType: element
+            )
+        default:
+            return nil
+        }
+        if let kClassSymbol = sema.types.kClassInterfaceSymbol,
+           let owner = sema.symbols.symbol(kClassSymbol),
+           let property = sema.symbols.lookup(fqName: owner.fqName + [name]) {
+            sema.bindings.bindIdentifier(id, symbol: property)
+        }
+        sema.bindings.bindExprType(id, type: result)
+        return result
     }
 
     private func bindKClassJavaClassPropertyAccess(

@@ -330,8 +330,21 @@ extension TypeCheckHelpers {
         }
     }
 
+    func accessorOptInContext(
+        annotations: [AnnotationNode],
+        ctx: TypeInferenceContext
+    ) -> TypeInferenceContext {
+        guard !annotations.isEmpty, let file = currentFile(in: ctx) else { return ctx }
+        var copy = ctx
+        collectOptInMarkers(
+            from: annotations.filter { KnownCompilerAnnotation.optIn.matches($0.name) },
+            file: file, ctx: ctx, into: &copy.accessorOptInMarkers
+        )
+        return copy
+    }
+
     private func activeOptInMarkers(in ctx: TypeInferenceContext) -> Set<SymbolID> {
-        var markers: Set<SymbolID> = []
+        var markers = ctx.accessorOptInMarkers
         let file = currentFile(in: ctx)
 
         for markerName in ctx.globalOptInMarkerNames {

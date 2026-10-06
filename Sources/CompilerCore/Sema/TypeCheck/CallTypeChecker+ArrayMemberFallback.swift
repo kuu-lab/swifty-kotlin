@@ -3,6 +3,63 @@
 ///
 /// Split out from `CallTypeChecker+MemberCallFallbacks.swift`.
 extension CallTypeChecker {
+    // Seed nested comparator factories before regular argument inference caches
+    // their selector lambda without the Array receiver's element type (KUU-1248).
+    func contextualizeArrayComparatorArgument(
+        calleeName: InternedString, receiverID: ExprID, receiverType: TypeID,
+        args: [CallArgument], ctx: TypeInferenceContext, locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard interner.resolve(calleeName) == "sortedWith", args.count == 1,
+              let (_, receiverSymbol) = resolveClassTypeSymbol(
+                  sema.types.makeNonNullable(receiverType), sema: sema
+              ),
+              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "Array"],
+              ctx.ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef != true,
+              let comparatorSymbol = sema.symbols.lookup(fqName: [
+                  interner.intern("kotlin"), interner.intern("Comparator"),
+              ])
+        else { return }
+        let elementType = arrayFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
+        let expected = sema.types.make(.classType(ClassType(
+            classSymbol: comparatorSymbol, args: [.in(elementType)], nullability: .nonNull
+        )))
+        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expected)
+    }
+
+    // Recheck the callback with the solved accumulator type. Imported generic
+    // parameters otherwise survive in lambda locals and lose numeric boxing.
+    func contextualizeArrayReduceRightLambda(
+        args: [CallArgument], resolved: ResolvedCall,
+        ctx: TypeInferenceContext, locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        guard let chosen = resolved.chosenCallee,
+              let symbol = sema.symbols.symbol(chosen),
+              ctx.interner.resolve(symbol.name) == "reduceRight",
+              sema.symbols.isSourceBackedSymbol(chosen),
+              symbol.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("collections"), symbol.name],
+              let signature = sema.symbols.functionSignature(for: chosen),
+              let receiver = signature.receiverType,
+              let receiverClass = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+              sema.symbols.symbol(receiverClass)?.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("Array")]
+        else { return }
+        let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() {
+            guard case .lambdaLiteral = ctx.ast.arena.expr(argument.expr),
+                  let parameterIndex = resolved.parameterMapping[index],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else { continue }
+            let expected = sema.types.substituteTypeParameters(
+                in: signature.parameterTypes[parameterIndex],
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: variables
+            )
+            _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: expected)
+        }
+    }
+
     private static let primitiveArraySourceMemberNames: Set<String> = [
         "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
         "filter", "filterIndexed", "filterNot",
@@ -12,13 +69,27 @@ extension CallTypeChecker {
         "contentEquals", "contentHashCode", "contentToString",
         "copyOf", "copyOfRange", "copyInto",
         "indices", "lastIndex", "iterator", "withIndex", "sort",
+        "average", "min", "max", "minOrNull", "maxOrNull",
+        "slice", "zip", "drop", "dropLast", "take", "takeLast",
+        "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
+        "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
+        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedWith",
+        "partition", "groupBy", "associate", "associateBy",
     ]
 
     private static let arraySourceBackedNames: Set<String> = [
         "sliceArray", "reversedArray", "asList", "toTypedArray",
         "asIterable", "sumOf",
+        "take", "takeLast", "takeWhile", "drop", "dropLast", "dropWhile", "slice",
+        "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
+        "single", "singleOrNull", "random",
+        "sum", "average", "min", "max", "minOrNull", "maxOrNull",
+        "foldRight", "reduceRight", "scan", "runningFold",
+        "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
+        "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
         "associate", "associateBy", "associateWith",
         "associateTo", "associateByTo", "associateWithTo",
+        "indexOf", "lastIndexOf", "fill", "sortedBy", "sortedWith",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import
@@ -69,6 +140,7 @@ extension CallTypeChecker {
     func collectArraySourceBackedCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
+        ctx: TypeInferenceContext,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
@@ -88,7 +160,7 @@ extension CallTypeChecker {
             interner.intern("collections"),
             calleeName,
         ]
-        return sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
+        let sourceCandidates = sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
             guard sema.symbols.isSourceBackedSymbol(candidate),
                   let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
@@ -100,6 +172,24 @@ extension CallTypeChecker {
             }
             return signatureSymbol.fqName == receiverSymbol.fqName
         }
+        // Exact bundled overloads must not erase lexically visible user
+        // extensions, including same-name overloads with different parameters.
+        let userCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  Array(symbol.fqName.dropLast()) != Array(sourceFQName.dropLast()),
+                  let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
+        }
+        return userCandidates + sourceCandidates.filter { !userCandidates.contains($0) }
     }
 
     func tryArrayMemberFallback(
@@ -122,6 +212,18 @@ extension CallTypeChecker {
         }
 
         let memberName = interner.resolve(calleeName)
+        // Kotlin hides FloatArray/DoubleArray.contains. Do not accept an
+        // unresolved member and leave a dangling call for the linker.
+        if memberName == "contains",
+           let receiverType = sema.bindings.exprTypes[receiverID],
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "FloatArray"]
+               || receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "DoubleArray"]
+        {
+            return nil
+        }
         guard isSupportedArrayMember(memberName),
               isValidArrayMemberArity(memberName, argCount: args.count)
         else {
@@ -143,6 +245,7 @@ extension CallTypeChecker {
         if !collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: sema.bindings.exprTypes[receiverID] ?? sema.types.anyType,
+            ctx: ctx,
             sema: sema,
             interner: interner
         ).isEmpty {

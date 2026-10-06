@@ -368,8 +368,8 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
 | `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | deleted | (b) | `run`/`with`/`apply`/`let`/`also`/`takeIf`/`takeUnless` は bundled `kotlin/Standard.kt` へ移行済み。`use`/`usePinned`/`useContents` は compiler residual として別経路に残る。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
 | `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | deleted | (b) | ~~M4 sequence registration helper surface.~~ **完了・ファイル削除済み**（KSP-1519, 2026-09-13）。トップレベル `sequence`/`iterator` builder は `Stdlib/kotlin/sequences/SequenceBuilder.kt` へ移行。`registerSyntheticSystemMember`/`registerSyntheticTopLevelFunction`（汎用ヘルパー）は `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` へ、`registerSyntheticSequenceStub`/`ensureSyntheticSequenceStub`（`Sequence` interface 自体の fallback shell）は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` へ退避。残余メンバーは `HeaderHelpers+SyntheticSequenceResidualStubs.swift` に分離。`yield`/`yieldAll` の `__kk_sequence_builder_*` への解決は Lowering 層の名前文字列書き換え（下記 (c) 表）による恒久仕様のため対象外。 |
-| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-694）。KSP-441〜446/KSP-308 での Kotlin 化に伴い不要スタブを削除、未移行の純残余（`random`/`randomOrNull`/`firstNotNullOf`/`firstNotNullOfOrNull`/`takeLast`/`takeLastWhile`/`reversed`）は `+SyntheticSequenceResidualStubs.swift`（413行）へ移行。 |
-| `HeaderHelpers+SyntheticSequenceResidualStubs.swift` | 413 | (b) | M4 sequence residual stubs (`random`, `randomOrNull`, `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`, `takeLastWhile`, `reversed`) plus their shared registration and type helpers. |
+| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-694）。KSP-441〜446/KSP-308 での Kotlin 化に伴い不要スタブを削除、未移行の純残余は `+SyntheticSequenceResidualStubs.swift` へ移行。KUU-1258 で Kotlin に存在しない `Sequence.takeLast`/`takeLastWhile`/`reversed` の登録を削除。 |
+| `HeaderHelpers+SyntheticSequenceResidualStubs.swift` | 235 | (b) | M4 sequence residual stubs (`random`, `randomOrNull`) plus their shared registration and type helpers. |
 | `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 0 (deleted) | (b) migrated | **完了（KSP-704、2026-09-16）**: Set/MutableSet の nominal shell と HOF 関連の source-backed 宣言を `Stdlib/kotlin/collections/Set.kt`/`MutableSet.kt`/`SetHOF.kt` に集約し、`HashSet.kt`/`LinkedHashSet.kt` の source-backed nominal declarations と併せて旧合成 Set stub を削除。`size` は property link-name 注釈の制約を private external helper で吸収し、MutableSet の mutation default body は `__kk_mutable_set_*` demoted bridges に Lowering から接続する。Set box の opaque layout に対応する direct size/mutation routing を保持し、既存 Set diff と HashSet/LinkedHashSet 生成ケース 11件で確認済み。 |
 | `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | ~~`repeat` source migration~~ **完了・ファイル削除済み**（KSP-604、`Stdlib/kotlin/Standard.kt`）。 |
@@ -838,6 +838,21 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 2. **ブリッジ入場審査と予算**: `__kk_*` を追加する PR は、理由コード
    （syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）+ `RuntimeABISpec` 登録 +
    specVersion 更新 + `__kk_*` 総数メトリクスの悪化理由を必須とする。
+   KUU-1244 adds two private launch bridges (reason: GC・continuation):
+   `__kk_coroutine_scope_launch_context` and its `_with_cont` counterpart.
+   A stored suspend block uses the function-value ABI, while a lowered literal
+   needs a native continuation with capture and receiver slots. Both enter the
+   same child-scope scheduler; the public context/start/block contract is owned
+   by bundled `CoroutineScope.launch`. The existing no-stdlib launcher bridges
+   remain, so `__kk_*` increases by two. `RuntimeABISpec.coroutineFunctions`
+   registers both signatures and the canonical hash updates `specVersion`.
+   KUU-1312 adds one private bridge, `__kk_mutable_list_as_reversed` (reason:
+   metadata). Read-only and mutable `asReversed` overloads require distinct runtime
+   view identities even with the same backing list; Kotlin cannot register the
+   native `RuntimeListBox` nominal type. The existing read-only bridge remains,
+   so `__kk_*` increases by one. Scope is limited to mutable reversed-view creation;
+   `RuntimeABISpec.collectionHOFFunctions` registers the ABI and its canonical hash
+   automatically updates `specVersion`.
    KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
    representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
    not Kotlin object slots; the bridge returns their JVM-style text as a flat
@@ -891,7 +906,22 @@ ABI entry (MEMORY_REPRESENTATION: runtime handles and Kotlin objects have distin
 layouts); it only queries the existing live-handle registry. Job factories bind
 raw jobs to source wrappers and public hierarchy queries preserve live wrapper
 identity without retaining a wrapper through its job.
+
+`CoroutineContext.Element.key`, `Job.key`, and `CoroutineDispatcher.key` reads
+use bundled `__kkCoroutineElementKey` for the same representation boundary.
+Native jobs/tasks return `Job.Key` and scheduler handles return
+`ContinuationInterceptor.Key`; source objects invoke their actual key getter.
+`__kk_job_is_runtime` is an internal MEMORY_REPRESENTATION bridge that identifies
+raw job/task objects, excluding Kotlin wrappers with their own getter slots.
 ### Coroutine nominal/master integration
+
+`CoroutineContext.get`, `fold`, `plus`, and `minusKey` preserve source-defined
+overrides through the stable context itable slots (0–3), falling back to the
+native fixed-key representation for runtime handles. `fold` converts its split
+callback ABI into a Kotlin function value before invoking a source override.
+`__kk_context_plus_dispatch` adds one internal MEMORY_REPRESENTATION bridge
+for this boundary; the `+` and `+=` operators use the same throwing dispatch
+as `plus`, emitted before try/catch lowering.
 
 `__kk_dispatcher_immediate` bridges the memory representation of scheduler tags
 (`Dispatchers.Main`) and source-defined `MainCoroutineDispatcher` objects. The
@@ -907,3 +937,12 @@ slots. Kotlin receivers retain their resolved overrides and thrown channels.
 for native tags/handles while keeping polymorphic-key logic in Kotlin. The two
 new `__kk_*` entries are memory-representation bridges: native schedulers have
 no source-object layout, and neither bridge implements context-key semantics.
+
+`__kk_dispatcher_named` exposes Default, IO, and Unconfined as named runtime
+objects (KUU-1300), preserving identity after erasure to `Any` without confusing
+integer values with scheduler tags. This adds one internal bridge with reason
+`MEMORY_REPRESENTATION`: native dispatchers have no Kotlin object layout or
+`toString` vtable. Objects resolve to the existing scheduler tags for coroutine
+context operations, retaining the object handle for element identity and fold.
+IO and Unconfined retain their existing Default scheduler compatibility;
+this bridge does not implement a separate IO pool or an unconfined event loop.

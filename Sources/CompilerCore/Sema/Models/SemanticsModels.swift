@@ -49,6 +49,16 @@ extension SymbolTable {
     /// Member extensions use [dispatch, extension, value arguments], while
     /// their semantic signature stores only the extension receiver.
     public func memberExtensionOwnerSymbol(for callee: SymbolID) -> SymbolID? {
+        // Property accessors are parented by their property, not its owner.
+        if let property = parentSymbol(for: callee),
+           symbol(property)?.kind == .property,
+           symbol(property)?.flags.contains(.memberExtension) == true,
+           let owner = parentSymbol(for: property),
+           let ownerInfo = symbol(owner),
+           [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+        {
+            return owner
+        }
         guard let signature = functionSignature(for: callee),
               signature.receiverType != nil,
               symbol(callee)?.flags.contains(.memberExtension) == true,
@@ -110,6 +120,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let extensionMemberAlias = SymbolFlags(rawValue: 1 << 24)
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
     public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
+    public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -745,13 +756,20 @@ public final class SymbolTable {
         declSite: SourceRange?,
         visibility: Visibility,
         flags: SymbolFlags = [],
-        isExtensionProperty: Bool = false
+        isExtensionProperty: Bool = false,
+        topLevelFileID: FileID? = nil
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
 
         if let existing = byFQName[fqName], !existing.isEmpty {
-            let existingSymbols = existing.compactMap { symbol($0) }
+            // File-private callables in other files do not occupy this declaration's scope.
+            let existingSymbols = existing.compactMap { symbol($0) }.filter { existing in
+                guard let topLevelFileID else { return true }
+                return !canCoexistAsFilePrivateTopLevelCallable(
+                    kind: kind, visibility: visibility, fileID: topLevelFileID, existing: existing
+                )
+            }
 
             let shouldCoexist = canCoexistAsOverload(
                 kind: kind,
@@ -778,7 +796,7 @@ public final class SymbolTable {
                let matching = existingSymbols.first(where: { $0.kind == kind }) {
                 return matching.id
             }
-            return existing[0]
+            return existingSymbols.first?.id ?? existing[0]
         }
         let id = appendNewSymbol(
             kind: kind,
@@ -822,6 +840,24 @@ public final class SymbolTable {
             byDeclSite[site, default: []].append(id)
         }
         return id
+    }
+
+    /// Only top-level callables have distinct file facades; classifiers still
+    /// occupy the package namespace even when declared private.
+    func canCoexistAsFilePrivateTopLevelCallable(
+        kind: SymbolKind,
+        visibility: Visibility,
+        fileID: FileID,
+        existing: SemanticSymbol
+    ) -> Bool {
+        guard kind == .property || kind == .function,
+              existing.kind == .property || existing.kind == .function,
+              visibility == .private,
+              existing.visibility == .private,
+              parentSymbol(for: existing.id) == nil,
+              let existingFile = sourceFileID(for: existing.id) ?? existing.declSite?.start.file
+        else { return false }
+        return existingFile != fileID
     }
 
     private func canCoexistAsOverload(

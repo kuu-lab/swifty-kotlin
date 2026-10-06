@@ -637,7 +637,7 @@ public func kk_list_subList(
     }
     return registerRuntimeObject(
         RuntimeListBox(subListOf: list, fromIndex: fromIndex, toIndex: toIndex),
-        typeID: listRuntimeTypeID
+        typeID: runtimeSubListTypeID(listRaw)
     )
 }
 
@@ -1401,7 +1401,19 @@ public func kk_list_as_reversed(_ listRaw: Int) -> Int {
     }
     return registerRuntimeObject(
         RuntimeListBox(reversedViewOf: list),
-        typeID: listRuntimeTypeID
+        typeID: runtimeListViewTypeID(mutable: false, randomAccess: false)
+    )
+}
+
+// Kotlin's mutable reversed view implements MutableList, but not RandomAccess.
+@_cdecl("__kk_mutable_list_as_reversed")
+public func kk_mutable_list_as_reversed(_ listRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    return registerRuntimeObject(
+        RuntimeListBox(reversedViewOf: list),
+        typeID: runtimeListViewTypeID(mutable: true, randomAccess: false)
     )
 }
 

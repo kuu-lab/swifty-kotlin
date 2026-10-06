@@ -57,7 +57,7 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let classCtx = ctx
+        let classCtx = ctx.withoutSuspensionContext()
             .withOuterReceiver(label: classLabel, type: classType)
             .copying(
                 scope: classScope,
@@ -291,7 +291,7 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let objectCtx = ctx
+        let objectCtx = ctx.withoutSuspensionContext()
             .withOuterReceiver(label: objectLabel, type: objectType)
             .copying(
                 scope: objectScope,
@@ -559,6 +559,12 @@ extension DeclTypeChecker {
         }
         diagnostics.truncate(to: diagnosticSnapshot)
 
+        // Nested types can also expose inferred companion properties. Resolve
+        // them before enclosing functions see the header's `Any?` placeholder.
+        for declID in nestedClasses {
+            typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
+        }
+
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(function) = decl,
@@ -573,10 +579,6 @@ extension DeclTypeChecker {
                 solver: solver,
                 diagnostics: diagnostics
             )
-        }
-
-        for declID in nestedClasses {
-            typeCheckNestedClassDecl(declID: declID, ctx: ctx, solver: solver, diagnostics: diagnostics)
         }
 
         for declID in nestedObjects {

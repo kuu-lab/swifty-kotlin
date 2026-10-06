@@ -254,14 +254,21 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
-        // Only `lateinit` is carried over from the leading modifiers: it
-        // changes storage semantics (null-sentinel seeding, guarded reads,
-        // `::p.isInitialized`), whereas the others are still ignored here.
+        // Keep storage and dispatch modifiers when rebuilding an anonymous
+        // property. Dropping `override` prevents its accessor from replacing
+        // the superclass's abstract vtable slot (KUU-1251).
         var modifiers: Modifiers = []
         let declKeywordIndex = sanitized.firstIndex { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }
             ?? sanitized.endIndex
-        if sanitized[..<declKeywordIndex].contains(where: { $0.kind == .keyword(.lateinit) }) {
-            modifiers.insert(.lateinit)
+        for token in sanitized[..<declKeywordIndex] {
+            switch token.kind {
+            case .keyword(.lateinit): modifiers.insert(.lateinit)
+            case .keyword(.override): modifiers.insert(.override)
+            case .keyword(.open): modifiers.insert(.open)
+            case .keyword(.abstract): modifiers.insert(.abstract)
+            case .keyword(.final): modifiers.insert(.final)
+            default: break
+            }
         }
 
         return PropertyDecl(

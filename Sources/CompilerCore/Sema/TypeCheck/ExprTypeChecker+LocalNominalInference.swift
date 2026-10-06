@@ -153,7 +153,7 @@ extension ExprTypeChecker {
             fqName: classFQName,
             declSite: classDecl.range,
             visibility: .private,
-            flags: [.synthetic]
+            flags: classDecl.modifiers.contains(.data) ? [.synthetic, .dataType] : [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: classSymbol)
         sema.symbols.setSourceFileID(ctx.currentFileID, for: classSymbol)
@@ -273,10 +273,20 @@ extension ExprTypeChecker {
             classDecl.memberProperties,
             ownerFQName: classFQName,
             ownerSymbol: classSymbol,
+            markAsSynthetic: !classDecl.modifiers.contains(.data),
             ctx: ctx
         )
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)
+        }
+        if classDecl.modifiers.contains(.data) {
+            DataFlowSemaPhase().collectSyntheticDataClassMethods(
+                classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                phase: .beforeMemberHeaders, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
         }
         let memberFunctionSymbolsByDecl = collectObjectLiteralMemberFunctions(
             classDecl.memberFunctions,
@@ -286,10 +296,19 @@ extension ExprTypeChecker {
             objectScope: classScope,
             ctx: ctx
         )
+        if classDecl.modifiers.contains(.data) {
+            DataFlowSemaPhase().collectSyntheticDataClassMethods(
+                classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                phase: .afterMemberHeaders, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
         for ctorSymbol in constructorSymbols {
             classScope.insert(ctorSymbol)
         }
-        let classCtx = ctx.withOuterReceiver(
+        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
             label: classDecl.name,
             type: classType
         ).copying(

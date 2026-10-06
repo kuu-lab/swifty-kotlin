@@ -10,8 +10,23 @@ extension DataFlowAnalyzer {
         let local: LocalBindings.Value
         switch expr {
         case let .nameRef(name, _):
-            guard let resolved = locals[name] else { return nil }
-            local = resolved
+            if let resolved = locals[name] {
+                local = resolved
+            } else {
+                // A bare member name and `this.member` must share a flow reference.
+                // Only use the current receiver when lookup selects the same property;
+                // a member on an outer receiver must not inherit this receiver's facts.
+                guard sema.bindings.implicitReceiverMemberNames[id] != nil,
+                      let property = sema.bindings.identifierSymbols[id],
+                      isStableMemberProperty(property, ast: ast, sema: sema),
+                      let receiver = locals[interner.intern("this")],
+                      TypeCheckHelpers().lookupMemberProperty(
+                          named: name, receiverType: receiver.type, sema: sema
+                      )?.symbol == property,
+                      let type = sema.bindings.exprType(for: id)
+                else { return nil }
+                return (DataFlowReference(root: receiver.symbol, properties: [property]), type, true)
+            }
         case let .thisRef(label, _) where label == nil:
             guard let resolved = locals[interner.intern("this")] else { return nil }
             local = resolved

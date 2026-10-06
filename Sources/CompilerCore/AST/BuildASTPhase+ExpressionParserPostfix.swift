@@ -20,7 +20,7 @@ extension BuildASTPhase.ExpressionParser {
     /// exactly `identifier @ {`.
     private func parseLabeledTrailingLambda() -> ExprID? {
         guard let nameToken = current(),
-              let name = tokenText(nameToken),
+              let name = labelNameFromToken(nameToken),
               let atToken = peek(1), atToken.kind == .symbol(.at),
               let braceToken = peek(2), braceToken.kind == .symbol(.lBrace)
         else {
@@ -261,6 +261,13 @@ extension BuildASTPhase.ExpressionParser {
                     _ = consume()
                     continue
                 }
+                if let unexpected = current(), unexpected.kind != .symbol(.rParen) {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0015",
+                        "Expected ',' or ')' after call argument.",
+                        range: unexpected.range
+                    )
+                }
                 break
             }
         }
@@ -269,11 +276,6 @@ extension BuildASTPhase.ExpressionParser {
 
     func parseCallArgument(implicitLambdaLabel: InternedString? = nil) -> CallArgument? {
         var isSpread = false
-        if matches(.symbol(.star)) {
-            _ = consume()
-            isSpread = true
-        }
-
         var label: InternedString?
         if let first = current(),
            let second = peek(1),
@@ -283,6 +285,12 @@ extension BuildASTPhase.ExpressionParser {
             label = tokenText(first)
             _ = consume()
             _ = consume()
+        }
+
+        // Kotlin places the spread operator after the optional argument label.
+        if matches(.symbol(.star)) {
+            _ = consume()
+            isSpread = true
         }
 
         let expr: ExprID?

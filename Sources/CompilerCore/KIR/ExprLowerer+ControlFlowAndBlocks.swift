@@ -135,19 +135,18 @@ extension ExprLowerer {
             }
             return accumulated
 
+        case .nullLiteral:
+            let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
+            instructions.append(.constValue(result: id, value: .null))
+            return id
+
         case let .nameRef(name, _):
-            let nullID = interner.intern("null")
             let thisID = interner.intern("this")
             // Resolve lambda param by name (handles collection HOF fallback where identifierSymbols may be unbound).
             if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
                let localValue = driver.ctx.localValue(for: paramSymbol)
             {
                 return localValue
-            }
-            if name == nullID {
-                let id = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
-                instructions.append(.constValue(result: id, value: .null))
-                return id
             }
             if name == thisID,
                let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -247,10 +246,14 @@ extension ExprLowerer {
                 if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiverExprID],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -380,11 +383,15 @@ extension ExprLowerer {
                        interner: interner
                    )
                 {
+                    let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: accessorSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.virtualCall(
                         symbol: accessorSymbol,
                         callee: interner.intern("get"),
-                        receiver: receiverExprID,
-                        arguments: [],
+                        receiver: virtualAccessorArguments[0],
+                        arguments: Array(virtualAccessorArguments.dropFirst()),
                         result: result,
                         canThrow: false,
                         thrownResult: nil,
@@ -462,11 +469,15 @@ extension ExprLowerer {
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.virtualCall(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        receiver: receiverExprID,
-                        arguments: [],
+                        receiver: virtualAccessorArguments[0],
+                        arguments: Array(virtualAccessorArguments.dropFirst()),
                         result: result,
                         canThrow: false,
                         thrownResult: nil,
@@ -575,11 +586,15 @@ extension ExprLowerer {
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.virtualCall(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        receiver: receiverExprID,
-                        arguments: [],
+                        receiver: virtualAccessorArguments[0],
+                        arguments: Array(virtualAccessorArguments.dropFirst()),
                         result: result,
                         canThrow: false,
                         thrownResult: nil,
@@ -600,10 +615,14 @@ extension ExprLowerer {
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiverExprID],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -754,10 +773,14 @@ extension ExprLowerer {
                     let result = arena.appendTemporary(type: resultType)
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiver], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiver],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -947,11 +970,15 @@ extension ExprLowerer {
                         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                         let result = arena.appendTemporary(type: resultType)
+                        let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
+                            for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                            sema: sema, arena: arena, interner: interner, instructions: &instructions
+                        )
                         instructions.append(.virtualCall(
                             symbol: getterSymbol,
                             callee: interner.intern("get"),
-                            receiver: receiverExprID,
-                            arguments: [],
+                            receiver: virtualAccessorArguments[0],
+                            arguments: Array(virtualAccessorArguments.dropFirst()),
                             result: result,
                             canThrow: false,
                             thrownResult: nil,
@@ -963,10 +990,14 @@ extension ExprLowerer {
                         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                         let result = arena.appendTemporary(type: resultType)
+                        let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                            for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                            sema: sema, arena: arena, interner: interner, instructions: &instructions
+                        )
                         instructions.append(.call(
                             symbol: getterSymbol,
                             callee: interner.intern("get"),
-                            arguments: [receiverExprID],
+                            arguments: getterArguments,
                             result: result,
                             canThrow: false,
                             thrownResult: nil
@@ -1005,10 +1036,14 @@ extension ExprLowerer {
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
                     let result = arena.appendTemporary(type: resultType)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -1037,10 +1072,14 @@ extension ExprLowerer {
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
                     let result = arena.appendTemporary(type: resultType)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiverExprID],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -1068,10 +1107,14 @@ extension ExprLowerer {
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
                     let result = arena.appendTemporary(type: resultType)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiver], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiver],
+                        arguments: getterArguments,
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -1277,7 +1320,12 @@ extension ExprLowerer {
                 let localFunReturnType: TypeID
                 if let sig {
                     localFunValueParamList = zip(sig.valueParameterSymbols, sig.parameterTypes).map { pair in
-                        KIRParameter(symbol: pair.0, type: pair.1)
+                        // Sema records the body type for packed vararg parameters;
+                        // the signature still carries their individual element type.
+                        KIRParameter(
+                            symbol: pair.0,
+                            type: sema.symbols.propertyType(for: pair.0) ?? pair.1
+                        )
                     }
                     localFunReturnType = sig.returnType
                 } else {
@@ -1326,8 +1374,8 @@ extension ExprLowerer {
                     return semanticSymbol.kind == .valueParameter
                 }
 
-                // Implicit receiver (this/super) is not collected by
-                // collectBoundIdentifierSymbols, so check separately —
+                // Explicit this/super and implicit member accesses do not
+                // collect the receiver in collectBoundIdentifierSymbols, so check separately —
                 // mirrors the post-filter in lexicalCaptureSymbolsForLambda.
                 if localFunReceiverParam == nil,
                    let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
@@ -1336,6 +1384,10 @@ extension ExprLowerer {
                 {
                     let needsReceiver = captureBodyExprIDs.contains { bodyExprID in
                         driver.lambdaLowerer.containsImplicitReceiverReference(in: bodyExprID, ast: ast)
+                            || driver.lambdaLowerer.containsImplicitReceiverMemberAccess(
+                                in: bodyExprID, ast: ast, sema: sema,
+                                excludingLocalExtensionBodies: true
+                            )
                     }
                     if needsReceiver {
                         captureSymbols.append(receiverSymbol)
@@ -2015,10 +2067,14 @@ extension ExprLowerer {
                     if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
                         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                        let setterArguments = driver.callLowerer.propertyAccessorArguments(
+                            for: setterSymbol, arguments: [receiverExprID, valueID], callExprID: exprID,
+                            sema: sema, arena: arena, interner: interner, instructions: &instructions
+                        )
                         instructions.append(.call(
                             symbol: setterSymbol,
                             callee: interner.intern("set"),
-                            arguments: [receiverExprID, valueID],
+                            arguments: setterArguments,
                             result: nil,
                             canThrow: false,
                             thrownResult: nil
@@ -2534,7 +2590,21 @@ extension ExprLowerer {
                 if !isStringCompound {
                     let resultType = arena.exprType(lhs) ?? lhsType
                     let resultID = arena.appendTemporary(type: resultType)
-                    instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    if op == .plusAssign,
+                       driver.callLowerer.isCoroutineContextReceiverType(resultType, sema: sema, interner: interner)
+                    {
+                        // Emit before try lowering, just like the context + path.
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern("__kk_context_plus_dispatch"),
+                            arguments: [lhs, rhs],
+                            result: resultID,
+                            canThrow: true,
+                            thrownResult: nil
+                        ))
+                    } else {
+                        instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
+                    }
                     // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
                     // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
                     if let wrapped = SmallIntegerWrap.append(
@@ -2814,10 +2884,14 @@ extension ExprLowerer {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                     let loadedValue = arena.appendTemporary(type: propType)
+                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
                     instructions.append(.call(
                         symbol: getterSymbol,
                         callee: interner.intern("get"),
-                        arguments: [receiverExprID],
+                        arguments: getterArguments,
                         result: loadedValue,
                         canThrow: false,
                         thrownResult: nil
@@ -2826,10 +2900,14 @@ extension ExprLowerer {
                         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
                         let setResultExprID = arena.appendTemporary(type: sema.types.unitType)
+                        let setterArguments = driver.callLowerer.propertyAccessorArguments(
+                            for: setterSymbol, arguments: [receiverExprID, value], callExprID: exprID,
+                            sema: sema, arena: arena, interner: interner, instructions: &instructions
+                        )
                         instructions.append(.call(
                             symbol: setterSymbol,
                             callee: interner.intern("set"),
-                            arguments: [receiverExprID, value],
+                            arguments: setterArguments,
                             result: setResultExprID,
                             canThrow: false,
                             thrownResult: nil
@@ -3258,7 +3336,8 @@ extension ExprLowerer {
                 // into a pointer bit-pattern) or 0 when no name is available.
                 // We always use intType here to stay consistent with the ABI.
                 let nameHintExpr: KIRExprID
-                if let name = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
+                if let name = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+                    ?? RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
                     let internedName = interner.intern(name)
                     nameHintExpr = arena.appendExpr(.stringLiteral(internedName), type: intType)
                     instructions.append(.constValue(result: nameHintExpr, value: .stringLiteral(internedName)))

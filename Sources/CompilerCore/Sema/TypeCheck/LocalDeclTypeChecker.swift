@@ -249,7 +249,18 @@ final class LocalDeclTypeChecker {
                     sema: ctx.sema,
                     diagnostics: ctx.semaCtx.diagnostics
                 )
-                locals[name] = (declaredType, local.symbol, local.isMutable, true)
+                // A stable nullable local assigned a non-null value remains
+                // non-null until its next assignment, including captured
+                // locals written directly in their own local function.
+                let mutatedInClosure = ctx.dataFlow.localDeclarations[local.symbol].map {
+                    ctx.dataFlow.localStability.isMutatedInClosure($0, sema: ctx.sema)
+                } ?? false
+                let assignedType = !mutatedInClosure
+                    && ctx.sema.types.nullability(of: declaredType) == .nullable
+                    && ctx.sema.types.nullability(of: valueType) == .nonNull
+                    && valueType != ctx.sema.types.errorType
+                    ? ctx.sema.types.makeNonNullable(declaredType) : declaredType
+                locals[name] = (assignedType, local.symbol, local.isMutable, true)
                 locals.invalidateMembers(root: local.symbol)
                 if ctx.sema.bindings.isFlowExpr(value) {
                     ctx.sema.bindings.markFlowSymbol(local.symbol)
@@ -277,6 +288,16 @@ final class LocalDeclTypeChecker {
         }
         if let member = implicitReceiverMember
         {
+            let (_, invisible) = ctx.filterByVisibility([member.symbol])
+            if let property = invisible.first {
+                driver.helpers.emitVisibilityError(
+                    for: property,
+                    name: interner.resolve(name),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+            }
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
             let propSymbol = ctx.sema.symbols.symbol(member.symbol)

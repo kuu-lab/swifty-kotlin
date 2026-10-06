@@ -230,24 +230,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(continuationInterceptorType, for: continuationInterceptorSymbol)
 
-        let suspendCoroutineTypeParamName = interner.intern("T")
-        let suspendCoroutineTypeParamFQName = kotlinCoroutinesPkg + [interner.intern("suspendCoroutine"), suspendCoroutineTypeParamName]
-        let suspendCoroutineTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: suspendCoroutineTypeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: suspendCoroutineTypeParamName,
-                fqName: suspendCoroutineTypeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let suspendCoroutineTType = types.make(.typeParam(TypeParamType(
-            symbol: suspendCoroutineTypeParamSymbol,
-            nullability: .nonNull
-        )))
         let continuationFactoryTypeParamName = interner.intern("T")
         let continuationFactoryTypeParamFQName = kotlinCoroutinesPkg + [
             interner.intern("Continuation"),
@@ -540,30 +522,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "suspendCoroutine",
-            packageFQName: kotlinCoroutinesPkg,
-            parameters: [(
-                name: "block",
-                type: types.make(.functionType(FunctionType(
-                        params: [types.make(.classType(ClassType(
-                            classSymbol: continuationSymbol,
-                            args: [.invariant(suspendCoroutineTType)],
-                            nullability: .nonNull
-                        )))],
-                    returnType: types.unitType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            )],
-            returnType: suspendCoroutineTType,
-            externalLinkName: "kk_suspend_coroutine",
-            isSuspend: true,
-            flags: [.synthetic, .inlineFunction],
-            explicitTypeParameterSymbols: [suspendCoroutineTypeParamSymbol],
-            symbols: symbols,
-            interner: interner
-        )
 
         let resultOfContinuationFactoryTType = types.make(.classType(ClassType(
             classSymbol: kotlinResultSymbol,
@@ -701,11 +659,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        let invariantContinuationOfUnitType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(types.unitType)],
-            nullability: .nonNull
-        )))
         let rootCancellationType = types.make(.classType(ClassType(
             classSymbol: rootCancellationSymbol,
             args: [],
@@ -897,203 +850,66 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameterName: "block",
-            parameterType: types.make(.functionType(FunctionType(
-                receiver: coroutineScopeType,
-                params: [],
-                returnType: types.unitType,
-                isSuspend: true,
-                nullability: .nonNull
-            ))),
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-072: Dispatcher-aware overload: launch(context, block)
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "context", type: dispatcherType),
-                (name: "block", type: types.make(.functionType(FunctionType(
+        // Bundled launch owns the CoroutineContext/start/receiver contract.
+        // Retain legacy launcher declarations only for --no-stdlib builds.
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameterName: "block",
+                parameterType: types.make(.functionType(FunctionType(
                     receiver: coroutineScopeType,
                     params: [],
                     returnType: types.unitType,
                     isSuspend: true,
                     nullability: .nonNull
-                )))),
-            ],
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
-        registerSyntheticCoroutineTopLevelFunction(
-            named: "launch",
-            packageFQName: coroutinesPkg,
-            parameters: [
-                (name: "start", type: coroutineStartType),
-                (name: "block", type: types.make(.functionType(FunctionType(
-                    receiver: coroutineScopeType,
-                    params: [],
-                    returnType: types.unitType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))),
-            ],
-            returnType: jobType,
-            symbols: symbols,
-            interner: interner
-        )
-        // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
-        // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
-        // first argument's type: CoroutineDispatcher goes to the dispatcher-
-        // aware runtime, CoroutineStart goes to the lazy-start runtime.
-        let publicStartCoroutineName = interner.intern("startCoroutine")
-        let publicStartCoroutineReceiverTypeParameterName = interner.intern("R")
-        let publicStartCoroutineReceiverTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: publicStartCoroutineReceiverTypeParameterName,
-            fqName: kotlinCoroutinesPkg + [publicStartCoroutineName, interner.intern("$synthetic"), publicStartCoroutineReceiverTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let publicStartCoroutineReceiverTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: publicStartCoroutineReceiverTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let publicStartCoroutineTypeParameterName = interner.intern("T")
-        let publicStartCoroutineTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: publicStartCoroutineTypeParameterName,
-            fqName: kotlinCoroutinesPkg + [publicStartCoroutineName, interner.intern("$synthetic"), publicStartCoroutineTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let publicStartCoroutineTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: publicStartCoroutineTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let publicStartCoroutineContinuationType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(publicStartCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let publicStartCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: publicStartCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
-        let publicStartCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
-            receiver: publicStartCoroutineReceiverTypeParameterType,
-            params: [],
-            returnType: publicStartCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
-        let publicCreateCoroutineName = interner.intern("createCoroutine")
-        let publicCreateCoroutineReceiverTypeParameterName = interner.intern("R")
-        let publicCreateCoroutineReceiverTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: publicCreateCoroutineReceiverTypeParameterName,
-            fqName: kotlinCoroutinesPkg + [publicCreateCoroutineName, interner.intern("$synthetic"), publicCreateCoroutineReceiverTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let publicCreateCoroutineReceiverTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: publicCreateCoroutineReceiverTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let publicCreateCoroutineTypeParameterName = interner.intern("T")
-        let publicCreateCoroutineTypeParameterSymbol = symbols.define(
-            kind: .typeParameter,
-            name: publicCreateCoroutineTypeParameterName,
-            fqName: kotlinCoroutinesPkg + [publicCreateCoroutineName, interner.intern("$synthetic"), publicCreateCoroutineTypeParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let publicCreateCoroutineTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: publicCreateCoroutineTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let publicCreateCoroutineContinuationType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(publicCreateCoroutineTypeParameterType)],
-            nullability: .nonNull
-        )))
-        let publicCreateCoroutineNoReceiverFunctionType = types.make(.functionType(FunctionType(
-            params: [],
-            returnType: publicCreateCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
-        let publicCreateCoroutineWithReceiverFunctionType = types.make(.functionType(FunctionType(
-            receiver: publicCreateCoroutineReceiverTypeParameterType,
-            params: [],
-            returnType: publicCreateCoroutineTypeParameterType,
-            isSuspend: true,
-            nullability: .nonNull
-        )))
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutine",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: publicCreateCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: publicCreateCoroutineContinuationType)],
-            returnType: invariantContinuationOfUnitType,
-            typeParameterSymbols: [publicCreateCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "createCoroutine",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: publicCreateCoroutineWithReceiverFunctionType,
-            parameters: [
-                (name: "receiver", type: publicCreateCoroutineReceiverTypeParameterType),
-                (name: "completion", type: publicCreateCoroutineContinuationType),
-            ],
-            returnType: invariantContinuationOfUnitType,
-            typeParameterSymbols: [
-                publicCreateCoroutineReceiverTypeParameterSymbol,
-                publicCreateCoroutineTypeParameterSymbol,
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutine",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: publicStartCoroutineNoReceiverFunctionType,
-            parameters: [(name: "completion", type: publicStartCoroutineContinuationType)],
-            returnType: types.unitType,
-            typeParameterSymbols: [publicStartCoroutineTypeParameterSymbol],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticCoroutineExtensionFunction(
-            named: "startCoroutine",
-            packageFQName: kotlinCoroutinesPkg,
-            receiverType: publicStartCoroutineWithReceiverFunctionType,
-            parameters: [
-                (name: "receiver", type: publicStartCoroutineReceiverTypeParameterType),
-                (name: "completion", type: publicStartCoroutineContinuationType),
-            ],
-            returnType: types.unitType,
-            typeParameterSymbols: [
-                publicStartCoroutineReceiverTypeParameterSymbol,
-                publicStartCoroutineTypeParameterSymbol,
-            ],
-            symbols: symbols,
-            interner: interner
-        )
+                ))),
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-072: Dispatcher-aware overload: launch(context, block)
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameters: [
+                    (name: "context", type: dispatcherType),
+                    (name: "block", type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))),
+                ],
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-001: launch(start: CoroutineStart, block:) overload.
+            registerSyntheticCoroutineTopLevelFunction(
+                named: "launch",
+                packageFQName: coroutinesPkg,
+                parameters: [
+                    (name: "start", type: coroutineStartType),
+                    (name: "block", type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))),
+                ],
+                returnType: jobType,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-CORO-001: CoroutineStart enum and launch(start:, block:) overload.
+            // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
+            // first argument's type: CoroutineDispatcher goes to the dispatcher-
+            // aware runtime, CoroutineStart goes to the lazy-start runtime.
+
+        }
 
         registerSyntheticCoroutineMember(
             ownerSymbol: dispatcherSymbol,
@@ -1869,7 +1685,7 @@ extension DataFlowSemaPhase {
                 ownerSymbol: coroutineContextSymbol,
                 ownerType: coroutineContextType,
                 name: "plus",
-                externalLinkName: "kk_context_plus",
+                externalLinkName: "__kk_context_plus_dispatch",
                 returnType: kotlinCoroutineContextType,
                 parameters: [(name: "context", type: kotlinCoroutineContextType)],
                 flags: [.synthetic, .operatorFunction],
@@ -2138,25 +1954,27 @@ extension DataFlowSemaPhase {
         // it through rewriteCoroutineScopeLaunchCall, which threads the receiver through
         // to a dedicated `kk_coroutine_scope_launch(scopeHandle, entryPointRaw,
         // functionID)` runtime entry point.
-        registerSyntheticCoroutineMember(
-            ownerSymbol: coroutineScopeSymbol,
-            ownerType: coroutineScopeType,
-            name: "launch",
-            externalLinkName: "kk_coroutine_scope_launch",
-            returnType: jobType,
-            parameters: [(
-                name: "block",
-                type: types.make(.functionType(FunctionType(
-                    receiver: coroutineScopeType,
-                    params: [],
-                    returnType: types.unitType,
-                    isSuspend: true,
-                    nullability: .nonNull
-                )))
-            )],
-            symbols: symbols,
-            interner: interner
-        )
+        if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
+            registerSyntheticCoroutineMember(
+                ownerSymbol: coroutineScopeSymbol,
+                ownerType: coroutineScopeType,
+                name: "launch",
+                externalLinkName: "kk_coroutine_scope_launch",
+                returnType: jobType,
+                parameters: [(
+                    name: "block",
+                    type: types.make(.functionType(FunctionType(
+                        receiver: coroutineScopeType,
+                        params: [],
+                        returnType: types.unitType,
+                        isSuspend: true,
+                        nullability: .nonNull
+                    )))
+                )],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("cancel"), arity: 1) {
             registerSyntheticCoroutineMember(
                 ownerSymbol: coroutineScopeSymbol,

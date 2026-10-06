@@ -71,6 +71,10 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: charType)
             return charType
 
+        case .nullLiteral:
+            sema.bindings.bindExprType(id, type: sema.types.nullableNothingType)
+            return sema.types.nullableNothingType
+
         case .boolLiteral:
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -208,10 +212,13 @@ final class ExprTypeChecker {
             let lambdaReturnScope = label.flatMap { label in
                 ctx.lambdaReturnScopes.last { $0.label == label }
             }
+            // Bare returns cross the same lambda boundaries as function-name
+            // labeled returns; validate them after call resolution determines
+            // whether every enclosing lambda argument can be inlined.
             let targetsFunction = label.map { label in
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
-            } ?? false
+            } ?? (ctx.lambdaDepth > 0)
             if let lambdaReturnScope,
                let targetIndex = ctx.enclosingLambdaExprIDs.lastIndex(of: lambdaReturnScope.exprID) {
                 sema.bindings.bindLambdaReturn(
@@ -221,6 +228,12 @@ final class ExprTypeChecker {
             }
             if targetsFunction, let functionSymbol = ctx.enclosingFunctionSymbol {
                 sema.bindings.bindFunctionReturn(id, symbol: functionSymbol, lambdaPath: ctx.enclosingLambdaExprIDs)
+            } else if label == nil, ctx.lambdaDepth > 0 {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0042",
+                    "'return' does not reference an enclosing function.",
+                    range: range
+                )
             } else if let label, !ctx.hasLambdaLabel(label) {
                 let labelName = interner.resolve(label)
                 ctx.semaCtx.diagnostics.error(
@@ -351,7 +364,12 @@ final class ExprTypeChecker {
                         defaultType: intType,
                         literalValue: foldedValue
                     )
-                    _ = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: nil)
+                    // Unary plus reuses the operand in KIR, so its binding must
+                    // carry the contextual type used for boxing the result.
+                    _ = driver.inferExpr(
+                        operandID, ctx: ctx, locals: &locals,
+                        expectedType: op == .unaryPlus ? type : nil
+                    )
                 } else {
                     let operandType = driver.inferExpr(operandID, ctx: ctx, locals: &locals, expectedType: expectedType)
                     if let overloadedType = inferUnaryOperatorExpr(
@@ -428,8 +446,8 @@ final class ExprTypeChecker {
             return boolType
 
         case let .asCast(exprID, typeRefID, isSafe, range):
-            _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            let targetType = driver.helpers.resolveTypeRef(
+            let sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            var targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
                 sema: sema,
@@ -439,15 +457,38 @@ final class ExprTypeChecker {
                 inferenceContext: ctx,
                 usageRange: range
             )
+            // A bare generic cast recovers arguments from the source's known
+            // nominal type, just as a bare `is` check does. Explicit arguments
+            // (including star projections) must keep their declared meaning.
+            if case let .classType(targetClass) = sema.types.kind(of: targetType),
+               targetClass.args.isEmpty,
+               !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
+               case let .classType(sourceClass) = sema.types.kind(of: sema.types.makeNonNullable(sourceType)),
+               let inferredArgs = sema.types.narrowedSubtypeArgs(
+                   forSubtype: targetClass.classSymbol,
+                   givenSupertype: sourceClass.classSymbol,
+                   supertypeArgs: sourceClass.args
+               )
+            {
+                targetType = sema.types.make(.classType(ClassType(
+                    classSymbol: targetClass.classSymbol,
+                    args: inferredArgs,
+                    nullability: targetClass.nullability
+                )))
+            }
             let type: TypeID = if isSafe {
                 sema.types.makeNullable(targetType)
             } else {
                 targetType
             }
             sema.bindings.bindCastTargetType(id, type: targetType)
+            // Nothing? only contains null, so nullable casts have no erased value to check.
+            let isNullToNullableCast = sourceType == sema.types.nullableNothingType
+                && sema.types.nullability(of: targetType) == .nullable
             if let typeRef = ast.arena.typeRef(typeRefID),
                case let .named(_, argRefs, _) = typeRef,
-               !argRefs.isEmpty
+               !argRefs.isEmpty,
+               !isNullToNullableCast
             {
                 let hasNonStarArg = argRefs.contains { arg in
                     if case .star = arg {
@@ -584,9 +625,10 @@ final class ExprTypeChecker {
                 for (name, outerLocal) in locals {
                     if let blockLocal = blockLocals[name],
                        blockLocal.symbol == outerLocal.symbol,
-                       !outerLocal.isInitialized, blockLocal.isInitialized
+                       (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable)
+                           || (!outerLocal.isInitialized && blockLocal.isInitialized)
                     {
-                        locals[name] = (outerLocal.type, outerLocal.symbol, outerLocal.isMutable, true)
+                        locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
             }

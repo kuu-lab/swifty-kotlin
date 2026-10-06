@@ -1,4 +1,65 @@
 extension CallTypeChecker {
+    private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              ctx.sema.symbols.functionSignature(for: candidate)?.receiverType != nil,
+              ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+        else { return false }
+        if let parentID = ctx.sema.symbols.parentSymbol(for: candidate),
+           let parent = ctx.sema.symbols.symbol(parentID),
+           parent.kind != .package
+        {
+            // Public/internal package extensions may be attached to their
+            // receiver nominal for member lookup, but keep their package FQ name.
+            return symbol.fqName != parent.fqName + [symbol.name]
+        }
+        return true
+    }
+
+    /// Retry visible scope extensions against captured receivers, innermost first.
+    /// Package extensions are not members of their receiver class, so the member
+    /// recovery path cannot find them when a receiver lambda shadows `this`.
+    func resolveOuterImplicitReceiverExtensionCall(
+        candidates: [SymbolID],
+        args: [CallArgument],
+        preparedArgs: PreparedCallArguments,
+        range: SourceRange,
+        calleeName: InternedString,
+        explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> (resolved: ResolvedCall, receiverSymbol: SymbolID)? {
+        let extensions = candidates.filter { isScopeExtensionCandidate($0, ctx: ctx) }
+        guard !extensions.isEmpty else { return nil }
+        var nearerDslMarkers = Set<String>()
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            let markers = ctx.collectDslMarkerAnnotations(for: receiver.type)
+            let isDslHidden = !nearerDslMarkers.isDisjoint(with: markers)
+            nearerDslMarkers.formUnion(markers)
+            guard let symbol = receiver.symbol, !isDslHidden else { continue }
+            let resolved = resolveCallRespectingLambdaReturnType(
+                candidates: extensions,
+                args: args,
+                argTypes: preparedArgs.argTypes,
+                range: range,
+                calleeName: calleeName,
+                explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
+                implicitReceiverType: receiver.type,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx
+            )
+            // Ambiguity at a nearer receiver must not fall through to a farther one.
+            if resolved.chosenCallee != nil || resolved.diagnostic?.code == "KSWIFTK-SEMA-0003" {
+                return (resolved, symbol)
+            }
+        }
+        return nil
+    }
+
     /// Prefer the receiver-specific predicate extension before contextual lambda
     /// inference. An implicit receiver call currently starts with package-scope
     /// candidates, so keeping the Collection overload beside the predicate
@@ -246,7 +307,8 @@ extension CallTypeChecker {
                 range: range,
                 calleeName: calleeName,
                 args: resolvedArgs,
-                explicitTypeArgs: explicitTypeArgs
+                explicitTypeArgs: explicitTypeArgs,
+                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: expectedType,
             implicitReceiverType: nonNullReceiver,
@@ -298,6 +360,9 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
+        // Attached scope extensions must retain their full overload set in the
+        // extension tower path, rather than being collapsed as inherited members.
+        let scopeExtensions = Set(scopeCandidates.filter { isScopeExtensionCandidate($0, ctx: ctx) })
 
         // Kotlin's implicit-receiver tower: the innermost receiver first, then
         // enclosing receivers whose `this` value is reachable through capture.
@@ -323,7 +388,7 @@ extension CallTypeChecker {
                 receiverType: receiver.type,
                 sema: sema,
                 interner: ctx.interner
-            )
+            ).filter { !scopeExtensions.contains($0) }
             guard !memberCandidates.isEmpty else { continue }
             // Member extensions surface under the dispatch receiver type but
             // resolve against the implicit receiver tower entry picked for
@@ -375,7 +440,8 @@ extension CallTypeChecker {
                         range: range,
                         calleeName: calleeName,
                         args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: group.receiverType,

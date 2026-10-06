@@ -403,7 +403,8 @@ extension LambdaLowerer {
     /// Mirrors `containsImplicitReceiverReference` for all AST node types.
     func containsImplicitReceiverMemberAccess(
         in exprID: ExprID, ast: ASTModule, sema: SemaModule,
-        excludingReceiverType: TypeID? = nil, outerReceiverType: TypeID? = nil
+        excludingReceiverType: TypeID? = nil, outerReceiverType: TypeID? = nil,
+        excludingLocalExtensionBodies: Bool = false
     ) -> Bool {
         if let symbolID = sema.bindings.identifierSymbols[exprID],
            let symbol = sema.symbols.symbol(symbolID),
@@ -427,7 +428,8 @@ extension LambdaLowerer {
         let check = { (id: ExprID) -> Bool in
             self.containsImplicitReceiverMemberAccess(
                 in: id, ast: ast, sema: sema,
-                excludingReceiverType: excludingReceiverType, outerReceiverType: outerReceiverType
+                excludingReceiverType: excludingReceiverType, outerReceiverType: outerReceiverType,
+                excludingLocalExtensionBodies: excludingLocalExtensionBodies
             )
         }
         switch expr {
@@ -481,7 +483,12 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, _, _, _, body, _, _):
+        case let .localFunDecl(_, receiverType, _, _, body, _, _):
+            // Nested extensions supply their own implicit receiver. Their lexical
+            // value captures are handled by collectBoundIdentifierSymbols.
+            if excludingLocalExtensionBodies, receiverType != nil {
+                return false
+            }
             return checkFunctionBody(body, check: check)
         case let .forExpr(_, iterable, body, _, _):
             return check(iterable) || check(body)

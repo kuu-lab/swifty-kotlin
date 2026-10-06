@@ -57,29 +57,21 @@ public fun Long.countTrailingZeroBits(): Int {
 
 // KSP-644: highest/lowest one-bit operations are source-backed extensions.
 
-public fun Int.highestOneBit(): Int {
+public fun Int.takeHighestOneBit(): Int {
     if (this == 0) return 0
     if (this < 0) return Int.MIN_VALUE
     return 1 shl (31 - countLeadingZeroBits())
 }
 
-public fun Int.lowestOneBit(): Int = this and (-this)
+public fun Int.takeLowestOneBit(): Int = this and (-this)
 
-public fun Int.takeHighestOneBit(): Int = highestOneBit()
-
-public fun Int.takeLowestOneBit(): Int = lowestOneBit()
-
-public fun Long.highestOneBit(): Long {
+public fun Long.takeHighestOneBit(): Long {
     if (this == 0L) return 0L
     if (this < 0L) return Long.MIN_VALUE
     return 1L shl (63 - countLeadingZeroBits())
 }
 
-public fun Long.lowestOneBit(): Long = this and (-this)
-
-public fun Long.takeHighestOneBit(): Long = highestOneBit()
-
-public fun Long.takeLowestOneBit(): Long = lowestOneBit()
+public fun Long.takeLowestOneBit(): Long = this and (-this)
 
 // KUU-1098: bit-count and one-bit extensions for the remaining integer types,
 // mirroring the real Kotlin stdlib formulas (operands masked to their width).
@@ -145,3 +137,34 @@ public fun UShort.countTrailingZeroBits(): Int = toShort().countTrailingZeroBits
 public fun UShort.takeHighestOneBit(): UShort = toInt().takeHighestOneBit().toUShort()
 
 public fun UShort.takeLowestOneBit(): UShort = toInt().takeLowestOneBit().toUShort()
+
+// KUU-1257: reuse signed rotations while preserving the unsigned bit pattern.
+public fun UInt.rotateLeft(bitCount: Int): UInt = toInt().rotateLeft(bitCount).toUInt()
+
+public fun UInt.rotateRight(bitCount: Int): UInt = toInt().rotateRight(bitCount).toUInt()
+
+public fun ULong.rotateLeft(bitCount: Int): ULong = toLong().rotateLeft(bitCount).toULong()
+
+public fun ULong.rotateRight(bitCount: Int): ULong = toLong().rotateRight(bitCount).toULong()
+
+// KUU-1277: rotate within the receiver width, excluding sign extension from
+// the logical right shift. Mask counts before subtraction to handle Int extremes.
+public fun Byte.rotateLeft(bitCount: Int): Byte =
+    ((toInt() shl (bitCount and 7)) or ((toInt() and 0xFF) ushr (8 - (bitCount and 7)))).toByte()
+
+public fun Byte.rotateRight(bitCount: Int): Byte =
+    ((toInt() shl (8 - (bitCount and 7))) or ((toInt() and 0xFF) ushr (bitCount and 7))).toByte()
+
+public fun Short.rotateLeft(bitCount: Int): Short =
+    ((toInt() shl (bitCount and 15)) or ((toInt() and 0xFFFF) ushr (16 - (bitCount and 15)))).toShort()
+
+public fun Short.rotateRight(bitCount: Int): Short =
+    ((toInt() shl (16 - (bitCount and 15))) or ((toInt() and 0xFFFF) ushr (bitCount and 15))).toShort()
+
+public fun UByte.rotateLeft(bitCount: Int): UByte = toByte().rotateLeft(bitCount).toUByte()
+
+public fun UByte.rotateRight(bitCount: Int): UByte = toByte().rotateRight(bitCount).toUByte()
+
+public fun UShort.rotateLeft(bitCount: Int): UShort = toShort().rotateLeft(bitCount).toUShort()
+
+public fun UShort.rotateRight(bitCount: Int): UShort = toShort().rotateRight(bitCount).toUShort()

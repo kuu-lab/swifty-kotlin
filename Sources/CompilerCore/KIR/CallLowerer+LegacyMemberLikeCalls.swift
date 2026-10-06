@@ -366,6 +366,17 @@ extension CallLowerer {
                 interner: interner
             )
         }()
+        // Array and primitive-array extensions retain their typed Kotlin call
+        // convention. Array receivers must never reach a List zip bridge.
+        let isSourceBackedArrayIterableCall: Bool = {
+            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee),
+                  let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType
+            else {
+                return false
+            }
+            return isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -944,7 +955,7 @@ extension CallLowerer {
             case "shr":
                 isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_shr") : nil
             case "ushr":
-                isShiftReceiver && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
+                (nonNullReceiverType == intType || nonNullReceiverType == longType) && rawRhsType == intType ? interner.intern("kk_op_ushr") : nil
             default:
                 nil
             }
@@ -1326,7 +1337,7 @@ extension CallLowerer {
 
         // Migrated source-backed members must lower through their Kotlin body;
         // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
-        if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall {
+        if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall, !isSourceBackedArrayIterableCall {
         // Collection nullable-receiver isNullOrEmpty fallback.
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
@@ -2446,6 +2457,7 @@ extension CallLowerer {
                         anyType: sema.types.nullableAnyType,
                         types: sema.types,
                         symbols: sema.symbols,
+                        sema: sema,
                         instructions: &instructions
                     )
                 }
@@ -2454,7 +2466,7 @@ extension CallLowerer {
                     callee: interner.intern("__kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
-                    canThrow: false,
+                    canThrow: true,
                     thrownResult: nil
                 ))
                 return result
@@ -2491,6 +2503,7 @@ extension CallLowerer {
             callBinding: callBinding,
             chosenCallee: chosen,
             spreadFlags: args.map(\.isSpread),
+            argumentLabels: args.map(\.label),
             ast: ast,
             sema: sema,
             arena: arena,

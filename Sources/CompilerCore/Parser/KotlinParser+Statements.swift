@@ -23,6 +23,12 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 break
             }
+            // A contextual keyword followed by @ starts a label, not a declaration.
+            if isLabelStart {
+                children.append(.node(parseStatement(inBlock: true)))
+                atBlockStart = false
+                continue
+            }
             if case .keyword(.constructor) = token.kind {
                 children.append(.node(parseConstructorDeclaration()))
                 atBlockStart = false
@@ -102,6 +108,7 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let canContinueWithElseLikeKeyword = sawIfOrTryKeyword
+                && !isLabelStart
                 && ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
             let canContinueWithSymbol: Bool = if case .symbol = token.kind {
                 ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
@@ -234,7 +241,7 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Parse a structured `try` expression: `try body [catch (params) body]* [finally body]`
+    /// Parse a structured `try` expression with at least one catch or finally clause.
     func parseTryStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -244,11 +251,21 @@ extension KotlinParser {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
-        _ = consumeToken(into: &children, range: &range)
+        let tryToken = consumeToken(into: &children, range: &range)
 
         appendTryBody(inBlock: inBlock, into: &children, range: &range)
 
-        while case .keyword(.catch) = stream.peek().kind {
+        let nextIsHandler = !isLabelStart
+            && (stream.peek().kind == .keyword(.catch) || stream.peek().kind == .keyword(.finally))
+        if !nextIsHandler {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0016",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
+
+        while case .keyword(.catch) = stream.peek().kind, !isLabelStart {
             _ = consumeToken(into: &children, range: &range)
             if case .symbol(.lParen) = stream.peek().kind {
                 let paramGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
@@ -258,7 +275,7 @@ extension KotlinParser {
             appendTryBody(inBlock: inBlock, into: &children, range: &range)
         }
 
-        if case .keyword(.finally) = stream.peek().kind {
+        if case .keyword(.finally) = stream.peek().kind, !isLabelStart {
             _ = consumeToken(into: &children, range: &range)
             appendTryBody(inBlock: inBlock, into: &children, range: &range)
         }
@@ -788,6 +805,10 @@ extension KotlinParser {
     /// Results are memoized for every prefix token visited so expression-tail
     /// recovery does not rescan each suffix of a long chain.
     func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
+        if stream.peek(offset).kind.isLabelName,
+           stream.peek(offset + 1).kind == .symbol(.at) {
+            return .notDeclaration
+        }
         let startIndex = stream.index + offset
         if let cached = genuineDeclarationLookahead[startIndex] {
             return cached ? .declaration : .notDeclaration

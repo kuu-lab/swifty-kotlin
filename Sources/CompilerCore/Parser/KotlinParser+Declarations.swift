@@ -287,6 +287,7 @@ extension KotlinParser {
         var accessorChildren: [SyntaxChild] = []
         var accessorRange = RangeAccumulator()
 
+        parseLeadingDeclarationPrefix(into: &accessorChildren, range: &accessorRange)
         parseTail(inBlock: false, into: &accessorChildren, range: &accessorRange)
 
         let accessorNodeRange = accessorRange.value ?? invalidRange

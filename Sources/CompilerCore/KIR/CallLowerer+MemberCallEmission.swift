@@ -49,8 +49,45 @@ extension CallLowerer {
         {
             return resolved
         }
-        return resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+        if let receiver = resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
             ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
+        {
+            return receiver
+        }
+        // Imported companion extensions can bind as ordinary member calls,
+        // including property getters. They still need the singleton dispatch
+        // receiver even when no lexical receiver is active.
+        if ownerInfo.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return receiver
+        }
+        return nil
+    }
+
+    /// Supply the dispatch receiver shared by getter, setter and compound updates.
+    func propertyAccessorArguments(
+        for accessor: SymbolID,
+        arguments: [KIRExprID],
+        callExprID: ExprID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        if let receiver = memberExtensionDispatchReceiver(
+            for: accessor, callExprID: callExprID, sema: sema, arena: arena,
+            interner: interner, instructions: &instructions
+        ) {
+            return [receiver] + arguments
+        }
+        return arguments
     }
 
     func sequenceBuilderRuntimeCalleeName(
@@ -300,7 +337,8 @@ extension CallLowerer {
             finalArguments.insert(contentsOf: callable.captureArguments, at: 0)
         }
         if let chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee) == "kk_coroutine_scope_async",
+           let scopeBuilderLink = sema.symbols.externalLinkName(for: chosenCallee),
+           (scopeBuilderLink == "kk_coroutine_scope_async" || scopeBuilderLink == "__kk_coroutine_scope_launch_context"),
            finalArguments.count == 4
         {
             for parameterIndex in 0 ..< 2 where normalized.defaultMask & (1 << parameterIndex) != 0 {
@@ -327,7 +365,7 @@ extension CallLowerer {
             // Keep captures visible to suspend liveness before launcher rewriting.
             finalArguments.append(contentsOf: driver.ctx.callableValueInfo(for: finalArguments[3])?.captureArguments ?? [])
             instructions.append(.call(
-                symbol: chosenCallee, callee: interner.intern("kk_coroutine_scope_async"),
+                symbol: chosenCallee, callee: interner.intern(scopeBuilderLink),
                 arguments: finalArguments, result: result,
                 canThrow: false, thrownResult: nil
             ))
@@ -437,6 +475,23 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner,
             instructions: &instructions, arguments: &finalArguments
         )
+        // Kotlin coroutine builders accept a suspend function as their extension
+        // receiver. Preserve the same boxed callable ABI as value parameters.
+        if let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let receiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           case let .functionType(functionType) = sema.types.kind(of: receiverType),
+           functionType.isSuspend,
+           sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) != true {
+            let receiverIndex = memberExtensionDispatchReceiver == nil ? 0 : 1
+            finalArguments[receiverIndex] = materializeFunctionValueArgument(
+                loweredArgID: finalArguments[receiverIndex],
+                argExprID: receiver.expr,
+                functionType: functionType,
+                sema: sema, arena: arena, interner: interner,
+                instructions: &instructions
+            )
+        }
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCallee,
             sourceArgExprs: sourceArgExprs,
@@ -985,6 +1040,7 @@ extension CallLowerer {
             callArguments = []
         }
         if let bridgeCall = listWindowChunkMemberSourceBridgeCall(
+            chosenCallee: chosenCallee,
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
@@ -1130,6 +1186,7 @@ extension CallLowerer {
     ]
 
     private func listWindowChunkMemberSourceBridgeCall(
+        chosenCallee: SymbolID?,
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
@@ -1144,6 +1201,17 @@ extension CallLowerer {
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         let knownNames = KnownCompilerNames(interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if calleeName == knownNames.zip,
+           let chosenCallee,
+           sema.symbols.isSourceBackedSymbol(chosenCallee),
+           let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+           isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
+        {
+            // Array and primitive-array zip extensions use their selected
+            // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }
 

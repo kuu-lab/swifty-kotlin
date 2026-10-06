@@ -9,9 +9,16 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        if token.kind.isLabelName, peek(1)?.kind == .symbol(.at) {
+            return parsePrimaryIdentifier(token)
+        }
+
         switch token.kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral:
             return parsePrimaryNumericOrChar(token)
+        case .keyword(.null):
+            _ = consume()
+            return astArena.appendExpr(.nullLiteral(token.range))
         case .keyword(.true):
             _ = consume()
             return astArena.appendExpr(.boolLiteral(true, token.range))
@@ -213,12 +220,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parsePrimaryIdentifier(_ token: Token) -> ExprID? {
-        let name: InternedString
-        switch token.kind {
-        case let .identifier(ident): name = ident
-        case let .backtickedIdentifier(ident): name = ident
-        default: return nil
-        }
+        guard let name = labelNameFromToken(token) else { return nil }
 
         let hasAt = peek(1).map { $0.kind == .symbol(.at) } ?? false
         if hasAt, let nextToken = peek(2) {
@@ -263,7 +265,7 @@ extension BuildASTPhase.ExpressionParser {
         var end = token.range.end
         let isAtSymbol = current().map { $0.kind == .symbol(.at) } ?? false
         let labelToken = isAtSymbol ? peek(1) : nil
-        let labelName = labelToken.flatMap { identifierFromToken($0) }
+        let labelName = labelToken.flatMap { labelNameFromToken($0) }
         if isAtSymbol, let resolvedToken = labelToken, labelName != nil {
             _ = consume()
             _ = consume()
@@ -305,7 +307,7 @@ extension BuildASTPhase.ExpressionParser {
         _ = consume()
         let isThisAtSymbol = current().map { $0.kind == .symbol(.at) } ?? false
         let thisLabelToken = isThisAtSymbol ? peek(1) : nil
-        let thisLabelName = thisLabelToken.flatMap { identifierFromToken($0) }
+        let thisLabelName = thisLabelToken.flatMap { labelNameFromToken($0) }
         if isThisAtSymbol, let labelToken = thisLabelToken, let labelName = thisLabelName {
             _ = consume()
             _ = consume()

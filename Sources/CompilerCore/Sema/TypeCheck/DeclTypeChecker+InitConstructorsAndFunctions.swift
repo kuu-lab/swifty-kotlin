@@ -2,7 +2,7 @@
 // Init block, secondary constructor, and function declaration type checking.
 
 extension DeclTypeChecker {
-    private func localTypeForParameter(
+    func localTypeForParameter(
         at index: Int,
         signature: FunctionSignature,
         sema: SemaModule,
@@ -57,6 +57,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        let ctx = ctx.withoutSuspensionContext()
         let sema = ctx.sema
         var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
@@ -752,6 +753,7 @@ extension DeclTypeChecker {
             enclosingLambdaExprIDs: [],
             currentDeclSymbol: symbol
         )
+        functionCtx.suspensionContext = SuspensionContext(function: symbol)
         if !signature.contextReceiverTypes.isEmpty {
             functionCtx = functionCtx.with(
                 contextReceiverTypes: ctx.contextReceiverTypes + signature.contextReceiverTypes
@@ -770,6 +772,18 @@ extension DeclTypeChecker {
                     true
                 )
             }
+        }
+        // A member extension's dispatch receiver is distinct from bare `this`.
+        // Keep its owner symbol on the tower so nested local nominals capture
+        // the enclosing instance rather than the extension receiver.
+        if function.receiverType != nil, let owner = ctx.enclosingClassSymbol {
+            var outerReceivers = functionCtx.outerReceiverTypes
+            for index in outerReceivers.indices where outerReceivers[index].symbol == nil {
+                if driver.helpers.nominalSymbol(of: outerReceivers[index].type, types: sema.types) == owner {
+                    outerReceivers[index].symbol = owner
+                }
+            }
+            functionCtx = functionCtx.copying(outerReceiverTypes: outerReceivers)
         }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
@@ -1349,8 +1363,8 @@ extension DeclTypeChecker {
         interner: StringInterner
     ) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
-        if case let .nameRef(name, _) = expr {
-            return name == KnownCompilerNames(interner: interner).null
+        if case .nullLiteral = expr {
+            return true
         }
         return false
     }

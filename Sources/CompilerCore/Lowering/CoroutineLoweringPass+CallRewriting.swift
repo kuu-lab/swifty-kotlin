@@ -1687,6 +1687,9 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        if call.callee == rewrite.createCoroutineCallee, hasRealDeclaration(call.symbol, in: rewrite.ctx) {
+            return nil
+        }
         guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
                 || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
                 || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
@@ -1702,7 +1705,22 @@ extension CoroutineLoweringPass {
         ),
         let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
-            return nil
+            // A source-backed public builder receives an already boxed suspend
+            // callable. Keep its entry metadata and adapt the marker's C ABI.
+            guard call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
+                    || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee else {
+                return nil
+            }
+            let unusedContext = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+            return [
+                .constValue(result: unusedContext, value: .intLiteral(0)),
+                .call(
+                    symbol: call.symbol, callee: call.callee,
+                    arguments: [call.arguments[0], unusedContext] + Array(call.arguments.dropFirst()),
+                    result: call.result, canThrow: call.canThrow,
+                    thrownResult: call.thrownResult
+                ),
+            ]
         }
 
         let capturedLauncherArguments = capturedLauncherArguments(
@@ -1779,7 +1797,24 @@ extension CoroutineLoweringPass {
         ),
         let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
-            return nil
+            // Standalone inline bodies retain these link-only markers when the
+            // suspend callable is a parameter rather than a known entry point.
+            // Preserve the boxed value and supply the unused context slot, just
+            // as the create markers do, so their calls match the runtime ABI.
+            guard call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                    || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee else {
+                return nil
+            }
+            let unusedContext = rewrite.module.arena.appendExpr(.intLiteral(0), type: rewrite.intType)
+            return [
+                .constValue(result: unusedContext, value: .intLiteral(0)),
+                .call(
+                    symbol: call.symbol, callee: call.callee,
+                    arguments: [call.arguments[0], unusedContext] + Array(call.arguments.dropFirst()),
+                    result: call.result, canThrow: call.canThrow,
+                    thrownResult: call.thrownResult
+                ),
+            ]
         }
 
         let capturedLauncherArguments = capturedLauncherArguments(
@@ -1851,6 +1886,9 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        if hasRealDeclaration(call.symbol, in: rewrite.ctx) {
+            return nil
+        }
         guard call.callee == rewrite.startCoroutineCallee,
               call.arguments.count == 2 || call.arguments.count == 3
         else {

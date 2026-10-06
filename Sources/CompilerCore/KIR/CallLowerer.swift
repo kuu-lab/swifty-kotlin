@@ -900,6 +900,7 @@ final class CallLowerer {
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
+                argumentLabels: args.map(\.label),
                 sourceArgExprs: args.map(\.expr),
                 ast: ast,
                 sema: sema,
@@ -1887,6 +1888,17 @@ final class CallLowerer {
             let concreteType = index < callBinding.substitutedTypeArguments.count
                 ? callBinding.substitutedTypeArguments[index]
                 : sema.types.anyType
+            // Nested inline calls must forward the enclosing reified token;
+            // a type parameter has no concrete nominal token to encode yet.
+            if case let .typeParam(parameter) = sema.types.kind(of: concreteType),
+               parameter.nullability == .nonNull,
+               sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
+                let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter.symbol)
+                let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
+                instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
+                arguments.append(tokenExpr)
+                continue
+            }
             let encodedToken = RuntimeTypeCheckToken.encode(type: concreteType, sema: sema, interner: interner)
             let tokenExpr = arena.appendExpr(
                 .intLiteral(encodedToken),

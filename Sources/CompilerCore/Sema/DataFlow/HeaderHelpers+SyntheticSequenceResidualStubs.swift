@@ -1,9 +1,7 @@
 import RuntimeABI
 
-/// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`,
-/// `takeLast`,
-/// `takeLastWhile`, and `reversed`) that are not yet migrated
-/// to bundled Kotlin source.
+/// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`)
+/// that are not yet migrated to bundled Kotlin source.
 ///
 /// KSP-694: Consolidated residual Sequence stubs after KSP-441..446 and KSP-308
 /// migrations of terminal/HOF Sequence APIs to bundled Kotlin source.
@@ -69,29 +67,6 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
-        let predicateType = types.make(.functionType(FunctionType(
-            params: [typeParamType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        func nominalCollectionType(_ fqName: [InternedString], elementType: TypeID, invariant: Bool = false) -> TypeID {
-            guard let symbol = symbols.lookup(fqName: fqName) else {
-                return types.anyType
-            }
-            return types.make(.classType(ClassType(
-                classSymbol: symbol,
-                args: [invariant ? .invariant(elementType) : .out(elementType)],
-                nullability: .nonNull
-            )))
-        }
-
-        let listReturnType = nominalCollectionType([
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ], elementType: typeParamType)
 
         // random(): T
         registerSequenceMemberStub(
@@ -121,50 +96,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // takeLast(n: Int): List<T> (STDLIB-SEQ-FN-120)
-        registerSequenceMemberStub(
-            named: "takeLast",
-            externalLinkName: "kk_sequence_takeLast",
-            receiverType: receiverType,
-            parameters: [("n", types.intType)],
-            returnType: listReturnType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // takeLastWhile(predicate: (T) -> Boolean): List<T> (STDLIB-SEQ-FN-121)
-        registerSequenceMemberStub(
-            named: "takeLastWhile",
-            externalLinkName: "kk_sequence_takeLastWhile",
-            receiverType: receiverType,
-            parameters: [("predicate", predicateType)],
-            returnType: listReturnType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner,
-            canThrow: true
-        )
-
-        // reversed(): Sequence<T> (STDLIB-SEQ-FN-099)
-        registerSequenceMemberStub(
-            named: "reversed",
-            externalLinkName: "kk_sequence_reversed",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: receiverType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
     }
 
     func registerSequenceMemberStub(

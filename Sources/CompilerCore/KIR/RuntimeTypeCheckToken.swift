@@ -319,7 +319,7 @@ enum RuntimeTypeCheckToken {
         // primitives not yet covered by RuntimeTypeCategory.
         switch sema.types.kind(of: type) {
         case .nothing:
-            return "Nothing"
+            return "Void"
         case .primitive(.long, _):
             return PrimitiveType.long.kotlinName
         case .primitive(.char, _):
@@ -335,6 +335,9 @@ enum RuntimeTypeCheckToken {
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
+            }
+            if symbol.fqName == [interner.intern("kotlin"), interner.intern("Nothing")] {
+                return "Void"
             }
             return interner.resolve(symbol.name)
         default:
@@ -388,8 +391,14 @@ enum RuntimeTypeCheckToken {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if fqName == "kotlin.Nothing" {
+                return "java.lang.Void"
+            }
             return fqName.isEmpty ? nil : fqName
         case .unknown:
+            if case .nothing = sema.types.kind(of: type) {
+                return "java.lang.Void"
+            }
             return nil
         }
     }
