@@ -141,6 +141,42 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        // Comparing a statically non-null operand against `null` (`Nothing?`)
+        // is a constant: `==`/`===` are always false, `!=`/`!==` always true.
+        // Folding here also avoids the kk_op_eq/ne raw path, where a non-null
+        // Long/ULong/Double/Float whose bits equal the null sentinel (e.g.
+        // Long.MIN_VALUE produced by nullable flow narrowing) would compare
+        // equal to null.
+        if op == .equal || op == .notEqual || op == .identityEqual || op == .notIdentityEqual {
+            func isNullLiteralOperand(_ expr: ExprID) -> Bool {
+                guard let type = sema.bindings.exprTypes[expr],
+                      case let .nothing(nullability) = sema.types.kind(of: type)
+                else { return false }
+                return nullability != .nonNull
+            }
+            func isProvablyNonNullOperand(_ expr: ExprID, _ kirID: KIRExprID) -> Bool {
+                if let type = sema.bindings.exprTypes[expr],
+                   sema.types.nullability(of: type) == .nonNull
+                {
+                    return true
+                }
+                if let type = arena.exprType(kirID),
+                   sema.types.nullability(of: type) == .nonNull
+                {
+                    return true
+                }
+                return false
+            }
+            if (isNullLiteralOperand(rhs) && isProvablyNonNullOperand(lhs, lhsID))
+                || (isNullLiteralOperand(lhs) && isProvablyNonNullOperand(rhs, rhsID))
+            {
+                instructions.append(.constValue(
+                    result: result,
+                    value: .boolLiteral(op == .notEqual || op == .notIdentityEqual)
+                ))
+                return result
+            }
+        }
         // Sema's builtin context + path has no call binding. Emit the bridge
         // before try lowering so thrown overrides reach the enclosing catch.
         if op == .add,

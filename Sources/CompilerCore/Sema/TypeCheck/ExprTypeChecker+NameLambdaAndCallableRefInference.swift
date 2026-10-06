@@ -2862,13 +2862,22 @@ extension ExprTypeChecker {
             // (`supply(Box::value)` for a `() -> Int` parameter, receiver or
             // return-type mismatches) whose binaries then crashed at runtime
             // on invoke. On a mismatch keep the real inferred type so the
-            // caller's own subtype check reports the failure. Expected types
-            // still mentioning type parameters keep the trusted behavior —
-            // they belong to a generic signature whose type arguments are
-            // bound from this very argument. A non-`KPropertyN` inferred type
-            // means `kotlin.reflect` was unavailable; keep trusting then too.
-            if !sema.types.typeContainsAnyTypeParam(expectedType),
-               isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
+            // caller's own subtype check reports the failure. When the
+            // expected type still mentions type parameters (a generic call
+            // signature whose arguments are being inferred), returning the
+            // concrete `KMutablePropertyN`/`KPropertyN` type instead lets the
+            // argument constraint `KMutableProperty1<Box,Int> <: (T) -> R`
+            // actually bind `T`/`R` through the `FunctionN` supertype — the
+            // adopted `(T) -> R` would decompose to a vacuous self-constraint
+            // and leave `R` unbound. A non-`KPropertyN` inferred type means
+            // `kotlin.reflect` was unavailable; keep trusting then too.
+            if sema.types.typeContainsAnyTypeParam(expectedType) {
+                if isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner) {
+                    return inferredType
+                }
+                return expectedType
+            }
+            if isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
                !sema.types.isSubtype(inferredType, expectedType)
             {
                 return inferredType

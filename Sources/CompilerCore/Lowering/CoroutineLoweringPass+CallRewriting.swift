@@ -1690,6 +1690,28 @@ extension CoroutineLoweringPass {
         if call.callee == rewrite.createCoroutineCallee, hasRealDeclaration(call.symbol, in: rewrite.ctx) {
             return nil
         }
+        var call = call
+        // A marker call materialized from kklib carries its suspend-function
+        // argument as a `(fnPtr, context)` pair — one extra slot versus the
+        // source-level argument list. Strip the context slot so the rewrite
+        // sees the same shape either mode produces; the link-ABI fallback
+        // below re-adds it when the function cannot be resolved.
+        if (call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee
+                && call.arguments.count == 4)
+            || (call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
+                && call.arguments.count == 3)
+        {
+            call = CallRewriteInput(
+                instruction: call.instruction,
+                symbol: call.symbol,
+                callee: call.callee,
+                arguments: [call.arguments[0]] + call.arguments.dropFirst(2),
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult,
+                isSuperCall: call.isSuperCall
+            )
+        }
         guard call.callee == rewrite.createCoroutineUninterceptedCallee || call.callee == rewrite.createCoroutineCallee
                 || call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
                 || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee,
@@ -1782,6 +1804,26 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
+        var call = call
+        // See the normalization note in rewriteCreateCoroutineUninterceptedCall:
+        // kklib-serialized marker calls carry an extra context slot after the
+        // function argument.
+        if (call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee
+                && call.arguments.count == 4)
+            || (call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
+                && call.arguments.count == 3)
+        {
+            call = CallRewriteInput(
+                instruction: call.instruction,
+                symbol: call.symbol,
+                callee: call.callee,
+                arguments: [call.arguments[0]] + call.arguments.dropFirst(2),
+                result: call.result,
+                canThrow: call.canThrow,
+                thrownResult: call.thrownResult,
+                isSuperCall: call.isSuperCall
+            )
+        }
         guard call.callee == rewrite.startCoroutineUninterceptedOrReturnCallee
                 || call.callee == rewrite.startCoroutineUninterceptedOrReturnNoReceiverCallee
                 || call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee,
