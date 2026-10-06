@@ -406,7 +406,7 @@ extension BuildASTPhase {
                     }
                     if exprEnd != remaining.endIndex { break }
                 }
-                let exprTokens = remaining[exprStart ..< exprEnd].filter { $0.kind != .symbol(.semicolon) }
+                let exprTokens = Array(remaining[exprStart ..< exprEnd])
                 if !exprTokens.isEmpty {
                     let parser = ExpressionParser(
                         tokens: ArraySlice(exprTokens), interner: interner, astArena: astArena,
@@ -648,12 +648,15 @@ extension BuildASTPhase {
         for (position, start) in starts.enumerated() {
             let end = position + 1 < starts.count ? starts[position + 1] : items.count
             var headerTokens: [Token] = []
+            var accessorTokens: [Token] = []
             var firstBlock: NodeID?
             for item in items[start ..< end] {
                 switch item {
                 case let .token(token):
+                    accessorTokens.append(token)
                     if token.kind != .symbol(.semicolon) { headerTokens.append(token) }
                 case let .block(blockID):
+                    accessorTokens.append(contentsOf: collectTokens(from: blockID, in: arena))
                     if firstBlock == nil { firstBlock = blockID }
                 }
             }
@@ -672,7 +675,7 @@ extension BuildASTPhase {
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,
                 body: accessorBody(
-                    headerTokens: headerTokens, firstBlock: firstBlock,
+                    headerTokens: headerTokens, accessorTokens: accessorTokens, firstBlock: firstBlock,
                     in: arena, interner: interner, astArena: astArena
                 )
             )
@@ -697,26 +700,27 @@ extension BuildASTPhase {
             return nodeID
         }.first
         return accessorBody(
-            headerTokens: headerTokens, firstBlock: firstBlock,
+            headerTokens: headerTokens, accessorTokens: collectTokens(from: statementID, in: arena),
+            firstBlock: firstBlock,
             in: arena, interner: interner, astArena: astArena
         )
     }
 
     private func accessorBody(
         headerTokens: [Token],
+        accessorTokens: [Token],
         firstBlock: NodeID?,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
     ) -> FunctionBody {
-        // A block following `get() = call { ... }` is the call's trailing
-        // lambda, not a block-bodied getter. Parse it with the expression.
-        if let assignIndex = headerTokens.firstIndex(where: { $0.kind == .symbol(.assign) }) {
-            var exprTokens = Array(headerTokens[(assignIndex + 1)...])
-            if let trailingBlock = firstBlock {
-                exprTokens.append(contentsOf: collectTokens(from: trailingBlock, in: arena))
-            }
-            exprTokens.removeAll { $0.kind == .symbol(.semicolon) }
+        // Expression accessors can contain several trailing lambdas, separated
+        // by operators or calls. Keep every block in its original token order,
+        // including semicolons separating statements inside lambda bodies.
+        if headerTokens.contains(where: { $0.kind == .symbol(.assign) }),
+           let assignIndex = accessorTokens.firstIndex(where: { $0.kind == .symbol(.assign) })
+        {
+            let exprTokens = Array(accessorTokens[(assignIndex + 1)...])
             if let exprID = ExpressionParser(
                 tokens: ArraySlice(exprTokens), interner: interner,
                 astArena: astArena, diagnostics: diagnostics
