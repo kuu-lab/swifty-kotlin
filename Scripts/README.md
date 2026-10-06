@@ -166,13 +166,24 @@ Run all tracked regression cases:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-For coroutine/Flow cases, `diff_kotlinc.sh` can automatically download
-`kotlinx-coroutines-core-jvm` when needed (if no `--kotlinc-classpath` is
-set).  
+`diff_kotlinc.sh` detects imports in the target file or recursively in a target
+directory and downloads JVM reference jars from Maven Central:
+
+| Import | Artifact | Default version |
+|---|---|---|
+| `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.10.2 |
+| `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.1 |
+| `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
+
+Cases importing both coroutines and io receive both dependencies. This import
+detection is the equivalent of a `requires_kotlinx_io` header; no extra header
+is needed. An explicit `--kotlinc-classpath` / `KOTLINC_CLASSPATH` bypasses all
+automatic downloads, so supply every required jar in that classpath.
 You can control the cached path and version with:
 
 ```bash
 export KOTLINC_COROUTINES_VERSION=1.10.2
+export KOTLINC_KOTLINX_IO_VERSION=0.9.1
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
 ```
 
@@ -181,7 +192,14 @@ the script, also set:
 
 ```bash
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
+export KOTLINC_KOTLINX_IO_SHA256=<expected sha256 of the io core jar>
+export KOTLINC_KOTLINX_IO_BYTESTRING_SHA256=<expected sha256 of the bytestring jar>
 ```
+
+Override individual cached paths with `KOTLINC_COROUTINES_JAR`,
+`KOTLINC_KOTLINX_IO_JAR`, and `KOTLINC_KOTLINX_IO_BYTESTRING_JAR`.
+Run `bash Scripts/test_diff_kotlinc_dependencies.sh` to check dependency
+selection without downloading jars or building the compiler.
 
 Successful non-script reference compilations are reused across runs via
 `KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a

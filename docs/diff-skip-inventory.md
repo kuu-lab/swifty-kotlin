@@ -122,6 +122,11 @@ Owner: continuation-aware callable-value ABI / coroutine lowering. Restore the d
 
 `Scripts/diff_kotlinc.sh` は `kotlinx.coroutines` import を検出して `kotlinx-coroutines-core-jvm` を取得できるため、現在の skip 主因は reference classpath ではなく KSwiftK 側の API / runtime parity である。
 
+KSP-1586（2026-10-06）: `flow_error_handling.kt` は既に `SKIP-DIFF` なしで通常の
+coroutines import 検出経路に入る。`onCompletion` は成功時の callback を含む有限 flow
+で確認するケースであり、throw する upstream の catch / retry 全体の検証とは区別する。
+この配線整理ではケースを書き換えず、解除済みの記録を維持する。
+
 | 領域 | cases | owner |
 | --- | --- | --- |
 | lazy/deferred coroutine start (`CoroutineStart.LAZY`)（解除済み） | ~~`coroutine_edge_cases.kt`~~ | 2026-08-13 に `CoroutineStart` 型・`launch(start:, block:)` / `async(start:, block:)` オーバーロード・`RuntimeJobHandle` genuine lazy state・`yield()` 実装を追加し、`--force-run-skipped` / 通常 `diff_kotlinc.sh` で `PASS` を確認。詳細は下記「`coroutine_edge_cases.kt` 個別メモ」を参照 |

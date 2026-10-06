@@ -885,6 +885,35 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 10. **粒度**: 1 タスク = 1 PR。目安「削除対象 kk_* ≤ 15・単一責務・golden 更新1回」。
     超えると判明したら枝番でなく新番号で分割する。
 
+### kotlinx-io / kotlinx-coroutines の追加方針（KSP-1586）
+
+`Stdlib/kotlinx/io/` と `Stdlib/kotlinx/coroutines/` も通常の bundled source として
+辞書順に注入される。`BundledStdlibOrderingTests.testKotlinxBundledFilenamesAreInjected`
+で io core / bytestring / files / unsafe、coroutines core / channels / flow / selects /
+sync / test のファイル名を明示的に固定する。これはリソース配線の確認であり、各 API の
+実装完了や本家との挙動一致は個別の実装チケットで検証する。
+
+- **expect → 直接宣言**: 単一ターゲットなので `expect`/`actual` の対は対象 platform の
+  本体を持つ通常の宣言へ置換する。例: io の `-CommonPlatform.kt` の例外クラス、
+  `Core.kt` の POSIX 改行、`SegmentPool.kt` の native no-op pool。
+- **sealed → plain interface**: これは一律変換ではない。io の `Source` / `Sink` は
+  現在も sealed interface を維持する。`SharedFlow` / `StateFlow` など plain interface
+  として提供する面は、sealed の継承制限や exhaustive `when` まで本家同等とは扱わない。
+- **Any 契約**: `equals(Any?)` / `hashCode()` / `toString()` は本家の型・値契約を保つ
+  （例: `ByteString` の内容比較）。既存の `Job.cancel(cause: Any?)` /
+  `completeExceptionally(Any?)` のような広い bridge 契約は、型付き upstream 契約との
+  差として扱い、宣言が存在するだけで本家一致を計上しない。
+- **縮退意味論**: 実装ファイルと台帳に具体的な差を記録する。現在の SharedFlow /
+  StateFlow の `collect` は有限 snapshot、`limitedParallelism` は検証後に同じ dispatcher
+  を返す。coroutines-test は実時間の blocking loop を使い、仮想時計の実行メソッドは
+  no-op、`runTest` の timeout は未強制。これらを完全な scheduler 対応として報告しない。
+
+JVM diff oracle の jar 選択は import 検出で行う（`requires_kotlinx_io` 相当）。
+io 0.9.1 / coroutines 1.10.2 の取得・checksum・手動 classpath の設定は
+[`Scripts/README.md`](../Scripts/README.md) を参照。`kotlinx.coroutines.test` は core jar
+だけでは提供されないため、test artifact が必要な reference ケースは手動 classpath で
+依存一式を供給する。縮退 API を使うケースは candidate-only テストで範囲を固定する。
+
 ### 構造逸脱台帳（§13-8）
 
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
