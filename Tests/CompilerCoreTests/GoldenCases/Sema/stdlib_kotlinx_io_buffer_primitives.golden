@@ -1,0 +1,76 @@
+symbol fq=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture] kind=local vis=private flags=_ type=kotlinx.io.Sink
+symbol fq=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture] kind=local vis=private flags=_ type=kotlinx.io.Source
+symbol fq=primitives.$0.buffer[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=primitives[kind=fun;params=kotlinx.io.Buffer;ret=Long;names=[buffer];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.io.Buffer] ret=Long
+file fstdlib_kotlinx_io_buffer_primitives package=_
+  decl primitives[kind=fun;params=kotlinx.io.Buffer;ret=Long;names=[buffer];origin=fixture] fun primitives sym=primitives[kind=fun;params=kotlinx.io.Buffer;ret=Long;names=[buffer];origin=fixture]
+expr e@6:22 name(buffer) type=kotlinx.io.Buffer ref=primitives.$0.buffer[kind=vparam;origin=fixture]
+expr e@6:5 localDecl sink mutable=0 type=Sink init=e@6:22 type=Unit ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@7:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@7:20 int(1) type=Byte
+expr e@7:5#1 memberCall recv=e@7:5 callee=writeByte args=[_:e@7:20] type=Unit call=kotlinx.io.Sink.writeByte[kind=fun;recv=kotlinx.io.Sink;params=Byte;ret=Unit;names=[byte]]
+expr e@8:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@8:21 int(2) type=Short
+expr e@8:5#1 memberCall recv=e@8:5 callee=writeShort args=[_:e@8:21] type=Unit call=kotlinx.io.Sink.writeShort[kind=fun;recv=kotlinx.io.Sink;params=Short;ret=Unit;names=[short]]
+expr e@9:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@9:19 int(3) type=Int
+expr e@9:5#1 memberCall recv=e@9:5 callee=writeInt args=[_:e@9:19] type=Unit call=kotlinx.io.Sink.writeInt[kind=fun;recv=kotlinx.io.Sink;params=Int;ret=Unit;names=[int]]
+expr e@10:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@10:20 long(4) type=Long
+expr e@10:5#1 memberCall recv=e@10:5 callee=writeLong args=[_:e@10:20] type=Unit call=kotlinx.io.Sink.writeLong[kind=fun;recv=kotlinx.io.Sink;params=Long;ret=Unit;names=[long]]
+expr e@11:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@11:28 int(5) type=Byte
+expr e@11:31 int(6) type=Byte
+expr e@11:16 call callee=e@11:16#1 args=[_:e@11:28,_:e@11:31] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte;ret=kotlin.ByteArray;vararg=[1];names=[elements]]
+expr e@11:35 int(0) type=Int
+expr e@11:38 int(2) type=Int
+expr e@11:5#1 memberCall recv=e@11:5 callee=write args=[_:e@11:16,_:e@11:35,_:e@11:38] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray,Int,Int;ret=Unit;defaults=[0,1,1];names=[source,startIndex,endIndex]]
+expr e@12:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@12:28 int(7) type=Byte
+expr e@12:31 int(8) type=Byte
+expr e@12:16 call callee=e@12:16#1 args=[_:e@12:28,_:e@12:31] type=kotlin.ByteArray call=kotlin.byteArrayOf[kind=fun;params=*Byte;ret=kotlin.ByteArray;vararg=[1];names=[elements]]
+expr e@12:5#1 memberCall recv=e@12:5 callee=write args=[_:e@12:16] type=Unit call=kotlinx.io.Sink.write[kind=fun;recv=kotlinx.io.Sink;params=kotlin.ByteArray;ret=Unit;names=[source]]
+expr e@13:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@13:5#1 memberCall recv=e@13:5 callee=hintEmit args=[] type=Unit call=kotlinx.io.Sink.hintEmit[kind=fun;recv=kotlinx.io.Sink;params=;ret=Unit]
+expr e@14:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@14:5#1 memberCall recv=e@14:5 callee=emit args=[] type=Unit call=kotlinx.io.Sink.emit[kind=fun;recv=kotlinx.io.Sink;params=;ret=Unit]
+expr e@15:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@15:5#1 memberCall recv=e@15:5 callee=flush args=[] type=Unit call=kotlinx.io.Sink.flush[kind=fun;recv=kotlinx.io.Sink;params=;ret=Unit]
+expr e@16:26 name(buffer) type=kotlinx.io.Buffer ref=primitives.$0.buffer[kind=vparam;origin=fixture]
+expr e@16:5 localDecl source mutable=0 type=Source init=e@16:26 type=Unit ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@17:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@17:20 long(1) type=Long
+expr e@17:5#1 memberCall recv=e@17:5 callee=require args=[_:e@17:20] type=Unit call=kotlinx.io.Source.require[kind=fun;recv=kotlinx.io.Source;params=Long;ret=Unit;names=[byteCount]]
+expr e@18:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@18:20 long(2) type=Long
+expr e@18:5#1 memberCall recv=e@18:5 callee=request args=[_:e@18:20] type=Boolean call=kotlinx.io.Source.request[kind=fun;recv=kotlinx.io.Source;params=Long;ret=Boolean;names=[byteCount]]
+expr e@19:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@19:5#1 memberCall recv=e@19:5 callee=readByte args=[] type=Byte call=kotlinx.io.Source.readByte[kind=fun;recv=kotlinx.io.Source;params=;ret=Byte]
+expr e@20:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@20:5#1 memberCall recv=e@20:5 callee=readShort args=[] type=Short call=kotlinx.io.Source.readShort[kind=fun;recv=kotlinx.io.Source;params=;ret=Short]
+expr e@21:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@21:5#1 memberCall recv=e@21:5 callee=readInt args=[] type=Int call=kotlinx.io.Source.readInt[kind=fun;recv=kotlinx.io.Source;params=;ret=Int]
+expr e@22:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@22:5#1 memberCall recv=e@22:5 callee=readLong args=[] type=Long call=kotlinx.io.Source.readLong[kind=fun;recv=kotlinx.io.Source;params=;ret=Long]
+expr e@23:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@23:17 long(1) type=Long
+expr e@23:5#1 memberCall recv=e@23:5 callee=skip args=[_:e@23:17] type=Unit call=kotlinx.io.Source.skip[kind=fun;recv=kotlinx.io.Source;params=Long;ret=Unit;names=[byteCount]]
+expr e@24:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@24:35 int(1) type=Int
+expr e@24:25 call callee=e@24:25#1 args=[_:e@24:35] type=kotlin.ByteArray
+expr e@24:39 int(0) type=Int
+expr e@24:42 int(1) type=Int
+expr e@24:5#1 memberCall recv=e@24:5 callee=readAtMostTo args=[_:e@24:25,_:e@24:39,_:e@24:42] type=Int call=kotlinx.io.Source.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int;ret=Int;defaults=[0,1,1];names=[sink,startIndex,endIndex]]
+expr e@25:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@25:35 int(1) type=Int
+expr e@25:25 call callee=e@25:25#1 args=[_:e@25:35] type=kotlin.ByteArray
+expr e@25:5#1 memberCall recv=e@25:5 callee=readAtMostTo args=[_:e@25:25] type=Int call=kotlinx.io.Source.readAtMostTo[kind=fun;recv=kotlinx.io.Source;params=kotlin.ByteArray,Int,Int;ret=Int;defaults=[0,1,1];names=[sink,startIndex,endIndex]]
+expr e@26:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@26:5#1 memberCall recv=e@26:5 callee=exhausted args=[] type=Boolean call=kotlinx.io.Source.exhausted[kind=fun;recv=kotlinx.io.Source;params=;ret=Boolean]
+expr e@27:5 name(source) type=kotlinx.io.Source ref=__local_1.source[kind=local;type=kotlinx.io.Source;origin=fixture]
+expr e@27:5#1 memberCall recv=e@27:5 callee=buffer args=[] type=kotlinx.io.Buffer ref=kotlinx.io.Source.buffer[kind=prop;type=kotlinx.io.Buffer]
+expr e@28:5 name(sink) type=kotlinx.io.Sink ref=__local_0.sink[kind=local;type=kotlinx.io.Sink;origin=fixture]
+expr e@28:5#1 memberCall recv=e@28:5 callee=buffer args=[] type=kotlinx.io.Buffer ref=kotlinx.io.Sink.buffer[kind=prop;type=kotlinx.io.Buffer]
+expr e@29:12 name(buffer) type=kotlinx.io.Buffer ref=primitives.$0.buffer[kind=vparam;origin=fixture]
+expr e@29:12#1 memberCall recv=e@29:12 callee=size args=[] type=Long ref=kotlinx.io.Buffer.size[kind=prop;type=Long]
+expr e@29:5 return value=e@29:12#1 type=Nothing

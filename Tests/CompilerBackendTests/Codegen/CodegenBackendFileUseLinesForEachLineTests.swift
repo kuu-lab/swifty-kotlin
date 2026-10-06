@@ -50,6 +50,29 @@ struct CodegenBackendFileUseLinesForEachLineTests {
     }
 
     @Test
+    func testCodegenFileUseLinesListResultMemberAccess() throws {
+        let tmpPath = "/tmp/kswiftk_file_uselines_list_result_codegen.txt"
+        try "alpha\nbeta\ngamma".write(toFile: tmpPath, atomically: true, encoding: .utf8)
+
+        let source = """
+        import java.io.File
+
+        fun main() {
+            val file = File("\(tmpPath)")
+            val collected = file.useLines { it.toList() }
+            println(collected.size)
+            println(collected.first())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "FileUseLinesListResultMemberAccess",
+            expected: "3\nalpha\n"
+        )
+    }
+
+    @Test
     func testCodegenFileForEachLine() throws {
         let tmpPath = "/tmp/kswiftk_file_foreachline_codegen.txt"
         try "one\ntwo\nthree".write(toFile: tmpPath, atomically: true, encoding: .utf8)

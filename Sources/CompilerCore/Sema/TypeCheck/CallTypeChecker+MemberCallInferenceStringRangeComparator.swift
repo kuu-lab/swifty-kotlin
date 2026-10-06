@@ -76,8 +76,7 @@ extension CallTypeChecker {
         if args.count == 1 {
             let stringHOFCalleeStr = interner.resolve(calleeName)
             let isStringHOFReceiver = sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType)
-                || ((stringHOFCalleeStr == "ifBlank" || stringHOFCalleeStr == "ifEmpty" || stringHOFCalleeStr == "zipWithNext"
-                    || stringHOFCalleeStr == "onEach" || stringHOFCalleeStr == "onEachIndexed")
+                || (stringHOFCalleeStr == "zipWithNext"
                     && isSyntheticStringLikeType(stringHOFReceiverType, sema: sema))
             if isStringHOFReceiver,
                [
@@ -86,9 +85,6 @@ extension CallTypeChecker {
                    "takeWhile", "dropWhile",
                    "trim", "trimStart", "trimEnd",
                    "zipWithNext",
-                   "onEach", "onEachIndexed",
-                   "ifBlank",
-                   "ifEmpty",
                ].contains(stringHOFCalleeStr)
             {
                 let charType = sema.types.make(.primitive(.char, .nonNull))
@@ -101,14 +97,14 @@ extension CallTypeChecker {
                     case "map":
                         sema.types.make(.functionType(FunctionType(
                             params: [charType],
-                            returnType: sema.types.anyType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
                     case "mapIndexed":
                         sema.types.make(.functionType(FunctionType(
                             params: [intType, charType],
-                            returnType: sema.types.anyType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -122,28 +118,7 @@ extension CallTypeChecker {
                     case "zipWithNext":
                         sema.types.make(.functionType(FunctionType(
                             params: [charType, charType],
-                            returnType: sema.types.anyType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "onEach":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [charType],
-                            returnType: sema.types.unitType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "onEachIndexed":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [intType, charType],
-                            returnType: sema.types.unitType,
-                            isSuspend: false,
-                            nullability: .nonNull
-                        )))
-                    case "ifBlank", "ifEmpty":
-                        sema.types.make(.functionType(FunctionType(
-                            params: [],
-                            returnType: sema.types.stringType,
+                            returnType: sema.types.nullableAnyType,
                             isSuspend: false,
                             nullability: .nonNull
                         )))
@@ -252,9 +227,7 @@ extension CallTypeChecker {
                 case "takeWhile", "dropWhile",
                      "trim", "trimStart", "trimEnd": sema.types.stringType
                 case "map", "mapIndexed", "mapNotNull": sema.types.anyType
-                case "onEach", "onEachIndexed": sema.types.stringType
                 case "splitToSequence": sequenceStringType
-                case "ifBlank", "ifEmpty": sema.types.stringType
                 default: sema.types.anyType
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -307,7 +280,7 @@ extension CallTypeChecker {
                 case "thenBy", "thenByDescending":
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [comparatorElementType],
-                        returnType: sema.types.anyType,
+                        returnType: sema.types.nullableAnyType,
                         isSuspend: false,
                         nullability: .nonNull
                     )))

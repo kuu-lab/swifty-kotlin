@@ -1,5 +1,10 @@
 extension KotlinParser {
     func parseDeclaration() -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: true)
+        }
+        defer { leaveNesting() }
+
         var modifierChildren: [SyntaxChild] = []
         var modifierRange = RangeAccumulator()
         if case .softKeyword(.context) = stream.peek().kind {
@@ -179,6 +184,19 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        // Parenthesized receiver type: `fun (() -> R).name()`,
+        // `fun <R> (suspend () -> R).name()`, `fun (A.() -> Unit)?.name()`.
+        // The group is followed by `.` / `?.` (optionally after `?`), which
+        // distinguishes it from a value-parameter list.
+        if case .symbol(.lParen) = stream.peek().kind, parenthesizedReceiverPrecedesFunctionName() {
+            let receiverGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(receiverGroup))
+            range.append(childRange(.node(receiverGroup)))
+            if case .symbol(.question) = stream.peek().kind {
+                _ = consumeToken(into: &children, range: &range)
+            }
+            _ = consumeToken(into: &children, range: &range) // `.` or `?.`
+        }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else {
@@ -196,13 +214,29 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
         }
 
         return arena.appendNode(
             kind: .funDecl,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    /// Lookahead for `fun (Type).name(`: a parenthesized receiver group that is
+    /// followed by `.` / `?.` (optionally after a `?` nullability marker), as
+    /// opposed to the `(` that opens a value-parameter list.
+    private func parenthesizedReceiverPrecedesFunctionName() -> Bool {
+        var offset = offsetPastBalancedGroup(from: 0, open: .symbol(.lParen), close: .symbol(.rParen))
+        if stream.peek(offset).kind == .symbol(.question) {
+            offset += 1
+        }
+        switch stream.peek(offset).kind {
+        case .symbol(.dot), .symbol(.questionDot):
+            return true
+        default:
+            return false
+        }
     }
 
     func parsePropertyDeclaration(
@@ -227,7 +261,7 @@ extension KotlinParser {
             children.append(.node(body))
             range.append(childRange(.node(body)))
         } else {
-            parseTail(inBlock: false, into: &children, range: &range)
+            parseTail(inBlock: false, into: &children, range: &range, allowsDeclarationAssignment: true)
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
@@ -253,6 +287,7 @@ extension KotlinParser {
         var accessorChildren: [SyntaxChild] = []
         var accessorRange = RangeAccumulator()
 
+        parseLeadingDeclarationPrefix(into: &accessorChildren, range: &accessorRange)
         parseTail(inBlock: false, into: &accessorChildren, range: &accessorRange)
 
         let accessorNodeRange = accessorRange.value ?? invalidRange
@@ -363,6 +398,10 @@ extension KotlinParser {
             return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
         }
 
+        // The first top-level `;` ends the entry list; anything after it is a
+        // class member. Without this, an identifier-like soft keyword such as
+        // `init` in `A, B; init { ... }` was parsed as a third enum entry.
+        var entryListEnded = false
         while !stream.atEOF() {
             let token = stream.peek()
             if case .symbol(.rBrace) = token.kind {
@@ -374,11 +413,16 @@ extension KotlinParser {
                 children.append(.node(parseDeclaration()))
                 continue
             }
-            if isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations() {
+            if !entryListEnded,
+               isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations()
+            {
                 children.append(.node(parseEnumEntryDeclaration()))
                 continue
             }
             if token.kind == .symbol(.comma) || token.kind == .symbol(.semicolon) {
+                if token.kind == .symbol(.semicolon) {
+                    entryListEnded = true
+                }
                 _ = consumeToken(into: &children, range: &range)
                 continue
             }
@@ -561,7 +605,7 @@ extension KotlinParser {
             if case .symbol(.rBrace) = token.kind, parenDepth == 0 { break }
             if case .symbol(.lBrace) = token.kind, parenDepth == 0 { break }
             if hasLeadingNewline(token), parenDepth == 0, !children.isEmpty, token.kind != .symbol(.colon), token.kind != .keyword(.this), token.kind != .keyword(.super) { break }
-            if case .symbol(.semicolon) = token.kind {
+            if case .symbol(.semicolon) = token.kind, parenDepth == 0 {
                 _ = consumeToken(into: &children, range: &range)
                 break
             }

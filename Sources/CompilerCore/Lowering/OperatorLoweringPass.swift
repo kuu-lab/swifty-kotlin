@@ -1,6 +1,8 @@
 
 final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "OperatorLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         _ = ctx
@@ -22,7 +24,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
                     lowerBinaryInstruction(
                         op: op, lhs: lhs, rhs: rhs, result: result,
                         arena: module.arena, interner: ctx.interner,
-                        types: ctx.sema?.types, newBody: &newBody
+                        types: ctx.sema?.types, symbols: ctx.sema?.symbols, newBody: &newBody
                     )
                 case let .unary(op, operand, result):
                     let callee: InternedString = switch op {
@@ -124,19 +126,117 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
+        symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) {
-        // STDLIB-CORO-077: CoroutineContext + operator -> kk_context_plus
+        // Preserve source overrides for CoroutineContext's + operator.
         if op == .add, isCoroutineContextType(lhs, arena: arena, types: types, interner: interner)
             || isCoroutineContextType(rhs, arena: arena, types: types, interner: interner)
         {
-            let callee = interner.intern("kk_context_plus")
-            newBody.append(.call(symbol: nil, callee: callee, arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil))
+            let callee = interner.intern("__kk_context_plus_dispatch")
+            newBody.append(.call(symbol: nil, callee: callee, arguments: [lhs, rhs], result: result, canThrow: true, thrownResult: nil))
             return
         }
 
-        let lhsRank = primitiveRank(for: lhs, arena: arena, types: types)
-        let rhsRank = primitiveRank(for: rhs, arena: arena, types: types)
+        // A nullable `Long?`/`ULong?`/`Double?`/`Float?` operand in `==`/`!=`
+        // needs a null check that does not guess from the raw bits: those are
+        // the only primitives whose full raw (unboxed, never-boxed) value
+        // range coincides with the runtime null sentinel (`Long.MIN_VALUE`,
+        // `ULong` `2^63`, `-0.0`'s bit pattern), so kk_structural_eq/ne's
+        // "raw value equals the sentinel implies null" heuristic cannot tell
+        // a genuine null apart from a genuine value that happens to share
+        // that bit pattern. kk_nullable_primitive_eq/ne instead determines
+        // nullness from each statically-nullable operand's own boxing state
+        // (a nullable primitive is null iff it is not a registered boxed
+        // handle — see needsBoxingForCopy), which this pass can resolve now
+        // from static types but a pure runtime function operating on raw
+        // Ints alone cannot recover later. Int?/Boolean?/Char?/UInt?/UByte?/
+        // UShort? don't have this ambiguity (their raw range never reaches
+        // the sentinel), so they keep using the cheaper kk_structural_eq/ne
+        // below via needsStructuralEquality.
+        if op == .equal || op == .notEqual {
+            let sentinelCollidingKinds: Set<PrimitiveType> = [.long, .ulong, .double, .float]
+            let lhsNullableKind = nullablePrimitiveKind(lhs, arena: arena, types: types)
+            let rhsNullableKind = nullablePrimitiveKind(rhs, arena: arena, types: types)
+            let lhsNeedsSentinelSafeCompare = (lhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
+                || isNullableSentinelCollidingValueClass(lhs, arena: arena, types: types, symbols: symbols)
+            let rhsNeedsSentinelSafeCompare = (rhsNullableKind.map(sentinelCollidingKinds.contains) ?? false)
+                || isNullableSentinelCollidingValueClass(rhs, arena: arena, types: types, symbols: symbols)
+            if lhsNeedsSentinelSafeCompare || rhsNeedsSentinelSafeCompare {
+                let nullableSide: KIRExprID
+                let peerSide: KIRExprID
+                // peerIsNullable must mean "the peer's static type admits null
+                // at runtime" — not "the peer is a nullable primitive". A
+                // `null` literal is `Nothing?`, and the peer can also be
+                // `Any?`/a nullable reference/`T?`; all of those hold either
+                // the null sentinel or a registered heap handle, so the
+                // runtime may check their nullness through the object-pointer
+                // registry just like the nullable side. Restricting the flag
+                // to nullable primitives would mark a `null` literal
+                // "provably non-null" and turn `null == null` into false.
+                let peerIsNullable: Bool
+                if lhsNeedsSentinelSafeCompare {
+                    nullableSide = lhs
+                    peerSide = rhs
+                    peerIsNullable = isNullableOrPlatform(rhs, arena: arena, types: types)
+                } else {
+                    nullableSide = rhs
+                    peerSide = lhs
+                    peerIsNullable = isNullableOrPlatform(lhs, arena: arena, types: types)
+                }
+                let intType = types?.make(.primitive(.int, .nonNull))
+                // The flag encodes the peer's nature, not just nullability:
+                //   0 — provably non-null, non-floating peer: structural/value
+                //       compare (runtimeNonNullValuesEqual).
+                //   1 — peer may hold null and is not a floating-point
+                //       primitive: sentinel-check then structural compare.
+                //   2/3 — provably non-null raw Double/Float word.
+                //   4/5 — a Double?/Float? slot (sentinel still means null).
+                // For 2-5 Kotlin `==`/`!=` is IEEE-754 once nullness is ruled
+                // out (`-0.0 == 0.0`, `NaN != NaN`) — not the boxed `equals`
+                // bit-pattern compare runtimeNonNullValuesEqual applies.
+                let flagValue: Int64 = {
+                    if peerIsNullable {
+                        switch nullablePrimitiveKind(peerSide, arena: arena, types: types) {
+                        case .double: return 4
+                        case .float: return 5
+                        default: return 1
+                        }
+                    }
+                    switch nonNullPrimitiveKind(peerSide, arena: arena, types: types) {
+                    case .double: return 2
+                    case .float: return 3
+                    default: return 0
+                    }
+                }()
+                let flagExpr = arena.appendExpr(.intLiteral(flagValue), type: intType)
+                newBody.append(.constValue(result: flagExpr, value: .intLiteral(flagValue)))
+                let callee = interner.intern(op == .equal ? "kk_nullable_primitive_eq" : "kk_nullable_primitive_ne")
+                newBody.append(.call(
+                    symbol: nil, callee: callee, arguments: [nullableSide, peerSide, flagExpr],
+                    result: result, canThrow: false, thrownResult: nil
+                ))
+                return
+            }
+        }
+
+        // For == / != where either operand is a reference type (Any, class
+        // type, type param, String) or a remaining nullable primitive
+        // (`Boolean?`/`Int?`/`Char?`/...), equality must go through
+        // Any.equals / structural comparison, never the numeric fast path
+        // below -- even when the *other* operand is statically Double/Float
+        // (e.g. `anyValue == 3.0`). Computing this before the rank-based
+        // widening, and forcing rank to 0 when it applies, keeps the
+        // reference-typed operand's raw representation (a boxed pointer, or
+        // the null sentinel) from being reinterpreted as numeric bits.
+        // Nullable primitives also cannot use kk_op_eq/ne: ABI unbox of a
+        // null sentinel maps to 0 and would collapse `null == false`.
+        let needsStructuralEquality = (op == .equal || op == .notEqual)
+            && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types)
+                || isNullablePrimitive(lhs, arena: arena, types: types) || isNullablePrimitive(rhs, arena: arena, types: types))
+
+        let lhsRank = needsStructuralEquality ? 0 : primitiveRank(for: lhs, arena: arena, types: types)
+        let rhsRank = needsStructuralEquality ? 0 : primitiveRank(for: rhs, arena: arena, types: types)
         let rank = max(lhsRank, rhsRank)
         let isUnsigned = isUnsignedOperand(lhs, arena: arena, types: types)
             || isUnsignedOperand(rhs, arena: arena, types: types)
@@ -148,15 +248,16 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         var effectiveLhs = lhs
         var effectiveRhs = rhs
         if rank > 0 {
+            let convertedType = widenedPrimitiveType(rank: rank, types: types)
             if lhsRank < rank {
                 let convCallee = conversionCallee(fromRank: lhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendTemporary(type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: convertedType)
                 emitNonThrowingCall(callee: convCallee, arg: lhs, result: converted, into: &newBody)
                 effectiveLhs = converted
             }
             if rhsRank < rank {
                 let convCallee = conversionCallee(fromRank: rhsRank, toRank: rank, interner: interner)
-                let converted = arena.appendTemporary(type: arena.exprType(result))
+                let converted = arena.appendTemporary(type: convertedType)
                 emitNonThrowingCall(callee: convCallee, arg: rhs, result: converted, into: &newBody)
                 effectiveRhs = converted
             }
@@ -165,9 +266,6 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         let useUnsignedRank0 = isUnsigned && rank == 0
         let divModCmpPrefix = useUnsignedRank0 ? "u" : prefix
         let divModOp = useUnsignedRank0 ? "rem" : "mod" // unsigned uses urem (LLVM), signed uses mod
-        // For == / != on non-primitive reference types, use structural equality
-        let needsStructuralEquality = (op == .equal || op == .notEqual) && rank == 0
-            && (isReferenceType(lhs, arena: arena, types: types) || isReferenceType(rhs, arena: arena, types: types))
         let callee: InternedString = switch op {
         case .add: interner.intern("kk_op_\(prefix)add")
         case .subtract: interner.intern("kk_op_\(prefix)sub")
@@ -184,6 +282,59 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         case .logicalOr: interner.intern("kk_op_or")
         }
         newBody.append(.call(symbol: nil, callee: callee, arguments: [effectiveLhs, effectiveRhs], result: result, canThrow: false, thrownResult: nil))
+    }
+
+    /// Returns true when the expression's static type is a nullable primitive
+    /// (`Boolean?`, `Int?`, `Char?`, ...). Its raw representation may be the
+    /// runtime null sentinel or a boxed pointer, neither of which kk_op_eq/ne
+    /// can compare directly against a non-null peer's raw value.
+    private func isNullablePrimitive(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
+        nullablePrimitiveKind(exprID, arena: arena, types: types) != nil
+    }
+
+    /// The expression's static primitive kind, if its type is a nullable
+    /// primitive (`Boolean?`, `Int?`, `Char?`, `Long?`, ...); `nil` otherwise.
+    private func nullablePrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
+        guard let types, let typeID = arena.exprType(exprID) else { return nil }
+        if case let .primitive(primitiveType, .nullable) = types.kind(of: typeID) {
+            return primitiveType
+        }
+        return nil
+    }
+
+    private func isNullableSentinelCollidingValueClass(
+        _ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?, symbols: SymbolTable?
+    ) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID),
+              case let .classType(classType) = types.kind(of: typeID),
+              classType.nullability != .nonNull,
+              symbols?.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
+              case let .primitive(primitive, .nonNull) = resolveValueClassKind(
+                  types.kind(of: types.makeNonNullable(typeID)), types: types, symbols: symbols
+              )
+        else { return false }
+        return primitive.rawValueCollidesWithNullSentinel
+    }
+
+    /// The expression's static primitive kind, if its type is a non-null
+    /// primitive (`Double`, `Float`, `Long`, ...); `nil` otherwise.
+    private func nonNullPrimitiveKind(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> PrimitiveType? {
+        guard let types, let typeID = arena.exprType(exprID) else { return nil }
+        if case let .primitive(primitiveType, .nonNull) = types.kind(of: typeID) {
+            return primitiveType
+        }
+        return nil
+    }
+
+    /// True when the expression's static type may hold null at runtime
+    /// (`.nullable` or `.platformType`). Any such value is represented as
+    /// either the null sentinel or a registered heap handle, so
+    /// `kk_nullable_primitive_eq/ne` can determine its nullness via the
+    /// object-pointer registry regardless of the specific type kind
+    /// (`Nothing?` null literals, `Any?`, nullable references, `T?`).
+    private func isNullableOrPlatform(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
+        guard let types, let typeID = arena.exprType(exprID) else { return false }
+        return types.nullability(of: typeID) != .nonNull
     }
 
     /// Returns true when the expression is a reference type that requires structural
@@ -244,6 +395,20 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return true
         default:
             return false
+        }
+    }
+
+    /// The primitive type a rank-0/1 operand is converted to when widened to
+    /// match the other operand's rank (see `primitiveRank`). Used as the KIR
+    /// type of the conversion call's result -- must not be the comparison's
+    /// own Boolean result type, or later ABI lowering misreads the widened
+    /// numeric value as a boxed Boolean needing its own unboxing.
+    private func widenedPrimitiveType(rank: Int, types: TypeSystem?) -> TypeID? {
+        guard let types else { return nil }
+        switch rank {
+        case 2: return types.make(.primitive(.double, .nonNull))
+        case 1: return types.make(.primitive(.float, .nonNull))
+        default: return nil
         }
     }
 

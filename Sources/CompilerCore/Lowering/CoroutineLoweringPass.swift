@@ -2,6 +2,8 @@
 final class CoroutineLoweringPass: LoweringPass {
     /// Internal visibility is required for cross-file extension decomposition
     static let name = "CoroutineLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     typealias LoweredSuspendFunction = (name: InternedString, symbol: SymbolID)
 
@@ -28,6 +30,8 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("withTimeout"),
             ctx.interner.intern("withTimeoutOrNull"),
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
+            ctx.interner.intern("kk_await_cancellation"),
             ctx.interner.intern("flow"),
             ctx.interner.intern("channelFlow"),
             ctx.interner.intern("callbackFlow"),
@@ -56,6 +60,9 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_flow_create"),
             ctx.interner.intern("kk_channel_flow_create"),
             ctx.interner.intern("kk_callback_flow_create"),
@@ -71,6 +78,7 @@ final class CoroutineLoweringPass: LoweringPass {
 
         let anyType = ctx.sema?.types.nullableAnyType ?? ctx.sema?.types.anyType
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
+        let longType = ctx.sema?.types.make(.primitive(.long, .nonNull))
         let unitType = ctx.sema?.types.unitType
         let sequenceClassSymbol = ctx.sema?.symbols.lookup(fqName: [
             ctx.interner.intern("kotlin"),
@@ -91,6 +99,10 @@ final class CoroutineLoweringPass: LoweringPass {
         let createCoroutineCallee = ctx.interner.intern("createCoroutine")
         let createCoroutineUninterceptedCallee = ctx.interner.intern("createCoroutineUnintercepted")
         let startCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("startCoroutineUninterceptedOrReturn")
+        let createCoroutineUninterceptedNoReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_no_receiver")
+        let startCoroutineUninterceptedOrReturnNoReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_no_receiver")
+        let createCoroutineUninterceptedWithReceiverCallee = ctx.interner.intern("kk_create_coroutine_unintercepted_with_receiver")
+        let startCoroutineUninterceptedOrReturnWithReceiverCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return_with_receiver")
         let runtimeRunBlockingCallee = ctx.interner.intern("kk_kxmini_run_blocking")
         let runtimeLaunchCallee = ctx.interner.intern("kk_kxmini_launch")
         let runtimeAsyncCallee = ctx.interner.intern("kk_kxmini_async")
@@ -100,10 +112,12 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeSequenceBuilderYieldCallee = ctx.interner.intern("__kk_sequence_builder_yield")
         let runtimeIteratorBuilderYieldCallee = ctx.interner.intern("__kk_iterator_builder_yield")
         let runtimeWithTimeoutCallee = ctx.interner.intern("kk_with_timeout")
-        let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null")
+        let runtimeWithTimeoutOrNullCallee = ctx.interner.intern("kk_with_timeout_or_null_throwing")
         let flowCollectCallee = ctx.interner.intern("kk_flow_collect")
         let flowCollectLatestCallee = ctx.interner.intern("__kk_flow_collectLatest")
         let runtimeSuspendCallNames: Set<InternedString> = [
+            flowCollectCallee,
+            flowCollectLatestCallee,
             kxMiniDelayCallee,
             runtimeDelayCallee,
             kxMiniYieldCallee,
@@ -111,15 +125,26 @@ final class CoroutineLoweringPass: LoweringPass {
             runtimeSequenceBuilderYieldCallee,
             runtimeIteratorBuilderYieldCallee,
             suspendCoroutineUninterceptedOrReturnCallee,
+            ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_suspend_function_invoke_0"),
             ctx.interner.intern("kk_suspend_function_invoke"),
             ctx.interner.intern("kk_suspend_function_invoke_2"),
+            ctx.interner.intern("kk_suspend_function_invoke_3"),
+            ctx.interner.intern("kk_suspend_function_invoke_4"),
+            ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_suspend_coroutine"),
             // CORO-004: await / join are real suspend points that consume the
             // caller continuation so the runtime can resume them without blocking.
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
+            // awaitCancellation() parks a cancellable continuation.
+            ctx.interner.intern("kk_await_cancellation"),
+            // KUU-642: DeepRecursive callRecursive parks the caller continuation
+            // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
+            // start the next recursive step without growing the native stack.
+            ctx.interner.intern("__kk_deep_recursive_scope_callRecursive"),
+            ctx.interner.intern("__kk_deep_recursive_function_callRecursive"),
             // CORO-004: withContext suspends the caller while the dispatched block
             // runs on another dispatcher; the runtime resumes via callerState.resume.
             kxMiniWithContextCallee,
@@ -138,7 +163,15 @@ final class CoroutineLoweringPass: LoweringPass {
             }
             return function
         }
-        let suspendFunctionSymbols = Set(suspendFunctions.map(\.symbol))
+        var suspendFunctionSymbols = Set(suspendFunctions.map(\.symbol))
+        if let sema = ctx.sema {
+            for symbol in sema.symbols.allSymbols()
+                where symbol.flags.contains(.importedLibrary)
+                && symbol.flags.contains(.suspendFunction)
+            {
+                suspendFunctionSymbols.insert(symbol.id)
+            }
+        }
         let suspendFunctionNames = Set(suspendFunctions.map(\.name))
 
         var existingFunctionNames: Set<InternedString> = Set(module.arena.declarations.compactMap { decl in
@@ -175,6 +208,7 @@ final class CoroutineLoweringPass: LoweringPass {
             let loweredSemaSymbol = loweredFunctionSymbol.semaSymbol
             let suspendLoweringPlan = analyzeSuspendLoweringPlan(
                 originalBody: suspendFunction.body,
+                module: module,
                 suspendFunctionSymbols: suspendFunctionSymbols,
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames
@@ -215,6 +249,7 @@ final class CoroutineLoweringPass: LoweringPass {
                     continuationType: continuationType,
                     anyType: anyType ?? continuationType,
                     intType: intType,
+                    longType: longType,
                     unitType: unitType
                 )
             )
@@ -298,7 +333,6 @@ final class CoroutineLoweringPass: LoweringPass {
         let runtimeContinuationResumeCallee = ctx.interner.intern("kk_coroutine_continuation_resume")
         let launcherArgSetCallee = ctx.interner.intern("kk_coroutine_launcher_arg_set")
         let coroutineScopeLaunchCallee = ctx.interner.intern("kk_coroutine_scope_launch")
-        let runtimeRunBlockingWithContCallee = ctx.interner.intern("kk_kxmini_run_blocking_with_cont")
         let kxMiniLauncherWithContCallees: [InternedString: InternedString] = [
             kxMiniRunBlockingCallee: ctx.interner.intern("kk_kxmini_run_blocking_with_cont"),
             kxMiniLaunchCallee: ctx.interner.intern("kk_kxmini_launch_with_cont"),
@@ -327,19 +361,22 @@ final class CoroutineLoweringPass: LoweringPass {
             createCoroutineCallee: createCoroutineCallee,
             createCoroutineUninterceptedCallee: createCoroutineUninterceptedCallee,
             startCoroutineUninterceptedOrReturnCallee: startCoroutineUninterceptedOrReturnCallee,
+            createCoroutineUninterceptedNoReceiverCallee: createCoroutineUninterceptedNoReceiverCallee,
+            startCoroutineUninterceptedOrReturnNoReceiverCallee: startCoroutineUninterceptedOrReturnNoReceiverCallee,
+            createCoroutineUninterceptedWithReceiverCallee: createCoroutineUninterceptedWithReceiverCallee,
+            startCoroutineUninterceptedOrReturnWithReceiverCallee: startCoroutineUninterceptedOrReturnWithReceiverCallee,
             runtimeCreateCoroutineUninterceptedCallee: runtimeCreateCoroutineUninterceptedCallee,
             runtimeStartCoroutineUninterceptedOrReturnCallee: runtimeStartCoroutineUninterceptedOrReturnCallee,
             runtimeContinuationResumeCallee: runtimeContinuationResumeCallee,
             continuationFactory: continuationFactory,
             directSuspendCallCallee: ctx.interner.intern("kk_coroutine_call_direct_suspend"),
             launcherArgSetCallee: launcherArgSetCallee,
-            runtimeRunBlockingWithContCallee: runtimeRunBlockingWithContCallee,
             kxMiniLauncherRuntimeCallees: kxMiniLauncherRuntimeCallees,
             kxMiniLauncherWithContCallees: kxMiniLauncherWithContCallees,
             coroutineScopeLaunchCallee: coroutineScopeLaunchCallee,
             sequenceBuilderBuildCallee: ctx.interner.intern("__kk_sequence_builder_build"),
             sequenceBuilderBuildCoroCallee: ctx.interner.intern("__kk_sequence_builder_build_coro"),
-            sequenceBuilderYieldAllCallee: ctx.interner.intern("__kk_sequence_builder_yieldAll"),
+            sequenceBuilderYieldAllCallee: ctx.interner.intern("__kk_sequence_builder_yieldAll_checked"),
             sequenceBuilderYieldCallee: ctx.interner.intern("__kk_sequence_builder_yield"),
             sequenceClassSymbol: sequenceClassSymbol,
             iteratorBuilderBuildCallee: ctx.interner.intern("__kk_iterator_builder_build"),

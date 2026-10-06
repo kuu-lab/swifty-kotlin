@@ -39,6 +39,12 @@ private external fun __kk_string_toLong(str: String): Long
 @KsSymbolName("__kk_string_toLongOrNull")
 private external fun __kk_string_toLongOrNull(str: String): Long?
 
+@KsSymbolName("__kk_string_toLong_radix")
+private external fun __kk_string_toLong_radix(str: String, radix: Int): Long
+
+@KsSymbolName("__kk_string_toLongOrNull_radix")
+private external fun __kk_string_toLongOrNull_radix(str: String, radix: Int): Long?
+
 @KsSymbolName("__kk_string_toShort")
 private external fun __kk_string_toShort(str: String): Short
 
@@ -131,16 +137,40 @@ public fun String.toLong(): Long {
     return __kk_string_toLong(this)
 }
 
+public fun String.toLong(radix: Int): Long {
+    return __kk_string_toLong_radix(this, radix)
+}
+
 public fun String.toLongOrNull(): Long? {
     return __kk_string_toLongOrNull(this)
+}
+
+public fun String.toLongOrNull(radix: Int): Long? {
+    return __kk_string_toLongOrNull_radix(this, radix)
 }
 
 public fun String.toShort(): Short {
     return __kk_string_toShort(this)
 }
 
+// java.lang.Short.parseShort(s, radix): unparsable input reports the Int
+// parse failure, out-of-range values report "Value out of range".
+public fun String.toShort(radix: Int): Short {
+    val value = toInt(radix)
+    if (value < -32768 || value > 32767) {
+        throw NumberFormatException("Value out of range. Value:\"$this\" Radix:$radix")
+    }
+    return value.toShort()
+}
+
 public fun String.toShortOrNull(): Short? {
     return __kk_string_toShortOrNull(this)
+}
+
+public fun String.toShortOrNull(radix: Int): Short? {
+    val value = toIntOrNull(radix) ?: return null
+    if (value < -32768 || value > 32767) return null
+    return value.toShort()
 }
 
 public fun String.toByte(): Byte {
@@ -155,12 +185,34 @@ public fun String.toByteOrNull(): Byte? {
     return __kk_string_toByteOrNull(this)
 }
 
+public fun String.toByteOrNull(radix: Int): Byte? {
+    val value = toIntOrNull(radix) ?: return null
+    if (value < -128 || value > 127) return null
+    return value.toByte()
+}
+
+public fun String.toUByte(): UByte {
+    return toUByteOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUByte(radix: Int): UByte {
+    return toUByteOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
 public fun String.toUByteOrNull(): UByte? {
     return __kk_string_toUByteOrNull(this)
 }
 
 public fun String.toUByteOrNull(radix: Int): UByte? {
     return __kk_string_toUByteOrNull_radix(this, radix)
+}
+
+public fun String.toUShort(): UShort {
+    return toUShortOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUShort(radix: Int): UShort {
+    return toUShortOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
 public fun String.toUShortOrNull(): UShort? {
@@ -171,12 +223,28 @@ public fun String.toUShortOrNull(radix: Int): UShort? {
     return __kk_string_toUShortOrNull_radix(this, radix)
 }
 
+public fun String.toUInt(): UInt {
+    return toUIntOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toUInt(radix: Int): UInt {
+    return toUIntOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
 public fun String.toUIntOrNull(): UInt? {
     return __kk_string_toUIntOrNull(this)
 }
 
 public fun String.toUIntOrNull(radix: Int): UInt? {
     return __kk_string_toUIntOrNull_radix(this, radix)
+}
+
+public fun String.toULong(): ULong {
+    return toULongOrNull() ?: throw NumberFormatException("Invalid number format: '$this'")
+}
+
+public fun String.toULong(radix: Int): ULong {
+    return toULongOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
 public fun String.toULongOrNull(): ULong? {

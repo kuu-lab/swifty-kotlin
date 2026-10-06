@@ -1,3 +1,3 @@
-symbol fq=golden.sema.ExtAction[kind=alias] kind=typeAlias vis=public flags=_
+symbol fq=golden.sema.ExtAction[kind=alias;underlying=fn{r=String;p=Int;ret=Unit};origin=fixture] kind=typeAlias vis=public flags=_
 file fstdlib_kotlin_n_ExtensionFunctionType package=golden.sema
-  decl golden.sema.ExtAction[kind=alias] typealias ExtAction sym=golden.sema.ExtAction[kind=alias]
+  decl golden.sema.ExtAction[kind=alias;underlying=fn{r=String;p=Int;ret=Unit};origin=fixture] typealias ExtAction sym=golden.sema.ExtAction[kind=alias;underlying=fn{r=String;p=Int;ret=Unit};origin=fixture]

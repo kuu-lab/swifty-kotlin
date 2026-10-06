@@ -328,15 +328,22 @@ extension BuildKIRRegressionTests {
 
 
     @Test
-    func testFunctionTypedMemberPropertyCallKeepsPropertyCalleeName() throws {
+    func testFunctionTypedMemberPropertyCallLowersToRuntimeInvoke() throws {
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "use10", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
+        // KUU-482/BUG-250: `h.transform(5)` on a function-typed member property
+        // reads the property and invokes the value through the runtime ABI,
+        // rather than emitting an unresolvable `call transform`.
         #expect(
-            callees.contains("transform"),
-            "Expected property callee name 'transform', got: \(callees)"
+            callees.contains("kk_function_invoke"),
+            "Expected runtime invoke callee 'kk_function_invoke', got: \(callees)"
+        )
+        #expect(
+            !(callees.contains("transform")),
+            "Function-typed property calls must not emit a bare 'transform' call, got: \(callees)"
         )
         #expect(
             !(callees.contains("invoke")),

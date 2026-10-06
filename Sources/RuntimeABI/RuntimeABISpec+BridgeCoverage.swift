@@ -104,53 +104,6 @@ private let mapBridgeFunctions = [
     )
 }
 
-private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
-    [bridgeSpec("__kk_mutable_list_sort", section: "Collection", params: ["listRaw"],
-            isThrowing: false)]
-    + [
-        "__kk_mutable_list_sort_primitive",
-        "__kk_mutable_list_sortWith",
-        "__kk_mutable_list_sortBy",
-        "__kk_mutable_list_sortBy_primitive",
-        "__kk_mutable_list_sortByDescending",
-        "__kk_mutable_list_sortByDescending_primitive",
-    ].map {
-        switch $0 {
-        case "__kk_mutable_list_sort_primitive":
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("kindRaw", .int32),
-                ]
-            )
-        case "__kk_mutable_list_sortBy_primitive", "__kk_mutable_list_sortByDescending_primitive":
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("fnPtr", .intptr),
-                    ("closureRaw", .intptr),
-                    ("kindRaw", .int32),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            )
-        default:
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("fnPtr", .intptr),
-                    ("closureRaw", .intptr),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            )
-        }
-    }
-
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
@@ -228,6 +181,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_ulong_to_int", section: "NumericConversion", params: ["value"],
             isThrowing: false),
+            bridgeSpec("kk_ulong_to_long", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
         ]
         + [
             "kk_op_dadd",
@@ -268,6 +223,12 @@ public extension RuntimeABISpec {
                 ]
             ),
         ]
+        + [
+            "kk_nullable_primitive_eq",
+            "kk_nullable_primitive_ne",
+        ].map {
+            bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
+        }
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase
@@ -276,7 +237,6 @@ public extension RuntimeABISpec {
         + listIndexedBridgeFunctions
         + listMiscBridgeFunctions
         + mapBridgeFunctions
-        + mutableListBridgeFunctions
         + sequenceAndSetBridgeFunctions
 
     static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
@@ -322,6 +282,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
             isThrowing: false),
+            bridgeSpec("__kk_immutable_blob_of", section: "Native", params: ["elements", "count"],
+            isThrowing: false),
             bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
             isThrowing: false),
             bridgeSpec("kk_native_getUnhandledExceptionHook", section: "Native", params: [],
@@ -337,6 +299,7 @@ public extension RuntimeABISpec {
                 ]
             ),
             bridgeSpec("kk_native_terminateWithUnhandledException", section: "Native", params: ["throwableRaw"],
+            returnType: .noreturn,
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_getByteAt", section: "Native", params: ["arrayRaw", "index"],
             isThrowing: false),
@@ -382,10 +345,28 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
+            // KSP-1192: ImmutableBlob.asCPointer/asUCPointer private impl bridge.
+            bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
+            isThrowing: false),
             bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
             isThrowing: false),
-            bridgeSpec("kk_with_timeout", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
-            bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
+            // withTimeout reports an expired deadline as a catchable
+            // TimeoutCancellationException, so its outThrown channel is declared
+            // explicitly (as for kk_ensure_active) rather than left implicit.
+            bridgeSpec("kk_with_timeout", section: "Coroutine", typedParams: [
+                ("timeoutMillis", .intptr),
+                ("entryPointRaw", .intptr),
+                ("continuation", .intptr),
+                ("outThrown", .nullableIntptrPointer),
+            ]),
+            bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"],
+            isThrowing: false),
+            bridgeSpec("kk_with_timeout_or_null_throwing", section: "Coroutine", typedParams: [
+                ("timeoutMillis", .intptr),
+                ("entryPointRaw", .intptr),
+                ("continuation", .intptr),
+                ("outThrown", .nullableIntptrPointer),
+            ]),
         ]
 
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [

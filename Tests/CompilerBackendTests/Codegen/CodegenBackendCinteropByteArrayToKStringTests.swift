@@ -25,8 +25,8 @@ struct CodegenBackendCinteropByteArrayToKStringTests {
             println(malformed.toKString().length > 0)
             try {
                 println(malformed.toKString(0, 2, true))
-            } catch (e: Throwable) {
-                println("caught")
+            } catch (e: Exception) {
+                println("caught: ${e.message}")
             }
         }
         """
@@ -40,7 +40,7 @@ struct CodegenBackendCinteropByteArrayToKStringTests {
                 ell
                 hello
                 true
-                caught
+                caught: Input length = 1
                 """
                 + "\n"
         )

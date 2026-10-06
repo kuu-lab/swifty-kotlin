@@ -60,7 +60,7 @@ struct RuntimeArrayBoundsTests {
     }
 
     @Test
-    func testMutableListAddAtUsesThrownChannelForBoundsErrors() {
+    func testMutableListAddAtUsesThrownChannelForBoundsErrors() throws {
         let list = makeMutableList([10, 20])
         var outThrown = -1
 
@@ -72,10 +72,25 @@ struct RuntimeArrayBoundsTests {
         #expect(kk_mutable_list_add_at(list, 99, 30, &outThrown) == 0)
         #expect(outThrown != 0)
         #expect(runtimeListBox(from: list)?.elements == [10, 15, 20])
+        let box = try #require(runtimeThrowableBox(from: outThrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIndexOutOfBoundsExceptionBox.self))
     }
 
     @Test
-    func testMutableListSetUsesThrownChannelForBoundsErrors() {
+    func testMutableListAddAllAtUsesThrownChannelForBoundsErrors() throws {
+        let list = makeMutableList([10, 20])
+        let source = makeMutableList([30])
+        var outThrown = -1
+
+        #expect(kk_mutable_list_addAll_at(list, 99, source, &outThrown) == 0)
+        #expect(outThrown != 0)
+        #expect(runtimeListBox(from: list)?.elements == [10, 20])
+        let box = try #require(runtimeThrowableBox(from: outThrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIndexOutOfBoundsExceptionBox.self))
+    }
+
+    @Test
+    func testMutableListSetUsesThrownChannelForBoundsErrors() throws {
         let list = makeMutableList([10, runtimeNullSentinelInt, 30])
         var outThrown = -1
 
@@ -87,6 +102,8 @@ struct RuntimeArrayBoundsTests {
         #expect(kk_mutable_list_set(list, 99, 40, &outThrown) == 0)
         #expect(outThrown != 0)
         #expect(runtimeListBox(from: list)?.elements == [10, 25, 30])
+        let box = try #require(runtimeThrowableBox(from: outThrown))
+        #expect(runtimeThrowableBoxHasExactType(box, RuntimeIndexOutOfBoundsExceptionBox.self))
     }
 
     @Test

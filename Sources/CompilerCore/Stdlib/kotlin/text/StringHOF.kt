@@ -1,13 +1,16 @@
 package kotlin.text
 
+import kotlin.collections.CharIterator
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.random.Random
 
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_max_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_max_double(a: Double, b: Double): Double
 
 // MIGRATION-TEXT-008 / KSP-410
 // String higher-order functions migrated from Swift runtime (RuntimeStringHOF.swift).
@@ -56,6 +59,25 @@ private external fun kk_max_double(a: Double, b: Double): Double
  */
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
+
+private class CharSequenceCharIterator(
+    private val source: CharSequence
+) : CharIterator() {
+    private var index = 0
+
+    override fun hasNext(): Boolean = index < source.length
+
+    override fun nextChar(): Char {
+        val result = source[index]
+        index++
+        return result
+    }
+}
+
+/**
+ * Returns an iterator over the characters of this char sequence.
+ */
+public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 // KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
 // CharSequence values through indexed UTF-16 units so custom implementations do
@@ -603,9 +625,9 @@ public fun CharSequence.findLast(predicate: (Char) -> Boolean): Char? {
     return null
 }
 
-public fun String.onEach(action: (Char) -> Unit): String {
+public inline fun <S : CharSequence> S.onEach(action: (Char) -> Unit): S {
     var i = 0
-    val sz = length
+    val sz = this.length
     while (i < sz) {
         action(this[i])
         i++
@@ -721,9 +743,9 @@ public inline fun CharSequence.sumOf(selector: (Char) -> ULong): ULong {
     return sum
 }
 
-public fun String.onEachIndexed(action: (index: Int, Char) -> Unit): String {
+public inline fun <S : CharSequence> S.onEachIndexed(action: (index: Int, Char) -> Unit): S {
     var i = 0
-    val sz = length
+    val sz = this.length
     while (i < sz) {
         action(i, this[i])
         i++
@@ -1618,6 +1640,17 @@ public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.grou
         i++
     }
     return destination
+}
+
+// KSP-1380: CharSequence.groupingBy is source-backed. Mirrors the upstream
+// object-expression Grouping adapter over CharSequence.iterator().
+@SinceKotlin("1.1")
+public inline fun <K> CharSequence.groupingBy(crossinline keySelector: (Char) -> K): Grouping<Char, K> {
+    val source = this
+    return object : Grouping<Char, K> {
+        override fun sourceIterator(): Iterator<Char> = source.iterator()
+        override fun keyOf(element: Char): K = keySelector(element)
+    }
 }
 
 public fun CharSequence.drop(n: Int): CharSequence {

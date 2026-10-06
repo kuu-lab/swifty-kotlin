@@ -7,6 +7,16 @@
 public extension RuntimeABISpec {
     static let stringFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_string_literal_from_utf8",
+            parameters: [
+                RuntimeABIParameter(name: "pointer", type: .constUInt8Pointer),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_from_utf8",
             parameters: [
                 RuntimeABIParameter(name: "ptr", type: .constUInt8Pointer),
@@ -36,6 +46,15 @@ public extension RuntimeABISpec {
             ],
             returnType: .nullableUInt8Pointer,
             section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_flat_string_release",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_concat_flat",
@@ -407,6 +426,29 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+
+        RuntimeABIFunctionSpec(
+            name: "kk_charsequence_ifBlank",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_charsequence_ifEmpty",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_lowercase",
@@ -511,10 +553,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
             section: "String",
-            isThrowing: false
+            isThrowing: true
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_format_locale_flat",
@@ -528,10 +571,11 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
             section: "String",
-            isThrowing: false
+            isThrowing: true
         ),
         // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
         RuntimeABIFunctionSpec(
@@ -752,7 +796,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_string_toIntOrNull_radix",
@@ -871,6 +916,26 @@ public extension RuntimeABISpec {
             name: "__kk_string_toLongOrNull",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_toLong_radix",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "radix", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_toLongOrNull_radix",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "radix", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "String"
@@ -1276,6 +1341,13 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false,
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_charset_name",
+            parameters: [RuntimeABIParameter(name: "charsetTag", type: .intptr)],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
             name: "__kk_string_encodeToByteArray_flat",
@@ -1483,6 +1555,8 @@ public extension RuntimeABISpec {
         // STDLIB-192
         // STDLIB-190
         // STDLIB-187
+        // Source-backed declarations retain flat compatibility lowering for
+        // aggregate String receivers.
         flatStringHOFReturnSpec(name: "kk_string_ifBlank_flat"),
         flatStringHOFReturnSpec(name: "kk_string_ifEmpty_flat"),
         RuntimeABIFunctionSpec(
@@ -1502,6 +1576,16 @@ public extension RuntimeABISpec {
             name: "__kk_bignum_toString",
             parameters: [
                 RuntimeABIParameter(name: "numRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_bignum_compareTo",
+            parameters: [
+                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
+                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String",
@@ -1583,6 +1667,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "String"

@@ -12,6 +12,43 @@ import Testing
 @Suite
 struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
 
+    @Test(arguments: ["make", "inherited", "local"])
+    func testMemberExtensionLocalNominalsCaptureInheritedDispatchOwner(_ method: String) throws {
+        let source = """
+        open class OBase(protected val off: Int) {
+            protected fun helper(): Int = 3
+        }
+        class ODerived : OBase(10) {
+            fun Int.make(): Int {
+                val o = object {
+                    fun read(): Int = off
+                    fun read2(): Int = helper()
+                }
+                return this + o.read() + o.read2()
+            }
+            fun Int.inherited(): Int {
+                val o = object : OBase(1) {
+                    fun read(): Int = off + this@ODerived.off
+                }
+                return this + o.read()
+            }
+            fun Int.local(): Int {
+                class Local { fun read(): Int = off + helper() }
+                return this + Local().read()
+            }
+            fun use() {
+                println(2.\(method)())
+            }
+        }
+        fun main() { ODerived().use() }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberExtensionLocalNominalDispatchOwner",
+            expected: method == "inherited" ? "13\n" : "15\n"
+        )
+    }
+
     @Test
     func testCodegenObjectLiteralPropertyInitializerResolvesQualifiedOuterThis() throws {
         let source = """
@@ -75,6 +112,96 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
             source,
             moduleName: "ObjectLiteralCaptureValParamExecution",
             expected: "Hello, World\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralMemberFunctionCapturesOuterPrimaryConstructorProperty() throws {
+        let source = """
+        interface Probe {
+            fun value(): Int
+        }
+
+        class Counter(private val limit: Int) {
+            fun probe(): Probe {
+                return object : Probe {
+                    override fun value(): Int {
+                        return limit
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            println(Counter(3).probe().value())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralCaptureOuterPrimaryConstructorPropertyExecution",
+            expected: "3\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralMemberFunctionCallsEnclosingPrivateMember() throws {
+        let source = """
+        class ConstGetter(val value: Int) {
+            private fun fetch(index: Int): Int = value + index
+            fun call(): Int {
+                val o = object : Any() {
+                    fun get(): Int = fetch(1)
+                }
+                return o.get()
+            }
+        }
+
+        fun main() {
+            println(ConstGetter(41).call())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralEnclosingPrivateMemberCallExecution",
+            expected: "42\n"
+        )
+    }
+
+    @Test
+    func testCodegenObjectLiteralIteratorMutatesOuterReceiverProperties() throws {
+        let source = """
+        class CountingSeq : Sequence<Int> {
+            var pulls = 0
+            var marker = 41
+
+            override fun iterator(): Iterator<Int> = object : Iterator<Int> {
+                private var cur = 0
+                override fun hasNext(): Boolean { pulls++; return cur < 5 }
+                override fun next(): Int { cur++; return cur }
+            }
+        }
+
+        fun main() {
+            val s = CountingSeq()
+            val it = s.iterator()
+            println(it.hasNext())
+            println(it.next())
+            println(it.next())
+            println("pulls=${s.pulls} marker=${s.marker}")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralIteratorMutatesOuterReceiverProperties",
+            expected: """
+            true
+            1
+            2
+            pulls=1 marker=41
+            """ + "\n"
         )
     }
 
@@ -300,6 +427,110 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
             source,
             moduleName: "GenericClassMemberTrailingLambdaInferenceExecution",
             expected: "30\n"
+        )
+    }
+
+    // KSP-CAP-001 (follow-up): a *bare* (unqualified) read of an enclosing
+    // class's mutable property from inside an object literal's member
+    // function previously crashed with `KSWIFTK-RUNTIME-0001:
+    // kk_array_get_inbounds precondition failed`. Such a read resolves
+    // through plain lexical scope lookup rather than
+    // `resolveImplicitReceiverMember`, so it never set
+    // `implicitReceiverMemberNames` and the generic field-offset read
+    // fallback in ExprLowerer+ControlFlowAndBlocks.swift used the object
+    // literal's own receiver with the enclosing class's field offset instead
+    // of walking the already-captured outer-receiver chain.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareReadsOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun show(): Int {
+                        return counter
+                    }
+                }
+                return obj.show()
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareReadOuterMutablePropertyExecution",
+            expected: "5\n"
+        )
+    }
+
+    // KSP-CAP-001 (follow-up): a bare *write-only* reference (no read of the
+    // same property anywhere in the object literal's body) was invisible to
+    // `CaptureAnalyzer.collectCapturedOuterSymbols`, which only recorded
+    // `.nameRef` reads -- so `capturesMutableOuterProperty` never fired, no
+    // capture slot was allocated, and the write landed on the object
+    // literal's own (much smaller) instance, throwing an unhandled
+    // out-of-bounds exception.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareWriteOnlyToOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun bump() {
+                        counter = 42
+                    }
+                }
+                obj.bump()
+                return this.counter
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareWriteOnlyOuterMutablePropertyExecution",
+            expected: "42\n"
+        )
+    }
+
+    // Companion to the write-only case above, for `+=` instead of `=`.
+    @Test
+    func testCodegenObjectLiteralMemberFunctionBareCompoundAssignOnlyToOuterMutableProperty() throws {
+        let source = """
+        class Outer(val tag: String) {
+            var counter: Int = 5
+            fun make(): Int {
+                val obj = object {
+                    fun bump() {
+                        counter += 1
+                    }
+                }
+                obj.bump()
+                return this.counter
+            }
+        }
+
+        fun main() {
+            val o = Outer("hello")
+            println(o.make())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ObjectLiteralBareCompoundAssignOnlyOuterMutablePropertyExecution",
+            expected: "6\n"
         )
     }
 }

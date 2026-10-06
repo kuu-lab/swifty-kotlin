@@ -63,8 +63,9 @@ import Testing
             let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "LibMod")
 
-            let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
-            #expect(metadata.contains("symbols="))
+            let metadata = try Data(contentsOf: URL(fileURLWithPath: metadataPath))
+            let indexedMetadata = try #require(IndexedMetadataFile(data: metadata))
+            #expect(indexedMetadata.entries.count == 2)
 
             let inlineDir = libDir + "/inline-kir"
             let inlineFiles = try FileManager.default.contentsOfDirectory(atPath: inlineDir)
@@ -116,6 +117,24 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "MetadataReflection", expected: "1\n0\n")
+    }
+
+    @Test
+    func testCodegenRawStringSimpleNameTemplatesInterpolate() throws {
+        let source = #"""
+        fun main() {
+            val x = 5
+            println("""$x""")
+            println("""a$x b""")
+            println("""${x}""")
+        }
+        """#
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RawStringSimpleNameTemplates",
+            expected: "5\na5 b\n5\n"
+        )
     }
 
     @Test
@@ -424,6 +443,191 @@ import Testing
     }
 
     @Test
+    func testCodegenAllArrayComponents() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Scripts/diff_cases/array_components.kt"),
+            encoding: .utf8
+        )
+        let expected = """
+        a
+        a
+        null
+        null
+        c
+        c
+        d
+        d
+        e
+        e
+        e
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        5
+        5
+        5
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        5
+        5
+        5
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        5
+        5
+        5
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        5
+        5
+        5
+        bounds
+        bounds
+        a
+        a
+        b
+        b
+        c
+        c
+        d
+        d
+        e
+        e
+        e
+        bounds
+        bounds
+        true
+        true
+        false
+        false
+        true
+        true
+        false
+        false
+        true
+        true
+        true
+        bounds
+        bounds
+        1.0
+        1.0
+        2.0
+        2.0
+        3.0
+        3.0
+        4.0
+        4.0
+        5.0
+        5.0
+        5.0
+        bounds
+        bounds
+        1.0
+        1.0
+        2.0
+        2.0
+        3.0
+        3.0
+        4.0
+        4.0
+        5.0
+        5.0
+        5.0
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        4294967295
+        4294967295
+        4294967295
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        18446744073709551615
+        18446744073709551615
+        18446744073709551615
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        65535
+        65535
+        65535
+        bounds
+        bounds
+        1
+        1
+        2
+        2
+        3
+        3
+        4
+        4
+        255
+        255
+        255
+        bounds
+        bounds
+        """ + "\n"
+        try assertKotlinOutput(source, moduleName: "AllArrayComponents", expected: expected)
+    }
+
+    @Test
     func testCodegenListComponentNUsesRuntimeAccessors() throws {
         let source = """
         fun main() {
@@ -700,6 +904,27 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "MutableMapBasicRuntime", expected: "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
+    }
+
+    @Test
+    func testCodegenMutableMapEntrySetValueWritesThroughToMap() throws {
+        let source = """
+        fun main() {
+            val map = mutableMapOf("a" to 1, "b" to 2)
+            val entry = map.entries.first()
+            entry.setValue(99)
+            println(map)
+            println(map.values)
+            println(map.entries)
+            println(entry.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MutableMapEntrySetValueRuntime",
+            expected: "{a=99, b=2}\n[99, 2]\n[a=99, b=2]\n99\n"
+        )
     }
 
     @Test
@@ -1213,6 +1438,30 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
+    }
+
+    // KUU-637: generic Comparable minOf/maxOf must distinguish signed zeros.
+    @Test
+    func testCodegenGenericMinOfMaxOfSignedZeroTotalOrder() throws {
+        let source = """
+        fun <T : Comparable<T>> maxOf2(a: T, b: T): T = maxOf(a, b)
+        fun <T : Comparable<T>> minOf2(a: T, b: T): T = minOf(a, b)
+
+        fun main() {
+            println(maxOf2(-0.0, 0.0))
+            println(maxOf2(0.0, -0.0))
+            println(minOf2(0.0, -0.0))
+            println(minOf2(-0.0, 0.0))
+            println(maxOf2(-0.0f, 0.0f))
+            println(minOf2(0.0f, -0.0f))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericMinOfMaxOfSignedZero",
+            expected: "0.0\n0.0\n-0.0\n-0.0\n0.0\n-0.0\n"
+        )
     }
     // MARK: - Private Helpers
 

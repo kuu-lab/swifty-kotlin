@@ -1,0 +1,46 @@
+symbol fq=golden.sema.utf8.$0.buffer[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.utf8.$0.chars[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.utf8.$0.sink[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.utf8.$0.source[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.utf8[kind=fun;params=kotlinx.io.Source,kotlinx.io.Sink,kotlinx.io.Buffer,kotlin.CharSequence;ret=String;names=[source,sink,buffer,chars];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.io.Source,kotlinx.io.Sink,kotlinx.io.Buffer,kotlin.CharSequence] ret=String
+file fkotlinx_io_utf8 package=golden.sema
+  decl golden.sema.utf8[kind=fun;params=kotlinx.io.Source,kotlinx.io.Sink,kotlinx.io.Buffer,kotlin.CharSequence;ret=String;names=[source,sink,buffer,chars];origin=fixture] fun utf8 sym=golden.sema.utf8[kind=fun;params=kotlinx.io.Source,kotlinx.io.Sink,kotlinx.io.Buffer,kotlin.CharSequence;ret=String;names=[source,sink,buffer,chars];origin=fixture]
+expr e@6:5 name(sink) type=kotlinx.io.Sink ref=golden.sema.utf8.$0.sink[kind=vparam;origin=fixture]
+expr e@6:22 string(é€😀) type=String
+expr e@6:5#1 memberCall recv=e@6:5 callee=writeString args=[_:e@6:22] type=Unit call=kotlinx.io.writeString[kind=fun;recv=kotlinx.io.Sink;params=String,Int,Int;ret=Unit;defaults=[0,1,1];names=[string,startIndex,endIndex]]
+expr e@7:5 name(sink) type=kotlinx.io.Sink ref=golden.sema.utf8.$0.sink[kind=vparam;origin=fixture]
+expr e@7:22 name(chars) type=kotlin.CharSequence ref=golden.sema.utf8.$0.chars[kind=vparam;origin=fixture]
+expr e@7:29 int(0) type=Int
+expr e@7:32 name(chars) type=kotlin.CharSequence ref=golden.sema.utf8.$0.chars[kind=vparam;origin=fixture]
+expr e@7:32#1 memberCall recv=e@7:32 callee=length args=[] type=Int ref=kotlin.CharSequence.length[kind=prop;type=Int]
+expr e@7:5#1 memberCall recv=e@7:5 callee=writeString args=[_:e@7:22,_:e@7:29,_:e@7:32#1] type=Unit call=kotlinx.io.writeString[kind=fun;recv=kotlinx.io.Sink;params=kotlin.CharSequence,Int,Int;ret=Unit;defaults=[0,1,1];names=[chars,startIndex,endIndex]]
+expr e@8:5 name(sink) type=kotlinx.io.Sink ref=golden.sema.utf8.$0.sink[kind=vparam;origin=fixture]
+expr e@8:30 int(1114111) type=Int
+expr e@8:5#1 memberCall recv=e@8:5 callee=writeCodePointValue args=[_:e@8:30] type=Unit call=kotlinx.io.writeCodePointValue[kind=fun;recv=kotlinx.io.Sink;params=Int;ret=Unit;names=[codePoint]]
+expr e@9:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@9:13#1 memberCall recv=e@9:13 callee=readCodePointValue args=[] type=Int call=kotlinx.io.readCodePointValue[kind=fun;recv=kotlinx.io.Source;params=;ret=Int]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@10:28 int(10) type=Int
+expr e@10:28#1 memberCall recv=e@10:28 callee=toByte args=[] type=Byte
+expr e@10:41 long(0) type=Long
+expr e@10:45 long(10) type=Long
+expr e@10:13#1 memberCall recv=e@10:13 callee=indexOf args=[_:e@10:28#1,_:e@10:41,_:e@10:45] type=Long call=kotlinx.io.indexOf[kind=fun;recv=kotlinx.io.Source;params=Byte,Long,Long;ret=Long;defaults=[0,1,1];names=[byte,startIndex,endIndex]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@11:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@11:13#1 memberCall recv=e@11:13 callee=readLine args=[] type=String? call=kotlinx.io.readLine[kind=fun;recv=kotlinx.io.Source;params=;ret=String?]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@12:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@12:35 long(10) type=Long
+expr e@12:13#1 memberCall recv=e@12:13 callee=readLineStrict args=[_:e@12:35] type=String call=kotlinx.io.readLineStrict[kind=fun;recv=kotlinx.io.Source;params=Long;ret=String;defaults=[1];names=[limit]]
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@13:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@13:31 long(0) type=Long
+expr e@13:13#1 memberCall recv=e@13:13 callee=readString args=[_:e@13:31] type=String call=kotlinx.io.readString[kind=fun;recv=kotlinx.io.Source;params=Long;ret=String;names=[byteCount]]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@14:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
+expr e@14:13#1 memberCall recv=e@14:13 callee=readString args=[] type=String call=kotlinx.io.readString[kind=fun;recv=kotlinx.io.Source;params=;ret=String]
+expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@15:12 name(buffer) type=kotlinx.io.Buffer ref=golden.sema.utf8.$0.buffer[kind=vparam;origin=fixture]
+expr e@15:12#1 memberCall recv=e@15:12 callee=readString args=[] type=String call=kotlinx.io.readString[kind=fun;recv=kotlinx.io.Buffer;params=;ret=String]
+expr e@15:5 return value=e@15:12#1 type=Nothing

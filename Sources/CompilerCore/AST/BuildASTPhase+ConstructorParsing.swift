@@ -45,7 +45,8 @@ extension BuildASTPhase {
                     let parser = ExpressionParser(
                         tokens: headerTokens.dropFirst(),
                         interner: interner,
-                        astArena: astArena
+                        astArena: astArena,
+                        diagnostics: diagnostics
                     )
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
@@ -162,7 +163,9 @@ extension BuildASTPhase {
         if index < tokens.count, tokens[index].kind == .symbol(.lParen) {
             let afterParen = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
             let argTokens = Array(tokens[(index + 1)..<afterParen])
-            let parser = ExpressionParser(tokens: argTokens, interner: interner, astArena: astArena)
+            let parser = ExpressionParser(
+                tokens: argTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
+            )
             args = parser.parseCallArguments()
         }
 

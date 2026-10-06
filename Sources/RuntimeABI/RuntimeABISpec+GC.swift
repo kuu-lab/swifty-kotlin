@@ -66,6 +66,15 @@ public extension RuntimeABISpec {
             section: "GC"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_object_release",
+            parameters: [
+                RuntimeABIParameter(name: "objectRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "GC",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_runtime_force_reset",
             parameters: [],
             returnType: .void,

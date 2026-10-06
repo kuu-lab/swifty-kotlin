@@ -112,30 +112,14 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
 
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
-        // `until` desugars to a memberCall (infix function), not a `.binary` range op,
-        // so the AST-shape check alone misses it; fall back to the semantic flag that
-        // markRangeCallBindings sets when resolving such calls.
-        let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
-            || sema.bindings.isRangeExpr(iterableExpr)
-        let elementType: TypeID = bindLoopIterationOperators(
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
+        let elementType = inferLoopElementType(
             exprID: id,
+            iterableExpr: iterableExpr,
             iterableType: iterableType,
             range: range,
             ctx: ctx
-        ) ?? driver.helpers.iterableElementType(
-            for: iterableType,
-            isRangeExpr: isRangeExpr,
-            isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
-            sema: sema,
-            interner: interner
-        ) ?? {
-            ctx.semaCtx.diagnostics.error(
-                "KSWIFTK-SEMA-0087",
-                "Cannot determine element type for destructuring in for-loop.",
-                range: range
-            )
-            return sema.types.errorType
-        }()
+        )
 
         var bodyLocals = locals
 
@@ -159,7 +143,9 @@ extension ControlFlowTypeChecker {
             )
 
             let componentType: TypeID
-            if let candidate = candidates.first,
+            if elementType == sema.types.errorType {
+                componentType = sema.types.errorType
+            } else if let candidate = candidates.first,
                let signature = sema.symbols.functionSignature(for: candidate)
             {
                 componentType = specializeComponentReturnType(
@@ -168,6 +154,7 @@ extension ControlFlowTypeChecker {
                     signature: signature,
                     sema: sema
                 )
+                sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
             } else if isDataClassType(elementType, sema: sema) {
                 // Data class componentN() is synthesized during lowering; fall back to Any
                 componentType = sema.types.anyType

@@ -67,6 +67,53 @@ struct CodegenBackendArrayHOFTests {
         try assertKotlinOutput(source, moduleName: "ArrayFoldIndexed", expected: "8\n")
     }
 
+    @Test func testCodegenArrayAsIterableAndSumOfOverloads() throws {
+        let source = """
+        fun main() {
+            val values = arrayOf("a", "bb", "ccc")
+            println(values.asIterable().joinToString(","))
+            println(values.sumOf { it.length })
+            println(values.sumOf { it.length.toLong() })
+            println(values.sumOf { it.length.toDouble() })
+            println(values.sumOf { it.length.toUInt() })
+            println(values.sumOf { it.length.toULong() })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayAsIterableSumOf",
+            expected: "a,bb,ccc\n6\n6\n6.0\n6\n6\n"
+        )
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testCodegenArraySumOfDoubleSelectorRepresentations(
+        optimized: Bool,
+        useSharedStdlib: Bool
+    ) throws {
+        let source = """
+        fun main() {
+            val values = arrayOf("a", "bb", "ccc")
+            println(values.sumOf { it.length.toDouble() })
+            val selector: (String) -> Double = { it.length.toDouble() / 2.0 - 1.25 }
+            println(values.sumOf(selector))
+            val offset = 0.25
+            println(values.sumOf { if (it.length > 1) it.length.toDouble() + offset else -0.5 })
+            println(emptyArray<String>().sumOf { it.length.toDouble() })
+            println(arrayOf(-1.5, 0.25, 2.0).sumOf { it })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArraySumOfDoubleSelectors",
+            expected: "6.0\n-0.75\n5.0\n0.0\n0.75\n",
+            optLevel: optimized ? .O2 : .O0,
+            allowDefaultStdlibLibrary: useSharedStdlib
+        )
+    }
+
     @Test func testCodegenArrayFlatMapExpandsElements() throws {
         let source = """
         fun main() {

@@ -3,6 +3,13 @@
 ///
 /// Split out from `CallTypeChecker.swift`.
 extension CallTypeChecker {
+    /// Returns true when `exprID` is a lambda literal.
+    func isLambdaLiteralArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let argExpr = ast.arena.expr(exprID) else { return false }
+        if case .lambdaLiteral = argExpr { return true }
+        return false
+    }
+
     /// Returns true when `exprID` is a lambda literal or callable reference.
     func isLambdaOrCallableRefArg(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let argExpr = ast.arena.expr(exprID) else { return false }
@@ -56,16 +63,40 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let channelFlow = interner.intern("channelFlow")
         let callbackFlow = interner.intern("callbackFlow")
-        guard symbol.name == channelFlow || symbol.name == callbackFlow else {
-            return false
+        if symbol.name == channelFlow || symbol.name == callbackFlow {
+            let flowPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("flow"),
+            ]
+            return symbol.fqName == flowPackage + [symbol.name]
         }
-        let flowPackage = [
-            interner.intern("kotlinx"),
-            interner.intern("coroutines"),
-            interner.intern("flow"),
-        ]
-        let matches = symbol.fqName == flowPackage + [symbol.name]
-        return matches
+        // KSP-1573: the bundled CoroutineScope.produce/actor extensions use the
+        // same launcher-continuation convention for their suspend
+        // ProducerScope/ActorScope receiver block.
+        let produce = interner.intern("produce")
+        let actor = interner.intern("actor")
+        if symbol.name == produce || symbol.name == actor {
+            let channelsPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("channels"),
+            ]
+            return symbol.fqName == channelsPackage + [symbol.name]
+        }
+        // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern binds
+        // its suspend TestScope receiver through the same launcher
+        // continuation convention (TestScope in launcherArgs[0]).
+        let runTest = interner.intern("runTest")
+        if symbol.name == runTest {
+            let testPackage = [
+                interner.intern("kotlinx"),
+                interner.intern("coroutines"),
+                interner.intern("test"),
+            ]
+            return symbol.fqName == testPackage + [symbol.name]
+        }
+        return false
     }
 
     /// Returns true when `name` is shadowed by a non-synthetic (user-defined) symbol,

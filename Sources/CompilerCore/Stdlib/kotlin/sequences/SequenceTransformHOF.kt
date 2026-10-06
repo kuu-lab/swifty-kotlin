@@ -394,6 +394,34 @@ public fun <T> Sequence<Sequence<T>>.flatten(): Sequence<T> {
     }
 }
 
+public fun <T> Sequence<Iterable<T>>.flatten(): Sequence<T> {
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> = object : Iterator<T> {
+            val sourceIterator = source.iterator()
+            var currentIterator: Iterator<T> = emptySequence<T>().iterator()
+
+            fun ensureNext() {
+                while (!currentIterator.hasNext()) {
+                    if (!sourceIterator.hasNext()) return
+                    currentIterator = sourceIterator.next().iterator()
+                }
+            }
+
+            override fun hasNext(): Boolean {
+                ensureNext()
+                return currentIterator.hasNext()
+            }
+
+            override fun next(): T {
+                ensureNext()
+                if (!currentIterator.hasNext()) throw NoSuchElementException()
+                return currentIterator.next()
+            }
+        }
+    }
+}
+
 public fun <T> Sequence<T>.withIndex(): Sequence<IndexedValue<T>> =
     mapIndexed<T, IndexedValue<T>> { index, value -> IndexedValue(index, value) }
 

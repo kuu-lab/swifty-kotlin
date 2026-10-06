@@ -117,18 +117,19 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             iterableInterfaceSymbol: iterableInterfaceSymbol
         )
-        let mapSymbols = registerSyntheticMapStub(
-            symbols: symbols, types: types, interner: interner,
+        registerSyntheticMapEntryResiduals(
+            symbols: symbols,
+            types: types,
+            interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
-        _ = registerSyntheticAbstractMapStub(
+        registerSyntheticMapRuntimeResiduals(
             symbols: symbols,
             types: types,
             interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol
+            bundledIndex: bundledIndex
         )
-
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
         if let mutableListSym = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]
@@ -153,26 +154,6 @@ extension DataFlowSemaPhase {
                 sequenceSymbol: sequenceSymbol
             )
         }
-
-        registerSyntheticMutableMapStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerMapHigherOrderMembers(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            keyTypeParamSymbol: mapSymbols.keyTypeParamSymbol,
-            valueTypeParamSymbol: mapSymbols.valueTypeParamSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
 
         // KSP-625: ArrayDeque is provided by bundled Kotlin source
         // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is

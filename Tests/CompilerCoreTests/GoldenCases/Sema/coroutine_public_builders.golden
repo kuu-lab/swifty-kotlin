@@ -1,0 +1,38 @@
+symbol fq=prepare.$0.block[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=prepare.$0.completion[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=prepareReceiver.$1.block[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=prepareReceiver.$1.completion[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=prepareReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[suspend String.() -> Int,kotlin.coroutines.Continuation<Int>] ret=kotlin.coroutines.Continuation<Unit>
+symbol fq=prepare[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[suspend () -> Int,kotlin.coroutines.Continuation<Int>] ret=kotlin.coroutines.Continuation<Unit>
+symbol fq=start.$2.block[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=start.$2.completion[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=startReceiver.$3.block[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=startReceiver.$3.completion[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=startReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[suspend String.() -> Int,kotlin.coroutines.Continuation<Int>] ret=Unit
+symbol fq=start[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[suspend () -> Int,kotlin.coroutines.Continuation<Int>] ret=Unit
+symbol fq=value[kind=fun;params=;ret=Int;susp;origin=fixture] kind=function vis=public flags=suspendFunction sig=recv=_ params=[] ret=Int suspend=1
+file fcoroutine_public_builders package=_
+  decl prepare[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture] fun prepare sym=prepare[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture]
+  decl prepareReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture] fun prepareReceiver sym=prepareReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=kotlin.coroutines.Continuation<Unit>;names=[block,completion];origin=fixture]
+  decl start[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture] fun start sym=start[kind=fun;params=fn{su;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture]
+  decl startReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture] fun startReceiver sym=startReceiver[kind=fun;params=fn{su;r=String;p=;ret=Int},kotlin.coroutines.Continuation<Int>;ret=Unit;names=[block,completion];origin=fixture]
+  decl value[kind=fun;params=;ret=Int;susp;origin=fixture] fun value suspend=1 sym=value[kind=fun;params=;ret=Int;susp;origin=fixture]
+expr e@4:5 name(block) type=suspend () -> Int ref=prepare.$0.block[kind=vparam;origin=fixture]
+expr e@4:27 name(completion) type=kotlin.coroutines.Continuation<Int> ref=prepare.$0.completion[kind=vparam;origin=fixture]
+expr e@4:5#1 memberCall recv=e@4:5 callee=createCoroutine args=[_:e@4:27] type=kotlin.coroutines.Continuation<Unit> call=kotlin.coroutines.createCoroutine[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;ret=kotlin.coroutines.Continuation<Unit>;gen=1;names=[completion]] targs=[Int]
+expr e@6:5 name(block) type=suspend String.() -> Int ref=prepareReceiver.$1.block[kind=vparam;origin=fixture]
+expr e@6:27 string(abc) type=String
+expr e@6:34 name(completion) type=kotlin.coroutines.Continuation<Int> ref=prepareReceiver.$1.completion[kind=vparam;origin=fixture]
+expr e@6:5#1 memberCall recv=e@6:5 callee=createCoroutine args=[_:e@6:27,_:e@6:34] type=kotlin.coroutines.Continuation<Unit> call=kotlin.coroutines.createCoroutine[kind=fun;recv=fn{su;r=T0;p=;ret=T1};params=T0,kotlin.coroutines.Continuation<T1>;ret=kotlin.coroutines.Continuation<Unit>;gen=2;names=[receiver,completion]] targs=[String,Int]
+expr e@7:70 name(block) type=suspend () -> Int ref=start.$2.block[kind=vparam;origin=fixture]
+expr e@7:91 name(completion) type=kotlin.coroutines.Continuation<Int> ref=start.$2.completion[kind=vparam;origin=fixture]
+expr e@7:70#1 memberCall recv=e@7:70 callee=startCoroutine args=[_:e@7:91] type=Unit call=kotlin.coroutines.startCoroutine[kind=fun;recv=fn{su;p=;ret=T0};params=kotlin.coroutines.Continuation<T0>;ret=Unit;gen=1;names=[completion]] targs=[Int]
+expr e@9:5 name(block) type=suspend String.() -> Int ref=startReceiver.$3.block[kind=vparam;origin=fixture]
+expr e@9:26 string(abc) type=String
+expr e@9:33 name(completion) type=kotlin.coroutines.Continuation<Int> ref=startReceiver.$3.completion[kind=vparam;origin=fixture]
+expr e@9:5#1 memberCall recv=e@9:5 callee=startCoroutine args=[_:e@9:26,_:e@9:33] type=Unit call=kotlin.coroutines.startCoroutine[kind=fun;recv=fn{su;r=T0;p=;ret=T1};params=T0,kotlin.coroutines.Continuation<T1>;ret=Unit;gen=2;names=[receiver,completion]] targs=[String,Int]
+expr e@10:68 name(continuation) type=kotlin.coroutines.Continuation<Int> ref=s-0
+expr e@10:88 int(42) type=Int
+expr e@10:68#1 memberCall recv=e@10:68 callee=resume args=[_:e@10:88] type=Unit call=kotlin.coroutines.resume[kind=fun;recv=kotlin.coroutines.Continuation<T0>;params=T0;ret=Unit;gen=1;names=[value]] targs=[Int]
+expr e@10:50 lambda params=[continuation] body=e@10:68#1 label=suspendCoroutine type=(kotlin.coroutines.Continuation<Int>) -> Unit
+expr e@10:28 call callee=e@10:28#1 args=[_:e@10:50] type=Int call=kotlin.coroutines.suspendCoroutine[kind=fun;params=fn{p=kotlin.coroutines.Continuation<T0>;ret=Unit};ret=T0;susp;gen=1;nonlocal=[0];names=[block]] targs=[Int]

@@ -177,6 +177,49 @@ struct CodegenBackendEncodingEdgeCasesTests {
         )
     }
 
+    /// KSP-1420: HexFormat exposes the Kotlin stdlib nested values and its own string form.
+    @Test
+    func testCodegenCompilesHexFormatPropertiesAndDescription() throws {
+        let source = """
+        fun main() {
+            val format = HexFormat.Default
+            println(format.upperCase)
+            println(format.bytes.byteSeparator)
+            println(format.number.minLength)
+            println(format.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "HexFormatPropertiesAndDescription",
+            expected:
+                """
+                false
+
+                1
+                HexFormat(
+                    upperCase = false,
+                    bytes = BytesHexFormat(
+                    bytesPerLine = 2147483647,
+                    bytesPerGroup = 2147483647,
+                    groupSeparator = "  ",
+                    byteSeparator = "",
+                    bytePrefix = "",
+                    byteSuffix = ""
+                ),
+                    number = NumberHexFormat(
+                    prefix = "",
+                    suffix = "",
+                    removeLeadingZeros = false,
+                    minLength = 1
+                )
+                )
+                """
+                + "\n"
+        )
+    }
+
     @Test
     func testCodegenCompilesDecodeToStringRangeEdgeCases() throws {
         let source = """
@@ -189,8 +232,9 @@ struct CodegenBackendEncodingEdgeCasesTests {
             println(malformed.decodeToString(0, 2, false).length > 0)
             try {
                 println(malformed.decodeToString(0, 2, true))
-            } catch (e: Throwable) {
-                println("caught")
+            } catch (e: Exception) {
+                println("caught: ${e.message}")
+                println(e is kotlin.text.CharacterCodingException)
             }
         }
         """
@@ -203,7 +247,8 @@ struct CodegenBackendEncodingEdgeCasesTests {
                 bcd
                 abcdef
                 true
-                caught
+                caught: Input length = 1
+                true
                 """
                 + "\n"
         )

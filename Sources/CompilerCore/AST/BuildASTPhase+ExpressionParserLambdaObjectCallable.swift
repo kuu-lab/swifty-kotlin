@@ -103,20 +103,30 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.objectLiteral(superTypes: superTypes, decl: declID, range: range))
     }
 
-    func parseCallableReferenceWithoutReceiver() -> ExprID? {
-        let savedIndex = index
+    func parseCallableReference(receiver: ExprID? = nil, receiverTypeRef: TypeRefID? = nil) -> ExprID? {
         guard let opToken = consume() else {
             return nil
         }
         guard let memberToken = current(),
               let memberName = tokenText(memberToken)
         else {
-            index = savedIndex
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0014",
+                "Expected an identifier after '::'.",
+                range: opToken.range
+            )
             return nil
         }
         _ = consume()
-        let range = SourceRange(start: opToken.range.start, end: memberToken.range.end)
-        return astArena.appendExpr(.callableRef(receiver: nil, member: memberName, range: range))
+        let range = SourceRange(
+            start: receiver.flatMap { astArena.exprRange($0)?.start } ?? opToken.range.start,
+            end: memberToken.range.end
+        )
+        let reference = astArena.appendExpr(.callableRef(receiver: receiver, member: memberName, range: range))
+        if let receiverTypeRef {
+            astArena.setCallableRefReceiverTypeRef(reference, typeRef: receiverTypeRef)
+        }
+        return reference
     }
 
     /// Consumes tokens up to and including a closing brace matching a
@@ -149,6 +159,37 @@ extension BuildASTPhase.ExpressionParser {
         }
         let bodyEnd = depth == 0 ? index - 1 : index
         return (Array(tokens[bodyStart..<bodyEnd]), end, depth == 0)
+    }
+
+    /// Kotlin parses a control-structure body `{ params -> ... }` as a function
+    /// literal rather than a block. Looks ahead (without consuming) at the brace
+    /// group starting at the current `{` and reports whether it opens with a
+    /// lambda parameter list followed by `->`.
+    func braceGroupStartsLambdaLiteral() -> Bool {
+        guard matches(.symbol(.lBrace)) else {
+            return false
+        }
+        var depth = 0
+        var offset = index
+        while offset < tokens.endIndex {
+            switch tokens[offset].kind {
+            case .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rBrace):
+                depth -= 1
+            default:
+                break
+            }
+            if depth == 0 {
+                break
+            }
+            offset += 1
+        }
+        guard depth == 0 else {
+            return false
+        }
+        let bodyTokens = Array(tokens[(index + 1) ..< offset])
+        return lambdaArrowIndex(in: bodyTokens) != nil
     }
 
     private func lambdaArrowIndex(in tokens: [Token]) -> Int? {

@@ -132,6 +132,275 @@ struct RuntimeTypesTests {
     }
 
     @Test
+    func runtimeListBoxSubscriptPreservesAnyFallbackTag() {
+        let list = RuntimeListBox(values: [RuntimeValue(raw: 7, anyFallbackTag: 10)])
+
+        list[0] = 9
+
+        #expect(list[0] == 9)
+        #expect(list.values[0].anyFallbackTag == 10)
+    }
+
+    @Test
+    func runtimeListBoxSubscriptMapsThroughViews() {
+        let base = RuntimeListBox(values: [
+            RuntimeValue(raw: 10, anyFallbackTag: 9),
+            RuntimeValue(raw: 20, anyFallbackTag: 10),
+        ])
+        let reversed = RuntimeListBox(reversedViewOf: base)
+        let array = RuntimeArrayBox(length: 2)
+        array.values = [
+            RuntimeValue(raw: 30, anyFallbackTag: 11),
+            RuntimeValue(raw: 40, anyFallbackTag: 12),
+        ]
+        let arrayView = RuntimeListBox(arrayViewOf: array)
+
+        #expect(reversed.count == 2)
+        #expect(reversed[0] == 20)
+        reversed[0] = 21
+        arrayView[1] = 41
+
+        #expect(base[1] == 21)
+        #expect(base.values[1].anyFallbackTag == 10)
+        #expect(array[1] == 41)
+        #expect(array.values[1].anyFallbackTag == 12)
+    }
+
+    @Test
+    func runtimeListBoxSubscriptMapsThroughSubList() {
+        let base = RuntimeListBox(values: [
+            RuntimeValue(raw: 10, anyFallbackTag: 9),
+            RuntimeValue(raw: 20, anyFallbackTag: 10),
+            RuntimeValue(raw: 30, anyFallbackTag: 11),
+            RuntimeValue(raw: 40, anyFallbackTag: 12),
+        ])
+        let subList = RuntimeListBox(subListOf: base, fromIndex: 1, toIndex: 3)
+
+        #expect(subList.count == 2)
+        #expect(subList[0] == 20)
+        #expect(subList[1] == 30)
+
+        subList[0] = 21
+        subList.setValue(RuntimeValue(raw: 31), at: 1)
+
+        #expect(base.elements == [10, 21, 31, 40])
+        #expect(base.values[1].anyFallbackTag == 10)
+        #expect(base.values[2].anyFallbackTag == 11)
+    }
+
+    @Test
+    func runtimeListIteratorSetPreservesAnyFallbackTags() {
+        let list = RuntimeListBox(values: [
+            RuntimeValue(raw: 1, anyFallbackTag: 9),
+            RuntimeValue(raw: 2, anyFallbackTag: 10),
+            RuntimeValue(raw: 3, anyFallbackTag: 11),
+        ])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iteratorRaw = kk_list_iterator(listRaw)
+
+        while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+            _ = kk_list_iterator_next(iteratorRaw)
+            _ = runtimeListIteratorSet(iteratorRaw, 99, nil)
+        }
+
+        #expect(list.elements == [99, 99, 99])
+        #expect(list.values.map(\.anyFallbackTag) == [9, 10, 11])
+    }
+
+    @Test
+    func runtimeListIteratorSetScalesWithElementCount() {
+        let count = 100_000
+        let list = RuntimeListBox(values: (0..<count).map {
+            RuntimeValue(raw: $0, anyFallbackTag: 10)
+        })
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iteratorRaw = kk_list_iterator(listRaw)
+
+        while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+            _ = kk_list_iterator_next(iteratorRaw)
+            _ = runtimeListIteratorSet(iteratorRaw, 99, nil)
+        }
+
+        #expect(list[0] == 99)
+        #expect(list[count - 1] == 99)
+        #expect(list.values[0].anyFallbackTag == 10)
+        #expect(list.values[count - 1].anyFallbackTag == 10)
+    }
+
+    // MARK: - modCount / ConcurrentModificationException (Bug A)
+
+    @Test
+    func runtimeListBoxModCountBumpsOnlyOnStructuralMutation() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let initial = list.modCount
+
+        list.setValue(RuntimeValue(raw: 99), at: 0)
+        #expect(list.modCount == initial, "element replacement must not bump modCount")
+
+        list.withMutableValues { $0.append(RuntimeValue(raw: 4)) }
+        #expect(list.modCount == initial + 1, "append must bump modCount")
+
+        list.withMutableValues { $0.remove(at: 0) }
+        #expect(list.modCount == initial + 2, "remove must bump modCount")
+    }
+
+    @Test
+    func runtimeMapBoxModCountBumpsOnNewKeyOnlyNotOnValueUpdate() {
+        let map = RuntimeMapBox(keys: [1], values: [100])
+        let initial = map.modCount
+
+        map.put(key: 1, value: 200)
+        #expect(map.modCount == initial, "updating an existing key must not bump modCount")
+
+        map.put(key: 2, value: 300)
+        #expect(map.modCount == initial + 1, "inserting a new key must bump modCount")
+
+        _ = map.remove(key: 1)
+        #expect(map.modCount == initial + 2, "removing a key must bump modCount")
+    }
+
+    @Test
+    func runtimeSetBoxModCountBumpsOnNewElementOnlyNotOnDuplicate() {
+        let set = RuntimeSetBox(elements: [1, 2])
+        let initial = set.modCount
+
+        #expect(set.insert(rawValue: 1) == false, "duplicate insert must be rejected")
+        #expect(set.modCount == initial, "rejected duplicate insert must not bump modCount")
+
+        #expect(set.insert(rawValue: 3) == true)
+        #expect(set.modCount == initial + 1, "new element insert must bump modCount")
+    }
+
+    @Test
+    func kkListIteratorNextThrowsConcurrentModificationExceptionAfterExternalMutation() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+
+        #expect(kk_list_iterator_hasNext(iterRaw) != 0)
+        var outThrown: Int = 0
+        _ = kk_list_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown == 0)
+
+        // Mutate the backing list through a handle other than this iterator.
+        list.withMutableValues { $0.append(RuntimeValue(raw: 4)) }
+
+        outThrown = 0
+        _ = kk_list_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown != 0, "next() must throw after an external structural mutation")
+        let thrown = tryCast(UnsafeMutableRawPointer(bitPattern: outThrown)!, to: RuntimeConcurrentModificationExceptionBox.self)
+        #expect(thrown != nil)
+    }
+
+    @Test
+    func kkListIteratorOwnRemoveDoesNotTriggerSpuriousComodification() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            Issue.record("expected a RuntimeListIteratorBox")
+            return
+        }
+
+        var outThrown: Int = 0
+        _ = kk_list_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown == 0)
+        #expect(iter.removeLastReturned(), "remove() through the iterator itself must succeed")
+
+        outThrown = 0
+        _ = kk_list_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown == 0, "an iterator's own remove() must not make its next next() see a comodification")
+    }
+
+    @Test
+    func kkMapIteratorNextThrowsConcurrentModificationExceptionAfterExternalMutation() {
+        let map = RuntimeMapBox(keys: [1, 2], values: [10, 20])
+        let mapRaw = registerRuntimeObject(map)
+        let iterRaw = kk_map_iterator(mapRaw)
+
+        #expect(kk_map_iterator_hasNext(iterRaw) != 0)
+        var outThrown: Int = 0
+        _ = kk_map_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown == 0)
+
+        map.appendEntry(key: 3, value: 30)
+
+        outThrown = 0
+        _ = kk_map_iterator_next(iterRaw, &outThrown)
+        #expect(outThrown != 0, "next() must throw after the backing map is structurally mutated elsewhere")
+    }
+
+    // MARK: - MutableListIterator/MutableIterator state contract (Bug B)
+
+    @Test
+    func runtimeListIteratorRemoveThrowsIllegalStateExceptionBeforeNext() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+
+        var outThrown: Int = 0
+        _ = runtimeListIteratorRemove(iterRaw, &outThrown)
+        #expect(outThrown != 0)
+        let thrown = tryCast(UnsafeMutableRawPointer(bitPattern: outThrown)!, to: RuntimeIllegalStateExceptionBox.self)
+        #expect(thrown != nil)
+    }
+
+    @Test
+    func runtimeListIteratorSetThrowsIllegalStateExceptionBeforeNext() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+
+        var outThrown: Int = 0
+        _ = runtimeListIteratorSet(iterRaw, 9, &outThrown)
+        #expect(outThrown != 0)
+    }
+
+    @Test
+    func runtimeListIteratorRemoveThrowsIllegalStateExceptionRightAfterAdd() {
+        let list = RuntimeListBox(elements: [1, 2, 3])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            Issue.record("expected a RuntimeListIteratorBox")
+            return
+        }
+
+        _ = kk_list_iterator_next(iterRaw)
+        iter.addBeforeNext(RuntimeValue(raw: 25))
+
+        var outThrown: Int = 0
+        _ = runtimeListIteratorRemove(iterRaw, &outThrown)
+        #expect(outThrown != 0, "remove() right after add() with no intervening next() must throw")
+    }
+
+    @Test
+    func runtimeListIteratorRemoveThrowsIllegalStateExceptionOnSecondCall() {
+        let list = RuntimeListBox(elements: [1])
+        let listRaw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+        let iterRaw = kk_list_iterator(listRaw)
+
+        _ = kk_list_iterator_next(iterRaw)
+        var outThrown: Int = 0
+        _ = runtimeListIteratorRemove(iterRaw, &outThrown)
+        #expect(outThrown == 0)
+
+        outThrown = 0
+        _ = runtimeListIteratorRemove(iterRaw, &outThrown)
+        #expect(outThrown != 0, "a second remove() with no intervening next() must throw")
+    }
+
+    @Test
+    func runtimeSetBoxRawValueUsesInsertionOrder() {
+        let set = RuntimeSetBox(elements: [10, 20, 30])
+
+        #expect(set.count == 3)
+        #expect(set[0] == 10)
+        #expect(set[2] == 30)
+        #expect(set.rawValue(at: 3) == nil)
+    }
+
+    @Test
     func runtimeListBoxReversedViewReflectsBaseMutations() {
         let base = RuntimeListBox(elements: [10, 20, 30])
         let baseRaw = registerRuntimeObject(base, typeID: listRuntimeTypeID)

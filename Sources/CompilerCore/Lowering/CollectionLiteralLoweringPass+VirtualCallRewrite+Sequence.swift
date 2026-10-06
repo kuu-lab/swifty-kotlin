@@ -432,46 +432,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // reduceIndexed on sequence → kk_sequence_reduceIndexed (STDLIB-556)
-        // Args: lambda (1 from Kotlin: operation)
-        if callee == lookup.reduceIndexedName, arguments.count == 1,
-           state.contains(.sequence, receiver)
-        {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            emitHOFCall(
-                kkName: lookup.kkSequenceReduceIndexedName,
-                receiver: receiver,
-                arguments: arguments + [zeroExpr],
-                result: result,
-                origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult,
-                module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
-        // reduceIndexedOrNull on sequence → kk_sequence_reduceIndexedOrNull (STDLIB-SEQ-015)
-        // Args: lambda (1 from Kotlin: operation)
-        if callee == lookup.reduceIndexedOrNullName, arguments.count == 1,
-           state.contains(.sequence, receiver)
-        {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            emitHOFCall(
-                kkName: lookup.kkSequenceReduceIndexedOrNullName,
-                receiver: receiver,
-                arguments: arguments + [zeroExpr],
-                result: result,
-                origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult,
-                module: module,
-                loweredBody: &loweredBody
-            )
-            return true
-        }
-
         let sequencePlusMinusCallees = SequencePlusMinusRuntimeCallees(
             plus: lookup.kkSequencePlusName,
             minus: lookup.kkSequenceMinusName,

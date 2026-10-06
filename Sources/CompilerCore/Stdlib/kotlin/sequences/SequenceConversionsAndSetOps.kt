@@ -33,6 +33,52 @@ public inline fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? {
     return last
 }
 
+public fun <T> Sequence<T>.first(): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    return iterator.next()
+}
+
+public inline fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    throw NoSuchElementException("Sequence contains no element matching the predicate.")
+}
+
+public fun <T> Sequence<T>.firstOrNull(): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    return iterator.next()
+}
+
+public inline fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+    for (element in this) {
+        val result = transform(element)
+        if (result != null) return result
+    }
+    return null
+}
+
+@SinceKotlin("1.5")
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Any> Sequence<T>.firstNotNullOf(transform: (T) -> R?): R {
+    for (element in this) {
+        val result = transform(element)
+        if (result != null) return result
+    }
+    throw NoSuchElementException("No element of the sequence was transformed to a non-null value.")
+}
+
 // KSP-1346: Sequence fold-family APIs are source-backed with the Kotlin 2.3.10
 // terminal traversal contract.
 public inline fun <T, R> Sequence<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
@@ -47,6 +93,173 @@ public inline fun <T, R> Sequence<T>.foldIndexed(initial: R, operation: (index: 
     for (element in this) {
         if (index < 0) throw ArithmeticException("Index overflow has happened.")
         accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
+}
+
+// KSP-1357: Sequence single-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract: single()/singleOrNull() stop after the second
+// element instead of materializing the sequence.
+public fun <T> Sequence<T>.single(): T {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    val single = iterator.next()
+    if (iterator.hasNext()) throw IllegalArgumentException("Sequence has more than one element.")
+    return single
+}
+
+public inline fun <T> Sequence<T>.single(predicate: (T) -> Boolean): T {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Sequence contains more than one matching element.")
+            single = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Sequence contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as T
+}
+
+public fun <T> Sequence<T>.singleOrNull(): T? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    val single = iterator.next()
+    if (iterator.hasNext()) return null
+    return single
+}
+
+public inline fun <T> Sequence<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+    }
+    if (!found) return null
+    return single
+}
+
+// KSP-1351: Sequence last-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract: elements are consumed lazily through the
+// iterator and predicate overloads evaluate in encounter order.
+public fun <T> Sequence<T>.last(): T {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException("Sequence is empty.")
+    var last = iterator.next()
+    while (iterator.hasNext()) last = iterator.next()
+    return last
+}
+
+public inline fun <T> Sequence<T>.last(predicate: (T) -> Boolean): T {
+    var last: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            last = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Sequence contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return last as T
+}
+
+public fun <T> Sequence<T>.lastOrNull(): T? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var last = iterator.next()
+    while (iterator.hasNext()) last = iterator.next()
+    return last
+}
+
+public inline fun <T> Sequence<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) {
+            last = element
+        }
+    }
+    return last
+}
+
+// KSP-1341: Sequence element-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract: elementAt* reads at most index + 1 elements
+// instead of materializing the sequence.
+public fun <T> Sequence<T>.elementAt(index: Int): T {
+    return elementAtOrElse(index) { throw IndexOutOfBoundsException("Sequence doesn't contain element at index $index.") }
+}
+
+public fun <T> Sequence<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    if (index < 0) return defaultValue(index)
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Sequence<T>.elementAtOrNull(index: Int): T? {
+    if (index < 0) return null
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return null
+}
+
+// KSP-1355: Sequence reduce-family APIs are source-backed with the Kotlin 2.3.10
+// terminal traversal contract. The accumulator may widen to a supertype of the
+// element type (`<S, T : S>`), matching the Iterable declarations.
+public inline fun <S, T : S> Sequence<T>.reduce(operation: (acc: S, T) -> S): S {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceIndexed(operation: (index: Int, acc: S, T) -> S): S {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty sequence can't be reduced.")
+    var index = 1
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceOrNull(operation: (acc: S, T) -> S): S? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Sequence<T>.reduceIndexedOrNull(operation: (index: Int, acc: S, T) -> S): S? {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return null
+    var index = 1
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
         index += 1
     }
     return accumulator
@@ -88,12 +301,8 @@ public fun <T> Sequence<T>.toMutableSet(): MutableSet<T> {
 public fun <T> Sequence<T>.toHashSet(): MutableSet<T> = toMutableSet()
 
 @KsSymbolName("kk_sequence_toSortedSet")
-public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> {
-    val sorted = toMutableList().sorted()
-    val result = mutableSetOf<T>()
-    for (element in sorted) result.add(element)
-    return result
-}
+public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> =
+    LinkedHashSet(toMutableList().sorted())
 
 public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val list1 = mutableListOf<T>()
@@ -500,4 +709,82 @@ public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> 
         override fun sourceIterator(): Iterator<T> = source.iterator()
         override fun keyOf(element: T): K = keySelector(element)
     }
+}
+
+// KSP-1359: Sequence sum-family migrated to bundled Kotlin source with the
+// Kotlin 2.3.10 signatures. The monomorphic sum() overloads iterate lazily;
+// sumOf resolves on the selector's concrete return type. The sibling Int and
+// Double sumOf overloads already live in SequenceAggregateHOF.kt
+// (kotlin.collections), and Sequence<Int>.sum() lives there too.
+public fun Sequence<Double>.sum(): Double {
+    var sum = 0.0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Float>.sum(): Float {
+    var sum = 0.0f
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Sequence<Long>.sum(): Long {
+    var sum = 0L
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UByte>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UInt>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<ULong>.sum(): ULong {
+    var sum = 0uL
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.5")
+public fun Sequence<UShort>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> Long): Long {
+    var sum = 0L
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> UInt): UInt {
+    var sum = 0u
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Sequence<T>.sumOf(selector: (T) -> ULong): ULong {
+    var sum = 0uL
+    for (element in this) sum += selector(element)
+    return sum
 }

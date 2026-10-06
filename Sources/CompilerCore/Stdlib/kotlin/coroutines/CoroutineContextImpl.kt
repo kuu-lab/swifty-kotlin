@@ -15,11 +15,10 @@ import kotlin.coroutines.CoroutineContext.Key
 /**
  * Base class for [CoroutineContext.Element] implementations.
  *
- * The constructor parameter is intentionally kept separate from the `key`
- * member migration, which is tracked by KSP-1137.
+ * The key is retained by the source-backed property (KSP-1137).
  */
 @SinceKotlin("1.3")
-public abstract class AbstractCoroutineContextElement(key: Key<*>) : Element
+public abstract class AbstractCoroutineContextElement(public override val key: Key<*>) : Element
 
 @SinceKotlin("1.3")
 @ExperimentalStdlibApi
@@ -36,6 +35,25 @@ public abstract class AbstractCoroutineContextKey<B : Element, E : B>(
 
     internal fun isSubKey(key: Key<*>): Boolean =
         key === this || topmostKey === key
+}
+
+@SinceKotlin("1.3")
+@ExperimentalStdlibApi
+@Suppress("UNCHECKED_CAST")
+public fun <E : Element> Element.getPolymorphicElement(key: Key<E>): E? {
+    if (key is AbstractCoroutineContextKey<*, *>) {
+        return if (key.isSubKey(this.key)) key.tryCast(this) as? E else null
+    }
+    return if (this.key === key) this as E else null
+}
+
+@SinceKotlin("1.3")
+@ExperimentalStdlibApi
+public fun Element.minusPolymorphicKey(key: Key<*>): CoroutineContext {
+    if (key is AbstractCoroutineContextKey<*, *>) {
+        return if (key.isSubKey(this.key) && key.tryCast(this) != null) EmptyCoroutineContext else this
+    }
+    return if (this.key === key) EmptyCoroutineContext else this
 }
 
 // KSP-1145: EmptyCoroutineContext's public behavior is pure Kotlin stdlib

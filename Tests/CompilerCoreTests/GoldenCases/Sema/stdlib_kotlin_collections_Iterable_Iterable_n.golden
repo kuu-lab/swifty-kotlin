@@ -1,0 +1,26 @@
+symbol fq=TwoValues.<init>[kind=ctor;recv=TwoValues;params=;ret=TwoValues;origin=fixture] kind=constructor vis=private flags=_ sig=recv=TwoValues params=[] ret=TwoValues
+symbol fq=TwoValues[kind=class;origin=fixture] kind=class vis=private flags=_
+symbol fq=__local_0.iterator[kind=local;type=kotlin.collections.Iterator<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Iterator<Int>
+symbol fq=inspect.$0.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inspect[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterable<Int>] ret=Int
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_collections_Iterable_Iterable_n package=_
+  decl TwoValues[kind=class;origin=fixture] class TwoValues sym=TwoValues[kind=class;origin=fixture]
+  decl inspect[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture] fun inspect sym=inspect[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@2:53 int(3) type=Int
+expr e@2:56 int(5) type=Int
+expr e@2:46 call callee=e@2:46#1 args=[_:e@2:53,_:e@2:56] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@2:46#2 memberCall recv=e@2:46 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1;classGen=1] targs=[Int]
+expr e@6:20 name(values) type=kotlin.collections.Iterable<Int> ref=inspect.$0.values[kind=vparam;origin=fixture]
+expr e@6:20#1 memberCall recv=e@6:20 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.Iterable.iterator[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1;classGen=1] targs=[Int]
+expr e@6:5 localDecl iterator mutable=0 type=_ init=e@6:20#1 type=Unit ref=__local_0.iterator[kind=local;type=kotlin.collections.Iterator<Int>;origin=fixture]
+expr e@7:16 name(iterator) type=kotlin.collections.Iterator<Int> ref=__local_0.iterator[kind=local;type=kotlin.collections.Iterator<Int>;origin=fixture]
+expr e@7:16#1 memberCall recv=e@7:16 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=Boolean;gen=1;classGen=1] targs=[Int]
+expr e@7:36 name(iterator) type=kotlin.collections.Iterator<Int> ref=__local_0.iterator[kind=local;type=kotlin.collections.Iterator<Int>;origin=fixture]
+expr e@7:36#1 memberCall recv=e@7:36 callee=next args=[] type=Int call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=T0;gen=1;classGen=1] targs=[Int]
+expr e@7:57 int(0) type=Int
+expr e@7:12 if cond=e@7:16#1 then=e@7:36#1 else=e@7:57 type=Int
+expr e@7:5 return value=e@7:12 type=Nothing
+expr e@11:13 call callee=e@11:13#1 args=[] type=TwoValues call=TwoValues.<init>[kind=ctor;recv=TwoValues;params=;ret=TwoValues;origin=fixture]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13] type=Int call=inspect[kind=fun;params=kotlin.collections.Iterable<Int>;ret=Int;names=[values];origin=fixture]

@@ -2,11 +2,23 @@ public struct CallArg {
     public let label: InternedString?
     public let isSpread: Bool
     public let type: TypeID
+    /// Keep a literal's value until each candidate's parameter type is known.
+    /// A pre-inferred Int/UInt alone loses contextual integer adaptation.
+    public let signedIntegerLiteral: Int64?
+    public let unsignedIntegerLiteral: UInt64?
 
-    public init(label: InternedString? = nil, isSpread: Bool = false, type: TypeID) {
+    public init(
+        label: InternedString? = nil,
+        isSpread: Bool = false,
+        type: TypeID,
+        signedIntegerLiteral: Int64? = nil,
+        unsignedIntegerLiteral: UInt64? = nil
+    ) {
         self.label = label
         self.isSpread = isSpread
         self.type = type
+        self.signedIntegerLiteral = signedIntegerLiteral
+        self.unsignedIntegerLiteral = unsignedIntegerLiteral
     }
 }
 
@@ -15,12 +27,15 @@ public struct CallExpr {
     public let calleeName: InternedString
     public let args: [CallArg]
     public let explicitTypeArgs: [TypeID]
+    /// Lexical receivers, innermost first, independently of the extension receiver.
+    public let dispatchReceiverTypes: [TypeID]
 
-    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = []) {
+    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = []) {
         self.range = range
         self.calleeName = calleeName
         self.args = args
         self.explicitTypeArgs = explicitTypeArgs
+        self.dispatchReceiverTypes = dispatchReceiverTypes
     }
 }
 

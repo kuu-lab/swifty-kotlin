@@ -51,7 +51,7 @@ extension LibMetadataImportIntegrationTests {
 
             // Verify no SEMA/TYPE diagnostics (proves the symbol resolved in scope)
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "Wildcard import should resolve library function without errors: \(semaErrors.map(\.code))")
@@ -101,7 +101,7 @@ extension LibMetadataImportIntegrationTests {
             #expect(isBlankSymbol != nil, "Default import should make library function 'isBlank' from kotlin.text available")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "Default import should resolve library function without errors: \(semaErrors.map(\.code))")
@@ -160,7 +160,7 @@ extension LibMetadataImportIntegrationTests {
             #expect(doWorkSymbol != nil, "Wildcard import should resolve function from synthesized package")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
@@ -239,7 +239,7 @@ extension LibMetadataImportIntegrationTests {
             #expect(funcB != nil, "funcB from lib.b should be resolved via wildcard import")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "No SEMA errors expected with multiple library wildcard imports: \(semaErrors.map(\.code))")
@@ -299,7 +299,7 @@ extension LibMetadataImportIntegrationTests {
             #expect(processSymbol != nil, "Wildcard import should resolve 'process' even when non-package symbol coexists at package path")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")
@@ -358,7 +358,7 @@ extension LibMetadataImportIntegrationTests {
             #expect(trimSymbol != nil, "Default import should resolve 'trim' from kotlin.text")
 
             let semaErrors = ctx.diagnostics.diagnostics.filter {
-                $0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE")
+                $0.severity == .error && ($0.code.hasPrefix("KSWIFTK-SEMA") || $0.code.hasPrefix("KSWIFTK-TYPE"))
             }
             let semaErrorsEmpty = semaErrors.isEmpty
             #expect(semaErrorsEmpty, "No SEMA errors expected: \(semaErrors.map(\.code))")

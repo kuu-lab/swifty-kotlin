@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
+
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
@@ -61,41 +63,79 @@ private external fun __kkUIntArrayAsList(array: UIntArray): List<UInt>
 @KsSymbolName("__kk_uLongArray_asList")
 private external fun __kkULongArrayAsList(array: ULongArray): List<ULong>
 
+@ExperimentalUnsignedTypes
 public fun ByteArray.asUByteArray(): UByteArray = this.__asUByteArrayView()
 
+@ExperimentalUnsignedTypes
 public fun ShortArray.asUShortArray(): UShortArray = this.__asUShortArrayView()
 
+@ExperimentalUnsignedTypes
 public fun IntArray.asUIntArray(): UIntArray = this.__asUIntArrayView()
 
+@ExperimentalUnsignedTypes
 public fun LongArray.asULongArray(): ULongArray = this.__asULongArrayView()
 
+@ExperimentalUnsignedTypes
 public fun UByteArray.asByteArray(): ByteArray = this.__asByteArrayView()
 
+@ExperimentalUnsignedTypes
 public fun UShortArray.asShortArray(): ShortArray = this.__asShortArrayView()
 
+@ExperimentalUnsignedTypes
 public fun UIntArray.asIntArray(): IntArray = this.__asIntArrayView()
 
+@ExperimentalUnsignedTypes
 public fun ULongArray.asLongArray(): LongArray = this.__asLongArrayView()
 
+@ExperimentalUnsignedTypes
 public val UByteArray.size: Int get() = __kkUByteArraySize(this)
+@ExperimentalUnsignedTypes
 public val UShortArray.size: Int get() = __kkUShortArraySize(this)
+@ExperimentalUnsignedTypes
 public val UIntArray.size: Int get() = __kkUIntArraySize(this)
+@ExperimentalUnsignedTypes
 public val ULongArray.size: Int get() = __kkULongArraySize(this)
 
+@ExperimentalUnsignedTypes
+public val UIntArray.lastIndex: Int get() = this.size - 1
+@ExperimentalUnsignedTypes
+public val UIntArray.indices: IntRange get() = 0..this.lastIndex
+
+@ExperimentalUnsignedTypes
 public fun UByteArray.toList(): List<UByte> = __kkUByteArrayToList(this)
+@ExperimentalUnsignedTypes
 public fun UShortArray.toList(): List<UShort> = __kkUShortArrayToList(this)
+@ExperimentalUnsignedTypes
 public fun UIntArray.toList(): List<UInt> = __kkUIntArrayToList(this)
+@ExperimentalUnsignedTypes
 public fun ULongArray.toList(): List<ULong> = __kkULongArrayToList(this)
 
 // RF-LOWER-CALL-013: reuse the type-correct `toList` above instead of the
 // generic `kk_array_toMutableList` bridge, which boxed unsigned elements as
 // signed (ULong.MAX_VALUE printed as -1).
+@ExperimentalUnsignedTypes
 public fun UByteArray.toMutableList(): MutableList<UByte> = this.toList().toMutableList()
+@ExperimentalUnsignedTypes
 public fun UShortArray.toMutableList(): MutableList<UShort> = this.toList().toMutableList()
+@ExperimentalUnsignedTypes
 public fun UIntArray.toMutableList(): MutableList<UInt> = this.toList().toMutableList()
+@ExperimentalUnsignedTypes
 public fun ULongArray.toMutableList(): MutableList<ULong> = this.toList().toMutableList()
 
+@ExperimentalUnsignedTypes
 public fun UByteArray.asList(): List<UByte> = __kkUByteArrayAsList(this)
+@ExperimentalUnsignedTypes
 public fun UShortArray.asList(): List<UShort> = __kkUShortArrayAsList(this)
+@ExperimentalUnsignedTypes
 public fun UIntArray.asList(): List<UInt> = __kkUIntArrayAsList(this)
+@ExperimentalUnsignedTypes
 public fun ULongArray.asList(): List<ULong> = __kkULongArrayAsList(this)
+
+@ExperimentalUnsignedTypes
+public fun UByteArray.toSet(): Set<UByte> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UShortArray.toSet(): Set<UShort> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun UIntArray.toSet(): Set<UInt> = asList().toSet()
+@ExperimentalUnsignedTypes
+public fun ULongArray.toSet(): Set<ULong> = asList().toSet()

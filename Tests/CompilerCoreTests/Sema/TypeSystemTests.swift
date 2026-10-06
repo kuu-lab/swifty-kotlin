@@ -363,6 +363,70 @@ struct TypeSystemTests {
         #expect(ts.lub([nullableInt, nullableString]) == ts.nullableAnyType)
     }
 
+    // MARK: - lub() nearest-common-supertype fallback (residual of #6456)
+
+    @Test
+    func testLubOfNumericPrimitivesReturnsNumber() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        // Neither Int nor Long is a subtype of the other, so their only
+        // common ancestor besides Any is kotlin.Number. Regression for
+        // KSWIFTK-TYPE-0001 on `val n: Number = pick(1, 2L)` (T's lower
+        // bounds [Int, Long] used to widen straight to Any).
+        let result = ts.lub([intType, longType])
+        if case let .classType(ct) = ts.kind(of: result) {
+            #expect(ct.classSymbol == numberSymbol)
+            #expect(ct.nullability == .nonNull)
+        } else {
+            Issue.record("Expected classType(Number) for lub of Int and Long, got \(ts.renderType(result))")
+        }
+    }
+
+    @Test
+    func testLubOfNumericPrimitivesWithNullableNothingReturnsNullableNumber() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        let result = ts.lub([intType, longType, ts.nullableNothingType])
+        if case let .classType(ct) = ts.kind(of: result) {
+            #expect(ct.classSymbol == numberSymbol)
+            #expect(ct.nullability == .nullable)
+        } else {
+            Issue.record("Expected classType(Number?) for lub of Int, Long and Nothing?, got \(ts.renderType(result))")
+        }
+    }
+
+    @Test
+    func testLubOfDominatingBoundReturnsThatBoundEvenWhenNotFirst() {
+        let ts = TypeSystem()
+        let numberSymbol = SymbolID(rawValue: 100)
+        ts.numberClassSymbol = numberSymbol
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        let numberType = ts.make(.classType(ClassType(classSymbol: numberSymbol, args: [], nullability: .nonNull)))
+        // Number already dominates Int and Long even though it isn't the
+        // first element; unlike the narrower pre-existing `.typeParam`-only
+        // check, this must not depend on input order.
+        #expect(ts.lub([intType, longType, numberType]) == numberType)
+        #expect(ts.lub([intType, numberType, longType]) == numberType)
+    }
+
+    @Test
+    func testLubOfNumericPrimitivesWithoutNumberSymbolFallsBackToAny() {
+        let ts = TypeSystem()
+        // numberClassSymbol left nil, e.g. a phase before header
+        // registration has run: must not crash and must keep the old,
+        // safe (if imprecise) Any fallback.
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let longType = ts.make(.primitive(.long, .nonNull))
+        #expect(ts.lub([intType, longType]) == ts.anyType)
+    }
+
     @Test
     func testGlbOfEmptyReturnsError() {
         let ts = TypeSystem()

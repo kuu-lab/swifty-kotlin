@@ -1,0 +1,53 @@
+symbol fq=__local_0.first[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_1.last[kind=local;type=Char;origin=fixture] kind=local vis=private flags=_ type=Char
+symbol fq=__local_2.step[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_3.iterator[kind=local;type=kotlin.collections.CharIterator;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.CharIterator
+symbol fq=__local_4.next[kind=local;type=Char?;origin=fixture] kind=local vis=private flags=_ type=Char?
+symbol fq=__local_5.equal[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_6.hash[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=inheritedCharRangeIterator.$0.r[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inheritedCharRangeIterator[kind=fun;params=kotlin.ranges.CharRange;ret=kotlin.collections.CharIterator;names=[r];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.CharRange] ret=kotlin.collections.CharIterator
+symbol fq=inspectCharProgression.$1.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inspectCharProgression.$1.p[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=inspectCharProgression[kind=fun;params=kotlin.ranges.CharProgression,Any?;ret=String;names=[p,other];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.CharProgression,Any?] ret=String
+file fstdlib_kotlin_ranges_CharProgression_CharProgression_n package=_
+  decl inspectCharProgression[kind=fun;params=kotlin.ranges.CharProgression,Any?;ret=String;names=[p,other];origin=fixture] fun inspectCharProgression sym=inspectCharProgression[kind=fun;params=kotlin.ranges.CharProgression,Any?;ret=String;names=[p,other];origin=fixture]
+  decl inheritedCharRangeIterator[kind=fun;params=kotlin.ranges.CharRange;ret=kotlin.collections.CharIterator;names=[r];origin=fixture] fun inheritedCharRangeIterator sym=inheritedCharRangeIterator[kind=fun;params=kotlin.ranges.CharRange;ret=kotlin.collections.CharIterator;names=[r];origin=fixture]
+expr e@2:23 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@2:23#1 memberCall recv=e@2:23 callee=first args=[] type=Char ref=kotlin.ranges.CharProgression.first[kind=prop;type=Char]
+expr e@2:5 localDecl first mutable=0 type=Char init=e@2:23#1 type=Unit ref=__local_0.first[kind=local;type=Char;origin=fixture]
+expr e@3:22 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@3:22#1 memberCall recv=e@3:22 callee=last args=[] type=Char ref=kotlin.ranges.CharProgression.last[kind=prop;type=Char]
+expr e@3:5 localDecl last mutable=0 type=Char init=e@3:22#1 type=Unit ref=__local_1.last[kind=local;type=Char;origin=fixture]
+expr e@4:21 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@4:21#1 memberCall recv=e@4:21 callee=step args=[] type=Int ref=kotlin.ranges.CharProgression.step[kind=prop;type=Int]
+expr e@4:5 localDecl step mutable=0 type=Int init=e@4:21#1 type=Unit ref=__local_2.step[kind=local;type=Int;origin=fixture]
+expr e@5:34 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@5:34#1 memberCall recv=e@5:34 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.ranges.CharProgression.iterator[kind=fun;recv=kotlin.ranges.CharProgression;params=;ret=kotlin.collections.CharIterator]
+expr e@5:5 localDecl iterator mutable=0 type=CharIterator init=e@5:34#1 type=Unit ref=__local_3.iterator[kind=local;type=kotlin.collections.CharIterator;origin=fixture]
+expr e@6:27 name(iterator) type=kotlin.collections.CharIterator ref=__local_3.iterator[kind=local;type=kotlin.collections.CharIterator;origin=fixture]
+expr e@6:27#1 memberCall recv=e@6:27 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=Boolean;gen=1;classGen=1] targs=[Char]
+expr e@6:47 name(iterator) type=kotlin.collections.CharIterator ref=__local_3.iterator[kind=local;type=kotlin.collections.CharIterator;origin=fixture]
+expr e@6:47#1 memberCall recv=e@6:47 callee=nextChar args=[] type=Char call=kotlin.collections.CharIterator.nextChar[kind=fun;recv=kotlin.collections.CharIterator;params=;ret=Char]
+expr e@6:72 name(null) type=Nothing?
+expr e@6:23 if cond=e@6:27#1 then=e@6:47#1 else=e@6:72 type=Char?
+expr e@6:5 localDecl next mutable=0 type=Char? init=e@6:23 type=Unit ref=__local_4.next[kind=local;type=Char?;origin=fixture]
+expr e@7:26 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@7:35 name(other) type=Any? ref=inspectCharProgression.$1.other[kind=vparam;origin=fixture]
+expr e@7:26#1 memberCall recv=e@7:26 callee=equals args=[_:e@7:35] type=Boolean call=kotlin.ranges.CharProgression.equals[kind=fun;recv=kotlin.ranges.CharProgression;params=Any?;ret=Boolean;names=[other]]
+expr e@7:5 localDecl equal mutable=0 type=Boolean init=e@7:26#1 type=Unit ref=__local_5.equal[kind=local;type=Boolean;origin=fixture]
+expr e@8:21 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@8:21#1 memberCall recv=e@8:21 callee=hashCode args=[] type=Int call=kotlin.ranges.CharProgression.hashCode[kind=fun;recv=kotlin.ranges.CharProgression;params=;ret=Int]
+expr e@8:5 localDecl hash mutable=0 type=Int init=e@8:21#1 type=Unit ref=__local_6.hash[kind=local;type=Int;origin=fixture]
+expr e@9:15 name(p) type=kotlin.ranges.CharProgression ref=inspectCharProgression.$1.p[kind=vparam;origin=fixture]
+expr e@9:15#1 memberCall recv=e@9:15 callee=toString args=[] type=String call=kotlin.ranges.CharProgression.toString[kind=fun;recv=kotlin.ranges.CharProgression;params=;ret=String]
+expr e@9:30 name(first) type=Char ref=__local_0.first[kind=local;type=Char;origin=fixture]
+expr e@9:37 name(last) type=Char ref=__local_1.last[kind=local;type=Char;origin=fixture]
+expr e@9:43 name(step) type=Int ref=__local_2.step[kind=local;type=Int;origin=fixture]
+expr e@9:49 name(next) type=Char? ref=__local_4.next[kind=local;type=Char?;origin=fixture]
+expr e@9:55 name(equal) type=Boolean ref=__local_5.equal[kind=local;type=Boolean;origin=fixture]
+expr e@9:62 name(hash) type=Int ref=__local_6.hash[kind=local;type=Int;origin=fixture]
+expr e@9:12 stringTemplate[expr(e@9:15#1),lit(:),expr(e@9:30),lit(,),expr(e@9:37),lit(,),expr(e@9:43),lit(,),expr(e@9:49),lit(,),expr(e@9:55),lit(,),expr(e@9:62)] type=String
+expr e@9:5 return value=e@9:12 type=Nothing
+expr e@12:62 name(r) type=kotlin.ranges.CharRange ref=inheritedCharRangeIterator.$0.r[kind=vparam;origin=fixture]
+expr e@12:62#1 memberCall recv=e@12:62 callee=iterator args=[] type=kotlin.collections.CharIterator call=kotlin.ranges.CharProgression.iterator[kind=fun;recv=kotlin.ranges.CharProgression;params=;ret=kotlin.collections.CharIterator]

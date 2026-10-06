@@ -31,10 +31,16 @@ fun main() {
     val doubles = doubleArrayOf(1.0, 2.0, 3.0)
     println(doubles.joinToString(",") { (it * 10).toString() })
     println(doubles.joinToString(";") { (it * 2).toString() })
+    // KUU-1200: identity transform must deliver the element itself, not
+    // ABI-garbage bits, through the (Double) -> String parameter.
+    println(doubles.joinToString(",") { it.toString() })
+    println(doubles.joinToString(",") { "$it" })
 
     val floats = floatArrayOf(1.0f, 2.0f, 3.0f)
     println(floats.joinToString(",") { (it * 10).toString() })
     println(floats.joinToString(";") { (it + 1.0f).toString() })
+    println(floats.joinToString(",") { it.toString() })
+    println(floats.joinToString(",") { "$it" })
 
     val booleans = booleanArrayOf(true, false)
     println(booleans.joinToString(",") { (!it).toString() })

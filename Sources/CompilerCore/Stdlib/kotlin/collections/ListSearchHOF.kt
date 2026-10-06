@@ -176,7 +176,7 @@ public fun <T> List<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
-public operator fun <T> List<T>.contains(element: T): Boolean = indexOf(element) >= 0
+public operator fun <@kotlin.internal.OnlyInputTypes T> List<T>.contains(element: T): Boolean = indexOf(element) >= 0
 
 public fun <T> List<T>.containsAll(elements: Collection<T>): Boolean {
     for (element in elements) {

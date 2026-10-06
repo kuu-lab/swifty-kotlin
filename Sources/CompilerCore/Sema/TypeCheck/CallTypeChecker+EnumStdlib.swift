@@ -16,24 +16,14 @@ extension CallTypeChecker {
         sema: SemaModule,
         range: SourceRange
     ) -> EnumStdlibSpecialCallResult? {
-        let enumValuesName = interner.intern("enumValues")
-        let enumValueOfName = interner.intern("enumValueOf")
-        let enumEntriesName = interner.intern("enumEntries")
-        let enumEntriesIntrinsicName = interner.intern("enumEntriesIntrinsic")
-        guard calleeName == enumValuesName
-            || calleeName == enumValueOfName
-            || calleeName == enumEntriesName
-            || calleeName == enumEntriesIntrinsicName
-        else {
-            return nil
-        }
         let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
-        let kotlinPackage = interner.intern("kotlin")
-        let kotlinEnumsPackage = interner.intern("enums")
-        let sourceBackedIntrinsicFQName: [InternedString] = if calleeName == enumValuesName || calleeName == enumValueOfName {
-            [kotlinPackage, calleeName]
-        } else {
-            [kotlinPackage, kotlinEnumsPackage, calleeName]
+        guard let intrinsic = visibleCandidates.compactMap({
+            sema.wellKnownSymbols.enumIntrinsic(for: $0)
+        }).first,
+        let stubSymbol = visibleCandidates.first(where: {
+            sema.wellKnownSymbols.enumIntrinsic(for: $0) == intrinsic
+        }) else {
+            return nil
         }
         let hasNonSyntheticUserCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else {
@@ -42,11 +32,10 @@ extension CallTypeChecker {
             if symbol.flags.contains(.synthetic) {
                 return false
             }
-            // KSP-776/KSP-1156: these declarations are bundled Kotlin source.
-            // Keep the intrinsic path for that declaration, but let a real user
-            // declaration with the same short name shadow it.
-            return symbol.fqName != sourceBackedIntrinsicFQName
-                || !ctx.sema.symbols.isSourceBackedSymbol(candidate)
+            // The well-known table identifies the bundled/imported declaration
+            // itself. Any other non-synthetic visible candidate is a user
+            // declaration and must shadow the intrinsic path.
+            return sema.wellKnownSymbols.enumIntrinsic(for: candidate) == nil
         }
         if locals[calleeName] != nil || hasNonSyntheticUserCandidate {
             return nil
@@ -60,11 +49,25 @@ extension CallTypeChecker {
             return nil
         }
         let typeArg = explicitTypeArgs[0]
-        guard case let .classType(classType) = sema.types.kind(of: typeArg),
-              classType.nullability == .nonNull,
-              let nominalSymbol = sema.symbols.symbol(classType.classSymbol),
-              nominalSymbol.kind == .enumClass
-        else {
+        let enumType: TypeID
+        if case let .classType(classType) = sema.types.kind(of: typeArg),
+           classType.nullability == .nonNull,
+           sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass {
+            enumType = typeArg
+        } else if intrinsic == .enumValues,
+                  case let .typeParam(parameter) = sema.types.kind(of: typeArg),
+                  parameter.nullability == .nonNull,
+                  sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true,
+                  let enumSymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Enum")]),
+                  sema.symbols.typeParameterUpperBounds(for: parameter.symbol).contains(where: { bound in
+                      guard case let .classType(boundClass) = sema.types.kind(of: bound),
+                            boundClass.classSymbol == enumSymbol,
+                            boundClass.nullability == .nonNull,
+                            boundClass.args == [.invariant(typeArg)] else { return false }
+                      return true
+                  }) {
+            enumType = typeArg
+        } else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "`\(interner.resolve(calleeName))` requires exactly one non-nullable enum type argument.",
@@ -73,13 +76,8 @@ extension CallTypeChecker {
             return nil
         }
 
-        let enumType = sema.types.make(.classType(ClassType(
-            classSymbol: classType.classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        if calleeName == enumValuesName {
+        switch intrinsic {
+        case .enumValues:
             guard args.isEmpty else {
                 return nil
             }
@@ -95,31 +93,15 @@ extension CallTypeChecker {
                 args: [.invariant(enumType)],
                 nullability: .nonNull
             )))
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enumValues"),
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumValues(enumType: enumType, arrayType: arrayType, stubSymbol: stubSymbol)
-        }
 
-        if calleeName == enumValueOfName {
+        case .enumValueOf:
             guard args.count == 1 else {
                 return nil
             }
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enumValueOf"),
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumValueOf(enumType: enumType, stubSymbol: stubSymbol)
-        }
 
-        if calleeName == enumEntriesName || calleeName == enumEntriesIntrinsicName {
+        case .enumEntries, .enumEntriesIntrinsic:
             guard args.isEmpty else {
                 return nil
             }
@@ -136,17 +118,7 @@ extension CallTypeChecker {
                 args: [.invariant(enumType)],
                 nullability: .nonNull
             )))
-            let stubSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("enums"),
-                calleeName,
-            ])
-            guard let stubSymbol else {
-                return nil
-            }
             return .enumEntries(enumType: enumType, entriesType: entriesType, stubSymbol: stubSymbol)
         }
-
-        return nil
     }
 }

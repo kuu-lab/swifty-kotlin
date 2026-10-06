@@ -1186,7 +1186,7 @@ extension CallTypeChecker {
         case "thenBy", "thenByDescending":
             expectedLambdaType = sema.types.make(.functionType(FunctionType(
                 params: [comparatorElementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))

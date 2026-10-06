@@ -27,6 +27,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_function_value_tag_arity",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_function_invoke",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
@@ -50,6 +60,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
                 RuntimeABIParameter(name: "arg", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -59,6 +70,7 @@ public extension RuntimeABISpec {
             name: "kk_suspend_function_invoke_0",
             parameters: [
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -70,6 +82,61 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "functionRaw", type: .intptr),
                 RuntimeABIParameter(name: "arg1", type: .intptr),
                 RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_create",
+            parameters: [
+                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_3",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_4",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_suspend_function_invoke_5",
+            parameters: [
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "arg4", type: .intptr),
+                RuntimeABIParameter(name: "arg5", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

@@ -1,0 +1,53 @@
+symbol fq=firstMatch.$0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=firstMatch.$0.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstMatchOrNull.$1.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=firstMatchOrNull.$1.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstMatchOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<firstMatchOrNull.$1.T>] ret=firstMatchOrNull.$1.T?
+symbol fq=firstMatch[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<firstMatch.$0.T>] ret=firstMatch.$0.T
+symbol fq=firstNotNullValue.$2.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstNotNullValueOrNull.$3.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstNotNullValueOrNull[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String?;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Int>] ret=String?
+symbol fq=firstNotNullValue[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<Int>] ret=String
+symbol fq=firstValue.$4.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=firstValue.$4.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstValueOrNull.$5.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=firstValueOrNull.$5.values[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=firstValueOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<firstValueOrNull.$5.T>] ret=firstValueOrNull.$5.T?
+symbol fq=firstValue[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.sequences.Sequence<firstValue.$4.T>] ret=firstValue.$4.T
+file fstdlib_kotlin_sequences_Sequence_first package=_
+  decl firstValue[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture] fun firstValue sym=firstValue[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture]
+  decl firstMatch[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture] fun firstMatch sym=firstMatch[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0;gen=1;names=[values];origin=fixture]
+  decl firstValueOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture] fun firstValueOrNull sym=firstValueOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture]
+  decl firstMatchOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture] fun firstMatchOrNull sym=firstMatchOrNull[kind=fun;params=kotlin.sequences.Sequence<T0>;ret=T0?;gen=1;names=[values];origin=fixture]
+  decl firstNotNullValue[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String;names=[values];origin=fixture] fun firstNotNullValue sym=firstNotNullValue[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String;names=[values];origin=fixture]
+  decl firstNotNullValueOrNull[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String?;names=[values];origin=fixture] fun firstNotNullValueOrNull sym=firstNotNullValueOrNull[kind=fun;params=kotlin.sequences.Sequence<Int>;ret=String?;names=[values];origin=fixture]
+expr e@6:46 name(values) type=kotlin.sequences.Sequence<firstValue.$4.T> ref=firstValue.$4.values[kind=vparam;origin=fixture]
+expr e@6:46#1 memberCall recv=e@6:46 callee=seqFirst args=[] type=firstValue.$4.T call=kotlin.sequences.first[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;ret=T0;gen=1] targs=[firstValue.$4.T]
+expr e@7:46 name(values) type=kotlin.sequences.Sequence<firstMatch.$0.T> ref=firstMatch.$0.values[kind=vparam;origin=fixture]
+expr e@7:76 bool(true) type=Boolean
+expr e@7:74 lambda params=[] body=e@7:76 label=seqFirst type=(firstMatch.$0.T) -> Boolean
+expr e@7:46#1 memberCall recv=e@7:46 callee=seqFirst args=[predicate:e@7:74] type=firstMatch.$0.T call=kotlin.sequences.first[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Boolean};ret=T0;gen=1;names=[predicate]] targs=[firstMatch.$0.T]
+expr e@8:53 name(values) type=kotlin.sequences.Sequence<firstValueOrNull.$5.T> ref=firstValueOrNull.$5.values[kind=vparam;origin=fixture]
+expr e@8:53#1 memberCall recv=e@8:53 callee=seqFirstOrNull args=[] type=firstValueOrNull.$5.T? call=kotlin.sequences.firstOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;ret=T0?;gen=1] targs=[firstValueOrNull.$5.T]
+expr e@9:53 name(values) type=kotlin.sequences.Sequence<firstMatchOrNull.$1.T> ref=firstMatchOrNull.$1.values[kind=vparam;origin=fixture]
+expr e@9:89 bool(true) type=Boolean
+expr e@9:87 lambda params=[] body=e@9:89 label=seqFirstOrNull type=(firstMatchOrNull.$1.T) -> Boolean
+expr e@9:53#1 memberCall recv=e@9:53 callee=seqFirstOrNull args=[predicate:e@9:87] type=firstMatchOrNull.$1.T? call=kotlin.sequences.firstOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Boolean};ret=T0?;gen=1;names=[predicate]] targs=[firstMatchOrNull.$1.T]
+expr e@12:5 name(values) type=kotlin.sequences.Sequence<Int> ref=firstNotNullValue.$2.values[kind=vparam;origin=fixture]
+expr e@12:48 name(it) type=Int ref=s-0
+expr e@12:53 int(1) type=Int
+expr e@12:48#1 binary(greaterThan) lhs=e@12:48 rhs=e@12:53 type=Boolean
+expr e@12:56 string(hit) type=String
+expr e@12:67 name(null) type=Nothing?
+expr e@12:44 if cond=e@12:48#1 then=e@12:56 else=e@12:67 type=String?
+expr e@12:42 lambda params=[] body=e@12:44 label=seqFirstNotNullOf type=(Int) -> String?
+expr e@12:5#1 memberCall recv=e@12:5 callee=seqFirstNotNullOf args=[transform:e@12:42] type=String call=kotlin.sequences.firstNotNullOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1?};ret=T1;gen=2;bounds=[_,Any];names=[transform]] targs=[Int,String]
+expr e@15:5 name(values) type=kotlin.sequences.Sequence<Int> ref=firstNotNullValueOrNull.$3.values[kind=vparam;origin=fixture]
+expr e@15:54 name(it) type=Int ref=s-1
+expr e@15:59 int(1) type=Int
+expr e@15:54#1 binary(greaterThan) lhs=e@15:54 rhs=e@15:59 type=Boolean
+expr e@15:62 string(hit) type=String
+expr e@15:73 name(null) type=Nothing?
+expr e@15:50 if cond=e@15:54#1 then=e@15:62 else=e@15:73 type=String?
+expr e@15:48 lambda params=[] body=e@15:50 label=seqFirstNotNullOfOrNull type=(Int) -> String?
+expr e@15:5#1 memberCall recv=e@15:5 callee=seqFirstNotNullOfOrNull args=[transform:e@15:48] type=String? call=kotlin.sequences.firstNotNullOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1?};ret=T1?;gen=2;bounds=[_,Any];names=[transform]] targs=[Int,String]

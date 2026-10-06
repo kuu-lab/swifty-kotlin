@@ -24,7 +24,7 @@ private external fun <E> __kkArrayDequeRemoveLast(deque: ArrayDeque<E>): E
 /**
  * Resizable-array implementation of the deque data structure.
  */
-public class ArrayDeque<E> {
+public class ArrayDeque<E> : AbstractMutableList<E> {
     /** Constructs an empty deque with the specified initial capacity. */
     @KsSymbolName("__kk_arraydeque_new_with_capacity")
     public constructor(initialCapacity: Int)
@@ -36,10 +36,10 @@ public class ArrayDeque<E> {
     @KsSymbolName("__kk_arraydeque_new_from_collection")
     public constructor(elements: Collection<E>)
 
-    public val size: Int
+    public override val size: Int
         get() = __kkArrayDequeSize(this)
 
-    public fun isEmpty(): Boolean = __kkArrayDequeSize(this) == 0
+    public override fun isEmpty(): Boolean = __kkArrayDequeSize(this) == 0
 
     public fun isNotEmpty(): Boolean = !isEmpty()
 
@@ -49,7 +49,7 @@ public class ArrayDeque<E> {
     @KsSymbolName("__kk_arraydeque_addLast")
     public external fun addLast(element: E): Unit
 
-    public operator fun get(index: Int): E {
+    public override operator fun get(index: Int): E {
         val currentSize = __kkArrayDequeSize(this)
         if (index < 0 || index >= currentSize) {
             throw IndexOutOfBoundsException("index: $index, size: $currentSize")
@@ -88,12 +88,12 @@ public class ArrayDeque<E> {
 
     // MutableList and MutableCollection surface.
     @IgnorableReturnValue
-    public fun add(element: E): Boolean {
+    public override fun add(element: E): Boolean {
         addLast(element)
         return true
     }
 
-    public fun add(index: Int, element: E) {
+    public override fun add(index: Int, element: E) {
         val currentSize = __kkArrayDequeSize(this)
         if (index < 0 || index > currentSize) {
             throw IndexOutOfBoundsException("index: $index, size: $currentSize")
@@ -134,10 +134,10 @@ public class ArrayDeque<E> {
     }
 
     @IgnorableReturnValue
-    public fun addAll(elements: Collection<E>): Boolean = addAll(size, elements)
+    public override fun addAll(elements: Collection<E>): Boolean = addAll(size, elements)
 
     @IgnorableReturnValue
-    public fun addAll(index: Int, elements: Collection<E>): Boolean {
+    public override fun addAll(index: Int, elements: Collection<E>): Boolean {
         val currentSize = __kkArrayDequeSize(this)
         if (index < 0 || index > currentSize) {
             throw IndexOutOfBoundsException("index: $index, size: $currentSize")
@@ -161,9 +161,9 @@ public class ArrayDeque<E> {
         return true
     }
 
-    public operator fun contains(element: E): Boolean = indexOf(element) >= 0
+    public override operator fun contains(element: E): Boolean = indexOf(element) >= 0
 
-    public fun indexOf(element: E): Int {
+    public override fun indexOf(element: E): Int {
         var index = 0
         val currentSize = __kkArrayDequeSize(this)
         while (index < currentSize) {
@@ -173,7 +173,7 @@ public class ArrayDeque<E> {
         return -1
     }
 
-    public fun lastIndexOf(element: E): Int {
+    public override fun lastIndexOf(element: E): Int {
         var index = __kkArrayDequeSize(this) - 1
         while (index >= 0) {
             if (__valuesEqual(this[index], element)) return index
@@ -183,7 +183,7 @@ public class ArrayDeque<E> {
     }
 
     @IgnorableReturnValue
-    public fun remove(element: E): Boolean {
+    public override fun remove(element: E): Boolean {
         val index = indexOf(element)
         if (index < 0) return false
         removeAt(index)
@@ -191,7 +191,7 @@ public class ArrayDeque<E> {
     }
 
     @IgnorableReturnValue
-    public fun removeAt(index: Int): E {
+    public override fun removeAt(index: Int): E {
         val currentSize = __kkArrayDequeSize(this)
         if (index < 0 || index >= currentSize) {
             throw IndexOutOfBoundsException("index: $index, size: $currentSize")
@@ -229,7 +229,7 @@ public class ArrayDeque<E> {
     }
 
     @IgnorableReturnValue
-    public fun removeAll(elements: Collection<E>): Boolean {
+    public override fun removeAll(elements: Collection<E>): Boolean {
         var modified = false
         var index = 0
         while (index < __kkArrayDequeSize(this)) {
@@ -244,7 +244,7 @@ public class ArrayDeque<E> {
     }
 
     @IgnorableReturnValue
-    public fun retainAll(elements: Collection<E>): Boolean {
+    public override fun retainAll(elements: Collection<E>): Boolean {
         var modified = false
         var index = 0
         while (index < __kkArrayDequeSize(this)) {
@@ -258,20 +258,33 @@ public class ArrayDeque<E> {
         return modified
     }
 
-    public fun clear() {
+    public override fun clear() {
         while (isNotEmpty()) {
             removeLast()
         }
     }
 
-    public operator fun set(index: Int, element: E): E {
-        val previous = removeAt(index)
-        add(index, element)
-        return previous
-    }
+    @KsSymbolName("__kk_mutable_list_set")
+    public override external operator fun set(index: Int, element: E): E
+
+    // Runtime-backed storage has no addressable AbstractMutableList.modCount field.
+    @KsSymbolName("kk_list_iterator")
+    public override external fun iterator(): MutableIterator<E>
+
+    @KsSymbolName("kk_list_iterator")
+    public override external fun listIterator(): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_iterator_at")
+    public override external fun listIterator(index: Int): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_subList")
+    public override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
+
+    @KsSymbolName("__kk_collection_containsAll")
+    public override external fun containsAll(elements: Collection<E>): Boolean
 
     @Suppress("UNCHECKED_CAST")
-    public fun <T> toArray(array: Array<T>): Array<T> {
+    public override fun <T> toArray(array: Array<T>): Array<T> {
         val currentSize = __kkArrayDequeSize(this)
         val resultSize = if (array.size >= currentSize) array.size else currentSize
         val result = if (array.size >= currentSize) {
@@ -292,7 +305,26 @@ public class ArrayDeque<E> {
     }
 
     @Suppress("UNCHECKED_CAST")
-    public fun toArray(): Array<Any?> = toArray(arrayOfNulls<Any?>(__kkArrayDequeSize(this)))
+    public override fun toArray(): Array<Any?> = toArray(arrayOfNulls<Any?>(__kkArrayDequeSize(this)))
+
+    override fun equals(other: Any?): Boolean {
+        if (other === this) return true
+        if (other !is List<*>) return false
+        if (other.size != size) return false
+        val otherIterator = other.iterator()
+        for (element in this) {
+            if (element != otherIterator.next()) return false
+        }
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var hashCode = 1
+        for (element in this) {
+            hashCode = 31 * hashCode + (element?.hashCode() ?: 0)
+        }
+        return hashCode
+    }
 
     override fun toString(): String {
         val builder = StringBuilder()

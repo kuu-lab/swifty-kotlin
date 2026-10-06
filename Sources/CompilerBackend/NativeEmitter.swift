@@ -36,6 +36,7 @@ struct NativeEmitter {
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
         "kk_function_invoke_5",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
     ]
 
     /// Quick lookup for runtime ABI function specs by symbol name.
@@ -71,8 +72,10 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let moduleName: String
     let typeSystem: TypeSystem?
     let symbols: SymbolTable?
+    let externalFunctionSymbolsByLinkName: [String: SymbolID]
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -89,6 +92,7 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        moduleName: String = "main",
         typeSystem: TypeSystem? = nil,
         symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
@@ -103,8 +107,26 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.moduleName = moduleName
         self.typeSystem = typeSystem
         self.symbols = symbols
+        var externalFunctionSymbolsByLinkName: [String: SymbolID] = [:]
+        var ambiguousLinkNames: Set<String> = []
+        for symbol in symbols?.allSymbols() ?? [] where symbol.kind == .function {
+            guard let linkName = symbols?.externalLinkName(for: symbol.id),
+                  !linkName.isEmpty,
+                  !ambiguousLinkNames.contains(linkName)
+            else {
+                continue
+            }
+            if externalFunctionSymbolsByLinkName[linkName] != nil {
+                externalFunctionSymbolsByLinkName.removeValue(forKey: linkName)
+                ambiguousLinkNames.insert(linkName)
+            } else {
+                externalFunctionSymbolsByLinkName[linkName] = symbol.id
+            }
+        }
+        self.externalFunctionSymbolsByLinkName = externalFunctionSymbolsByLinkName
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
@@ -142,22 +164,67 @@ struct NativeEmitter {
             return []
         }
 
+        let notNullCallee = interner.intern("kk_op_notnull")
+        let callableTagCallees: Set<InternedString> = [
+            interner.intern("kk_callable_ref_tag_kfunction"),
+            interner.intern("kk_callable_ref_tag_kproperty"),
+        ]
+        let packedValueCallees: Set<InternedString> = [
+            interner.intern("kk_array_set"),
+            interner.intern("kk_coroutine_launcher_arg_set"),
+        ]
+        let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
+            guard case let .function(function) = declaration,
+                  interner.resolve(function.name).hasPrefix("kk_lambda_")
+            else { return nil }
+            return function.symbol
+        })
         var rawSymbols: Set<SymbolID> = []
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration else {
                 continue
             }
+            let aliasSources = Self.valueAliasSources(
+                in: function.body,
+                notNullCallee: notNullCallee,
+                callableTagCallees: callableTagCallees
+            )
+            // A callback value can reach its sink through `!!`, local aliases and
+            // if/when merge copies. Follow those back to the literal `symbolRef`
+            // so the lambda gets the flat callback ABI that `kk_function_invoke_*`
+            // expects.
+            func collectSymbolRefs(reaching root: KIRExprID, lambdaOnly: Bool) {
+                var visited: Set<KIRExprID> = []
+                var pending = [root]
+                while let exprID = pending.popLast() {
+                    guard visited.insert(exprID).inserted else { continue }
+                    if case let .symbolRef(symbol)? = module.arena.expr(exprID),
+                       !lambdaOnly || lambdaSymbols.contains(symbol)
+                    {
+                        rawSymbols.insert(symbol)
+                    }
+                    pending.append(contentsOf: aliasSources[exprID] ?? [])
+                }
+            }
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
+                    // Imported inline bodies pack captured lambdas into closure
+                    // fields or launcher slots before invoking them as function values.
+                    if packedValueCallees.contains(callee), arguments.count == 3 {
+                        collectSymbolRefs(reaching: arguments[2], lambdaOnly: true)
+                    }
                     guard let callbackPositions = callbackArgumentPositionsByCallee[callee] else {
                         continue
                     }
                     for position in callbackPositions where arguments.indices.contains(position) {
-                        if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                            rawSymbols.insert(symbol)
-                        }
+                        collectSymbolRefs(reaching: arguments[position], lambdaOnly: false)
                     }
+
+                case let .returnValue(value):
+                    // A lambda returned as a function value is invoked by the caller
+                    // through `kk_function_invoke_*`, so it must use the callback ABI.
+                    collectSymbolRefs(reaching: value, lambdaOnly: true)
 
                 default:
                     continue
@@ -210,6 +277,34 @@ struct NativeEmitter {
         }
 
         return rawSymbols
+    }
+
+    /// Maps each expression to the expressions whose value it may carry through
+    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`,
+    /// callable-reference metadata tags).
+    private static func valueAliasSources(
+        in body: [KIRInstruction],
+        notNullCallee: InternedString,
+        callableTagCallees: Set<InternedString>
+    ) -> [KIRExprID: [KIRExprID]] {
+        var sources: [KIRExprID: [KIRExprID]] = [:]
+        for instruction in body {
+            switch instruction {
+            case let .copy(from, to):
+                sources[to, default: []].append(from)
+            case let .nullAssert(operand, result):
+                sources[result, default: []].append(operand)
+            case let .call(_, callee, arguments, result, _, _, _, _):
+                if callee == notNullCallee, arguments.count == 1, let result {
+                    sources[result, default: []].append(arguments[0])
+                } else if callableTagCallees.contains(callee), let callable = arguments.first, let result {
+                    sources[result, default: []].append(callable)
+                }
+            default:
+                continue
+            }
+        }
+        return sources
     }
 
     private static func isThrowableToStringFunction(
@@ -431,6 +526,16 @@ struct NativeEmitter {
                 let sanitized = fqn.map { c in
                     c.isLetter || c.isNumber || c == "_" ? String(c) : "_"
                 }.joined()
+                // Preserve existing library slot names unless distinct file-private
+                // declarations actually share this FQN in the current compilation.
+                if sym.visibility == .private,
+                   !sym.flags.contains(.importedLibrary),
+                   let symbols,
+                   symbols.lookupAll(fqName: sym.fqName).contains(where: { candidate in
+                       candidate != symbol && symbols.symbol(candidate)?.kind == sym.kind
+                   }) {
+                    return "kk_global_root_slot_\(sanitized)_private_\(symbol.rawValue)"
+                }
                 return "kk_global_root_slot_\(sanitized)"
             }
         }
@@ -439,9 +544,7 @@ struct NativeEmitter {
 
     /// Returns true for imported-library symbols that are expected to be
     /// backed by a global variable in the linked object (properties, fields,
-    /// backing fields, and top-level objects). Companion objects are excluded
-    /// because their functions are emitted as static-like receivers and they
-    /// do not allocate a singleton global.
+    /// backing fields, and source-backed singleton objects).
     private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol),
               sym.flags.contains(.importedLibrary)
@@ -452,14 +555,9 @@ struct NativeEmitter {
         case .property, .field, .backingField:
             return true
         case .object:
-            // Top-level object singletons have a global instance.
-            // Companion objects only need one when their virtual methods
-            // require a runtime receiver and vtable.
             if let parentID = symbols?.parentSymbol(for: symbol),
-               let parent = symbols?.symbol(parentID),
-               parent.kind != .package,
-               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
-                return false
+               symbols?.companionObjectSymbol(for: parentID) == symbol {
+                return symbols?.companionObjectInitializerSymbol(for: parentID) != nil
             }
             // Synthetic singleton stubs (e.g. kotlin.system.System) have no
             // backing state and no initializer, so their global slot is never
@@ -540,13 +638,15 @@ struct NativeEmitter {
                 referencedSymbols.insert(symbol)
             }
         }
-        for symbol in referencedSymbols.sorted(by: { stableGlobalSlotName(for: $0) < stableGlobalSlotName(for: $1) }) {
+        let sortedReferencedSymbols = referencedSymbols
+            .map { (slotName: stableGlobalSlotName(for: $0), symbol: $0) }
+            .sorted { $0.slotName < $1.slotName }
+        for (slotName, symbol) in sortedReferencedSymbols {
             guard globalVariables[symbol] == nil,
                   shouldEmitImportedGlobalReference(for: symbol) || shouldUseWeakImportedGlobalReference(for: symbol)
             else {
                 continue
             }
-            let slotName = stableGlobalSlotName(for: symbol)
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if shouldUseWeakImportedGlobalReference(for: symbol) {
                     bindings.setWeakAnyLinkage(llvmGlobal)
@@ -601,18 +701,18 @@ struct NativeEmitter {
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
-        let globalDecls = module.arena.declarations.compactMap { decl -> KIRGlobal? in
+        let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
             guard case let .global(global) = decl else { return nil }
-            return global
+            return (stableGlobalSlotName(for: global.symbol), global)
         }.sorted { lhs, rhs in
-            let lhsName = stableGlobalSlotName(for: lhs.symbol)
-            let rhsName = stableGlobalSlotName(for: rhs.symbol)
-            if lhsName != rhsName { return lhsName < rhsName }
-            return lhs.symbol.rawValue < rhs.symbol.rawValue
+            if lhs.slotName != rhs.slotName { return lhs.slotName < rhs.slotName }
+            return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
         }
-        for global in globalDecls {
-            let slotName = stableGlobalSlotName(for: global.symbol)
+        for (slotName, global) in globalDecls {
+            // `.klib` globals keep the imported flag but own their storage
+            // here — their bodies were materialized into this compilation.
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
+                && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 if isImported {
                     // Imported globals are defined in another object file.
@@ -664,6 +764,7 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
@@ -884,35 +985,24 @@ struct NativeEmitter {
         internalFunctions: [SymbolID: LLVMFunction]
     ) -> [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] {
         var subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef] = [:]
-        let functions = module.arena.declarations.compactMap { decl -> KIRFunction? in
+        let functions = module.arena.declarations.compactMap { decl -> (name: String, function: KIRFunction)? in
             guard case let .function(function) = decl,
                   internalFunctions[function.symbol] != nil
             else { return nil }
-            return function
-        }.sorted { lhs, rhs in
-            let lhsName = CodegenSymbolSupport.cFunctionSymbol(
-                for: lhs,
-                interner: interner,
-                symbols: symbols,
-                fileFacadeNamesByFileID: fileFacadeNamesByFileID
-            )
-            let rhsName = CodegenSymbolSupport.cFunctionSymbol(
-                for: rhs,
-                interner: interner,
-                symbols: symbols,
-                fileFacadeNamesByFileID: fileFacadeNamesByFileID
-            )
-            if lhsName != rhsName { return lhsName < rhsName }
-            return lhs.symbol.rawValue < rhs.symbol.rawValue
-        }
-        for function in functions {
-            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
-            let functionName = CodegenSymbolSupport.cFunctionSymbol(
+            let name = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                moduleName: moduleName,
                 symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
+            return (name, function)
+        }.sorted { lhs, rhs in
+            if lhs.name != rhs.name { return lhs.name < rhs.name }
+            return lhs.function.symbol.rawValue < rhs.function.symbol.rawValue
+        }
+        for (functionName, function) in functions {
+            guard let llvmFunction = internalFunctions[function.symbol] else { continue }
             var lineNo: UInt32 = 0
             var funcDIFile = diFile
             if let sourceRange = function.sourceRange, let sourceManager {

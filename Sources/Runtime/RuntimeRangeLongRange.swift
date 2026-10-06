@@ -6,19 +6,24 @@
 
 // MARK: - LongRange (STDLIB-RANGE-035)
 
-@_cdecl("kk_long_rangeTo")
+@_cdecl("__kk_long_rangeTo")
 public func kk_long_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .longRange))
 }
 
-@_cdecl("kk_long_range_step")
+@_cdecl("__kk_long_rangeUntil")
+public func __kk_long_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
+    runtimeUntilRange(first: lhs, exclusiveEnd: rhs, kind: .longRange, endAtOrBelowMinimum: rhs == Int.min)
+}
+
+@_cdecl("__kk_long_range_step")
 public func kk_long_range_step(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_step") { range in
         range.step
     }
 }
 
-@_cdecl("kk_long_range_iterator")
+@_cdecl("__kk_long_range_iterator")
 public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
@@ -27,11 +32,11 @@ public func kk_long_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
-@_cdecl("kk_long_range_toList")
+@_cdecl("__kk_long_range_toList")
 public func kk_long_range_toList(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_toList") { range in
         RuntimeSignedRangeHOFKind.toList(range)
@@ -50,21 +55,21 @@ public func __kk_long_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: In
                                   functionName: "__kk_long_range_randomOrNull_random")
 }
 
-@_cdecl("kk_long_range_firstOrNull")
+@_cdecl("__kk_long_range_firstOrNull")
 public func kk_long_range_firstOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_firstOrNull") { range in
         RuntimeSignedRangeHOFKind.firstOrNull(range)
     }
 }
 
-@_cdecl("kk_long_range_lastOrNull")
+@_cdecl("__kk_long_range_lastOrNull")
 public func kk_long_range_lastOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_lastOrNull") { range in
         RuntimeSignedRangeHOFKind.lastOrNull(range)
     }
 }
 
-@_cdecl("kk_long_range_forEach")
+@_cdecl("__kk_long_range_forEach")
 public func kk_long_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -72,7 +77,7 @@ public func kk_long_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
                          functionName: "kk_long_range_forEach", operation: RuntimeSignedRangeHOFKind.forEach)
 }
 
-@_cdecl("kk_long_range_map")
+@_cdecl("__kk_long_range_map")
 public func kk_long_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
@@ -106,7 +111,7 @@ public func __kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, 
     }
 }
 
-@_cdecl("kk_long_range_take")
+@_cdecl("__kk_long_range_take")
 public func kk_long_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if n < 0 {
@@ -120,7 +125,7 @@ public func kk_long_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMut
     }
 }
 
-@_cdecl("kk_long_range_drop")
+@_cdecl("__kk_long_range_drop")
 public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     if n < 0 {
@@ -134,14 +139,14 @@ public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMut
     }
 }
 
-@_cdecl("kk_long_range_average")
+@_cdecl("__kk_long_range_average")
 public func kk_long_range_average(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_average") { range in
         RuntimeSignedRangeHOFKind.average(range)
     }
 }
 
-@_cdecl("kk_long_range_sorted")
+@_cdecl("__kk_long_range_sorted")
 public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_sorted") { range in
         RuntimeSignedRangeHOFKind.sorted(range)
@@ -152,13 +157,6 @@ public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
 
 // MARK: - ULongRange count, iterator, hasNext, next (STDLIB-RANGE-037)
 
-@_cdecl("kk_ulong_range_count")
-public func kk_ulong_range_count(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_count") { range in
-        runtimeUnsignedRangeCount(range)
-    }
-}
-
 @_cdecl("__kk_ulong_range_iterator")
 public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
@@ -168,7 +166,7 @@ public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
         return 0
     }
     return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step, kind: range.kind)
     )
 }
 
@@ -201,12 +199,12 @@ public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
         let uStep = UInt(bitPattern: iterator.step)
         let (next, overflow) = uCurrent.addingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     } else if iterator.step < 0 {
         let uStep = UInt(iterator.step.magnitude)
         let (next, overflow) = uCurrent.subtractingReportingOverflow(uStep)
         iterator.current = overflow ? iterator.last : Int(bitPattern: next)
-        if overflow { iterator.step = 0 }
+        if overflow { iterator.step = 0; iterator.hasNextValue = false }
     }
     return current
 }
@@ -220,7 +218,7 @@ public func kk_range_reversed(_ rangeRaw: Int) -> Int {
             first: range.last,
             last: range.first,
             step: 0 &- range.step,
-            yieldsChars: range.yieldsChars
+            kind: range.kind.progressionKind
         ))
     }
 }
@@ -299,6 +297,12 @@ func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> I
 /// by the interface's stable type ID instead of a fixed slot index.
 @_cdecl("kk_itable_lookup_dynamic")
 public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int {
+    if let nativeMethod = runtimeCoroutineContextElementMethod(receiver, interfaceTypeID, methodSlot) {
+        return nativeMethod
+    }
+    if let nativeMethod = runtimeDispatcherInterceptorMethod(receiver, interfaceTypeID, methodSlot) {
+        return nativeMethod
+    }
     guard let ifaceSlot = runtimeRegisteredInterfaceSlot(objectRaw: receiver, interfaceTypeID: Int64(interfaceTypeID)) else {
         return 0
     }
@@ -318,7 +322,7 @@ func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
     return tryCast(pointer, to: RuntimeRangeBox.self)
 }
 
-private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
+func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
     }

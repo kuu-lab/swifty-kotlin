@@ -7,22 +7,28 @@ import kotlin.internal.KsSymbolName
 // Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBuilderDSLStubs.swift
 
 @KsSymbolName("__kk_builder_list_new")
-private external fun <E> __kkBuilderListNew(capacity: Int): MutableList<E>
+@PublishedApi
+internal external fun <E> __kkBuilderListNew(capacity: Int): MutableList<E>
 
 @KsSymbolName("__kk_builder_set_new")
-private external fun <E> __kkBuilderSetNew(capacity: Int): MutableSet<E>
+@PublishedApi
+internal external fun <E> __kkBuilderSetNew(capacity: Int): MutableSet<E>
 
 @KsSymbolName("__kk_builder_map_new")
-private external fun <K, V> __kkBuilderMapNew(capacity: Int): MutableMap<K, V>
+@PublishedApi
+internal external fun <K, V> __kkBuilderMapNew(capacity: Int): MutableMap<K, V>
 
 @KsSymbolName("__kk_builder_list_freeze")
-private external fun <E> __kkBuilderListFreeze(value: MutableList<E>): List<E>
+@PublishedApi
+internal external fun <E> __kkBuilderListFreeze(value: MutableList<E>): List<E>
 
 @KsSymbolName("__kk_builder_set_freeze")
-private external fun <E> __kkBuilderSetFreeze(value: MutableSet<E>): Set<E>
+@PublishedApi
+internal external fun <E> __kkBuilderSetFreeze(value: MutableSet<E>): Set<E>
 
 @KsSymbolName("__kk_builder_map_freeze")
-private external fun <K, V> __kkBuilderMapFreeze(value: MutableMap<K, V>): Map<K, V>
+@PublishedApi
+internal external fun <K, V> __kkBuilderMapFreeze(value: MutableMap<K, V>): Map<K, V>
 
 // The internal helpers mirror Kotlin stdlib's @PublishedApi entry points.
 // Keep the builder action on a mutable receiver until the final freeze so an
@@ -59,14 +65,14 @@ internal inline fun <E> buildSetInternal(capacity: Int, builderAction: MutableSe
 }
 
 @PublishedApi
-internal inline fun <K, V> buildMapInternal(builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+internal inline fun <K, V> buildMapInternal(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> {
     val result = __kkBuilderMapNew<K, V>(0)
     result.builderAction()
     return __kkBuilderMapFreeze(result)
 }
 
 @PublishedApi
-internal inline fun <K, V> buildMapInternal(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> {
+internal inline fun <K, V> buildMapInternal(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> {
     require(capacity >= 0) { "capacity must be non-negative." }
     val result = __kkBuilderMapNew<K, V>(capacity)
     result.builderAction()
@@ -96,9 +102,9 @@ public inline fun <E> buildSet(capacity: Int, builderAction: MutableSet<E>.() ->
 // ─── buildMap ─────────────────────────────────────────────────────────────────
 
 @kotlin.experimental.ExperimentalTypeInference
-public inline fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> =
+public inline fun <K, V> buildMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> =
     buildMapInternal(builderAction)
 
 @kotlin.experimental.ExperimentalTypeInference
-public inline fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<out K, out V> =
+public inline fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> =
     buildMapInternal(capacity, builderAction)

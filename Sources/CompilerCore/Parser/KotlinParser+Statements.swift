@@ -1,5 +1,10 @@
 extension KotlinParser {
     func parseBlock() -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: true, kind: .block)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         guard consumeIfSymbol(.lBrace, into: &children, range: &range) else {
@@ -17,6 +22,12 @@ extension KotlinParser {
             if case .symbol(.rBrace) = token.kind {
                 _ = consumeToken(into: &children, range: &range)
                 break
+            }
+            // A contextual keyword followed by @ starts a label, not a declaration.
+            if isLabelStart {
+                children.append(.node(parseStatement(inBlock: true)))
+                atBlockStart = false
+                continue
             }
             if case .keyword(.constructor) = token.kind {
                 children.append(.node(parseConstructorDeclaration()))
@@ -55,6 +66,11 @@ extension KotlinParser {
     }
 
     func parseStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         if isLoopStart(stream.peek().kind) {
             return parseLoopStatement(inBlock: inBlock)
         }
@@ -79,17 +95,43 @@ extension KotlinParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        // Whether this statement's own flat tokens (not a nested block's) have
+        // included an `if` or `try` keyword. A newline-leading `else` /
+        // `catch` / `finally` only continues *this* statement when one did —
+        // otherwise it is indistinguishable from the start of an unrelated
+        // construct that merely follows on the next line (most notably a
+        // subject-less `when`'s next branch: `x > 0 -> 1` has no `if`/`try`,
+        // so its own trailing `else ->` must end this statement, not extend
+        // it, matching `return if (a) b\nelse c`, which does have one).
+        var sawIfOrTryKeyword = false
 
         while !stream.atEOF() {
             let token = stream.peek()
+            let canContinueWithElseLikeKeyword = sawIfOrTryKeyword
+                && !isLabelStart
+                && ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
+            let canContinueWithSymbol: Bool = if case .symbol = token.kind {
+                ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
+            } else {
+                false
+            }
             if inBlock,
                !children.isEmpty,
                parenDepth == 0,
                bracketDepth == 0,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind)
+               shouldSplitStatementOnNewline(token.kind),
+               !canContinueWithSymbol,
+               !canContinueWithElseLikeKeyword,
+               !endsWithPendingInfixOperator(children),
+               !endsWithControlFlowCondition(children)
             {
                 break
+            }
+            if case .keyword(.if) = token.kind {
+                sawIfOrTryKeyword = true
+            } else if case .keyword(.try) = token.kind {
+                sawIfOrTryKeyword = true
             }
             let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
                 !inBlock && braceDepth > 0
@@ -145,6 +187,11 @@ extension KotlinParser {
 
     /// Parse a structured `if` expression: `if (condition) then-branch [else else-branch]`
     func parseIfStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -168,6 +215,11 @@ extension KotlinParser {
 
     /// Parse a structured `when` expression: `when [(subject)] { branches }`
     func parseWhenStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -189,16 +241,31 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenExpr, range: range.value ?? invalidRange, children)
     }
 
-    /// Parse a structured `try` expression: `try body [catch (params) body]* [finally body]`
+    /// Parse a structured `try` expression with at least one catch or finally clause.
     func parseTryStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
-        _ = consumeToken(into: &children, range: &range)
+        let tryToken = consumeToken(into: &children, range: &range)
 
         appendTryBody(inBlock: inBlock, into: &children, range: &range)
 
-        while case .keyword(.catch) = stream.peek().kind {
+        let nextIsHandler = !isLabelStart
+            && (stream.peek().kind == .keyword(.catch) || stream.peek().kind == .keyword(.finally))
+        if !nextIsHandler {
+            diagnostics.error(
+                "KSWIFTK-PARSE-0016",
+                "Expected 'catch' or 'finally' after 'try' block.",
+                range: tryToken.range
+            )
+        }
+
+        while case .keyword(.catch) = stream.peek().kind, !isLabelStart {
             _ = consumeToken(into: &children, range: &range)
             if case .symbol(.lParen) = stream.peek().kind {
                 let paramGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
@@ -208,7 +275,7 @@ extension KotlinParser {
             appendTryBody(inBlock: inBlock, into: &children, range: &range)
         }
 
-        if case .keyword(.finally) = stream.peek().kind {
+        if case .keyword(.finally) = stream.peek().kind, !isLabelStart {
             _ = consumeToken(into: &children, range: &range)
             appendTryBody(inBlock: inBlock, into: &children, range: &range)
         }
@@ -352,6 +419,16 @@ extension KotlinParser {
             if !inBlock, hasLeadingNewline(stream.peek()) {
                 let stillGrouped = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
                 if stillGrouped {
+                    continue
+                }
+                // Only symbol continuations here: a newline-leading `else` /
+                // `catch` / `finally` belongs to the enclosing control-flow
+                // statement, which consumes it itself.
+                let nextKind = stream.peek().kind
+                if case .symbol = nextKind, ParserBoundaryPolicy.continuesExpressionBeforeNewline(nextKind) {
+                    continue
+                }
+                if endsWithPendingInfixOperator(children) {
                     continue
                 }
                 break
@@ -540,6 +617,11 @@ extension KotlinParser {
     // MARK: - Loop Parsing
 
     func parseLoopStatement(inBlock: Bool) -> NodeID {
+        guard enterNesting() else {
+            return recoverFromNestingLimit(inBlock: inBlock)
+        }
+        defer { leaveNesting() }
+
         _ = inBlock
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -698,7 +780,7 @@ extension KotlinParser {
     /// appear inside an expression (`suspend { ... }` lambda literal,
     /// `context(...) { ... }` helper call). A single token of lookahead
     /// can't tell these apart.
-    private func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
+    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
         switch token.kind {
         case let .keyword(kw):
             return Self.isDeclarationModifierKeyword(kw)
@@ -709,29 +791,125 @@ extension KotlinParser {
         }
     }
 
+    /// Outcome of scanning a modifier / context-parameter prefix: a genuine
+    /// declaration keyword follows it, the prefix does not introduce a
+    /// declaration, or the lookahead ran out of budget mid-scan.
+    enum DeclarationPrefixVerdict: Equatable {
+        case declaration
+        case notDeclaration
+        case overBudget
+    }
+
     /// Resolves the ambiguity in `isAmbiguousDeclarationPrefix` by scanning
-    /// past the modifier / context-parameter prefix at lookahead `offset` —
-    /// recursing through chained modifiers and skipping a balanced `(...)`
-    /// group after `context` — to see whether an actual declaration keyword
-    /// (or another declaration-start token) follows. Never consumes tokens.
-    private func startsGenuineDeclaration(at offset: Int) -> Bool {
-        let token = stream.peek(offset)
-        if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
-            return startsGenuineDeclaration(at: offset + 1)
+    /// past the modifier / context-parameter prefix at lookahead `offset`.
+    /// Results are memoized for every prefix token visited so expression-tail
+    /// recovery does not rescan each suffix of a long chain.
+    func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
+        if stream.peek(offset).kind.isLabelName,
+           stream.peek(offset + 1).kind == .symbol(.at) {
+            return .notDeclaration
         }
-        if case .softKeyword(.context) = token.kind {
-            var next = offset + 1
-            if stream.peek(next).kind == .symbol(.lParen) {
-                next = offsetPastBalancedGroup(from: next, open: .symbol(.lParen), close: .symbol(.rParen))
+        let startIndex = stream.index + offset
+        if let cached = genuineDeclarationLookahead[startIndex] {
+            return cached ? .declaration : .notDeclaration
+        }
+
+        var cursor = offset
+        var work = 0
+        var prefixIndices: [Int] = []
+        var sawValueModifier = false
+        while true {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
+                // Treat an over-budget prefix as a recovery boundary. The outer
+                // parser then consumes it iteratively through normal recovery.
+                cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                return .overBudget
             }
-            return startsGenuineDeclaration(at: next)
+
+            let token = stream.peek(cursor)
+            if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
+                if kw == .value {
+                    sawValueModifier = true
+                }
+                prefixIndices.append(stream.index + cursor)
+                cursor += 1
+                continue
+            }
+            if case .softKeyword(.context) = token.kind {
+                prefixIndices.append(stream.index + cursor)
+                cursor += 1
+                if stream.peek(cursor).kind == .symbol(.lParen) {
+                    var depth = 0
+                    repeat {
+                        guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
+                            cacheGenuineDeclarationLookahead(true, for: prefixIndices)
+                            return .overBudget
+                        }
+                        let kind = stream.peek(cursor).kind
+                        if kind == .symbol(.lParen) {
+                            depth += 1
+                        } else if kind == .symbol(.rParen) {
+                            depth -= 1
+                        } else if kind == .eof {
+                            break
+                        }
+                        cursor += 1
+                    } while depth > 0
+                }
+                continue
+            }
+
+            // `value` is a modifier for a value class, but it is also a legal
+            // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
+            // the next `fun` is a separate declaration, not one modified by
+            // `value`; otherwise `f` loses its expression body.
+            let startsDeclaration = isDeclarationStart(token.kind)
+            let result = startsDeclaration
+                && (!sawValueModifier || token.kind == .keyword(.class))
+            if sawValueModifier, !result {
+                // A suffix such as `suspend fun` can still start a declaration
+                // after the expression's `value` has been consumed. Do not
+                // cache this false verdict for every prefix token.
+                genuineDeclarationLookahead[startIndex] = false
+            } else {
+                cacheGenuineDeclarationLookahead(result, for: prefixIndices)
+            }
+            // The terminal keyword remains a declaration start on its own,
+            // even when this modifier prefix does not belong to it.
+            genuineDeclarationLookahead[stream.index + cursor] = startsDeclaration
+            return result ? .declaration : .notDeclaration
         }
-        return isDeclarationStart(token.kind)
+    }
+
+    func startsGenuineDeclaration(at offset: Int) -> Bool {
+        declarationPrefixVerdict(at: offset) != .notDeclaration
+    }
+
+    private static let declarationLookaheadWorkLimit = 4096
+
+    func consumeDeclarationLookaheadWork(_ work: inout Int, at offset: Int) -> Bool {
+        guard work < Self.declarationLookaheadWorkLimit else {
+            let token = stream.peek(offset)
+            diagnostics.error(
+                "KSWIFTK-PARSE-0007",
+                "Declaration prefix exceeds the parser lookahead limit; recovering at this boundary.",
+                range: token.rangeIfAvailable
+            )
+            return false
+        }
+        work += 1
+        return true
+    }
+
+    private func cacheGenuineDeclarationLookahead(_ result: Bool, for indices: [Int]) {
+        for index in indices {
+            genuineDeclarationLookahead[index] = result
+        }
     }
 
     /// Advances a lookahead offset past a balanced bracket group whose
     /// opening symbol sits at `offset`, without consuming any tokens.
-    private func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
+    func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
         var depth = 0
         var index = offset
         repeat {
@@ -758,8 +936,9 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
-    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
+    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false) {
         var progress = false
+        var sawAssignment = false
         var sawTryKeyword = false
         var sawIfKeyword = false
         var parenDepth = 0
@@ -768,6 +947,7 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+            if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
             {
@@ -798,6 +978,11 @@ extension KotlinParser {
                 }
                 if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
                 if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) { continue }
+                if nextAfterBlock.kind == .symbol(.lParen),
+                   !hasLeadingNewline(nextAfterBlock)
+                {
+                    continue
+                }
                 break
             }
             if case .keyword(.try) = token.kind {
@@ -824,7 +1009,7 @@ extension KotlinParser {
             default:
                 break
             }
-            if case .symbol(.semicolon) = token.kind {
+            if case .symbol(.semicolon) = token.kind, atTopLevel {
                 break
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {
@@ -846,6 +1031,18 @@ extension KotlinParser {
                     if startsGenuineDeclaration(at: 0), !isObjectExpressionStart(nextToken) {
                         break
                     }
+                    continue
+                }
+                // A line that starts with `.member` / `?.` / `?:` / `&&` / `||`
+                // (or `else` / `catch` / `finally`) can only continue the
+                // expression body, as can the line after an infix operator
+                // name (`a or\n    (b)`) or after an `if (...)` condition whose
+                // branch body starts on the next line.
+                if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
+                    || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
+                    || endsWithPendingInfixOperator(children)
+                    || endsWithControlFlowCondition(children)
+                {
                     continue
                 }
                 break

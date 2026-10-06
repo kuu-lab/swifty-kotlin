@@ -1,0 +1,31 @@
+symbol fq=golden.sema.elementFold.$0.element[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementFold[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=Int;names=[element];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element] ret=Int
+symbol fq=golden.sema.elementGet.$1.E[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.elementGet.$1.element[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementGet.$1.key[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementGet[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;ret=T0?;gen=1;bounds=[kotlin.coroutines.CoroutineContext.Element];names=[element,key];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<golden.sema.elementGet.$1.E>] ret=golden.sema.elementGet.$1.E? bounds=[kotlin.coroutines.CoroutineContext.Element]
+symbol fq=golden.sema.elementKey.$2.element[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=kotlin.coroutines.CoroutineContext.Key<*>;names=[element];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element] ret=kotlin.coroutines.CoroutineContext.Key<*>
+symbol fq=golden.sema.elementMinusKey.$3.element[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementMinusKey.$3.key[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.elementMinusKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>;ret=kotlin.coroutines.CoroutineContext;names=[element,key];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>] ret=kotlin.coroutines.CoroutineContext
+file fstdlib_kotlin_coroutines_CoroutineContext_Element_Element_n package=golden.sema
+  decl golden.sema.elementKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=kotlin.coroutines.CoroutineContext.Key<*>;names=[element];origin=fixture] fun elementKey sym=golden.sema.elementKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=kotlin.coroutines.CoroutineContext.Key<*>;names=[element];origin=fixture]
+  decl golden.sema.elementGet[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;ret=T0?;gen=1;bounds=[kotlin.coroutines.CoroutineContext.Element];names=[element,key];origin=fixture] fun elementGet sym=golden.sema.elementGet[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<T0>;ret=T0?;gen=1;bounds=[kotlin.coroutines.CoroutineContext.Element];names=[element,key];origin=fixture]
+  decl golden.sema.elementFold[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=Int;names=[element];origin=fixture] fun elementFold sym=golden.sema.elementFold[kind=fun;params=kotlin.coroutines.CoroutineContext.Element;ret=Int;names=[element];origin=fixture]
+  decl golden.sema.elementMinusKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>;ret=kotlin.coroutines.CoroutineContext;names=[element,key];origin=fixture] fun elementMinusKey sym=golden.sema.elementMinusKey[kind=fun;params=kotlin.coroutines.CoroutineContext.Element,kotlin.coroutines.CoroutineContext.Key<*>;ret=kotlin.coroutines.CoroutineContext;names=[element,key];origin=fixture]
+expr e@5:78 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.elementKey.$2.element[kind=vparam;origin=fixture]
+expr e@5:78#1 memberCall recv=e@5:78 callee=key args=[] type=kotlin.coroutines.CoroutineContext.Key<*> ref=kotlin.coroutines.CoroutineContext.Element.key[kind=prop;type=kotlin.coroutines.CoroutineContext.Key<*>]
+expr e@8:5 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.elementGet.$1.element[kind=vparam;origin=fixture]
+expr e@8:13 name(key) type=kotlin.coroutines.CoroutineContext.Key<golden.sema.elementGet.$1.E> ref=golden.sema.elementGet.$1.key[kind=vparam;origin=fixture]
+expr e@8:5#1 indexedAccess receiver=e@8:5 indices=[e@8:13] type=golden.sema.elementGet.$1.E? call=kotlin.coroutines.CoroutineContext.Element.get[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<T0>;ret=T0?;gen=1;bounds=[kotlin.coroutines.CoroutineContext.Element];names=[key]] targs=[golden.sema.elementGet.$1.E]
+expr e@11:5 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.elementFold.$0.element[kind=vparam;origin=fixture]
+expr e@11:18 int(5) type=Int
+expr e@11:35 name(value) type=Int ref=s-0
+expr e@11:43 int(1) type=Int
+expr e@11:35#1 binary(add) lhs=e@11:35 rhs=e@11:43 type=Int
+expr e@11:21 lambda params=[value,_] body=e@11:35#1 label=fold type=(Int, kotlin.coroutines.CoroutineContext.Element) -> Int
+expr e@11:5#1 memberCall recv=e@11:5 callee=fold args=[_:e@11:18,_:e@11:21] type=Int call=kotlin.coroutines.CoroutineContext.Element.fold[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=T0,fn{p=T0,kotlin.coroutines.CoroutineContext.Element;ret=T0};ret=T0;gen=1;names=[initial,operation]] targs=[Int]
+expr e@14:5 name(element) type=kotlin.coroutines.CoroutineContext.Element ref=golden.sema.elementMinusKey.$3.element[kind=vparam;origin=fixture]
+expr e@14:22 name(key) type=kotlin.coroutines.CoroutineContext.Key<*> ref=golden.sema.elementMinusKey.$3.key[kind=vparam;origin=fixture]
+expr e@14:5#1 memberCall recv=e@14:5 callee=minusKey args=[_:e@14:22] type=kotlin.coroutines.CoroutineContext call=kotlin.coroutines.CoroutineContext.Element.minusKey[kind=fun;recv=kotlin.coroutines.CoroutineContext.Element;params=kotlin.coroutines.CoroutineContext.Key<*>;ret=kotlin.coroutines.CoroutineContext;names=[key]]

@@ -6,10 +6,15 @@ public struct ASTArenaSnapshot: Codable {
     public let typeRefs: [TypeRef]
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
+    public let whenSubjectTypeRefs: [ExprID: TypeRefID]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
+    public let callableRefReceiverTypeRefs: [ExprID: TypeRefID]
+    public let infixCallExpressions: Set<ExprID>
+    public let infixFunctionExpressions: Set<ExprID>
     public let explicitCallExpressions: Set<ExprID>
     public let incrementDecrementExpressions: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
+    public let incrementDecrementCachedValues: [ExprID: ExprID]
 
     private enum CodingKeys: String, CodingKey {
         case declarations
@@ -17,10 +22,15 @@ public struct ASTArenaSnapshot: Codable {
         case typeRefs
         case loopLabels
         case whenSubjectVarNames
+        case whenSubjectTypeRefs
         case lambdaParamTypeRefs
+        case callableRefReceiverTypeRefs
+        case infixCallExpressions
+        case infixFunctionExpressions
         case explicitCallExpressions
         case incrementDecrementExpressions
         case nonFunctionLambdaLabels
+        case incrementDecrementCachedValues
     }
 
     public init(
@@ -29,20 +39,30 @@ public struct ASTArenaSnapshot: Codable {
         typeRefs: [TypeRef],
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
+        whenSubjectTypeRefs: [ExprID: TypeRefID] = [:],
         lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
+        callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:],
+        infixCallExpressions: Set<ExprID> = [],
+        infixFunctionExpressions: Set<ExprID> = [],
         explicitCallExpressions: Set<ExprID> = [],
         incrementDecrementExpressions: Set<ExprID> = [],
-        nonFunctionLambdaLabels: Set<ExprID> = []
+        nonFunctionLambdaLabels: Set<ExprID> = [],
+        incrementDecrementCachedValues: [ExprID: ExprID] = [:]
     ) {
         self.declarations = declarations
         self.expressions = expressions
         self.typeRefs = typeRefs
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
+        self.whenSubjectTypeRefs = whenSubjectTypeRefs
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
+        self.callableRefReceiverTypeRefs = callableRefReceiverTypeRefs
+        self.infixCallExpressions = infixCallExpressions
+        self.infixFunctionExpressions = infixFunctionExpressions
         self.explicitCallExpressions = explicitCallExpressions
         self.incrementDecrementExpressions = incrementDecrementExpressions
         self.nonFunctionLambdaLabels = nonFunctionLambdaLabels
+        self.incrementDecrementCachedValues = incrementDecrementCachedValues
     }
 
     public init(from decoder: Decoder) throws {
@@ -52,7 +72,16 @@ public struct ASTArenaSnapshot: Codable {
         typeRefs = try container.decode([TypeRef].self, forKey: .typeRefs)
         loopLabels = try container.decode([ExprID: InternedString].self, forKey: .loopLabels)
         whenSubjectVarNames = try container.decode([ExprID: InternedString].self, forKey: .whenSubjectVarNames)
+        whenSubjectTypeRefs = try container.decodeIfPresent(
+            [ExprID: TypeRefID].self, forKey: .whenSubjectTypeRefs
+        ) ?? [:]
         lambdaParamTypeRefs = try container.decode([ExprID: [TypeRefID?]].self, forKey: .lambdaParamTypeRefs)
+        callableRefReceiverTypeRefs = try container.decodeIfPresent(
+            [ExprID: TypeRefID].self,
+            forKey: .callableRefReceiverTypeRefs
+        ) ?? [:]
+        infixCallExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixCallExpressions) ?? []
+        infixFunctionExpressions = try container.decodeIfPresent(Set<ExprID>.self, forKey: .infixFunctionExpressions) ?? []
         explicitCallExpressions = try container.decode(Set<ExprID>.self, forKey: .explicitCallExpressions)
         incrementDecrementExpressions = try container.decodeIfPresent(
             Set<ExprID>.self,
@@ -62,6 +91,10 @@ public struct ASTArenaSnapshot: Codable {
             Set<ExprID>.self,
             forKey: .nonFunctionLambdaLabels
         ) ?? []
+        incrementDecrementCachedValues = try container.decodeIfPresent(
+            [ExprID: ExprID].self,
+            forKey: .incrementDecrementCachedValues
+        ) ?? [:]
     }
 }
 
@@ -126,12 +159,19 @@ public final class ASTArena: @unchecked Sendable {
     private var _loopLabels: [ExprID: InternedString] = [:]
     /// Maps whenExpr IDs to their subject variable name for `when (val x = expr)` syntax.
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
+    /// Preserves explicit type annotations in `when (val x: Type = expr)`.
+    private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
     /// Maps lambdaLiteral expression IDs to their explicit parameter type
     /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
+    /// Preserves explicit type receivers such as `Box<String>::echo`.
+    private var _callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:]
     /// Tracks member-call expressions written with parentheses so zero-argument
     /// function calls remain distinct from bare property access in the AST.
     private var _explicitCallExpressions: Set<ExprID> = []
+    /// Preserves infix syntax independently of ordinary member calls.
+    private var _infixCallExpressions: Set<ExprID> = []
+    private var _infixFunctionExpressions: Set<ExprID> = []
     /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
     /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
@@ -141,6 +181,7 @@ public final class ASTArena: @unchecked Sendable {
     /// lambda — `return@foo` inside then targets a label that does not denote
     /// a function and must be rejected.
     private var _nonFunctionLambdaLabels: Set<ExprID> = []
+    private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
 
     public var decls: [Decl] {
         lock.lock()
@@ -162,10 +203,15 @@ public final class ASTArena: @unchecked Sendable {
         _typeRefs = snapshot.typeRefs
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
+        _whenSubjectTypeRefs = snapshot.whenSubjectTypeRefs
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
+        _callableRefReceiverTypeRefs = snapshot.callableRefReceiverTypeRefs
+        _infixCallExpressions = snapshot.infixCallExpressions
+        _infixFunctionExpressions = snapshot.infixFunctionExpressions
         _explicitCallExpressions = snapshot.explicitCallExpressions
         _incrementDecrementExpressions = snapshot.incrementDecrementExpressions
         _nonFunctionLambdaLabels = snapshot.nonFunctionLambdaLabels
+        _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -177,10 +223,15 @@ public final class ASTArena: @unchecked Sendable {
             typeRefs: _typeRefs,
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
+            whenSubjectTypeRefs: _whenSubjectTypeRefs,
             lambdaParamTypeRefs: _lambdaParamTypeRefs,
+            callableRefReceiverTypeRefs: _callableRefReceiverTypeRefs,
+            infixCallExpressions: _infixCallExpressions,
+            infixFunctionExpressions: _infixFunctionExpressions,
             explicitCallExpressions: _explicitCallExpressions,
             incrementDecrementExpressions: _incrementDecrementExpressions,
-            nonFunctionLambdaLabels: _nonFunctionLambdaLabels
+            nonFunctionLambdaLabels: _nonFunctionLambdaLabels,
+            incrementDecrementCachedValues: _incrementDecrementCachedValues
         )
     }
 
@@ -190,6 +241,18 @@ public final class ASTArena: @unchecked Sendable {
         let id = Int32(_decls.count)
         _decls.append(decl)
         return DeclID(rawValue: id)
+    }
+
+    public func setCallableRefReceiverTypeRef(_ exprID: ExprID, typeRef: TypeRefID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _callableRefReceiverTypeRefs[exprID] = typeRef
+    }
+
+    public func callableRefReceiverTypeRef(for exprID: ExprID) -> TypeRefID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _callableRefReceiverTypeRefs[exprID]
     }
 
     public func decl(_ id: DeclID) -> Decl? {
@@ -293,6 +356,7 @@ public final class ASTArena: @unchecked Sendable {
              let .floatLiteral(_, range),
              let .doubleLiteral(_, range),
              let .charLiteral(_, range),
+             let .nullLiteral(range),
              let .boolLiteral(_, range),
              let .stringLiteral(_, range),
              let .nameRef(_, range),
@@ -326,7 +390,8 @@ public final class ASTArena: @unchecked Sendable {
              let .lambdaLiteral(_, _, _, range),
              let .objectLiteral(_, _, range),
              let .callableRef(_, _, range),
-             let .localFunDecl(_, _, _, _, _, range),
+             let .localFunDecl(_, _, _, _, _, _, range),
+             let .localNominalDecl(_, range),
              let .blockExpr(_, _, range),
              let .superRef(_, range),
              let .thisRef(_, range),
@@ -362,6 +427,18 @@ public final class ASTArena: @unchecked Sendable {
         return _whenSubjectVarNames[exprID]
     }
 
+    public func setWhenSubjectTypeRef(_ typeRef: TypeRefID, for exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _whenSubjectTypeRefs[exprID] = typeRef
+    }
+
+    public func whenSubjectTypeRef(for exprID: ExprID) -> TypeRefID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _whenSubjectTypeRefs[exprID]
+    }
+
     public func setLambdaParamTypeRefs(_ typeRefs: [TypeRefID?], for exprID: ExprID) {
         lock.lock()
         defer { lock.unlock() }
@@ -372,6 +449,30 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _lambdaParamTypeRefs[exprID]
+    }
+
+    public func markInfixFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _infixFunctionExpressions.insert(exprID)
+    }
+
+    public func isInfixFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _infixFunctionExpressions.contains(exprID)
+    }
+
+    public func markInfixCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _infixCallExpressions.insert(exprID)
+    }
+
+    public func isInfixCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _infixCallExpressions.contains(exprID)
     }
 
     public func markExplicitCall(_ exprID: ExprID) {
@@ -386,10 +487,19 @@ public final class ASTArena: @unchecked Sendable {
         return _explicitCallExpressions.contains(exprID)
     }
 
-    public func markIncrementDecrement(_ exprID: ExprID) {
+    public func markIncrementDecrement(_ exprID: ExprID, cachedValue: ExprID? = nil) {
         lock.lock()
         defer { lock.unlock() }
         _incrementDecrementExpressions.insert(exprID)
+        if let cachedValue {
+            _incrementDecrementCachedValues[exprID] = cachedValue
+        }
+    }
+
+    public func incrementDecrementCachedValue(for exprID: ExprID) -> ExprID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _incrementDecrementCachedValues[exprID]
     }
 
     public func isIncrementDecrement(_ exprID: ExprID) -> Bool {
@@ -438,6 +548,11 @@ public final class ASTModule {
     /// All callers that previously used `sortedFiles` now use this directly.
     public let sortedFiles: [ASTFile]
 
+    /// Files indexed by fileID so resolving a declaration's owning file does
+    /// not scan the whole file list. `fileID` is unique per file, so a
+    /// dictionary hit is identical to `files.first { $0.fileID == fileID }`.
+    private let filesByID: [FileID: ASTFile]
+
     public init(
         files: [ASTFile],
         arena: ASTArena,
@@ -451,10 +566,20 @@ public final class ASTModule {
         self.tokenCount = tokenCount
         self.activeDeclsByFileRawID = activeDeclsByFileRawID
         sortedFiles = files.sorted(by: { $0.fileID.rawValue < $1.fileID.rawValue })
+        filesByID = Dictionary(
+            files.map { ($0.fileID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         // ASTModule is finalized after all expressions have been appended, so
         // build the index before the first position-based query pays for it.
         arena.prepareExpressionRangeIndex()
+    }
+
+    /// O(1) lookup of the file with `fileID`; identical result to a linear
+    /// `files.first { $0.fileID == fileID }` scan.
+    public func file(for fileID: FileID) -> ASTFile? {
+        filesByID[fileID]
     }
 
     public var activeDeclarationIDs: Set<DeclID> {

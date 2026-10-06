@@ -1,26 +1,26 @@
-symbol fq=Named.<init>.$0.name[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=Named.<init>[kind=ctor;recv=Named;params=String] kind=constructor vis=public flags=_ sig=recv=Named params=[String] ret=Named
-symbol fq=Named.<init>[kind=ctor;recv=Named;params=] kind=constructor vis=public flags=_ sig=recv=Named params=[] ret=Named
-symbol fq=Named[kind=class] kind=class vis=public flags=_
-symbol fq=Point.<init>.$1.x[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=Point.<init>.$1.y[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=Point.<init>[kind=ctor;recv=Point;params=Int,Int] kind=constructor vis=public flags=_ sig=recv=Point params=[Int,Int] ret=Point
-symbol fq=Point[kind=class] kind=class vis=public flags=_
-symbol fq=__local_0.p[kind=local] kind=local vis=private flags=_ type=Point
-symbol fq=__local_1.n[kind=local] kind=local vis=private flags=_ type=Named
-symbol fq=__local_2.d[kind=local] kind=local vis=private flags=_ type=Named
-symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=Named.<init>.$0.name[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Named.<init>[kind=ctor;recv=Named;params=;ret=Named;origin=fixture] kind=constructor vis=public flags=_ sig=recv=Named params=[] ret=Named
+symbol fq=Named.<init>[kind=ctor;recv=Named;params=String;ret=Named;names=[name];origin=fixture] kind=constructor vis=public flags=_ sig=recv=Named params=[String] ret=Named
+symbol fq=Named[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Point.<init>.$1.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Point.<init>.$1.y[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=Point.<init>[kind=ctor;recv=Point;params=Int,Int;ret=Point;names=[x,y];origin=fixture] kind=constructor vis=public flags=_ sig=recv=Point params=[Int,Int] ret=Point
+symbol fq=Point[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=__local_0.p[kind=local;type=Point;origin=fixture] kind=local vis=private flags=_ type=Point
+symbol fq=__local_1.n[kind=local;type=Named;origin=fixture] kind=local vis=private flags=_ type=Named
+symbol fq=__local_2.d[kind=local;type=Named;origin=fixture] kind=local vis=private flags=_ type=Named
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fconstructors package=_
-  decl Point[kind=class] class Point sym=Point[kind=class]
-  decl Named[kind=class] class Named sym=Named[kind=class]
-  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+  decl Point[kind=class;origin=fixture] class Point sym=Point[kind=class;origin=fixture]
+  decl Named[kind=class;origin=fixture] class Named sym=Named[kind=class;origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
 expr e@4:26 string(default) type=String
 expr e@8:19 int(1) type=Int
 expr e@8:22 int(2) type=Int
-expr e@8:13 call callee=e@8:13#1 args=[_:e@8:19,_:e@8:22] type=Point call=Point.<init>[kind=ctor;recv=Point;params=Int,Int]
-expr e@8:5 localDecl p mutable=0 type=_ init=e@8:13 type=Unit ref=__local_0.p[kind=local]
+expr e@8:13 call callee=e@8:13#1 args=[_:e@8:19,_:e@8:22] type=Point call=Point.<init>[kind=ctor;recv=Point;params=Int,Int;ret=Point;names=[x,y];origin=fixture]
+expr e@8:5 localDecl p mutable=0 type=_ init=e@8:13 type=Unit ref=__local_0.p[kind=local;type=Point;origin=fixture]
 expr e@9:19 string(hello) type=String
-expr e@9:13 call callee=e@9:13#1 args=[_:e@9:19] type=Named call=Named.<init>[kind=ctor;recv=Named;params=String]
-expr e@9:5 localDecl n mutable=0 type=_ init=e@9:13 type=Unit ref=__local_1.n[kind=local]
-expr e@10:13 call callee=e@10:13#1 args=[] type=Named call=Named.<init>[kind=ctor;recv=Named;params=]
-expr e@10:5 localDecl d mutable=0 type=_ init=e@10:13 type=Unit ref=__local_2.d[kind=local]
+expr e@9:13 call callee=e@9:13#1 args=[_:e@9:19] type=Named call=Named.<init>[kind=ctor;recv=Named;params=String;ret=Named;names=[name];origin=fixture]
+expr e@9:5 localDecl n mutable=0 type=_ init=e@9:13 type=Unit ref=__local_1.n[kind=local;type=Named;origin=fixture]
+expr e@10:13 call callee=e@10:13#1 args=[] type=Named call=Named.<init>[kind=ctor;recv=Named;params=;ret=Named;origin=fixture]
+expr e@10:5 localDecl d mutable=0 type=_ init=e@10:13 type=Unit ref=__local_2.d[kind=local;type=Named;origin=fixture]

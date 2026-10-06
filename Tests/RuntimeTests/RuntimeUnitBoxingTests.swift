@@ -14,6 +14,16 @@ struct RuntimeUnitBoxingTests {
     }
 
     @Test
+    func unitBoxPreservesNullSentinel() {
+        let boxed = kk_box_unit(runtimeNullSentinelInt)
+
+        #expect(boxed == runtimeNullSentinelInt)
+        #expect(!runtimeIsUnitValue(boxed))
+        #expect(extractString(from: kk_any_to_string(boxed, 1)) == "null")
+        #expect(runtimeIsUnitBox(kk_box_unit(0)))
+    }
+
+    @Test
     func unitBoxMaintainsSingletonIdentityAcrossErasureAndGCReset() {
         let first = kk_box_unit(0)
         let second = kk_box_unit(0)

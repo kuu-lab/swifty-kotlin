@@ -3,10 +3,14 @@ import Foundation
 
 // MARK: - kotlin.time.Duration Runtime (STDLIB-230/231)
 
-/// Duration is stored as nanoseconds internally.
+/// Mirrors the Kotlin value-class payload: signed count plus a low-bit ms tag.
 final class RuntimeDurationBox {
-    let nanoseconds: Int64
-    init(nanoseconds: Int64) { self.nanoseconds = nanoseconds }
+    let rawValue: Int64
+    var nanoseconds: Int64 { runtimeDurationWholeValue(rawValue, unitScale: 1) }
+    init(rawValue: Int64) { self.rawValue = rawValue }
+    convenience init(nanoseconds: Int64) {
+        self.init(rawValue: runtimeDurationOfNanos(nanoseconds))
+    }
 }
 
 private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
@@ -18,53 +22,110 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-/// Reads both the legacy boxed representation and Duration's source-backed
-/// value-class payload. Raw values are only treated as object handles when the
-/// runtime has registered the pointer, so ordinary small Long payloads are safe.
+private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
+
+/// Reads legacy Duration boxes, boxed Long payloads, boxed value-class objects,
+/// and raw value-class payloads. The unbox helper checks registry membership
+/// before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
-    if let box = runtimeDurationBox(from: raw) {
-        return box.nanoseconds
-    }
-    return Int64(bitPattern: UInt64(bitPattern: Int64(raw)))
+    runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: 1)
 }
 
-private func runtimeDurationIsInfinite(_ nanoseconds: Int64) -> Bool {
-    nanoseconds == Int64.max || nanoseconds == Int64.min
+private func runtimeDurationRawValue(from raw: Int) -> Int64 {
+    if let box = runtimeDurationBox(from: raw) {
+        return box.rawValue
+    }
+    // KUU-1093: Duration implements Comparable<Duration>, so it is a real
+    // boxed object — its single Long field (the tagged rawValue) sits at
+    // slot 2 after the two-slot object header. Tagged nullable-Duration
+    // boxes (RuntimeLongBox + nominal tag) carry the same type ID but are
+    // not RuntimeArrayBox, so they fall through to the unbox path below.
+    if runtimeObjectTypeID(rawValue: raw) == durationRuntimeTypeID,
+       let objectBox = runtimeArrayBox(from: raw), objectBox.count == 3
+    {
+        return Int64(objectBox[2])
+    }
+    return Int64(kk_unbox_long_static(raw))
+}
+
+private let runtimeDurationMaxNanos: Int64 = 4_611_686_018_426_999_999
+private let runtimeDurationMaxMillis: Int64 = Int64.max / 2
+private let runtimeDurationMaxNanosInMillis = runtimeDurationMaxNanos / 1_000_000
+private let runtimeDurationNegativeInfinity = -Int64.max + 2
+
+private func runtimeDurationIsInfinite(_ rawValue: Int64) -> Bool {
+    rawValue == Int64.max || rawValue == runtimeDurationNegativeInfinity
+}
+
+private func runtimeDurationStorageScale(_ rawValue: Int64) -> Int64 {
+    rawValue & 1 == 0 ? 1 : 1_000_000
+}
+
+private func runtimeDurationOfNanos(_ nanoseconds: Int64) -> Int64 {
+    if (-runtimeDurationMaxNanos ... runtimeDurationMaxNanos).contains(nanoseconds) {
+        return nanoseconds << 1
+    }
+    return ((nanoseconds / 1_000_000) << 1) + 1
+}
+
+private func runtimeDurationOfMillis(_ milliseconds: Int64) -> Int64 {
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(milliseconds) {
+        return runtimeDurationOfNanos(milliseconds * 1_000_000)
+    }
+    let clamped = max(-runtimeDurationMaxMillis, min(runtimeDurationMaxMillis, milliseconds))
+    return (clamped << 1) + 1
+}
+
+func runtimeDurationWholeValue(from raw: Int, unitScale: Int64) -> Int64 {
+    runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: unitScale)
+}
+
+func runtimeDurationNanosecondsComponent(from raw: Int) -> Int64 {
+    let value = runtimeDurationRawValue(from: raw)
+    if runtimeDurationIsInfinite(value) { return 0 }
+    let scale = runtimeDurationStorageScale(value)
+    return ((value >> 1) % (1_000_000_000 / scale)) * scale
+}
+
+private func runtimeDurationWholeValue(_ rawValue: Int64, unitScale: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(rawValue) {
+        return rawValue < 0 ? Int64.min : Int64.max
+    }
+    let scale = runtimeDurationStorageScale(rawValue)
+    let value = rawValue >> 1
+    return scale <= unitScale ? value / (unitScale / scale) : saturatingMultiply(value, scale / unitScale)
+}
+
+private func runtimeDurationFromLong(_ value: Int64, scale: Int64) -> Int64 {
+    let maxNanosInUnit = runtimeDurationMaxNanos / scale
+    if (-maxNanosInUnit ... maxNanosInUnit).contains(value) {
+        return runtimeDurationOfNanos(value * scale)
+    }
+    let millis = scale < 1_000_000 ? value / (1_000_000 / scale) : saturatingMultiply(value, scale / 1_000_000)
+    return runtimeDurationOfMillis(millis)
 }
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
-    Int(truncatingIfNeeded: nanoseconds)
-}
-
-private func runtimeDurationBoxHandle(fromNanoseconds nanoseconds: Int64) -> Int {
-    registerRuntimeObject(RuntimeDurationBox(nanoseconds: nanoseconds))
+    Int(runtimeDurationOfNanos(nanoseconds))
 }
 
 private func runtimeDurationNanoseconds(
     fromDoubleBits valueBits: Int,
     scale: Double
 ) -> Int64 {
-    let value = kk_bits_to_double(valueBits)
-    guard value.isFinite else {
-        if value.isNaN {
-            return 0
-        }
-        return value.sign == .minus ? Int64.min : Int64.max
-    }
+    runtimeDurationFromDouble(kk_bits_to_double(valueBits), scale: scale)
+}
 
-    let scaled = value * scale
-    guard scaled.isFinite else {
-        return scaled.sign == .minus ? Int64.min : Int64.max
+private func runtimeDurationFromDouble(_ value: Double, scale: Double) -> Int64 {
+    if value.isNaN { return 0 }
+    let nanos = (value * scale).rounded(.toNearestOrAwayFromZero)
+    if nanos >= -Double(runtimeDurationMaxNanos), nanos < Double(runtimeDurationMaxNanos) {
+        return runtimeDurationOfNanos(Int64(nanos))
     }
-
-    let rounded = scaled.rounded()
-    if rounded >= Double(Int64.max) {
-        return Int64.max
-    }
-    if rounded <= Double(Int64.min) {
-        return Int64.min
-    }
-    return Int64(rounded)
+    let millis = (value * (scale / 1_000_000)).rounded(.toNearestOrAwayFromZero)
+    if millis >= Double(runtimeDurationMaxMillis) { return Int64.max }
+    if millis <= -Double(runtimeDurationMaxMillis) { return runtimeDurationNegativeInfinity }
+    return runtimeDurationOfMillis(Int64(millis))
 }
 
 /// Formats `whole.fraction<unit>` following kotlin-stdlib's `Duration.toString()`
@@ -156,181 +217,356 @@ private func runtimeDurationSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
     return result
 }
 
-private func runtimeDurationSaturatingNegate(_ value: Int64) -> Int64 {
-    value == Int64.min ? Int64.max : -value
-}
-
 private func runtimeDurationApplySign(_ value: Int64, sign: Int) -> Int64 {
-    if sign >= 0 {
-        return value
-    }
-    if value == Int64.max {
-        return Int64.min
-    }
-    return runtimeDurationSaturatingNegate(value)
+    sign >= 0 ? value : (-(value >> 1) << 1) + (value & 1)
 }
 
-private func runtimeDurationNanoseconds(from value: Double, scale: Int64) -> Int64? {
-    guard value.isFinite else {
+private func runtimeDurationAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(lhs) { return lhs }
+    if runtimeDurationIsInfinite(rhs) { return rhs }
+    let left = lhs >> 1
+    let right = rhs >> 1
+    if lhs & 1 == rhs & 1 {
+        return lhs & 1 == 0 ? runtimeDurationOfNanos(left + right) : runtimeDurationOfMillis(left + right)
+    }
+    let millis = lhs & 1 == 1 ? left : right
+    let nanos = lhs & 1 == 0 ? left : right
+    let sumMillis = millis + nanos / 1_000_000
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(sumMillis) {
+        return runtimeDurationOfNanos(sumMillis * 1_000_000 + nanos % 1_000_000)
+    }
+    return runtimeDurationOfMillis(sumMillis)
+}
+
+private func runtimeDurationMultiply(_ rawValue: Int64, _ scale: Int64) -> Int64 {
+    if runtimeDurationIsInfinite(rawValue) {
+        return scale == 0 ? 0 : runtimeDurationApplySign(rawValue, sign: scale < 0 ? -1 : 1)
+    }
+    let value = rawValue >> 1
+    let result = saturatingMultiply(value, scale)
+    if rawValue & 1 == 1 { return runtimeDurationOfMillis(result) }
+    if result != Int64.max, result != Int64.min { return runtimeDurationOfNanos(result) }
+    let millis = saturatingMultiply(value / 1_000_000, scale)
+    let remainder = saturatingMultiply(value % 1_000_000, scale) / 1_000_000
+    return runtimeDurationOfMillis(runtimeDurationSaturatingAdd(millis, remainder))
+}
+
+private func runtimeDurationDivide(_ rawValue: Int64, _ scale: Int64) -> Int64 {
+    if scale == 0 { return rawValue < 0 ? runtimeDurationNegativeInfinity : Int64.max }
+    if runtimeDurationIsInfinite(rawValue) {
+        return runtimeDurationApplySign(rawValue, sign: scale < 0 ? -1 : 1)
+    }
+    let value = rawValue >> 1
+    let result = value / scale
+    if rawValue & 1 == 0 { return runtimeDurationOfNanos(result) }
+    if (-runtimeDurationMaxNanosInMillis ... runtimeDurationMaxNanosInMillis).contains(result) {
+        return runtimeDurationOfNanos(result * 1_000_000 + (value % scale) * 1_000_000 / scale)
+    }
+    return runtimeDurationOfMillis(result)
+}
+
+/// kotlin-stdlib `Duration.parse` / `parseIsoString` grammar (2.3.10).
+/// Decimal components are `[0-9]+` with an optional `.` + `[0-9]+` fraction;
+/// scientific notation, a trailing/leading dot, and surrounding whitespace are rejected.
+private func runtimeDurationAsciiDigit(_ ch: Character) -> Int? {
+    guard let ascii = ch.asciiValue,
+          ascii >= UInt8(ascii: "0"),
+          ascii <= UInt8(ascii: "9")
+    else {
         return nil
     }
-    let scaled = value * Double(scale)
-    guard scaled.isFinite else {
-        return scaled.sign == .minus ? Int64.min : Int64.max
-    }
-    let rounded = scaled.rounded()
-    if rounded >= Double(Int64.max) {
-        return Int64.max
-    }
-    if rounded <= Double(Int64.min) {
-        return Int64.min
-    }
-    return Int64(rounded)
+    return Int(ascii - UInt8(ascii: "0"))
 }
 
-private func runtimeDurationParseNumber(_ chars: [Character], index: inout Int) -> Double? {
-    let start = index
-    if index < chars.count, chars[index] == "+" || chars[index] == "-" {
+private func runtimeDurationParseSign(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> Int {
+    guard index < end else { return 1 }
+    if chars[index] == "-" {
+        index += 1
+        return -1
+    }
+    if chars[index] == "+" {
+        index += 1
+        return 1
+    }
+    return 1
+}
+
+private struct RuntimeDurationParsedNumber {
+    let whole: Int64
+    let fraction: Double
+    let hasFraction: Bool
+    let overflow: Bool
+    let sign: Int
+}
+
+private struct RuntimeDurationParsedUnit {
+    let order: Int
+    let scale: Int64
+}
+
+private func runtimeDurationParseInteger(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int,
+    allowSign: Bool
+) -> (whole: Int64, overflow: Bool, sign: Int)? {
+    let sign = allowSign ? runtimeDurationParseSign(chars, index: &index, end: end) : 1
+    let digitsStart = index
+    // Drop leading zeros so a zero-padded value is not reported as overflow.
+    while index < end, chars[index] == "0" {
         index += 1
     }
 
-    var sawDigit = false
-    while index < chars.count, chars[index].isNumber {
-        sawDigit = true
-        index += 1
-    }
-    if index < chars.count, chars[index] == "." {
-        index += 1
-        while index < chars.count, chars[index].isNumber {
-            sawDigit = true
-            index += 1
+    var whole: Int64 = 0
+    var overflow = false
+    while index < end {
+        guard let digit = runtimeDurationAsciiDigit(chars[index]) else { break }
+        if !overflow {
+            let (multiplied, mulOverflow) = whole.multipliedReportingOverflow(by: 10)
+            let (added, addOverflow) = multiplied.addingReportingOverflow(Int64(digit))
+            if mulOverflow || addOverflow {
+                overflow = true
+                whole = Int64.max
+            } else {
+                whole = added
+            }
         }
+        index += 1
     }
 
-    guard sawDigit else {
-        return nil
-    }
-    return Double(String(chars[start..<index]))
+    guard index > digitsStart else { return nil }
+    return (whole, overflow, sign)
 }
 
-private func runtimeDurationParseISO(_ input: String) -> Int64? {
-    var chars = Array(input.trimmingCharacters(in: .whitespacesAndNewlines))
-    guard !chars.isEmpty else { return nil }
-
-    var sign = 1
-    if chars.first == "+" || chars.first == "-" {
-        sign = chars.first == "-" ? -1 : 1
-        chars.removeFirst()
+private func runtimeDurationParseFraction(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> Double? {
+    let start = index
+    var fraction = 0.0
+    var place = 10.0
+    while index < end {
+        guard let digit = runtimeDurationAsciiDigit(chars[index]) else { break }
+        fraction += Double(digit) / place
+        place *= 10
+        index += 1
     }
-    guard chars.first == "P" else { return nil }
-    var index = 1
+    guard index > start else { return nil }
+    return fraction
+}
+
+private func runtimeDurationParseNumber(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int,
+    allowSign: Bool
+) -> RuntimeDurationParsedNumber? {
+    guard let integer = runtimeDurationParseInteger(
+        chars, index: &index, end: end, allowSign: allowSign
+    ) else {
+        return nil
+    }
+    let fraction: Double
+    let hasFraction: Bool
+    if index < end, chars[index] == "." {
+        index += 1
+        guard let parsed = runtimeDurationParseFraction(chars, index: &index, end: end) else {
+            return nil
+        }
+        fraction = parsed
+        hasFraction = true
+    } else {
+        fraction = 0
+        hasFraction = false
+    }
+    return RuntimeDurationParsedNumber(
+        whole: integer.whole,
+        fraction: fraction,
+        hasFraction: hasFraction,
+        overflow: integer.overflow,
+        sign: integer.sign
+    )
+}
+
+private func runtimeDurationNanoseconds(
+    from number: RuntimeDurationParsedNumber,
+    scale: Int64
+) -> Int64? {
+    let whole = runtimeDurationFromLong(number.whole, scale: scale)
+    let fraction = runtimeDurationFromDouble(number.fraction, scale: Double(scale))
+    return runtimeDurationApplySign(runtimeDurationAdd(whole, fraction), sign: number.sign)
+}
+
+private func runtimeDurationParseDefaultUnit(
+    _ chars: [Character],
+    index: inout Int,
+    end: Int
+) -> RuntimeDurationParsedUnit? {
+    let start = index
+    while index < end {
+        guard let ascii = chars[index].asciiValue,
+              ascii >= UInt8(ascii: "a"),
+              ascii <= UInt8(ascii: "z")
+        else {
+            break
+        }
+        index += 1
+    }
+    guard index > start else { return nil }
+    switch String(chars[start..<index]) {
+    case "d": return RuntimeDurationParsedUnit(order: 6, scale: runtimeDurationNanosPerDay)
+    case "h": return RuntimeDurationParsedUnit(order: 5, scale: runtimeDurationNanosPerHour)
+    case "m": return RuntimeDurationParsedUnit(order: 4, scale: runtimeDurationNanosPerMinute)
+    case "s": return RuntimeDurationParsedUnit(order: 3, scale: runtimeDurationNanosPerSecond)
+    case "ms": return RuntimeDurationParsedUnit(order: 2, scale: runtimeDurationNanosPerMillisecond)
+    case "us": return RuntimeDurationParsedUnit(order: 1, scale: runtimeDurationNanosPerMicrosecond)
+    case "ns": return RuntimeDurationParsedUnit(order: 0, scale: 1)
+    default: return nil
+    }
+}
+
+private func runtimeDurationParseISOUnit(
+    _ designator: Character,
+    inTime: Bool
+) -> RuntimeDurationParsedUnit? {
+    switch (designator, inTime) {
+    case ("D", false): return RuntimeDurationParsedUnit(order: 6, scale: runtimeDurationNanosPerDay)
+    case ("H", true): return RuntimeDurationParsedUnit(order: 5, scale: runtimeDurationNanosPerHour)
+    case ("M", true): return RuntimeDurationParsedUnit(order: 4, scale: runtimeDurationNanosPerMinute)
+    case ("S", true): return RuntimeDurationParsedUnit(order: 3, scale: runtimeDurationNanosPerSecond)
+    default: return nil
+    }
+}
+
+private func runtimeDurationParseISOFormat(_ chars: [Character], startIndex: Int) -> Int64? {
+    var index = startIndex
+    guard index < chars.count else { return nil }
+
     var inTime = false
-    var sawComponent = false
+    var prevOrder: Int?
     var total: Int64 = 0
 
     while index < chars.count {
         if chars[index] == "T" {
-            guard !inTime else { return nil }
-            inTime = true
+            if inTime { return nil }
             index += 1
+            if index == chars.count { return nil }
+            inTime = true
             continue
         }
 
-        guard let number = runtimeDurationParseNumber(chars, index: &index),
-              index < chars.count
-        else {
+        guard let number = runtimeDurationParseNumber(
+            chars, index: &index, end: chars.count, allowSign: true
+        ), index < chars.count else {
             return nil
         }
-
-        let designator = chars[index]
+        if number.hasFraction, chars[index] != "S" {
+            return nil
+        }
+        guard let unit = runtimeDurationParseISOUnit(chars[index], inTime: inTime) else {
+            return nil
+        }
+        if let prevOrder, prevOrder <= unit.order {
+            return nil
+        }
+        prevOrder = unit.order
         index += 1
-        let scale: Int64
-        switch (designator, inTime) {
-        case ("D", false):
-            scale = runtimeDurationNanosPerDay
-        case ("H", true):
-            scale = runtimeDurationNanosPerHour
-        case ("M", true):
-            scale = runtimeDurationNanosPerMinute
-        case ("S", true):
-            scale = runtimeDurationNanosPerSecond
-        default:
-            return nil
-        }
 
-        guard let component = runtimeDurationNanoseconds(from: number, scale: scale) else {
+        guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
             return nil
         }
-        total = runtimeDurationSaturatingAdd(total, component)
-        sawComponent = true
+        total = runtimeDurationAdd(total, component)
     }
 
-    guard sawComponent else { return nil }
-    return runtimeDurationApplySign(total, sign: sign)
+    guard prevOrder != nil else { return nil }
+    return total
 }
 
-private func runtimeDurationParseDefaultToken(_ token: String) -> Int64? {
-    let units: [(suffix: String, scale: Int64)] = [
-        ("ms", runtimeDurationNanosPerMillisecond),
-        ("us", runtimeDurationNanosPerMicrosecond),
-        ("µs", runtimeDurationNanosPerMicrosecond),
-        ("ns", 1),
-        ("d", runtimeDurationNanosPerDay),
-        ("h", runtimeDurationNanosPerHour),
-        ("m", runtimeDurationNanosPerMinute),
-        ("s", runtimeDurationNanosPerSecond),
-    ]
-    for unit in units where token.hasSuffix(unit.suffix) {
-        let numberText = String(token.dropLast(unit.suffix.count))
-        guard !numberText.isEmpty,
-              let number = Double(numberText)
-        else {
-            return nil
-        }
-        return runtimeDurationNanoseconds(from: number, scale: unit.scale)
-    }
-    return nil
-}
+private func runtimeDurationParseDefaultFormat(
+    _ chars: [Character],
+    startIndex: Int,
+    hasSign: Bool
+) -> Int64? {
+    var index = startIndex
+    var end = chars.count
+    var allowSpaces = !hasSign
 
-private func runtimeDurationParseDefault(_ input: String) -> Int64? {
-    var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return nil }
-
-    if text == "Infinity" || text == "+Infinity" {
-        return Int64.max
+    if hasSign, index < chars.count, chars[index] == "(", chars.last == ")" {
+        allowSpaces = true
+        index += 1
+        end -= 1
+        guard index < end else { return nil }
     }
-    if text == "-Infinity" {
-        return Int64.min
-    }
-
-    var sign = 1
-    if text.hasPrefix("-("), text.hasSuffix(")") {
-        sign = -1
-        text = String(text.dropFirst(2).dropLast())
-    } else if text.hasPrefix("+") || text.hasPrefix("-") {
-        sign = text.first == "-" ? -1 : 1
-        text = String(text.dropFirst())
-    }
-
-    let parts = text.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" })
-    guard !parts.isEmpty else { return nil }
 
     var total: Int64 = 0
-    for part in parts {
-        guard let component = runtimeDurationParseDefaultToken(String(part)) else {
+    var prevOrder: Int?
+
+    while index < end {
+        if allowSpaces, prevOrder != nil {
+            while index < end, chars[index] == " " {
+                index += 1
+            }
+        }
+
+        guard let number = runtimeDurationParseNumber(
+            chars, index: &index, end: end, allowSign: false
+        ), !number.overflow, index < end else {
             return nil
         }
-        total = runtimeDurationSaturatingAdd(total, component)
+        guard let unit = runtimeDurationParseDefaultUnit(chars, index: &index, end: end) else {
+            return nil
+        }
+        if let prevOrder, prevOrder <= unit.order {
+            return nil
+        }
+        prevOrder = unit.order
+
+        if number.hasFraction, index < end {
+            return nil
+        }
+
+        guard let component = runtimeDurationNanoseconds(from: number, scale: unit.scale) else {
+            return nil
+        }
+        total = runtimeDurationAdd(total, component)
     }
-    return runtimeDurationApplySign(total, sign: sign)
+
+    return total
+}
+
+private func runtimeDurationParseDuration(_ value: String, strictIso: Bool) -> Int64? {
+    guard !value.isEmpty else { return nil }
+    let chars = Array(value)
+    var index = 0
+    let isNegative = runtimeDurationParseSign(chars, index: &index, end: chars.count) < 0
+    let hasSign = index > 0
+    guard index < chars.count else { return nil }
+
+    let parsed: Int64?
+    if chars[index] == "P" {
+        parsed = runtimeDurationParseISOFormat(chars, startIndex: index + 1)
+    } else if strictIso {
+        return nil
+    } else if String(chars[index...]).lowercased() == "infinity" {
+        parsed = Int64.max
+    } else {
+        parsed = runtimeDurationParseDefaultFormat(chars, startIndex: index, hasSign: hasSign)
+    }
+    guard let result = parsed else { return nil }
+    return isNegative ? runtimeDurationApplySign(result, sign: -1) : result
+}
+
+private func runtimeDurationParseISO(_ input: String) -> Int64? {
+    runtimeDurationParseDuration(input, strictIso: true)
 }
 
 private func runtimeDurationParse(_ input: String) -> Int64? {
-    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let iso = runtimeDurationParseISO(trimmed) {
-        return iso
-    }
-    return runtimeDurationParseDefault(trimmed)
+    runtimeDurationParseDuration(input, strictIso: false)
 }
 
 /// Clamp-safe multiplication: returns `Int64.max` / `Int64.min` on overflow
@@ -351,34 +587,33 @@ public func kk_duration_zero() -> Int {
 
 @_cdecl("kk_duration_infinite")
 public func kk_duration_infinite() -> Int {
-    runtimeDurationHandle(fromNanoseconds: Int64.max)
+    Int(Int64.max)
 }
 
 @_cdecl("kk_duration_toDuration_int")
 public func kk_duration_toDuration_int(_ value: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: saturatingMultiply(Int64(value), runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-    )
+    Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
 
 @_cdecl("kk_duration_toDuration_long")
 public func kk_duration_toDuration_long(_ value: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: saturatingMultiply(Int64(value), runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-    )
+    Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
 
 @_cdecl("kk_duration_toDuration_double")
 public func kk_duration_toDuration_double(_ valueBits: Int, _ unitOrdinal: Int) -> Int {
-    runtimeDurationHandle(
-        fromNanoseconds: runtimeDurationNanoseconds(
+    Int(runtimeDurationNanoseconds(
             fromDoubleBits: valueBits,
             scale: Double(runtimeDurationUnitScale(fromOrdinal: unitOrdinal))
-        )
-    )
+        ))
 }
 
 // MARK: - Duration properties
+
+@_cdecl("kk_duration_inWholeMilliseconds")
+public func kk_duration_inWholeMilliseconds(_ durationRaw: Int) -> Int {
+    Int(runtimeDurationWholeValue(from: durationRaw, unitScale: 1_000_000))
+}
 
 @_cdecl("kk_duration_inWholeNanoseconds")
 public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
@@ -390,36 +625,36 @@ public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
 
 @_cdecl("kk_duration_toString")
 public func kk_duration_toString(_ durationRaw: Int) -> Int {
-    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toString received invalid Duration handle")
-    }
+    let rawValue = runtimeDurationRawValue(from: durationRaw)
+    let ns = rawValue >> 1
 
     if ns == 0 {
         return runtimeDurationMakeString("0s")
     }
-    if ns == Int64.max {
+    if rawValue == Int64.max {
         return runtimeDurationMakeString("Infinity")
     }
-    if ns == Int64.min {
+    if rawValue == runtimeDurationNegativeInfinity {
         return runtimeDurationMakeString("-Infinity")
     }
 
     let isNegative = ns < 0
     let absNs = isNegative ? -ns : ns
+    let scale = runtimeDurationStorageScale(rawValue)
 
     // Decompose into days/hours/minutes/seconds/nanoseconds, matching
     // kotlin-stdlib's Duration.toString() component breakdown (values > 24h
     // roll up into days, e.g. 25h -> "1d 1h").
     let components = runtimeDurationComponents(
         absNs,
-        topUnit: runtimeDurationNanosPerDay,
-        lowerUnits: [runtimeDurationNanosPerHour, runtimeDurationNanosPerMinute, runtimeDurationNanosPerSecond, 1]
+        topUnit: runtimeDurationNanosPerDay / scale,
+        lowerUnits: [runtimeDurationNanosPerHour / scale, runtimeDurationNanosPerMinute / scale, runtimeDurationNanosPerSecond / scale, 1]
     )
     let days = components.top
     let hours = components.lower[0]
     let minutes = components.lower[1]
     let seconds = components.lower[2]
-    let subsecondNanos = components.lower[3]
+    let subsecondNanos = components.lower[3] * Int(scale)
 
     let hasDays = days != 0
     let hasHours = hours != 0
@@ -492,7 +727,7 @@ public func kk_duration_parse(_ valueRaw: Int, _ outThrown: UnsafeMutablePointer
         )
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseOrNull")
@@ -502,7 +737,7 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoString")
@@ -517,7 +752,7 @@ public func kk_duration_parseIsoString(_ valueRaw: Int, _ outThrown: UnsafeMutab
         )
         return runtimeNullSentinelInt
     }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoStringOrNull")
@@ -527,18 +762,15 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return runtimeDurationBoxHandle(fromNanoseconds: nanoseconds)
+    return Int(nanoseconds)
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)
 
 @_cdecl("kk_duration_absoluteValue")
 public func kk_duration_absoluteValue(_ durationRaw: Int) -> Int {
-    guard let ns = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_absoluteValue received invalid Duration handle")
-    }
-    let absNs = ns == Int64.min ? Int64.max : (ns < 0 ? -ns : ns)
-    return runtimeDurationHandle(fromNanoseconds: absNs)
+    let raw = runtimeDurationRawValue(from: durationRaw)
+    return Int(runtimeDurationApplySign(raw, sign: raw < 0 ? -1 : 1))
 }
 
 @_cdecl("kk_duration_isNegative")
@@ -559,89 +791,55 @@ public func kk_duration_isPositive(_ durationRaw: Int) -> Int {
 
 @_cdecl("kk_duration_isInfinite")
 public func kk_duration_isInfinite(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isInfinite received invalid Duration handle")
-    }
-    return (nanoseconds == Int64.max || nanoseconds == Int64.min) ? 1 : 0
+    runtimeDurationIsInfinite(runtimeDurationRawValue(from: durationRaw)) ? 1 : 0
 }
 
 @_cdecl("kk_duration_plus")
 public func kk_duration_plus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_plus received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, rhs))
+    Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationRawValue(from: rhsRaw)))
 }
 
 @_cdecl("kk_duration_minus")
 public func kk_duration_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_minus received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: runtimeDurationSaturatingAdd(lhs, -rhs))
+    Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationApplySign(runtimeDurationRawValue(from: rhsRaw), sign: -1)))
 }
 
 @_cdecl("kk_duration_times_int")
 public func kk_duration_times_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_times_int received invalid Duration handle")
-    }
-    return runtimeDurationHandle(fromNanoseconds: saturatingMultiply(nanoseconds, Int64(scale)))
+    Int(runtimeDurationMultiply(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
 @_cdecl("kk_duration_div_int")
 public func kk_duration_div_int(_ durationRaw: Int, _ scale: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_int received invalid Duration handle")
-    }
-    guard scale != 0 else {
-        let ns: Int64 = nanoseconds >= 0 ? Int64.max : Int64.min
-        return runtimeDurationHandle(fromNanoseconds: ns)
-    }
-    if nanoseconds == Int64.min, scale == -1 {
-        return runtimeDurationHandle(fromNanoseconds: Int64.max)
-    }
-    return runtimeDurationHandle(fromNanoseconds: nanoseconds / Int64(scale))
+    Int(runtimeDurationDivide(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
 @_cdecl("kk_duration_div_duration")
 public func kk_duration_div_duration(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_div_duration received invalid Duration handle")
-    }
+    let lhs = runtimeDurationRawValue(from: lhsRaw)
+    let rhs = runtimeDurationRawValue(from: rhsRaw)
+    let coarserScale = max(runtimeDurationStorageScale(lhs), runtimeDurationStorageScale(rhs))
     let lhsValue = runtimeDurationIsInfinite(lhs)
         ? (lhs > 0 ? Double.infinity : -Double.infinity)
-        : Double(lhs)
+        : Double(lhs >> 1) * Double(runtimeDurationStorageScale(lhs)) / Double(coarserScale)
     let rhsValue = runtimeDurationIsInfinite(rhs)
         ? (rhs > 0 ? Double.infinity : -Double.infinity)
-        : Double(rhs)
+        : Double(rhs >> 1) * Double(runtimeDurationStorageScale(rhs)) / Double(coarserScale)
     return kk_double_to_bits(lhsValue / rhsValue)
 }
 
 @_cdecl("kk_duration_unary_minus")
 public func kk_duration_unary_minus(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_unary_minus received invalid Duration handle")
-    }
-    let ns: Int64
-    if nanoseconds == Int64.min {
-        ns = Int64.max
-    } else if nanoseconds == Int64.max {
-        ns = Int64.min
-    } else {
-        ns = -nanoseconds
-    }
-    return runtimeDurationHandle(fromNanoseconds: ns)
+    Int(runtimeDurationApplySign(runtimeDurationRawValue(from: durationRaw), sign: -1))
 }
 
 @_cdecl("kk_duration_compareTo")
 public func kk_duration_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    guard let lhs = runtimeDurationNanosecondsValue(from: lhsRaw),
-          let rhs = runtimeDurationNanosecondsValue(from: rhsRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_compareTo received invalid Duration handle")
+    let lhs = runtimeDurationRawValue(from: lhsRaw)
+    let rhs = runtimeDurationRawValue(from: rhsRaw)
+    if (lhs < 0) == (rhs < 0), lhs & 1 != rhs & 1 {
+        let result = lhs & 1 == 1 ? 1 : -1
+        return lhs < 0 ? -result : result
     }
     if lhs < rhs { return -1 }
     if lhs > rhs { return 1 }

@@ -85,6 +85,132 @@ struct IntegerNarrowingPassTests {
         #expect(addResult == result)
     }
 
+    // MARK: - Char / small-width arithmetic
+
+    @Test(arguments: [PrimitiveType.ubyte, .ushort, .uint, .ulong, .int, .long])
+    func testInvResultIsNarrowedToItsPrimitiveWidth(primitive: PrimitiveType) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let type = sema.types.make(.primitive(primitive, .nonNull))
+        let value = arena.appendTemporary(type: type)
+        let result = arena.appendTemporary(type: type)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_inv"), arguments: [value], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+        let pass = IntegerNarrowingPass()
+
+        #expect(pass.shouldRun(module: module, ctx: ctx))
+        try pass.run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, invCallee, invArgs, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the inv call to be preserved"); return
+        }
+        #expect(interner.resolve(invCallee) == "kk_op_inv")
+        #expect(invArgs == [value])
+        let expectedNarrowCallee: String? = switch primitive {
+        case .ubyte: "kk_int_to_ubyte"
+        case .ushort: "kk_int_to_ushort"
+        case .uint: "kk_uint_narrow"
+        case .int: "kk_int_narrow"
+        default: nil
+        }
+        guard let expectedNarrowCallee else {
+            #expect(lowered.count == 2)
+            #expect(rawResult == result)
+            return
+        }
+        #expect(lowered.count == 3)
+        #expect(rawResult != result)
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, canThrow, _, _, _) = lowered[1] else {
+            Issue.record("Expected a narrowing call after inv"); return
+        }
+        #expect(interner.resolve(narrowCallee) == expectedNarrowCallee)
+        #expect(narrowArgs == [rawResult])
+        #expect(narrowResult == result)
+        #expect(arena.exprType(result) == type)
+        #expect(!canThrow)
+    }
+
+    @Test(arguments: ["kk_op_add", "kk_op_sub"])
+    func testCharPlusMinusIntResultIsWrappedToSixteenBits(calleeName: String) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+
+        let lhs = arena.appendExpr(.temporary(0), type: sema.types.charType)
+        let rhs = arena.appendExpr(.temporary(1), type: sema.types.intType)
+        let result = arena.appendExpr(.temporary(2), type: sema.types.charType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern(calleeName), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, arithCallee, _, rawResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the Char arithmetic call to be preserved"); return
+        }
+        #expect(interner.resolve(arithCallee) == calleeName)
+        #expect(rawResult != result)
+        guard case let .call(_, wrapCallee, wrapArgs, wrapResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected kk_int_to_char after Char arithmetic"); return
+        }
+        #expect(interner.resolve(wrapCallee) == "kk_int_to_char")
+        #expect(wrapArgs == [rawResult])
+        #expect(wrapResult == result)
+    }
+
+    @Test(arguments: [PrimitiveType.ubyte, .ushort])
+    func testSmallUnsignedAdditionResultIsWrappedToUInt(operandKind: PrimitiveType) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let operandType = sema.types.make(.primitive(operandKind, .nonNull))
+
+        let lhs = arena.appendExpr(.temporary(0), type: operandType)
+        let rhs = arena.appendExpr(.temporary(1), type: operandType)
+        let result = arena.appendExpr(.temporary(2), type: sema.types.uintType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        #expect(lowered.count == 3)
+        guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the small unsigned add call to be preserved"); return
+        }
+        #expect(interner.resolve(addCallee) == "kk_op_add")
+        #expect(addResult != result)
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected UInt narrowing after small unsigned arithmetic"); return
+        }
+        #expect(interner.resolve(narrowCallee) == "kk_uint_narrow")
+        #expect(narrowArgs == [addResult])
+        #expect(narrowResult == result)
+    }
+
     // MARK: - Shift rewriting
 
     @Test
@@ -157,6 +283,80 @@ struct IntegerNarrowingPassTests {
             return false
         }.count
         #expect(narrowCount == 0, "Long shift result must not be narrowed to 32 bits")
+    }
+
+    @Test(arguments: [("kk_op_shl", "kk_op_ishl"), ("kk_op_shr", "kk_op_iushr")])
+    func testUIntShiftUsesFiveBitMaskedLogicalVariantThenUIntNarrow(shift: (String, String)) throws {
+        // Kotlin `UInt.shr` is logical and masks the distance to 5 bits
+        // (`0xFFFFFFFFu shl 4 == 4294967280u`, `1u shl 32 == 1u`).
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let uintType = sema.types.make(.primitive(.uint, .nonNull))
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
+        let value = arena.appendExpr(.temporary(0), type: uintType)
+        let distance = arena.appendExpr(.temporary(1), type: intType)
+        let result = arena.appendExpr(.temporary(2), type: uintType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern(shift.0), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the shift call to be present"); return
+        }
+        #expect(interner.resolve(callee) == shift.1)
+        #expect(args == [value, distance])
+        #expect(shiftResult != result, "Shift result should be redirected to a temporary")
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
+            Issue.record("Expected kk_uint_narrow after the UInt shift"); return
+        }
+        #expect(interner.resolve(narrowCallee) == "kk_uint_narrow")
+        #expect(narrowArgs == [shiftResult])
+        #expect(narrowResult == result)
+    }
+
+    @Test(arguments: [("kk_op_shl", "kk_op_lshl"), ("kk_op_shr", "kk_op_lushr")])
+    func testULongShiftUsesSixBitMaskedLogicalVariant(shift: (String, String)) throws {
+        // Kotlin `ULong.shr` is logical (`ULong.MAX_VALUE shr 1 == Long.MAX_VALUE`).
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = Self.sharedSema
+        let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
+        let value = arena.appendExpr(.temporary(0), type: ulongType)
+        let distance = arena.appendExpr(.temporary(1), type: intType)
+        let result = arena.appendExpr(.temporary(2), type: ulongType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern(shift.0), arguments: [value, distance], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = bodyInDecl(declID, module: module)
+        #expect(lowered.count == 2, "ULong shifts are renamed only, never narrowed")
+        guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
+            Issue.record("Expected the shift call to be present"); return
+        }
+        #expect(interner.resolve(callee) == shift.1)
+        #expect(args == [value, distance])
+        #expect(shiftResult == result)
     }
 
     @Test

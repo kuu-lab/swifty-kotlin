@@ -74,6 +74,7 @@ func boxSentinelProneHashCodeReceiver(
             arena: arena,
             resultType: sema.types.anyType,
             requireNonNull: true,
+            sema: sema,
             into: &instructions
         )
     default:
@@ -107,6 +108,13 @@ func resolveEnumOrdinalToNameCallee(
           !symbol.flags.contains(.synthetic)
     else {
         return nil
+    }
+    // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
+    // the default bare-name rendering, so string interpolation on an
+    // enum-typed value (`"${Op.MUL}"`) matches an explicit `.toString()`
+    // call instead of always printing the entry name.
+    if let override = enumToStringOverrideHelper(for: symbol, symbols: sema.symbols, interner: interner) {
+        return (override.name, override.symbol)
     }
     let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
     let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
@@ -205,15 +213,21 @@ func resolveClassOwnToStringCallee(
         guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return nil
         }
-        // HashSet is source-backed for its nominal API, but its runtime
-        // representation is a RuntimeSetBox without a Kotlin vtable/heap-object
-        // identity. Fall back to the generic Any-fallback tag path below
-        // (kk_any_to_string -> runtimeElementToString), which already knows
-        // how to render a RuntimeSetBox, instead of dispatching through a
-        // vtable the receiver does not have (KSWIFTK-RUNTIME-0001 vtable
-        // lookup panic).
+        // HashSet, ULongRange, and ULongProgression are source-backed for
+        // their nominal APIs, but their runtime representations do not carry
+        // Kotlin vtables. Fall back to the generic Any path, whose runtime
+        // formatter understands these boxes.
         let knownNames = KnownCompilerNames(interner: interner)
-        guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName else {
+        let isRuntimeBackedULongRange = ["ULongRange", "ULongProgression"].contains { name in
+            classSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("ranges"),
+                interner.intern(name),
+            ]
+        }
+        guard classSymbol.fqName != knownNames.kotlinCollectionsHashSetFQName,
+              !isRuntimeBackedULongRange
+        else {
             return nil
         }
         toStringSymbolID = resolveClassToStringSymbol(
@@ -275,7 +289,8 @@ extension CallLowerer {
 
     func primitiveCompareABIKind(for type: TypeID, sema: SemaModule) -> PrimitiveCompareABIKind? {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-        case .primitive(.int, _), .primitive(.ubyte, _), .primitive(.ushort, _):
+        case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+             .primitive(.ubyte, _), .primitive(.ushort, _):
             return .int
         case .primitive(.long, _):
             return .long
@@ -456,7 +471,27 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return converted
         }
-        let tag = anyFallbackTag(for: valueType, sema: sema)
+        // Long.MIN_VALUE has the same bits as the null sentinel. Preserve a
+        // statically non-null Long by boxing it before the generic renderer
+        // checks for null; nullable Long values keep their existing sentinel
+        // representation and tag.
+        let isNonNullLong: Bool = if case .primitive(.long, .nonNull) = sema.types.kind(of: valueType) {
+            true
+        } else {
+            false
+        }
+        let renderedValue = isNonNullLong ? boxValueForAnySlot(
+            valueID,
+            sourceType: valueType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            resultType: sema.types.anyType,
+            requireNonNull: true,
+            into: &instructions
+        ) : valueID
+        let tag = isNonNullLong ? Int64(1) : anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
         let converted = arena.appendTemporary(type: stringType)
@@ -464,7 +499,7 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_any_to_string"),
-                arguments: [valueID, tagID],
+                arguments: [renderedValue, tagID],
                 result: converted,
                 canThrow: false,
                 thrownResult: nil

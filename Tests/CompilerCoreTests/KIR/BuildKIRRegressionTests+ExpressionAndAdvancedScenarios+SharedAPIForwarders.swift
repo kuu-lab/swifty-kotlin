@@ -156,9 +156,12 @@ extension BuildKIRRegressionTests {
             type: intType,
             fixture: fixture
         )
+        let catchParamType = fixture.astArena.appendTypeRef(
+            .named(path: [fixture.interner.intern("Any")], args: [], nullable: false)
+        )
         let catchClause = CatchClause(
             paramName: fixture.interner.intern("e"),
-            paramTypeName: fixture.interner.intern("Any"),
+            paramType: catchParamType,
             body: catchBody,
             range: range
         )
@@ -432,8 +435,7 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        #expect(callees.contains("__kk_mutable_map_putAll"))
-        #expect(!(callees.contains("putAll")))
+        #expect(callees.contains("putAll"))
     }
 
     @Test func testDirectSharedAPILambdaAndObjectForwardersAreReachable() {

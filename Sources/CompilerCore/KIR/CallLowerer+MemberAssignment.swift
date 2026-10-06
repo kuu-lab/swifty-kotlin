@@ -98,14 +98,19 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [valueID],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
                     thrownResult: nil,
@@ -118,10 +123,39 @@ extension CallLowerer {
             let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: sema.types.unitType)
+            let setterArguments = propertyAccessorArguments(
+                for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: setterSymbol,
                 callee: interner.intern("set"),
-                arguments: [receiverID, valueID],
+                arguments: setterArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        // Extension `var` properties have no backing storage; assignment
+        // routes to the registered setter accessor with the receiver as its
+        // first argument. Prefer the identifier binding, with the selected
+        // callee as a fallback for call-bound property l-values.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
+            ?? sema.bindings.callBindings[exprID]?.chosenCallee,
+           let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+        {
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            let setterArguments = propertyAccessorArguments(
+                for: setterSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.call(
+                symbol: setterSymbol,
+                callee: interner.intern("set"),
+                arguments: setterArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -136,8 +170,12 @@ extension CallLowerer {
         // writes via `copy`-to-`symbolRef`. The heap object some objects allocate
         // via `kk_object_new` (for interface/vtable dispatch) never holds the
         // object's own stored properties, so it must not be treated as
-        // field-offset storage here.
+        // field-offset storage here. A local `object` (KUU-555) is the
+        // exception: its members are object-literal instance fields, so the
+        // `.object` owner check must skip them and let the field-offset
+        // storage path below handle the write.
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .object
@@ -154,7 +192,28 @@ extension CallLowerer {
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
            ownerInfo.kind == .class || ownerInfo.kind == .interface
+               || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
         {
+            // An interface has no per-instance storage of its own, so a
+            // stored/abstract `var` written through an interface-typed
+            // receiver cannot use a concrete field offset (the same reason
+            // `tryLowerInterfaceItablePropertyGetterRead` exists for reads).
+            // Dispatch through the interface's itable to the implementing
+            // type's setter instead of falling through to the field-offset
+            // lookup below (which finds nothing on an interface) and then
+            // the generic call-binding fallback at the bottom of this
+            // function (which linked against an undefined name).
+            if let result = tryLowerInterfaceItablePropertySetterWrite(
+                propertySymbol: propertySymbol,
+                loweredReceiverID: receiverID,
+                loweredValueID: valueID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return result
+            }
             // BUG-227: a stored open/abstract/override property whose owner
             // has known subtypes must dispatch through its setter's vtable
             // slot — the field offset below is only this declaration's own
@@ -165,14 +224,19 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [valueID],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: result,
                     canThrow: false,
                     thrownResult: nil,
@@ -187,10 +251,17 @@ extension CallLowerer {
             ] {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValueID = normalizedValueForNullablePrimitiveSlot(
+                    valueID,
+                    slotType: sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, valueID],
+                    arguments: [receiverID, offsetExpr, storedValueID],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -199,6 +270,23 @@ extension CallLowerer {
                 instructions.append(.constValue(result: unit, value: .unit))
                 return unit
             }
+        }
+        // Enum `var` properties live in per-entry storage behind the enum's
+        // setter helper; the ordinal-backed receiver has no instance fields.
+        if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
+           let setterCallee = enumPropertySetterPlaceholder(for: propertySymbol, sema: sema, interner: interner)
+        {
+            instructions.append(.call(
+                symbol: nil,
+                callee: setterCallee,
+                arguments: [receiverID, valueID],
+                result: arena.appendTemporary(type: sema.types.unitType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
         }
         // Use the call binding from sema if available (property setter).
         let callBinding = sema.bindings.callBindings[exprID]
@@ -264,9 +352,27 @@ extension CallLowerer {
         )
 
         let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
-        let propType = propertySymbol.flatMap { sema.symbols.propertyType(for: $0) }
+        let declaredPropType = propertySymbol.flatMap { sema.symbols.propertyType(for: $0) }
             ?? sema.bindings.exprTypes[exprID]
             ?? sema.types.anyType
+        // A generic owner's property (`Holder<Int>.value: T`) is declared with
+        // the erased type parameter; reads/writes must be typed with the
+        // receiver-specialized type (`Int`) so the ABI passes box/unbox the
+        // itable/vtable accessor boundary the same way a plain read does.
+        let propType: TypeID = {
+            guard let propertySymbol,
+                  let receiverType = sema.bindings.exprTypes[receiverExpr],
+                  let specialized = TypeCheckHelpers().lookupMemberProperty(
+                      named: calleeName,
+                      receiverType: sema.types.makeNonNullable(receiverType),
+                      sema: sema
+                  ),
+                  specialized.symbol == propertySymbol
+            else {
+                return declaredPropType
+            }
+            return specialized.type
+        }()
         let stringType = sema.types.stringType
         let nullableStringType = sema.types.makeNullable(stringType)
         let valueType = arena.exprType(valueID)
@@ -298,6 +404,7 @@ extension CallLowerer {
         let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
+                  !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol)
             else {
@@ -309,22 +416,47 @@ extension CallLowerer {
         // Properties whose reads and writes go through accessors (custom
         // get/set bodies, delegated properties) have no usable backing storage
         // for a load/compute/store round trip.
-        let usesAccessors: Bool = {
+        // The two halves are independent: a custom setter with a default
+        // getter (or vice versa) has no accessor symbol for the default half,
+        // so that half must keep using the backing field directly.
+        let usesGetterAccessor: Bool = {
             guard let propertySymbol else { return false }
             return memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+        }()
+        let usesSetterAccessor: Bool = {
+            guard let propertySymbol else { return false }
+            return sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
                 || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
+                || sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol) != nil
+                || sema.symbols.extensionPropertySetterAccessor(for: propertySymbol) != nil
+        }()
+
+        // Enum stored properties: load/store through the enum property
+        // helpers (per-entry storage), never through field offsets.
+        let enumHelperCallees: (getter: InternedString, setter: InternedString)? = {
+            guard syntheticLinks == nil,
+                  !usesGetterAccessor,
+                  !usesSetterAccessor,
+                  let propertySymbol,
+                  let getter = enumPropertyGetterPlaceholder(for: propertySymbol, sema: sema, interner: interner),
+                  let setter = enumPropertySetterPlaceholder(for: propertySymbol, sema: sema, interner: interner)
+            else {
+                return nil
+            }
+            return (getter, setter)
         }()
 
         // Direct field-offset storage for ordinary stored properties on
-        // class/interface instances.
+        // class/interface instances (and for a local `object`'s
+        // object-literal instance fields).
         let fieldOffset: Int? = {
             guard syntheticLinks == nil,
                   !isObjectOwned,
-                  !usesAccessors,
                   let propertySymbol,
                   let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
                   let ownerInfo = sema.symbols.symbol(ownerSymbol),
                   ownerInfo.kind == .class || ownerInfo.kind == .interface
+                      || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
             else {
                 return nil
             }
@@ -345,7 +477,8 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
         let virtualSetterDispatch = propertySymbol.flatMap { propertySymbol in
@@ -354,13 +487,21 @@ extension CallLowerer {
                 receiverExpr: receiverExpr,
                 accessorKind: .setter,
                 ast: ast,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
         }
 
         // ── Load ─────────────────────────────────────────────────────────
         let currentValue: KIRExprID
-        if let syntheticLinks {
+        if let cachedValue = ast.arena.incrementDecrementCachedValue(for: exprID) {
+            currentValue = driver.lowerExpr(
+                cachedValue,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        } else if let syntheticLinks {
             let result = arena.appendTemporary(type: propType)
             emitNonThrowingCall(
                 callee: interner.intern(syntheticLinks.load),
@@ -376,27 +517,58 @@ extension CallLowerer {
                 result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             )
+        } else if let propertySymbol,
+                  let itableValue = tryLowerInterfaceItablePropertyGetterRead(
+                      propertySymbol: propertySymbol,
+                      loweredReceiverID: receiverID,
+                      resultType: propType,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            // Interface-typed receiver: the interface has no per-instance
+            // storage, so read through the itable getter slot.
+            currentValue = itableValue
         } else if let virtualGetterDispatch {
             let result = arena.appendTemporary(type: propType)
+            let virtualAccessorArguments = propertyAccessorArguments(
+                for: virtualGetterDispatch.accessorSymbol, arguments: [receiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.virtualCall(
                 symbol: virtualGetterDispatch.accessorSymbol,
                 callee: interner.intern("get"),
-                receiver: receiverID,
-                arguments: [],
+                receiver: virtualAccessorArguments[0],
+                arguments: Array(virtualAccessorArguments.dropFirst()),
                 result: result,
                 canThrow: false,
                 thrownResult: nil,
                 dispatch: virtualGetterDispatch.dispatch
             ))
             currentValue = result
-        } else if usesAccessors, let propertySymbol {
+        } else if let enumHelperCallees {
+            let result = arena.appendTemporary(type: propType)
+            emitNonThrowingCall(
+                callee: enumHelperCallees.getter,
+                arg: receiverID,
+                result: result,
+                into: &instructions
+            )
+            currentValue = result
+        } else if usesGetterAccessor, let propertySymbol {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: propType)
+            let getterArguments = propertyAccessorArguments(
+                for: getterSymbol, arguments: [receiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             instructions.append(.call(
                 symbol: getterSymbol,
                 callee: interner.intern("get"),
-                arguments: [receiverID],
+                arguments: getterArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil
@@ -529,7 +701,10 @@ extension CallLowerer {
             if !isStringCompound {
                 let result = arena.appendTemporary(type: propType)
                 instructions.append(.binary(op: kirOp, lhs: currentValue, rhs: valueID, result: result))
-                return result
+                return SmallIntegerWrap.append(
+                    result, type: propType, sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions
+                ) ?? result
             }
             // Kotlin's `String += Any?` calls toString() on a non-String operand
             // (Kotlin's String.plus(other: Any?)); a non-String currentValue/valueID
@@ -590,26 +765,56 @@ extension CallLowerer {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
                 instructions.append(.copy(from: newValue, to: globalRef))
+            } else if let propertySymbol,
+                      tryLowerInterfaceItablePropertySetterWrite(
+                          propertySymbol: propertySymbol,
+                          loweredReceiverID: receiverID,
+                          loweredValueID: newValue,
+                          sema: sema,
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
+                      ) != nil
+            {
+                // Interface-typed receiver: write through the itable setter
+                // slot (the helper already emitted the call).
             } else if let virtualSetterDispatch {
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                let virtualAccessorArguments = propertyAccessorArguments(
+                    for: virtualSetterDispatch.accessorSymbol, arguments: [receiverID, newValue], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.virtualCall(
                     symbol: virtualSetterDispatch.accessorSymbol,
                     callee: interner.intern("set"),
-                    receiver: receiverID,
-                    arguments: [newValue],
+                    receiver: virtualAccessorArguments[0],
+                    arguments: Array(virtualAccessorArguments.dropFirst()),
                     result: setterResult,
                     canThrow: false,
                     thrownResult: nil,
                     dispatch: virtualSetterDispatch.dispatch
                 ))
-            } else if usesAccessors, let propertySymbol {
+            } else if let enumHelperCallees {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: enumHelperCallees.setter,
+                    arguments: [receiverID, newValue],
+                    result: arena.appendTemporary(type: sema.types.unitType),
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else if usesSetterAccessor, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                let setterArguments = propertyAccessorArguments(
+                    for: setterSymbol, arguments: [receiverID, newValue], callExprID: exprID,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 instructions.append(.call(
                     symbol: setterSymbol,
                     callee: interner.intern("set"),
-                    arguments: [receiverID, newValue],
+                    arguments: setterArguments,
                     result: setterResult,
                     canThrow: false,
                     thrownResult: nil
@@ -617,10 +822,17 @@ extension CallLowerer {
             } else if let fieldOffset {
                 let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
                 instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                let storedValue = normalizedValueForNullablePrimitiveSlot(
+                    newValue,
+                    slotType: propType,
+                    types: sema.types,
+                    arena: arena,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_array_set"),
-                    arguments: [receiverID, offsetExpr, newValue],
+                    arguments: [receiverID, offsetExpr, storedValue],
                     result: nil,
                     canThrow: false,
                     thrownResult: nil
@@ -656,11 +868,62 @@ extension CallLowerer {
     /// when the property has a real, user-written `set(...) { ... }` body, in
     /// which case assignment must dispatch to the setter accessor instead of
     /// writing storage directly.
+    /// The setter placeholder for a stored member property of an enum class
+    /// (see `KIRLoweringDriver+EnumEntryStorage.swift`), or `nil` when the
+    /// property is not enum-owned or is written through its own accessor.
+    func enumPropertySetterPlaceholder(
+        for propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let info = sema.symbols.symbol(propertySymbol),
+              info.kind == .property,
+              info.flags.contains(.mutable),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return EnumPropertyHelperNames.placeholder(
+            prefix: EnumPropertyHelperNames.setterPrefix,
+            ownerSymbol: ownerSymbol,
+            propertyName: info.name,
+            interner: interner
+        )
+    }
+
+    /// The getter placeholder counterpart of `enumPropertySetterPlaceholder`.
+    func enumPropertyGetterPlaceholder(
+        for propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let info = sema.symbols.symbol(propertySymbol),
+              info.kind == .property,
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .enumClass
+        else {
+            return nil
+        }
+        return EnumPropertyHelperNames.placeholder(
+            prefix: EnumPropertyHelperNames.getterPrefix,
+            ownerSymbol: ownerSymbol,
+            propertyName: info.name,
+            interner: interner
+        )
+    }
+
     func memberPropertyUsesSetterAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
+        // CLASS-008: a synthetic forwarding property for `by` delegation has
+        // no `.propertyDecl` AST node for the loop below to find — its setter
+        // writes through the delegate field, not a real backing field.
+        if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
+            return true
+        }
         for rawDecl in ast.arena.decls.indices {
             let declID = DeclID(rawValue: Int32(rawDecl))
             guard sema.bindings.declSymbols[declID] == propertySymbol,
@@ -675,5 +938,55 @@ extension CallLowerer {
             return propertyDecl.delegateExpression != nil
         }
         return false
+    }
+
+    /// Write counterpart of `tryLowerInterfaceItablePropertyGetterRead`
+    /// (`CallLowerer+MemberPropertyReads.swift`, BUG-141): an interface has
+    /// no per-instance storage of its own, so a stored/abstract `var`
+    /// written through an interface-typed receiver cannot use a concrete
+    /// field offset either. Dispatch through the interface's itable to the
+    /// implementing type's setter, mirroring the read side.
+    func tryLowerInterfaceItablePropertySetterWrite(
+        propertySymbol: SymbolID,
+        loweredReceiverID: KIRExprID,
+        loweredValueID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard let propertyInfo = sema.symbols.symbol(propertySymbol),
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              let ownerInfo = sema.symbols.symbol(ownerSymbol),
+              ownerInfo.kind == .interface,
+              (propertyInfo.declSite != nil
+                  || propertyInfo.flags.contains(.importedLibrary)),
+              let methodSlot = kirInterfacePropertySetterSlot(
+                  interfaceProperty: propertySymbol,
+                  interfaceSymbol: ownerSymbol,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: ownerSymbol, sema: sema, interner: interner
+        )
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let result = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(.virtualCall(
+            symbol: setterSymbol,
+            callee: interner.intern("set"),
+            receiver: loweredReceiverID,
+            arguments: [loweredValueID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        ))
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
     }
 }

@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.comparisons.naturalOrder
+import kotlin.comparisons.reverseOrder
 import kotlin.comparisons.compareValuesUnchecked
 
 // KSP-659
@@ -13,8 +15,9 @@ import kotlin.comparisons.compareValuesUnchecked
 //   bundled Kotlin source (generic and primitive-array sorting/search helpers)
 //   Sources/Runtime/RuntimeArrayBasics.swift           (kk_array_binarySearch / kk_<prim>Array_binarySearch)
 //
-// The sorts are stable insertion sorts, matching the tie-breaking of the
-// previous runtime implementations and kotlinc's `sorted*` contract.
+// The sorts are stable O(n log n) merge sorts (see StableSort.kt), matching
+// the tie-breaking of the previous runtime implementations and kotlinc's
+// `sorted*` contract.
 
 private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     if (fromIndex > toIndex) {
@@ -30,54 +33,58 @@ private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
 
 // --- Array<T> sorted* ---------------------------------------------------------
 
-public fun <T : Comparable<T>> Array<T>.sortedArray(): Array<T> {
-    val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) > 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sort() {
+    (this as Array<T>).stableSortWith(naturalOrder<T>())
+}
+
+// KUU-1248: list-returning sorts preserve the input array and stable ties.
+public fun <T : Comparable<T>> Array<out T>.sorted(): List<T> = sortedWith(naturalOrder<T>())
+
+public fun <T : Comparable<T>> Array<out T>.sortedDescending(): List<T> = sortedWith(reverseOrder<T>())
+
+public fun <T> Array<out T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = this.toList().toMutableList()
+    result.stableSortWith(comparator)
     return result
 }
 
-public fun <T : Comparable<T>> Array<T>.sortedArrayDescending(): Array<T> {
-    val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) < 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+public fun <T, R : Comparable<R>> Array<out T>.sortedBy(selector: (T) -> R?): List<T> {
+    val result = this.toList().toMutableList()
+    result.stableSortBySelector(selector, false)
     return result
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val array = this as Array<T>
+    val sorted = array.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortWith(naturalOrder<T>())
+    var index = 0
+    while (index < sorted.size) {
+        array[fromIndex + index] = sorted[index]
+        index += 1
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T : Comparable<T>> Array<out T>.sortDescending() {
+    (this as Array<T>).stableSortWith(reverseOrder<T>())
+}
+
+public fun <T : Comparable<T>> Array<T>.sortedArray(): Array<T> {
+    return sortedArrayWith(naturalOrder<T>())
+}
+
+public fun <T : Comparable<T>> Array<T>.sortedArrayDescending(): Array<T> {
+    return sortedArrayWith(reverseOrder<T>())
 }
 
 public fun <T> Array<T>.sortedArrayWith(comparator: Comparator<in T>): Array<T> {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && comparator.compare(result[j], element) > 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortWith(comparator)
     return result
 }
 
@@ -126,38 +133,47 @@ public fun <T> Array<T>.binarySearch(
 
 // --- Primitive arrays: sortedArray / sortedArrayDescending / binarySearch ------
 
+// KUU-756: sorted() returns a list, leaving the primitive array unchanged.
+public fun IntArray.sorted(): List<Int> = sortedArray().toList()
+
 public fun IntArray.sortedArray(): IntArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun IntArray.sortedArrayDescending(): IntArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
+}
+
+public fun IntArray.sort() {
+    this.stableSortImpl(false)
+}
+
+public fun IntArray.sort(fromIndex: Int = 0, toIndex: Int = this.size) {
+    this.sortRange(fromIndex, toIndex, false)
+}
+
+public fun IntArray.sortDescending() {
+    this.stableSortImpl(true)
+}
+
+public fun IntArray.sortDescending(fromIndex: Int, toIndex: Int) {
+    this.sortRange(fromIndex, toIndex, true)
+}
+
+private fun IntArray.sortRange(fromIndex: Int, toIndex: Int, descending: Boolean) {
+    checkBinarySearchBounds(this.size, fromIndex, toIndex)
+    if (toIndex - fromIndex <= 1) return
+    val sorted = this.copyOfRange(fromIndex, toIndex)
+    sorted.stableSortImpl(descending)
+    var index = 0
+    while (index < sorted.size) {
+        this[fromIndex + index] = sorted[index]
+        index += 1
+    }
 }
 
 public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int = this.size): Int {
@@ -180,35 +196,13 @@ public fun IntArray.binarySearch(element: Int, fromIndex: Int = 0, toIndex: Int 
 
 public fun LongArray.sortedArray(): LongArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun LongArray.sortedArrayDescending(): LongArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -232,35 +226,13 @@ public fun LongArray.binarySearch(element: Long, fromIndex: Int = 0, toIndex: In
 
 public fun ByteArray.sortedArray(): ByteArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun ByteArray.sortedArrayDescending(): ByteArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -284,35 +256,13 @@ public fun ByteArray.binarySearch(element: Byte, fromIndex: Int = 0, toIndex: In
 
 public fun ShortArray.sortedArray(): ShortArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun ShortArray.sortedArrayDescending(): ShortArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -336,35 +286,13 @@ public fun ShortArray.binarySearch(element: Short, fromIndex: Int = 0, toIndex: 
 
 public fun CharArray.sortedArray(): CharArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun CharArray.sortedArrayDescending(): CharArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -388,35 +316,13 @@ public fun CharArray.binarySearch(element: Char, fromIndex: Int = 0, toIndex: In
 
 public fun DoubleArray.sortedArray(): DoubleArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) > 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun DoubleArray.sortedArrayDescending(): DoubleArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) < 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -440,35 +346,13 @@ public fun DoubleArray.binarySearch(element: Double, fromIndex: Int = 0, toIndex
 
 public fun FloatArray.sortedArray(): FloatArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) > 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun FloatArray.sortedArrayDescending(): FloatArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j].compareTo(element) < 0) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -492,35 +376,13 @@ public fun FloatArray.binarySearch(element: Float, fromIndex: Int = 0, toIndex: 
 
 public fun UByteArray.sortedArray(): UByteArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun UByteArray.sortedArrayDescending(): UByteArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -544,35 +406,13 @@ public fun UByteArray.binarySearch(element: UByte, fromIndex: Int = 0, toIndex: 
 
 public fun UShortArray.sortedArray(): UShortArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun UShortArray.sortedArrayDescending(): UShortArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -594,37 +434,17 @@ public fun UShortArray.binarySearch(element: UShort, fromIndex: Int = 0, toIndex
     return -(low + 1)
 }
 
+public fun UIntArray.sorted(): List<UInt> = sortedArray().toList()
+
 public fun UIntArray.sortedArray(): UIntArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun UIntArray.sortedArrayDescending(): UIntArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -648,35 +468,13 @@ public fun UIntArray.binarySearch(element: UInt, fromIndex: Int = 0, toIndex: In
 
 public fun ULongArray.sortedArray(): ULongArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] > element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(false)
     return result
 }
 
 public fun ULongArray.sortedArrayDescending(): ULongArray {
     val result = this.copyOf()
-    val n = result.size
-    var i = 1
-    while (i < n) {
-        val element = result[i]
-        var j = i - 1
-        while (j >= 0 && result[j] < element) {
-            result[j + 1] = result[j]
-            j -= 1
-        }
-        result[j + 1] = element
-        i += 1
-    }
+    result.stableSortImpl(true)
     return result
 }
 
@@ -697,3 +495,25 @@ public fun ULongArray.binarySearch(element: ULong, fromIndex: Int = 0, toIndex: 
     }
     return -(low + 1)
 }
+
+public fun IntArray.sortedDescending(): List<Int> = sortedArrayDescending().toList()
+
+public fun LongArray.sortedDescending(): List<Long> = sortedArrayDescending().toList()
+
+public fun ShortArray.sortedDescending(): List<Short> = sortedArrayDescending().toList()
+
+public fun ByteArray.sortedDescending(): List<Byte> = sortedArrayDescending().toList()
+
+public fun CharArray.sortedDescending(): List<Char> = sortedArrayDescending().toList()
+
+public fun DoubleArray.sortedDescending(): List<Double> = sortedArrayDescending().toList()
+
+public fun FloatArray.sortedDescending(): List<Float> = sortedArrayDescending().toList()
+
+public fun UByteArray.sortedDescending(): List<UByte> = sortedArrayDescending().toList()
+
+public fun UShortArray.sortedDescending(): List<UShort> = sortedArrayDescending().toList()
+
+public fun UIntArray.sortedDescending(): List<UInt> = sortedArrayDescending().toList()
+
+public fun ULongArray.sortedDescending(): List<ULong> = sortedArrayDescending().toList()

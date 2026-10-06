@@ -1,16 +1,16 @@
-symbol fq=Animal[kind=class] kind=class vis=public flags=sealedType|abstractType|openType
-symbol fq=Bird[kind=class] kind=class vis=public flags=_
-symbol fq=Cat[kind=class] kind=class vis=public flags=_
-symbol fq=Dog[kind=class] kind=class vis=public flags=_
-symbol fq=describeAnimal.$0.a[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=describeAnimal[kind=fun;params=Animal] kind=function vis=public flags=_ sig=recv=_ params=[Animal] ret=String
+symbol fq=Animal[kind=class;origin=fixture] kind=class vis=public flags=sealedType|abstractType|openType
+symbol fq=Bird[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Cat[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=Dog[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=describeAnimal.$0.a[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=describeAnimal[kind=fun;params=Animal;ret=String;names=[a];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Animal] ret=String
 file fsealed_when_missing_branch package=_
-  decl Animal[kind=class] class Animal sym=Animal[kind=class]
-  decl Dog[kind=class] class Dog sym=Dog[kind=class]
-  decl Cat[kind=class] class Cat sym=Cat[kind=class]
-  decl Bird[kind=class] class Bird sym=Bird[kind=class]
-  decl describeAnimal[kind=fun;params=Animal] fun describeAnimal sym=describeAnimal[kind=fun;params=Animal]
-expr e@7:18 name(a) type=Animal ref=describeAnimal.$0.a[kind=vparam]
+  decl Animal[kind=class;origin=fixture] class Animal sym=Animal[kind=class;origin=fixture]
+  decl Dog[kind=class;origin=fixture] class Dog sym=Dog[kind=class;origin=fixture]
+  decl Cat[kind=class;origin=fixture] class Cat sym=Cat[kind=class;origin=fixture]
+  decl Bird[kind=class;origin=fixture] class Bird sym=Bird[kind=class;origin=fixture]
+  decl describeAnimal[kind=fun;params=Animal;ret=String;names=[a];origin=fixture] fun describeAnimal sym=describeAnimal[kind=fun;params=Animal;ret=String;names=[a];origin=fixture]
+expr e@7:18 name(a) type=Animal ref=describeAnimal.$0.a[kind=vparam;origin=fixture]
 expr e@7:18#1 isCheck expr=e@7:18 type=Dog type=Boolean
 expr e@8:19 string(dog) type=String
 expr e@7:18#2 isCheck expr=e@7:18 type=Cat type=Boolean

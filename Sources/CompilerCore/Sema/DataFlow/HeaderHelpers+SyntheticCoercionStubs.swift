@@ -1,6 +1,13 @@
 
 // Coercion extension stubs (STDLIB-150) for kotlin.ranges.
 // Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)
+//
+// KSP-1544 (KUU-588): the remaining registrations are all bucket (c)
+// compiler/runtime residuals — language-core primitive casts lowered directly
+// to kk_* runtime symbols (see docs/stdlib-pipeline.md §9). The source-backed
+// (b) surface is fully migrated: range coercion lives in
+// Stdlib/kotlin/ranges/RangeCoercion.kt, and Float/Double.toByte()/toShort()
+// live in Stdlib/kotlin/Numbers.kt.
 
 extension DataFlowSemaPhase {
     func registerSyntheticCoercionStubs(
@@ -10,16 +17,6 @@ extension DataFlowSemaPhase {
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
-
-        let kotlinMathPkg = kotlinPkg + [interner.intern("math")]
-        if symbols.lookup(fqName: kotlinMathPkg) == nil {
-            let mathName = interner.intern("math")
-            let mathSym = symbols.define(kind: .package, name: mathName, fqName: kotlinMathPkg, declSite: nil, visibility: .public, flags: [.synthetic])
-            if let kotlinSym = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(kotlinSym, for: mathSym)
-            }
-        }
-
 
         // STDLIB-NUM-130: isNaN / isInfinite / isFinite
 
@@ -65,7 +62,7 @@ extension DataFlowSemaPhase {
 
             registerSyntheticCoercionFunction(
                 named: "toInt",
-                externalLinkName: "kk_int_to_int",
+                externalLinkName: "kk_primitive_identity",
                 receiverType: types.intType,
                 parameters: [],
                 returnType: types.intType,
@@ -275,60 +272,11 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Float conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1544: Float.toByte()/toShort() and Double.toByte()/toShort()
+            // are source-backed in Stdlib/kotlin/Numbers.kt (toInt().toX()
+            // composition with error-level deprecation metadata).
 
             // Double conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "__kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
             registerSyntheticCoercionFunction(
                 named: "toFloat",
                 externalLinkName: "kk_double_to_float",
@@ -341,6 +289,149 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 types: types
             )
+
+            // Unsigned integer conversion functions (KUU-919). Bundled Kotlin
+            // source declares no UByte/UShort/UInt/ULong `toX` members, so an
+            // implicit-receiver call such as `toShort()` inside
+            // `fun UShort.f()` had no receiver-matching `kotlin.toX` overload
+            // and failed overload resolution. Explicit receivers are already
+            // handled by the primitive-member fast path; these stubs expose
+            // the same surface to implicit-receiver calls. Same-type identity
+            // conversions (UByte.toUByte() etc.) have no runtime callee and
+            // are intentionally omitted.
+            let unsignedConversionStubs: [(
+                name: String,
+                link: String,
+                receiver: TypeID,
+                result: TypeID
+            )] = [
+                ("toByte", "kk_ubyte_to_byte", types.ubyteType, types.byteType),
+                ("toShort", "kk_ubyte_to_short", types.ubyteType, types.shortType),
+                ("toInt", "kk_ubyte_to_int", types.ubyteType, types.intType),
+                ("toLong", "kk_ubyte_to_long", types.ubyteType, types.longType),
+                ("toFloat", "kk_ubyte_to_float", types.ubyteType, types.floatType),
+                ("toDouble", "kk_ubyte_to_double", types.ubyteType, types.doubleType),
+                ("toUInt", "kk_ubyte_to_uint", types.ubyteType, types.uintType),
+                ("toULong", "kk_ubyte_to_ulong", types.ubyteType, types.ulongType),
+                ("toUShort", "kk_ubyte_to_ushort", types.ubyteType, types.ushortType),
+                ("toByte", "kk_ushort_to_byte", types.ushortType, types.byteType),
+                ("toShort", "kk_ushort_to_short", types.ushortType, types.shortType),
+                ("toInt", "kk_ushort_to_int", types.ushortType, types.intType),
+                ("toLong", "kk_ushort_to_long", types.ushortType, types.longType),
+                ("toFloat", "kk_ushort_to_float", types.ushortType, types.floatType),
+                ("toDouble", "kk_ushort_to_double", types.ushortType, types.doubleType),
+                ("toUByte", "kk_ushort_to_ubyte", types.ushortType, types.ubyteType),
+                ("toUInt", "kk_ushort_to_uint", types.ushortType, types.uintType),
+                ("toULong", "kk_ushort_to_ulong", types.ushortType, types.ulongType),
+                ("toByte", "kk_uint_to_byte", types.uintType, types.byteType),
+                ("toShort", "kk_uint_to_short", types.uintType, types.shortType),
+                ("toInt", "kk_uint_to_int", types.uintType, types.intType),
+                ("toLong", "kk_uint_to_long", types.uintType, types.longType),
+                ("toFloat", "kk_uint_to_float", types.uintType, types.floatType),
+                ("toDouble", "kk_uint_to_double", types.uintType, types.doubleType),
+                ("toUByte", "kk_uint_to_ubyte", types.uintType, types.ubyteType),
+                ("toUShort", "kk_uint_to_ushort", types.uintType, types.ushortType),
+                ("toULong", "kk_uint_to_ulong", types.uintType, types.ulongType),
+                ("toByte", "kk_ulong_to_byte", types.ulongType, types.byteType),
+                ("toShort", "kk_ulong_to_short", types.ulongType, types.shortType),
+                ("toInt", "kk_ulong_to_int", types.ulongType, types.intType),
+                ("toLong", "kk_ulong_to_long", types.ulongType, types.longType),
+                ("toFloat", "kk_ulong_to_float", types.ulongType, types.floatType),
+                ("toDouble", "kk_ulong_to_double", types.ulongType, types.doubleType),
+                ("toUByte", "kk_ulong_to_ubyte", types.ulongType, types.ubyteType),
+                ("toUShort", "kk_ulong_to_ushort", types.ulongType, types.ushortType),
+                // KSP-1533: there is no kk_ulong_to_uint; kk_long_to_uint
+                // truncates the same raw-register representation.
+                ("toUInt", "kk_long_to_uint", types.ulongType, types.uintType),
+            ]
+            for stub in unsignedConversionStubs {
+                registerSyntheticCoercionFunction(
+                    named: stub.name,
+                    externalLinkName: stub.link,
+                    receiverType: stub.receiver,
+                    parameters: [],
+                    returnType: stub.result,
+                    packageFQName: kotlinPkg,
+                    packageSymbol: kotlinPackageSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    types: types
+                )
+            }
+
+            // KUU-938: explicit primitive receivers use the conversion path in
+            // CallLowerer+LegacyMemberLikeCalls, but a bare `toX()` in an
+            // extension body resolves through these kotlin.toX stubs. Share
+            // the existing runtime bridges and mark representation-preserving
+            // conversions for a KIR copy (there is no identity runtime symbol).
+            // Byte/Short.toChar() is error-level deprecated in Kotlin 2.3;
+            // leave it on the existing explicit receiver deprecation path.
+            let smallIntegerConversions: [(
+                name: String, link: String, receiver: TypeID, result: TypeID
+            )] = [
+                ("toInt", "kk_primitive_identity", types.byteType, types.intType),
+                ("toLong", "kk_primitive_identity", types.byteType, types.longType),
+                ("toShort", "kk_primitive_identity", types.byteType, types.shortType),
+                ("toUInt", "kk_int_to_uint", types.byteType, types.uintType),
+                ("toULong", "kk_int_to_ulong", types.byteType, types.ulongType),
+                ("toFloat", "kk_int_to_float", types.byteType, types.floatType),
+                ("toDouble", "kk_int_to_double_bits", types.byteType, types.doubleType),
+                ("toUByte", "kk_int_to_ubyte", types.byteType, types.ubyteType),
+                ("toUShort", "kk_int_to_ushort", types.byteType, types.ushortType),
+                ("toByte", "kk_int_to_byte", types.shortType, types.byteType),
+                ("toInt", "kk_primitive_identity", types.shortType, types.intType),
+                ("toLong", "kk_primitive_identity", types.shortType, types.longType),
+                ("toUInt", "kk_int_to_uint", types.shortType, types.uintType),
+                ("toULong", "kk_int_to_ulong", types.shortType, types.ulongType),
+                ("toFloat", "kk_int_to_float", types.shortType, types.floatType),
+                ("toDouble", "kk_int_to_double_bits", types.shortType, types.doubleType),
+                ("toUByte", "kk_int_to_ubyte", types.shortType, types.ubyteType),
+                ("toUShort", "kk_int_to_ushort", types.shortType, types.ushortType),
+            ]
+            for stub in smallIntegerConversions {
+                registerSyntheticCoercionFunction(
+                    named: stub.name,
+                    externalLinkName: stub.link,
+                    receiverType: stub.receiver,
+                    parameters: [],
+                    returnType: stub.result,
+                    packageFQName: kotlinPkg,
+                    packageSymbol: kotlinPackageSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    types: types
+                )
+            }
+
+            // Include the unsigned identities independently of the unsigned
+            // non-identity matrix in KUU-919. A source-backed declaration, if
+            // present, wins because registration skips its exact signature.
+            let primitiveIdentities: [(name: String, type: TypeID)] = [
+                ("toByte", types.byteType),
+                ("toShort", types.shortType),
+                ("toLong", types.longType),
+                ("toFloat", types.floatType),
+                ("toDouble", types.doubleType),
+                ("toChar", types.charType),
+                ("toUByte", types.ubyteType),
+                ("toUShort", types.ushortType),
+                ("toUInt", types.uintType),
+                ("toULong", types.ulongType),
+            ]
+            for identity in primitiveIdentities {
+                registerSyntheticCoercionFunction(
+                    named: identity.name,
+                    externalLinkName: "kk_primitive_identity",
+                    receiverType: identity.type,
+                    parameters: [],
+                    returnType: identity.type,
+                    packageFQName: kotlinPkg,
+                    packageSymbol: kotlinPackageSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    types: types
+                )
+            }
 
         }
 
@@ -360,22 +451,14 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
-        let deprecatedAnnotations = syntheticDeprecatedAnnotationsForCoercion(
-            name: name,
-            receiverType: receiverType,
-            types: types
-        )
 
         // Check if already registered with same signature
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameters.map(\.type)
                 && signature.returnType == returnType
         }) {
-            if !deprecatedAnnotations.isEmpty {
-                symbols.setAnnotations(deprecatedAnnotations, for: existing)
-            }
             return
         }
         let functionSymbol = symbols.define(
@@ -388,9 +471,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        if !deprecatedAnnotations.isEmpty {
-            symbols.setAnnotations(deprecatedAnnotations, for: functionSymbol)
-        }
 
         var valueParameterSymbols: [SymbolID] = []
         for param in parameters {
@@ -419,31 +499,5 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-    }
-
-    private func syntheticDeprecatedAnnotationsForCoercion(
-        name: String,
-        receiverType: TypeID,
-        types: TypeSystem
-    ) -> [MetadataAnnotationRecord] {
-        guard name == "toChar" else {
-            return []
-        }
-        // Int.toChar() is not deprecated in Kotlin 2.3.10; all other primitive
-        // toChar() conversions (Long/Float/Double/Byte/Short) are deprecated.
-        guard receiverType != types.intType else {
-            return []
-        }
-        let deprecatedMessage = "Use toInt().toChar() or Char(code) instead."
-        let deprecatedArguments = [
-            "message = \"\(deprecatedMessage)\"",
-            "replaceWith = ReplaceWith(\"toInt().toChar()\")",
-        ]
-        return [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: deprecatedArguments
-            ),
-        ]
     }
 }

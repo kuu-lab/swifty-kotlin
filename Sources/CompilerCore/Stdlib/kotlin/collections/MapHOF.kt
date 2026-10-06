@@ -6,22 +6,13 @@ import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
 @KsSymbolName("__kk_map_is_empty")
-private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
-
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
-private external fun kk_unbox_float(value: Float): Float
-private external fun kk_unbox_double(value: Double): Double
+@PublishedApi
+internal external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
-
-// Keep a direct size bridge for the no-argument `Map.any()` implementation;
-// Map.size itself is declared in the bundled Map source and uses this ABI.
-@KsSymbolName("__kk_map_size")
-private external fun <K, V> __kk_map_size_for_any(map: Map<K, V>): Int
 
 /**
  * Returns `true` if this map is not empty.
@@ -67,11 +58,19 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
 }
 
 /**
+ * Performs the given [action] on each key and value.
+ */
+public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
+    for (entry in this.entries) {
+        action(entry.key, entry.value)
+    }
+}
+
+/**
  * Returns `true` if map has at least one entry.
  */
-@Suppress("UNCHECKED_CAST")
 public fun <K, V> Map<out K, V>.any(): Boolean {
-    return __kk_map_size_for_any(this as Map<K, V>) > 0
+    return !__kkMapIsEmpty(this)
 }
 
 /**

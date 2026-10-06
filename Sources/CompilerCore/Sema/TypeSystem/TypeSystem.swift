@@ -32,10 +32,17 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.reflect.KFunction` interface (STDLIB-REFLECT-063).
     /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
+    public internal(set) var kCallableInterfaceSymbol: SymbolID?
 
     /// The symbol of the bundled `kotlin.Function<R>` interface.
     /// Function types are subtypes of this source-backed common function interface.
     public internal(set) var functionInterfaceSymbol: SymbolID?
+
+    /// The symbols of the synthetic `kotlin.Function.FunctionN` interfaces,
+    /// keyed by arity. Populated by `registerSyntheticFunctionInterface` so
+    /// subtyping can treat a function type as a subtype of the matching-arity
+    /// `FunctionN` nominal and vice versa (KUU-1084).
+    public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
@@ -164,6 +171,8 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error:
             false
+        case .nullableUnit:
+            false
         case .unit:
             true
         case let .nothing(n):
@@ -194,6 +203,8 @@ public final class TypeSystem {
         switch kind(of: type) {
         case .error, .unit:
             .nonNull
+        case .nullableUnit:
+            .nullable
         case let .nothing(n), let .any(n), let .stringStruct(n), let .primitive(_, n):
             n
         case let .classType(ct):
@@ -229,8 +240,11 @@ public final class TypeSystem {
 
     public func withNullability(_ nullability: Nullability, for type: TypeID) -> TypeID {
         switch kind(of: type) {
-        case .error, .unit:
+        case .error:
             return type
+        case .unit, .nullableUnit:
+            // Unit has two states; platform nullability is conservatively nullable.
+            return nullability == .nonNull ? unitType : make(.nullableUnit)
         case let .intersection(parts):
             // For intersection types, apply nullability to each part
             if nullability == .nonNull {
@@ -263,7 +277,7 @@ public final class TypeSystem {
             return make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: nullability)))
         case let .functionType(ft):
             if ft.nullability == nullability { return type }
-            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: nullability)))
+            return make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: nullability)))
         case let .kClassType(kc):
             if kc.nullability == nullability { return type }
             return make(.kClassType(KClassType(argument: kc.argument, nullability: nullability)))
@@ -310,29 +324,47 @@ public final class TypeSystem {
         return false
     }
 
+    @discardableResult
+    private func ensureImportedNominalMetadataLoaded(for symbol: SymbolID) -> Bool {
+        guard let symbolTable,
+              symbolTable.symbol(symbol)?.flags.contains(.importedLibrary) == true
+        else {
+            return false
+        }
+        _ = symbolTable.directSupertypes(for: symbol)
+        return true
+    }
+
     public func setNominalDirectSupertypes(_ supertypes: [SymbolID], for symbol: SymbolID) {
-        let unique = Array(Set(supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
+        let isImported = ensureImportedNominalMetadataLoaded(for: symbol)
+        let existing = isImported ? nominalDirectSupertypes[symbol] ?? [] : []
+        let unique = Array(Set(existing + supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
         nominalDirectSupertypes[symbol] = unique
     }
 
     public func directNominalSupertypes(for symbol: SymbolID) -> [SymbolID] {
-        nominalDirectSupertypes[symbol] ?? []
+        ensureImportedNominalMetadataLoaded(for: symbol)
+        return nominalDirectSupertypes[symbol] ?? []
     }
 
     public func setNominalTypeParameterVariances(_ variances: [TypeVariance], for symbol: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: symbol)
         nominalTypeParameterVariancesMap[symbol] = variances
     }
 
     public func nominalTypeParameterVariances(for symbol: SymbolID) -> [TypeVariance] {
-        nominalTypeParameterVariancesMap[symbol] ?? []
+        ensureImportedNominalMetadataLoaded(for: symbol)
+        return nominalTypeParameterVariancesMap[symbol] ?? []
     }
 
     public func setNominalTypeParameterSymbols(_ symbols: [SymbolID], for nominal: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: nominal)
         nominalTypeParameterSymbolsMap[nominal] = symbols
     }
 
     public func nominalTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
-        nominalTypeParameterSymbolsMap[nominal] ?? []
+        ensureImportedNominalMetadataLoaded(for: nominal)
+        return nominalTypeParameterSymbolsMap[nominal] ?? []
     }
 
     /// Returns `true` when `type` structurally contains a reference to the
@@ -406,11 +438,13 @@ public final class TypeSystem {
     }
 
     public func setNominalSupertypeTypeArgs(_ args: [TypeArg], for child: SymbolID, supertype parent: SymbolID) {
+        ensureImportedNominalMetadataLoaded(for: child)
         nominalSupertypeTypeArgsMap[child, default: [:]][parent] = args
     }
 
     public func nominalSupertypeTypeArgs(for child: SymbolID, supertype parent: SymbolID) -> [TypeArg] {
-        nominalSupertypeTypeArgsMap[child]?[parent] ?? []
+        ensureImportedNominalMetadataLoaded(for: child)
+        return nominalSupertypeTypeArgsMap[child]?[parent] ?? []
     }
 
     /// Creates a `KClass<T>` type for the given argument type.
@@ -424,49 +458,89 @@ public final class TypeSystem {
         childArgs: [TypeArg],
         to parent: SymbolID
     ) -> [TypeArg]? {
+        // KUU-809: the direct-supertype graph is attacker-controlled when it
+        // comes from `.kklib` metadata, so this walk must not consume native
+        // call-stack frames per level. The explicit stack below performs the
+        // same DFS the recursive version did: `target` is checked before the
+        // visited mark, and children are explored left-to-right depth-first
+        // (reversed pushes keep the leftmost child on top of the stack).
         var visited: Set<SymbolID> = []
-        return liftedNominalSupertypeArgs(
-            from: child,
-            currentArgs: childArgs,
-            to: parent,
-            visited: &visited
-        )
+        var stack: [(symbol: SymbolID, args: [TypeArg])] = [(child, childArgs)]
+        while let (current, currentArgs) = stack.popLast() {
+            if current == parent {
+                return currentArgs
+            }
+            guard visited.insert(current).inserted else {
+                continue
+            }
+            for directSupertype in directNominalSupertypes(for: current).reversed() {
+                let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
+                let substitutedDirectArgs = directArgsTemplate.map {
+                    substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+                }
+                stack.append((directSupertype, substitutedDirectArgs))
+            }
+        }
+        return nil
     }
 
-    private func liftedNominalSupertypeArgs(
-        from current: SymbolID,
-        currentArgs: [TypeArg],
-        to target: SymbolID,
-        visited: inout Set<SymbolID>
+    /// Infers `subtype`'s own type arguments for a smart cast from a known
+    /// supertype instantiation, when `subtype` was checked for with no
+    /// explicit type arguments (`this is List`, not `this is List<Int>`).
+    ///
+    /// Kotlin's smart cast for this pattern is only sound because `subtype`'s
+    /// declared path to `supertype` passes each of `supertype`'s type
+    /// arguments straight through as one of `subtype`'s own bare type
+    /// parameters (e.g. `List<out E> : Collection<E>`, `Collection<E> :
+    /// Iterable<E>`, so a value known to be `Iterable<T>` that is also a
+    /// `List` must be a `List<T>`, never `List<*>`). This is checked
+    /// structurally: `subtype` is symbolically applied to its own type
+    /// parameters and lifted to `supertype` via `liftedNominalSupertypeArgs`;
+    /// any resulting position that isn't a bare reference back to one of
+    /// `subtype`'s own parameters (e.g. a declared path like `Foo<X> :
+    /// Bar<List<X>>`, which doesn't determine `X` from `Bar`'s argument
+    /// alone) is left unresolved (`.star`), matching today's conservative
+    /// behavior for that parameter.
+    public func narrowedSubtypeArgs(
+        forSubtype subtype: SymbolID,
+        givenSupertype supertype: SymbolID,
+        supertypeArgs: [TypeArg]
     ) -> [TypeArg]? {
-        if current == target {
-            return currentArgs
+        let subtypeParams = nominalTypeParameterSymbols(for: subtype)
+        guard !subtypeParams.isEmpty else { return nil }
+        let symbolicArgs: [TypeArg] = subtypeParams.map {
+            .invariant(make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
         }
-        guard visited.insert(current).inserted else {
+        guard let symbolicSupertypeArgs = liftedNominalSupertypeArgs(
+            from: subtype, childArgs: symbolicArgs, to: supertype
+        ), symbolicSupertypeArgs.count == supertypeArgs.count else {
             return nil
         }
-
-        for directSupertype in directNominalSupertypes(for: current) {
-            let directArgsTemplate = nominalSupertypeTypeArgs(for: current, supertype: directSupertype)
-            let substitutedDirectArgs = directArgsTemplate.map {
-                substituteNominalTypeArg($0, owner: current, ownerArgs: currentArgs)
+        var resolved: [SymbolID: TypeID] = [:]
+        for (symbolicArg, concreteArg) in zip(symbolicSupertypeArgs, supertypeArgs) {
+            let symbolicType: TypeID?
+            switch symbolicArg {
+            case let .invariant(t), let .out(t), let .in(t): symbolicType = t
+            case .star: symbolicType = nil
             }
-
-            if directSupertype == target {
-                return substitutedDirectArgs
+            guard let symbolicType,
+                  case let .typeParam(tp) = kind(of: symbolicType),
+                  subtypeParams.contains(tp.symbol)
+            else {
+                continue
             }
-
-            if let transitiveArgs = liftedNominalSupertypeArgs(
-                from: directSupertype,
-                currentArgs: substitutedDirectArgs,
-                to: target,
-                visited: &visited
-            ) {
-                return transitiveArgs
+            let concreteType: TypeID?
+            switch concreteArg {
+            case let .invariant(t), let .out(t), let .in(t): concreteType = t
+            case .star: concreteType = nil
             }
+            guard let concreteType else { continue }
+            resolved[tp.symbol] = concreteType
         }
-
-        return nil
+        guard !resolved.isEmpty else { return nil }
+        return subtypeParams.map { symbol in
+            resolved[symbol].map { TypeArg.invariant($0) } ?? .star
+        }
     }
 
     private func substituteNominalTypeArg(

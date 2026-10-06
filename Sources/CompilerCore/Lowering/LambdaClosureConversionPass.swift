@@ -21,6 +21,8 @@
 /// to `kk_lambda_invoke` for backward compatibility.
 final class LambdaClosureConversionPass: LoweringPass {
     static let name = "LambdaClosureConversion"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     // MARK: - Analysis types
 
@@ -92,6 +94,17 @@ final class LambdaClosureConversionPass: LoweringPass {
         }
     }
 
+    /// Index built by `shouldRun`, reused by `run` since the driver invokes
+    /// them back-to-back on the same module.
+    private var cachedCallSiteIndex: (module: KIRModule, index: CallSiteIndex)?
+
+    private func callSiteIndex(for module: KIRModule) -> CallSiteIndex {
+        if let cached = cachedCallSiteIndex, cached.module === module {
+            return cached.index
+        }
+        return CallSiteIndex.build(from: module)
+    }
+
     // MARK: - shouldRun
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
@@ -100,6 +113,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         if module.usedCallees.contains(markerCallee) { return true }
         let lambdaPrefix = "kk_lambda_"
         let callSiteIndex = CallSiteIndex.build(from: module)
+        cachedCallSiteIndex = (module, callSiteIndex)
         for decl in module.arena.declarations {
             guard case let .function(function) = decl, !function.isInlineOnly else { continue }
             let name = ctx.interner.resolve(function.name)
@@ -142,8 +156,9 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         if let sema {
             // Build call-site index once for all analysis (capture-count
-            // validation and canThrow detection).
-            let callSiteIndex = CallSiteIndex.build(from: module)
+            // validation and canThrow detection); reuse the one `shouldRun`
+            // already built for this module when available.
+            let callSiteIndex = callSiteIndex(for: module)
 
             // Phase 1: Identify lambda functions with captures.
             let lambdaInfos = identifyLambdasWithCaptures(
