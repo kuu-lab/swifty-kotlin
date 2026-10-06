@@ -1145,6 +1145,7 @@ extension CallTypeChecker {
             let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             )
@@ -1945,11 +1946,11 @@ extension CallTypeChecker {
         // prevents the array resolver from binding the source overload.
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
-            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
             && !collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             ).isEmpty
@@ -1962,7 +1963,7 @@ extension CallTypeChecker {
             || isUniqueIteratorSource
             || isListSourceBackedMember
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
@@ -2610,6 +2611,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
@@ -2716,6 +2718,7 @@ extension CallTypeChecker {
         let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
             named: calleeName,
             receiverType: nonNullReceiverForScope,
+            ctx: ctx,
             sema: sema,
             interner: interner
         )
@@ -3167,11 +3170,11 @@ extension CallTypeChecker {
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
         let isArrayJoinToString = memberNameText == "joinToString"
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
-        let isArraySourceBackedMember = ["asIterable", "sumOf"].contains(memberNameText)
-            && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isArraySourceBackedMember = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
             && !collectArraySourceBackedCandidates(
                 named: calleeName,
                 receiverType: memberLookupType,
+                ctx: ctx,
                 sema: sema,
                 interner: interner
             ).isEmpty
@@ -3183,7 +3186,7 @@ extension CallTypeChecker {
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (!Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
@@ -3376,6 +3379,7 @@ extension CallTypeChecker {
             return finalType
         }
 
+        contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
         applyContractEffects(
