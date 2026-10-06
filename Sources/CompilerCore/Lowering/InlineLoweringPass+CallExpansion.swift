@@ -266,7 +266,8 @@ extension InlineLoweringPass {
                        argExpr: argExpr,
                        arena: module.arena,
                        allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: callerBody
+                       callerBody: callerBody,
+                       ctx: ctx
                    )
                 {
                     let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
@@ -312,6 +313,14 @@ extension InlineLoweringPass {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
+                                restoreErasedInvokeResultType(
+                                    result: result,
+                                    paramSymbol: lambdaParamSym,
+                                    inlineTarget: inlineTarget,
+                                    module: module,
+                                    ctx: ctx,
+                                    erasedCallConvention: erasedExpansionABI
+                                )
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
@@ -342,7 +351,8 @@ extension InlineLoweringPass {
                        argExpr: callableExpr,
                        arena: module.arena,
                        allFunctionsBySymbol: allFunctionsBySymbol,
-                       callerBody: callerBody
+                       callerBody: callerBody,
+                       ctx: ctx
                    )
                 {
                     let captureArgs = lambdaCaptureArguments(
@@ -379,6 +389,14 @@ extension InlineLoweringPass {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                (exprIsDefined(lambdaReturn, in: lowered.instructions) || fullArgs.contains(lambdaReturn))
                             {
+                                restoreErasedInvokeResultType(
+                                    result: result,
+                                    paramSymbol: nil,
+                                    inlineTarget: inlineTarget,
+                                    module: module,
+                                    ctx: ctx,
+                                    erasedCallConvention: erasedExpansionABI
+                                )
                                 localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
@@ -750,5 +768,42 @@ extension InlineLoweringPass {
             return isInlineUnitType(currentType, ctx: ctx) || currentType != inlineReturnType
         }
         return true
+    }
+
+    /// Imported inline bodies serialize no expression types, so a spliced
+    /// selector result lands in an untyped slot and `boxErasedLambdaResultIfNeeded`
+    /// conservatively boxes it.  When the invoked parameter's *declared* return
+    /// type is a concrete non-null primitive, the erased body kept that slot
+    /// raw — restore the type so the spliced value binds unboxed.  Generic
+    /// type-parameter returns stay erased and keep the box.
+    private func restoreErasedInvokeResultType(
+        result: KIRExprID,
+        paramSymbol: SymbolID?,
+        inlineTarget: KIRFunction,
+        module: KIRModule,
+        ctx: KIRContext,
+        erasedCallConvention: Bool
+    ) {
+        guard erasedCallConvention,
+              module.arena.exprType(result) == nil,
+              let types = ctx.sema?.types
+        else {
+            return
+        }
+        let paramType: TypeID? = if let paramSymbol {
+            inlineTarget.params.first(where: { $0.symbol == paramSymbol })?.type
+        } else {
+            inlineTarget.params.first(where: {
+                if case .functionType = types.kind(of: $0.type) { return true }
+                return false
+            })?.type
+        }
+        guard let paramType,
+              case let .functionType(functionType) = types.kind(of: paramType),
+              case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
+        else {
+            return
+        }
+        module.arena.setExprType(functionType.returnType, for: result)
     }
 }

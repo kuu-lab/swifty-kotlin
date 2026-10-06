@@ -15,8 +15,6 @@ fun main() {
     println(text.toCharArray(2).contentToString())
     println(text.toCharArray(endIndex = 3).contentToString())
     println(text.toCharArray(endIndex = 4, startIndex = 1).contentToString())
-    val sequence: CharSequence = text
-    println(sequence.toCharArray().contentToString())
     checkRange(text, 0, text.length)
     checkRange(text, 0, 0)
     checkRange(text, text.length, text.length)

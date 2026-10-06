@@ -4,7 +4,7 @@
 /// types.  The importer therefore shifts their IDs out of the consumer arena,
 /// which keeps accidental ID aliasing from changing semantics.  Before
 /// inlining, give every imported body ID a fresh consumer expression while
-/// recovering only the concrete Boolean result needed by callback invokes.
+/// recovering the concrete non-null primitive results callback invokes need.
 enum ImportedInlineKIRMaterializer {
     private static let callbackInvokeNames: Set<String> = [
         "kk_function_invoke",
@@ -39,7 +39,9 @@ enum ImportedInlineKIRMaterializer {
     }
 
     /// Rebinds one imported body's expression IDs into `arena`, recovering
-    /// the concrete Boolean invoke-result types callback invokes need.
+    /// the concrete non-null primitive invoke-result types callback invokes
+    /// need so the erased boxed result can be unboxed where a primitive slot
+    /// consumes it.
     static func materializeOne(
         _ function: KIRFunction,
         arena: KIRArena,
@@ -47,7 +49,7 @@ enum ImportedInlineKIRMaterializer {
         interner: StringInterner
     ) -> KIRFunction {
         var function = function
-        let concreteBooleanResults = inferConcreteBooleanInvokeResults(
+        let concretePrimitiveInvokeResults = inferConcretePrimitiveInvokeResultTypes(
             in: function,
             types: types,
             interner: interner
@@ -73,7 +75,7 @@ enum ImportedInlineKIRMaterializer {
             ? function.instructionLocations
             : [SourceRange?](repeating: nil, count: body.count)
         function.replaceBody(body, locations: locations)
-        for (source, type) in concreteBooleanResults {
+        for (source, type) in concretePrimitiveInvokeResults {
             if let consumer = sourceToConsumer[source] {
                 arena.setExprType(type, for: consumer)
             }
@@ -81,7 +83,7 @@ enum ImportedInlineKIRMaterializer {
         return function
     }
 
-    private static func inferConcreteBooleanInvokeResults(
+    private static func inferConcretePrimitiveInvokeResultTypes(
         in function: KIRFunction,
         types: TypeSystem,
         interner: StringInterner
@@ -117,7 +119,7 @@ enum ImportedInlineKIRMaterializer {
                  let .loadGlobal(result, _):
                 invalidate(result)
 
-            case let .call(_, callee, arguments, result, _, thrownResult, _, _):
+            case let .call(symbol, callee, arguments, result, _, thrownResult, _, _):
                 if let thrownResult {
                     invalidate(thrownResult)
                 }
@@ -127,8 +129,19 @@ enum ImportedInlineKIRMaterializer {
                    let callback = arguments.first,
                    let callbackType = expressionTypes[callback],
                    case let .functionType(functionType) = types.kind(of: callbackType),
-                   case .primitive(.boolean, .nonNull) = types.kind(of: functionType.returnType)
+                   case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
                 {
+                    expressionTypes[result] = functionType.returnType
+                    resultTypes[result] = functionType.returnType
+                } else if let symbol,
+                          let paramType = parameterTypes[symbol],
+                          case let .functionType(functionType) = types.kind(of: paramType),
+                          case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
+                {
+                    // A direct call to a function-typed parameter (the callee is
+                    // the parameter symbol itself, not a kk_function_invoke
+                    // adapter). Its result obeys the same boxed ABI, so recover
+                    // the declared primitive return type the same way.
                     expressionTypes[result] = functionType.returnType
                     resultTypes[result] = functionType.returnType
                 }
