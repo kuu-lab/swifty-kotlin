@@ -245,6 +245,12 @@ enum DiagnosticRegistry {
             summary: "Expected 'catch' or 'finally' after 'try' block."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0017",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Imports are only allowed in the beginning of file."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,
