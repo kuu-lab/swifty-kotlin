@@ -459,7 +459,6 @@ package struct KnownCompilerNames {
     let runningReduceIndexed: InternedString
     let scan: InternedString
     let scanIndexed: InternedString
-    let scanReduce: InternedString
     let shuffled: InternedString
     let single: InternedString
     let singleOrNull: InternedString
@@ -963,7 +962,6 @@ package struct KnownCompilerNames {
         runningReduceIndexed = interner.intern("runningReduceIndexed")
         scan = interner.intern("scan")
         scanIndexed = interner.intern("scanIndexed")
-        scanReduce = interner.intern("scanReduce")
         shuffled = interner.intern("shuffled")
         single = interner.intern("single")
         singleOrNull = interner.intern("singleOrNull")
@@ -1055,7 +1053,7 @@ package struct KnownCompilerNames {
         kotlinRangesClosedFloatingPointRangeFQName = [kotlin, kotlinRanges, closedFloatingPointRange]
         kotlinTimeInstantFQName = [kotlin, kotlinTime, interner.intern("Instant")]
 
-        collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
+        collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
         listOnlyMembers = Set(["get", "subList", "slice", "getOrNull", "elementAtOrNull", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
         collectionSpecificMembers = Set(["firstOrNull", "lastOrNull", "singleOrNull"].map { interner.intern($0) })
         mutableListOnlyMembers = Set(["sort", "sortBy", "sortByDescending"].map { interner.intern($0) })
@@ -1078,7 +1076,7 @@ package struct KnownCompilerNames {
             "containsKey", "containsValue", "getValue", "getOrDefault",
             "getOrPut", "putAll",
         ].map { interner.intern($0) })
-        collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce", "toMutableList", "minusElement"].map { interner.intern($0) })
+        collectionReturningMembers = Set(["asSequence", "asIterable", "filterNotNull", "requireNoNulls", "filter", "filterIsInstanceTo", "reduceTo", "zip", "toList", "toTypedArray", "take", "drop", "reversed", "asReversed", "sorted", "distinct", "distinctBy", "flatten", "chunked", "windowed", "withIndex", "shuffled", "sortedDescending", "sortedByDescending", "sortedWith", "filterIsInstance", "toCollection", "subList", "slice", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "toMutableList", "minusElement"].map { interner.intern($0) })
         intReturningMembers = Set(["size", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "binarySearch", "binarySearchBy"].map { interner.intern($0) })
         boolReturningMembers = Set(["isEmpty", "contains", "containsAll", "containsKey", "containsValue", "add", "addAll", "remove", "removeAll", "retainAll"].map { interner.intern($0) })
         destinationCollectionReturningMembers = Set(["filterIsInstanceTo", "filterNotNullTo", "reduceTo", "toCollection"].map { interner.intern($0) })

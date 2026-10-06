@@ -606,7 +606,7 @@ extension CallLowerer {
         "any", "none", "all",
         "fold", "foldIndexed", "foldRight", "foldRightIndexed",
         "reduce", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceIndexed", "reduceIndexedOrNull",
-        "scan", "scanIndexed", "scanReduce", "runningFold", "runningFoldIndexed",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
         "runningReduce", "runningReduceIndexed",
         "groupBy", "groupByTo", "groupingBy", "sortedBy", "find", "findLast", "associateBy", "associateByTo", "associateWith", "associateWithTo", "associate", "associateTo", "zip", "zipWithNext", "unzip",
         "eachCount", "eachCountTo", "aggregate", "aggregateTo",

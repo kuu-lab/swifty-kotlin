@@ -905,7 +905,6 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("reduceRightIndexedOrNull"),
             interner.intern("scan"),
             interner.intern("scanIndexed"),
-            interner.intern("scanReduce"),
             interner.intern("runningFold"),
             interner.intern("runningFoldIndexed"),
             interner.intern("runningReduce"),

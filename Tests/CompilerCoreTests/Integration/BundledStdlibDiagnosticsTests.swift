@@ -103,5 +103,45 @@ struct BundledStdlibDiagnosticsTests {
             )
         }
     }
+
+    /// KUU-1393: `scanReduce` is not a Kotlin stdlib API — it was renamed to
+    /// `runningReduce` in Kotlin 1.5 and does not exist on any receiver in
+    /// Kotlin 2.3.10. Every receiver must reject it as unresolved, matching
+    /// kotlinc's `unresolved reference 'scanReduce'`.
+    @Test
+    func testScanReduceRejectedOnAllReceivers() throws {
+        let receivers: [(label: String, call: String)] = [
+            ("List", "listOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("MutableList", "mutableListOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("Set", "setOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("Iterable", "xs.scanReduce { a, b -> a + b }"),
+            ("Sequence", "sequenceOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("Array", "arrayOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("IntArray", "intArrayOf(1, 2).scanReduce { a, b -> a + b }"),
+            ("CharArray", "charArrayOf('a', 'b').scanReduce { a, b -> a }"),
+            ("CharSequence", "cs.scanReduce { a, b -> a }"),
+            ("String", "\"ab\".scanReduce { a, b -> a }"),
+        ]
+        for (label, call) in receivers {
+            let prelude = switch label {
+            case "Iterable": "val xs: Iterable<Int> = listOf(1, 2)\n"
+            case "CharSequence": "val cs: CharSequence = \"ab\"\n"
+            default: ""
+            }
+            let source = """
+            \(prelude)fun main() {
+                println(\(call))
+            }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+                #expect(
+                    ctx.diagnostics.hasError,
+                    "\(label).scanReduce must be unresolved like kotlinc: \(ctx.diagnostics.diagnostics.map(\.code))"
+                )
+            }
+        }
+    }
 }
 #endif

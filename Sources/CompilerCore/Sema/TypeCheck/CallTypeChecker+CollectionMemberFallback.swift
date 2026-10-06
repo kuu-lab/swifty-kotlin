@@ -1876,7 +1876,7 @@ extension CallTypeChecker {
             return argCount == 0
         case knownNames.get, knownNames.getOrNull, knownNames.elementAtOrNull,
              knownNames.containsAll, knownNames.indexOf, knownNames.lastIndexOf, knownNames.indexOfFirst, knownNames.indexOfLast, knownNames.binarySearch,
-             knownNames.sortedBy, knownNames.find, knownNames.reduce, knownNames.reduceOrNull, knownNames.reduceIndexedOrNull, knownNames.runningReduce, knownNames.runningReduceIndexed, knownNames.scanReduce, knownNames.take, knownNames.drop, knownNames.zip,
+             knownNames.sortedBy, knownNames.find, knownNames.reduce, knownNames.reduceOrNull, knownNames.reduceIndexedOrNull, knownNames.runningReduce, knownNames.runningReduceIndexed, knownNames.take, knownNames.drop, knownNames.zip,
              knownNames.filterIndexed,
              knownNames.sortedByDescending, knownNames.sortedWith, knownNames.partition,
              knownNames.sortBy, knownNames.sortByDescending, knownNames.distinctBy,
@@ -2603,8 +2603,7 @@ extension CallTypeChecker {
         }
 
         if memberName == knownNames.runningReduce
-            || memberName == knownNames.runningReduceIndexed
-            || memberName == knownNames.scanReduce,
+            || memberName == knownNames.runningReduceIndexed,
            let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
         {
             return sema.types.make(.classType(ClassType(
@@ -3389,7 +3388,6 @@ extension CallTypeChecker {
 
         if memberName == knownNames.runningReduce
             || memberName == knownNames.runningReduceIndexed
-            || memberName == knownNames.scanReduce
             || memberName == knownNames.reduceRightIndexed
             || memberName == knownNames.reduceRightIndexedOrNull
             || memberName == knownNames.reduceRightOrNull
