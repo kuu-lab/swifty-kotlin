@@ -429,6 +429,32 @@ struct RuntimeCoroutineStateTests {
         #expect(thrown == 0)
     }
 
+    // A suspend function value reached through the plain `FunctionN.invoke` ABI
+    // (e.g. `deferreds.map { it.await() }`, where `await` arrives as a suspend
+    // box behind a non-suspend `(T) -> R` parameter) cannot hand
+    // COROUTINE_SUSPENDED to its caller — `map` would collect the sentinel as a
+    // list element. The invoke must drain the body and return its final value.
+    @Test func testPlainFunctionInvokeDrivesSuspendingBoxToCompletion() {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            if kk_coroutine_state_enter(continuation, 9220) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(1, continuation)
+            }
+            outThrown?.pointee = 0
+            let argument = kk_coroutine_launcher_arg_get(continuation, 1)
+            return kk_coroutine_state_exit(continuation, Int(argument) + 1)
+        }
+        let entryRaw = unsafeBitCast(entry, to: Int.self)
+        let function = kk_suspend_function_create(0, 0, 1, entryRaw)
+        var thrown = 0
+
+        let result = kk_function_invoke(function, 8, &thrown)
+
+        #expect(thrown == 0)
+        #expect(result == 9)
+        #expect(result != Int(bitPattern: kk_coroutine_suspended()))
+    }
+
     @Test func testCoroutineScopeIgnoresIndependentlyCancelledChild() {
         let scope = kk_coroutine_scope_new()
         let job = RuntimeJobHandle()

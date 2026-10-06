@@ -592,7 +592,8 @@ public final class IncrementalCompilationCache {
             stdlibManifestHash = ""
         }
         let config = IncrementalBuildConfiguration(
-            schemaVersion: 1,
+            // Also invalidate cached output when the frontend AST representation changes.
+            schemaVersion: IncrementalFrontendState.supportedVersion,
             moduleName: options.moduleName,
             inputPaths: options.inputs,
             emit: options.emit.rawValue,

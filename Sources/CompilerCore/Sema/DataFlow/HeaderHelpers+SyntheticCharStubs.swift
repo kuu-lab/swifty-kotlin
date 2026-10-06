@@ -149,12 +149,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isIdentifierIgnorable",
         returnKind: .boolean
     ),
-    // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
-    SyntheticCharMemberSpec(
-        name: "isUnicodeIdentifierPart",
-        externalLinkName: "kk_char_isUnicodeIdentifierPart",
-        returnKind: .boolean
-    ),
     // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
     SyntheticCharMemberSpec(
         name: "isJavaIdentifierStart",
@@ -508,6 +502,12 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+
+        // Bundled declarations own enum entries and the standard enum API.
+        // Keep only the nominal anchor needed by the Char.directionality stub.
+        if BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: enumFQName) {
+            return enumType
+        }
 
         let entries = [
             "UNDEFINED",

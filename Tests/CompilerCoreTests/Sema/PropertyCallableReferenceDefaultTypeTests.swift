@@ -59,6 +59,38 @@ struct PropertyCallableReferenceDefaultTypeTests {
         #expect(args.count == 2, "KProperty1 takes two type arguments (owner, value).")
     }
 
+    @Test func testInheritedGenericPropertyReferenceSubstitutesValueType() throws {
+        let ctx = makeContextFromSource("""
+        open class Parent<T>(val value: T)
+        class Child<T>(value: T) : Parent<T>(value)
+        fun main() {
+            val ref = Child<Int>::value
+            val value: Int = ref.get(Child(42))
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        try #require(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let (symbol, args) = try classTypeSymbol(for: ref, sema: sema)
+        #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty1"])
+        try #require(args.count == 2)
+        #expect(args[1] == .invariant(sema.types.intType))
+        guard case let .invariant(ownerType) = args[0],
+              case let .classType(owner) = sema.types.kind(of: ownerType) else {
+            Issue.record("Expected a concrete receiver type")
+            return
+        }
+        #expect(sema.symbols.symbol(owner.classSymbol)?.name == ctx.interner.intern("Child"))
+        #expect(owner.args == [.invariant(sema.types.intType)])
+        #expect(!sema.types.typeContainsAnyTypeParam(try #require(sema.bindings.exprTypes[ref])))
+    }
+
     @Test func testBoundImmutablePropertyReferenceInfersKProperty0WithoutExpectedType() throws {
         let ctx = makeContextFromSource("""
         class C(val v: Int)

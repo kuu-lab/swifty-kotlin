@@ -513,9 +513,9 @@ struct CoroutineSyntheticStubTests {
                 let suspendCoroutineFQName = ["kotlin", "coroutines", "suspendCoroutine"].map { interner.intern($0) }
                 let suspendCoroutineSymbol = try #require(sema.symbols.lookup(fqName: suspendCoroutineFQName))
                 let suspendCoroutineSignature = try #require(sema.symbols.functionSignature(for: suspendCoroutineSymbol))
-                #expect(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.synthetic) == true)
+                #expect(sema.symbols.isSourceBackedSymbol(suspendCoroutineSymbol))
                 #expect(sema.symbols.symbol(suspendCoroutineSymbol)?.flags.contains(.inlineFunction) == true)
-                #expect(sema.symbols.externalLinkName(for: suspendCoroutineSymbol) == "kk_suspend_coroutine")
+                #expect(sema.symbols.externalLinkName(for: suspendCoroutineSymbol) == nil)
                 #expect(suspendCoroutineSignature.isSuspend)
                 #expect(suspendCoroutineSignature.typeParameterSymbols.count == 1)
                 #expect(suspendCoroutineSignature.returnType == sema.types.make(.typeParam(TypeParamType(
@@ -671,7 +671,8 @@ struct CoroutineSyntheticStubTests {
                     return interner.resolve(calleeName) == "suspendCoroutine"
                 })
                 let chosenSuspendCoroutine = try #require(sema.bindings.callBinding(for: suspendCall)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenSuspendCoroutine) == "kk_suspend_coroutine")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenSuspendCoroutine))
+                #expect(sema.symbols.externalLinkName(for: chosenSuspendCoroutine) == nil)
             }
 
             // testResumeWithExceptionResolvesInSource

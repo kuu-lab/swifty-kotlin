@@ -1,6 +1,39 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [false, true])
+    func inheritedListPropertyReferenceReadsSize(fromArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                val size = List<Int>::size
+                println(size.get(listOf(1, 2)))
+                println(size.get(emptyList<Int>()))
+                val mutableSize = MutableList<Int>::size
+                println(mutableSize.get(mutableListOf(1, 2, 3)))
+            }
+            """,
+            expectedOutput: "2\n0\n3\n",
+            moduleName: "InheritedListPropertyReference",
+            allowDefaultStdlibLibrary: fromArtifact
+        )
+    }
+
+    @Test func inheritedGenericPropertyReferenceReadsStoredValue() throws {
+        try compileAndRunKotlin(
+            """
+            open class Parent<T>(val value: T)
+            class Child<T>(value: T) : Parent<T>(value)
+            fun main() {
+                val ref = Child<Int>::value
+                println(ref.get(Child(42)))
+            }
+            """,
+            expectedOutput: "42\n",
+            moduleName: "InheritedGenericPropertyReference"
+        )
+    }
+
     @Test(arguments: [true, false])
     func functionReferenceNameAndCall(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

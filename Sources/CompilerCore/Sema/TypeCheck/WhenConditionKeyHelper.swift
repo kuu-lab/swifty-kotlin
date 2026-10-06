@@ -53,6 +53,7 @@ private func whenConditionKeyFromExpr(
 /// the expression is not a literal.
 private func literalConditionKey(_ expr: Expr, interner: StringInterner) -> String? {
     switch expr {
+    case .nullLiteral: "null"
     case let .intLiteral(value, _): "int:\(value)"
     case let .longLiteral(value, _): "long:\(value)"
     case let .uintLiteral(value, _): "uint:\(value)"
@@ -73,9 +74,6 @@ private func nameRefKey(
     interner: StringInterner
 ) -> String? {
     let resolved = interner.resolve(name)
-    if resolved == "null" {
-        return "null"
-    }
     if let symbolID = sema.bindings.identifierSymbols[conditionID] {
         return "sym:\(symbolID.rawValue)"
     }

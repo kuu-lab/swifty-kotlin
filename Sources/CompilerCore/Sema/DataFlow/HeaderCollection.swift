@@ -1537,6 +1537,19 @@ extension DataFlowSemaPhase {
                     localTypeParameters: classLocalTypeParameters
                 )
             }
+            if symbols.symbol(symbol)?.flags.contains(.valueType) == true {
+                // Collect after explicit members so an override suppresses synthesis.
+                collectSyntheticToString(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    ownerType: classType,
+                    requireDataTypeFlag: false,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
+            }
             // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(
@@ -2158,6 +2171,7 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
+            || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
             // KUU-876: the source-backed InvalidMutabilityException must keep
             // its bundled declSite when the synthetic anchor is reused.

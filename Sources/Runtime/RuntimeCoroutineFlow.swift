@@ -227,6 +227,19 @@ private func runtimeFlowInvokeEmitter(_ flow: RuntimeFlowHandle, outThrown: inou
             outThrown: &outThrown
         )
     } else {
+        // The direct-ABI emitter entry is a suspend wrapper that relays
+        // COROUTINE_SUSPENDED through the ambient continuation
+        // (kk_coroutine_call_suspend_wrapper). This collect call site is
+        // synchronous and has no resumable suspend point, so a relayed
+        // sentinel would surface as the emitter's result and end the
+        // collection after the builder's first suspension. Detach the
+        // ambient continuation for the duration of the call so the wrapper
+        // takes its blocking-drive fallback (kk_kxmini_run_blocking_with_cont).
+        let ambientState = RuntimeContinuationState.current
+        RuntimeContinuationState.current = nil
+        defer {
+            RuntimeContinuationState.current = ambientState
+        }
         let emitter = unsafeBitCast(
             flow.emitterFnPtr,
             to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self

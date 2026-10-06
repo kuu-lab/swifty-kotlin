@@ -312,6 +312,7 @@ public final class ASTArena: @unchecked Sendable {
              let .floatLiteral(_, range),
              let .doubleLiteral(_, range),
              let .charLiteral(_, range),
+             let .nullLiteral(range),
              let .boolLiteral(_, range),
              let .stringLiteral(_, range),
              let .nameRef(_, range),

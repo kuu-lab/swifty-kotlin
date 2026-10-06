@@ -146,6 +146,20 @@ final class DataFlowAnalyzer {
                 args.indices.contains(argumentIndex) else { continue }
             let argument = args[argumentIndex].expr
             switch effect.argumentCondition {
+            case .isType:
+                if let rawTargetType = effect.targetType {
+                    let parameters = sema.symbols.functionSignature(for: binding.chosenCallee)?.typeParameterSymbols ?? []
+                    let variables = sema.types.makeTypeVarBySymbol(parameters)
+                    var substitution: [TypeVarID: TypeID] = [:]
+                    for (parameter, type) in zip(parameters, binding.substitutedTypeArguments) {
+                        if let variable = variables[parameter] { substitution[variable] = type }
+                    }
+                    let targetType = sema.types.substituteTypeParameters(
+                        in: rawTargetType, substitution: substitution, typeVarBySymbol: variables
+                    )
+                    state = branchOnResolvedIsCheck(exprID: argument, rawTargetType: targetType,
+                        base: state, locals: locals, ast: ast, sema: sema, interner: interner).trueState
+                }
             case .nonNull:
                 state = narrowNonNull(argument, base: state, locals: locals, ast: ast, sema: sema, interner: interner)
             case .booleanTrue, .booleanFalse:
@@ -356,11 +370,6 @@ final class DataFlowAnalyzer {
         interner: StringInterner,
         scope: Scope
     ) -> ConditionBranch {
-        guard let (symbol, currentType, isStable) = resolveStableReference(
-            exprID, locals: locals, ast: ast, sema: sema, interner: interner
-        ), isStable else {
-            return ConditionBranch(trueState: base, falseState: base)
-        }
         guard let rawTargetType = resolveIsCheckTargetType(
             typeRefID: typeRefID,
             scope: scope,
@@ -368,6 +377,19 @@ final class DataFlowAnalyzer {
             sema: sema,
             interner: interner
         ) else {
+            return ConditionBranch(trueState: base, falseState: base)
+        }
+        return branchOnResolvedIsCheck(exprID: exprID, rawTargetType: rawTargetType,
+            base: base, locals: locals, ast: ast, sema: sema, interner: interner)
+    }
+
+    private func branchOnResolvedIsCheck(
+        exprID: ExprID, rawTargetType: TypeID, base: DataFlowState,
+        locals: LocalBindings, ast: ASTModule, sema: SemaModule, interner: StringInterner
+    ) -> ConditionBranch {
+        guard let (symbol, currentType, isStable) = resolveStableReference(
+            exprID, locals: locals, ast: ast, sema: sema, interner: interner
+        ), isStable else {
             return ConditionBranch(trueState: base, falseState: base)
         }
         let priorType: TypeID = if let baseState = base[symbol], baseState.possibleTypes.count == 1,
@@ -440,16 +462,15 @@ final class DataFlowAnalyzer {
             return base
         }
         switch conditionExpr {
-        case let .nameRef(name, _):
-            if name == builtinTypeNames(interner: interner).null {
-                var vars = base
-                vars[subjectSymbol] = VariableFlowState(
-                    possibleTypes: [subjectType],
-                    nullability: .nullable,
-                    isStable: true
-                )
-                return vars
-            }
+        case .nullLiteral:
+            var vars = base
+            vars[subjectSymbol] = VariableFlowState(
+                possibleTypes: [subjectType],
+                nullability: .nullable,
+                isStable: true
+            )
+            return vars
+        case .nameRef:
             guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                 return base
             }
@@ -639,11 +660,11 @@ final class DataFlowAnalyzer {
 
     private func isNullLiteral(_ id: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
         guard let expr = ast.arena.expr(id),
-              case let .nameRef(name, _) = expr
+              case .nullLiteral = expr
         else {
             return false
         }
-        return name == builtinTypeNames(interner: interner).null
+        return true
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {

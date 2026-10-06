@@ -5,6 +5,87 @@ import Testing
 @Suite
 struct LocalExtensionFunctionTests {
     @Test
+    func localInterfaceExtensionsResolveInRegularAndSuspendFunctions() throws {
+        let ctx = makeContextFromSource("""
+        interface Src {
+            val size: Long
+            val buffer: ByteArray
+        }
+        suspend fun outer(s: Src) {
+            fun Src.helper(): Long = size
+            suspend fun Src.suspHelper(): Boolean = size > 0
+            suspend fun Src.bufferHelper(): Byte {
+                fun read(): Byte = buffer[1]
+                return read()
+            }
+            val x = s.helper()
+            val y = s.suspHelper()
+            val b = s.bufferHelper()
+        }
+        fun topLevel(s: Src) {
+            fun Src.helper2(): Long = size
+            val z = s.helper2()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let module = try #require(ctx.kir)
+        for name in ["helper", "suspHelper", "bufferHelper", "helper2"] {
+            let localID = try #require(ast.arena.exprs.indices.first {
+                if case let .localFunDecl(localName, _, _, _, _, _, _) = ast.arena.exprs[$0] {
+                    return ctx.interner.resolve(localName) == name
+                }
+                return false
+            })
+            let symbol = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.receiverType != nil)
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == symbol })
+            let function = try #require(findAllKIRFunctions(in: module).first { $0.symbol == symbol })
+            #expect(function.params.contains {
+                $0.symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            })
+            #expect(signature.isSuspend == (name == "suspHelper" || name == "bufferHelper"))
+            #expect(function.isSuspend == signature.isSuspend)
+        }
+        let read = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "read"
+        })
+        #expect(read.params.count == 1, "The nested function must capture the extension receiver")
+    }
+
+    @Test
+    func nestedExtensionAndShadowedParameterDoNotCaptureOuterReceiver() throws {
+        let ctx = makeContextFromSource("""
+        interface Src { val size: Long }
+        fun Src.outer(s: Src): Long {
+            fun independent(s: Src): Long {
+                fun Src.own(): Long = size
+                return s.own()
+            }
+            return independent(s)
+        }
+        fun Src.shadowed(size: Long): Long {
+            fun read(): Long = size
+            return read()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let functions = findAllKIRFunctions(in: module)
+        let independent = try #require(functions.first { ctx.interner.resolve($0.name) == "independent" })
+        let signature = try #require(sema.symbols.functionSignature(for: independent.symbol))
+        #expect(independent.params.map(\.symbol) == signature.valueParameterSymbols)
+        let read = try #require(functions.first { ctx.interner.resolve($0.name) == "read" })
+        #expect(read.params.count == 1)
+        #expect(read.params.first?.type == sema.types.longType)
+    }
+
+    @Test
     func receiverSurvivesParsingAndBindsThis() throws {
         let ctx = makeContextFromSource("""
         fun probe(): Int {

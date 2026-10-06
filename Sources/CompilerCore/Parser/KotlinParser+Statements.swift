@@ -250,7 +250,7 @@ extension KotlinParser {
 
         if stream.peek().kind != .keyword(.catch), stream.peek().kind != .keyword(.finally) {
             diagnostics.error(
-                "KSWIFTK-PARSE-0015",
+                "KSWIFTK-PARSE-0016",
                 "Expected 'catch' or 'finally' after 'try' block.",
                 range: tryToken.range
             )

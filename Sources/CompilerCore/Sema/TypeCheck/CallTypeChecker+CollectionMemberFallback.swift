@@ -1704,6 +1704,11 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
+        // Sequence.zip is source-backed and must validate its argument through
+        // overload resolution; reversed is not available on Sequence at all.
+        if isSequenceReceiver, memberName == knownNames.reversed || memberName == knownNames.zip {
+            return false
+        }
         let surfaceOwnerKinds = stdlibSurfaceOwnerKindsForCollectionFallback(
             isIterableReceiver: isIterableReceiver,
             isListReceiver: isListReceiver,

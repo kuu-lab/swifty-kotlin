@@ -338,6 +338,10 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitKClassDisplayNameRegistration(
+            symbol: classSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
 
         emitKClassAnnotationRegistration(
             objectSymbol: classSymbol,

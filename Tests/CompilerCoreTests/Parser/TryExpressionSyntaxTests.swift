@@ -17,7 +17,7 @@ struct TryExpressionSyntaxTests {
     func missingHandlerReportsOnce(_ source: String) throws {
         let ctx = makeContextFromSource(source)
         try runFrontend(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0015" }
+        let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0016" }
         #expect(errors.count == 1)
         let error = try #require(errors.first)
         #expect(error.severity == .error)
@@ -46,7 +46,7 @@ struct TryExpressionSyntaxTests {
     func syntaxRecoveryPreservesFollowingDeclaration() {
         let source = "try { 5 }\nfun after() = 7"
         let parsed = parse(source)
-        #expect(parsed.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0015" }.count == 1)
+        #expect(parsed.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0016" }.count == 1)
         #expect(parsed.arena.nodes.filter { $0.kind == .funDecl }.count == 1)
     }
 }

@@ -229,6 +229,7 @@ struct ContinuationSyntheticStubTests {
         let createCoroutineFQName = ["kotlin", "coroutines", "intrinsics", "createCoroutineUnintercepted"].map { interner.intern($0) }
         let createCoroutineSymbols = sema.symbols.lookupAll(fqName: createCoroutineFQName)
         #expect(createCoroutineSymbols.count == 2)
+        #expect(createCoroutineSymbols.allSatisfy(sema.symbols.isSourceBackedSymbol))
 
         let signatures = createCoroutineSymbols.compactMap { sema.symbols.functionSignature(for: $0) }
         #expect(signatures.count == 2)
@@ -244,6 +245,7 @@ struct ContinuationSyntheticStubTests {
         let createCoroutineFQName = ["kotlin", "coroutines", "createCoroutine"].map { interner.intern($0) }
         let createCoroutineSymbols = sema.symbols.lookupAll(fqName: createCoroutineFQName)
         #expect(createCoroutineSymbols.count == 2)
+        #expect(createCoroutineSymbols.allSatisfy(sema.symbols.isSourceBackedSymbol))
 
         let signatures = createCoroutineSymbols.compactMap { sema.symbols.functionSignature(for: $0) }
         #expect(signatures.count == 2)
@@ -260,6 +262,7 @@ struct ContinuationSyntheticStubTests {
         let startCoroutineFQName = ["kotlin", "coroutines", "startCoroutine"].map { interner.intern($0) }
         let startCoroutineSymbols = sema.symbols.lookupAll(fqName: startCoroutineFQName)
         #expect(startCoroutineSymbols.count == 2)
+        #expect(startCoroutineSymbols.allSatisfy(sema.symbols.isSourceBackedSymbol))
 
         let signatures = startCoroutineSymbols.compactMap { sema.symbols.functionSignature(for: $0) }
         #expect(signatures.count == 2)

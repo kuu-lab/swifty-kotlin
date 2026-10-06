@@ -126,6 +126,13 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(receiverSymbol)
                 }
+                // Same for a member-extension call's extension receiver when
+                // Sema picked it from an enclosing tower entry.
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 // A bare member call inside an object literal resolves to the
                 // enclosing class's member symbol. Preserve that class's
                 // implicit receiver as a capture so lowering can still pass
@@ -242,6 +249,11 @@ struct CaptureAnalyzer {
                 {
                     captured.insert(receiverSymbol)
                 }
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let receiver {
                     visit(receiver)
                 }
@@ -283,7 +295,7 @@ struct CaptureAnalyzer {
                 // `this@describe` are bound to the receiver parameter symbol.
                 recordCapture(for: currentExprID)
 
-            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+            case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
                  .breakExpr, .continueExpr, .superRef:
                 break
