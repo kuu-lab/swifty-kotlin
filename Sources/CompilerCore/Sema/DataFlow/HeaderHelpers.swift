@@ -579,7 +579,9 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         newFlags: SymbolFlags = [],
         additionalExisting: [SemanticSymbol] = [],
-        newIsExtensionProperty: Bool = false
+        newIsExtensionProperty: Bool = false,
+        topLevelVisibility: Visibility? = nil,
+        topLevelFileID: FileID? = nil
     ) {
         var existingByID: [SymbolID: SemanticSymbol] = [:]
         for symbol in symbols.lookupAll(fqName: fqName).compactMap({ symbols.symbol($0) }) {
@@ -588,7 +590,12 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
-        let existing = Array(existingByID.values)
+        let existing = existingByID.values.filter { existing in
+            guard let topLevelVisibility, let topLevelFileID else { return true }
+            return !symbols.canCoexistAsFilePrivateTopLevelCallable(
+                kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing
+            )
+        }
         if newFlags.contains(.expectDeclaration) || newFlags.contains(.actualDeclaration) {
             let existingNonPackage = existing.filter {
                 $0.kind != .package && !$0.flags.contains(.synthetic)

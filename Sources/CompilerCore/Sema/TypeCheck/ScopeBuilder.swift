@@ -41,6 +41,7 @@ struct TypeCheckScopeBuilder {
             )
 
             let packageScope = PackageScope(parent: explicitImportScope, symbols: sema.symbols)
+            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
                 // KSP-1150: the coroutine registry retains a root-level
                 // CancellationException compatibility class. An explicit
@@ -54,10 +55,15 @@ struct TypeCheckScopeBuilder {
                 ) {
                     continue
                 }
-                packageScope.insert(packageSymbol)
+                if let symbol = sema.symbols.symbol(packageSymbol),
+                   symbol.visibility == .private,
+                   (sema.symbols.sourceFileID(for: packageSymbol) ?? symbol.declSite?.start.file) == file.fileID {
+                    fileScope.insert(packageSymbol)
+                } else {
+                    packageScope.insert(packageSymbol)
+                }
             }
 
-            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             fileScopes[file.fileID.rawValue] = fileScope
         }
 
