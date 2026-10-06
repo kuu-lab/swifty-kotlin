@@ -14,7 +14,7 @@ file flist_group_partition package=_
 expr e@5:19 name(values) type=kotlin.collections.List<String> ref=group.$0.values[kind=vparam;origin=fixture]
 expr e@5:36 name(it) type=String ref=s-0
 expr e@5:36#1 memberCall recv=e@5:36 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@5:34 lambda params=[] body=e@5:36#1 label=groupBy type=(String) -> Any?
+expr e@5:34 lambda params=[] body=e@5:36#1 label=groupBy type=(String) -> Int
 expr e@5:19#1 memberCall recv=e@5:19 callee=groupBy args=[_:e@5:34] type=kotlin.collections.Map<Int, kotlin.collections.List<String>> call=kotlin.collections.groupBy[kind=fun;recv=kotlin.collections.List<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Map<T1,kotlin.collections.List<T0>>;gen=2;nonlocal=[0];names=[keySelector]] targs=[String,Int]
 expr e@5:5 localDecl grouped mutable=0 type=_ init=e@5:19#1 type=Unit ref=__local_0.grouped[kind=local;type=kotlin.collections.Map<Int,kotlin.collections.List<String>>;origin=fixture]
 expr e@6:43 name(grouped) type=kotlin.collections.Map<Int, kotlin.collections.List<String>> ref=__local_0.grouped[kind=local;type=kotlin.collections.Map<Int,kotlin.collections.List<String>>;origin=fixture]

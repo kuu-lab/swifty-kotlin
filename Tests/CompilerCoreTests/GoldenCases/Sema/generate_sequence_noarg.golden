@@ -18,7 +18,7 @@ expr e@6:25 name(count) type=Int ref=__local_0.count[kind=local;type=Int;mutable
 expr e@6:36 name(null) type=Nothing?
 expr e@6:9 if cond=e@6:13#1 then=e@6:25 else=e@6:36 type=Int?
 expr e@5:9#1 blockExpr stmts=[e@5:9] trailing=e@6:9 type=Int?
-expr e@4:32 lambda params=[] body=e@5:9#1 label=generateSequence type=() -> Any?
+expr e@4:32 lambda params=[] body=e@5:9#1 label=generateSequence type=() -> Int?
 expr e@4:15 call callee=e@4:15#1 args=[_:e@4:32] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.generateSequence[kind=fun;params=fn{p=;ret=T0?};ret=kotlin.sequences.Sequence<T0>;gen=1;bounds=[Any];names=[nextFunction]] targs=[Int]
 expr e@4:5 localDecl gen mutable=0 type=_ init=e@4:15 type=Unit ref=__local_1.gen[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@8:18 name(gen) type=kotlin.sequences.Sequence<Int> ref=__local_1.gen[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
@@ -34,7 +34,7 @@ expr e@13:41 name(n) type=Int ref=__local_3.n[kind=local;type=Int;mutable;origin
 expr e@13:39 int(1) type=Int
 expr e@13:41#1 compoundAssign(plusAssign) name=n value=e@13:39 type=Unit ref=__local_3.n[kind=local;type=Int;mutable;origin=fixture]
 expr e@13:41#2 blockExpr stmts=[e@13:41#1] trailing=e@13:41 type=Int
-expr e@13:37 lambda params=[] body=e@13:41#2 label=generateSequence type=() -> Any?
+expr e@13:37 lambda params=[] body=e@13:41#2 label=generateSequence type=() -> Int
 expr e@13:20 call callee=e@13:20#1 args=[_:e@13:37] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.generateSequence[kind=fun;params=fn{p=;ret=T0?};ret=kotlin.sequences.Sequence<T0>;gen=1;bounds=[Any];names=[nextFunction]] targs=[Int]
 expr e@13:5 localDecl naturals mutable=0 type=_ init=e@13:20 type=Unit ref=__local_4.naturals[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@14:18 name(naturals) type=kotlin.sequences.Sequence<Int> ref=__local_4.naturals[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]

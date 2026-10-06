@@ -14,7 +14,7 @@ expr e@5:38 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=
 expr e@5:38#1 memberCall recv=e@5:38 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
 expr e@5:49 int(2) type=Int
 expr e@5:38#2 binary(multiply) lhs=e@5:38#1 rhs=e@5:49 type=Int
-expr e@5:36 lambda params=[] body=e@5:38#2 label=mapValues type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
+expr e@5:36 lambda params=[] body=e@5:38#2 label=mapValues type=(kotlin.collections.Map.Entry<out String, out Int>) -> Int
 expr e@5:19#1 memberCall recv=e@5:19 callee=mapValues args=[_:e@5:36] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapValues[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};ret=kotlin.collections.Map<T0,T2>;gen=3;names=[transform]] targs=[String,Int,Int]
 expr e@5:5 localDecl doubled mutable=0 type=_ init=e@5:19#1 type=Unit ref=__local_0.doubled[kind=local;type=kotlin.collections.Map<String,Int>;origin=fixture]
 expr e@6:37 name(doubled) type=kotlin.collections.Map<String, Int> ref=__local_0.doubled[kind=local;type=kotlin.collections.Map<String,Int>;origin=fixture]
@@ -23,7 +23,7 @@ expr e@10:20 name(values) type=kotlin.collections.Map<String, Int> ref=mapKeysTr
 expr e@10:37 name(it) type=kotlin.collections.Map.Entry<out String, out Int> ref=s-1
 expr e@10:37#1 memberCall recv=e@10:37 callee=key args=[] type=String ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
 expr e@10:37#2 memberCall recv=e@10:37#1 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@10:35 lambda params=[] body=e@10:37#2 label=mapKeys type=(kotlin.collections.Map.Entry<out String, out Int>) -> Any?
+expr e@10:35 lambda params=[] body=e@10:37#2 label=mapKeys type=(kotlin.collections.Map.Entry<out String, out Int>) -> Int
 expr e@10:20#1 memberCall recv=e@10:20 callee=mapKeys args=[_:e@10:35] type=kotlin.collections.Map<Int, Int> call=kotlin.collections.mapKeys[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=fn{p=kotlin.collections.Map.Entry<T0,T1>;ret=T2};ret=kotlin.collections.Map<T2,T1>;gen=3;names=[transform]] targs=[String,Int,Int]
 expr e@10:5 localDecl byLength mutable=0 type=_ init=e@10:20#1 type=Unit ref=__local_2.byLength[kind=local;type=kotlin.collections.Map<Int,Int>;origin=fixture]
 expr e@11:34 name(byLength) type=kotlin.collections.Map<Int, Int> ref=__local_2.byLength[kind=local;type=kotlin.collections.Map<Int,Int>;origin=fixture]

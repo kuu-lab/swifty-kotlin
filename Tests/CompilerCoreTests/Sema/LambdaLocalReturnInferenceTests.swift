@@ -119,7 +119,7 @@ struct LambdaLocalReturnInferenceTests {
     @Test func checksReturnAgainstItsTargetRatherThanNestedContext() throws {
         let ctx = makeContextFromSources([
             """
-            fun consume(action: () -> Unit) { action() }
+            inline fun consume(action: () -> Unit) { action() }
             inline fun <T> inlineEvaluate(action: () -> T): T = action()
             fun test(): Int = inlineEvaluate<Int> target@{
                 consume { return@target 7 }

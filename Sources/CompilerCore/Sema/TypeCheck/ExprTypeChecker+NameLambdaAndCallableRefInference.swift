@@ -1668,8 +1668,17 @@ extension ExprTypeChecker {
             // or `box.run2 { myValue }` fails to infer `R`). Substitute the
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
+            // `Any`/`Any?` expected returns are placeholders the same way:
+            // `inferCallExpr` synthesizes `(args) -> Any` as the contextual
+            // type when a lambda literal is invoked directly (`{ ... }()`)
+            // with no caller-supplied expected type. Adopting it verbatim
+            // would type the call result as `Any` (e.g. `true && { 1; true }()`
+            // then fails `&&`'s Boolean constraint), so the concrete body
+            // return must flow through here too.
             let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
+                || expectedFunctionType.returnType == sema.types.anyType
+                || expectedFunctionType.returnType == sema.types.nullableAnyType
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,

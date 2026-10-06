@@ -23,7 +23,7 @@ expr e@4:5 localDecl users mutable=0 type=_ init=e@4:17 type=Unit ref=__local_0.
 expr e@5:22 name(users) type=kotlin.collections.List<out User> ref=__local_0.users[kind=local;type=kotlin.collections.List<out User>;origin=fixture]
 expr e@5:41 name(it) type=User ref=s-0
 expr e@5:41#1 memberCall recv=e@5:41 callee=nickname args=[] type=String? ref=User.nickname[kind=prop;type=String?;origin=fixture]
-expr e@5:39 lambda params=[] body=e@5:41#1 label=distinctBy type=(User) -> Any
+expr e@5:39 lambda params=[] body=e@5:41#1 label=distinctBy type=(User) -> String?
 expr e@5:22#1 memberCall recv=e@5:22 callee=distinctBy args=[_:e@5:39] type=kotlin.collections.List<User> call=kotlin.collections.distinctBy[kind=fun;recv=kotlin.collections.Iterable<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.List<T0>;gen=2;nonlocal=[0];names=[selector]] targs=[User,String?]
 expr e@5:5 localDecl byNickname mutable=0 type=_ init=e@5:22#1 type=Unit ref=__local_1.byNickname[kind=local;type=kotlin.collections.List<User>;origin=fixture]
 expr e@6:13 name(byNickname) type=kotlin.collections.List<User> ref=__local_1.byNickname[kind=local;type=kotlin.collections.List<User>;origin=fixture]

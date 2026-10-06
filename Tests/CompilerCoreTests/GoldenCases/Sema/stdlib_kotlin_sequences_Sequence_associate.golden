@@ -85,6 +85,6 @@ expr e@32:5 localDecl withTo mutable=0 type=MutableMap<Any,Any> init=e@32:40#1 t
 expr e@33:47 name(list) type=kotlin.collections.List<String> ref=associateFamily.$0.list[kind=vparam;origin=fixture]
 expr e@33:47#1 memberCall recv=e@33:47 callee=asSequence args=[] type=kotlin.sequences.Sequence<out String> call=kotlin.sequences.asSequence[kind=fun;recv=kotlin.collections.Iterable<T0>;params=;ret=kotlin.sequences.Sequence<T0>;gen=1] targs=[String]
 expr e@33:79 name(it) type=String ref=s-11
-expr e@33:77 lambda params=[] body=e@33:79 label=associateBy type=(String) -> Any?
+expr e@33:77 lambda params=[] body=e@33:79 label=associateBy type=(String) -> String
 expr e@33:47#2 memberCall recv=e@33:47#1 callee=associateBy args=[_:e@33:77] type=kotlin.collections.Map<String, String> call=kotlin.sequences.associateBy[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};ret=kotlin.collections.Map<T1,T0>;gen=2;names=[keySelector]] targs=[String,String]
 expr e@33:5 localDecl listAssociated mutable=0 type=Map<String,String> init=e@33:47#2 type=Unit ref=__local_9.listAssociated[kind=local;type=kotlin.collections.Map<String,String>;origin=fixture]

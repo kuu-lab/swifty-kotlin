@@ -3273,7 +3273,19 @@ final class CallTypeChecker {
             let contextualCalleeType: TypeID?
             if let calleeExpr {
                 switch calleeExpr {
-                case .lambdaLiteral, .callableRef:
+                case .lambdaLiteral:
+                    // A directly-invoked lambda literal gets no parameter types
+                    // from the call's argument list — kotlinc requires an
+                    // explicit annotation there (`{ x -> ... }(4)` is rejected,
+                    // `{ x: Int -> ... }(4)` is accepted) — so only the optional
+                    // caller expected *return* type is propagated here.
+                    contextualCalleeType = sema.types.make(.functionType(FunctionType(
+                        params: [],
+                        returnType: expectedType ?? sema.types.anyType,
+                        isSuspend: false,
+                        nullability: .nonNull
+                    )))
+                case .callableRef:
                     let contextualReturnType = expectedType ?? sema.types.anyType
                     contextualCalleeType = sema.types.make(.functionType(FunctionType(
                         params: argTypes,

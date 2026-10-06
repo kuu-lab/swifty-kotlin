@@ -30,7 +30,7 @@ expr e@6:75 name(index) type=Int ref=golden.sema.getOrNull.$1.index[kind=vparam;
 expr e@6:58#1 memberCall recv=e@6:58 callee=getOrNull args=[_:e@6:75] type=Char? call=kotlin.text.getOrNull[kind=fun;recv=kotlin.CharSequence;params=Int;ret=Char?;names=[index]]
 expr e@9:5 name(source) type=kotlin.CharSequence ref=golden.sema.namedReturn.$2.source[kind=vparam;origin=fixture]
 expr e@9:46 name(value) type=Char ref=golden.sema.namedReturn.$2.value[kind=vparam;origin=fixture]
-expr e@9:39 return value=e@9:46 type=Nothing
+expr e@9:39 return value=e@9:46 type=Nothing ref=golden.sema.namedReturn[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,value];origin=fixture]
 expr e@9:37 lambda params=[] body=e@9:39 label=getOrElse type=(Int) -> Char
 expr e@9:64 int(1) type=Int
 expr e@9:63 unary(unaryMinus) operand=e@9:64 type=Int
@@ -39,7 +39,7 @@ expr e@10:12 char(63) type=Char
 expr e@10:5 return value=e@10:12 type=Nothing
 expr e@14:5 name(source) type=kotlin.CharSequence? ref=golden.sema.safeReturn.$3.source[kind=vparam;origin=fixture]
 expr e@14:47 name(value) type=Char ref=golden.sema.safeReturn.$3.value[kind=vparam;origin=fixture]
-expr e@14:40 return value=e@14:47 type=Nothing
+expr e@14:40 return value=e@14:47 type=Nothing ref=golden.sema.safeReturn[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,value];origin=fixture]
 expr e@14:38 lambda params=[] body=e@14:40 label=getOrElse type=(Int) -> Char
 expr e@14:65 int(1) type=Int
 expr e@14:64 unary(unaryMinus) operand=e@14:65 type=Int

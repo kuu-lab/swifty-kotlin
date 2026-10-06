@@ -42,13 +42,13 @@ expr e@11:12 name(source) type=kotlin.CharSequence ref=golden.sema.nonLocalDefau
 expr e@11:36 int(1) type=Int
 expr e@11:35 unary(unaryMinus) operand=e@11:36 type=Int
 expr e@11:48 char(120) type=Char
-expr e@11:41 return value=e@11:48 type=Nothing
+expr e@11:41 return value=e@11:48 type=Nothing ref=golden.sema.nonLocalDefault[kind=fun;params=kotlin.CharSequence;ret=Char;names=[source];origin=fixture]
 expr e@11:39 lambda params=[] body=e@11:41 label=elementAtOrElse type=(Int) -> Char
 expr e@11:12#1 memberCall recv=e@11:12 callee=elementAtOrElse args=[_:e@11:35,_:e@11:39] type=Char call=kotlin.text.elementAtOrElse[kind=fun;recv=kotlin.CharSequence;params=Int,fn{p=Int;ret=Char};ret=Char;names=[index,defaultValue]]
 expr e@11:5 return value=e@11:12#1 type=Nothing
 expr e@15:5 name(source) type=kotlin.CharSequence ref=golden.sema.namedDefault.$3.source[kind=vparam;origin=fixture]
 expr e@15:52 name(value) type=Char ref=golden.sema.namedDefault.$3.value[kind=vparam;origin=fixture]
-expr e@15:45 return value=e@15:52 type=Nothing
+expr e@15:45 return value=e@15:52 type=Nothing ref=golden.sema.namedDefault[kind=fun;params=kotlin.CharSequence,Char;ret=Char;names=[source,value];origin=fixture]
 expr e@15:43 lambda params=[] body=e@15:45 label=elementAtOrElse type=(Int) -> Char
 expr e@15:70 int(1) type=Int
 expr e@15:69 unary(unaryMinus) operand=e@15:70 type=Int
@@ -57,7 +57,7 @@ expr e@16:12 char(63) type=Char
 expr e@16:5 return value=e@16:12 type=Nothing
 expr e@20:5 name(source) type=kotlin.CharSequence? ref=golden.sema.namedSafeDefault.$4.source[kind=vparam;origin=fixture]
 expr e@20:53 name(value) type=Char ref=golden.sema.namedSafeDefault.$4.value[kind=vparam;origin=fixture]
-expr e@20:46 return value=e@20:53 type=Nothing
+expr e@20:46 return value=e@20:53 type=Nothing ref=golden.sema.namedSafeDefault[kind=fun;params=kotlin.CharSequence?,Char;ret=Char;names=[source,value];origin=fixture]
 expr e@20:44 lambda params=[] body=e@20:46 label=elementAtOrElse type=(Int) -> Char
 expr e@20:71 int(1) type=Int
 expr e@20:70 unary(unaryMinus) operand=e@20:71 type=Int
