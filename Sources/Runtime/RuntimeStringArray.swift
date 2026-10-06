@@ -1672,6 +1672,15 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     }
     if let ptr = UnsafeMutableRawPointer(bitPattern: value),
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
+        // Runtime-created throwables are boxes without nominal object tags.
+        // Their declared exception identity must override the catch variable's type.
+        if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+            let typeID = runtimeStableNominalTypeID(fqName: throwable.exceptionFQName)
+            let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                | RuntimeTypeTokenEncoding.nominalBase
+            let displayName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+            return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(displayName))
+        }
         let base: Int64?
         if let box = tryCast(ptr, to: RuntimeIntBox.self) {
             if let enumID = box.enumClassID {
