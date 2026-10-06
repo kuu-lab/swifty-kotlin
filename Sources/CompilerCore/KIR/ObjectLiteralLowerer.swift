@@ -618,6 +618,12 @@ final class ObjectLiteralLowerer {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
             }
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+            if let capturedOwner = sema.symbols.symbol(capturedSymbol),
+               [.class, .interface, .enumClass, .object].contains(capturedOwner.kind)
+            {
+                driver.ctx.setCapturedOuterReceiver(loadedExpr, for: capturedSymbol)
+                driver.ctx.setQualifiedThisReceiver(loadedExpr, for: capturedOwner.name)
+            }
             if let capturedReceiver = sema.bindings.objectLiteralCapturedReceiver(for: ownerSymbol),
                capturedReceiver.receiverSymbol == capturedSymbol
             {

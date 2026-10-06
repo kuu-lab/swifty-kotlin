@@ -374,6 +374,16 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // An inherited property belongs to the anonymous instance itself.
+        // Capturing the same symbol would overwrite its inherited field slot.
+        // Explicit outer accesses retain their receiver capture instead.
+        capturedSymbols = Set(capturedSymbols.filter { symbol in
+            guard outerReceiverPropertySymbols.contains(symbol),
+                  let owner = sema.symbols.parentSymbol(for: symbol)
+            else { return true }
+            return !sema.types.isNominalSubtypeSymbol(objectSymbol, of: owner)
+        })
+
         // Mutable outer receiver properties must keep addressing the enclosing
         // instance. Capturing their current values would turn writes into writes
         // to the anonymous object's copy, so capture the receiver once instead.
