@@ -4,6 +4,49 @@ import Testing
 
 extension BuildKIRRegressionTests {
     @Test
+    func importedCompanionExtensionGetterSuppliesSingletonReceiver() throws {
+        let ctx = makeContextFromSource("""
+        import Factory.Companion.scaled
+        class Factory {
+            companion object {
+                val Long.scaled: Long get() = this * 1000000L
+            }
+        }
+        fun read(): Long = 1L.scaled
+        fun readNullable(value: Long?): Long? = value?.scaled
+        """)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let getter = try #require(findAllKIRFunctions(in: module).first {
+            ctx.interner.resolve($0.name) == "get"
+        })
+        let owner = try #require(sema.symbols.memberExtensionOwnerSymbol(for: getter.symbol))
+        #expect(getter.params.count == 2)
+        for name in ["read", "readNullable"] {
+            let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+            let call = try #require(body.first {
+                if case let .call(symbol, _, _, _, _, _, _, _) = $0 {
+                    return symbol == getter.symbol
+                }
+                return false
+            })
+            if case let .call(_, _, arguments, _, _, _, _, _) = call {
+                #expect(arguments.count == 2)
+                if let dispatch = arguments.first {
+                    #expect(module.arena.exprType(dispatch) == getter.params[0].type)
+                    #expect(body.contains {
+                        if case let .constValue(result, .symbolRef(symbol)) = $0 {
+                            return result == dispatch && symbol == owner
+                        }
+                        return false
+                    })
+                }
+            }
+        }
+    }
+
+    @Test
     func memberExtensionPropertyAccessorsCarryBothReceivers() throws {
         let ctx = makeContextFromSource("""
         class C(private val offset: Int) {

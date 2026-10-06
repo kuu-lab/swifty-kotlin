@@ -49,8 +49,26 @@ extension CallLowerer {
         {
             return resolved
         }
-        return resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
+        if let receiver = resolveToOwner(driver.ctx.qualifiedThisReceiverExprID(for: ownerInfo.name))
             ?? resolveToOwner(driver.ctx.activeImplicitReceiverExprID())
+        {
+            return receiver
+        }
+        // Imported object/companion extensions have no enclosing dispatch
+        // receiver. Their source bodies still require the singleton before
+        // the extension receiver, including primitive property getters.
+        if ownerInfo.kind == .object {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: owner, arena: arena, sema: sema, instructions: &instructions
+            )
+            let ownerType = sema.types.make(.classType(ClassType(
+                classSymbol: owner, args: [], nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(owner), type: ownerType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
+            return receiver
+        }
+        return nil
     }
 
     /// Supply the dispatch receiver shared by getter, setter and compound updates.
