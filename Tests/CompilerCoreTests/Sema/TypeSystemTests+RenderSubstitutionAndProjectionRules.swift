@@ -613,14 +613,41 @@ extension TypeSystemTests {
     }
 
     @Test
-    func testComposedProjectionInWithInReturnsOut() {
+    func testComposedProjectionInWithInReturnsIn() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
+        // A use-site `in` on an `in`-declared parameter is redundant and keeps
+        // the `in` direction — `Sink<in X>` admits `Sink<S>` for `X <: S` (KUU-1381).
         let result = ts.composedProjection(declarationVariance: .in, useSite: .in(intType))
-        if case let .out(t) = result {
+        if case let .in(t) = result {
             #expect(t == intType)
         } else {
-            Issue.record("Expected .out from in + in")
+            Issue.record("Expected .in from in + in")
         }
+    }
+
+    @Test
+    func testInDeclaredParameterAcceptsSameDirectionInProjection() {
+        let ts = TypeSystem()
+        let sym = SymbolID(rawValue: 0)
+        ts.setNominalTypeParameterVariances([.in], for: sym)
+
+        let intType = ts.make(.primitive(.int, .nonNull))
+        let anyType = ts.anyType
+        func sink(_ arg: TypeArg) -> TypeID {
+            ts.make(.classType(ClassType(classSymbol: sym, args: [arg])))
+        }
+
+        // `Sink<in X>` behaves like `Sink<X>`: admits `Sink<S>` whenever `X <: S`.
+        #expect(ts.isSubtype(sink(.invariant(intType)), sink(.in(intType))))
+        #expect(ts.isSubtype(sink(.invariant(anyType)), sink(.in(intType))))
+        #expect(ts.isSubtype(sink(.in(anyType)), sink(.in(intType))))
+        // Direction stays contravariant: `Sink<in Int>` is not a `Sink<in Any>`.
+        #expect(!(ts.isSubtype(sink(.in(intType)), sink(.in(anyType)))))
+        #expect(!(ts.isSubtype(sink(.invariant(intType)), sink(.in(anyType)))))
+        // Unprojected and star projections behave as before.
+        #expect(ts.isSubtype(sink(.in(intType)), sink(.invariant(intType))))
+        #expect(ts.isSubtype(sink(.in(intType)), sink(.star)))
+        #expect(!(ts.isSubtype(sink(.star), sink(.in(intType)))))
     }
 }

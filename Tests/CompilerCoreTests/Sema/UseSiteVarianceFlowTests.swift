@@ -67,4 +67,46 @@ struct UseSiteVarianceFlowTests {
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
+
+    @Test
+    func testUseSiteInProjectionOnInDeclaredParameterIsAccepted() throws {
+        // KUU-1381: a use-site `in` on an `in`-declared parameter is a redundant
+        // projection — kotlinc accepts it and `Sink<in X>` behaves like `Sink<X>`.
+        let source = """
+        interface Sink<in T> { fun put(t: T) }
+        class IS<T> : Sink<T> { override fun put(t: T) {} }
+
+        val s1: Sink<in Int> = IS<Int>()
+        val s2: Sink<in Int> = IS<Any>()
+        val f: Sink<*> = IS<Int>()
+
+        fun feed(s: Sink<in Int>) { s.put(9) }
+        val call = feed(IS<Any>())
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let hasError = ctx.diagnostics.hasError
+            #expect(!hasError, "\(ctx.diagnostics.diagnostics.map { $0.message })")
+        }
+    }
+
+    @Test
+    func testUseSiteInProjectionOnInDeclaredParameterKeepsContravariantDirection() throws {
+        // `Sink<in Any>` still rejects `Sink<Int>` — the projection is redundant,
+        // not direction-flipping (kotlinc rejects the same shape).
+        let source = """
+        interface Sink<in T> { fun put(t: T) }
+        class IS<T> : Sink<T> { override fun put(t: T) {} }
+
+        val bad: Sink<in Any> = IS<Int>()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
 }
