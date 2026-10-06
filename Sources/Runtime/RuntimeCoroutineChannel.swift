@@ -22,6 +22,14 @@ let kChannelResultClosed: Int = ChannelOperationStatus.closed.rawValue
 let kChannelResultCancelled: Int = ChannelOperationStatus.cancelled.rawValue
 let kChannelResultFailed: Int = ChannelOperationStatus.failed.rawValue
 
+/// `Channel.Factory` capacity sentinels (kotlinx.coroutines `Channel.kt`).
+let kChannelCapacityConflated: Int = -1
+let kChannelCapacityBuffered: Int = -2
+let kChannelCapacityOptionalChannel: Int = -3
+/// Upstream `kotlinx.coroutines.channels.defaultBufferSize` system-property
+/// default, used for `Channel(Channel.BUFFERED)`.
+let kChannelDefaultBufferCapacity: Int = 64
+
 /// Buffer overflow strategies for Channel send operations (CORO-001)
 enum ChannelBufferOverflow {
     /// Suspend the sender when buffer is full (default Kotlin behavior)
@@ -124,8 +132,35 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     private var closeHandlers: [(fnPtr: Int, closureRaw: Int)] = []
 
     init(capacity: Int, bufferOverflow: ChannelBufferOverflow = .suspend) {
-        self.capacity = max(0, capacity)
-        self.bufferOverflow = bufferOverflow
+        // KUU-1403: `Channel.Factory` negative capacity sentinels resolve here
+        // so every construction path (`Channel(capacity)`, `Channel(capacity,
+        // onBufferOverflow)`, and the produce/actor internals) shares upstream
+        // `Channel(capacity, onBufferOverflow)` semantics:
+        //   CONFLATED (-1)          -> one-slot channel keeping the latest value
+        //   BUFFERED  (-2)          -> default 64-slot buffer, or one slot when
+        //                            a non-suspend overflow policy was requested
+        //   OPTIONAL_CHANNEL (-3)   -> produce/actor "use the default" marker
+        //   RENDEZVOUS (0) + DROP_* -> upstream's one-slot ArrayChannel
+        //   other negatives         -> clamped to rendezvous (upstream throws
+        //                            IllegalArgumentException; the bundled
+        //                            Kotlin factories validate first)
+        switch capacity {
+        case kChannelCapacityConflated:
+            self.capacity = 1
+            self.bufferOverflow = .dropOldest
+        case kChannelCapacityBuffered:
+            self.capacity = bufferOverflow == .suspend ? kChannelDefaultBufferCapacity : 1
+            self.bufferOverflow = bufferOverflow
+        case kChannelCapacityOptionalChannel:
+            self.capacity = 0
+            self.bufferOverflow = bufferOverflow
+        case 0 where bufferOverflow != .suspend:
+            self.capacity = 1
+            self.bufferOverflow = bufferOverflow
+        default:
+            self.capacity = max(0, capacity)
+            self.bufferOverflow = bufferOverflow
+        }
     }
 
     /// Send a value into the channel, suspending (blocking) the caller when
@@ -690,14 +725,14 @@ public func kk_channel_create(_ capacity: Int) -> Int {
 
 /// KSP-1573: `Channel(capacity, onBufferOverflow)` factory bridge. The
 /// `onBufferOverflow` argument is the `BufferOverflow` ordinal (0 SUSPEND,
-/// 1 DROP_OLDEST, 2 DROP_LATEST).  Negative capacity values keep their
-/// kotlinx.coroutines sentinel semantics: -1 CONFLATED maps to a
-/// one-slot DROP_OLDEST channel, -2 BUFFERED expands to the default buffer
-/// size, and -3 OPTIONAL_CHANNEL falls back to a rendezvous channel.
+/// 1 DROP_OLDEST, 2 DROP_LATEST).  Negative `Channel.Factory` sentinels keep
+/// their kotlinx.coroutines meaning: -1 CONFLATED maps to a one-slot
+/// DROP_OLDEST channel, -2 BUFFERED expands to the default buffer size (or
+/// one slot with a non-suspend policy), and -3 OPTIONAL_CHANNEL falls back to
+/// a rendezvous channel — all resolved inside `RuntimeChannelHandle.init`.
 @_cdecl("__kk_channel_create_with_policy")
 public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow: Int) -> Int {
-    var resolvedCapacity = capacity
-    var overflow: ChannelBufferOverflow
+    let overflow: ChannelBufferOverflow
     switch onBufferOverflow {
     case 1:
         overflow = .dropOldest
@@ -706,18 +741,7 @@ public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow:
     default:
         overflow = .suspend
     }
-    switch capacity {
-    case -1:
-        resolvedCapacity = 1
-        overflow = .dropOldest
-    case -2:
-        resolvedCapacity = 64
-    case -3:
-        resolvedCapacity = 0
-    default:
-        break
-    }
-    let channel = RuntimeChannelHandle(capacity: resolvedCapacity, bufferOverflow: overflow)
+    let channel = RuntimeChannelHandle(capacity: capacity, bufferOverflow: overflow)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(channel).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
