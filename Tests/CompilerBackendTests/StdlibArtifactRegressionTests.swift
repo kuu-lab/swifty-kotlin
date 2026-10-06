@@ -48,6 +48,37 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
+    @Test
+    func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.system.*
+        fun main() { println(getTimeMillis() > 0); println(getTimeNanos() > 0) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            do {
+                try runSema(ctx)
+            } catch {
+                // Inspect the emitted diagnostics rather than the pipeline error alone.
+            }
+            let sema = try #require(ctx.sema)
+            for name in ["getTimeMillis", "getTimeNanos"] {
+                #expect(ctx.diagnostics.diagnostics.contains {
+                    $0.severity == .error && $0.message.contains("Unresolved function '\(name)'")
+                }, "Expected unresolved removed API, got: \(ctx.diagnostics.diagnostics)")
+                let fq = ["kotlin", "system", name].map { ctx.interner.intern($0) }
+                #expect(sema.symbols.lookupAll(fqName: fq).isEmpty)
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func testStringLengthPropertyReferencesPreserveGetterABI(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
