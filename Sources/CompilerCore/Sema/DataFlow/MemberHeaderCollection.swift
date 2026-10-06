@@ -281,7 +281,10 @@ extension DataFlowSemaPhase {
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, isInline: funDecl.isInline,
                 diagnostics: diagnostics,
-                enclosingTypeParameters: classLocalTypeParameters
+                enclosingTypeParameters: classLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName,
+                currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports
             )
 
             // Merge class type parameters with function's own type parameters.
