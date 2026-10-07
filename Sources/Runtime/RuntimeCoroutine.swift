@@ -1784,7 +1784,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
 
     /// Notify ancestors before waking awaiters, so caught await failures still
     /// leave ordinary parents and siblings cancelled. Supervisors stop the chain.
-    private func childFailed(with exception: Int) {
+    fileprivate func childFailed(with exception: Int) {
         guard !isSupervisorMarker else { return }
         lock.lock()
         let parent = propagatesFailureToParent ? parentJob : nil
@@ -6344,9 +6344,10 @@ private func runtimeJobHandlesException(_ job: RuntimeJobHandle) -> Bool {
 
 /// KUU-1386: `JobSupport.childCancelled(cause)` backing — kotlinx semantics:
 /// a CancellationException reports as already-handled without touching the
-/// job; otherwise the job transitions to cancelled (cancelImpl) and the
-/// result is `handlesException`, so a root `Job()` reports false even though
-/// it did cancel, while a job parented to a coroutine reports true.
+/// job; otherwise cancelImpl transitions the job to cancelling and synchronously
+/// notifies its parent. The result is `handlesException`, so a root `Job()`
+/// reports false even though it did cancel, while a job parented to a coroutine
+/// reports true.
 @_cdecl("kk_job_child_cancelled")
 public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
     if cause != 0, cause != runtimeNullSentinelInt,
@@ -6360,12 +6361,17 @@ public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
         guard job !== runtimeNonCancellableJob else { return 0 }
         // `handlesException` is evaluated before the transition: a completed
         // job's parent handle reads as detached, so check the parent first.
+        let parent = job.parentSnapshot()
         let handlesException = runtimeJobHandlesException(job)
         guard job.cancel(cause: cause) else { return 0 }
+        parent?.childFailed(with: cause)
         return handlesException ? 1 : 0
     case .task(let task):
-        let handlesException = runtimeJobHandlesException(task.completionJob)
+        let completionJob = task.completionJob
+        let parent = completionJob.parentSnapshot()
+        let handlesException = runtimeJobHandlesException(completionJob)
         task.cancel(cause: cause)
+        parent?.childFailed(with: cause)
         return handlesException ? 1 : 0
     case .other:
         return 0
