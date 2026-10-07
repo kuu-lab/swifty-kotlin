@@ -70,6 +70,14 @@ func kclassSupertypeDisplayNamesJoined(
             }
         }
     }
+
+    // kotlin-reflect always lists the implicit kotlin.Any last, after declared
+    // supertypes; Sema may record its implicit Any edge ahead of declared
+    // interfaces, so normalize it to the trailing position.
+    if let anyIndex = entries.firstIndex(where: { $0.display == "kotlin.Any" }),
+       anyIndex != entries.count - 1 {
+        entries.append(entries.remove(at: anyIndex))
+    }
     return entries.map(\.display).joined(separator: "|")
 }
 
