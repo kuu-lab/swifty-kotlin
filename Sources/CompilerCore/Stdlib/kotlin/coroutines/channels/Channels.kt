@@ -31,10 +31,12 @@ public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 
 // Upstream `Channel(capacity)` is `Channel(capacity, BufferOverflow.SUSPEND)`:
 // the Channel.Factory sentinels (RENDEZVOUS / CONFLATED / BUFFERED /
-// UNLIMITED / OPTIONAL_CHANNEL) are valid capacity arguments, so this factory
+// UNLIMITED) are valid capacity arguments, so this factory
 // delegates to the policy-aware bridge instead of letting kk_channel_create
 // clamp negatives to a rendezvous channel (KUU-1415: Channel(Channel.BUFFERED)
 // and produce(capacity = Channel.BUFFERED) silently produced capacity 0).
+// OPTIONAL_CHANNEL (-3) is internal-only upstream and is rejected by the
+// policy-aware factory's require(capacity >= -2) like a raw negative.
 public fun <T> Channel(capacity: Int): Channel<T> =
     Channel(capacity, BufferOverflow.SUSPEND)
 

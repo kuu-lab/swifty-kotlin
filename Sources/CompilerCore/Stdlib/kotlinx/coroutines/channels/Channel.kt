@@ -181,7 +181,11 @@ public val Channel.Factory.CONFLATED: Int
 public val Channel.Factory.BUFFERED: Int
     get() = -2
 
-public val Channel.Factory.OPTIONAL_CHANNEL: Int
+// Upstream declares OPTIONAL_CHANNEL as `internal` ("only for internal use,
+// cannot be used with Channel(...)"): internal builders normalize it to
+// BUFFERED before allocating a channel (ChannelFlow.produceCapacity), and the
+// public factories reject the raw -3 sentinel with IllegalArgumentException.
+internal val Channel.Factory.OPTIONAL_CHANNEL: Int
     get() = -3
 
 // `invokeOnClose` registers `handler` to run exactly once when the channel
