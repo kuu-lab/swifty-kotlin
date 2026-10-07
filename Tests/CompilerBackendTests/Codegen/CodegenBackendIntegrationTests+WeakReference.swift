@@ -124,5 +124,37 @@ struct CodegenBackendWeakReferenceTests {
             expected: "x\nx\ny\nnull\nnull\ny\ny\nnull\n"
         )
     }
+
+    // KUU-1467: A runtime-materialized String must round-trip through both
+    // WeakReference accessors, and clear() must drop that same referent.
+    @Test
+    func testCodegenWeakReferencePreservesRuntimeStringReferent() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.ref.WeakReference
+        import kotlin.native.ref.value
+
+        fun main() {
+            val s = "hello".toString()
+            val w = WeakReference(s)
+            println(w.value == s)
+            println(w.value is String)
+            println(w.value)
+            println(w.get() == s)
+            println(w.get() is String)
+            println(w.get())
+            w.clear()
+            println(w.value == null)
+            println(w.get() == null)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WeakReferenceRuntimeStringReferent",
+            expected: "true\ntrue\nhello\ntrue\ntrue\nhello\ntrue\ntrue\n"
+        )
+    }
 }
 #endif
