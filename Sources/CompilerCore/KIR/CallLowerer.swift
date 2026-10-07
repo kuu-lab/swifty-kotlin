@@ -690,6 +690,20 @@ final class CallLowerer {
             return result
         }
 
+        // --- kotlinx.cinterop.memScoped { } (KUU-1375) ---
+        if let loweredMemScoped = lowerMemScopedCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return loweredMemScoped
+        }
+
         let boundType = sema.bindings.exprTypes[exprID]
         let loweredCalleeExprID = driver.lowerExpr(
             calleeExpr,

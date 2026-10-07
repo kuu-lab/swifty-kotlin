@@ -119,6 +119,10 @@ public enum ScopeFunctionKind: Equatable {
     /// CValue<T>.useContents { } (STDLIB-CINTEROP-FN-041): temporarily exposes
     /// the contained native value as the lambda receiver.
     case scopeUseContents
+    /// kotlinx.cinterop.memScoped { } (KUU-1375): creates a MemScope arena,
+    /// invokes the block with it as the implicit receiver, and runs
+    /// kk_arena_clear in a finally path (deferred blocks + frees).
+    case scopeMemScoped
 }
 
 

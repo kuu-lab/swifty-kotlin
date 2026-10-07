@@ -172,8 +172,8 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
-                case .scopeContext:
-                    break // context is handled in inferCallExpr (top-level function)
+                case .scopeContext, .scopeMemScoped:
+                    break // context/memScoped are handled in inferCallExpr (top-level functions)
                 }
             }
         }

@@ -415,6 +415,91 @@ final class CallTypeChecker {
             return refinedReturnType
         }
 
+        // --- kotlinx.cinterop.memScoped { } (KUU-1375) ---
+        // `inline fun <R> memScoped(block: MemScope.() -> R): R` needs the
+        // receiver-function expected type pushed into the block so `alloc`,
+        // `cstr`, and friends resolve against the MemScope implicit receiver,
+        // and needs marking so KIR lowering emits the arena
+        // create/invoke/clear try-finally instead of a phantom call.
+        let memScopedHelperName = interner.intern("memScoped")
+        if let calleeName,
+           calleeName == memScopedHelperName,
+           args.count == 1,
+           locals[calleeName] == nil,
+           let memScopedSymbol = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
+               guard let signature = sema.symbols.functionSignature(for: candidate),
+                     signature.receiverType == nil,
+                     signature.parameterTypes.count == 1,
+                     let info = sema.symbols.symbol(candidate),
+                     info.fqName == [
+                         interner.intern("kotlinx"),
+                         interner.intern("cinterop"),
+                         memScopedHelperName,
+                     ]
+               else {
+                   return false
+               }
+               return true
+           }),
+           let memScopeSymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlinx"),
+               interner.intern("cinterop"),
+               interner.intern("MemScope"),
+           ])
+        {
+            let memScopeType = sema.types.make(.classType(ClassType(
+                classSymbol: memScopeSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                receiver: memScopeType,
+                params: [],
+                returnType: expectedType ?? sema.types.nullableAnyType
+            )))
+            // Lambda literals need the MemScope implicit receiver in scope;
+            // declared function-typed values only need the expected type.
+            let blockArgExpr = args[0].expr
+            let lambdaCtx = isLambdaLiteralArg(blockArgExpr, ast: ast)
+                ? ctx.with(implicitReceiverType: memScopeType)
+                : ctx
+            let lambdaType = driver.inferExpr(
+                blockArgExpr, ctx: lambdaCtx, locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            // Non-function arguments fall through to normal resolution so the
+            // standard diagnostics path reports the mismatch.
+            if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                let returnType = fnType.returnType
+                let refinedReturnType: TypeID = {
+                    guard returnType == sema.types.nullableAnyType else { return returnType }
+                    guard let lambdaExpr = ast.arena.expr(blockArgExpr),
+                          case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                          let bodyType = sema.bindings.exprTypes[bodyExprID],
+                          bodyType != sema.types.anyType
+                    else { return returnType }
+                    if case .nothing = sema.types.kind(of: bodyType) { return returnType }
+                    return bodyType
+                }()
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: memScopedSymbol,
+                        substitutedTypeArguments: [refinedReturnType],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(memScopedSymbol))
+                sema.bindings.markScopeFunctionExpr(id, kind: .scopeMemScoped)
+                // Force the capturing-lambda lowering path so exception
+                // propagation through the arena finally block works (mirrors
+                // scopeUse/scopeUsePinned).
+                sema.bindings.markCollectionHOFLambdaExpr(blockArgExpr)
+                sema.bindings.bindExprType(id, type: refinedReturnType)
+                return refinedReturnType
+            }
+        }
+
         // --- produce { ... } builder (CORO-075) ---
         if let calleeName,
            calleeName == knownNames.produce,
