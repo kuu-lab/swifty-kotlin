@@ -471,6 +471,19 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func testParameterNamedContextOnNewlineDoesNotTerminateParameterList() {
+        let source = """
+        fun run(
+            context: Any = 1,
+            block: () -> Unit
+        ): Unit {}
+        """
+        let parsed = parse(source)
+        #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
+        #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
+
+    @Test
     func longModifierPrefixLookaheadIsBoundedAndRecovers() {
         let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
         let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
