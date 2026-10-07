@@ -1544,13 +1544,19 @@ struct RuntimeChannelTests {
         _ = kk_channel_close(channel)
     }
 
-    /// `OPTIONAL_CHANNEL` (-3) stays a rendezvous fallback through the residual
-    /// create bridge — the bundled Kotlin factories reject it before reaching
-    /// here, matching upstream's IllegalArgumentException.
-    @Test func optionalChannelSentinelFallsBackToRendezvous() {
+    /// `OPTIONAL_CHANNEL` (-3) resolves to the default 64-slot buffer through
+    /// the residual create bridge — upstream treats it as an internal
+    /// "implementation default" marker that ChannelFlow.produceCapacity
+    /// normalizes to BUFFERED before a channel is allocated. The bundled
+    /// Kotlin factories reject a raw -3 with IllegalArgumentException before
+    /// reaching here, matching upstream's public `Channel(capacity)` behavior.
+    @Test func optionalChannelSentinelUsesDefaultBuffer() {
         let channel = kk_channel_create(-3)
-        #expect(runtimeChannelHandle(channel).capacity == 0)
-        #expect(kk_channel_try_send(channel, 1) == kChannelResultFailed)
+        #expect(runtimeChannelHandle(channel).capacity == 64)
+        for i in 1 ... 64 {
+            #expect(kk_channel_try_send(channel, i) == kChannelResultSuccess)
+        }
+        #expect(kk_channel_try_send(channel, 65) == kChannelResultFailed)
         _ = kk_channel_close(channel)
     }
 
@@ -1572,5 +1578,14 @@ struct RuntimeChannelTests {
         #expect(kk_channel_try_send(bufferedDropLatest, 8) == kChannelResultSuccess)
         #expect(channelReceiveValue(bufferedDropLatest, 0) == 7)
         _ = kk_channel_close(bufferedDropLatest)
+
+        // OPTIONAL_CHANNEL (-3) shares BUFFERED's resolution: SUSPEND expands
+        // to the default 64-slot buffer, a non-suspend policy keeps one slot.
+        let optionalSuspend = __kk_channel_create_with_policy(-3, 0)
+        #expect(runtimeChannelHandle(optionalSuspend).capacity == 64)
+        _ = kk_channel_close(optionalSuspend)
+        let optionalDropOldest = __kk_channel_create_with_policy(-3, 1)
+        #expect(runtimeChannelHandle(optionalDropOldest).capacity == 1)
+        _ = kk_channel_close(optionalDropOldest)
     }
 }

@@ -212,7 +212,12 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         //   CONFLATED (-1)          -> one-slot channel keeping the latest value
         //   BUFFERED  (-2)          -> default 64-slot buffer, or one slot when
         //                            a non-suspend overflow policy was requested
-        //   OPTIONAL_CHANNEL (-3)   -> produce/actor "use the default" marker
+        //   OPTIONAL_CHANNEL (-3)   -> internal "implementation default" marker:
+        //                            upstream normalizes it to BUFFERED before a
+        //                            channel is allocated (ChannelFlow.produceCapacity),
+        //                            so it shares the BUFFERED resolution below.
+        //                            The public bundled factories reject -3 with
+        //                            IllegalArgumentException before reaching here.
         //   RENDEZVOUS (0) + DROP_* -> upstream's one-slot ArrayChannel
         //   other negatives         -> clamped to rendezvous (upstream throws
         //                            IllegalArgumentException; the bundled
@@ -221,11 +226,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         case kChannelCapacityConflated:
             self.capacity = 1
             self.bufferOverflow = .dropOldest
-        case kChannelCapacityBuffered:
+        case kChannelCapacityBuffered, kChannelCapacityOptionalChannel:
             self.capacity = bufferOverflow == .suspend ? kChannelDefaultBufferCapacity : 1
-            self.bufferOverflow = bufferOverflow
-        case kChannelCapacityOptionalChannel:
-            self.capacity = 0
             self.bufferOverflow = bufferOverflow
         case 0 where bufferOverflow != .suspend:
             self.capacity = 1
@@ -856,9 +858,10 @@ public func kk_channel_create(_ capacity: Int) -> Int {
 /// `onBufferOverflow` argument is the `BufferOverflow` ordinal (0 SUSPEND,
 /// 1 DROP_OLDEST, 2 DROP_LATEST).  Negative `Channel.Factory` sentinels keep
 /// their kotlinx.coroutines meaning: -1 CONFLATED maps to a one-slot
-/// DROP_OLDEST channel, -2 BUFFERED expands to the default buffer size (or
-/// one slot with a non-suspend policy), and -3 OPTIONAL_CHANNEL falls back to
-/// a rendezvous channel — all resolved inside `RuntimeChannelHandle.init`.
+/// DROP_OLDEST channel, while -2 BUFFERED and -3 OPTIONAL_CHANNEL both expand
+/// to the default buffer size (or one slot with a non-suspend policy) —
+/// upstream's internal `produceCapacity` maps OPTIONAL_CHANNEL to BUFFERED
+/// before a channel is allocated — all resolved inside `RuntimeChannelHandle.init`.
 @_cdecl("__kk_channel_create_with_policy")
 public func __kk_channel_create_with_policy(_ capacity: Int, _ onBufferOverflow: Int) -> Int {
     let overflow: ChannelBufferOverflow
