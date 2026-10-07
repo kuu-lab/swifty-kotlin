@@ -2082,6 +2082,11 @@ final class CallTypeChecker {
                let suspendCoroutineSymbol = sema.symbols.lookup(fqName: knownNames.kotlinSuspendCoroutineFQName) {
                 candidates = [suspendCoroutineSymbol]
             }
+            if candidates.isEmpty,
+               calleeName == knownNames.runBlocking,
+               let runBlockingSymbol = sema.symbols.lookup(fqName: knownNames.kotlinxCoroutinesRunBlockingFQName) {
+                candidates = [runBlockingSymbol]
+            }
             // --- Typealias constructor calls ---
             // If the callee is a typealias (e.g. `typealias IntPair = Pair<Int, Int>`),
             // expand it to the underlying class and resolve its constructor.
