@@ -46,6 +46,62 @@ import Testing
         #expect(sema.bindings.implicitReceiverMemberNames[call] != nil)
     }
 
+    /// KUU-1451: bundled "property-style" members are declared as
+    /// zero-argument extension functions (`List.lastIndex`,
+    /// `Collection.indices`, `Array.lastIndex`, ...). A bare read on a scope
+    /// lambda's implicit receiver must bind the receiver-matching overload as
+    /// a call — not the raw function symbol — so KIR materializes `this` as
+    /// the callee's receiver argument.
+    @Test func bareSyntheticMemberPropertyBindsImplicitReceiverCall() throws {
+        let source = """
+        fun main() {
+            val l = listOf(1, 2, 3)
+            println(l.run { lastIndex })
+            with(l) { println(indices) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "\(errors)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let listFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("List"),
+            ]
+            for member in ["lastIndex", "indices"] {
+                // AST normalization leaves a discarded `.nameRef` twin at the
+                // same source range; the live expr is the one Sema typed.
+                let refs = allExprIDs(in: ast, path: path, ctx: ctx) { exprID, expr in
+                    guard case let .nameRef(name, _) = expr else { return false }
+                    return ctx.interner.resolve(name) == member
+                        && sema.bindings.exprType(for: exprID) != nil
+                }
+                #expect(refs.count == 1)
+                let ref = try #require(refs.first)
+                #expect(sema.bindings.implicitReceiverMemberNames[ref] != nil)
+                let binding = try #require(sema.bindings.callBinding(for: ref))
+                let callee = try #require(sema.symbols.symbol(binding.chosenCallee))
+                #expect(callee.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern(member),
+                ])
+                // The List receiver overload must win over the Array/Collection ones.
+                let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+                let receiver = try #require(signature.receiverType)
+                guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+                    Issue.record("expected classType receiver for \(member), got \(receiver)")
+                    continue
+                }
+                #expect(sema.symbols.symbol(receiverClass.classSymbol)?.fqName == listFQName)
+            }
+        }
+    }
+
     @Test func incompatibleImplicitReceiverStillRejectsExtension() throws {
         let ctx = makeContextFromSource("""
         interface Source

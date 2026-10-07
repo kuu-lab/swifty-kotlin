@@ -1142,6 +1142,73 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: result.type)
             return result.type
         }
+        // KUU-1451: the bundled stdlib models generic extension *properties*
+        // (`List.lastIndex`, `List.indices`, `Array.lastIndex`, ...) as
+        // zero-argument extension functions — see the note in
+        // Stdlib/kotlin/collections/Collections.kt. `lookupMemberProperty`
+        // only walks `.property` symbols, so a bare read on an implicit
+        // receiver (`l.run { lastIndex }`) otherwise binds the raw function
+        // symbol and KIR emits a `symbolRef` of the callee instead of calling
+        // it on `this`. Resolve the receiver-matching zero-argument extension
+        // overload here and record it as a call so lowering materializes the
+        // implicit receiver as the callee's first argument — the same shape
+        // the explicit `this.lastIndex` member-call form produces.
+        if implicitMemberType == nil {
+            var seenPropertyStyleCandidates: Set<SymbolID> = []
+            let scopedIDs = ctx.cachedScopeLookup(name) + sema.symbols.lookupByShortName(name)
+            let (visibleIDs, _) = ctx.filterByVisibility(scopedIDs)
+            let propertyStyleFunctions = visibleIDs.filter { candidate in
+                guard seenPropertyStyleCandidates.insert(candidate).inserted,
+                      let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      !signature.isSuspend,
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                // Getter/setter helpers share their property's name; they are
+                // not callable member candidates.
+                if let parentID = sema.symbols.parentSymbol(for: candidate),
+                   let parent = sema.symbols.symbol(parentID),
+                   parent.kind == .property
+                {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            if !propertyStyleFunctions.isEmpty,
+               let callRange = nameRange ?? ctx.ast.arena.exprRange(id)
+            {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: propertyStyleFunctions,
+                    call: CallExpr(
+                        range: callRange,
+                        calleeName: name,
+                        args: [],
+                        explicitTypeArgs: [],
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: nonNullReceiver,
+                    ctx: ctx.semaCtx
+                )
+                if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
+                    let memberType = driver.callChecker.bindCallAndResolveReturnType(
+                        id, chosen: chosen, resolved: resolved, sema: sema
+                    )
+                    sema.bindings.markImplicitReceiverMember(id, name: name)
+                    sema.bindings.bindExprType(id, type: memberType)
+                    return memberType
+                }
+            }
+        }
         if let memberType = implicitMemberType {
             sema.bindings.markImplicitReceiverMember(id, name: name)
             sema.bindings.bindExprType(id, type: memberType)
