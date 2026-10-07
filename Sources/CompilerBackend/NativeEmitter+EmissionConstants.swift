@@ -311,6 +311,14 @@ extension NativeEmitter {
                 return (false, nil)
             }
             let firstType = argumentTypes.first.flatMap { $0 }
+            // `length` is also a legal Kotlin member name. Preserve calls on a
+            // known non-String receiver for normal member-function lowering.
+            if calleeName == "length",
+               let firstType,
+               !isStringAggregateType(firstType)
+            {
+                return (false, nil)
+            }
             // `firstType` only reflects the Kotlin-level type (String → .stringStruct);
             // it says nothing about how this particular KIR expression was materialized.
             // Values that pass through a boxed/erased path (e.g. a HOF lambda parameter
