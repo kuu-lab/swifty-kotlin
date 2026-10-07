@@ -28,7 +28,7 @@ struct MutableCollectionDispatchContractTests {
             #expect(sema.symbols.isSourceBackedSymbol(member))
             #expect(sema.symbols.symbol(member)?.flags.contains(.synthetic) == false)
             #expect(layout.vtableSlots[member] == slot)
-            #expect(sema.symbols.externalLinkName(for: member) == "__kk_mutable_collection_\(name)")
+            #expect(sema.symbols.externalLinkName(for: member) == "__kk_mutable_collection_\(name)_throwing")
         }
         let ast = try #require(ctx.ast)
         var bound = Set<String>()
