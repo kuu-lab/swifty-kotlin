@@ -1017,15 +1017,23 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// Thread-safe snapshot of the cancellation flag.
     func isCancelledSnapshot() -> Bool {
         lock.lock()
-        defer { lock.unlock() }
-        return isCancelled
+        let taskIsCancelled = isCancelled
+        lock.unlock()
+        // A scope may cancel the task's completion job before the task itself
+        // receives its final exceptional completion.
+        return taskIsCancelled || completionJob.cancellationSnapshot()
     }
 
     /// Thread-safe snapshot of the active state (started, not completed, not cancelled).
     func isActiveSnapshot() -> Bool {
         lock.lock()
-        defer { lock.unlock() }
-        return (isBodyStarted || isStartRequested) && !isCompleted && !isCancelled
+        let taskIsActive = (isBodyStarted || isStartRequested) && !isCompleted && !isCancelled
+        lock.unlock()
+        // Job.isActive becomes false as soon as its completion job is cancelling,
+        // even while the task body is still unwinding.
+        return taskIsActive
+            && !completionJob.cancellationSnapshot()
+            && !completionJob.isFailedSnapshot()
     }
 
     /// Thread-safe snapshot for `kk_job_is_failed` (aligned with `RuntimeJobHandle.isFailedSnapshot`).
