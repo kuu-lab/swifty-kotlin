@@ -12,11 +12,12 @@ import Glibc
 /// Packaged artifacts are preferred. When a package does not provide one, the
 /// artifact is generated in the user's standard caches directory (or the
 /// directory named by `KSWIFTK_STDLIB_CACHE_DIR`, an override intended for
-/// sandboxes and test isolation). The cache is keyed by target and guarded by
-/// an advisory lock so parallel first launches cannot publish a partial
-/// `.kklib`; each build stages under a unique `.building-*` path and only a
-/// fully validated artifact is moved into place, so an interrupted or failed
-/// compile never poisons the cache for later compiles.
+/// sandboxes and test isolation). Each target, bundled-source hash, and
+/// compiler fingerprint gets its own cache path, so another worktree cannot
+/// replace an artifact after a compiler has resolved its path. An advisory
+/// lock prevents parallel first launches for the same cache key from
+/// publishing a partial `.kklib`; each build stages under a unique
+/// `.building-*` path and only a fully validated artifact is moved into place.
 public enum StdlibArtifactCache {
     public enum Error: Swift.Error, CustomStringConvertible {
         case explicitArtifactInvalid(path: String, reason: String)
@@ -91,11 +92,12 @@ public enum StdlibArtifactCache {
         }
     }
 
-    /// Resolves the artifact cached under `cacheDirectory`, rebuilding it when
-    /// the cached artifact is missing, incomplete, or built by a different
-    /// compiler binary. The builder receives a private output-base path and
-    /// must return the `.kklib` directory it produced there; it is injected so
-    /// tests can exercise the locking, staging, and recovery paths without
+    /// Resolves the artifact cached under `cacheDirectory`. The cache path
+    /// includes the bundled-source hash and compiler fingerprint, so each
+    /// distinct build has an independent artifact that remains stable after
+    /// this method returns. The builder receives a private output-base path
+    /// and must return the `.kklib` directory it produced there; it is injected
+    /// so tests can exercise the locking, staging, and recovery paths without
     /// paying for a real stdlib build.
     ///
     /// Recovery contract: a build that is killed or fails midway can only
@@ -108,12 +110,19 @@ public enum StdlibArtifactCache {
         target: TargetTriple,
         cacheDirectory: URL,
         fileManager: FileManager = .default,
+        compilerFingerprint: String? = nil,
         builder: (_ outputBase: String) throws -> String
     ) throws -> String {
-        let artifactURL = cacheArtifactURL(for: target, cacheDirectory: cacheDirectory)
+        let currentFingerprint = compilerFingerprint ?? currentCompilerFingerprint()
+        let cacheFingerprint = currentFingerprint ?? "unavailable-\(UUID().uuidString)"
+        let artifactURL = cacheArtifactURL(
+            for: target,
+            cacheDirectory: cacheDirectory,
+            stdlibManifestHash: BundledStdlib.manifestHash(),
+            compilerFingerprint: cacheFingerprint
+        )
         let artifactPath = artifactURL.path
         let lockPath = artifactPath + ".lock"
-        let fingerprintPath = artifactPath + ".compiler-fingerprint"
         try fileManager.createDirectory(
             at: artifactURL.deletingLastPathComponent(),
             withIntermediateDirectories: true,
@@ -121,9 +130,7 @@ public enum StdlibArtifactCache {
         )
 
         return try withFileLock(at: lockPath) {
-            if case .valid = validateArtifact(at: artifactPath, target: target),
-               fingerprintMatches(fingerprintPath: fingerprintPath)
-            {
+            if case .valid = validateArtifact(at: artifactPath, target: target) {
                 return artifactPath
             }
 
@@ -178,12 +185,6 @@ public enum StdlibArtifactCache {
                     "could not publish the stdlib artifact: \(error.localizedDescription)"
                 )
             }
-            // The artifact is already published at this point; a fingerprint
-            // write failure only costs a rebuild on the next launch and must
-            // not fail this compile.
-            if let fingerprint = currentCompilerFingerprint() {
-                try? fingerprint.write(toFile: fingerprintPath, atomically: true, encoding: .utf8)
-            }
             return artifactPath
         }
     }
@@ -225,17 +226,28 @@ public enum StdlibArtifactCache {
         return candidates
     }
 
-    private static func cacheArtifactURL(for target: TargetTriple, cacheDirectory: URL) -> URL {
+    private static func cacheArtifactURL(
+        for target: TargetTriple,
+        cacheDirectory: URL,
+        stdlibManifestHash: String,
+        compilerFingerprint: String
+    ) -> URL {
         let targetKey = [target.arch, target.vendor, target.os, target.osVersion ?? "none"]
             .map { component in
                 component.replacingOccurrences(of: "/", with: "_")
                     .replacingOccurrences(of: "\\", with: "_")
             }
             .joined(separator: "-")
+        let fingerprintKey = compilerFingerprint
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
         return cacheDirectory
             .appendingPathComponent("kswiftk", isDirectory: true)
             .appendingPathComponent("stdlib", isDirectory: true)
-            .appendingPathComponent("\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)", isDirectory: true)
+            .appendingPathComponent(
+                "\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)-\(stdlibManifestHash)-\(fingerprintKey)",
+                isDirectory: true
+            )
             .appendingPathComponent(artifactFileName, isDirectory: true)
     }
 
@@ -406,15 +418,6 @@ public enum StdlibArtifactCache {
     private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
         guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         return attributes[.type] as? FileAttributeType == .typeRegular
-    }
-
-    private static func fingerprintMatches(fingerprintPath: String) -> Bool {
-        guard let current = currentCompilerFingerprint(),
-              let saved = try? String(contentsOfFile: fingerprintPath, encoding: .utf8)
-        else {
-            return false
-        }
-        return current == saved
     }
 
     private static func currentCompilerFingerprint() -> String? {
