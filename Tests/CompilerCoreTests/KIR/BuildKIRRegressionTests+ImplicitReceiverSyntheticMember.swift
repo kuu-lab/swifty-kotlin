@@ -41,31 +41,42 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    @Test func testImplicitReceiverMemberFunctionKeepsVirtualDispatch() throws {
+    /// Kotlin requires invocation syntax for functions (`m()`), so a bare
+    /// user-declared extension function on the implicit receiver must not be
+    /// invoked through the property-style path — only bundled stdlib
+    /// declarations participate in that facade. The name falls back to a raw
+    /// `symbolRef` (the pre-existing behavior for unresolved property-style
+    /// reads; real kotlinc rejects this program outright).
+    @Test func testImplicitReceiverUserExtensionFunctionIsNotInvoked() throws {
         let ctx = makeContextFromSource("""
-        open class Base { open fun describe(): Int = 10 }
-        class Derived : Base() { override fun describe(): Int = 20 }
+        fun <T> List<T>.myProp(): Int = 99
 
-        fun probe(b: Base): Int = b.run { describe }
+        fun main() {
+            val l = listOf(1, 2, 3)
+            println(l.run { myProp })
+        }
         """)
         try runToKIR(ctx)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
-        let describeSymbol = try #require(sema.symbols.lookupAll(fqName: [
-            ctx.interner.intern("Base"),
-            ctx.interner.intern("describe"),
-        ]).first { symbol in
+        let myPropSymbol = try #require(sema.symbols.lookupByShortName(
+            ctx.interner.intern("myProp")
+        ).first { symbol in
             sema.symbols.symbol(symbol)?.kind == .function
         })
-        let lambdas = findAllKIRFunctions(in: module).filter {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda")
-        }
-        #expect(lambdas.contains { function in
+        let functions = findAllKIRFunctions(in: module)
+        #expect(!functions.contains { function in
+            function.body.contains { instruction in
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+                return symbol == myPropSymbol
+            }
+        }, "user-declared extension functions must not be invoked property-style")
+        #expect(!functions.contains { function in
             function.body.contains { instruction in
                 guard case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction else { return false }
-                return symbol == describeSymbol
+                return symbol == myPropSymbol
             }
-        }, "bare `describe` on the implicit receiver must keep vtable dispatch")
+        })
     }
 }
 #endif

@@ -1153,6 +1153,13 @@ extension ExprTypeChecker {
         // overload here and record it as a call so lowering materializes the
         // implicit receiver as the callee's first argument — the same shape
         // the explicit `this.lastIndex` member-call form produces.
+        //
+        // The property-style facade is a bundled-stdlib convention, so the
+        // candidate set is confined to bundled declarations (source or
+        // imported stdlib artifact). Ordinary member functions
+        // (`c.run { m }`) and user-declared extension functions are excluded:
+        // Kotlin requires `m()`/`f()` invocation syntax for them, and the
+        // explicit `c.m` acceptance is a separate pre-existing deviation.
         if implicitMemberType == nil {
             var seenPropertyStyleCandidates: Set<SymbolID> = []
             let scopedIDs = ctx.cachedScopeLookup(name) + sema.symbols.lookupByShortName(name)
@@ -1169,12 +1176,43 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                // Getter/setter helpers share their property's name; they are
-                // not callable member candidates.
                 if let parentID = sema.symbols.parentSymbol(for: candidate),
-                   let parent = sema.symbols.symbol(parentID),
-                   parent.kind == .property
+                   let parent = sema.symbols.symbol(parentID)
                 {
+                    // Getter/setter helpers share their property's name; they
+                    // are not callable member candidates.
+                    if parent.kind == .property {
+                        return false
+                    }
+                    // A genuine member is declared under its nominal owner;
+                    // a package-level extension keeps its package FQName even
+                    // when member lookup attaches it to the nominal.
+                    if parent.kind != .package,
+                       symbol.fqName == parent.fqName + [symbol.name]
+                    {
+                        return false
+                    }
+                }
+                // Only bundled stdlib declarations (bundled sources, or the
+                // imported stdlib artifact merged into the index) model
+                // extension properties as zero-argument functions.
+                guard let memberKey = BundledDeclarationIndex.memberKey(
+                    for: symbol,
+                    symbolID: candidate,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: ctx.interner
+                ) else {
+                    return false
+                }
+                let declaredOwnerKey = BundledMemberKey(
+                    ownerFQName: Array(symbol.fqName.dropLast()),
+                    name: symbol.name,
+                    arity: signature.parameterTypes.count
+                )
+                guard sema.bundledIndex.contains(memberKey)
+                    || sema.bundledIndex.contains(declaredOwnerKey)
+                else {
                     return false
                 }
                 return driver.callChecker.extensionSyntheticFallbackReceiverMatches(

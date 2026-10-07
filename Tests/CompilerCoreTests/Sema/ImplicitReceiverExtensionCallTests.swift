@@ -102,6 +102,39 @@ import Testing
         }
     }
 
+    /// KUU-1451 contract limit: the property-style facade is a bundled-stdlib
+    /// convention. A bare read of an ordinary member function on the implicit
+    /// receiver must not be bound as a call — Kotlin requires `m()`
+    /// invocation syntax (`c.run { m }` is a compiler error on the JVM).
+    /// The explicit `c.m` acceptance is a separate pre-existing deviation.
+    @Test func bareMemberFunctionDoesNotBindImplicitReceiverCall() throws {
+        let source = """
+        class C { fun m(): Int = 7 }
+        fun main() {
+            val c = C()
+            c.run { m }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let refs = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .nameRef(name, _) = expr else { return false }
+                return ctx.interner.resolve(name) == "m"
+            }
+            // `m` must not resolve as an implicit-receiver member call. It
+            // may be entirely unresolved (kotlinc rejects this program), but
+            // no form of the expr may carry a call binding.
+            #expect(!refs.isEmpty)
+            for ref in refs {
+                #expect(sema.bindings.implicitReceiverMemberNames[ref] == nil)
+                #expect(sema.bindings.callBinding(for: ref) == nil)
+            }
+        }
+    }
+
     @Test func incompatibleImplicitReceiverStillRejectsExtension() throws {
         let ctx = makeContextFromSource("""
         interface Source
