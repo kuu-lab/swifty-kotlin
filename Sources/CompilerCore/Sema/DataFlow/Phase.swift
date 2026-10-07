@@ -659,6 +659,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             options: ctx.options
         )
         validateConstructorDelegation(ast: ast, symbols: symbols, diagnostics: ctx.diagnostics)
+        validateDeclarationPositions(
+            ast: ast, symbols: symbols, types: types,
+            diagnostics: ctx.diagnostics, interner: ctx.interner,
+            sourceManager: ctx.sourceManager
+        )
         validateDeclarationSiteVariance(
             ast: ast, symbols: symbols, bindings: bindings,
             types: types, diagnostics: ctx.diagnostics, interner: ctx.interner

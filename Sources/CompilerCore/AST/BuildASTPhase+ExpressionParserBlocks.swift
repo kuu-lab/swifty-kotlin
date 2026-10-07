@@ -127,7 +127,10 @@ extension BuildASTPhase.ExpressionParser {
         return ranges
     }
 
-    func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {
+    func parseLocalDeclFromSlice(
+        _ tokens: ArraySlice<Token>,
+        suppressesLocalModifierDiagnostics: Bool = false
+    ) -> ExprID? {
         let interner = interner
         let astArena = astArena
         // Nested blocks (if/while/lambda bodies) reach declarations through this
@@ -137,7 +140,8 @@ extension BuildASTPhase.ExpressionParser {
             from: Array(tokens),
             interner: interner,
             astArena: astArena,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            suppressesLocalModifierDiagnostics: suppressesLocalModifierDiagnostics
         ) {
             return destructuring
         }

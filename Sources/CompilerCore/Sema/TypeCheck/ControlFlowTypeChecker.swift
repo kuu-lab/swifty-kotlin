@@ -927,6 +927,15 @@ final class ControlFlowTypeChecker {
                 "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
             )
+        } else if let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
+                  !sema.types.isSubtype(resolved, throwableType)
+        {
+            // KUU-1407: catch parameters must be subtypes of Throwable.
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0413",
+                "throwable type mismatch: actual type is '\(sema.types.renderType(resolved))'.",
+                range: range
+            )
         }
         return resolved
     }

@@ -320,8 +320,13 @@ extension BuildASTPhase.ExpressionParser {
         from tokens: ArraySlice<Token>,
         endIndex: Int
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?, initializer: ExprID?, endIndex: Int)? {
+        // Member prefixes of an object literal may legally carry visibility
+        // modifiers (`private var index = 0`), so the local-variable modifier
+        // check must not fire on this shared parsing path.
         guard !tokens.isEmpty,
-              let localDeclExprID = parseLocalDeclFromSlice(tokens),
+              let localDeclExprID = parseLocalDeclFromSlice(
+                  tokens, suppressesLocalModifierDiagnostics: true
+              ),
               let localDeclExpr = astArena.expr(localDeclExprID),
               case let .localDecl(name, isMutable, typeAnnotation, initializer, _, _) = localDeclExpr
         else {

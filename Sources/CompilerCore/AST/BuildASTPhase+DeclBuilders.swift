@@ -213,6 +213,21 @@ extension BuildASTPhase {
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        // KUU-1407: interfaces cannot declare init blocks or constructors.
+        for initBody in declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0408",
+                "anonymous initializers in interfaces are prohibited.",
+                range: functionBodySourceRange(initBody) ?? node.range
+            )
+        }
+        for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0409",
+                "interfaces cannot have constructors.",
+                range: constructor.range
+            )
+        }
         return InterfaceDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -230,7 +245,7 @@ extension BuildASTPhase {
         )
     }
 
-    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ObjectDecl {
+    func makeObjectDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena, companionSiteName: String = "standalone object") -> ObjectDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
@@ -241,6 +256,25 @@ extension BuildASTPhase {
             astArena: astArena
         )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        // KUU-1407: objects cannot declare secondary constructors or a
+        // companion object of their own.
+        for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0417",
+                "constructors are not allowed for objects.",
+                range: constructor.range
+            )
+        }
+        if let companionDeclID = members.companionObject,
+           let companionDecl = astArena.decl(companionDeclID),
+           case .objectDecl(let companionObject) = companionDecl
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0401",
+                "modifier 'companion' is not applicable inside '\(companionSiteName)'.",
+                range: companionObject.range
+            )
+        }
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -257,6 +291,15 @@ extension BuildASTPhase {
             nestedClasses: members.nestedClasses,
             nestedObjects: members.nestedObjects
         )
+    }
+
+    private func functionBodySourceRange(_ body: FunctionBody) -> SourceRange? {
+        switch body {
+        case .block(_, let range), .expr(_, let range):
+            return range
+        case .unit:
+            return nil
+        }
     }
 
     func makeFunDecl(
