@@ -59,6 +59,16 @@ extension SymbolTable {
         {
             return owner
         }
+        // A member-extension *property* itself (e.g. `val String.cstr` declared
+        // on MemScope) has its dispatch owner as its direct parent.
+        if symbol(callee)?.kind == .property,
+           symbol(callee)?.flags.contains(.memberExtension) == true,
+           let owner = parentSymbol(for: callee),
+           let ownerInfo = symbol(owner),
+           [.class, .interface, .enumClass, .object].contains(ownerInfo.kind)
+        {
+            return owner
+        }
         guard let signature = functionSignature(for: callee),
               signature.receiverType != nil,
               symbol(callee)?.flags.contains(.memberExtension) == true,

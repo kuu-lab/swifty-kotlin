@@ -30,10 +30,14 @@ func runtimeCurrentStackTraceAddresses() -> [Int] {
 ///
 /// Holds a raw C pointer value. In the KSwiftK ABI, pointer types are
 /// represented as boxed `Int` values that carry the machine-word address.
+/// `pointeeTypeID` is the nominal typeID of T (0 = opaque/untyped), used by
+/// `pointed`, `get`, and `reinterpret` to select the pointee's C layout.
 final class RuntimeCPointerBox: @unchecked Sendable {
     let address: UInt
-    init(address: UInt) {
+    let pointeeTypeID: Int64
+    init(address: UInt, pointeeTypeID: Int64 = 0) {
         self.address = address
+        self.pointeeTypeID = pointeeTypeID
     }
 }
 

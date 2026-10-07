@@ -235,6 +235,169 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
+        // KUU-1375: kotlinx.cinterop arena / variable / pointer bridges.
+        abiParitySpec("kk_memscope_new", isThrowing: false),
+        abiParitySpec("kk_arena_new", isThrowing: false),
+        abiParitySpec("kk_native_heap_get", isThrowing: false),
+        abiParitySpec("kk_arena_alloc_raw", parameters: [
+            p("scope", .intptr),
+            p("size", .intptr),
+            p("align", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_arena_alloc_var", parameters: [
+            p("scope", .intptr),
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_arena_alloc_array", parameters: [
+            p("scope", .intptr),
+            p("count", .intptr),
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_native_placement_free", parameters: [
+            p("scope", .intptr),
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_defer_scope_defer", parameters: [
+            p("scope", .intptr),
+            p("block", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_arena_clear", parameters: [
+            p("scope", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("kk_cvar_ptr", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_raw_ptr", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_bool_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_bool_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_byte_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_byte_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ubyte_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ubyte_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_short_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_short_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ushort_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ushort_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_int_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_int_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_uint_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_uint_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_long_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_long_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ulong_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_ulong_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_float_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_float_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_double_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_double_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_cpointer_load", parameters: [
+            p("varHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvar_cpointer_store", parameters: [
+            p("varHandle", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_pointed", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_get", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_reinterpret", parameters: [
+            p("handle", .intptr),
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_interpret_cpointer", parameters: [
+            p("nativePtrHandle", .intptr),
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_long_to_cpointer", parameters: [
+            p("value", .intptr),
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_toKString", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_string_to_cptr", parameters: [
+            p("scope", .intptr),
+            p("stringHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cvalues_get_pointer", parameters: [
+            p("cvaluesHandle", .intptr),
+            p("scope", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_native_ptr_of", parameters: [
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_native_ptr_toLong", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_native_null_ptr", isThrowing: false),
+        abiParitySpec("kk_cinterop_sizeof", parameters: [
+            p("typeToken", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cinterop_alignof", parameters: [
+            p("typeToken", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_flow_catch", parameters: [
             p("flowHandle", .intptr),
             p("handlerFnPtr", .intptr),

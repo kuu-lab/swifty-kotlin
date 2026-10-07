@@ -1266,10 +1266,24 @@ extension CallLowerer {
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
         let result = arena.appendTemporary(type: resultType)
+        // Member-extension properties (e.g. `val String.cstr` on MemScope)
+        // take [dispatch, extension] receivers — prepend the enclosing
+        // dispatch-receiver value when one exists.
+        var propertyReadArguments = [loweredReceiverID]
+        if let dispatchReceiver = memberExtensionDispatchReceiver(
+            for: propertySymbol,
+            callExprID: exprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            propertyReadArguments.insert(dispatchReceiver, at: 0)
+        }
         instructions.append(.call(
             symbol: propertySymbol,
             callee: interner.intern(externalLinkName),
-            arguments: [loweredReceiverID],
+            arguments: propertyReadArguments,
             result: result,
             canThrow: false,
             thrownResult: nil

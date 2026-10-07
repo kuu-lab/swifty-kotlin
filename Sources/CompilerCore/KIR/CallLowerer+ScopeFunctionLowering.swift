@@ -478,8 +478,172 @@ extension CallLowerer {
             instructions.append(.label(endLabel))
             return result
 
-        case .scopeContext:
-            return nil // context is handled in lowerCallExpr
+        case .scopeContext, .scopeMemScoped:
+            return nil // context/memScoped are handled in lowerCallExpr
         }
+    }
+
+    /// Lowers `kotlinx.cinterop.memScoped { }` (KUU-1375).
+    ///
+    /// Shape (mirroring `.scopeUsePinned`):
+    ///   scope := kk_memscope_new()
+    ///   try { result := block(scope) }   // block is `MemScope.() -> R`
+    ///   finally { kk_arena_clear(scope) }  // runs defer blocks + frees allocs
+    ///   rethrow the captured block exception
+    /// A throwing deferred block propagates out of `kk_arena_clear` like a
+    /// Kotlin finally failure (superseding the captured block exception).
+    func lowerMemScopedCallExpr(
+        _ exprID: ExprID,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard sema.bindings.scopeFunctionKind(for: exprID) == .scopeMemScoped,
+              args.count == 1
+        else { return nil }
+        let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+
+        let previousLambdaAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+        driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+            argumentExpr: args[0].expr,
+            argumentIndex: 0,
+            ast: ast,
+            sema: sema,
+            callBinding: sema.bindings.callBinding(for: exprID),
+            chosen: sema.bindings.callBinding(for: exprID)?.chosenCallee
+        )
+        defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousLambdaAllowance }
+
+        let loweredLambdaID = driver.lowerExpr(
+            args[0].expr,
+            ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        // scope := kk_memscope_new()
+        let memScopeType: TypeID = sema.symbols.lookup(fqName: [
+            interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("MemScope"),
+        ]).map { memScopeSymbol in
+            sema.types.make(.classType(ClassType(
+                classSymbol: memScopeSymbol, args: [], nullability: .nonNull
+            )))
+        } ?? sema.types.anyType
+        let scopeResult = arena.appendTemporary(type: memScopeType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_memscope_new"),
+            arguments: [],
+            result: scopeResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let result = arena.appendTemporary(type: boundType)
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
+        // Exception tracking slots for try-finally.
+        let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+        let exceptionTypeSlot = arena.appendTemporary(type: intType)
+        let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+        let zeroTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+        instructions.append(.constValue(result: nullExceptionValue, value: .null))
+        instructions.append(.constValue(result: zeroTypeToken, value: .intLiteral(0)))
+        instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
+        instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
+
+        let finallyLabel = driver.ctx.makeLoopLabel()
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+
+        // try: invoke the block lambda with the new scope as its receiver.
+        var blockInstructions: [KIRInstruction] = []
+        if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
+            // Collection-HOF-marked lambdas take a leading closureRaw argument
+            // (see scopeUse above).
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &blockInstructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+            let callArgs: [KIRExprID] = closureRawArg.map { [$0, scopeResult] }
+                ?? info.captureArguments + [scopeResult]
+            blockInstructions.append(.call(
+                symbol: info.symbol,
+                callee: info.callee,
+                arguments: callArgs,
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        } else {
+            // Non-literal callable value (e.g. a declared `MemScope.() -> R`
+            // binding): invoke through the Function1 ABI.
+            blockInstructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_invoke"),
+                arguments: [loweredLambdaID, scopeResult],
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
+
+        // CODE-001: keep an outer try/catch/use from re-routing this call.
+        instructions.append(.beginFinallyGuard)
+        driver.controlFlowLowerer.appendThrowAwareInstructions(
+            blockInstructions,
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: exceptionTypeSlot,
+            thrownTarget: finallyLabel,
+            sema: sema,
+            interner: interner,
+            arena: arena,
+            instructions: &instructions
+        )
+        instructions.append(.endFinallyGuard)
+        instructions.append(.jump(finallyLabel))
+
+        // finally: clear the arena — runs deferred blocks LIFO then frees every
+        // tracked allocation. A deferred block that throws propagates out of
+        // kk_arena_clear, matching Kotlin finally semantics.
+        instructions.append(.label(finallyLabel))
+        let clearResult = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_arena_clear"),
+            arguments: [scopeResult],
+            result: clearResult,
+            canThrow: true,
+            thrownResult: nil
+        ))
+
+        // After finally: rethrow if an exception was caught, otherwise continue.
+        instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
+        instructions.append(.jump(endLabel))
+
+        instructions.append(.label(rethrowLabel))
+        instructions.append(.rethrow(value: exceptionSlot))
+
+        instructions.append(.label(endLabel))
+        return result
     }
 }
