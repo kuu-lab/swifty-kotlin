@@ -668,7 +668,6 @@ final class CallTypeChecker {
            let calleeName,
            calleeName == knownNames.emit,
            args.count == 1,
-           ctx.cachedScopeLookup(calleeName).isEmpty,
            locals[calleeName] == nil,
            !flowBuilderEmitHasReceiverMember(ctx: ctx)
         {

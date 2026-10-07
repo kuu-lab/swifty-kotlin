@@ -14,6 +14,7 @@ struct FlowBuilderInferenceTests {
         "val result: Flow<Int> = flow { emit(1) }; result.collect { accept(it) }",
         "flow<Int> { emit(1) }.collect { accept(it) }",
         "flow { with(Sink()) { emit(\"sink\") }; emit(1) }.collect { accept(it) }",
+        "class S { fun emit(v: Int) {}; fun f() = flow { emit(1) } }; S().f().collect { accept(it) }",
     ])
     func infersIntForCollectorForwarding(_ statement: String) throws {
         let ctx = makeContextFromSource("""
@@ -105,6 +106,57 @@ struct FlowBuilderInferenceTests {
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func classEmitMemberDoesNotShadowFlowCollectorEmit() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+        class S {
+            val log = mutableListOf<Int>()
+            fun emit(v: Int) { log.add(v) }
+            fun f() = flow { emit(1) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "flow"
+            }
+            let call = try #require(calls.first)
+            #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
+        }
+    }
+
+    @Test
+    func topLevelEmitDoesNotShadowFlowCollectorEmit() throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+        fun emit(v: Int) {}
+        fun f() = flow { emit(1) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "flow"
+            }
+            let call = try #require(calls.first)
+            #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
+        }
     }
 }
 #endif
