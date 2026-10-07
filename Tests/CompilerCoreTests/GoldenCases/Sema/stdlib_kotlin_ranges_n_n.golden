@@ -1,0 +1,64 @@
+symbol fq=golden.sema.acceptCharProgression.$0.progression[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptCharProgression[kind=fun;params=kotlin.ranges.CharProgression;ret=Boolean;names=[progression];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.CharProgression] ret=Boolean
+symbol fq=golden.sema.genericCoerceAtLeast.$1.minimum[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceAtLeast.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceAtLeast[kind=fun;params=String,String;ret=String;names=[value,minimum];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=String
+symbol fq=golden.sema.genericCoerceAtMost.$2.maximum[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceAtMost.$2.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceAtMost[kind=fun;params=String,String;ret=String;names=[value,maximum];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=String
+symbol fq=golden.sema.genericCoerceInBounds.$3.maximum[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceInBounds.$3.minimum[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceInBounds.$3.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceInBounds[kind=fun;params=String,String?,String?;ret=String;names=[value,minimum,maximum];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,String?,String?] ret=String
+symbol fq=golden.sema.genericCoerceInClosedRange.$4.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceInClosedRange.$4.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericCoerceInClosedRange[kind=fun;params=String,kotlin.ranges.ClosedRange<String>;ret=String;names=[value,range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,kotlin.ranges.ClosedRange<String>] ret=String
+symbol fq=golden.sema.genericRangeTo.$5.endInclusive[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericRangeTo.$5.start[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericRangeTo[kind=fun;params=String,String;ret=kotlin.ranges.ClosedRange<String>;names=[start,endInclusive];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=kotlin.ranges.ClosedRange<String>
+symbol fq=golden.sema.genericRangeUntil.$6.endExclusive[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericRangeUntil.$6.start[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.genericRangeUntil[kind=fun;params=String,String;ret=kotlin.ranges.OpenEndRange<String>;names=[start,endExclusive];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String,String] ret=kotlin.ranges.OpenEndRange<String>
+symbol fq=golden.sema.makeUIntRange.$7.endInclusive[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeUIntRange.$7.start[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeUIntRange[kind=fun;params=UInt,UInt;ret=kotlin.ranges.UIntRange;names=[start,endInclusive];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[UInt,UInt] ret=kotlin.ranges.UIntRange
+symbol fq=golden.sema.useCharProgressionCompanion[kind=fun;params=;ret=Any;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+symbol fq=golden.sema.useUIntRangeCompanion[kind=fun;params=;ret=Any;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+file fstdlib_kotlin_ranges_n_n package=golden.sema
+  decl golden.sema.useCharProgressionCompanion[kind=fun;params=;ret=Any;origin=fixture] fun useCharProgressionCompanion sym=golden.sema.useCharProgressionCompanion[kind=fun;params=;ret=Any;origin=fixture]
+  decl golden.sema.useUIntRangeCompanion[kind=fun;params=;ret=Any;origin=fixture] fun useUIntRangeCompanion sym=golden.sema.useUIntRangeCompanion[kind=fun;params=;ret=Any;origin=fixture]
+  decl golden.sema.makeUIntRange[kind=fun;params=UInt,UInt;ret=kotlin.ranges.UIntRange;names=[start,endInclusive];origin=fixture] fun makeUIntRange sym=golden.sema.makeUIntRange[kind=fun;params=UInt,UInt;ret=kotlin.ranges.UIntRange;names=[start,endInclusive];origin=fixture]
+  decl golden.sema.acceptCharProgression[kind=fun;params=kotlin.ranges.CharProgression;ret=Boolean;names=[progression];origin=fixture] fun acceptCharProgression sym=golden.sema.acceptCharProgression[kind=fun;params=kotlin.ranges.CharProgression;ret=Boolean;names=[progression];origin=fixture]
+  decl golden.sema.genericRangeTo[kind=fun;params=String,String;ret=kotlin.ranges.ClosedRange<String>;names=[start,endInclusive];origin=fixture] fun genericRangeTo sym=golden.sema.genericRangeTo[kind=fun;params=String,String;ret=kotlin.ranges.ClosedRange<String>;names=[start,endInclusive];origin=fixture]
+  decl golden.sema.genericRangeUntil[kind=fun;params=String,String;ret=kotlin.ranges.OpenEndRange<String>;names=[start,endExclusive];origin=fixture] fun genericRangeUntil sym=golden.sema.genericRangeUntil[kind=fun;params=String,String;ret=kotlin.ranges.OpenEndRange<String>;names=[start,endExclusive];origin=fixture]
+  decl golden.sema.genericCoerceAtLeast[kind=fun;params=String,String;ret=String;names=[value,minimum];origin=fixture] fun genericCoerceAtLeast sym=golden.sema.genericCoerceAtLeast[kind=fun;params=String,String;ret=String;names=[value,minimum];origin=fixture]
+  decl golden.sema.genericCoerceAtMost[kind=fun;params=String,String;ret=String;names=[value,maximum];origin=fixture] fun genericCoerceAtMost sym=golden.sema.genericCoerceAtMost[kind=fun;params=String,String;ret=String;names=[value,maximum];origin=fixture]
+  decl golden.sema.genericCoerceInClosedRange[kind=fun;params=String,kotlin.ranges.ClosedRange<String>;ret=String;names=[value,range];origin=fixture] fun genericCoerceInClosedRange sym=golden.sema.genericCoerceInClosedRange[kind=fun;params=String,kotlin.ranges.ClosedRange<String>;ret=String;names=[value,range];origin=fixture]
+  decl golden.sema.genericCoerceInBounds[kind=fun;params=String,String?,String?;ret=String;names=[value,minimum,maximum];origin=fixture] fun genericCoerceInBounds sym=golden.sema.genericCoerceInBounds[kind=fun;params=String,String?,String?;ret=String;names=[value,minimum,maximum];origin=fixture]
+expr e@3:42 name(CharProgression) type=kotlin.ranges.CharProgression ref=kotlin.ranges.CharProgression[kind=class]
+expr e@3:42#1 memberCall recv=e@3:42 callee=Companion args=[] type=kotlin.ranges.CharProgression.Companion ref=kotlin.ranges.CharProgression.Companion[kind=obj]
+expr e@5:36 name(UIntRange) type=kotlin.ranges.UIntRange ref=kotlin.ranges.UIntRange[kind=class]
+expr e@5:36#1 memberCall recv=e@5:36 callee=Companion args=[] type=kotlin.ranges.UIntRange.Companion ref=kotlin.ranges.UIntRange.Companion[kind=obj]
+expr e@8:15 name(start) type=UInt ref=golden.sema.makeUIntRange.$7.start[kind=vparam;origin=fixture]
+expr e@8:22 name(endInclusive) type=UInt ref=golden.sema.makeUIntRange.$7.endInclusive[kind=vparam;origin=fixture]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:15,_:e@8:22] type=kotlin.ranges.UIntRange call=kotlin.ranges.UIntRange.<init>[kind=ctor;recv=kotlin.ranges.UIntRange;params=UInt,UInt;ret=kotlin.ranges.UIntRange;names=[start,endInclusive]]
+expr e@10:68 bool(true) type=Boolean
+expr e@13:5 name(start) type=String ref=golden.sema.genericRangeTo.$5.start[kind=vparam;origin=fixture]
+expr e@13:19 name(endInclusive) type=String ref=golden.sema.genericRangeTo.$5.endInclusive[kind=vparam;origin=fixture]
+expr e@13:5#1 memberCall recv=e@13:5 callee=rangeTo args=[_:e@13:19] type=kotlin.ranges.ClosedRange<String> call=kotlin.ranges.rangeTo[kind=fun;recv=T0;params=T0;ret=kotlin.ranges.ClosedRange<T0>;gen=1;bounds=[kotlin.Comparable<T0>];names=[that]] targs=[String]
+expr e@16:5 name(start) type=String ref=golden.sema.genericRangeUntil.$6.start[kind=vparam;origin=fixture]
+expr e@16:22 name(endExclusive) type=String ref=golden.sema.genericRangeUntil.$6.endExclusive[kind=vparam;origin=fixture]
+expr e@16:5#1 memberCall recv=e@16:5 callee=rangeUntil args=[_:e@16:22] type=kotlin.ranges.OpenEndRange<String> call=kotlin.ranges.rangeUntil[kind=fun;recv=T0;params=T0;ret=kotlin.ranges.OpenEndRange<T0>;gen=1;bounds=[kotlin.Comparable<T0>];names=[that]] targs=[String]
+expr e@19:5 name(value) type=String ref=golden.sema.genericCoerceAtLeast.$1.value[kind=vparam;origin=fixture]
+expr e@19:25 name(minimum) type=String ref=golden.sema.genericCoerceAtLeast.$1.minimum[kind=vparam;origin=fixture]
+expr e@19:5#1 memberCall recv=e@19:5 callee=coerceAtLeast args=[_:e@19:25] type=String call=kotlin.ranges.coerceAtLeast[kind=fun;recv=T0;params=T0;ret=T0;gen=1;bounds=[kotlin.Comparable<T0>];names=[minimumValue]] targs=[String]
+expr e@22:5 name(value) type=String ref=golden.sema.genericCoerceAtMost.$2.value[kind=vparam;origin=fixture]
+expr e@22:24 name(maximum) type=String ref=golden.sema.genericCoerceAtMost.$2.maximum[kind=vparam;origin=fixture]
+expr e@22:5#1 memberCall recv=e@22:5 callee=coerceAtMost args=[_:e@22:24] type=String call=kotlin.ranges.coerceAtMost[kind=fun;recv=T0;params=T0;ret=T0;gen=1;bounds=[kotlin.Comparable<T0>];names=[maximumValue]] targs=[String]
+expr e@25:5 name(value) type=String ref=golden.sema.genericCoerceInClosedRange.$4.value[kind=vparam;origin=fixture]
+expr e@25:20 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.genericCoerceInClosedRange.$4.range[kind=vparam;origin=fixture]
+expr e@25:5#1 memberCall recv=e@25:5 callee=coerceIn args=[_:e@25:20] type=String call=kotlin.ranges.coerceIn[kind=fun;recv=T0;params=kotlin.ranges.ClosedRange<T0>;ret=T0;gen=1;bounds=[kotlin.Comparable<T0>];names=[range]] targs=[String]
+expr e@28:5 name(value) type=String ref=golden.sema.genericCoerceInBounds.$3.value[kind=vparam;origin=fixture]
+expr e@28:20 name(minimum) type=String? ref=golden.sema.genericCoerceInBounds.$3.minimum[kind=vparam;origin=fixture]
+expr e@28:29 name(maximum) type=String? ref=golden.sema.genericCoerceInBounds.$3.maximum[kind=vparam;origin=fixture]
+expr e@28:5#1 memberCall recv=e@28:5 callee=coerceIn args=[_:e@28:20,_:e@28:29] type=String call=kotlin.ranges.coerceIn[kind=fun;recv=T0;params=T0?,T0?;ret=T0;gen=1;bounds=[kotlin.Comparable<T0>];names=[minimumValue,maximumValue]] targs=[String]

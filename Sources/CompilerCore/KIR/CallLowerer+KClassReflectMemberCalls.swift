@@ -7,6 +7,9 @@
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
 /// through the normal member-call path.
 ///
+/// `objectInstance` / `sealedSubclasses` are source-declared interface properties,
+/// implemented by the native singleton and subclass registries.
+///
 /// `findAnnotation<T>()` / `findAssociatedObject<T>()` take a reified type
 /// argument, which this compiler only supports via a small compiler-side
 /// allowlist (like `typeOf<T>()`), so they remain here.
@@ -86,7 +89,8 @@ extension CallLowerer {
         }
 
         let nameHintExpr: KIRExprID
-        if let name = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
+        if let name = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner) {
             let internedName = interner.intern(name)
             nameHintExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
             instructions.append(.constValue(result: nameHintExpr, value: .stringLiteral(internedName)))
@@ -160,6 +164,16 @@ extension CallLowerer {
         }
 
         switch memberName {
+        case "objectInstance":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_object_instance", arguments: [kclassExpr],
+                fallbackType: sema.types.makeNullable(sema.types.anyType), canThrow: true
+            )
+        case "sealedSubclasses":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_sealed_subclasses", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
         case "findAnnotation":
             // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
             // no value parameters — the annotation class to search for comes from
@@ -272,22 +286,23 @@ extension CallLowerer {
             return
         }
 
-        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let fqName = RuntimeTypeCheckToken.qualifiedName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
         let fqNameInterned = interner.intern(fqName)
         let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
         instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
 
-        let simpleNameStr = interner.resolve(symbol.name)
+        let simpleNameStr = RuntimeTypeCheckToken.simpleName(of: classRefTargetType, sema: sema, interner: interner)
+            ?? interner.resolve(symbol.name)
         let simpleInterned = interner.intern(simpleNameStr)
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleInterned), type: intType)
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleInterned)))
 
-        let supertypes = sema.symbols.directSupertypes(for: classSymbol)
-        let superClassSymbol = supertypes.first(where: { sema.symbols.symbol($0)?.kind == .class })
         let supertypeNameExpr: KIRExprID
-        if let superClassSymbol, let superSym = sema.symbols.symbol(superClassSymbol) {
-            let superFq = superSym.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            let superIn = interner.intern(superFq)
+        if let joined = kclassSupertypeDisplayNamesJoined(
+            for: classSymbol, sema: sema, interner: interner
+        ) {
+            let superIn = interner.intern(joined)
             supertypeNameExpr = arena.appendExpr(.stringLiteral(superIn), type: intType)
             instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superIn)))
         } else {
@@ -303,7 +318,12 @@ extension CallLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // Reflection reports Kotlin modality, not the internal inheritance flags.
+        let isSealed = symbol.flags.contains(.sealedType)
+        let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
+        if isAbstract { flags |= 1 << 7 }
+        if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
+        if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
         // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface.
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
@@ -338,6 +358,39 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        emitKClassDisplayNameRegistration(
+            symbol: classSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+        emitKClassCompanionAndNestedRegistration(
+            classSymbol: classSymbol, typeTokenExpr: typeTokenExpr,
+            sema: sema, arena: arena, interner: interner, instructions: &instructions
+        )
+
+        if symbol.flags.contains(.sealedType) {
+            let subclasses = sema.symbols.sealedSubclasses(for: classSymbol)
+                ?? sema.symbols.directSubtypes(of: classSymbol)
+            for subclass in subclasses {
+                let subclassType = sema.types.make(.classType(ClassType(
+                    classSymbol: subclass, args: [], nullability: .nonNull
+                )))
+                let token = RuntimeTypeCheckToken.encode(type: subclassType, sema: sema, interner: interner)
+                let tokenExpr = arena.appendExpr(.intLiteral(token), type: intType)
+                instructions.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+                emitClassLiteralMetadataRegistration(
+                    classRefTargetType: subclassType, typeTokenExpr: tokenExpr,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                let name = interner.intern(RuntimeTypeCheckToken.simpleName(of: subclassType, sema: sema, interner: interner) ?? "")
+                let nameExpr = arena.appendExpr(.stringLiteral(name), type: sema.types.stringType)
+                instructions.append(.constValue(result: nameExpr, value: .stringLiteral(name)))
+                instructions.append(.call(
+                    symbol: nil, callee: interner.intern("__kk_kclass_register_sealed_subclass"),
+                    arguments: [typeTokenExpr, tokenExpr, nameExpr],
+                    result: arena.appendTemporary(type: intType), canThrow: false, thrownResult: nil
+                ))
+            }
+        }
 
         emitKClassAnnotationRegistration(
             objectSymbol: classSymbol,

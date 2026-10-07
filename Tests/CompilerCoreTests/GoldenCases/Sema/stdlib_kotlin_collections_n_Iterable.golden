@@ -1,0 +1,22 @@
+symbol fq=__local_0.values[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Iterable<Int>
+symbol fq=golden.sema.iterableFactoryNamed[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.Iterable<Int>
+symbol fq=golden.sema.iterableFactory[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.Iterable<Int>
+file fstdlib_kotlin_collections_n_Iterable package=golden.sema
+  decl golden.sema.iterableFactory[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture] fun iterableFactory sym=golden.sema.iterableFactory[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture]
+  decl golden.sema.iterableFactoryNamed[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture] fun iterableFactoryNamed sym=golden.sema.iterableFactoryNamed[kind=fun;params=;ret=kotlin.collections.Iterable<Int>;origin=fixture]
+expr e@4:51 int(3) type=Int
+expr e@4:54 int(1) type=Int
+expr e@4:57 int(2) type=Int
+expr e@4:44 call callee=e@4:44#1 args=[_:e@4:51,_:e@4:54,_:e@4:57] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@4:44#2 memberCall recv=e@4:44 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1;classGen=1] targs=[Int]
+expr e@4:42 lambda params=[] body=e@4:44#2 label=Iterable type=() -> kotlin.collections.Iterator<Int>
+expr e@4:33 call callee=e@4:33#1 args=[_:e@4:42] type=kotlin.collections.Iterable<Int> call=kotlin.collections.Iterable[kind=fun;params=fn{p=;ret=kotlin.collections.Iterator<T0>};ret=kotlin.collections.Iterable<T0>;gen=1;nonlocal=[0];names=[iterator]] targs=[Int]
+expr e@4:5 localDecl values mutable=0 type=Iterable<Int> init=e@4:33 type=Unit ref=__local_0.values[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
+expr e@5:12 name(values) type=kotlin.collections.Iterable<Int> ref=__local_0.values[kind=local;type=kotlin.collections.Iterable<Int>;origin=fixture]
+expr e@5:5 return value=e@5:12 type=Nothing
+expr e@9:41 int(1) type=Int
+expr e@9:34 call callee=e@9:34#1 args=[_:e@9:41] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@9:34#2 memberCall recv=e@9:34 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.collections.List.iterator[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.collections.Iterator<T0>;gen=1;classGen=1] targs=[Int]
+expr e@9:32 lambda params=[] body=e@9:34#2 label=Iterable type=() -> kotlin.collections.Iterator<Int>
+expr e@9:12 call callee=e@9:12#1 args=[iterator:e@9:32] type=kotlin.collections.Iterable<Int> call=kotlin.collections.Iterable[kind=fun;params=fn{p=;ret=kotlin.collections.Iterator<T0>};ret=kotlin.collections.Iterable<T0>;gen=1;nonlocal=[0];names=[iterator]] targs=[Int]
+expr e@9:5 return value=e@9:12 type=Nothing

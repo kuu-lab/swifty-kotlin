@@ -48,6 +48,206 @@ extension CollectionLiteralConstructionLoweringPass {
         return resultInfo.fqName == expectedFQName
     }
 
+    /// KUU-1361: `java.util.TreeSet`/`java.util.TreeMap` constructors are
+    /// recognized strictly by owner FQName — unlike `isHashSetConstructor`
+    /// there is no bare-name match, so user classes that happen to share the
+    /// `TreeSet`/`TreeMap` simple name keep their own semantics.
+    private func isJavaUtilSortedConstructor(
+        callee: InternedString,
+        symbol: SymbolID?,
+        result: KIRExprID?,
+        module: KIRModule,
+        className: InternedString,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let sema = ctx.sema else { return false }
+        let expectedFQName = [
+            ctx.interner.intern("java"),
+            ctx.interner.intern("util"),
+            className,
+        ]
+        if let symbol,
+           sema.symbols.symbol(symbol)?.kind == .constructor,
+           let owner = sema.symbols.parentSymbol(for: symbol),
+           let ownerInfo = sema.symbols.symbol(owner),
+           ownerInfo.fqName == expectedFQName
+        {
+            return true
+        }
+        guard callee == ctx.interner.intern("<init>"),
+              let result,
+              let resultType = module.arena.exprType(result),
+              let resultClass = resolveClassType(resultType, sema: sema),
+              let resultInfo = sema.symbols.symbol(resultClass.classSymbol)
+        else {
+            return false
+        }
+        return resultInfo.fqName == expectedFQName
+    }
+
+    func isTreeSetConstructor(
+        callee: InternedString,
+        symbol: SymbolID?,
+        result: KIRExprID?,
+        module: KIRModule,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        isJavaUtilSortedConstructor(
+            callee: callee, symbol: symbol, result: result, module: module,
+            className: lookup.treeSetName, ctx: ctx
+        )
+    }
+
+    func isTreeMapConstructor(
+        callee: InternedString,
+        symbol: SymbolID?,
+        result: KIRExprID?,
+        module: KIRModule,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        isJavaUtilSortedConstructor(
+            callee: callee, symbol: symbol, result: result, module: module,
+            className: lookup.treeMapName, ctx: ctx
+        )
+    }
+
+    /// Which `java.util.TreeSet` constructor overload a call resolved to.
+    enum TreeSetConstructorKind {
+        case emptyOrComparator
+        case collection
+        case sortedSet
+    }
+
+    /// Which `java.util.TreeMap` constructor overload a call resolved to.
+    enum TreeMapConstructorKind {
+        case emptyOrComparator
+        case map
+        case sortedMap
+    }
+
+    /// Discriminates the single-argument sorted constructors by the resolved
+    /// constructor's declared parameter FQName first, then by the argument's
+    /// static type FQName — mirroring the JVM overload split between
+    /// `Comparator`, `Collection`/`SortedSet`, and `Map`/`SortedMap`.
+    private func sortedConstructorArgumentKind(
+        symbol: SymbolID?,
+        argument: KIRExprID,
+        sortedSimpleNames: Set<String>,
+        collectionSimpleNames: Set<String>,
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> String? {
+        guard let sema = ctx.sema else { return nil }
+        var candidates: [SemanticSymbol?] = []
+        if let symbol,
+           let paramType = sema.symbols.functionSignature(for: symbol)?.parameterTypes.first
+        {
+            candidates.append(resolveClassTypeSymbol(paramType, sema: sema)?.symbol)
+        }
+        candidates.append(nil)
+        if let argumentType = module.arena.exprType(argument) {
+            candidates[1] = resolveClassTypeSymbol(argumentType, sema: sema)?.symbol
+        }
+        for candidate in candidates {
+            guard let candidate else { continue }
+            let simpleName = ctx.interner.resolve(candidate.fqName.last ?? candidate.name)
+            if sortedSimpleNames.contains(simpleName) {
+                return "sorted"
+            }
+            if simpleName == "Comparator" {
+                return "comparator"
+            }
+            if collectionSimpleNames.contains(simpleName) {
+                return "collection"
+            }
+        }
+        return nil
+    }
+
+    func treeSetConstructorKind(
+        symbol: SymbolID?,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        state: CollectionRewriteState,
+        ctx: KIRContext
+    ) -> TreeSetConstructorKind {
+        // Constructor calls carry the freshly allocated `this` as
+        // `arguments[0]` (kk_object_new); the declared parameters follow.
+        guard arguments.count >= 2, let argument = arguments.last else {
+            return .emptyOrComparator
+        }
+        let kind = sortedConstructorArgumentKind(
+            symbol: symbol,
+            argument: argument,
+            sortedSimpleNames: ["SortedSet", "NavigableSet", "TreeSet"],
+            collectionSimpleNames: [
+                "Collection", "MutableCollection", "Iterable", "MutableIterable",
+                "Set", "MutableSet", "HashSet", "LinkedHashSet",
+                "AbstractSet", "AbstractMutableSet",
+                "List", "MutableList", "ArrayList", "AbstractList", "AbstractMutableList",
+                "Sequence",
+            ],
+            module: module,
+            ctx: ctx
+        )
+        switch kind {
+        case "sorted":
+            return .sortedSet
+        case "collection":
+            return .collection
+        case "comparator":
+            return .emptyOrComparator
+        default:
+            // Tracked collection expressions with no resolvable class type
+            // still take the Collection overload.
+            if state.setExprIDs.contains(argument.rawValue)
+                || state.listExprIDs.contains(argument.rawValue)
+                || state.arrayExprIDs.contains(argument.rawValue)
+            {
+                return .collection
+            }
+            return .emptyOrComparator
+        }
+    }
+
+    func treeMapConstructorKind(
+        symbol: SymbolID?,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        state: CollectionRewriteState,
+        ctx: KIRContext
+    ) -> TreeMapConstructorKind {
+        guard arguments.count >= 2, let argument = arguments.last else {
+            return .emptyOrComparator
+        }
+        let kind = sortedConstructorArgumentKind(
+            symbol: symbol,
+            argument: argument,
+            sortedSimpleNames: ["SortedMap", "NavigableMap", "TreeMap"],
+            collectionSimpleNames: [
+                "Map", "MutableMap", "HashMap", "LinkedHashMap",
+                "AbstractMap", "AbstractMutableMap",
+            ],
+            module: module,
+            ctx: ctx
+        )
+        switch kind {
+        case "sorted":
+            return .sortedMap
+        case "collection":
+            return .map
+        case "comparator":
+            return .emptyOrComparator
+        default:
+            if state.mapExprIDs.contains(argument.rawValue) {
+                return .map
+            }
+            return .emptyOrComparator
+        }
+    }
+
     /// Looks up the primitive boxing callee for `type`, resolving a value
     /// class to its underlying primitive first (see `resolveValueClassKind`)
     /// so `Meters` boxes exactly like the `Int` it wraps — matching
@@ -166,8 +366,10 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         let kotlinCollectionsFQName = [ctx.interner.intern("kotlin"), ctx.interner.intern("collections")]
+        let javaUtilFQName = [ctx.interner.intern("java"), ctx.interner.intern("util")]
+        let packageFQName = Array(symbol.fqName.dropLast())
         guard symbol.fqName.count >= 3,
-              Array(symbol.fqName.dropLast()) == kotlinCollectionsFQName
+              packageFQName == kotlinCollectionsFQName || packageFQName == javaUtilFQName
         else {
             return false
         }
@@ -179,7 +381,8 @@ extension CollectionLiteralConstructionLoweringPass {
              "Set", "MutableSet", "HashSet", "LinkedHashSet",
              "AbstractSet", "AbstractMutableSet",
              "Collection", "MutableCollection",
-             "AbstractCollection", "AbstractMutableCollection":
+             "AbstractCollection", "AbstractMutableCollection",
+             "SortedSet", "NavigableSet", "TreeSet":
             return true
         default:
             return false

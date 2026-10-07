@@ -1,6 +1,6 @@
 // SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are not available in the kotlinc diff reference environment.
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-@file:Suppress("DEPRECATION")
+@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")
 
 import kotlin.native.Platform
 

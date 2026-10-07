@@ -115,69 +115,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceReduceRightIndexedReturnsRightFoldedValueOrThrowsOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightIndexed { index, value, acc -> index * 100 + value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightIndexed { index, value, acc -> index + value + acc }
-
-            println(reduced)
-            println(single)
-            try {
-                emptySequence<Int>().reduceRightIndexed { index, value, acc -> index + value + acc }
-                println("unexpected")
-            } catch (t: Throwable) {
-                println("empty")
-            }
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexed", expected: "364\n42\nempty\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightIndexedOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightIndexedOrNull { index, value, acc -> index * 100 + value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
-            val empty = emptySequence<Int>()
-                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
-
-            println(reduced)
-            println(single)
-            println(empty ?: -1)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexedOrNull", expected: "364\n42\n-1\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightOrNull { value, acc -> value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightOrNull { value, acc -> value + acc }
-            val empty = emptySequence<Int>()
-                .reduceRightOrNull { value, acc -> value + acc }
-
-            println(reduced)
-            println(single)
-            println(empty ?: -1)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightOrNull", expected: "64\n42\n-1\n")
-    }
-
-    @Test
     func testCodegenSequenceReduceOrNullReturnsAccumulatedValueOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -192,30 +129,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceReduceOrNull", expected: "10\nnull\n42\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightReturnsRightFoldedValueOrThrowsOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRight { value, acc -> value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRight { value, acc -> value * 10 + acc }
-
-            println(reduced)
-            println(single)
-
-            try {
-                emptySequence<Int>().reduceRight { value, acc -> value + acc }
-                println("missing")
-            } catch (e: Throwable) {
-                println("empty")
-            }
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRight", expected: "64\n42\nempty\n")
     }
 
     @Test
@@ -631,11 +544,11 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
+    func testCodegenMaterializedSequenceReversedReturnsElementsInReverseOrder() throws {
         let source = """
         fun main() {
-            println(sequenceOf(1, 2, 3, 4).reversed().toList())
-            println(emptySequence<Int>().reversed().toList())
+            println(sequenceOf(1, 2, 3, 4).toList().reversed())
+            println(emptySequence<Int>().toList().reversed())
         }
         """
 

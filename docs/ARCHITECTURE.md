@@ -55,7 +55,7 @@ LSPServerTests       --> LSPServer, CompilerCore
 Runtime (独立 — リンク時に結合)
 ```
 
-LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。
+LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。discovery の候補は `KSWIFTK_LLVM_DYLIB`（絶対パスのみ）と固定の trusted install directory に限定され、`LIBRARY_PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` は参照しない。`dlopen` 前に対象ファイルと全 ancestor directory の owner（root または実行ユーザ）・mode（other 書き込み不可。group 書き込みは `admin` / `wheel` / `root` / `sudo` などの administrative group のみ許容 — 標準 Homebrew インストールの `/opt/homebrew/Cellar` 等は `drwxrwxr-x user:admin` になるため）・canonical path を `TrustedFileSystem.trustedLoadableFile` で検証する。拒否された既存候補は拒否箇所と理由を stderr に出す。
 
 ---
 
@@ -206,9 +206,9 @@ Tests/
 
 ### Synthetic member link tests
 
-`Tests/CompilerCoreTests/Sema/*SyntheticMemberLinkTests*.swift` は、合成 stdlib surface がまだ存在する間の link-surface sentinel として扱う。
-対応する stdlib API を Kotlin source へ移行して合成スタブを削除する PR では、同じ PR で該当 synthetic member link test も削除または source-backed assertion へ置換する。
-この群は migration progress を測るための一時的な安全網なので、単独の大規模リファクタ・分割・命名整理の対象にしない。
+`Tests/CompilerCoreTests/Sema/*SyntheticMemberLinkTests*.swift` と `*SourceMigrationTests*` / メンバー単位 `*FunctionTests*` の簿記テスト群は 2026-09 に撤去済み。
+stdlib メンバーの挙動カバレッジは `Scripts/diff_cases/`（JVM kotlinc との実行差分）と GoldenCases が担い、JVM 参照側で比較できない API は `// SKIP-DIFF (DEBT-DIFF-001)` ケースとして残す。
+新しい stdlib メンバーを追加するときは、シンボル内部をピンする単体テストではなく diff_cases / golden ケースを足す。
 
 ### Codegen 実行テスト資産 (fixture 駆動)
 
@@ -378,25 +378,36 @@ KIRModule (lowered)
 
 ## 10. CI ジョブ構成
 
-`.github/workflows/ci.yml` のジョブ（全ジョブ `ubuntu-latest`、Swift 6.3、`SWIFT_BUILD_SYSTEM=native`、`SWIFT_XSWIFTC_FLAGS` で言語モード 6 + strict concurrency を共有）:
+CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と merge_group で走る最小ゲート、`.github/workflows/nightly-full.yml` は毎朝 04:00 JST（`cron: '0 19 * * *'`）に master で 1 回走る全件検証で、`workflow_dispatch` で任意のブランチに対しても実行できる。どちらも Ubuntu runner、Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency、`SWIFT_BUILD_SYSTEM=native` を共有する。
+
+`ci.yml`（ruleset の必須チェックは `CI gate` だけ）:
 
 | ジョブ | 内容 |
 |---|---|
-| `verify-todo-ids` | `Scripts/check_todo_ids.sh` で `TODO.md` のタスク ID 重複チェック |
+| `repository-checks` | Action pin 検証、`TODO.md` タスク ID 重複、fuzzer キーワード、テスト並列度設定、npm ci 限定チェック、Kotlin compiler archive 検証ポリシー、`jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
+| `build-and-smoke` | `Scripts/build_swift_tests.sh` でコンパイラと全テストターゲットをデバッグビルドし、`SmokeTests` を実行 |
+| `ci-gate` | 上記全ジョブの成功を集約する。ジョブを増減しても ruleset の変更は不要 |
+
+`nightly-full.yml`:
+
+| ジョブ | 内容 |
+|---|---|
 | `build-debug-tests` | `Scripts/build_swift_tests.sh` でコンパイラと全テストターゲットをデバッグビルドし、`swift-debug-tests-<run id>` artifact にする（1 回だけ） |
 | `verify-core` | `build-debug-tests` の成果物を展開し、`CompilerCoreTests` をメソッド単位の動的シャード（6 分割）で実行。Golden 4 スイートは `KSWIFTK_GOLDEN_SHARD_INDEX/COUNT` で分割。shard 1 だけ `SmokeTests` と `FrontendParallelBenchmarkTests` も実行。LLVM 不要 |
 | `verify-self-hosted` | 同じ成果物で `CompilerBackendTests` を静的シャード（4 分割）で実行。shard 1 だけ `RuntimeTests`（直列・チャンク）/ `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` も実行。`setup-llvm` で LLVM を導入 |
-| `verify-repository-checks` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`）と `jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
+| `refactoring-metrics` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`） |
 | `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
-| `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.3.10 で `Scripts/diff_kotlinc.sh` を 4 シャード実行。shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-shard-<n>` artifact |
+| `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.3.10 で `Scripts/diff_kotlinc.sh` を O0 / O2 それぞれ 4 シャード実行。O0 shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-<O0\|O2>-shard-<n>` artifact |
+
+`.github/workflows/macos-ci.yml` の `macos-build-smoke-link` は、Homebrew LLVM 20 と macOS SDK を明示して `CompilerCoreTests` / `CompilerBackendTests` の test product をビルドし、`SmokeTests` と `LinkPhaseIntegrationTests` を直列実行する。これは一次プラットフォームの最小常設レーン（ARCH-027）であり、Ubuntu の共有 debug artifact とは独立に macOS 上でコンパイル・リンクを検証する。
 
 セットアップアクション（`.github/actions/`）:
-- [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux ランナーの共通準備（全ジョブ）
+- [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` が `save: "false"`（restore-only）で使用
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` / `macos-build-smoke-link` が `save: "false"`（restore-only）で使用
 
-LLVM を明示的に導入するのは `verify-self-hosted` だけ。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
+LLVM を明示的に導入するのは Ubuntu の `verify-self-hosted` と macOS の `macos-build-smoke-link`。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
 
 ### ビルドとテスト実行の分離
 
@@ -408,7 +419,7 @@ LLVM を明示的に導入するのは `verify-self-hosted` だけ。`verify-dif
 
 `SWIFT_ENABLE_COMPILE_CACHE=1` を設定すると、`Scripts/lib/common.sh` が `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <SWIFT_CAS_PATH>` を `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。
 
-CI では `build-debug-tests` / `verify-core` / `verify-self-hosted` が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の `ci.yml` にはない）。
+CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core` / `verify-self-hosted`（`nightly-full.yml`）が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の workflow にはない）。
 
 `swiftbuild` を使う場合は、`kswiftk_setup_compile_cache_env` が `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を追加でエクスポートし、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` に成果物を蓄える。ローカル計測例（Swift 6.3.1、`CompilerCoreTests-test-runner`）: キャッシュなし初回ビルド約 170 秒、復元後の再ビルド約 7 秒。
 
@@ -512,6 +523,25 @@ module.kklib/
 
 消費側: `-I path/to/module.kklib` でインポート。`Sema/DataFlow/LibraryImport.swift` 系ファイルで読み込み。
 manifest スキーマ・metadata.bin の詳細仕様は [`docs/spec.md`](spec.md) Doc J14 を正とする。
+
+### 13.1 Kotlin/Native `.klib` のインポート
+
+Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチパスから発見・実行できる。packed ZIP アーカイブと unpacked ディレクトリの両方に対応。主要ファイルは `Sources/CompilerCore/Klib/`:
+
+- `ZipArchive.swift` / `Inflate.swift` — 依存ゼロの ZIP リーダ (stored + DEFLATE)
+- `KlibContainer.swift` — packed/unpacked を抽象化するコンテナ
+- `KlibManifest.swift` — Java properties 形式 manifest (`unique_name`, `abi_version`, `depends` など)
+- `ProtoReader.swift` / `KlibIrDecoding.swift` / `KlibIrModel.swift` / `KlibIrTables.swift` / `KlibIrModule.swift` — protobuf ワイヤ + Kotlin IR スキーマのデコーダ
+
+インポートの流れ:
+
+1. `LibraryDiscovery` が `.klib` を発見 → `loadKlibModule` が manifest 検証 (`abi_version` 2.3.x 系を受理、2.4 は best-effort 警告 `KSWIFTK-LIB-0027`)
+2. `KlibRecordMaterializer` (LibraryKlibMaterialization.swift) が IR 宣言を `ImportedLibrarySymbolRecord` に変換し、既存の `.kklib` インポート経路で `SymbolTable`/`TypeSystem` に登録
+3. `resolveKlibDependencies` が manifest `depends` を検証 (欠落は `KSWIFTK-LIB-0030`) し依存順にソート — 依存モジュールの top-level 初期化が先に走る
+4. `KlibBodyLowerer` (KIR/) が `lowerModule` 内で serialized body を KIR に翻訳して注入 — 関数/ctor/accessor/object 初期化/top-level フィールド。ctor は `this` を暗黙バインドして `returnValue(this)` で終える (serialized ctor は dispatch receiver を持たない)。`IrField.initializer` は `instanceInitializerCall` 地点で展開 (Kotlin/Native の匿名初期化子再合成と同じ)。プリミティブ member call は `kk_op_*` intrinsic にマップ
+5. 未対応 IR 形式は `KSWIFTK-LIB-0029` 警告 + `kk_abort_unreachable` (verifier-safe)
+
+`.klib` はコンパイル済みオブジェクトを持たないため、そのグローバルは `.importedLibrary` を保ちつつ `markKlibDefinedGlobal` で本コンパイル側のストレージを持つ印を付け、`NativeEmitter` が extern ではなく実体を出力する。
 
 ---
 

@@ -7,4 +7,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 public suspend fun <T> runInterruptible(
     context: CoroutineContext = EmptyCoroutineContext,
     block: () -> T
-): T = withContext(context) { block() as Any } as T
+): T {
+    val result: Any = withContext(context) { block() as Any }
+    return result as T
+}

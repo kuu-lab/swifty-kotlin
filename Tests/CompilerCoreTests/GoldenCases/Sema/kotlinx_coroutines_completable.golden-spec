@@ -1,0 +1,5 @@
+version=1
+stdlib-profile=artifact
+target=kotlinx.coroutines.CompletableDeferred[kind=iface;gen=1]
+target=kotlinx.coroutines.CompletableJob[kind=iface]
+target=kotlinx.coroutines.Deferred[kind=iface;gen=1]

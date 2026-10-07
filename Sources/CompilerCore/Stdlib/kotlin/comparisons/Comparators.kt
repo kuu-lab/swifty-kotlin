@@ -10,8 +10,8 @@ import kotlin.Comparator
 // comparison core (`__kk_comparable_compareTo`), reached through `compareTo` on a
 // `Comparable<*>` receiver.
 //
-// "thenComparing" in the MIGRATION-COMP-001 TODO corresponds to the KSwiftK-specific
-// API surface: thenComparator (takes (T, T) -> Int) and thenDescending (takes (T, T) -> Int).
+// The JVM-compatible binary-lambda thenComparing spelling delegates to
+// thenComparator; both preserve the primary order before breaking ties.
 
 // --- Internal helpers --------------------------------------------------------
 
@@ -246,6 +246,12 @@ public fun <T> Comparator<T>.thenComparator(comparison: (T, T) -> Int): Comparat
         if (r != 0) r else comparison(a, b)
     }
 }
+
+public fun <T> Comparator<T>.thenComparing(comparison: (T, T) -> Int): Comparator<T> =
+    thenComparator(comparison)
+
+public fun <T> Comparator<T>.thenComparing(other: Comparator<in T>): Comparator<T> =
+    this.then(other)
 
 // --- Comparator<T>.then / thenDescending ------------------------------------
 

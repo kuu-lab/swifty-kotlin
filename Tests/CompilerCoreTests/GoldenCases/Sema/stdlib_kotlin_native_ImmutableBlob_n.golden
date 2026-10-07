@@ -1,0 +1,43 @@
+symbol fq=__local_0.bytes[kind=local;type=kotlin.ByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ByteArray
+symbol fq=golden.sema.blobAsCPointer.$0.blob[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.blobAsCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>
+symbol fq=golden.sema.blobAsUCPointer.$1.blob[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.blobAsUCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar>;names=[blob];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar>
+symbol fq=golden.sema.blobDefaultArguments.$2.blob[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.blobDefaultArguments[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>
+symbol fq=golden.sema.blobToByteArray.$3.blob[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.blobToByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.ByteArray;names=[blob];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=kotlin.ByteArray
+symbol fq=golden.sema.blobToUByteArray.$4.blob[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.blobToUByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.UByteArray;names=[blob];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.ImmutableBlob] ret=kotlin.UByteArray
+file fstdlib_kotlin_native_ImmutableBlob_n package=golden.sema annotations=[@file:Suppress("DEPRECATION_ERROR"),@file:OptIn(ExperimentalUnsignedTypes::class,kotlinx.cinterop.ExperimentalForeignApi::class)]
+  decl golden.sema.blobToByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.ByteArray;names=[blob];origin=fixture] fun blobToByteArray sym=golden.sema.blobToByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.ByteArray;names=[blob];origin=fixture]
+  decl golden.sema.blobToUByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.UByteArray;names=[blob];origin=fixture] fun blobToUByteArray sym=golden.sema.blobToUByteArray[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlin.UByteArray;names=[blob];origin=fixture]
+  decl golden.sema.blobAsCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture] fun blobAsCPointer sym=golden.sema.blobAsCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture]
+  decl golden.sema.blobAsUCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar>;names=[blob];origin=fixture] fun blobAsUCPointer sym=golden.sema.blobAsUCPointer[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar>;names=[blob];origin=fixture]
+  decl golden.sema.blobDefaultArguments[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture] fun blobDefaultArguments sym=golden.sema.blobDefaultArguments[kind=fun;params=kotlin.native.ImmutableBlob;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;names=[blob];origin=fixture]
+expr e@16:55 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobToByteArray.$3.blob[kind=vparam;origin=fixture]
+expr e@16:72 int(1) type=Int
+expr e@16:75 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobToByteArray.$3.blob[kind=vparam;origin=fixture]
+expr e@16:75#1 memberCall recv=e@16:75 callee=size args=[] type=Int ref=kotlin.native.ImmutableBlob.size[kind=prop;type=Int]
+expr e@16:55#1 memberCall recv=e@16:55 callee=toByteArray args=[_:e@16:72,_:e@16:75#1] type=kotlin.ByteArray call=kotlin.native.toByteArray[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int,Int;ret=kotlin.ByteArray;defaults=[1,1];names=[startIndex,endIndex]]
+expr e@18:57 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobToUByteArray.$4.blob[kind=vparam;origin=fixture]
+expr e@18:57#1 memberCall recv=e@18:57 callee=toUByteArray args=[] type=kotlin.UByteArray call=kotlin.native.toUByteArray[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int,Int;ret=kotlin.UByteArray;defaults=[1,1];names=[startIndex,endIndex]]
+expr e@20:62 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobAsCPointer.$0.blob[kind=vparam;origin=fixture]
+expr e@20:78 int(2) type=Int
+expr e@20:62#1 memberCall recv=e@20:62 callee=asCPointer args=[_:e@20:78] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> call=kotlin.native.asCPointer[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;defaults=[1];names=[offset]]
+expr e@22:64 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobAsUCPointer.$1.blob[kind=vparam;origin=fixture]
+expr e@22:64#1 memberCall recv=e@22:64 callee=asUCPointer args=[] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar> call=kotlin.native.asUCPointer[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.UByteVar>;defaults=[1];names=[offset]]
+expr e@25:17 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobDefaultArguments.$2.blob[kind=vparam;origin=fixture]
+expr e@25:17#1 memberCall recv=e@25:17 callee=toByteArray args=[] type=kotlin.ByteArray call=kotlin.native.toByteArray[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int,Int;ret=kotlin.ByteArray;defaults=[1,1];names=[startIndex,endIndex]]
+expr e@25:5 localDecl bytes mutable=0 type=_ init=e@25:17#1 type=Unit ref=__local_0.bytes[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@26:16 name(bytes) type=kotlin.ByteArray ref=__local_0.bytes[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@26:16#1 memberCall recv=e@26:16 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.ByteArray;params=;ret=Int]
+expr e@26:29 int(0) type=Int
+expr e@26:16#2 binary(greaterThan) lhs=e@26:16#1 rhs=e@26:29 type=Boolean
+expr e@26:32 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobDefaultArguments.$2.blob[kind=vparam;origin=fixture]
+expr e@26:32#1 memberCall recv=e@26:32 callee=asCPointer args=[] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> call=kotlin.native.asCPointer[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;defaults=[1];names=[offset]]
+expr e@26:55 name(blob) type=kotlin.native.ImmutableBlob ref=golden.sema.blobDefaultArguments.$2.blob[kind=vparam;origin=fixture]
+expr e@26:71 int(1) type=Int
+expr e@26:55#1 memberCall recv=e@26:55 callee=asCPointer args=[_:e@26:71] type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>> call=kotlin.native.asCPointer[kind=fun;recv=kotlin.native.ImmutableBlob;params=Int;ret=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>;defaults=[1];names=[offset]]
+expr e@26:12 if cond=e@26:16#2 then=e@26:32#1 else=e@26:55#1 type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>
+expr e@26:5 return value=e@26:12 type=Nothing

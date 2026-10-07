@@ -46,6 +46,9 @@ let package = Package(
             name: "RuntimeABI"
         ),
         .target(
+            name: "RuntimeCAtomics"
+        ),
+        .target(
             name: "CompilerCore",
             dependencies: ["RuntimeABI"],
             resources: [
@@ -106,7 +109,7 @@ let package = Package(
         ),
         .target(
             name: "Runtime",
-            dependencies: ["RuntimeABI"]
+            dependencies: ["RuntimeABI", "RuntimeCAtomics"]
         ),
         .testTarget(
             name: "CompilerCoreTests",
@@ -115,6 +118,7 @@ let package = Package(
             exclude: [
                 "GoldenCases",
                 "Integration/ClassDelegationSmokeTest.kt",
+                "Klib/Fixtures",
             ]
         ),
         .testTarget(

@@ -1,7 +1,7 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    func parseImportedInlineFunction(
+    static func parseImportedInlineFunction(
         path: String,
         importedSymbol: SymbolID,
         signature: FunctionSignature?,
@@ -31,7 +31,7 @@ extension DataFlowSemaPhase {
         // Bound the number of KIR parameters that can be requested by an
         // untrusted inline KIR artifact.  This prevents a tiny `params=<huge>`
         // line from driving a billion-iteration allocation loop.
-        let maxAllowedParameterCount = 100_000
+        let maxAllowedParameterCount = ImportedLibraryLimits.maxCallableArity
 
         for rawLine in content.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -170,7 +170,7 @@ extension DataFlowSemaPhase {
     /// answer: the artifact carries no expression types.
     private static let importedInlineExprIDBase: Int32 = 4_000_000
 
-    private func shiftImportedInlineExprIDs(_ instruction: KIRInstruction) -> KIRInstruction {
+    private static func shiftImportedInlineExprIDs(_ instruction: KIRInstruction) -> KIRInstruction {
         func shift(_ id: KIRExprID) -> KIRExprID {
             KIRExprID(rawValue: Self.importedInlineExprIDBase &+ id.rawValue)
         }
@@ -214,17 +214,23 @@ extension DataFlowSemaPhase {
             return .returnIfEqual(lhs: shift(lhs), rhs: shift(rhs))
         case let .returnValue(value):
             return .returnValue(shift(value))
-        case let .nonLocalReturn(value):
-            return .nonLocalReturn(value.map(shift))
+        case let .nonLocalReturn(value, target):
+            return .nonLocalReturn(value.map(shift), target: target)
+        case let .beginNonLocalReturnScope(value, target, function):
+            return .beginNonLocalReturnScope(value: shift(value), target: target, function: function)
+        case .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup:
+            return instruction
+        case let .resumeNonLocalReturn(value):
+            return .resumeNonLocalReturn(shift(value))
         }
     }
 
-    private func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {
+    private static func importedInlineParameterSymbol(functionSymbol: SymbolID, index: Int) -> SymbolID {
         let raw = Int32(truncatingIfNeeded: Int64(-200_000) - Int64(functionSymbol.rawValue) * 64 - Int64(index))
         return SymbolID(rawValue: raw)
     }
 
-    private func parseImportedInlineInstructions(
+    private static func parseImportedInlineInstructions(
         line: String,
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
@@ -280,7 +286,14 @@ extension DataFlowSemaPhase {
         return [instruction]
     }
 
-    private func parseImportedInlineInstruction(
+    private static func parseImportedLabelID(_ raw: String?) -> Int32? {
+        guard let raw, let id = Int32(raw), id >= 0, id <= InlineLabelAllocator.maxSupportedLabel else {
+            return nil
+        }
+        return id
+    }
+
+    private static func parseImportedInlineInstruction(
         line _: String,
         pairs: [String: String],
         opcode: Substring,
@@ -289,6 +302,15 @@ extension DataFlowSemaPhase {
         externalLinkNameToSymbol: [String: SymbolID],
         importedSymbolByFQName: [String: SymbolID]
     ) -> KIRInstruction? {
+        func returnTarget(_ key: String) -> KIRReturnTarget? {
+            guard let encoded = pairs[key], let link = decodeBase64String(encoded), !link.isEmpty else { return nil }
+            if let symbol = externalLinkNameToSymbol[link] { return .function(symbol) }
+            // Private inline callees have no exported symbol, but still own an exit.
+            return .importedFunction(interner.intern(link))
+        }
+        for key in ["targetB64", "functionB64"] where pairs[key] != nil {
+            guard returnTarget(key) != nil else { return nil }
+        }
         switch opcode {
         case "nop":
             return .nop
@@ -297,15 +319,15 @@ extension DataFlowSemaPhase {
         case "endBlock":
             return .endBlock
         case "label":
-            guard let raw = pairs["id"], let id = Int32(raw) else { return nil }
+            guard let id = parseImportedLabelID(pairs["id"]) else { return nil }
             return .label(id)
         case "jump":
-            guard let raw = pairs["target"], let target = Int32(raw) else { return nil }
+            guard let target = parseImportedLabelID(pairs["target"]) else { return nil }
             return .jump(target)
         case "jumpIfEqual":
             guard let lhsRaw = pairs["lhs"], let lhs = Int32(lhsRaw),
                   let rhsRaw = pairs["rhs"], let rhs = Int32(rhsRaw),
-                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+                  let target = parseImportedLabelID(pairs["target"])
             else {
                 return nil
             }
@@ -375,7 +397,7 @@ extension DataFlowSemaPhase {
             )
         case "jumpIfNotNull":
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
-                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+                  let target = parseImportedLabelID(pairs["target"])
             else {
                 return nil
             }
@@ -416,6 +438,21 @@ extension DataFlowSemaPhase {
             return .rethrow(value: KIRExprID(rawValue: value))
         case "beginFinallyGuard":
             return .beginFinallyGuard
+        case "beginNonLocalReturnScope":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw),
+                  let targetRaw = pairs["target"], let target = Int32(targetRaw)
+            else { return nil }
+            return .beginNonLocalReturnScope(value: KIRExprID(rawValue: value), target: target, function: returnTarget("functionB64"))
+        case "endNonLocalReturnScope":
+            return .endNonLocalReturnScope
+        case "beginFinallyCleanup":
+            guard let raw = pairs["skipping"], let skipping = Int(raw), skipping >= 0 else { return nil }
+            return .beginFinallyCleanup(skipping: skipping)
+        case "endFinallyCleanup":
+            return .endFinallyCleanup
+        case "resumeNonLocalReturn":
+            guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else { return nil }
+            return .resumeNonLocalReturn(KIRExprID(rawValue: value))
         case "endFinallyGuard":
             return .endFinallyGuard
         case "returnUnit":
@@ -439,9 +476,9 @@ extension DataFlowSemaPhase {
             guard let valueRaw = pairs["value"], let value = Int32(valueRaw) else {
                 return nil
             }
-            return .nonLocalReturn(KIRExprID(rawValue: value))
+            return .nonLocalReturn(KIRExprID(rawValue: value), target: returnTarget("targetB64"))
         case "nonLocalReturnUnit":
-            return .nonLocalReturn(nil)
+            return .nonLocalReturn(nil, target: returnTarget("targetB64"))
         case "call":
             guard let calleeEncoded = pairs["calleeB64"],
                   let calleeName = decodeBase64String(calleeEncoded)
@@ -453,6 +490,11 @@ extension DataFlowSemaPhase {
             }
             let result: KIRExprID? = if let resultRaw = pairs["result"], resultRaw != "_" {
                 Int32(resultRaw).map(KIRExprID.init(rawValue:))
+            } else {
+                nil
+            }
+            let thrownResult: KIRExprID? = if let raw = pairs["thrownResult"], raw != "_" {
+                Int32(raw).map(KIRExprID.init(rawValue:))
             } else {
                 nil
             }
@@ -487,7 +529,7 @@ extension DataFlowSemaPhase {
                 arguments: args,
                 result: result,
                 canThrow: canThrow,
-                thrownResult: nil,
+                thrownResult: thrownResult,
                 isSuperCall: isSuperCall
             )
         case "virtualCall":
@@ -541,7 +583,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
+    private static func parseImportedInlineDispatchKind(_ token: String) -> KIRDispatchKind? {
         let parts = token.split(separator: ":", omittingEmptySubsequences: false)
         switch parts.first {
         case "vtable":
@@ -564,7 +606,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func parseImportedInlineExprKind(
+    private static func parseImportedInlineExprKind(
         token: String,
         parameterSymbolMapping: [Int32: SymbolID],
         interner: StringInterner,
@@ -654,7 +696,7 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    private func parseImportedSymbol(
+    private static func parseImportedSymbol(
         pairs: [String: String],
         importedSymbolByFQName: [String: SymbolID]
     ) -> SymbolID? {
@@ -670,7 +712,7 @@ extension DataFlowSemaPhase {
         return SymbolID(rawValue: value)
     }
 
-    private func parseBinaryOp(_ raw: String) -> KIRBinaryOp? {
+    private static func parseBinaryOp(_ raw: String) -> KIRBinaryOp? {
         switch raw {
         case "add":
             .add
@@ -703,7 +745,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func parseUnaryOp(_ raw: String) -> KIRUnaryOp? {
+    private static func parseUnaryOp(_ raw: String) -> KIRUnaryOp? {
         switch raw {
         case "not":
             .not
@@ -716,7 +758,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func parseInlineKeyValuePairs(_ tokens: ArraySlice<Substring>) -> [String: String] {
+    private static func parseInlineKeyValuePairs(_ tokens: ArraySlice<Substring>) -> [String: String] {
         var mapping: [String: String] = [:]
         for token in tokens {
             guard let separatorIndex = token.firstIndex(of: "=") else {
@@ -729,7 +771,7 @@ extension DataFlowSemaPhase {
         return mapping
     }
 
-    private func parseInlineIntList(_ token: String) -> [Int] {
+    private static func parseInlineIntList(_ token: String) -> [Int] {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         let inner: Substring
         if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
@@ -743,7 +785,7 @@ extension DataFlowSemaPhase {
         return inner.split(separator: ",").compactMap { Int($0) }
     }
 
-    private func decodeBase64String(_ token: String) -> String? {
+    private static func decodeBase64String(_ token: String) -> String? {
         guard let data = Data(base64Encoded: token),
               let decoded = String(data: data, encoding: .utf8)
         else {

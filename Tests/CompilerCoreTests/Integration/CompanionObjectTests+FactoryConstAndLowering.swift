@@ -5,6 +5,38 @@ import Testing
 
 extension CompanionObjectTests {
 
+    @Test(arguments: ["", "Factory"])
+    func testCompanionMembersResolveInsideOwner(companionName: String) throws {
+        let qualifier = companionName.isEmpty ? "Companion" : companionName
+        let source = """
+        class Log {
+            val size: Int = 0
+            fun add(value: String): Boolean = true
+        }
+        class C {
+            val initialSize: Int = log.size
+            init { log.add("init") }
+            fun prop(): Int = log.size
+            fun add() { log.add("x") }
+            fun call(): C = create()
+            fun inc() {
+                count++; ++count
+                C.count++; ++C.count
+                \(qualifier).count++; ++\(qualifier).count
+            }
+            fun qualified() { C.log.add("c"); \(qualifier).log.add("companion") }
+            companion object \(companionName) {
+                val log = Log()
+                var count = 0
+                fun create() = C()
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testFactoryConstAndLoweringSema() throws {
         let sources: [String] = [
             // testCompanionFactoryFunctionResolvesEndToEnd
@@ -234,18 +266,56 @@ extension CompanionObjectTests {
             )
 
             let module = try #require(ctx.kir)
-            let expectedInitName = try companionInitializerName(forOwnerNamed: "Config", in: ctx)
+            // BUG-274: property initializers now live in the *lazy* companion
+            // init function (guarded by a `$initialized` flag, run on first
+            // access) rather than the eager one (which only allocates the
+            // dispatch object and registers type edges/vtable slots).
+            let expectedInitName = try companionLazyInitializerName(forOwnerNamed: "Config", in: ctx)
             let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
                 return name == expectedInitName ? function : nil
             }.first
-            let initBody = try #require(companionInitFn, "Expected companion init function").body
+            let initBody = try #require(companionInitFn, "Expected companion lazy init function").body
             let hasCopy = initBody.contains { instruction in
                 if case .copy = instruction { return true }
                 return false
             }
-            #expect(hasCopy, "Expected copy instruction in companion init body for property initialization")
+            #expect(hasCopy, "Expected copy instruction in companion lazy init body for property initialization")
         }
+    }
+
+    /// A `const val` read is inlined at the use site, so — unlike a
+    /// non-const member access — it must not call the owner's lazy
+    /// initializer (kotlinc never runs clinit for it).
+    ///
+    /// See `Scripts/diff_cases/object_const_val_no_lazy_init.kt`.
+    @Test func testConstValReadDoesNotTriggerLazyInit() throws {
+        func mainLazyInitCalls(_ source: String) throws -> [String] {
+            let ctx = makeContextFromSource(source)
+            try runToKIR(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
+            )
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            return extractCallees(from: mainBody, interner: ctx.interner).filter { $0.contains("_lazy_init_") }
+        }
+
+        let constOnly = try mainLazyInitCalls("""
+        object O { const val C = 1; init { println("O init") } }
+        class K { companion object { const val X = 5; init { println("K init") } } }
+        fun main() { println(O.C); println(K.X) }
+        """)
+        #expect(constOnly.isEmpty, "const val reads must not trigger lazy init, got: \(constOnly)")
+
+        let nonConst = try mainLazyInitCalls("""
+        object O { const val C = 1; val d = 2; init { println("O init") } }
+        class K { companion object { const val X = 5; val y = 6; init { println("K init") } } }
+        fun main() { println(O.C); println(O.d); println(K.X); println(K.y) }
+        """)
+        #expect(nonConst.contains { $0.hasPrefix("__object_lazy_init_") }, "got: \(nonConst)")
+        #expect(nonConst.contains { $0.hasPrefix("__companion_lazy_init_") }, "got: \(nonConst)")
     }
 
     private func companionInitializerName(
@@ -256,6 +326,19 @@ extension CompanionObjectTests {
         let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
         let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
         return "__companion_init_\(ownerSymbol.rawValue)_\(companionSymbol.rawValue)"
+    }
+
+    /// BUG-274: name of the lazy companion initializer synthesized by
+    /// `synthesizeCompanionLazyInit` -- guarded by a `$initialized` flag and
+    /// run on first access, rather than unconditionally at module start.
+    private func companionLazyInitializerName(
+        forOwnerNamed ownerName: String,
+        in ctx: CompilationContext
+    ) throws -> String {
+        let sema = try #require(ctx.sema)
+        let ownerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern(ownerName)]))
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
+        return "__companion_lazy_init_\(companionSymbol.rawValue)"
     }
 
 }

@@ -29,6 +29,7 @@ extension KIRLoweringDriver {
                     body: updated.body,
                     bodyLocations: updated.instructionLocations,
                     sema: sema,
+                    arena: arena,
                     storageMap: delegateStorageSymbolByPropertySymbol, interner: interner
                 ))
             }
@@ -85,6 +86,7 @@ extension KIRLoweringDriver {
         body: [KIRInstruction],
         bodyLocations: [SourceRange?],
         sema: SemaModule,
+        arena: KIRArena,
         storageMap: [SymbolID: SymbolID],
         interner: StringInterner
     ) -> KIRLoweringEmitContext {
@@ -100,6 +102,9 @@ extension KIRLoweringDriver {
         }
         let getValueName = interner.intern("getValue")
         let setValueName = interner.intern("setValue")
+        let getAccessorName = interner.intern("get")
+        let setAccessorName = interner.intern("set")
+        let intType = sema.types.make(.primitive(.int, .nonNull))
 
         // Pass 1: collect copy targets to distinguish getter vs setter paths.
         var copyTargetExprs: Set<KIRExprID> = []
@@ -112,10 +117,54 @@ extension KIRLoweringDriver {
         var result = KIRLoweringEmitContext()
         result.instructions.reserveCapacity(body.count)
 
+        // begin/endFinallyGuard regions delimit try bodies already wrapped by
+        // appendThrowAwareInstructions. A synthesized accessor call landing
+        // inside one must route its thrown value the same way, or the
+        // exception propagates out of the function instead of reaching the
+        // enclosing catch dispatch (KSWIFTK-LINK-0003 on a top-level
+        // `Delegates.notNull()` read wrapped in try/catch).
+        var guardStack: [FinallyGuardThrowContext?] = []
+
+        func appendAccessorCall(
+            symbol: SymbolID,
+            callee: InternedString,
+            arguments: [KIRExprID],
+            callResult: KIRExprID?
+        ) {
+            guard let context = guardStack.last ?? nil else {
+                result.append(.call(
+                    symbol: symbol, callee: callee, arguments: arguments,
+                    result: callResult, canThrow: false, thrownResult: nil
+                ))
+                return
+            }
+            result.append(.call(
+                symbol: symbol, callee: callee, arguments: arguments,
+                result: callResult, canThrow: true, thrownResult: context.exceptionSlot
+            ))
+            let unknownTypeToken = arena.appendExpr(.intLiteral(0), type: intType)
+            result.append(.constValue(result: unknownTypeToken, value: .intLiteral(0)))
+            result.append(.copy(from: unknownTypeToken, to: context.exceptionTypeSlot))
+            result.append(.jumpIfNotNull(value: context.exceptionSlot, target: context.thrownTarget))
+        }
+
         for (index, instruction) in body.enumerated() {
             result.currentSourceRange = index < bodyLocations.count
                 ? bodyLocations[index]
                 : nil
+            switch instruction {
+            case .beginFinallyGuard:
+                guardStack.append(resolveGuardRegionThrowContext(body: body, beginIndex: index))
+                result.append(instruction)
+                continue
+            case .endFinallyGuard:
+                _ = guardStack.popLast()
+                result.append(instruction)
+                continue
+            default:
+                break
+            }
+
             if case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                let storageSymbol = symbol,
                propertyByStorageSymbol[storageSymbol] != nil,
@@ -130,15 +179,11 @@ extension KIRLoweringDriver {
             if case let .loadGlobal(res, sym) = instruction,
                fullStorageMap[sym] != nil
             {
-                result.append(
-                    .call(
-                        symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
-                        callee: interner.intern("get"),
-                        arguments: [],
-                        result: res,
-                        canThrow: false,
-                        thrownResult: nil
-                    )
+                appendAccessorCall(
+                    symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
+                    callee: getAccessorName,
+                    arguments: [],
+                    callResult: res
                 )
                 continue
             }
@@ -156,15 +201,11 @@ extension KIRLoweringDriver {
                     // a getter read before the setter (notably breaking an
                     // uninitialized `Delegates.notNull()` property).
                 } else {
-                    result.append(
-                        .call(
-                            symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
-                            callee: interner.intern("get"),
-                            arguments: [],
-                            result: res,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
+                    appendAccessorCall(
+                        symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
+                        callee: getAccessorName,
+                        arguments: [],
+                        callResult: res
                     )
                 }
                 continue
@@ -174,15 +215,11 @@ extension KIRLoweringDriver {
                let propSym = targets.removeValue(forKey: toExpr),
                fullStorageMap[propSym] != nil
             {
-                result.append(
-                    .call(
-                        symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
-                        callee: interner.intern("set"),
-                        arguments: [fromExpr],
-                        result: nil,
-                        canThrow: false,
-                        thrownResult: nil
-                    )
+                appendAccessorCall(
+                    symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
+                    callee: setAccessorName,
+                    arguments: [fromExpr],
+                    callResult: nil
                 )
                 continue
             }
@@ -190,6 +227,116 @@ extension KIRLoweringDriver {
             result.append(instruction)
         }
         return result
+    }
+
+    /// The exception-routing channels of a `begin/endFinallyGuard` region:
+    /// the slot each throwing call writes into, the slot carrying the thrown
+    /// type token, and the catch/finally dispatch label.
+    private struct FinallyGuardThrowContext {
+        var exceptionSlot: KIRExprID
+        var exceptionTypeSlot: KIRExprID
+        var thrownTarget: Int32
+    }
+
+    /// Recovers the exception routing of the guard region opened at
+    /// `beginIndex`. `appendThrowAwareInstructions` tags every wrapped call
+    /// with `thrownResult: exceptionSlot` and the `copy(0 -> typeSlot)` +
+    /// `jumpIfNotNull(slot -> target)` follow-up, so a sibling call inside the
+    /// region exposes the routing directly. When the region holds no wired
+    /// call (the delegated access was its only throwing call), the slots are
+    /// recovered from the slot-init block the region's producer emitted just
+    /// before the guard and the dispatch label is the first label after the
+    /// region's matching end marker. Returns nil when neither holds — the
+    /// caller then leaves the exception to propagate.
+    private func resolveGuardRegionThrowContext(
+        body: [KIRInstruction],
+        beginIndex: Int
+    ) -> FinallyGuardThrowContext? {
+        var depth = 0
+        var matchingEnd = -1
+        var index = beginIndex + 1
+        while index < body.count {
+            switch body[index] {
+            case .beginFinallyGuard:
+                depth += 1
+            case .endFinallyGuard:
+                if depth == 0 {
+                    matchingEnd = index
+                } else {
+                    depth -= 1
+                }
+            case let .jumpIfNotNull(value, target) where depth == 0:
+                if index >= 2,
+                   case let .copy(from: token, to: typeSlot) = body[index - 1],
+                   case let .constValue(result: tokenDef, value: .intLiteral(0)) = body[index - 2],
+                   tokenDef == token
+                {
+                    return FinallyGuardThrowContext(
+                        exceptionSlot: value,
+                        exceptionTypeSlot: typeSlot,
+                        thrownTarget: target
+                    )
+                }
+            default:
+                break
+            }
+            if matchingEnd >= 0 { break }
+            index += 1
+        }
+        guard matchingEnd >= 0 else { return nil }
+
+        // Init block the guard producers emit just before the region:
+        //   constValue(a, .null); constValue(b, .intLiteral(0));
+        //   copy(a -> exceptionSlot); copy(b -> exceptionTypeSlot)
+        var exceptionSlot: KIRExprID?
+        var exceptionTypeSlot: KIRExprID?
+        var cursor = beginIndex - 4
+        var remaining = 40
+        while cursor >= 0, remaining > 0 {
+            switch body[cursor] {
+            case .label, .jump, .jumpIfEqual, .jumpIfNotNull,
+                 .beginFinallyGuard, .endFinallyGuard,
+                 .beginBlock, .endBlock,
+                 .returnUnit, .returnValue, .rethrow:
+                remaining = 0
+            case let .constValue(result: nullConst, value: .null):
+                if cursor + 3 < body.count,
+                   case let .constValue(result: zeroConst, value: .intLiteral(0)) = body[cursor + 1],
+                   case let .copy(from: nullSrc, to: slot) = body[cursor + 2],
+                   case let .copy(from: zeroSrc, to: typeSlot) = body[cursor + 3],
+                   nullSrc == nullConst, zeroSrc == zeroConst
+                {
+                    exceptionSlot = slot
+                    exceptionTypeSlot = typeSlot
+                    remaining = 0
+                }
+            default:
+                break
+            }
+            cursor -= 1
+            remaining -= 1
+        }
+
+        var thrownTarget: Int32?
+        if exceptionSlot != nil {
+            var scan = matchingEnd + 1
+            while scan < body.count, scan <= matchingEnd + 8 {
+                if case let .label(labelID) = body[scan] {
+                    thrownTarget = labelID
+                    break
+                }
+                scan += 1
+            }
+        }
+
+        guard let exceptionSlot, let exceptionTypeSlot, let thrownTarget else {
+            return nil
+        }
+        return FinallyGuardThrowContext(
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: exceptionTypeSlot,
+            thrownTarget: thrownTarget
+        )
     }
 }
 
@@ -266,6 +413,19 @@ extension KIRLoweringDriver {
             // this standalone function has no way to see that one.
             ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverExpr)
         }
+        // BUG-267: a delegate body on an object-literal member (e.g.
+        // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
+        // function, so outer locals it references must be reloaded from the
+        // capture fields materialized on the object instance — the same
+        // mechanism object-literal member functions use. No-op for named-class
+        // and top-level delegates (no objectLiteralCaptureSymbols registered).
+        objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &lambdaBody.instructions
+        )
         // Names the callback lambda declared for its parameters
         // (`{ property, old, new -> ... }`) must resolve to the synthetic
         // parameters below while the body is lowered. `resetScopeForFunction`/

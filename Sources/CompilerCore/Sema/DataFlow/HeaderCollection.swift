@@ -45,7 +45,7 @@ extension DataFlowSemaPhase {
     /// Describes the symbol a top-level declaration introduces, without touching
     /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
     /// so both agree on kind/visibility/flags.
-    private func topLevelDeclarationDescriptor(
+    func topLevelDeclarationDescriptor(
         for decl: Decl,
         diagnostics: DiagnosticEngine?
     ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
@@ -173,7 +173,7 @@ extension DataFlowSemaPhase {
         } else {
             newIsExtensionProperty = false
         }
-        let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
+        let reusableSyntheticSymbol = newIsExtensionProperty ? nil : reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
             fqName: fqName,
             declarationFlags: declaration.flags,
@@ -190,7 +190,9 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 newFlags: declaration.flags,
                 additionalExisting: scopeExisting,
-                newIsExtensionProperty: newIsExtensionProperty
+                newIsExtensionProperty: newIsExtensionProperty,
+                topLevelVisibility: declaration.visibility,
+                topLevelFileID: file.fileID
             )
         }
         let symbol: SymbolID
@@ -213,7 +215,8 @@ extension DataFlowSemaPhase {
                 declSite: declaration.range,
                 visibility: declaration.visibility,
                 flags: declaration.flags,
-                isExtensionProperty: newIsExtensionProperty
+                isExtensionProperty: newIsExtensionProperty,
+                topLevelFileID: file.fileID
             )
         }
         symbols.setSourceFileID(file.fileID, for: symbol)
@@ -304,18 +307,12 @@ extension DataFlowSemaPhase {
                 interner: interner, into: &predeclared
             )
         }
+        // When no bundled declaration was predeclared above (--no-stdlib, or an
+        // imported artifact already supplies the symbol), fall back to a bare
+        // synthetic class shell so `Pair`/`Triple` still resolve as class types.
         for name in [pairName, tripleName] {
             let fqName = kotlinPkg + [name]
-            if let existing = symbols.lookup(fqName: fqName) {
-                // Compatibility shells intentionally keep a nil declSite so bundled
-                // source declarations do not displace them: a nil declSite keeps the
-                // shell's symbol identity stable for `ref=`/`call=` resolution, and
-                // `GoldenHarnessDump.isExcludedLibrarySymbol` omits it from `symbol`
-                // lines in golden dumps (only case-file-local declSites are listed).
-                // The pre-KSP-706 anchor never restored declSite for Pair/Triple
-                // either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`.
-                symbols.setDeclSite(nil, for: existing)
-            } else {
+            if symbols.lookup(fqName: fqName) == nil {
                 _ = symbols.define(
                     kind: .class,
                     name: name,
@@ -381,6 +378,70 @@ extension DataFlowSemaPhase {
             }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
             else {
                 // An imported stdlib artifact already owns this nominal.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-703: make the source-backed map nominals available before the
+    /// collection residual registry runs. The normal header pass later fills
+    /// these symbols with their complete Kotlin declarations.
+    func predeclareBundledMapHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let kotlinCollectionsPackage = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let bundledMapFileNominals = [
+            "Map.kt": "Map",
+            "MutableMap.kt": "MutableMap",
+        ]
+
+        for file in ast.sortedFiles where
+            sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        {
+            let basename = sourceManager.path(of: file.fileID)
+                .split(separator: "/")
+                .last
+                .map(String.init) ?? ""
+            guard let nominalName = bundledMapFileNominals[basename],
+                  file.packageFQName == kotlinCollectionsPackage
+            else {
+                continue
+            }
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            let nominalSymbolName = interner.intern(nominalName)
+            guard file.topLevelDecls.contains(where: { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return classDecl.name == nominalSymbolName
+                case let .interfaceDecl(interfaceDecl):
+                    return interfaceDecl.name == nominalSymbolName
+                default:
+                    return false
+                }
+            }), symbols.lookup(fqName: kotlinCollectionsPackage + [nominalSymbolName]) == nil
+            else {
                 continue
             }
             predeclareNominalTypeHeaders(
@@ -570,13 +631,6 @@ extension DataFlowSemaPhase {
                 sourceManager: sourceManager, diagnostics: diagnostics,
                 interner: interner, into: &predeclared
             )
-        }
-        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
-            // Keep the source file association for metadata and declaration
-            // binding, while retaining the historical compatibility-shell
-            // visibility used by semantic inventory goldens. The normal header
-            // pass still fills the source-backed declaration details.
-            symbols.setDeclSite(nil, for: charsetSymbol)
         }
     }
 
@@ -948,6 +1002,55 @@ extension DataFlowSemaPhase {
                 switch decl {
                 case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
                     return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1323: forward-declares the source-backed kotlin.reflect nominal
+    /// types (AssociatedObjectKey and the marker interfaces) before the
+    /// reflection synthetic stubs attach their residual members. Annotation
+    /// classes cannot claim synthetic shells, so AssociatedObjectKey must be
+    /// predeclared; the interfaces take the same path for a single owner.
+    func predeclareBundledReflectTopLevelHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
+        let targetNames: Set<InternedString> = [
+            interner.intern("AssociatedObjectKey"),
+            interner.intern("KAnnotatedElement"),
+            interner.intern("KClassifier"),
+            interner.intern("KDeclarationContainer"),
+            interner.intern("KFunction"),
+            interner.intern("KMutableProperty"),
+            interner.intern("KParameter"),
+            interner.intern("KProperty"),
+            interner.intern("KTypeParameter"),
+        ]
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    guard let name = topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name
+                    else { return false }
+                    return targetNames.contains(name)
                 case .funDecl, .propertyDecl, .enumEntryDecl:
                     return false
                 }
@@ -1438,6 +1541,36 @@ extension DataFlowSemaPhase {
                     localTypeParameters: classLocalTypeParameters
                 )
             }
+            if declaration.kind == .annotationClass {
+                collectSyntheticHashCode(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+                collectSyntheticToString(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+                collectSyntheticEquals(
+                    ownerSymbol: symbol, ownerFQName: fqName, ownerType: classType,
+                    requireDataTypeFlag: false, symbols: symbols, types: types,
+                    scope: classScope, interner: interner
+                )
+            }
+            if symbols.symbol(symbol)?.flags.contains(.valueType) == true {
+                // Collect after explicit members so an override suppresses synthesis.
+                collectSyntheticToString(
+                    ownerSymbol: symbol,
+                    ownerFQName: fqName,
+                    ownerType: classType,
+                    requireDataTypeFlag: false,
+                    symbols: symbols,
+                    types: types,
+                    scope: classScope,
+                    interner: interner
+                )
+            }
             // Process companion object: register as nested object and link to owner class
             if let companionDeclID = classDecl.companionObject {
                 collectCompanionObjectHeader(
@@ -1644,9 +1777,27 @@ extension DataFlowSemaPhase {
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner, isInline: funDecl.isInline,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                relativeOwnerFQName: package,
+                currentPackageFQName: package,
+                imports: file.imports
             )
-            let receiverType = resolveTypeRef(
+            let contextReceiverTypes = funDecl.contextReceivers.compactMap { contextReceiver in
+                resolveTypeRef(
+                    contextReceiver.type,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: typeParamResult.localTypeParameters,
+                    relativeOwnerFQName: package,
+                    currentPackageFQName: package,
+                    imports: file.imports,
+                    diagnostics: diagnostics,
+                    usageRange: funDecl.range
+                )
+            }
+            let explicitReceiverType = resolveTypeRef(
                 funDecl.receiverType,
                 ast: ast,
                 symbols: symbols,
@@ -1659,6 +1810,10 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
             )
+            // Top-level context functions use the first context receiver as their
+            // hidden receiver parameter in KIR. Member declarations are registered
+            // separately and keep the owning class as `receiverType`.
+            let receiverType = explicitReceiverType ?? contextReceiverTypes.first
             let params = collectValueParameters(
                 funDecl.valueParams,
                 localNamespaceFQName: localNamespaceFQName,
@@ -1700,6 +1855,7 @@ extension DataFlowSemaPhase {
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
+                    contextReceiverTypes: contextReceiverTypes,
                     parameterTypes: params.paramTypes,
                     returnType: returnType,
                     isSuspend: funDecl.isSuspend,
@@ -1763,6 +1919,7 @@ extension DataFlowSemaPhase {
                     if !alreadyExists {
                         var aliasFlags = semanticSymbol.flags
                         aliasFlags.insert(.synthetic)
+                        aliasFlags.insert(.extensionMemberAlias)
                         let aliasSymbol = symbols.define(
                             kind: .function,
                             name: semanticSymbol.name,
@@ -1919,7 +2076,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                interner: interner
             )
 
         case let .typeAliasDecl(typeAliasDecl):
@@ -1986,18 +2144,27 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func shouldRestoreDeclSiteForReusableSyntheticSymbol(
+    func shouldRestoreDeclSiteForReusableSyntheticSymbol(
         fqName: [InternedString],
         interner: StringInterner
     ) -> Bool {
-        // Compatibility shells intentionally keep a nil declSite so bundled
-        // source declarations do not displace them in golden semantic dumps.
-        // KSP-683 needs the migrated Duration nominals to remain source-backed
-        // for their value-class and enum metadata. KSP-1083 applies the same
-        // staged source-shell treatment to the kotlin.concurrent atomic
-        // nominals while their constructors and members remain residual.
+        // A shell reused without restoring its declSite stays non-source-backed
+        // (`isSourceBackedSymbol` returns false): that is the remaining
+        // compiler/metadata compatibility contract for nominals whose call
+        // lowering, export, or member binding still assumes the pre-migration
+        // shell. Golden dumping no longer reads declSite -- symbol origin is
+        // classified from the tracked source file ID instead -- so unlisted
+        // FQNames keep nil declSite only until their compiler-side paths are
+        // migrated off the shell. Listed FQNames were migrated deliberately:
+        // KSP-683 needs the Duration nominals source-backed for their
+        // value-class and enum metadata, and KSP-1083 applies the same staged
+        // source-shell treatment to the kotlin.concurrent atomic nominals
+        // while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+        if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
+            || resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
+            || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
             // KSP-1259: reusing the synthetic Debugging object shell must still
@@ -2007,6 +2174,10 @@ extension DataFlowSemaPhase {
             // KSP-1305: mirror the IntProgression staged source-shell treatment
             // for LongProgression's nominal and Companion.
             || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
+            // KSP-1313: mirror the staged progression source-shell treatment
+            // for UIntProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "UIntProgression"]
+            || resolvedFQName == ["kotlin", "ranges", "CharProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
@@ -2024,10 +2195,17 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "time", "TimedValue"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
+            || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KUU-876: the source-backed InvalidMutabilityException must keep
+            // its bundled declSite when the synthetic anchor is reused.
+            || resolvedFQName == ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
             // KSP-1361: Reusing the synthetic SequenceScope shell must still
             // leave the bundled Kotlin declaration source-backed.
-            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
+            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"]
+            // KUU-936: the atomics-package AtomicNativePtr constructor and field
+            // are bundled source; the synthetic shell keeps only residual members.
+            || resolvedFQName == ["kotlin", "concurrent", "atomics", "AtomicNativePtr"] {
             return true
         }
         guard resolvedFQName.count == 3,
@@ -2055,14 +2233,17 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         namespacePrefix: String,
         declSite: SourceRange,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = [],
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
         var typeParamSymbols: [SymbolID] = []
-        var localTypeParameters: [InternedString: SymbolID] = [:]
+        var localTypeParameters = enclosingTypeParameters
 
         guard !typeParams.isEmpty else {
             return (symbols: typeParamSymbols, localMap: localTypeParameters)
@@ -2117,6 +2298,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     localTypeParameters: localTypeParameters,
+                    relativeOwnerFQName: fqName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
                     diagnostics: diagnostics
                 )
             }

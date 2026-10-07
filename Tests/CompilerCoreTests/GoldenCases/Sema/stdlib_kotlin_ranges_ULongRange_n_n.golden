@@ -1,22 +1,22 @@
-symbol fq=golden.sema.acceptULongRangeClosedRange.$0.range[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<ULong>] ret=Boolean
-symbol fq=golden.sema.acceptULongRangeCompanion.$1.companion[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.acceptULongRangeCompanion[kind=fun;params=Any] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
-symbol fq=golden.sema.acceptULongRangeProgression.$2.range[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ULongProgression] ret=Boolean
-symbol fq=golden.sema.makeULongRange.$3.endInclusive[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.makeULongRange.$3.start[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.makeULongRange[kind=fun;params=ULong,ULong] kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=kotlin.ranges.ULongRange
-symbol fq=golden.sema.useULongRangeCompanion[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+symbol fq=golden.sema.acceptULongRangeClosedRange.$0.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>;ret=Boolean;names=[range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ClosedRange<ULong>] ret=Boolean
+symbol fq=golden.sema.acceptULongRangeCompanion.$1.companion[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptULongRangeCompanion[kind=fun;params=Any;ret=Boolean;names=[companion];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
+symbol fq=golden.sema.acceptULongRangeProgression.$2.range[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression;ret=Boolean;names=[range];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.ULongProgression] ret=Boolean
+symbol fq=golden.sema.makeULongRange.$3.endInclusive[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeULongRange.$3.start[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.makeULongRange[kind=fun;params=ULong,ULong;ret=kotlin.ranges.ULongRange;names=[start,endInclusive];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[ULong,ULong] ret=kotlin.ranges.ULongRange
+symbol fq=golden.sema.useULongRangeCompanion[kind=fun;params=;ret=Any;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
 file fstdlib_kotlin_ranges_ULongRange_n_n package=golden.sema
-  decl golden.sema.makeULongRange[kind=fun;params=ULong,ULong] fun makeULongRange sym=golden.sema.makeULongRange[kind=fun;params=ULong,ULong]
-  decl golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression] fun acceptULongRangeProgression sym=golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression]
-  decl golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>] fun acceptULongRangeClosedRange sym=golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>]
-  decl golden.sema.acceptULongRangeCompanion[kind=fun;params=Any] fun acceptULongRangeCompanion sym=golden.sema.acceptULongRangeCompanion[kind=fun;params=Any]
-  decl golden.sema.useULongRangeCompanion[kind=fun;params=] fun useULongRangeCompanion sym=golden.sema.useULongRangeCompanion[kind=fun;params=]
-expr e@4:16 name(start) type=ULong ref=golden.sema.makeULongRange.$3.start[kind=vparam]
-expr e@4:23 name(endInclusive) type=ULong ref=golden.sema.makeULongRange.$3.endInclusive[kind=vparam]
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:16,_:e@4:23] type=kotlin.ranges.ULongRange call=kotlin.ranges.ULongRange.<init>[kind=ctor;recv=kotlin.ranges.ULongRange;params=ULong,ULong]
+  decl golden.sema.makeULongRange[kind=fun;params=ULong,ULong;ret=kotlin.ranges.ULongRange;names=[start,endInclusive];origin=fixture] fun makeULongRange sym=golden.sema.makeULongRange[kind=fun;params=ULong,ULong;ret=kotlin.ranges.ULongRange;names=[start,endInclusive];origin=fixture]
+  decl golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression;ret=Boolean;names=[range];origin=fixture] fun acceptULongRangeProgression sym=golden.sema.acceptULongRangeProgression[kind=fun;params=kotlin.ranges.ULongProgression;ret=Boolean;names=[range];origin=fixture]
+  decl golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>;ret=Boolean;names=[range];origin=fixture] fun acceptULongRangeClosedRange sym=golden.sema.acceptULongRangeClosedRange[kind=fun;params=kotlin.ranges.ClosedRange<ULong>;ret=Boolean;names=[range];origin=fixture]
+  decl golden.sema.acceptULongRangeCompanion[kind=fun;params=Any;ret=Boolean;names=[companion];origin=fixture] fun acceptULongRangeCompanion sym=golden.sema.acceptULongRangeCompanion[kind=fun;params=Any;ret=Boolean;names=[companion];origin=fixture]
+  decl golden.sema.useULongRangeCompanion[kind=fun;params=;ret=Any;origin=fixture] fun useULongRangeCompanion sym=golden.sema.useULongRangeCompanion[kind=fun;params=;ret=Any;origin=fixture]
+expr e@4:16 name(start) type=ULong ref=golden.sema.makeULongRange.$3.start[kind=vparam;origin=fixture]
+expr e@4:23 name(endInclusive) type=ULong ref=golden.sema.makeULongRange.$3.endInclusive[kind=vparam;origin=fixture]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:16,_:e@4:23] type=kotlin.ranges.ULongRange call=kotlin.ranges.ULongRange.<init>[kind=ctor;recv=kotlin.ranges.ULongRange;params=ULong,ULong;ret=kotlin.ranges.ULongRange;names=[start,endInclusive]]
 expr e@6:69 bool(true) type=Boolean
 expr e@8:71 bool(true) type=Boolean
 expr e@10:58 bool(true) type=Boolean

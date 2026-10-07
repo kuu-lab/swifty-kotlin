@@ -30,13 +30,13 @@ internal external fun __ulongRangeTo(a: ULong, b: ULong): ULongRange
 @KsSymbolName("__kk_op_rangeUntil")
 internal external fun __rangeUntil(a: Int, b: Int): IntRange
 
-@KsSymbolName("__kk_op_rangeUntil")
+@KsSymbolName("__kk_long_rangeUntil")
 internal external fun __rangeUntil(a: Long, b: Long): LongRange
 
-@KsSymbolName("__kk_op_rangeUntil")
+@KsSymbolName("__kk_char_rangeUntil")
 internal external fun __rangeUntil(a: Char, b: Char): CharRange
 
-@KsSymbolName("__kk_op_rangeUntil")
+@KsSymbolName("__kk_uint_rangeUntil")
 internal external fun __rangeUntil(a: UInt, b: UInt): UIntRange
 
 @KsSymbolName("__kk_op_ulong_rangeUntil")

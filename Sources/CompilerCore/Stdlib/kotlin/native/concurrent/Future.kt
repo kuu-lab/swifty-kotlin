@@ -14,6 +14,10 @@ public enum class FutureState(public val value: Int) {
     THROWN(4)
 }
 
+@ObsoleteWorkersApi
+public val FutureState.entries: kotlin.enums.EnumEntries<FutureState>
+    get() = enumEntries<FutureState>()
+
 @KsSymbolName("kk_future_consume")
 @PublishedApi
 internal external fun <T> __kkFutureConsume(id: Int): T

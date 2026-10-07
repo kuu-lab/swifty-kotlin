@@ -3,6 +3,8 @@
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.
 final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "EnumEntriesLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     func run(module: KIRModule, ctx: KIRContext) throws {
         guard let sema = ctx.sema else {

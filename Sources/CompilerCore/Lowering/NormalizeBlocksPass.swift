@@ -1,6 +1,8 @@
 
 final class NormalizeBlocksPass: LoweringPass, ParallelLoweringPass {
     static let name = "NormalizeBlocks"
+    static let requiredStage: KIRStage = .tailrecLowered
+    static let producedStage: KIRStage = .desugared
 
     func shouldRun(module: KIRModule, ctx _: KIRContext) -> Bool {
         module.ensureFeaturesScanned()

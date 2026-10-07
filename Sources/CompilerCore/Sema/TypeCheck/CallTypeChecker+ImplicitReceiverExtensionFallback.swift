@@ -1,4 +1,94 @@
 extension CallTypeChecker {
+    /// A package extension with an incompatible receiver must not hide an
+    /// imported extension before its arguments can be contextualized.
+    func scopeCallCandidatesConsideringImplicitReceivers(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let candidates = ctx.cachedScopeLookup(name)
+        guard let receiverType = ctx.implicitReceiverType, !candidates.isEmpty else { return candidates }
+        func matchesReceiver(_ candidate: SymbolID) -> Bool {
+            guard isScopeExtensionCandidate(candidate, ctx: ctx),
+                  let receiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
+            else { return false }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: receiver,
+                sema: ctx.sema
+            )
+        }
+        // Keep ordinary callables and viable nearer extensions on their existing
+        // resolution paths. Only bypass a scope consisting of foreign receivers.
+        guard candidates.allSatisfy({ isScopeExtensionCandidate($0, ctx: ctx) }),
+              !candidates.contains(where: matchesReceiver)
+        else { return candidates }
+        let applicable = ctx.scope.lookup(name, matching: matchesReceiver)
+        // Matching lookup stops at the first scope with suitable receivers,
+        // preserving package/import precedence instead of merging all overloads.
+        return applicable.isEmpty ? candidates : applicable
+    }
+
+    private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              ctx.sema.symbols.functionSignature(for: candidate)?.receiverType != nil,
+              ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
+        else { return false }
+        if let parentID = ctx.sema.symbols.parentSymbol(for: candidate),
+           let parent = ctx.sema.symbols.symbol(parentID),
+           parent.kind != .package
+        {
+            // Public/internal package extensions may be attached to their
+            // receiver nominal for member lookup, but keep their package FQ name.
+            return symbol.fqName != parent.fqName + [symbol.name]
+        }
+        return true
+    }
+
+    /// Retry visible scope extensions against captured receivers, innermost first.
+    /// Package extensions are not members of their receiver class, so the member
+    /// recovery path cannot find them when a receiver lambda shadows `this`.
+    func resolveOuterImplicitReceiverExtensionCall(
+        candidates: [SymbolID],
+        args: [CallArgument],
+        preparedArgs: PreparedCallArguments,
+        range: SourceRange,
+        calleeName: InternedString,
+        explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> (resolved: ResolvedCall, receiverSymbol: SymbolID)? {
+        let extensions = candidates.filter { isScopeExtensionCandidate($0, ctx: ctx) }
+        guard !extensions.isEmpty else { return nil }
+        var nearerDslMarkers = Set<String>()
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            let markers = ctx.collectDslMarkerAnnotations(for: receiver.type)
+            let isDslHidden = !nearerDslMarkers.isDisjoint(with: markers)
+            nearerDslMarkers.formUnion(markers)
+            guard let symbol = receiver.symbol, !isDslHidden else { continue }
+            let resolved = resolveCallRespectingLambdaReturnType(
+                candidates: extensions,
+                args: args,
+                argTypes: preparedArgs.argTypes,
+                range: range,
+                calleeName: calleeName,
+                explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
+                implicitReceiverType: receiver.type,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx
+            )
+            // Ambiguity at a nearer receiver must not fall through to a farther one.
+            if resolved.chosenCallee != nil || resolved.diagnostic?.code == "KSWIFTK-SEMA-0003" {
+                return (resolved, symbol)
+            }
+        }
+        return nil
+    }
+
     /// Prefer the receiver-specific predicate extension before contextual lambda
     /// inference. An implicit receiver call currently starts with package-scope
     /// candidates, so keeping the Collection overload beside the predicate
@@ -69,12 +159,12 @@ extension CallTypeChecker {
         guard locals[calleeName] == nil else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         let name = ctx.interner.resolve(calleeName)
-        guard name == "remove" || name == "iterator" else { return nil }
+        guard name == "remove" || name == "iterator" || name == "contains" else { return nil }
         guard !args.contains(where: { ctx.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }) else {
             return nil
         }
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: ctx.interner)
-        guard receiverClassifier.isCollectionLikeType(nonNullReceiver) else { return nil }
+        guard name == "contains" || receiverClassifier.isCollectionLikeType(nonNullReceiver) else { return nil }
 
         var candidates = driver.helpers.collectMemberFunctionCandidates(
             named: calleeName,
@@ -246,7 +336,8 @@ extension CallTypeChecker {
                 range: range,
                 calleeName: calleeName,
                 args: resolvedArgs,
-                explicitTypeArgs: explicitTypeArgs
+                explicitTypeArgs: explicitTypeArgs,
+                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: expectedType,
             implicitReceiverType: nonNullReceiver,
@@ -274,11 +365,13 @@ extension CallTypeChecker {
     /// Scope lookup for an unqualified call also returns package-scope extension
     /// functions that merely share the simple name but declare a receiver the
     /// enclosing implicit receiver cannot satisfy (e.g. `AtomicInt.compareAndSet`
-    /// seen from an `AtomicBoolean` extension body).  Such candidates are not
-    /// callable without an explicit receiver, so the call has to resolve against
-    /// the implicit receiver's own members instead of failing overload
-    /// resolution.  Only recovers calls that would otherwise be reported as
-    /// errors, and only when every scope candidate was inapplicable.
+    /// seen from an `AtomicBoolean` extension body), or whose arguments cannot
+    /// be satisfied even though the receiver matches (e.g. the kotlin.text
+    /// `T.append(vararg CharSequence?)` extension seen from an `Appendable`
+    /// extension body calling `append('\n')`).  Scope-candidate resolution has
+    /// already failed when this runs, so the call has to resolve against the
+    /// implicit receiver's own members instead of failing overload resolution.
+    /// Only recovers calls that would otherwise be reported as errors.
     func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
         _ id: ExprID,
         calleeName: InternedString,
@@ -296,53 +389,115 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
-        let everyCandidateInapplicable = scopeCandidates.allSatisfy { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let declaredReceiver = signature.receiverType
-            else { return false }
-            return !extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver,
-                declaredReceiver: declaredReceiver,
-                sema: sema
+        // Attached scope extensions must retain their full overload set in the
+        // extension tower path, rather than being collapsed as inherited members.
+        let scopeExtensions = Set(scopeCandidates.filter { isScopeExtensionCandidate($0, ctx: ctx) })
+
+        // Kotlin's implicit-receiver tower: the innermost receiver first, then
+        // enclosing receivers whose `this` value is reachable through capture.
+        // Only entries carrying a receiver symbol participate — the symbol is
+        // what capture analysis stores into an object literal's fields so KIR
+        // lowering can materialize the receiver value from it.
+        var receiverChain: [(type: TypeID, symbol: SymbolID?)] = [
+            (type: nonNullReceiver, symbol: nil)
+        ]
+        for outerReceiver in ctx.outerReceiverTypes.reversed() {
+            let outerNonNullReceiver = sema.types.makeNonNullable(outerReceiver.type)
+            guard let outerReceiverSymbol = outerReceiver.symbol,
+                  outerNonNullReceiver != nonNullReceiver
+            else {
+                continue
+            }
+            receiverChain.append((type: outerNonNullReceiver, symbol: outerReceiverSymbol))
+        }
+
+        for receiver in receiverChain {
+            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: receiver.type,
+                sema: sema,
+                interner: ctx.interner
+            ).filter { !scopeExtensions.contains($0) }
+            guard !memberCandidates.isEmpty else { continue }
+            // Member extensions surface under the dispatch receiver type but
+            // resolve against the implicit receiver tower entry picked for
+            // their declared extension receiver.
+            var regularMemberCandidates: [SymbolID] = []
+            var memberExtensionGroups: [(
+                symbols: [SymbolID], receiverType: TypeID, symbol: SymbolID?
+            )] = []
+            for candidate in memberCandidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                      let declaredReceiver = signature.receiverType
+                else {
+                    regularMemberCandidates.append(candidate)
+                    continue
+                }
+                guard let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                    sema.types.isSubtype(
+                        sema.types.makeNonNullable(entry.type),
+                        sema.types.makeNonNullable(declaredReceiver)
+                    )
+                })
+                else { continue }
+                if let groupIndex = memberExtensionGroups.firstIndex(where: {
+                    $0.receiverType == picked.type
+                }) {
+                    memberExtensionGroups[groupIndex].symbols.append(candidate)
+                } else {
+                    memberExtensionGroups.append(([candidate], picked.type, picked.symbol))
+                }
+            }
+            var orderedGroups: [(
+                symbols: [SymbolID], receiverType: TypeID, extensionSymbol: SymbolID?
+            )] = regularMemberCandidates.isEmpty
+                ? []
+                : [(regularMemberCandidates, receiver.type, nil)]
+            orderedGroups.append(
+                contentsOf: memberExtensionGroups.map {
+                    ($0.symbols, $0.receiverType, $0.symbol)
+                }
             )
-        }
-        guard everyCandidateInapplicable else { return nil }
+            let resolvedArgs = zip(args, argTypes).map { argument, type in
+                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            }
+            for group in orderedGroups {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: group.symbols,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: calleeName,
+                        args: resolvedArgs,
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                    ),
+                    expectedType: expectedType,
+                    implicitReceiverType: group.receiverType,
+                    ctx: ctx.semaCtx
+                )
+                guard resolved.diagnostic == nil,
+                      let chosen = resolved.chosenCallee
+                else { continue }
 
-        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
-            named: calleeName,
-            receiverType: nonNullReceiver,
-            sema: sema,
-            interner: ctx.interner
-        )
-        guard !memberCandidates.isEmpty else { return nil }
-        let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                if let receiverSymbol = receiver.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                }
+                if let extensionSymbol = group.extensionSymbol {
+                    sema.bindings.markImplicitExtensionReceiver(id, symbol: extensionSymbol)
+                }
+                markCoroutineScopeImplicitReceiverCallIfNeeded(
+                    id,
+                    chosenCallee: chosen,
+                    receiverType: receiver.type,
+                    ctx: ctx
+                )
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            }
         }
-        let resolved = ctx.resolver.resolveCall(
-            candidates: memberCandidates,
-            call: CallExpr(
-                range: range,
-                calleeName: calleeName,
-                args: resolvedArgs,
-                explicitTypeArgs: explicitTypeArgs
-            ),
-            expectedType: expectedType,
-            implicitReceiverType: nonNullReceiver,
-            ctx: ctx.semaCtx
-        )
-        guard resolved.diagnostic == nil,
-              let chosen = resolved.chosenCallee
-        else { return nil }
-
-        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
-        markCoroutineScopeImplicitReceiverCallIfNeeded(
-            id,
-            chosenCallee: chosen,
-            receiverType: implicitReceiverType,
-            ctx: ctx
-        )
-        sema.bindings.bindExprType(id, type: resultType)
-        return resultType
+        return nil
     }
 }

@@ -21,7 +21,7 @@ public open class Base64 internal constructor(
     // 0 means "do not wrap"; a positive value is the line-wrap width.
     private val lineLength: Int
 ) {
-    internal var padding: PaddingOption = PaddingOption.PRESENT
+    internal var paddingOption: PaddingOption = PaddingOption.PRESENT
 
     public enum class PaddingOption {
         PRESENT,
@@ -32,7 +32,7 @@ public open class Base64 internal constructor(
 
     public open fun withPadding(option: PaddingOption): Base64 {
         val copy = Base64(alphabetChars, lineLength)
-        copy.padding = option
+        copy.paddingOption = option
         return copy
     }
 
@@ -109,7 +109,7 @@ public open class Base64 internal constructor(
 
     private fun encodeRaw(source: ByteArray, startIndex: Int, endIndex: Int): String {
         val sb = StringBuilder()
-        val addPadding = padding == PaddingOption.PRESENT || padding == PaddingOption.PRESENT_OPTIONAL
+        val addPadding = paddingOption == PaddingOption.PRESENT || paddingOption == PaddingOption.PRESENT_OPTIONAL
         var i = startIndex
         while (i + 2 < endIndex) {
             val b0 = source[i].toInt() and 0xFF
@@ -167,23 +167,36 @@ public open class Base64 internal constructor(
     }
 
     private fun decodeRaw(source: String): ByteArray {
-        val hasPadding = source.indexOf('=') >= 0
-        when (padding) {
-            PaddingOption.PRESENT ->
-                if (!hasPadding && source.length % 4 != 0) {
-                    throw IllegalArgumentException("Missing base64 padding")
-                }
-            PaddingOption.ABSENT ->
-                if (hasPadding) {
-                    throw IllegalArgumentException("Unexpected base64 padding in ABSENT mode")
-                }
-            PaddingOption.PRESENT_OPTIONAL, PaddingOption.ABSENT_OPTIONAL -> {
-                // Accept either form.
-            }
-        }
-
         var end = source.length
         while (end > 0 && source[end - 1] == '=') end -= 1
+        val paddingCount = source.length - end
+
+        if (paddingOption == PaddingOption.ABSENT) {
+            if (paddingCount > 0) {
+                throw IllegalArgumentException("Unexpected base64 padding in ABSENT mode")
+            }
+        } else {
+            // PRESENT requires padding on decode: absent padding is only accepted
+            // when the input length already fills whole quanta.
+            if (paddingOption == PaddingOption.PRESENT && paddingCount == 0 && source.length % 4 != 0) {
+                throw IllegalArgumentException("Missing base64 padding")
+            }
+            // Padding that is present must be the correct amount completing the
+            // final quantum: one '=' after a 3-symbol tail, two after a 2-symbol tail.
+            val validPadding = when (paddingCount) {
+                0 -> true
+                1 -> end % 4 == 3
+                2 -> end % 4 == 2
+                else -> false
+            }
+            if (!validPadding) {
+                throw IllegalArgumentException("Illegal base64 padding")
+            }
+        }
+        // A lone leftover symbol carries fewer than 8 bits and cannot form a byte.
+        if (end % 4 == 1) {
+            throw IllegalArgumentException("The last quantum of source does not have enough bits")
+        }
 
         val bytes = ArrayList<Byte>()
         var buffer = 0
@@ -222,6 +235,9 @@ public open class Base64 internal constructor(
     }
 }
 
+public val Base64.PaddingOption.entries: kotlin.enums.EnumEntries<Base64.PaddingOption>
+    get() = enumEntries<Base64.PaddingOption>()
+
 @KsSymbolName("__kk_output_stream_encodingWith")
 private external fun __outputStreamEncodingWith(
     stream: java.io.OutputStream,
@@ -233,5 +249,5 @@ public fun java.io.OutputStream.encodingWith(base64: Base64): java.io.OutputStre
     __outputStreamEncodingWith(
         this,
         base64.alphabetChars,
-        base64.padding == Base64.PaddingOption.PRESENT || base64.padding == Base64.PaddingOption.PRESENT_OPTIONAL
+        base64.paddingOption == Base64.PaddingOption.PRESENT || base64.paddingOption == Base64.PaddingOption.PRESENT_OPTIONAL
     )

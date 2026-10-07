@@ -348,10 +348,7 @@ extension DataFlowSemaPhase {
     private func parseOptInMarkerNames(_ arguments: [String]) -> [String] {
         var names: [String] = []
         var seen: Set<String> = []
-        let pattern = #"([A-Za-z_][A-Za-z0-9_\.]*)\s*::\s*class"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return names
-        }
+        let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
             let value = optInArgumentValue(argument)

@@ -34,9 +34,14 @@ public class Uuid private constructor(
 
         public val NIL: Uuid = fromLongs(0L, 0L)
 
+        // kotlin-stdlib raises LEXICAL_ORDER's deprecation to ERROR at
+        // api-version 2.4 via @DeprecatedSinceKotlin; this compiler pins
+        // api-version 2.2, so the level is pinned explicitly instead of being
+        // reached through the version gate.
         @Deprecated(
             "Use naturalOrder<Uuid>() instead",
-            ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"])
+            ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"]),
+            DeprecationLevel.ERROR
         )
         @DeprecatedSinceKotlin(warningSince = "2.1", errorSince = "2.4")
         public val LEXICAL_ORDER: Comparator<Uuid> = __kk_uuid_lexicalOrder()
@@ -99,6 +104,7 @@ public class Uuid private constructor(
             return Uuid(msb, lsb)
         }
 
+        @ExperimentalUnsignedTypes
         public fun fromUByteArray(ubyteArray: UByteArray): Uuid {
             if (ubyteArray.size != SIZE_BYTES) {
                 throw IllegalArgumentException("ubyteArray.size must be 16, was ${ubyteArray.size}")
@@ -282,6 +288,7 @@ public class Uuid private constructor(
         return bytes
     }
 
+    @ExperimentalUnsignedTypes
     public fun toUByteArray(): UByteArray {
         val msb = mostSignificantBits
         val lsb = leastSignificantBits

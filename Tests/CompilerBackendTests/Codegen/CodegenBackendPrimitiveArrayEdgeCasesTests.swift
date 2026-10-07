@@ -8,6 +8,142 @@ import Testing
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
 
     @Test
+    func testUnsignedArrayViewsUseTheirOwnKindsInDeepOperations() throws {
+        let source = """
+        fun main() {
+            println(arrayOf(byteArrayOf(-56, 1).asUByteArray()).contentDeepToString())
+            println(arrayOf(ubyteArrayOf(200u).asByteArray()).contentDeepToString())
+            val bytes = byteArrayOf(-56, 1)
+            val view = bytes.asUByteArray()
+            println(arrayOf(view).contentDeepEquals(arrayOf(ubyteArrayOf(200u, 1u))))
+            bytes[0] = 42
+            view[1] = 255u.toUByte()
+            println(arrayOf<Any>(bytes, view).contentDeepToString())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "UnsignedArrayViewsDeep", expected: """
+        [[200, 1]]
+        [[-56]]
+        true
+        [[42, -1], [42, 255]]
+        """ + "\n")
+    }
+
+    @Test
+    func testFloatingPointArrayToStringAcrossAnyContexts() throws {
+        let source = """
+        data class Arrays(val d: DoubleArray, val f: FloatArray)
+        data class NullableArrays(val d: DoubleArray?, val f: FloatArray?)
+        fun render(value: Any?): String = value.toString()
+        fun main() {
+            val d = doubleArrayOf(1.0, 2.5, -0.5)
+            val f = floatArrayOf(1.0f, 2.5f)
+            println(d.toString())
+            println(f.toString())
+            println(d)
+            println(f)
+            println("$d $f")
+            println(render(d))
+            println(render(f))
+            println(listOf(d, f))
+            println(setOf(d))
+            println(mapOf("f" to f))
+            println(arrayOf<Any>(d, f).contentToString())
+            println(Arrays(d, f).toString())
+            println(Arrays(d, f))
+            println(NullableArrays(d, f))
+            println(NullableArrays(null, null))
+            println(render(null))
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "FloatingPointArrayToString", expected: """
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [1.0, 2.5, -0.5] [1.0, 2.5]
+        [1.0, 2.5, -0.5]
+        [1.0, 2.5]
+        [[1.0, 2.5, -0.5], [1.0, 2.5]]
+        [[1.0, 2.5, -0.5]]
+        {f=[1.0, 2.5]}
+        [[1.0, 2.5, -0.5], [1.0, 2.5]]
+        Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        NullableArrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
+        NullableArrays(d=null, f=null)
+        null
+        """ + "\n")
+    }
+
+    @Test
+    func testFloatingPointArrayToStringSpecialValuesAndCopies() throws {
+        let source = """
+        fun main() {
+            val d = doubleArrayOf(0.0, -0.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.MIN_VALUE)
+            val f = floatArrayOf(0.0f, -0.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.MIN_VALUE)
+            println(d)
+            println(f)
+            println(d.copyOf())
+            println(f.copyOf())
+            println(DoubleArray(2))
+            println(FloatArray(2))
+            println(DoubleArray(2) { it + 0.5 })
+            println(FloatArray(2) { it.toFloat() + 0.5f })
+            println(doubleArrayOf())
+            println(floatArrayOf())
+            d[0] = 2.5
+            f[0] = 1.5f
+            println(d)
+            println(f)
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "FloatingPointArrayToStringSpecialValues", expected: """
+        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        [0.0, 0.0]
+        [0.0, 0.0]
+        [0.5, 1.5]
+        [0.5, 1.5]
+        []
+        []
+        [2.5, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
+        [1.5, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
+        """ + "\n")
+    }
+
+    @Test
+    func testArrayReceiverExtensionBareSizeMatchesExplicitReceiver() throws {
+        let source = """
+        fun CharArray.bareSize(): Int = size
+        fun CharArray.explicitSize(): Int = this.size
+        fun IntArray.bareSize(): Int = size
+        fun IntArray.explicitSize(): Int = this.size
+        fun IntArray.localSize(): Int {
+            val size = 41
+            return size
+        }
+        fun String.bareLength(): Int = length
+        class Box(val size: Int) {
+            fun bareSize(): Int = size
+        }
+
+        fun main() {
+            val chars = charArrayOf('a', 'b', 'c', 'd')
+            val ints = intArrayOf(2, 4, 6)
+            println("${chars.bareSize()}:${chars.explicitSize()}")
+            println("${ints.bareSize()}:${ints.explicitSize()}")
+            println("${charArrayOf().bareSize()}:${intArrayOf().bareSize()}")
+            println("${"abc".bareLength()}:${Box(27).bareSize()}")
+            println(ints.localSize())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "ArrayReceiverBareSize", expected: "4:4\n3:3\n0:0\n3:27\n41\n")
+    }
+
+    @Test
     func testPrimitiveArrayZeroInit() throws {
         let source = """
         fun main() {
@@ -217,6 +353,35 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
                 []
                 """
                 + "\n"
+        )
+    }
+
+    @Test
+    func testArrayInPlaceSortingAndDestructuring() throws {
+        let source = """
+        fun main() {
+            val a = intArrayOf(3, 1, 2)
+            a.sortDescending()
+            println(a.toList())
+            val b = intArrayOf(3, 1, 2)
+            b.sort(1, 3)
+            println(b.toList())
+            val c: Array<out String> = arrayOf("b", "a")
+            c.sort()
+            println(c.toList())
+            val (x, y, z) = intArrayOf(1, 2, 3)
+            println("$x$y$z")
+            b.sort(toIndex = 2)
+            println(b.toList())
+            b.sortDescending(0, 2)
+            println(b.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayInPlaceSortingAndDestructuring",
+            expected: "[3, 2, 1]\n[3, 1, 2]\n[a, b]\n123\n[1, 3, 2]\n[3, 1, 2]\n"
         )
     }
 
@@ -511,6 +676,7 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     @Test
     func testUShortArrayConstructorsPreserveZeroAndSignedStorageSemantics() throws {
         let source = """
+        @file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
         fun main() {
             try {
                 UShortArray(-1)

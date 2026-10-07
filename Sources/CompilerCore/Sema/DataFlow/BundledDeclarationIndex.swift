@@ -35,6 +35,10 @@ struct BundledDeclarationIndex: Sendable {
         contains(owner: ownerFQName, name: name, arity: arity)
     }
 
+    func contains(ownerFQName: [InternedString], name: InternedString) -> Bool {
+        keys.contains { $0.ownerFQName == ownerFQName && $0.name == name }
+    }
+
     func containsNominal(fqName: [InternedString]) -> Bool {
         nominalFQNames.contains(fqName)
     }
@@ -339,8 +343,9 @@ struct BundledDeclarationIndex: Sendable {
         else {
             return false
         }
-        return symbols.allSymbols().contains { candidate in
-            guard candidate.id != symbol.id,
+        return symbols.lookupByShortName(symbol.name).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.id != symbol.id,
                   candidate.kind == .property,
                   symbols.isSourceBackedSymbol(candidate.id),
                   candidate.name == symbol.name,
@@ -434,10 +439,11 @@ struct BundledDeclarationIndex: Sendable {
         else {
             return false
         }
-        return symbols.allSymbols().contains { candidate in
+        return symbols.lookupByShortName(key.name).contains { candidateID in
             // Imported library members have no declSite but stand in for the
             // bundled source declaration, so accept either source form.
-            guard candidate.kind == .function,
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
                   symbols.isSourceBackedSymbol(candidate.id),
                   let candidateKey = memberKey(
                       for: candidate,
@@ -478,8 +484,9 @@ struct BundledDeclarationIndex: Sendable {
             return false
         }
 
-        return symbols.allSymbols().contains { candidate in
-            guard candidate.kind == .function,
+        return symbols.lookupByShortName(key.name).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
                   symbols.isSourceBackedSymbol(candidate.id),
                   candidate.name == key.name,
                   let candidateKey = memberKey(
@@ -510,20 +517,6 @@ struct BundledDeclarationIndex: Sendable {
         }
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
-        }
-        if ownerFQName == ["kotlin", "collections", "MutableMap"] {
-            // Kotlin 2.3.10 keeps MutableMap.putAll(Map) and MutableMap.remove
-            // as members while also declaring source-backed overloads. The
-            // bundled index records arity but not parameter types, so these
-            // retained bridges are intentional overload collisions rather than
-            // missed KSP-002 skips. KSP-703 moved `remove`'s interface member
-            // itself to a source-backed @KsSymbolName override on
-            // MutableMap.kt (no synthetic `remove` registration exists to
-            // overlap-warn about any more) — this arm is now vestigial for
-            // `remove` specifically but harmless to leave, since `putAll`
-            // still needs it and both share this one arity-only check.
-            let name = interner.resolve(key.name)
-            return (name == "putAll" || name == "remove") && key.arity == 1
         }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
             // MutableSet.addAll(Collection) is now a source-backed default
@@ -637,12 +630,18 @@ struct BundledDeclarationIndex: Sendable {
         var keys: Set<BundledMemberKey> = []
         for file in bundledFiles {
             let topLevelNominalNames = topLevelNominalNamesByPackage[file.packageFQName] ?? []
+            var importedNameToPackage = defaultImportedNameToPackage
+            for importDecl in file.imports where !importDecl.isWildcard && importDecl.alias == nil {
+                if let name = importDecl.path.last {
+                    importedNameToPackage[name] = Array(importDecl.path.dropLast())
+                }
+            }
             for declID in file.topLevelDecls {
                 collectBundledTopLevelDecl(
                     declID: declID,
                     packageFQName: file.packageFQName,
                     topLevelNominalNames: topLevelNominalNames,
-                    defaultImportedNameToPackage: defaultImportedNameToPackage,
+                    defaultImportedNameToPackage: importedNameToPackage,
                     ast: ast,
                     builtinNames: builtinNames,
                     interner: interner,
@@ -717,6 +716,14 @@ struct BundledDeclarationIndex: Sendable {
         types: TypeSystem,
         interner: StringInterner?
     ) -> BundledMemberKey? {
+        // Imported index shells carry arity and receiver-owner shape in the
+        // compact v2 index. Answering from it keeps arity-key scans (the
+        // retained-overlap gates below walk `allSymbols()`) from forcing a
+        // declaration-body materialization per candidate.
+        if let indexShape = symbols.importedMemberIndexShape(for: symbolID) {
+            let owner = indexShape.receiverOwnerFQName ?? Array(symbol.fqName.dropLast())
+            return BundledMemberKey(ownerFQName: owner, name: symbol.name, arity: indexShape.arity)
+        }
         let arity: Int
         let receiverType: TypeID?
         switch symbol.kind {
@@ -726,6 +733,16 @@ struct BundledDeclarationIndex: Sendable {
             }
             arity = signature.parameterTypes.count
             receiverType = signature.receiverType
+        case .constructor:
+            // Source-backed constructors must keep suppressing their synthetic
+            // counterparts when the index is rebuilt from imported stdlib
+            // symbols (e.g. `kotlin.concurrent.AtomicReference(value)`), since
+            // residual registration runs before the artifact's own keys merge.
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return nil
+            }
+            arity = signature.parameterTypes.count
+            receiverType = nil
         case .property, .field:
             arity = 0
             receiverType = symbols.extensionPropertyReceiverType(for: symbolID)
@@ -849,11 +866,16 @@ struct BundledDeclarationIndex: Sendable {
         // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
+        // `iterator` is likewise non-aliased: Iterable.iterator is itself a
+        // declared member (the retained `kk_iterable_iterator` stub carries a
+        // lazy, thrown-channel contract — KSP-998) rather than a default impl
+        // that List's source declaration can stand in for.
         let nonAliasedZeroArgNames = Set([
             interner.intern("any"),
             interner.intern("none"),
             interner.intern("count"),
             interner.intern("first"),
+            interner.intern("iterator"),
             interner.intern("last"),
             interner.intern("single"),
             interner.intern("singleOrNull"),
@@ -883,7 +905,6 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("reduceRightIndexedOrNull"),
             interner.intern("scan"),
             interner.intern("scanIndexed"),
-            interner.intern("scanReduce"),
             interner.intern("runningFold"),
             interner.intern("runningFoldIndexed"),
             interner.intern("runningReduce"),
@@ -987,8 +1008,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: classDecl.nestedClasses,
                 nestedObjects: classDecl.nestedObjects,
                 companionObject: classDecl.companionObject,
+                constructorArities: bundledConstructorArities(of: classDecl),
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1000,8 +1023,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: interfaceDecl.nestedClasses,
                 nestedObjects: interfaceDecl.nestedObjects,
                 companionObject: interfaceDecl.companionObject,
+                constructorArities: [],
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1013,8 +1038,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: objectDecl.nestedClasses,
                 nestedObjects: objectDecl.nestedObjects,
                 companionObject: nil,
+                constructorArities: [],
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
 
@@ -1023,16 +1050,36 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
+    private static func bundledConstructorArities(of classDecl: ClassDecl) -> [Int] {
+        var arities = classDecl.secondaryConstructors.map { $0.valueParams.count }
+        if classDecl.hasPrimaryConstructorSyntax {
+            arities.append(classDecl.primaryConstructorParams.count)
+        }
+        return arities
+    }
+
     private static func collectBundledNominalMembers(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
         nestedClasses: [DeclID],
         nestedObjects: [DeclID],
         companionObject: DeclID?,
+        constructorArities: [Int],
         ownerFQName: [InternedString],
         ast: ASTModule,
+        interner: StringInterner,
         keys: inout Set<BundledMemberKey>
     ) {
+        let constructorName = interner.intern("<init>")
+        for arity in constructorArities {
+            keys.insert(
+                BundledMemberKey(
+                    ownerFQName: ownerFQName,
+                    name: constructorName,
+                    arity: arity
+                )
+            )
+        }
         for declID in memberFunctions {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(funDecl) = decl
@@ -1068,6 +1115,7 @@ struct BundledDeclarationIndex: Sendable {
                 declID: declID,
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         }
@@ -1077,6 +1125,7 @@ struct BundledDeclarationIndex: Sendable {
                 declID: companionObject,
                 ownerFQName: ownerFQName,
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         }
@@ -1086,6 +1135,7 @@ struct BundledDeclarationIndex: Sendable {
         declID: DeclID,
         ownerFQName: [InternedString],
         ast: ASTModule,
+        interner: StringInterner,
         keys: inout Set<BundledMemberKey>
     ) {
         guard let decl = ast.arena.decl(declID) else {
@@ -1100,8 +1150,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: classDecl.nestedClasses,
                 nestedObjects: classDecl.nestedObjects,
                 companionObject: classDecl.companionObject,
+                constructorArities: bundledConstructorArities(of: classDecl),
                 ownerFQName: ownerFQName + [classDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         case let .interfaceDecl(interfaceDecl):
@@ -1111,8 +1163,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: interfaceDecl.nestedClasses,
                 nestedObjects: interfaceDecl.nestedObjects,
                 companionObject: interfaceDecl.companionObject,
+                constructorArities: [],
                 ownerFQName: ownerFQName + [interfaceDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         case let .objectDecl(objectDecl):
@@ -1122,8 +1176,10 @@ struct BundledDeclarationIndex: Sendable {
                 nestedClasses: objectDecl.nestedClasses,
                 nestedObjects: objectDecl.nestedObjects,
                 companionObject: nil,
+                constructorArities: [],
                 ownerFQName: ownerFQName + [objectDecl.name],
                 ast: ast,
+                interner: interner,
                 keys: &keys
             )
         default:
@@ -1267,6 +1323,8 @@ struct BundledDeclarationIndex: Sendable {
             [kotlin, io],
             [kotlin],
             [kotlin, reflect],
+            [kotlin, interner.intern("jvm")],
+            [interner.intern("java"), interner.intern("lang")],
         ]
 
         // Compiler-provided synthetic types that are default-imported but not

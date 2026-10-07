@@ -65,6 +65,151 @@ struct RuntimeMutexTests {
         #expect(kk_mutex_unlock(handle) == 0)
     }
 
+    @Test func mutexUnlockOnUnlockedMutexThrowsIllegalStateException() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        var thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.message == "This mutex is not locked")
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        thrown = 0
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        thrown = 0
+        #expect(kk_mutex_unlock(handle, &thrown) == 0)
+        let secondBox = try requireThrownBox(thrown)
+        #expect(secondBox.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(secondBox.message == "This mutex is not locked")
+    }
+
+    // KUU-1356: owner-token overloads (__kk_mutex_lock_owner /
+    // __kk_mutex_unlock_owner) back `Mutex.lock(owner)`/`Mutex.unlock(owner)`.
+    // The runtime treats the owner as an opaque token compared by value;
+    // `0` stands in for Kotlin `null` (no owner).
+    @Test func mutexOwnerLockUnlock() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        let otherOwner: Int = 0x4F48
+
+        var thrown = 0
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        // Unlocking with a different owner throws and keeps the lock held.
+        #expect(__kk_mutex_unlock_owner(handle, otherOwner, &thrown) == 0)
+        let mismatchBox = try requireThrownBox(thrown)
+        #expect(mismatchBox.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        // The matching owner releases the lock.
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, owner, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
+    @Test func mutexUnlockWithoutOwnerBypassesOwnerCheck() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        var thrown = 0
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, &thrown) == 0)
+        #expect(thrown == 0)
+
+        // unlock(owner: null) skips the token check, matching upstream
+        // `unlock(owner == null)` which always succeeds on a held mutex.
+        #expect(__kk_mutex_unlock_owner(handle, 0, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        // The plain no-arg unlock path also releases an owner-held mutex.
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(kk_mutex_unlock(handle) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
+    @Test func mutexUnlockOwnerOnUnlockedMutexThrowsIllegalStateException() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        var thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, 0x5157, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(box.message == "This mutex is not locked")
+    }
+
+    @Test func mutexLockAlreadyHeldBySameOwnerThrowsIllegalStateException() throws {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        var thrown = 0
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, &thrown) == 0)
+        #expect(thrown == 0)
+
+        // Re-locking with the same owner fails fast instead of parking
+        // forever, matching kotlinx.coroutines lock(owner)/tryLock(owner).
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, &thrown) == 0)
+        let box = try requireThrownBox(thrown)
+        #expect(box.exceptionFQName == "kotlin.IllegalStateException")
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, owner, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
+    @Test func mutexOwnerTransfersToBlockingWaiter() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let firstOwner: Int = 0x5157
+        let waiterOwner: Int = 0x4F48
+        var thrown = 0
+        #expect(__kk_mutex_lock_owner(handle, firstOwner, 0, &thrown) == 0)
+
+        let waiterDone = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            // Blocks until the first owner releases; the waiter's owner token
+            // must become the mutex's recorded owner.
+            #expect(__kk_mutex_lock_owner(handle, waiterOwner, 0, nil) == 0)
+            waiterDone.signal()
+        }
+        Thread.sleep(forTimeInterval: 0.05)
+
+        // Releasing with the first owner hands the mutex to the waiter,
+        // carrying the waiter's owner token with it.
+        #expect(__kk_mutex_unlock_owner(handle, firstOwner, &thrown) == 0)
+        #expect(waiterDone.wait(timeout: .now() + .seconds(2)) == .success)
+
+        // The mutex is now held under waiterOwner: firstOwner no longer
+        // satisfies the token check and the release must fail.
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, firstOwner, &thrown) == 0)
+        _ = try? requireThrownBox(thrown)
+        #expect(thrown != 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        thrown = 0
+        #expect(__kk_mutex_unlock_owner(handle, waiterOwner, &thrown) == 0)
+        #expect(thrown == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
     // NOTE: pthread_mutex_t does not guarantee FIFO wake-up order on Linux, so
     // this test verifies only that multiple waiters can all acquire and release
     // the mutex without deadlock.  A strict ordering assertion would be flaky on
@@ -127,4 +272,15 @@ struct RuntimeMutexTests {
             #expect(a2 < r2, "waiter-2 must release after acquiring")
         }
     }
+}
+
+private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
+    let ptr = try #require(
+        UnsafeMutableRawPointer(bitPattern: thrown),
+        "thrown channel value is not a valid pointer"
+    )
+    return try #require(
+        tryCast(ptr, to: RuntimeThrowableBox.self),
+        "thrown value must be a RuntimeThrowableBox"
+    )
 }

@@ -1,9 +1,103 @@
 #if canImport(Testing)
 import Foundation
 import Testing
+import TestStdlibCache
 @testable import CompilerCore
 
 @Suite struct InheritanceModifierTests {
+
+    @Test(arguments: [false, true], [false, true])
+    func testOverloadedOverrideUsesDeclarationSymbol(useLibrary: Bool, overrideFirst: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        let libraryPath = useLibrary ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
+        let removeDeclarations = [
+            "fun remove(key: K, value: V): Boolean",
+            "override fun remove(key: K): V?",
+        ]
+        let source = """
+        interface CMap<K, V> : MutableMap<K, V> {
+            \((overrideFirst ? Array(removeDeclarations.reversed()) : removeDeclarations).joined(separator: "\n"))
+        }
+        open class Base {
+            open fun remove(key: Int): Int = key
+            open val value: Int = 1
+        }
+        open class OpenChild : Base() {
+            fun remove(key: Int, value: Int): Boolean = key == value
+            override fun remove(key: Int): Int = key + 1
+        }
+        class FinalChild : Base() {
+            fun remove(key: Int, value: Int): Boolean = key == value
+            final override fun remove(key: Int): Int = key + 2
+        }
+        class PropertyChild : Base() {
+            fun value(key: Int): Int = key
+            override val value: Int = 2
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                stdlibLibraryPath: libraryPath
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            var overrideCount = 0
+            for (declID, symbolID) in sema.bindings.declSymbols {
+                let symbol = try #require(sema.symbols.symbol(symbolID))
+                guard sema.symbols.sourceFileID(for: symbolID).map({ ctx.sourceManager.path(of: $0) }) == path,
+                      let decl = ast.arena.decl(declID)
+                else { continue }
+                let modifiers: Modifiers
+                switch decl {
+                case let .funDecl(fun): modifiers = fun.modifiers
+                case let .propertyDecl(property): modifiers = property.modifiers
+                default: continue
+                }
+                #expect(symbol.flags.contains(.overrideMember) == modifiers.contains(.override))
+                #expect(symbol.flags.contains(.finalMember) == modifiers.contains(.final))
+                if modifiers.contains(.override) { overrideCount += 1 }
+            }
+            #expect(overrideCount == 4)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testOverloadedOverrideStillValidatesSymbolFlags(isFinal: Bool) throws {
+        let source = """
+        open class Base { open fun remove(key: Int): Int = key }
+        class Child : Base() {
+            fun remove(key: Int, value: Int): Boolean = key == value
+            \(isFinal ? "final " : "")override fun remove(key: Int): Int = key
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let member = try #require(sema.symbols.allSymbols().first {
+                $0.fqName.map(ctx.interner.resolve) == ["Child", "remove"]
+                    && $0.flags.contains(.overrideMember)
+            })
+            sema.symbols.removeFlags(isFinal ? .finalMember : .overrideMember, for: member.id)
+            DataFlowSemaPhase().validateOpenFinalOverride(
+                ast: ast,
+                symbols: sema.symbols,
+                bindings: sema.bindings,
+                types: sema.types,
+                diagnostics: ctx.diagnostics,
+                interner: ctx.interner,
+                compilationModuleName: ctx.options.moduleName
+            )
+            let internalErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-INTERNAL" }
+            #expect(internalErrors.count == 1)
+            #expect(internalErrors.first?.primaryRange == member.declSite)
+        }
+    }
 
     @Test func testInheritanceModifierSema() throws {
         let sources: [String] = [
@@ -428,6 +522,74 @@ import Testing
     }
 
 
+    @Test func testInterfaceMemberCannotBeProtected() throws {
+        let sources: [String] = [
+            // protected member function
+            """
+            interface Iface {
+                protected fun hidden(): String = "h"
+            }
+            """,
+            // protected member property
+            """
+            interface Iface {
+                protected val value: Int get() = 1
+            }
+            """,
+            // protected nested class
+            """
+            interface Iface {
+                protected class Nested
+            }
+            """,
+            // protected nested interface
+            """
+            interface Iface {
+                protected interface Nested
+            }
+            """,
+            // protected nested object
+            """
+            interface Iface {
+                protected object Obj
+            }
+            """,
+            // protected companion object
+            """
+            interface Iface {
+                protected companion object
+            }
+            """,
+            // protected nested typealias
+            """
+            interface Iface {
+                protected typealias Alias = String
+            }
+            """,
+            // control: protected members inside classes stay legal
+            """
+            open class Base {
+                protected fun hidden(): String = "h"
+                protected val value: Int = 1
+                protected class Nested
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            for index in 0..<7 {
+                let sampleDiags = diagnosticsForPath(paths[index], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
+            }
+            let controlDiags = diagnosticsForPath(paths[7], in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: controlDiags)
+            #expect(!controlDiags.hasError)
+        }
+    }
+
     @Test func testInternalOverrideOfPublicFromOtherModule() throws {
         let source = """
         open class Shape {
@@ -532,14 +694,14 @@ import Testing
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let baseSymbol = symbols.allSymbols().first {

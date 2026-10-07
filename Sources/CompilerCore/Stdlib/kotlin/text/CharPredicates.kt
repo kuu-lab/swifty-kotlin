@@ -18,6 +18,7 @@ internal external fun __charIsLowerCase(code: Int): Boolean
 
 private const val CATEGORY_UNASSIGNED = 0
 private const val CATEGORY_UPPERCASE_LETTER = 1
+private const val CATEGORY_TITLECASE_LETTER = 3
 private const val CATEGORY_OTHER_LETTER = 5
 private const val CATEGORY_DECIMAL_DIGIT_NUMBER = 9
 private const val CATEGORY_SPACE_SEPARATOR = 12
@@ -48,5 +49,10 @@ public fun Char.isWhitespace(): Boolean {
 public fun Char.isUpperCase(): Boolean = __charIsUpperCase(this.code)
 
 public fun Char.isLowerCase(): Boolean = __charIsLowerCase(this.code)
+
+/**
+ * Returns `true` if this character is a title case letter.
+ */
+public fun Char.isTitleCase(): Boolean = __charUnicodeCategory(this.code) == CATEGORY_TITLECASE_LETTER
 
 public fun Char.isDefined(): Boolean = __charUnicodeCategory(this.code) != CATEGORY_UNASSIGNED

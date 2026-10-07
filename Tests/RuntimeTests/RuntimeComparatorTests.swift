@@ -143,6 +143,30 @@ struct RuntimeComparatorTests {
     }
 
     @Test
+    func testComparableCompareToPreservesNarrowBoxDifference() {
+        #expect(__kk_comparable_compareTo(kk_box_byte(-128), kk_box_byte(127)) == -255)
+        #expect(__kk_comparable_compareTo(kk_box_short(32767), kk_box_short(-32768)) == 65535)
+        #expect(__kk_comparable_compareTo(kk_box_byte(3), kk_box_byte(3)) == 0)
+        #expect(__kk_comparable_compareTo(kk_box_int(-128), kk_box_int(127)) == -1)
+    }
+
+    @Test
+    func testComparableCharCompareToPreservesCodeUnitDifference() {
+        let values = [0, 97, 122, 0x7FFF, 0x8000, 0xD800, 0xDC00, 0xFFFF]
+        let boxedValues = values.map { kk_box_char($0) }
+        for (lhsIndex, lhs) in values.enumerated() {
+            for (rhsIndex, rhs) in values.enumerated() {
+                #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], boxedValues[rhsIndex]) == lhs - rhs)
+                #expect(__kk_comparable_compareTo(boxedValues[lhsIndex], rhs) == lhs - rhs)
+            }
+        }
+        #expect(__kk_comparable_compareTo(kk_box_int(122), kk_box_int(97)) == 1)
+        #expect(__kk_comparable_compareTo(kk_box_int(97), kk_box_int(122)) == -1)
+        #expect(__kk_comparable_compareTo(kk_box_char(122), runtimeNullSentinelInt) == 1)
+        #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_char(122)) == -1)
+    }
+
+    @Test
     func testComparableCompareToOrdersNullsFirst() {
         #expect(__kk_comparable_compareTo(runtimeNullSentinelInt, kk_box_int(1)) < 0)
         #expect(__kk_comparable_compareTo(kk_box_int(1), runtimeNullSentinelInt) > 0)
@@ -178,6 +202,20 @@ struct RuntimeComparatorTests {
         #expect(
             __kk_comparable_compareTo(makeRuntimeString("abc"), makeRuntimeString("abc")) == 0
         )
+    }
+
+    // KUU-626: Kotlin compares strings by UTF-16 code units. The high
+    // surrogate of a supplementary character therefore sorts before a BMP
+    // character at U+E000, even though the Unicode scalar value is larger.
+    @Test
+    func testStringCompareToOrdersSupplementaryCharacterBeforePrivateUseBMP() {
+        let supplementary = makeRuntimeString("𐀀")
+        let bmp = makeRuntimeString("")
+
+        #expect(__kk_string_compareTo_member(supplementary, bmp) == -2048)
+        #expect(__kk_string_compareTo_member(bmp, supplementary) == 2048)
+        #expect(__kk_comparable_compareTo(supplementary, bmp) == -2048)
+        #expect(__kk_comparable_compareTo(bmp, supplementary) == 2048)
     }
 
     // Regression (KSP-659): only the null sentinel counts as `null`, so a real

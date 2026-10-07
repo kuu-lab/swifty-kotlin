@@ -97,6 +97,13 @@ struct CaptureAnalyzer {
                 }
 
             case let .localAssign(_, value, _):
+                // KSP-CAP-001: a bare write to an outer mutable property
+                // (`counter = 1`, no accompanying read anywhere in the body)
+                // must still register the symbol as captured, or
+                // `capturesMutableOuterProperty` (ObjectLiteralInference.swift)
+                // never fires and no outer-receiver capture slot is allocated --
+                // the KIR write then falls back to the literal's own receiver.
+                recordCapture(for: currentExprID)
                 visit(value)
 
             case let .memberAssign(receiver, _, value, _):
@@ -111,6 +118,31 @@ struct CaptureAnalyzer {
                 visit(value)
 
             case let .call(callee, _, args, _):
+                // A call that resolved on an outer implicit receiver needs the
+                // enclosing `this` captured so the receiver value reaches the
+                // member body's lowering.
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
+                // Same for a member-extension call's extension receiver when
+                // Sema picked it from an enclosing tower entry.
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
+                // A bare member call inside an object literal resolves to the
+                // enclosing class's member symbol. Preserve that class's
+                // implicit receiver as a capture so lowering can still pass
+                // the original `this` after the literal becomes active.
+                if let target = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
+                   let owner = sema.symbols.parentSymbol(for: target),
+                   outerSymbols.contains(owner)
+                {
+                    captured.insert(owner)
+                }
                 visit(callee)
                 for arg in args {
                     visit(arg.expr)
@@ -212,11 +244,21 @@ struct CaptureAnalyzer {
                 }
 
             case let .callableRef(receiver, _, _):
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
+                if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
                 if let receiver {
                     visit(receiver)
                 }
 
-            case let .localFunDecl(_, _, _, body, _, _):
+            case let .localFunDecl(_, _, _, _, body, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
                 }
@@ -248,9 +290,14 @@ struct CaptureAnalyzer {
                 visit(iterable)
                 visit(body)
 
-            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
+            case .thisRef:
+                // Qualified extension-receiver references such as
+                // `this@describe` are bound to the receiver parameter symbol.
+                recordCapture(for: currentExprID)
+
+            case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
                  .charLiteral, .boolLiteral, .stringLiteral,
-                 .breakExpr, .continueExpr, .superRef, .thisRef:
+                 .breakExpr, .continueExpr, .superRef:
                 break
 
             case let .objectLiteral(_, declID, _):
@@ -286,6 +333,72 @@ struct CaptureAnalyzer {
                         continue
                     }
                     visit(initializer)
+                }
+
+            case let .localNominalDecl(declID, _):
+                // KUU-555: a named local nominal's captured outer locals are
+                // stored into instance fields at its construction site —
+                // which runs in whatever enclosing scope contains this decl —
+                // so every body that can reference an outer local must be
+                // visited here or the enclosing closure won't capture it.
+                guard let decl = ast.arena.decl(declID) else {
+                    break
+                }
+                if let owner = sema.bindings.declSymbol(for: declID) {
+                    captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
+                        outerSymbols.contains($0)
+                    })
+                }
+                let constructorArgExprs: [ExprID]
+                let memberFunctionDecls: [DeclID]
+                let memberPropertyDecls: [DeclID]
+                let initBlocks: [FunctionBody]
+                switch decl {
+                case let .objectDecl(objectDecl):
+                    constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                    memberFunctionDecls = objectDecl.memberFunctions
+                    memberPropertyDecls = objectDecl.memberProperties
+                    initBlocks = []
+                case let .classDecl(classDecl):
+                    constructorArgExprs = classDecl.superTypeEntries
+                        .flatMap(\.constructorArgs).map(\.expr)
+                    memberFunctionDecls = classDecl.memberFunctions
+                    memberPropertyDecls = classDecl.memberProperties
+                    initBlocks = classDecl.initBlocks
+                default:
+                    constructorArgExprs = []
+                    memberFunctionDecls = []
+                    memberPropertyDecls = []
+                    initBlocks = []
+                }
+                for argExpr in constructorArgExprs {
+                    visit(argExpr)
+                }
+                for memberFunctionID in memberFunctionDecls {
+                    guard let memberDecl = ast.arena.decl(memberFunctionID),
+                          case let .funDecl(memberFunction) = memberDecl
+                    else {
+                        continue
+                    }
+                    visitBody(memberFunction.body)
+                }
+                for propertyID in memberPropertyDecls {
+                    guard let propertyDecl = ast.arena.decl(propertyID),
+                          case let .propertyDecl(property) = propertyDecl
+                    else {
+                        continue
+                    }
+                    if let initializer = property.initializer {
+                        visit(initializer)
+                    }
+                    for accessorBody in [property.getter?.body, property.setter?.body, property.delegateBody] {
+                        if let accessorBody {
+                            visitBody(accessorBody)
+                        }
+                    }
+                }
+                for initBlock in initBlocks {
+                    visitBody(initBlock)
                 }
             }
         }

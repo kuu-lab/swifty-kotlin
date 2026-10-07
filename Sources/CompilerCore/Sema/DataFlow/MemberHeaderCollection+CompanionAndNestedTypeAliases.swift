@@ -13,7 +13,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         scope: Scope,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        collectMembers: Bool = true
     ) {
         let sourceManager = ctx.sourceManager
         guard let decl = ast.arena.decl(companionDeclID),
@@ -33,7 +34,9 @@ extension DataFlowSemaPhase {
 
         let companionFQName = ownerFQName + [companionName]
         let companionSymbol: SymbolID
-        if let reusableSymbol = reusableSyntheticUuidSourceCompanionSymbol(
+        if let predeclaredSymbol = bindings.declSymbol(for: companionDeclID) {
+            companionSymbol = predeclaredSymbol
+        } else if let reusableSymbol = reusableSyntheticUuidSourceCompanionSymbol(
             fqName: companionFQName,
             sourceFileID: sourceFileID,
             ownerSymbol: ownerSymbol,
@@ -55,6 +58,28 @@ extension DataFlowSemaPhase {
             symbols.removeFlags(.synthetic, for: companionSymbol)
             symbols.setDeclSite(companionObject.range, for: companionSymbol)
         } else if let reusableSymbol = reusableSyntheticLongProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticUIntProgressionSourceCompanionSymbol(
+            fqName: companionFQName,
+            sourceFileID: sourceFileID,
+            ownerSymbol: ownerSymbol,
+            ctx: ctx,
+            symbols: symbols,
+            interner: interner
+        ) {
+            companionSymbol = reusableSymbol
+            symbols.removeFlags(.synthetic, for: companionSymbol)
+            symbols.setDeclSite(companionObject.range, for: companionSymbol)
+        } else if let reusableSymbol = reusableSyntheticCharProgressionSourceCompanionSymbol(
             fqName: companionFQName,
             sourceFileID: sourceFileID,
             ownerSymbol: ownerSymbol,
@@ -89,6 +114,8 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
         scope.insert(companionSymbol)
+
+        guard collectMembers else { return }
 
         let companionType = types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
         let companionScope = ClassMemberScope(

@@ -4,16 +4,19 @@
  *
  * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/concurrent/atomics/Atomics.common.kt>.
  */
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
 package kotlin.concurrent.atomics
+
+import kotlin.internal.KsSymbolName
 
 /**
  * Creates an atomic Boolean value through the canonical atomics-package API.
  *
- * The nominal type remains the existing `kotlin.concurrent.atomics.AtomicBoolean` typealias
- * until the receiver members are migrated by KSP-1111. The underlying constructor retains the
- * runtime-backed allocation owned by the concurrent atomic implementation.
+ * The allocation stays in the runtime box via `kk_atomic_bool_create`; this
+ * declaration is the source-backed `AtomicBoolean(value)` entry point.
  */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
-public fun AtomicBoolean(value: Boolean): AtomicBoolean =
-    kotlin.concurrent.AtomicBoolean(value)
+@KsSymbolName("kk_atomic_bool_create")
+public external fun AtomicBoolean(value: Boolean): AtomicBoolean

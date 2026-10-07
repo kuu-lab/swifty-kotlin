@@ -1,0 +1,26 @@
+symbol fq=golden.sema.Binding[kind=anno;origin=fixture] kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.Box[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=golden.sema.castVia.$0.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.klass[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.castVia.$0.T>,Any?] ret=golden.sema.castVia.$0.T bounds=[Any]
+symbol fq=golden.sema.findBinding.$1.kclass[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>;ret=Any?;names=[kclass];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.reflect.KClass<*>] ret=Any?
+symbol fq=golden.sema.safeCastVia.$2.T[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$2.klass[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia.$2.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[KClass<golden.sema.safeCastVia.$2.T>,Any?] ret=golden.sema.safeCastVia.$2.T? bounds=[Any]
+file fstdlib_kotlin_reflect_KClass_n package=golden.sema
+  decl golden.sema.Binding[kind=anno;origin=fixture] class Binding sym=golden.sema.Binding[kind=anno;origin=fixture]
+  decl golden.sema.Box[kind=class;origin=fixture] class Box sym=golden.sema.Box[kind=class;origin=fixture]
+  decl golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture] fun castVia sym=golden.sema.castVia[kind=fun;params=kclass{T0},Any?;ret=T0;gen=1;bounds=[Any];names=[klass,value];origin=fixture]
+  decl golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture] fun safeCastVia sym=golden.sema.safeCastVia[kind=fun;params=kclass{T0},Any?;ret=T0?;gen=1;bounds=[Any];names=[klass,value];origin=fixture]
+  decl golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>;ret=Any?;names=[kclass];origin=fixture] fun findBinding sym=golden.sema.findBinding[kind=fun;params=kotlin.reflect.KClass<*>;ret=Any?;names=[kclass];origin=fixture]
+expr e@14:59 name(klass) type=KClass<golden.sema.castVia.$0.T> ref=golden.sema.castVia.$0.klass[kind=vparam;origin=fixture]
+expr e@14:70 name(value) type=Any? ref=golden.sema.castVia.$0.value[kind=vparam;origin=fixture]
+expr e@14:59#1 memberCall recv=e@14:59 callee=cast args=[_:e@14:70] type=golden.sema.castVia.$0.T call=kotlin.reflect.cast[kind=fun;recv=kclass{T0};params=Any?;ret=T0;gen=1;bounds=[Any];names=[value]] targs=[golden.sema.castVia.$0.T]
+expr e@16:64 name(klass) type=KClass<golden.sema.safeCastVia.$2.T> ref=golden.sema.safeCastVia.$2.klass[kind=vparam;origin=fixture]
+expr e@16:79 name(value) type=Any? ref=golden.sema.safeCastVia.$2.value[kind=vparam;origin=fixture]
+expr e@16:64#1 memberCall recv=e@16:64 callee=safeCast args=[_:e@16:79] type=golden.sema.safeCastVia.$2.T? call=kotlin.reflect.safeCast[kind=fun;recv=kclass{T0};params=Any?;ret=T0?;gen=1;bounds=[Any];names=[value]] targs=[golden.sema.safeCastVia.$2.T]
+expr e@19:44 name(kclass) type=kotlin.reflect.KClass<*> ref=golden.sema.findBinding.$1.kclass[kind=vparam;origin=fixture]
+expr e@19:44#1 memberCall recv=e@19:44 callee=findAssociatedObject args=[] type=Any? call=kotlin.reflect.findAssociatedObject[kind=fun;recv=kotlin.reflect.KClass<*>;params=;ret=Any?;gen=1;bounds=[kotlin.Annotation];reified=[0]] targs=[golden.sema.Binding]

@@ -9,16 +9,7 @@ public abstract class ExecutorCoroutineDispatcher : CoroutineDispatcher(), Close
     public abstract override fun close()
 }
 
-public fun Executor.asCoroutineDispatcher(): CoroutineDispatcher =
-    ExecutorCoroutineDispatcherImpl(this)
-
-public fun ExecutorService.asCoroutineDispatcher(): ExecutorCoroutineDispatcher =
-    ExecutorCoroutineDispatcherImpl(this)
-
-public fun CoroutineDispatcher.asExecutor(): Executor =
-    (this as? ExecutorCoroutineDispatcher)?.executor ?: Executor { command -> command.run() }
-
-private class ExecutorCoroutineDispatcherImpl(
+internal class ExecutorCoroutineDispatcherImpl(
     override val executor: Executor
 ) : ExecutorCoroutineDispatcher() {
     override fun close() {

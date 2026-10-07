@@ -324,6 +324,43 @@ extension CallTypeChecker {
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
     /// is not decided until inference (mirrors the `rangeUntil`/`genericReceiver` escape hatch there).
+    /// Member extensions declared on the lexical dispatch receiver
+    /// (e.g. a `SelectBuilder<R>` enclosing receiver) participate in calls
+    /// whose call-site receiver is the *extension* receiver: `clause { }`
+    /// inside `select { }` must find the builder's
+    /// `operator fun <Q> SelectClause1<Q>.invoke`. Collects the implicit
+    /// receiver's members first, then outer receivers innermost-out.
+    func collectDispatchReceiverMemberExtensionCandidates(
+        named calleeName: InternedString,
+        extensionReceiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+            + ctx.outerReceiverTypes.reversed().map(\.type)
+        for receiver in receivers {
+            let candidates = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: receiver,
+                sema: sema,
+                interner: ctx.interner
+            ).filter { candidateID in
+                guard let symbol = ctx.cachedSymbol(candidateID),
+                      symbol.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: candidateID),
+                      let declaredReceiver = signature.receiverType
+                else { return false }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: extensionReceiverType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            if !candidates.isEmpty { return candidates }
+        }
+        return []
+    }
+
     func extensionSyntheticFallbackReceiverMatches(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -332,6 +369,19 @@ extension CallTypeChecker {
         let actual = sema.types.makeNonNullable(callSiteReceiver)
         let declared = sema.types.makeNonNullable(declaredReceiver)
         if sema.types.isSubtype(actual, declared) {
+            return true
+        }
+        // A smart-cast intersection (e.g. `R & List<*>` after
+        // `x != null && x is List<*>`) is a subtype of each of its parts,
+        // so an extension whose declared receiver matches any single part
+        // is applicable to the whole intersection.
+        if case let .intersection(parts) = sema.types.kind(of: actual),
+           parts.contains(where: {
+               extensionSyntheticFallbackReceiverMatches(
+                   callSiteReceiver: $0, declaredReceiver: declared, sema: sema
+               )
+           })
+        {
             return true
         }
         // Builtin nominal shells (notably String's Companion) may be recreated
@@ -489,12 +539,16 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
         let memberName = ctx.interner.resolve(calleeName)
+        // KUU-1351: this set must stay within the real kotlinx-coroutines Flow
+        // surface; `onErrorReturn`/`onErrorResume`/`delayEach` are not kotlinx
+        // Flow operators, so admitting them here would accept code that kotlinc
+        // rejects as unresolved.
         let flowMembers: Set = [
             "map", "filter", "take", "collect", "collectLatest", "toList", "first",
             "single",
             "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce", "sample", "delayEach",
-            "catch", "retry", "retryWhen", "onErrorReturn", "onErrorResume",
+            "buffer", "conflate", "flowOn", "debounce",
+            "catch", "retry", "retryWhen",
         ]
         guard flowMembers.contains(memberName) else {
             return nil
@@ -540,7 +594,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
 
-        case "take", "buffer", "debounce", "sample", "delayEach", "flowOn":
+        case "take", "buffer", "debounce", "flowOn":
             guard args.count == 1 else {
                 return nil
             }
@@ -589,7 +643,7 @@ extension CallTypeChecker {
 
         case "map", "filter", "collect", "collectLatest", "transform", "takeWhile", "dropWhile",
              "flatMapConcat", "flatMapMerge", "flatMapLatest",
-             "catch", "retryWhen", "onErrorReturn", "onErrorResume":
+             "catch", "retryWhen":
             guard args.count == 1 else {
                 return nil
             }
@@ -600,7 +654,7 @@ extension CallTypeChecker {
                 true
             }
             let lambdaReturnType: TypeID = switch memberName {
-            case "filter":
+            case "filter", "takeWhile", "dropWhile":
                 sema.types.booleanType
             case "collect", "collectLatest":
                 sema.types.unitType
@@ -610,8 +664,6 @@ extension CallTypeChecker {
                 // special case has no receiver-type inference for those
                 // emissions, so keep its output type conservatively erased.
                 sema.types.unitType
-            case "takeWhile", "dropWhile":
-                sema.types.unitType
             case "catch":
                 sema.types.unitType
             case "retryWhen":
@@ -620,7 +672,7 @@ extension CallTypeChecker {
                 sema.types.anyType
             }
             let lambdaParameterTypes: [TypeID] = switch memberName {
-            case "catch", "onErrorResume":
+            case "catch":
                 [sema.types.anyType]
             case "retryWhen":
                 [sema.types.anyType, sema.types.longType]
@@ -630,7 +682,7 @@ extension CallTypeChecker {
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: lambdaParameterTypes,
                 returnType: lambdaReturnType,
-                isSuspend: memberName == "collect" || memberName == "collectLatest",
+                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile"].contains(memberName),
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {

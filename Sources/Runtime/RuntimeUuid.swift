@@ -149,12 +149,16 @@ private func runtimeStableNominalTypeID(_ fqName: String) -> Int64 {
 }
 
 private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBits: Int64) -> Int {
+    // Uuid values are created here rather than by the Kotlin constructor, so its
+    // equals/hashCode overrides are never registered per object. Value equality
+    // is structural over the two bit slots.
+    runtimeRegisterDataClass(classID: runtimeUuidClassID)
     let raw = kk_object_new(4, Int(runtimeUuidClassID))
-    guard let box = runtimeArrayBox(from: raw), box.elements.count >= 4 else {
+    guard let box = runtimeArrayBox(from: raw), box.count >= 4 else {
         return raw
     }
-    box.elements[2] = Int(mostSignificantBits)
-    box.elements[3] = Int(leastSignificantBits)
+    box[2] = Int(mostSignificantBits)
+    box[3] = Int(leastSignificantBits)
     return raw
 }
 

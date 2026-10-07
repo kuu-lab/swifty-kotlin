@@ -1,0 +1,56 @@
+/*
+ * Copyright 2016-2024 JetBrains s.r.o. and respective authors and developers.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlinx-coroutines-core/common/src/Timeout.kt.
+ */
+package kotlinx.coroutines
+
+import kotlin.internal.KsSymbolName
+import kotlin.time.Duration
+
+// KSP-1566 (KUU-902): `withTimeout` / `withTimeoutOrNull` were synthetic
+// top-level stubs; they are bundled Kotlin now, mirroring upstream
+// `Timeout.kt`.
+//
+// Every overload is declared directly on the runtime bridge:
+// Both bridges propagate block failures through `outThrown`. `kk_with_timeout`
+// throws TimeoutCancellationException on expiry; `kk_with_timeout_or_null_throwing`
+// returns the null sentinel only for its own deadline. CoroutineLoweringPass
+// rewrites call sites to these cdecls with the block's suspend-entry point and the caller
+// continuation; a Duration first argument is converted to milliseconds at
+// the call site (`inWholeMilliseconds`), and the Int overload mirrors
+// Kotlin's integer-literal adaptation, which this compiler's constraint
+// solver does not perform.
+//
+// CoroutineLoweringPass adapts stored receiver-function values to the runtime
+// entry-point ABI while preserving their captures and continuation state.
+
+@KsSymbolName("kk_with_timeout")
+public external suspend fun <T> withTimeout(timeMillis: Long, block: suspend CoroutineScope.() -> T): T
+
+@KsSymbolName("kk_with_timeout_or_null_throwing")
+public external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: suspend CoroutineScope.() -> T): T?
+
+@KsSymbolName("kk_with_timeout")
+public external suspend fun <T> withTimeout(timeMillis: Int, block: suspend CoroutineScope.() -> T): T
+
+@KsSymbolName("kk_with_timeout_or_null_throwing")
+public external suspend fun <T> withTimeoutOrNull(timeMillis: Int, block: suspend CoroutineScope.() -> T): T?
+
+@KsSymbolName("kk_with_timeout")
+public external suspend fun <T> withTimeout(duration: Duration, block: suspend CoroutineScope.() -> T): T
+
+@KsSymbolName("kk_with_timeout_or_null_throwing")
+public external suspend fun <T> withTimeoutOrNull(duration: Duration, block: suspend CoroutineScope.() -> T): T?
+
+// Rewritten call sites address the raw cdecl signatures directly (the
+// block's suspend entry point and the caller continuation, plus the
+// outThrown channel for the throwing variant), so the public overloads
+// alone do not pin the RuntimeABI contract. These private declarations
+// describe the emitted shape for the RuntimeABISpec validation gates.
+@KsSymbolName("kk_with_timeout")
+private external suspend fun __kkWithTimeoutBridge(timeoutMillis: Long, entryPointRaw: Long): Long
+
+@KsSymbolName("kk_with_timeout_or_null")
+private external suspend fun __kkWithTimeoutOrNullBridge(timeoutMillis: Long, entryPointRaw: Long): Long

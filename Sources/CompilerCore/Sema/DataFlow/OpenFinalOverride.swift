@@ -92,6 +92,10 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
+
+        if case let .interfaceDecl(interfaceDecl) = decl {
+            validateInterfaceProtectedMembers(interfaceDecl, ctx: ctx)
+        }
     }
 
     // MARK: - DATA-CTOR: data class primary constructor parameter validation
@@ -285,7 +289,7 @@ extension DataFlowSemaPhase {
                 )
                 validateOverrideOpenness(
                     memberMeta: memberMeta,
-                    ownerSymbol: symbol,
+                    memberSymbol: memberSymbol,
                     ctx: ctx
                 )
                 validateVisibilityConstraints(
@@ -442,12 +446,16 @@ extension DataFlowSemaPhase {
         // Rule 3: Check for invalid modifier combinations based on context
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
-        // Rule 3a: abstract members cannot be in final classes
-        if memberMeta.hasAbstract && ownerSym.flags.contains(.finalMember) {
+        // Rule 3a: abstract members require an abstract owner, even if the class is open.
+        // Interfaces and enum classes can declare abstract members without an abstract modifier.
+        if memberMeta.hasAbstract,
+           !ownerSym.flags.contains(.abstractType),
+           ownerSym.kind != .interface,
+           ownerSym.kind != .enumClass {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-MODIFIER-CONFLICT",
-                "'\(memberName)' cannot be abstract in final class '\(ownerName)'. Final classes cannot contain abstract members.",
+                "'\(memberName)' cannot be abstract in non-abstract class '\(ownerName)'. Abstract members require an abstract class.",
                 range: memberMeta.range
             )
         }
@@ -489,26 +497,79 @@ extension DataFlowSemaPhase {
         }
     }
 
+    // MARK: - Check: 'protected' is not applicable inside 'interface'
+
+    private func validateInterfaceProtectedMembers(
+        _ interfaceDecl: InterfaceDecl,
+        ctx: OpenFinalOverrideContext
+    ) {
+        // Kotlin rejects 'protected' on every member kind declared directly in
+        // an interface body: functions, properties, nested types, objects,
+        // companion objects, and type aliases. Member functions and properties
+        // cannot reuse the MemberMeta path because nested type declarations
+        // never reach validateMemberOverrides.
+        var memberDeclIDs = interfaceDecl.memberFunctions + interfaceDecl.memberProperties
+            + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+        if let companionObject = interfaceDecl.companionObject {
+            memberDeclIDs.append(companionObject)
+        }
+        for memberDeclID in memberDeclIDs {
+            guard let memberDecl = ctx.ast.arena.decl(memberDeclID),
+                  let range = protectedDeclRange(memberDecl)
+            else { continue }
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: range
+            )
+        }
+        for typeAlias in interfaceDecl.nestedTypeAliases where typeAlias.modifiers.contains(.protected) {
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-MODIFIER-CONFLICT",
+                "modifier 'protected' is not applicable inside 'interface'.",
+                range: typeAlias.range
+            )
+        }
+    }
+
+    private func protectedDeclRange(_ decl: Decl) -> SourceRange? {
+        let modifiers: Modifiers
+        let range: SourceRange
+        switch decl {
+        case let .classDecl(classDecl):
+            modifiers = classDecl.modifiers
+            range = classDecl.range
+        case let .interfaceDecl(interfaceDecl):
+            modifiers = interfaceDecl.modifiers
+            range = interfaceDecl.range
+        case let .funDecl(funDecl):
+            modifiers = funDecl.modifiers
+            range = funDecl.range
+        case let .propertyDecl(propertyDecl):
+            modifiers = propertyDecl.modifiers
+            range = propertyDecl.range
+        case let .objectDecl(objectDecl):
+            modifiers = objectDecl.modifiers
+            range = objectDecl.range
+        case let .typeAliasDecl(typeAliasDecl):
+            modifiers = typeAliasDecl.modifiers
+            range = typeAliasDecl.range
+        case .enumEntryDecl:
+            return nil
+        }
+        return modifiers.contains(.protected) ? range : nil
+    }
+
     // MARK: - Check 5: override openness validation
 
     private func validateOverrideOpenness(
         memberMeta: MemberMeta,
-        ownerSymbol: SymbolID,
+        memberSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
 
-        // Find the member symbol by looking in the owner's children
-        guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-
-        let memberSymbol = ctx.symbols.children(ofFQName: ownerSym.fqName).first { childID in
-            guard let childSym = ctx.symbols.symbol(childID) else { return false }
-            return childSym.name == memberMeta.name &&
-                   (childSym.kind == .function || childSym.kind == .property)
-        }
-
-        guard let memberSymID = memberSymbol,
-              let memberSym = ctx.symbols.symbol(memberSymID) else { return }
+        guard let memberSym = ctx.symbols.symbol(memberSymbol) else { return }
 
         // Check if this is an override member
         if memberMeta.hasOverride {
@@ -1315,6 +1376,8 @@ extension DataFlowSemaPhase {
                 guard let child = symbols.symbol(childID) else {
                     continue
                 }
+                guard child.fqName == sym.fqName + [child.name] else { continue }
+                guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 let isMatch = child.kind == .function
                     || child.kind == .property
                 guard isMatch, child.name == memberName else {

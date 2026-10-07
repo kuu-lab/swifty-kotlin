@@ -1,5 +1,71 @@
 
 extension LocalDeclTypeChecker {
+    /// `kotlin.concurrent.atomics`' array classes have no `operator get`/`set`
+    /// on the real (JVM/common) API surface; index access must not fall
+    /// through to the built-in array path (KUU-1365). The legacy
+    /// `kotlin.concurrent` arrays keep their bundled `get`/`set` extensions
+    /// and never reach this check.
+    func isCanonicalAtomicArrayReceiver(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        let atomicsPrefix: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("concurrent"),
+            interner.intern("atomics"),
+        ]
+        guard symbol.fqName.starts(with: atomicsPrefix) else { return false }
+        return symbol.name == interner.intern("AtomicIntArray")
+            || symbol.name == interner.intern("AtomicLongArray")
+            || symbol.name == interner.intern("AtomicArray")
+    }
+
+    /// When the sole shape-matching get()/set() candidate expects a non-Int
+    /// integer primitive (Long, UInt, ULong, Byte, Short) at `parameterIndex`
+    /// and `indexExpr` is a bare integer literal, Kotlin contextualizes the
+    /// literal to that parameter type instead of defaulting it to Int —
+    /// mirroring the analogous adaptation already applied to the assigned
+    /// value below (`setValueExpectedType`). Without this, `b[0]` against
+    /// `operator fun get(position: Long)` infers the literal as Int,
+    /// overload resolution then rejects the only candidate (Int is not a
+    /// subtype of Long), and both Sema and KIR lowering silently fall back
+    /// to treating `b` as a raw built-in array.
+    func contextualIntegerLiteralExpectedType(
+        candidates: [SymbolID],
+        parameterIndex: Int,
+        indexExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard driver.callChecker.isContextualizableIntegerLiteral(indexExpr, ast: ast) else {
+            return nil
+        }
+        var paramTypes: [TypeID] = []
+        for candidate in candidates {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count > parameterIndex
+            else {
+                continue
+            }
+            paramTypes.append(sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
+        }
+        guard paramTypes.count == 1,
+              case let .primitive(primitive, _) = sema.types.kind(of: paramTypes[0])
+        else {
+            return nil
+        }
+        switch primitive {
+        case .long, .uint, .ulong, .byte, .short:
+            return paramTypes[0]
+        default:
+            return nil
+        }
+    }
+
     func inferIndexedAccessExpr(
         _ id: ExprID,
         receiverExpr: ExprID,
@@ -84,9 +150,19 @@ extension LocalDeclTypeChecker {
         // Infer all index expressions without forcing Int.
         // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil)
-            indexTypes.append(indexType)
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: getCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ast,
+                sema: sema
+            )
+            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType)
+            let valueType = driver.helpers.retypeClassNameAsCompanionValue(
+                indexExpr, currentType: indexType, ast: ast, sema: sema
+            ) ?? indexType
+            indexTypes.append(valueType)
         }
 
         if !getCandidates.isEmpty {
@@ -194,6 +270,15 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.charType)
             return sema.types.charType
         }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'get'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let elementType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
         ) ?? sema.types.anyType
@@ -286,8 +371,15 @@ extension LocalDeclTypeChecker {
         // Infer all index expressions without forcing Int.
         // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
-        for indexExpr in indices {
-            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        for (position, indexExpr) in indices.enumerated() {
+            let literalExpectedType = contextualIntegerLiteralExpectedType(
+                candidates: setCandidates,
+                parameterIndex: position,
+                indexExpr: indexExpr,
+                ast: ast,
+                sema: sema
+            )
+            let indexType = driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType)
             indexTypes.append(indexType)
         }
 
@@ -304,29 +396,53 @@ extension LocalDeclTypeChecker {
                     else {
                         continue
                     }
-                    let paramType = sig.parameterTypes[valueParameterIndex]
+                    // The declared `set` signature's value parameter is often
+                    // still the operator's own raw type parameter (e.g. `V` in
+                    // `operator fun <K, V> MutableMap<K, V>.set(key: K, value:
+                    // V)`); substitute the call-site receiver's concrete type
+                    // arguments first so a fully-resolved value type (e.g.
+                    // `(Int) -> Int`) reaches the checks below instead of the
+                    // bare type parameter.
+                    let paramType = driver.callChecker.applyReceiverClassTypeArgs(
+                        to: sig.parameterTypes[valueParameterIndex],
+                        signature: sig,
+                        candidate: candidate,
+                        receiverType: receiverType,
+                        sema: sema
+                    )
                     valueTypes.append(sema.types.makeNonNullable(paramType))
                 }
-                if valueTypes.count == 1 {
-                    return valueTypes[0]
+                if let first = valueTypes.first, valueTypes.dropFirst().allSatisfy({ $0 == first }) {
+                    return first
                 }
             }
             return driver.helpers.arrayElementType(for: receiverType, sema: sema, interner: interner)
         }()
 
-        // Only pass concrete wideable numeric types as the expected type;
-        // generic element types (e.g. MutableMap.set value type T) should
-        // not influence inference of non-literal values.
+        // Pass concrete contextual numeric types or a fully-substituted function
+        // type as the expected type; a still-generic element type (e.g. an
+        // unsubstituted `MutableMap.set` value type `T`) must not influence
+        // inference of non-literal values.
         let valueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
-            guard case let .primitive(primitive, _) = sema.types.kind(of: nonNull),
-                  primitive == .long || primitive == .uint || primitive == .ulong ||
-                  primitive == .byte || primitive == .short
-            else {
+            switch sema.types.kind(of: nonNull) {
+            case let .primitive(primitive, _):
+                guard primitive == .long || primitive == .uint || primitive == .ulong ||
+                    primitive == .byte || primitive == .short ||
+                    primitive == .ubyte || primitive == .ushort
+                else {
+                    return nil
+                }
+                return nonNull
+            case .functionType:
+                guard !driver.callChecker.typeMentionsTypeParameter(nonNull, sema: sema) else {
+                    return nil
+                }
+                return nonNull
+            default:
                 return nil
             }
-            return nonNull
         }()
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
@@ -367,6 +483,15 @@ extension LocalDeclTypeChecker {
 
         // Fallback: built-in array assign (single Int index only)
         guard indices.count == 1 else {
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Unresolved member function 'set'.",
+                range: range
+            )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }

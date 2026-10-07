@@ -7,6 +7,64 @@ import Testing
 @Suite
 struct LibraryMetadataImportIntegrationTests {
     @Test
+    func testImportedNominalVarianceIsComposedInMemberDeclarations() throws {
+        let librarySource = """
+        package varianceLib
+        interface Source<out E>
+        interface Sink<in E>
+        interface Cell<E>
+        typealias DoubleSink<E> = Sink<Sink<E>>
+        """
+        try withCompiledLibrary(source: librarySource, moduleName: "VarianceLib") { libraryPath in
+            let appSource = """
+            import varianceLib.*
+            import varianceLib.Sink as Consumer
+            interface Task<in T> {
+                val delegate: kotlin.coroutines.Continuation<T>
+            }
+            interface Input<in T> {
+                val delegate: Consumer<T>
+                val nested: Source<Sink<T>>
+                fun accept(value: Source<T>)
+            }
+            interface Output<out T> {
+                val nested: varianceLib.Sink<Source<Sink<T>>>
+                val alias: DoubleSink<T>
+                fun accept(value: Consumer<T>)
+            }
+            interface Invalid<out T> {
+                val delegate: Consumer<T>
+                val cell: Cell<T>
+                val nestedCell: Cell<Sink<T>>
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath], moduleName: "VarianceApp",
+                    emit: .executable, searchPaths: [libraryPath]
+                )
+                try runSema(appCtx)
+                let errors = appCtx.diagnostics.diagnostics.filter { $0.severity == .error }
+                #expect(errors.count == 3, "\(errors)")
+                #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
+                let sema = try #require(appCtx.sema)
+                for (name, variance) in [
+                    ("varianceLib.Source", TypeVariance.out),
+                    ("varianceLib.Sink", .in),
+                    ("varianceLib.Cell", .invariant),
+                    ("kotlin.coroutines.Continuation", .in),
+                ] {
+                    let symbol = try #require(sema.symbols.allSymbols().first {
+                        $0.fqName.map(appCtx.interner.resolve).joined(separator: ".") == name
+                            && $0.flags.contains(.importedLibrary)
+                    })
+                    #expect(sema.types.nominalTypeParameterVariances(for: symbol.id) == [variance])
+                }
+            }
+        }
+    }
+
+    @Test
     func testSemaLoadsSymbolsFromKklibSearchPath() throws {
         let librarySource = """
         package extdemo
@@ -447,6 +505,55 @@ struct LibraryMetadataImportIntegrationTests {
                 }))
                 #expect(sema.types.nominalTypeParameterSymbols(for: holder.id).count == 1)
             }
+        }
+    }
+
+    @Test
+    func testDuplicateNominalTypeParameterMetadataReportsLibraryDiagnostic() throws {
+        let metadata = """
+        symbols=2
+        class _ fq=ext.Box schema=v1 typeParamsSig=C0
+        class _ fq=ext.Box schema=v1 typeParamsSig=C0
+        """
+        try withKklibFixture(moduleName: "DuplicateNominal", metadata: metadata) { libraryPath in
+            try withTemporaryFile(contents: "fun main() = 0") { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "DuplicateNominalApp",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+
+                assertHasDiagnostic("KSWIFTK-LIB-0024", in: appCtx)
+                #expect(
+                    appCtx.diagnostics.diagnostics.contains { diagnostic in
+                        diagnostic.code == "KSWIFTK-LIB-0024" && diagnostic.message.contains("ext.Box")
+                    }
+                )
+                #expect(
+                    appCtx.sema?.symbols.allSymbols().allSatisfy { symbol in
+                        appCtx.interner.resolve(symbol.name) != "Box"
+                            || !symbol.flags.contains(.importedLibrary)
+                    } == true
+                )
+            }
+        }
+
+        let forgedMetadata = """
+        symbols=2
+        function _ fq=ext.Forged schema=v1 typeParamsSig=C0
+        function _ fq=ext.Forged schema=v1 typeParamsSig=C1
+        """
+        try withKklibFixture(moduleName: "ForgedNominalMetadata", metadata: forgedMetadata) { libraryPath in
+            let diagnostics = DiagnosticEngine()
+            let records = DataFlowSemaPhase().parseLibraryMetadata(
+                path: libraryPath + "/metadata.bin",
+                diagnostics: diagnostics,
+                interner: StringInterner()
+            )
+            #expect(records == nil)
+            #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0024" })
         }
     }
 

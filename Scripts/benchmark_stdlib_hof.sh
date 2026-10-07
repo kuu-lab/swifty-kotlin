@@ -10,13 +10,14 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNS="${BENCH_RUNS:-7}"
 RELEASE="${BENCH_RELEASE:-0}"
 BENCH_CASE="${BENCH_CASE:-}"
+BENCH_OUTPUT_TSV="${BENCH_OUTPUT_TSV:-}"
 
 if [[ "$RELEASE" == "1" ]]; then
     BUILD_CONFIG="release"
 else
     BUILD_CONFIG="debug"
 fi
-KSWIFTC="${KSWIFTKC:-$ROOT_DIR/.build/$BUILD_CONFIG/kswiftc}"
+KSWIFTC="${KSWIFTC:-${KSWIFTKC:-$ROOT_DIR/.build/$BUILD_CONFIG/kswiftc}}"
 
 if [[ ! -x "$KSWIFTC" ]]; then
     echo "kswiftc not found at $KSWIFTC; building $BUILD_CONFIG..." >&2
@@ -52,6 +53,11 @@ echo ""
 printf "%-20s %10s\n" "Case" "Median (ms)"
 printf "%-20s %10s\n" "----" "-----------"
 
+if [[ -n "$BENCH_OUTPUT_TSV" ]]; then
+    mkdir -p "$(dirname "$BENCH_OUTPUT_TSV")"
+    printf 'kind\tcase\tmetric\tvalue_ms\n' >"$BENCH_OUTPUT_TSV"
+fi
+
 tmp_out=""
 trap 'rm -f "$tmp_out"' EXIT
 for kt in "$CASES_DIR"/*.kt; do
@@ -61,21 +67,36 @@ for kt in "$CASES_DIR"/*.kt; do
     fi
     tmp_out="$(mktemp "${TMPDIR:-/tmp}/kswiftk_bench_${name}.XXXXXX")"
 
-    "$KSWIFTC" --emit executable -o "$tmp_out" "$kt" >/dev/null
+    if [[ "${BENCH_STDLIB_FROM_SOURCE:-0}" == "1" ]]; then
+        "$KSWIFTC" --stdlib-from-source --emit executable -o "$tmp_out" "$kt" >/dev/null
+    else
+        "$KSWIFTC" --emit executable -o "$tmp_out" "$kt" >/dev/null
+    fi
 
     times=()
     for ((i = 1; i <= RUNS; i++)); do
         now_ns start_ns
         "$tmp_out" >/dev/null
         now_ns end_ns
-        elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+        # Convert after the timed interval and preserve microsecond-derived
+        # sub-millisecond precision. Integer milliseconds cannot express a
+        # 10% regression for the fastest (~12 ms) benchmark.
+        elapsed_ms="$(awk -v start="$start_ns" -v end="$end_ns" 'BEGIN { printf "%.3f", (end - start) / 1000000 }')"
         times+=("$elapsed_ms")
     done
 
     rm -f "$tmp_out"
 
     # Compute median
-    median="$(printf '%s\n' "${times[@]}" | sort -n | awk '{ a[NR] = $1 } END { if (NR % 2) { print a[(NR + 1) / 2] } else { print (a[NR / 2] + a[NR / 2 + 1]) / 2 } }')"
+    median="$(printf '%s\n' "${times[@]}" | sort -n | awk '
+        { a[NR] = $1 }
+        END {
+            if (NR % 2) printf "%.3f\n", a[(NR + 1) / 2]
+            else printf "%.3f\n", (a[NR / 2] + a[NR / 2 + 1]) / 2
+        }')"
 
     printf "%-20s %10s\n" "$name" "$median"
+    if [[ -n "$BENCH_OUTPUT_TSV" ]]; then
+        printf 'execution\t%s\truntime_ms\t%s\n' "$name" "$median" >>"$BENCH_OUTPUT_TSV"
+    fi
 done

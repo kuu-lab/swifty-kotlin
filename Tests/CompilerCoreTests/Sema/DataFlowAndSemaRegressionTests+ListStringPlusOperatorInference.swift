@@ -40,15 +40,15 @@ extension DataFlowAndSemaRegressionTests {
         """
     ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedCtx: (CompilationContext, [String])?
 
-    private func sharedCtx() throws -> CompilationContext {
+    private func sharedCtx() throws -> (CompilationContext, [String]) {
         if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
+        var result: (CompilationContext, [String])?
         try withTemporaryFiles(contents: Self.sharedSources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            result = ctx
+            result = (ctx, paths)
         }
         let ctx = try #require(result)
         Self._sharedCtx = ctx
@@ -64,33 +64,21 @@ extension DataFlowAndSemaRegressionTests {
     // RHS's type) was affected. Fixed by reordering the two checks so the
     // collection fallback (which only looks at the LHS's static type) runs
     // first.
+    //
+    // All three shared sources are checked by this one test:
+    // - sample0: the plain `List<String> + String` case above.
+    // - sample1: the same bug via a data-class `copy()` named argument with no
+    //   intermediate local, matching the exact shape that reaches
+    //   `PluginRegistry.update`'s lambda body in
+    //   Scripts/diff_cases/compiler_plugin_api.kt (`m.registeredExtensions +
+    //   "$kind:$name"`, `m.generatedModules + moduleName`, etc.).
+    // - sample2: control — plain `String + String` concatenation must keep
+    //   inferring String; the fix only reorders the check relative to
+    //   List/Sequence-typed receivers.
     @Test func testListOfStringPlusStringInfersListNotString() throws {
-
-        let ctx = try sharedCtx()
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-
-    }
-
-    // Same bug via a literal receiver and no intermediate local, matching the
-    // exact shape that reaches `PluginRegistry.update`'s lambda body in
-    // Scripts/diff_cases/compiler_plugin_api.kt (`m.registeredExtensions +
-    // "$kind:$name"`, `m.generatedModules + moduleName`, etc.).
-    @Test func testDataClassCopyWithListPlusStringNamedArgument() throws {
-
-        let ctx = try sharedCtx()
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-
-    }
-
-    // Control: `Int + String` (never valid in real Kotlin) is unrelated to
-    // this fix and must keep behaving exactly as before — the fix only
-    // reorders the check relative to List/Sequence-typed receivers, primitive
-    // receivers never enter that branch.
-    @Test func testStringConcatenationStillInfersStringForNonListReceiver() throws {
-
-        let ctx = try sharedCtx()
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
-
+        let (ctx, paths) = try sharedCtx()
+        let diagnostics = paths.flatMap { diagnosticsForPath($0, in: ctx) }
+        #expect(diagnostics.isEmpty, "Unexpected diagnostics: \(diagnostics.map(\.code))")
     }
 }
 #endif

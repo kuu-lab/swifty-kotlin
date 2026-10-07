@@ -183,6 +183,16 @@ struct ArrayOfTypeSafetyTests {
                     }
 
             """,
+            """
+            package sample15
+
+                    fun main() {
+                        val a: Array<List<Int>> = arrayOf(listOf(4, 5), listOf(6))
+                        println(a[0][0])
+                        println(a[1][0])
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -486,6 +496,52 @@ struct ArrayOfTypeSafetyTests {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+            }
+
+            // === testArrayOfNestedListExpectedTypeResolvesWithoutError ===
+
+            do {
+
+                assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+                let samplePath = paths[15]
+                let mainBody = try #require(findMainBodyStatements(in: ast, path: samplePath, ctx: ctx, interner: interner))
+                let arrayElementTypes = mainBody.compactMap { exprID -> TypeID? in
+                    guard let expr = ast.arena.expr(exprID),
+                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          interner.resolve(name) == "a",
+                          let initializer
+                    else { return nil }
+                    guard case let .classType(arrayType) = sema.types.kind(of: sema.bindings.exprType(for: initializer) ?? sema.types.errorType),
+                          let firstArg = arrayType.args.first
+                    else { return nil }
+                    return switch firstArg {
+                    case let .invariant(type), let .out(type), let .in(type): type
+                    case .star: nil
+                    }
+                }
+                #expect(arrayElementTypes.count == 1)
+                if let elementType = arrayElementTypes.first {
+                    let listSymbol = sema.symbols.lookup(fqName: [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("List"),
+                    ])
+                    #expect(
+                        listSymbol.map { symbol in
+                            guard case let .classType(listType) = sema.types.kind(of: elementType),
+                                  listType.classSymbol == symbol,
+                                  let listArg = listType.args.first
+                            else { return false }
+                            return switch listArg {
+                            case let .invariant(type), let .out(type), let .in(type): type == sema.types.intType
+                            case .star: false
+                            }
+                        } ?? false,
+                        "Expected Array element type List<Int>."
+                    )
+                }
 
             }
 

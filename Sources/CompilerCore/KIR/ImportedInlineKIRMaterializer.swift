@@ -4,7 +4,7 @@
 /// types.  The importer therefore shifts their IDs out of the consumer arena,
 /// which keeps accidental ID aliasing from changing semantics.  Before
 /// inlining, give every imported body ID a fresh consumer expression while
-/// recovering only the concrete Boolean result needed by callback invokes.
+/// recovering the concrete non-null primitive results callback invokes need.
 enum ImportedInlineKIRMaterializer {
     private static let callbackInvokeNames: Set<String> = [
         "kk_function_invoke",
@@ -13,9 +13,14 @@ enum ImportedInlineKIRMaterializer {
         "kk_function_invoke_3",
         "kk_function_invoke_4",
         "kk_function_invoke_5",
+        "kk_function_invoke_6",
         "kk_suspend_function_invoke",
         "kk_suspend_function_invoke_0",
         "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke_3",
+        "kk_suspend_function_invoke_4",
+        "kk_suspend_function_invoke_5",
+        "kk_suspend_function_invoke_6",
     ]
 
     static func materialize(
@@ -25,44 +30,62 @@ enum ImportedInlineKIRMaterializer {
         interner: StringInterner
     ) {
         for symbol in importedFunctions.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
-            guard var function = importedFunctions[symbol] else { continue }
-
-            let concreteBooleanResults = inferConcreteBooleanInvokeResults(
-                in: function,
+            guard let function = importedFunctions[symbol] else { continue }
+            importedFunctions[symbol] = materializeOne(
+                function,
+                arena: arena,
                 types: types,
                 interner: interner
             )
-            var sourceToConsumer: [KIRExprID: KIRExprID] = [:]
-
-            func remap(_ source: KIRExprID) -> KIRExprID {
-                if let existing = sourceToConsumer[source] {
-                    return existing
-                }
-                // Imported bodies may carry exception-slot IDs that are only
-                // observed by an implicit throw check and have no defining
-                // instruction in the lowered body.  Keep their historical
-                // unresolved-value fallback at zero while still giving every
-                // ID a consumer-arena entry for type recovery and remapping.
-                let consumer = arena.appendExpr(.temporary(0))
-                sourceToConsumer[source] = consumer
-                return consumer
-            }
-
-            let body = function.body.map { remapInstruction($0, using: remap) }
-            let locations = function.instructionLocations.count == body.count
-                ? function.instructionLocations
-                : [SourceRange?](repeating: nil, count: body.count)
-            function.replaceBody(body, locations: locations)
-            for (source, type) in concreteBooleanResults {
-                if let consumer = sourceToConsumer[source] {
-                    arena.setExprType(type, for: consumer)
-                }
-            }
-            importedFunctions[symbol] = function
         }
     }
 
-    private static func inferConcreteBooleanInvokeResults(
+    /// Rebinds one imported body's expression IDs into `arena`, recovering
+    /// the concrete non-null primitive invoke-result types callback invokes
+    /// need so the erased boxed result can be unboxed where a primitive slot
+    /// consumes it.
+    static func materializeOne(
+        _ function: KIRFunction,
+        arena: KIRArena,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> KIRFunction {
+        var function = function
+        let concretePrimitiveInvokeResults = inferConcretePrimitiveInvokeResultTypes(
+            in: function,
+            types: types,
+            interner: interner
+        )
+        var sourceToConsumer: [KIRExprID: KIRExprID] = [:]
+
+        func remap(_ source: KIRExprID) -> KIRExprID {
+            if let existing = sourceToConsumer[source] {
+                return existing
+            }
+            // Imported bodies may carry exception-slot IDs that are only
+            // observed by an implicit throw check and have no defining
+            // instruction in the lowered body.  Keep their historical
+            // unresolved-value fallback at zero while still giving every
+            // ID a consumer-arena entry for type recovery and remapping.
+            let consumer = arena.appendExpr(.temporary(0))
+            sourceToConsumer[source] = consumer
+            return consumer
+        }
+
+        let body = function.body.map { remapInstruction($0, using: remap) }
+        let locations = function.instructionLocations.count == body.count
+            ? function.instructionLocations
+            : [SourceRange?](repeating: nil, count: body.count)
+        function.replaceBody(body, locations: locations)
+        for (source, type) in concretePrimitiveInvokeResults {
+            if let consumer = sourceToConsumer[source] {
+                arena.setExprType(type, for: consumer)
+            }
+        }
+        return function
+    }
+
+    private static func inferConcretePrimitiveInvokeResultTypes(
         in function: KIRFunction,
         types: TypeSystem,
         interner: StringInterner
@@ -98,7 +121,7 @@ enum ImportedInlineKIRMaterializer {
                  let .loadGlobal(result, _):
                 invalidate(result)
 
-            case let .call(_, callee, arguments, result, _, thrownResult, _, _):
+            case let .call(symbol, callee, arguments, result, _, thrownResult, _, _):
                 if let thrownResult {
                     invalidate(thrownResult)
                 }
@@ -108,8 +131,19 @@ enum ImportedInlineKIRMaterializer {
                    let callback = arguments.first,
                    let callbackType = expressionTypes[callback],
                    case let .functionType(functionType) = types.kind(of: callbackType),
-                   case .primitive(.boolean, .nonNull) = types.kind(of: functionType.returnType)
+                   case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
                 {
+                    expressionTypes[result] = functionType.returnType
+                    resultTypes[result] = functionType.returnType
+                } else if let symbol,
+                          let paramType = parameterTypes[symbol],
+                          case let .functionType(functionType) = types.kind(of: paramType),
+                          case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
+                {
+                    // A direct call to a function-typed parameter (the callee is
+                    // the parameter symbol itself, not a kk_function_invoke
+                    // adapter). Its result obeys the same boxed ABI, so recover
+                    // the declared primitive return type the same way.
                     expressionTypes[result] = functionType.returnType
                     resultTypes[result] = functionType.returnType
                 }
@@ -135,7 +169,7 @@ enum ImportedInlineKIRMaterializer {
     ) -> KIRInstruction {
         switch instruction {
         case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
-             .beginFinallyGuard, .endFinallyGuard:
+             .beginFinallyGuard, .endFinallyGuard, .beginFinallyCleanup, .endFinallyCleanup:
             return instruction
         case let .jumpIfEqual(lhs, rhs, target):
             return .jumpIfEqual(lhs: remap(lhs), rhs: remap(rhs), target: target)
@@ -183,8 +217,14 @@ enum ImportedInlineKIRMaterializer {
             return .returnIfEqual(lhs: remap(lhs), rhs: remap(rhs))
         case let .returnValue(value):
             return .returnValue(remap(value))
-        case let .nonLocalReturn(value):
-            return .nonLocalReturn(value.map(remap))
+        case let .nonLocalReturn(value, target):
+            return .nonLocalReturn(value.map(remap), target: target)
+        case let .beginNonLocalReturnScope(value, target, function):
+            return .beginNonLocalReturnScope(value: remap(value), target: target, function: function)
+        case .endNonLocalReturnScope:
+            return instruction
+        case let .resumeNonLocalReturn(value):
+            return .resumeNonLocalReturn(remap(value))
         }
     }
 }

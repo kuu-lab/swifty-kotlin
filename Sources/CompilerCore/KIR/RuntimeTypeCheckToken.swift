@@ -22,6 +22,9 @@ enum RuntimeTypeCategory {
     case char
     // STDLIB-REFLECT-ABI-001: Unit::class token.
     case unit
+    // KUU-1084: Function types (`() -> Unit`, receiver/context/suspend
+    // variants) and the `kotlin.FunctionN` interfaces they normalize to.
+    case function(arity: Int, isSuspend: Bool)
 
     /// The base constant used in the runtime token encoding.
     var base: Int64 {
@@ -44,6 +47,7 @@ enum RuntimeTypeCategory {
         case .float:    RuntimeTypeCheckToken.floatBase
         case .char:     RuntimeTypeCheckToken.charBase
         case .unit:     RuntimeTypeCheckToken.unitBase
+        case .function: RuntimeTypeCheckToken.functionBase
         }
     }
 
@@ -67,7 +71,9 @@ enum RuntimeTypeCategory {
         case .float:    PrimitiveType.float.kotlinName
         case .char:     PrimitiveType.char.kotlinName
         case .unit:     "Unit"
-        case .unknown, .nominal:  nil
+        // Function names come from the token payload at runtime, so the
+        // compiler never has to supply a name hint for them.
+        case .unknown, .nominal, .function:  nil
         }
     }
 }
@@ -105,6 +111,9 @@ enum RuntimeTypeCheckToken {
     static let charBase: Int64 = 14
     // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
+    // KUU-1084: Function-type token base. Payload packs the FunctionN arity in
+    // bits 0-7 and the suspend flag in bit 8.
+    static let functionBase: Int64 = 18
 
     static let baseMask: Int64 = 0xFF
     static let nullableFlag: Int64 = 1 << 8
@@ -142,8 +151,20 @@ enum RuntimeTypeCheckToken {
         case .primitive(.double, _):    category = .double
         case .primitive(.float, _):     category = .float
         case .primitive(.char, _):      category = .char
-        case .unit:                     category = .unit
+        case .unit, .nullableUnit:      category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
+        case let .functionType(functionType):
+            // KUU-1084: `() -> Unit`, `Int.(String) -> Long`, suspend and
+            // context-receiver variants all normalize to `kotlin.FunctionN`
+            // (or SuspendFunctionN) classifiers, where N counts every
+            // context receiver, extension receiver and value parameter.
+            let receiverCount = functionType.receiver == nil ? 0 : 1
+            category = .function(
+                arity: functionType.contextReceivers.count
+                    + receiverCount
+                    + functionType.params.count,
+                isSuspend: functionType.isSuspend
+            )
         case let .classType(classType):
             // Value classes (boxed or not) are checked by nominal identity,
             // not by their underlying representation: kk_tag_value_class_box
@@ -211,8 +232,19 @@ enum RuntimeTypeCheckToken {
             ) {
                 return builtinToken
             }
+            // KUU-1084: a nominal `kotlin.FunctionN` reference is the same
+            // classifier as the function type it names — `typeOf<(A) -> B>`
+            // and `typeOf<Function1<A, B>>` must produce identical KTypes.
+            if let arity = kotlinFunctionInterfaceArity(
+                symbolID: symbolID, sema: sema, interner: interner
+            ) {
+                return encode(base: functionBase, nullable: descriptor.nullable, payload: Int64(arity))
+            }
             let nominalTypeID = stableNominalTypeID(symbol: symbolID, sema: sema, interner: interner)
             return encode(base: descriptor.category.base, nullable: descriptor.nullable, payload: nominalTypeID)
+        case let .function(arity, isSuspend):
+            let payload = Int64(arity) | (isSuspend ? 0x100 : 0)
+            return encode(base: functionBase, nullable: descriptor.nullable, payload: payload)
         case .null:
             return nullBase
         default:
@@ -253,6 +285,29 @@ enum RuntimeTypeCheckToken {
         return encodeBuiltinTypeName(symbol.name, nullable: nullable, builtinNames: builtinNames)
     }
 
+    /// The `N` in `kotlin.Function.FunctionN`, or nil when the symbol is not
+    /// one of the synthetic arity-indexed function interfaces. Bare
+    /// `kotlin.Function`/`kotlin.Function.Function` markers return nil and
+    /// stay nominal.
+    private static func kotlinFunctionInterfaceArity(
+        symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int? {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.fqName.count == 3,
+              symbol.fqName[0] == interner.intern("kotlin"),
+              symbol.fqName[1] == interner.intern("Function")
+        else {
+            return nil
+        }
+        let name = interner.resolve(symbol.name)
+        guard name.hasPrefix("Function") else {
+            return nil
+        }
+        return Int(name.dropFirst("Function".count))
+    }
+
     /// Returns the simple (unqualified) type name for a given `TypeID`, or `nil`
     /// when the type is not representable as a Kotlin class name.
     static func simpleName(of type: TypeID, sema: SemaModule, interner: StringInterner) -> String? {
@@ -264,7 +319,7 @@ enum RuntimeTypeCheckToken {
         // primitives not yet covered by RuntimeTypeCategory.
         switch sema.types.kind(of: type) {
         case .nothing:
-            return "Nothing"
+            return "Void"
         case .primitive(.long, _):
             return PrimitiveType.long.kotlinName
         case .primitive(.char, _):
@@ -280,6 +335,9 @@ enum RuntimeTypeCheckToken {
         case let .classType(classType):
             guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
                 return nil
+            }
+            if symbol.fqName == [interner.intern("kotlin"), interner.intern("Nothing")] {
+                return "Void"
             }
             return interner.resolve(symbol.name)
         default:
@@ -324,13 +382,23 @@ enum RuntimeTypeCheckToken {
             return "kotlin.Char"
         case .unit:
             return "kotlin.Unit"
+        // Function types render their FunctionN classifier from the token
+        // payload at runtime; no source-level hint is needed.
+        case .function:
+            return nil
         case let .nominal(symbolID):
             guard let symbol = sema.symbols.symbol(symbolID) else {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            if fqName == "kotlin.Nothing" {
+                return "java.lang.Void"
+            }
             return fqName.isEmpty ? nil : fqName
         case .unknown:
+            if case .nothing = sema.types.kind(of: type) {
+                return "java.lang.Void"
+            }
             return nil
         }
     }

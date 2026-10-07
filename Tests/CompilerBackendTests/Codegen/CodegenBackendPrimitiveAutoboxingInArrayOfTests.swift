@@ -7,6 +7,33 @@ import Testing
 @Suite
 struct CodegenBackendPrimitiveAutoboxingInArrayOfTests {
 
+    @Test(arguments: [false, true])
+    func testExplicitByteAndShortLiteralElements(allowDefaultStdlibLibrary: Bool) throws {
+        try assertKotlinOutput(
+            """
+            fun main() {
+                val bytes = arrayOf<Byte>(1, 2, -128, +127)
+                val shorts = arrayOf<Short>(1, 2, -32768, +32767)
+                println(bytes.joinToString())
+                println(shorts.joinToString())
+                val byte: Any = bytes[0]
+                val short: Any = shorts[0]
+                println(byte is Byte)
+                println(short is Short)
+                println(byte is Int)
+                println(short is Int)
+                val positiveByte: Any = bytes[3]
+                val positiveShort: Any = shorts[3]
+                println(positiveByte is Byte)
+                println(positiveShort is Short)
+            }
+            """,
+            moduleName: "ExplicitByteAndShortArrayElements",
+            expected: "1, 2, -128, 127\n1, 2, -32768, 32767\ntrue\ntrue\nfalse\nfalse\ntrue\ntrue\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testPrimitiveArgumentBoxedWhenBuiltWithArrayOf() throws {
         let constructionSource = """

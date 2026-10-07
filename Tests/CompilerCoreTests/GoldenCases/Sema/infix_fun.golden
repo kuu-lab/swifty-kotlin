@@ -1,12 +1,12 @@
-symbol fq=golden.sema.add.$0.other[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.add[kind=fun;recv=Int;params=Int] kind=function vis=public flags=_ sig=recv=Int params=[Int] ret=Int
-symbol fq=golden.sema.useInfix[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.add.$0.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.add[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture] kind=function vis=public flags=_ sig=recv=Int params=[Int] ret=Int
+symbol fq=golden.sema.useInfix[kind=fun;params=;ret=Int;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
 file finfix_fun package=golden.sema
-  decl golden.sema.add[kind=fun;recv=Int;params=Int] fun add sym=golden.sema.add[kind=fun;recv=Int;params=Int]
-  decl golden.sema.useInfix[kind=fun;params=] fun useInfix sym=golden.sema.useInfix[kind=fun;params=]
-expr e@3:38 this type=Int
-expr e@3:45 name(other) type=Int ref=golden.sema.add.$0.other[kind=vparam]
+  decl golden.sema.add[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture] fun add sym=golden.sema.add[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture]
+  decl golden.sema.useInfix[kind=fun;params=;ret=Int;origin=fixture] fun useInfix sym=golden.sema.useInfix[kind=fun;params=;ret=Int;origin=fixture]
+expr e@3:38 this type=Int ref=s-0
+expr e@3:45 name(other) type=Int ref=golden.sema.add.$0.other[kind=vparam;origin=fixture]
 expr e@3:38#1 binary(add) lhs=e@3:38 rhs=e@3:45 type=Int
 expr e@5:23 int(1) type=Int
 expr e@5:29 int(2) type=Int
-expr e@5:23#1 memberCall recv=e@5:23 callee=add args=[_:e@5:29] type=Int call=golden.sema.add[kind=fun;recv=Int;params=Int]
+expr e@5:23#1 memberCall recv=e@5:23 callee=add args=[_:e@5:29] type=Int call=golden.sema.add[kind=fun;recv=Int;params=Int;ret=Int;names=[other];origin=fixture]

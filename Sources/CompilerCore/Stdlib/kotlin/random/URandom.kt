@@ -16,13 +16,16 @@ package kotlin.random
 // source-backed members on Random.kt. Their retained runtime engines are
 // private __kk_random_* bridges, matching nextInt(IntRange)/nextLong(LongRange).
 
+@ExperimentalUnsignedTypes
 public fun Random.nextUBytes(array: UByteArray): UByteArray {
     nextBytes(array.asByteArray())
     return array
 }
 
+@ExperimentalUnsignedTypes
 public fun Random.nextUBytes(size: Int): UByteArray = nextBytes(size).asUByteArray()
 
+@ExperimentalUnsignedTypes
 public fun Random.nextUBytes(array: UByteArray, fromIndex: Int, toIndex: Int): UByteArray {
     nextBytes(array.asByteArray(), fromIndex, toIndex)
     return array

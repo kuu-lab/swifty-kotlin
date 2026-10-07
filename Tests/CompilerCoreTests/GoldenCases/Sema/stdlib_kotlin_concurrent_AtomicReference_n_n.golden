@@ -1,0 +1,6 @@
+symbol fq=golden.sema.constructAtomicReference.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.constructAtomicReference[kind=fun;params=String;ret=kotlin.concurrent.AtomicReference<String>;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.concurrent.AtomicReference<String>
+file fstdlib_kotlin_concurrent_AtomicReference_n_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class),@file:Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")]
+  decl golden.sema.constructAtomicReference[kind=fun;params=String;ret=kotlin.concurrent.AtomicReference<String>;names=[value];origin=fixture] fun constructAtomicReference sym=golden.sema.constructAtomicReference[kind=fun;params=String;ret=kotlin.concurrent.AtomicReference<String>;names=[value];origin=fixture]
+expr e@8:88 name(value) type=String ref=golden.sema.constructAtomicReference.$0.value[kind=vparam;origin=fixture]
+expr e@8:72 call callee=e@8:72#1 args=[_:e@8:88] type=kotlin.concurrent.AtomicReference<String> call=kotlin.concurrent.AtomicReference.<init>[kind=ctor;recv=kotlin.concurrent.AtomicReference<T0>;params=T0;ret=kotlin.concurrent.AtomicReference<T0>;gen=1;classGen=1;names=[value]] targs=[String]

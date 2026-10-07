@@ -69,6 +69,35 @@ struct CodegenBackendListAccessHOFRegressionTests {
     }
 
     @Test
+    func testCodegenListAndArrayListGetThrowsOnOutOfBounds() throws {
+        let source = """
+        fun main() {
+            try {
+                val values: List<Int> = listOf(1, 2, 3)
+                println(values[5])
+                println("missing-list")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught-list")
+            }
+
+            try {
+                val values = arrayListOf("x")
+                println(values[9])
+                println("missing-array-list")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught-array-list")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListAndArrayListGetThrows",
+            expected: "caught-list\ncaught-array-list\n"
+        )
+    }
+
+    @Test
     func testCodegenListSingleAndSingleOrNullUseSourceImplementation() throws {
         let source = """
         fun main() {

@@ -6,6 +6,47 @@ final class ControlFlowTypeChecker {
         self.driver = driver
     }
 
+    /// Validate the receiver before falling back to the built-in iteration routes.
+    func inferLoopElementType(
+        exprID: ExprID,
+        iterableExpr: ExprID,
+        iterableType: TypeID,
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        if iterableType == sema.types.errorType {
+            return sema.types.errorType
+        }
+        guard sema.types.nullability(of: iterableType) != .nullable else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0172",
+                "The for-loop cannot iterate over a nullable receiver.",
+                range: ctx.ast.arena.exprRange(iterableExpr) ?? range
+            )
+            return sema.types.errorType
+        }
+        let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
+            || sema.bindings.isRangeExpr(iterableExpr)
+        if let elementType = bindLoopIterationOperators(
+            exprID: exprID, iterableType: iterableType, range: range, ctx: ctx
+        ) ?? driver.helpers.iterableElementType(
+            for: iterableType,
+            isRangeExpr: isRangeExpr,
+            isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
+            sema: sema,
+            interner: ctx.interner
+        ) {
+            return elementType
+        }
+        ctx.semaCtx.diagnostics.error(
+            "KSWIFTK-SEMA-0172",
+            "The for-loop must have an 'iterator()' method.",
+            range: ctx.ast.arena.exprRange(iterableExpr) ?? range
+        )
+        return sema.types.errorType
+    }
+
     func bindLoopIterationOperators(
         exprID: ExprID,
         iterableType: TypeID,
@@ -16,7 +57,10 @@ final class ControlFlowTypeChecker {
         let interner = ctx.interner
         let nonNullIterableType = sema.types.makeNonNullable(iterableType)
 
-        guard case .classType = sema.types.kind(of: nonNullIterableType) else {
+        switch sema.types.kind(of: nonNullIterableType) {
+        case .classType, .typeParam, .intersection:
+            break
+        default:
             return nil
         }
 
@@ -47,6 +91,11 @@ final class ControlFlowTypeChecker {
                 implicitReceiverType: nonNullIterableType,
                 ctx: ctx.semaCtx
             )
+
+            if let diagnostic = iteratorResolved.diagnostic {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+                return sema.types.errorType
+            }
 
             guard let iteratorChosen = iteratorResolved.chosenCallee,
                   let iteratorSignature = sema.symbols.functionSignature(for: iteratorChosen)
@@ -128,6 +177,11 @@ final class ControlFlowTypeChecker {
             implicitReceiverType: iteratorType,
             ctx: ctx.semaCtx
         )
+
+        if let diagnostic = hasNextResolved.diagnostic ?? nextResolved.diagnostic {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return sema.types.errorType
+        }
 
         guard let hasNextChosen = hasNextResolved.chosenCallee,
               let nextChosen = nextResolved.chosenCallee,
@@ -224,25 +278,13 @@ final class ControlFlowTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         let iterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let elementType = inferLoopElementType(
+            exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
+            range: range, ctx: ctx
+        )
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
-            // `until` desugars to a memberCall (infix function), not a `.binary` range
-            // op, so the AST-shape check alone misses it; fall back to the semantic
-            // flag that markRangeCallBindings sets when resolving such calls.
-            let isRangeExpr = Self.isRangeExpression(iterableExpr, ast: ctx.ast)
-                || sema.bindings.isRangeExpr(iterableExpr)
-            let elementType = bindLoopIterationOperators(
-                exprID: id,
-                iterableType: iterableType,
-                range: range,
-                ctx: ctx
-            ) ?? driver.helpers.iterableElementType(
-                for: iterableType,
-                isRangeExpr: isRangeExpr,
-                isCharRangeExpr: sema.bindings.isCharRangeExpr(iterableExpr),
-                sema: sema,
-                interner: ctx.interner
-            ) ?? sema.types.anyType
             let loopVariableSymbol = sema.symbols.define(
                 kind: .local,
                 name: loopVariable,
@@ -254,7 +296,7 @@ final class ControlFlowTypeChecker {
                 visibility: .private,
                 flags: []
             )
-            // Only register primitive (and value-class) element types in the
+            // Only register primitive, enum, and value-class element types in the
             // symbol table; for complex types (e.g. IndexedValue<Char>) this
             // would change downstream lowering in ways that break field-access
             // codegen (kk_array_get_inbounds gets wrong indices). Value classes
@@ -263,16 +305,18 @@ final class ControlFlowTypeChecker {
             // `for (box in list) { box.value }` as an unboxing site — without
             // it the loop variable falls back to Any and the property read
             // stays a raw kk_array_get_inbounds on the unboxed underlying value.
-            let isValueClassElement: Bool = {
+            // Enum name lowering likewise needs the enum identity on the loop
+            // temporary to select its generated ordinal-to-name helper.
+            let isNominalValueElement: Bool = {
                 guard case let .classType(classType) = sema.types.kind(of: elementType),
                       classType.nullability == .nonNull,
                       let sym = sema.symbols.symbol(classType.classSymbol)
                 else { return false }
-                return sym.flags.contains(.valueType)
+                return sym.flags.contains(.valueType) || sym.kind == .enumClass
             }()
             if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
                 sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
-            } else if isValueClassElement {
+            } else if isNominalValueElement {
                 sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
             }
             bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
@@ -284,7 +328,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: ctx.copying(loopDepth: ctx.loopDepth + 1, loopLabelStack: newLabelStack),
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         sema.bindings.bindExprType(id, type: sema.types.unitType)
         return sema.types.unitType
@@ -303,6 +348,7 @@ final class ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let boolType = sema.types.booleanType
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &locals, expectedType: boolType)
         driver.emitSubtypeConstraint(
             left: conditionType,
@@ -314,7 +360,7 @@ final class ControlFlowTypeChecker {
         )
         // Smart cast: apply condition branching to the while body (P5-66)
         let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr, base: ctx.flowState, locals: locals,
+            conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var bodyLocals = locals
@@ -326,7 +372,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: bodyCtx,
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         let resultType = if isConstantTrueCondition(conditionExpr, ast: ast) && !containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast) {
             sema.types.nothingType
@@ -349,6 +396,7 @@ final class ControlFlowTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let boolType = sema.types.booleanType
+        invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var newLabelStack = ctx.loopLabelStack
         if let label { newLabelStack.append(label) }
         var bodyLocals = locals
@@ -361,7 +409,8 @@ final class ControlFlowTypeChecker {
             bodyExpr,
             ctx: bodyCtx,
             locals: &bodyLocals,
-            expectedType: nil
+            expectedType: nil,
+            isStatementContext: true
         )
         let conditionType = driver.inferExpr(conditionExpr, ctx: ctx, locals: &bodyLocals, expectedType: boolType)
         driver.emitSubtypeConstraint(
@@ -390,6 +439,33 @@ final class ControlFlowTypeChecker {
     }
 
     // MARK: - Infinite-loop helpers
+
+    /// Loop-carried writes invalidate assignment facts on later iterations
+    /// and break paths, regardless of the body's final type.
+    func invalidateNullableControlFlowAssignments(_ expression: ExprID, ctx: TypeInferenceContext, locals: inout LocalBindings) {
+        for (name, local) in locals where local.isMutable {
+            guard let declaration = ctx.dataFlow.localDeclarations[local.symbol],
+                  ctx.dataFlow.localStability.isReassigned(declaration, within: expression),
+                  let declaredType = ctx.sema.symbols.propertyType(for: local.symbol),
+                  ctx.sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            locals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
+            locals.invalidateMembers(root: local.symbol)
+        }
+    }
+
+    func mergeNullableBranchAssignments(_ branches: [LocalBindings], sema: SemaModule, locals: inout LocalBindings) {
+        guard !branches.isEmpty else { return }
+        for (name, local) in locals where local.isMutable {
+            guard let declaredType = sema.symbols.propertyType(for: local.symbol),
+                  sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            let types = branches.map { branch in
+                branch[name].flatMap { $0.symbol == local.symbol ? $0.type : nil } ?? declaredType
+            }
+            locals[name] = (sema.types.lub(types), local.symbol, local.isMutable, local.isInitialized)
+        }
+    }
 
     /// Returns true if the condition expression is the boolean literal `true`.
     private func isConstantTrueCondition(_ conditionExpr: ExprID, ast: ASTModule) -> Bool {
@@ -561,7 +637,7 @@ final class ControlFlowTypeChecker {
             return false
         case .lambdaLiteral, .localFunDecl, .objectLiteral, .callableRef, .superRef, .thisRef:
             return false
-        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
+        case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral, .stringLiteral, .nameRef:
             return false
         @unknown default:
             return false
@@ -575,7 +651,8 @@ final class ControlFlowTypeChecker {
         elseExpr: ExprID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -593,28 +670,99 @@ final class ControlFlowTypeChecker {
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(
-            condition, base: ctx.flowState, locals: locals,
+            condition, base: ctx.flowState.includingMembers(from: locals), locals: locals,
             ast: ast, sema: sema, interner: interner, scope: ctx.scope
         )
         var thenLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
         let thenCtx = ctx.copying(flowState: branch.trueState)
-        let thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType)
+        var thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
+        var elseLocals = locals
+        driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
+        var elseCompletes = true
         let resolvedType: TypeID
         if let elseExpr {
-            var elseLocals = locals
-            driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &elseLocals, sema: sema)
             let elseCtx = ctx.copying(flowState: branch.falseState)
-            let elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
-            resolvedType = sema.types.lub([thenType, elseType])
+            var elseType = driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
+            // A nested call in a branch can leave a type parameter
+            // unresolved because it is only fixed by the sibling branch's
+            // type — kotlinc solves both branches under one constraint
+            // system. When a branch failed to infer, no contextual expected
+            // type was provided, and the sibling produced a usable type,
+            // retry the failing branch against that sibling type so
+            // `if (b) OD<Boolean, Boolean>(false) else OD(false)` resolves.
+            func retriableBranchExpr(_ expr: ExprID) -> Bool {
+                switch ast.arena.expr(expr) {
+                case .call, .memberCall, .ifExpr:
+                    return true
+                default:
+                    return false
+                }
+            }
+            if expectedType == nil, elseType == sema.types.errorType,
+               thenType != sema.types.errorType, thenType != sema.types.nothingType,
+               retriableBranchExpr(elseExpr)
+            {
+                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                var retryLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &retryLocals, sema: sema)
+                let retried = driver.inferExpr(
+                    elseExpr,
+                    ctx: elseCtx,
+                    locals: &retryLocals,
+                    expectedType: thenType,
+                    isStatementContext: isStatementContext
+                )
+                if retried != sema.types.errorType {
+                    elseType = retried
+                    elseLocals = retryLocals
+                    if let elseRange = ast.arena.exprRange(elseExpr) {
+                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
+                    }
+                } else {
+                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                }
+            }
+            if expectedType == nil, thenType == sema.types.errorType,
+               elseType != sema.types.errorType, elseType != sema.types.nothingType,
+               retriableBranchExpr(thenExpr)
+            {
+                let retryCheckpoint = ctx.semaCtx.diagnostics.checkpoint()
+                var retryLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &retryLocals, sema: sema)
+                let retried = driver.inferExpr(
+                    thenExpr,
+                    ctx: thenCtx,
+                    locals: &retryLocals,
+                    expectedType: elseType,
+                    isStatementContext: isStatementContext
+                )
+                if retried != sema.types.errorType {
+                    thenType = retried
+                    thenLocals = retryLocals
+                    if let thenRange = ast.arena.exprRange(thenExpr) {
+                        ctx.semaCtx.diagnostics.removeErrorDiagnostics(containedIn: thenRange)
+                    }
+                } else {
+                    ctx.semaCtx.diagnostics.rollback(to: retryCheckpoint)
+                }
+            }
+            resolvedType = sema.types.lub(contextualizeLongBranchLiterals(
+                expressions: [thenExpr, elseExpr], types: [thenType, elseType], ctx: ctx
+            ))
+            // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
+            // never completes normally, so it vacuously satisfies initialization:
+            // control only reaches the code after the `if` through whichever
+            // branch does complete.
+            let thenCompletes = thenType != sema.types.nothingType
+            elseCompletes = elseType != sema.types.nothingType
             for (name, local) in locals {
-                if !local.isInitialized,
-                   let thenLocal = thenLocals[name], thenLocal.isInitialized,
-                   thenLocal.symbol == local.symbol,
-                   let elseLocal = elseLocals[name], elseLocal.isInitialized,
-                   elseLocal.symbol == local.symbol
-                {
-                    locals[name] = (local.type, local.symbol, local.isMutable, true)
+                if !local.isInitialized {
+                    let thenOK = !thenCompletes || (thenLocals[name]?.isInitialized == true && thenLocals[name]?.symbol == local.symbol)
+                    let elseOK = !elseCompletes || (elseLocals[name]?.isInitialized == true && elseLocals[name]?.symbol == local.symbol)
+                    if thenOK, elseOK, thenCompletes || elseCompletes {
+                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+                    }
                 }
             }
         } else {
@@ -625,6 +773,26 @@ final class ControlFlowTypeChecker {
                 // path, i.e. the negated condition. Apply that narrowed state so it survives
                 // the fallthrough (P5-66-style narrowing, but for the no-else if statement).
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
+            }
+        }
+        // Retain nullable-local assignment facts only on paths that can
+        // reach the following statement. The implicit else path participates
+        // too, so conditional initialization alone cannot prove non-nullness.
+        for (name, local) in locals where local.isMutable {
+            guard let declaredType = sema.symbols.propertyType(for: local.symbol),
+                  sema.types.nullability(of: declaredType) == .nullable
+            else { continue }
+            var reachingTypes: [TypeID] = []
+            if thenType != sema.types.nothingType,
+               let thenLocal = thenLocals[name], thenLocal.symbol == local.symbol
+            {
+                reachingTypes.append(thenLocal.type)
+            }
+            if elseCompletes, let elseLocal = elseLocals[name], elseLocal.symbol == local.symbol {
+                reachingTypes.append(elseLocal.type)
+            }
+            if !reachingTypes.isEmpty {
+                locals[name] = (sema.types.lub(reachingTypes), local.symbol, local.isMutable, local.isInitialized)
             }
         }
         sema.bindings.bindExprType(id, type: resolvedType)
@@ -638,7 +806,8 @@ final class ControlFlowTypeChecker {
         finallyExpr: ExprID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -647,7 +816,7 @@ final class ControlFlowTypeChecker {
         var normalCompletionLocals: [LocalBindings] = []
 
         var tryBodyLocals = preTryLocals
-        let tryBodyType = driver.inferExpr(body, ctx: ctx, locals: &tryBodyLocals, expectedType: expectedType)
+        let tryBodyType = driver.inferExpr(body, ctx: ctx, locals: &tryBodyLocals, expectedType: expectedType, isStatementContext: isStatementContext)
         branchTypes.append(tryBodyType)
         if tryBodyType != sema.types.nothingType {
             normalCompletionLocals.append(tryBodyLocals)
@@ -656,10 +825,8 @@ final class ControlFlowTypeChecker {
         for (index, clause) in catchClauses.enumerated() {
             var catchLocals = preTryLocals
             let catchParamType = resolveCatchClauseParameterType(
-                clause.paramTypeName,
-                sema: sema,
-                interner: interner,
-                diagnostics: ctx.semaCtx.diagnostics,
+                clause.paramType,
+                ctx: ctx,
                 range: clause.range
             )
             var catchParamSymbol = SymbolID.invalid
@@ -682,17 +849,19 @@ final class ControlFlowTypeChecker {
                 clause.body,
                 binding: CatchClauseBinding(parameterSymbol: catchParamSymbol, parameterType: catchParamType)
             )
-            let catchType = driver.inferExpr(clause.body, ctx: ctx, locals: &catchLocals, expectedType: expectedType)
+            let catchType = driver.inferExpr(clause.body, ctx: ctx, locals: &catchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             branchTypes.append(catchType)
             if catchType != sema.types.nothingType {
                 normalCompletionLocals.append(catchLocals)
             }
         }
 
+        mergeNullableBranchAssignments(normalCompletionLocals, sema: sema, locals: &locals)
+
         if let finallyExpr {
             // Finally is always checked for side effects, but it does not participate in try-expr type inference.
             var finallyLocals = locals
-            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil)
+            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
         }
 
@@ -721,52 +890,83 @@ final class ControlFlowTypeChecker {
     }
 
     private func resolveCatchClauseParameterType(
-        _ typeName: InternedString?,
-        sema: SemaModule,
-        interner: StringInterner,
-        diagnostics: DiagnosticEngine,
+        _ paramType: TypeRefID?,
+        ctx: TypeInferenceContext,
         range: SourceRange?
     ) -> TypeID {
-        guard let typeName else {
+        let sema = ctx.sema
+        guard let paramType else {
             return sema.types.anyType
         }
-        if let builtin = driver.helpers.resolveBuiltinTypeName(typeName, types: sema.types, interner: interner) {
-            return builtin
+        // Route through the same type-reference resolution used by declarations
+        // and `is`/`as` expressions so that import priority (explicit > wildcard
+        // > default), aliases, and qualified names resolve identically here.
+        var resolved = driver.helpers.resolveTypeRef(
+            paramType,
+            ast: ctx.ast,
+            sema: sema,
+            interner: ctx.interner,
+            scope: ctx.scope,
+            diagnostics: nil,
+            inferenceContext: nil,
+            usageRange: range
+        )
+        if resolved != sema.types.errorType,
+           case let .named(path, _, _)? = ctx.ast.arena.typeRef(paramType),
+           path.count > 1,
+           !catchQualifiedCandidatesExist(path, ctx: ctx, sema: sema)
+        {
+            // resolveTypeRef falls back to last-segment short-name lookup even
+            // for qualified references, so `unknown.Error` could bind a same-named
+            // type in an unrelated package. Require a qualifier-consistent hit.
+            resolved = sema.types.errorType
         }
-        let candidates = sema.symbols.lookupAll(fqName: [typeName])
-            .filter { symbolID in
-                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                switch symbol.kind {
-                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                    return true
-                default:
-                    return false
-                }
-            }
-            .sorted { $0.rawValue < $1.rawValue }
-        let resolvedCandidates = if !candidates.isEmpty {
-            candidates
-        } else {
-            sema.symbols.lookupByShortName(typeName)
-                .filter { symbolID in
-                    guard let symbol = sema.symbols.symbol(symbolID) else { return false }
-                    switch symbol.kind {
-                    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                        return true
-                    default:
-                        return false
-                    }
-                }
-                .sorted { $0.rawValue < $1.rawValue }
-        }
-        guard let symbol = resolvedCandidates.first else {
-            diagnostics.error(
+        if resolved == sema.types.errorType {
+            ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0085",
-                "Unresolved exception type '\(interner.resolve(typeName))' in catch clause.",
+                "Unresolved exception type '\(catchParamTypeDisplayName(paramType, ctx: ctx))' in catch clause.",
                 range: range
             )
-            return sema.types.errorType
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+        return resolved
+    }
+
+    private func catchQualifiedCandidatesExist(_ path: [InternedString], ctx: TypeInferenceContext, sema: SemaModule) -> Bool {
+        func isTypeLike(_ symbolID: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return true
+            default:
+                return false
+            }
+        }
+        if sema.symbols.lookupAll(fqName: path).contains(where: isTypeLike) {
+            return true
+        }
+        let scope = ctx.scope
+        var current = scope.lookupClassifier(path[0], matching: isTypeLike)
+        for component in path.dropFirst() {
+            current = current.flatMap { ownerID -> [SymbolID] in
+                guard let owner = sema.symbols.symbol(ownerID) else { return [] }
+                return sema.symbols.lookupAll(fqName: owner.fqName + [component]).filter(isTypeLike)
+            }
+            if current.isEmpty {
+                break
+            }
+        }
+        return !current.isEmpty
+    }
+
+    private func catchParamTypeDisplayName(_ typeRef: TypeRefID, ctx: TypeInferenceContext) -> String {
+        guard let ref = ctx.ast.arena.typeRef(typeRef) else {
+            return "?"
+        }
+        switch ref {
+        case let .named(path, _, _):
+            return path.map { ctx.interner.resolve($0) }.joined(separator: ".")
+        default:
+            return "?"
+        }
     }
 }

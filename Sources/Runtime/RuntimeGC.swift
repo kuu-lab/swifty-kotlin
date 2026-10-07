@@ -25,29 +25,63 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    var seededRandomPointers: Set<UInt> = []
+    /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
+    /// singleton or a dedicated runtime registry rather than passRetained.
+    var borrowedObjectPointers: Set<UInt> = []
     /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
     var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ActiveFrameRecord] = []
     var coroutineRoots: Set<UInt> = []
-    var pinnedObjects: Set<UInt> = []
+    /// Per-target refcount for `kotlin.native.ref.Pinned<T>` (kk_pin_object/
+    /// kk_unpin_object). Every pin call returns an independent `RuntimePinnedBox`
+    /// handle, so the same target may be pinned by several handles at once;
+    /// the GC root must survive until the last handle unpins. A plain
+    /// membership set would let one handle's unpin drop the root while a
+    /// sibling pin is still held, leaving it dangling into freed memory.
+    var pinnedObjectCounts: [UInt: Int] = [:]
     /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
-    /// _dispose). Unlike `pinnedObjects` (a plain membership set backing
-    /// `Pinned<T>`), the same target object may be wrapped by several
+    /// _dispose). The same target object may be wrapped by several
     /// independent StableRef handles at once — see kk_stable_ref_create.
     var stableRefCounts: [UInt: Int] = [:]
 }
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
+    var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
+    /// Set once the static reflection hierarchy edges are in `typeParents`;
+    /// cleared with `typeParents` so a metadata reset re-registers them.
+    var reflectionTypeEdgesRegistered = false
+    /// Same idea as `reflectionTypeEdgesRegistered`, for the boxed-primitive
+    /// `Number`/`Comparable` edges `RuntimePrimitiveNominalTypeIDs` installs.
+    var primitiveTypeEdgesRegistered = false
+    /// Same idea, for the range/progression nominal edges
+    /// `registerRangeTypeEdgesOnce` installs (RuntimeRangeValueSemantics.swift).
+    var rangeTypeEdgesRegistered = false
+    /// Same idea, for the coroutine job-family nominal edges
+    /// `registerJobFamilyTypeEdgesOnce` installs (KUU-1386).
+    var jobFamilyTypeEdgesRegistered = false
+    /// Same idea, for the `CoroutineDispatcher`/`ContinuationInterceptor`
+    /// nominal edges `registerCoroutineDispatcherTypeEdgesOnce` installs
+    /// (KUU-1395).
+    var coroutineDispatcherTypeEdgesRegistered = false
+    /// `registerSortedCollectionTypeEdgesOnce` installs (KUU-1361).
+    var sortedCollectionTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
+    /// Bitmask of object slot indices holding primary-constructor properties, per data class.
+    /// Absent entries mean "every stored slot participates" (legacy registration).
+    var dataClassFieldMasks: [Int64: Int64] = [:]
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
+    var objectHashCodeOverrides: [UInt: Int] = [:]
     var objectAnyToStringMethods: [UInt: Int] = [:]
+    var valueClassAnyToStringMethods: [Int64: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -64,6 +98,8 @@ struct ThreadLocalState {
 
 struct DelegateState {
     var callableRefMetadataByValue: [Int: RuntimeCallableRefMetadata] = [:]
+    var functionArityByPointer: [Int: Int] = [:]
+    var functionDescriptionsByValue: [Int: String] = [:]
 }
 
 final class RuntimeStorageBox: @unchecked Sendable {
@@ -109,6 +145,18 @@ final class RuntimeStorageBox: @unchecked Sendable {
         flowLock.lock()
         defer { flowLock.unlock() }
         return body(&flowState)
+    }
+
+    @discardableResult
+    @inline(__always)
+    func withFlowAndGCLocks<R>(_ body: (inout FlowState, inout GCState) -> R) -> R {
+        flowLock.lock()
+        gcLock.lock()
+        defer {
+            gcLock.unlock()
+            flowLock.unlock()
+        }
+        return body(&flowState, &gcState)
     }
 
     @discardableResult
@@ -275,8 +323,9 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
     let threadLocalRoots = runtimeStorage.withThreadLocalLock { state in
         state.threadLocalValues
     }
+    let callableRoots = runtimeCallableReflectionRoots()
     runtimeStorage.withGCLock { state in
-        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots)
+        performMarkAndSweepLocked(state: &state, threadLocalValues: threadLocalRoots, callableRoots: callableRoots)
     }
 }
 
@@ -496,7 +545,7 @@ func kk_runtime_reset_gc() {
         state.frameMaps.removeAll(keepingCapacity: false)
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
-        state.pinnedObjects.removeAll(keepingCapacity: false)
+        state.pinnedObjectCounts.removeAll(keepingCapacity: false)
         state.stableRefCounts.removeAll(keepingCapacity: false)
     }
     runtimeGCTuningState.reset()
@@ -504,40 +553,77 @@ func kk_runtime_reset_gc() {
 }
 
 func kk_runtime_reset_metadata() {
-    let kClassBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
-        let boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+    let cachedReflectionBoxes = runtimeStorage.withMetadataLock { state -> [UnsafeMutableRawPointer] in
+        var boxes = state.kClassBoxCache.values.compactMap(UnsafeMutableRawPointer.init(bitPattern:))
+        if let starRaw = state.kTypeProjectionStarRaw,
+           let pointer = UnsafeMutableRawPointer(bitPattern: starRaw) {
+            boxes.append(pointer)
+        }
         state.kClassBoxCache.removeAll(keepingCapacity: false)
+        state.kTypeProjectionStarRaw = nil
         state.objectTypeByPointer.removeAll(keepingCapacity: false)
+        state.arrayTypeIDsByPointer.removeAll(keepingCapacity: false)
         state.typeParents.removeAll(keepingCapacity: false)
+        state.reflectionTypeEdgesRegistered = false
+        state.primitiveTypeEdgesRegistered = false
+        state.rangeTypeEdgesRegistered = false
+        state.jobFamilyTypeEdgesRegistered = false
+        state.coroutineDispatcherTypeEdgesRegistered = false
+        state.sortedCollectionTypeEdgesRegistered = false
         state.dataClassIDs.removeAll(keepingCapacity: false)
+        state.dataClassFieldMasks.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
+        state.objectHashCodeOverrides.removeAll(keepingCapacity: false)
         state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
+        state.valueClassAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes
     }
-    releaseRegisteredRuntimeBoxes(kClassBoxes)
+    releaseRegisteredRuntimeBoxes(cachedReflectionBoxes)
     runtimeKClassMetadataRegistry.reset()
+    runtimeKClassObjectRegistry.reset()
     runtimeKConstructorRegistry.reset()
     runtimeKMemberRegistry.reset()
+    runtimeKCompanionRegistry.reset()
+    runtimeKNestedClassRegistry.reset()
 }
 
-private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
+func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
     runtimeStorage.withMetadataLock { state in
+        state.kClassBoxCache = state.kClassBoxCache.filter { _, raw in
+            UInt(bitPattern: raw) != key
+        }
+        if state.kTypeProjectionStarRaw == Int(bitPattern: key) {
+            state.kTypeProjectionStarRaw = nil
+        }
         state.objectTypeByPointer.removeValue(forKey: key)
+        state.arrayTypeIDsByPointer.removeValue(forKey: key)
         state.objectVtableMethods.removeValue(forKey: key)
         state.objectEqualsOverrides.removeValue(forKey: key)
+        state.objectHashCodeOverrides.removeValue(forKey: key)
         state.objectAnyToStringMethods.removeValue(forKey: key)
         state.objectItableMethods.removeValue(forKey: key)
         state.objectInterfaceSlots.removeValue(forKey: key)
     }
+    runtimeStorage.withDelegateLock { state in
+        state.functionDescriptionsByValue.removeValue(forKey: Int(bitPattern: key))
+    }
 }
 
 func kk_runtime_reset_flow() {
-    runtimeStorage.withFlowLock { state in
+    let flowKeys = runtimeStorage.withFlowLock { state -> [UInt] in
+        let keys = Array(state.flowHandles.keys)
         state.flowHandles.removeAll(keepingCapacity: false)
         state.flowRetainCounts.removeAll(keepingCapacity: false)
+        return keys
+    }
+    runtimeStorage.withGCLock { state in
+        for key in flowKeys {
+            state.objectPointers.remove(key)
+            state.borrowedObjectPointers.remove(key)
+        }
     }
 }
 
@@ -559,21 +645,28 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
     }
     runtimeStorage.withGCLock { state in
         for pointer in pointers {
-            state.objectPointers.remove(UInt(bitPattern: pointer))
+            let key = UInt(bitPattern: pointer)
+            state.objectPointers.remove(key)
+            state.seededRandomPointers.remove(key)
         }
     }
     for pointer in pointers {
-        Unmanaged<AnyObject>.fromOpaque(pointer).release()
+        // Primitive box handles registered under tagged bits need the base
+        // object pointer for ARC release.
+        let base = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: pointer)) ?? pointer
+        Unmanaged<AnyObject>.fromOpaque(base).release()
     }
 }
 
 func kk_runtime_reset_delegate() {
     runtimeStorage.withDelegateLock { state in
         state.callableRefMetadataByValue.removeAll(keepingCapacity: false)
+        state.functionArityByPointer.removeAll(keepingCapacity: false)
+        state.functionDescriptionsByValue.removeAll(keepingCapacity: false)
     }
 }
 
-func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:]) {
+func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:], callableRoots: [Int] = []) {
     guard !state.heapObjects.isEmpty else {
         return
     }
@@ -581,6 +674,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     var worklist: [UnsafeMutableRawPointer] = []
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
+    worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)
@@ -641,7 +735,7 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
         worklist.append(ptr)
     }
 
-    for pinned in state.pinnedObjects {
+    for pinned in state.pinnedObjectCounts.keys {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: pinned) else {
             continue
         }

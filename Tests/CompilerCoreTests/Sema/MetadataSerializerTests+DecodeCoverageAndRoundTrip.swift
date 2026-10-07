@@ -4,6 +4,40 @@ import Foundation
 import Testing
 
 extension MetadataSerializerTests {
+    @Test func testInfixModifierRoundTrip() throws {
+        let record = MetadataRecord(kind: .function, fqName: "test.combine", isInfix: true)
+        let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(decoded.isInfix)
+        let legacy = try #require(MetadataDecoder().decode("symbols=1\nfunction _KK fq=test.legacy schema=v1\n").first)
+        #expect(!legacy.isInfix)
+    }
+
+    @Test func testContractImplicationsRoundTrip() throws {
+        let effects = [
+            ContractImplicationEffect(parameterIndex: 2, returnCondition: .returnsFalse, argumentCondition: .isType,
+                                      targetTypeSignature: "Ltest_Pair<+Lkotlin_String;,-Lkotlin_String;>;"),
+            ContractImplicationEffect(parameterIndex: 0, returnCondition: .returnsTrue, argumentCondition: .nonNull),
+            ContractImplicationEffect(parameterIndex: 1, returnCondition: .returnsNotNull, argumentCondition: .booleanTrue),
+        ]
+        let record = MetadataRecord(kind: .function, fqName: "test.present", contractImplicationEffects: effects)
+        let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(decoded.contractImplicationEffects == effects)
+        let legacy = try #require(MetadataDecoder().decode("symbols=1\nfunction _KK fq=test.legacy schema=v1\n").first)
+        #expect(legacy.contractImplicationEffects.isEmpty)
+    }
+
+    @Test func testInputOnlyTypeParametersRoundTrip() throws {
+        let record = MetadataRecord(
+            kind: .function, mangledName: "_KK_contains", fqName: "test.contains",
+            callableTypeParameterSignatures: ["T0", "T1"], inputOnlyTypeParameterIndices: [1]
+        )
+        let decoded = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(decoded.inputOnlyTypeParameterIndices == [1])
+        #expect(decoded.callableTypeParameterSignatures == ["T0", "T1"])
+        let legacy = try #require(MetadataDecoder().decode("symbols=1\nfunction _KK fq=test.legacy schema=v1\n").first)
+        #expect(legacy.inputOnlyTypeParameterIndices.isEmpty)
+    }
+
     @Test func testDecodeDataClassFlag() {
         let decoder = MetadataDecoder()
         let content = "symbols=1\nclass _KK fq=test.Data schema=v1 dataClass=1\n"

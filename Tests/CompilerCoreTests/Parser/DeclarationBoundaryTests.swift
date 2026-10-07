@@ -7,6 +7,75 @@ import Testing
 /// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
+    @Test(arguments: [
+        "var count = 0\ncount = count + 1\ncount",
+        "val count = 1\ncount",
+        "fun local() = 1\nlocal()",
+        "class Local\n1",
+        "@Suppress(\"UNUSED_VARIABLE\")\nval count = 1\ncount",
+        "run {\nval count = 1\ncount\n}",
+        "listOf(1)[run {\nval index = 0\nindex\n}]",
+    ])
+    func multilineDefaultLambdaDoesNotEndParameterGroup(body: String) {
+        let source = """
+        fun before() = 0
+        fun target(value: Int = run {
+            \(body)
+        }, other: Int = 2): Int = value + other
+        fun after() = 3
+        """
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 0)
+        #expect(parsed.arena.node(parsed.root).kind == .kotlinFile)
+    }
+
+    @Test(arguments: [
+        "class Target(value: Int = run {\nval count = 1\ncount\n})",
+        "class Target {\nconstructor(value: Int = run {\nvar count = 1\ncount\n})\n}",
+        "fun outer() {\nclass Target {\nfun next(value: Int = run {\nval count = 1\ncount\n}): Int = value\n}\n}",
+        "fun target(action: () -> Int = {\nval count = 1\ncount\n}): Int = action()",
+    ])
+    func multilineLambdaInDifferentParameterListsParses(source: String) {
+        #expect(parse(source).diagnostics.diagnostics.isEmpty)
+    }
+
+    @Test(arguments: ["", " = run {\nval count = 1\ncount\n}"])
+    func unterminatedParameterGroupRecoversAfterBalancedLambda(defaultValue: String) {
+        let parsed = parse("fun broken(value: Int\(defaultValue)\nfun after() = 3")
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func multilineDefaultLambdaIssueReproductionParses() {
+        let parsed = parse("""
+        fun topRun(value: Int = run {
+            var count = 0
+            count = count + 1
+            count
+        }): Int = value
+        fun main() {
+            var count = 0
+            class Counter {
+                fun next(value: Int = run {
+                    count = count + 1
+                    count
+                }): Int = value
+            }
+            println(topRun())
+            println(Counter().next())
+        }
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 3)
+        #expect(nodeCount(in: parsed.arena, kind: .classDecl) == 1)
+    }
+
     private func nodeCount(in arena: SyntaxArena, kind: SyntaxKind) -> Int {
         arena.nodes.count { $0.kind == kind }
     }
@@ -36,6 +105,86 @@ struct DeclarationBoundaryTests {
             guard case let .node(nodeID) = child else { return false }
             return arena.node(nodeID).kind == blockChildKind
         }
+    }
+
+    @Test(arguments: [
+        "object Cast : Holder({ value -> calls += 1; value as? String })",
+        "class Cast : Holder({ value -> calls += 1; value as? String })",
+        "object Cast : Holder({ value -> calls += 1; value as? String }) { fun member() {} }",
+        "class Cast : Holder(f = { value -> calls += 1; value as? String }) { fun member() {} }",
+        "object Cast : Holder(listOf({ value -> calls += 1; value as? String })[0])",
+        "class Cast : Holder({ value -> val copy = value; calls += 1; copy as? String }, 42)",
+    ])
+    func superConstructorLambdaSemicolonsStayInsideDeclaration(declaration: String) throws {
+        let parsed = parse("\(declaration)\nfun after() {}")
+        let declarationNode = try #require(parsed.arena.nodes.first {
+            $0.kind == .classDecl || $0.kind == .objectDecl
+        })
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(declarationNode.range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration.contains("member") ? 2 : 1))
+    }
+
+    @Test(arguments: ["super", "this"])
+    func secondaryConstructorLambdaSemicolonsStayInsideDelegation(delegation: String) throws {
+        let constructor = "constructor() : \(delegation)({ value -> calls += 1; value as? String }) {}"
+        let prefix = "class Cast : Holder {\n    constructor(f: (Any) -> String?) : super(f)\n    "
+        let source = prefix + constructor + "\n    fun member() {}\n}\nfun after() {}"
+        let parsed = parse(source)
+        let constructors = parsed.arena.nodes.filter { $0.kind == .constructorDecl }
+        let lambdaConstructor = try #require(constructors.last)
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(constructors.count == 2)
+        #expect(lambdaConstructor.range.end.offset == prefix.utf8.count + constructor.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+    }
+
+    @Test
+    func topLevelSemicolonStillSeparatesSuperConstructorDeclaration() {
+        let declaration = "object Cast : Holder({ value -> calls += 1; value as? String });"
+        let parsed = parse("\(declaration) fun after() {}")
+
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.nodes.first { $0.kind == .objectDecl }?.range.end.offset == declaration.utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 1)
+    }
+
+    @Test(arguments: [
+        "bytes[2].toInt()",
+        "bytes[0]",
+        "bytes.size",
+        "bytes.copy().size",
+        "copy(bytes).size",
+    ])
+    func pendingInfixAfterPostfixOperandContinuesDeclaration(operand: String) {
+        let pending = lex("val result = 1 or \(operand) or").tokens.dropLast()
+        let complete = lex("val result = 1 or \(operand)").tokens.dropLast()
+        #expect(KotlinParser.endsWithPendingInfixOperator(pending))
+        #expect(!KotlinParser.endsWithPendingInfixOperator(complete))
+    }
+
+    @Test(arguments: [
+        "fun f(s: String?) = s!!.length",
+        "val h = xs.scanReduce { acc, v -> acc + v }.size",
+        "xs.scanReduce { acc, v -> acc + v }.size",
+        "val complete = 1 or bytes.size",
+    ])
+    func qualifiedAndPostfixExpressionsDoNotEndWithPendingInfixOperator(expression: String) {
+        let tokens = lex(expression).tokens.dropLast()
+        #expect(!KotlinParser.endsWithPendingInfixOperator(tokens))
+    }
+
+    @Test
+    func completeInfixWithCallOperandDoesNotAbsorbReturn() {
+        let source = """
+        fun code(): Int {
+            val result = read() xor Int.MIN_VALUE
+            return result
+        }
+        """
+        #expect(blockChildCount(source, blockChildKind: .statement) == 1)
     }
 
     // BUG-208 (found while implementing KSP-614): a body-less top-level
@@ -107,6 +256,52 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(source, kind: .propertyDecl) == 2)
     }
 
+    @Test(arguments: [
+        "listOf(object : J { override fun f() = 7; override fun g() = 8 })",
+        "id(object : J { override fun f() = 7; override fun g() = 8 })",
+        "(object : J { override fun f() = 7; override fun g() = 8 })",
+        "listOf(listOf(object : J { override fun f() = 7; override fun g() = 8 }))",
+        "listOf(object { val x = 7; val y = 8 })",
+        "listOf(object : J { override fun f() = 7; override fun g() = 8; })",
+        "object : J { override fun f() = 7; override fun g() = 8 }",
+        "listOf(object : J { override fun f() = 7; override fun g() = 8 })[0]",
+        "object : J { override fun f() = 7; override fun g() = 8 }.f()",
+        "listOf(object : J { override fun f() = 7 })",
+        "run { 1; 2 }",
+        "run({ 1; 2 })",
+    ])
+    func nestedSemicolonsDoNotEndPropertyInitializer(initializer: String) throws {
+        let source = """
+        interface J { fun f() = 1; fun g(): Int }
+        fun main() {
+            val result = \(initializer)
+            println(result)
+        }
+        """
+        let parsed = parse(source)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        #expect(parsed.arena.node(parsed.root).range.end.offset == source.utf8.count)
+        let property = try #require(parsed.arena.nodes.first { $0.kind == .propertyDecl })
+        let prefix = "interface J { fun f() = 1; fun g(): Int }\nfun main() {\n    val result = "
+        #expect(property.range.end.offset == prefix.utf8.count + initializer.utf8.count)
+    }
+
+    @Test(arguments: ["val result", "fun result()"])
+    func nestedSemicolonsDoNotEndTopLevelExpressionBody(declaration: String) throws {
+        let source = """
+        \(declaration) = listOf(object { val x = 7; val y = 8 })
+        fun next() = 9
+        """
+        let parsed = parse(source)
+        #expect(parsed.diagnostics.diagnostics.isEmpty)
+        let first = try #require(parsed.arena.children(of: parsed.root).compactMap { child -> SyntaxNode? in
+            guard case let .node(id) = child else { return nil }
+            return parsed.arena.node(id)
+        }.first)
+        #expect(first.range.end.offset == source.split(separator: "\n")[0].utf8.count)
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == (declaration == "val result" ? 1 : 2))
+    }
+
     @Test
     func testAnnotatedFunctionAfterSemicolonOnSameLineIsNotAbsorbed() {
         let source = """
@@ -131,6 +326,90 @@ struct DeclarationBoundaryTests {
         fun f() { value.hashCode(); value = 1 }
         """
         #expect(blockChildCount(source, blockChildKind: .statement) == 2)
+    }
+
+    @Test
+    func valueKeywordExpressionBodyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(var value: Int)
+
+        fun Holder.read(): Int = value
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordAfterAssignmentNewlineStaysInExpressionBody() throws {
+        let source = """
+        class Holder(var value: Int)
+        fun Holder.read(): Int =
+            value
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 2)
+        let read = try #require(functions.first)
+        let other = try #require(functions.last)
+        let readTokens = parsed.arena.children(of: NodeID(rawValue: Int32(read.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(readTokens.contains(.keyword(.value)))
+        #expect(otherTokens.contains(.symbol(.assign)))
+        #expect(!otherTokens.contains(.keyword(.value)))
+    }
+
+    @Test
+    func valueKeywordExtensionPropertyDoesNotConsumeFollowingDeclaration() throws {
+        let source = """
+        class Holder(val base: Int)
+        val Holder.value: Int get() = base
+
+        fun Holder.other(): Int = 0
+        """
+        let parsed = parse(source)
+        let properties = parsed.arena.nodes.enumerated().filter { $0.element.kind == .propertyDecl }
+        #expect(properties.count == 1)
+        let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
+        #expect(functions.count == 1)
+        let other = try #require(functions.first)
+        let otherTokens = parsed.arena.children(of: NodeID(rawValue: Int32(other.offset))).compactMap {
+            if case let .token(id) = $0 { return parsed.arena.token(id)?.kind }
+            return nil
+        }
+        #expect(otherTokens.contains(.symbol(.assign)))
+    }
+
+    @Test
+    func valueClassModifierStillIntroducesClassDeclaration() {
+        let source = """
+        @JvmInline value class Wrapped(val value: Int)
+        fun Wrapped.read(): Int = value
+        """
+        #expect(nodeCount(source, kind: .classDecl) == 1)
+        #expect(nodeCount(source, kind: .funDecl) == 1)
     }
 
     // Found while investigating a `@file:Suppress` annotation that failed to
@@ -202,6 +481,37 @@ struct DeclarationBoundaryTests {
         let parsed = parse(source)
         #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
         #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
+
+    @Test
+    func longModifierPrefixLookaheadIsBoundedAndRecovers() {
+        let modifiers = Array(repeating: "suspend", count: 4_200).joined(separator: "\n")
+        let source = "val answer = 42\n\(modifiers)\nnotADeclaration"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.node(parsed.root).kind == .script)
+    }
+
+    @Test
+    func longContextParameterPrefixLookaheadIsBoundedAndRecovers() {
+        let parameters = (0..<2_100).map { "p\($0): Int" }.joined(separator: ",\n")
+        let source = "val answer = 42\ncontext(\n\(parameters)\n)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
+    }
+
+    @Test
+    func alternatingModifierAndContextPrefixUsesTheSameLookaheadBudget() {
+        let prefixes = Array(repeating: "suspend\ncontext(x: Int)", count: 1_100)
+            .joined(separator: "\n")
+        let source = "val answer = 42\n\(prefixes)\nfun next() {}"
+        let parsed = parse(source)
+
+        #expect(parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0007" })
+        #expect(parsed.arena.nodes.contains { $0.kind == .funDecl })
     }
 }
 #endif

@@ -9,8 +9,9 @@ enum RuntimeFlowTag: Int64 {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    case onErrorReturn = 9
-    case onErrorResume = 10
+    // KUU-1351: tags 9/10 (onErrorReturn/onErrorResume) and 19 (delayEach)
+    // backed Flow operators that do not exist in kotlinx-coroutines; the
+    // values stay retired so no lowering emits them.
     case transform = 11
     case takeWhile = 12
     case dropWhile = 13
@@ -19,7 +20,6 @@ enum RuntimeFlowTag: Int64 {
     case flowOn = 16
     case debounce = 17
     case sample = 18
-    case delayEach = 19
 }
 
 struct FlowLoweringNames {
@@ -45,12 +45,9 @@ struct FlowLoweringNames {
     let flowOn: InternedString
     let debounce: InternedString
     let sample: InternedString
-    let delayEach: InternedString
     let catchHandler: InternedString
     let retry: InternedString
     let retryWhen: InternedString
-    let onErrorReturn: InternedString
-    let onErrorResume: InternedString
     let toList: InternedString
     let first: InternedString
     let kkFlowCreate: InternedString
@@ -113,12 +110,9 @@ extension CoroutineLoweringPass {
         let flowOnName = ctx.interner.intern("flowOn")
         let debounceName = ctx.interner.intern("debounce")
         let sampleName = ctx.interner.intern("sample")
-        let delayEachName = ctx.interner.intern("delayEach")
         let catchName = ctx.interner.intern("catch")
         let retryName = ctx.interner.intern("retry")
         let retryWhenName = ctx.interner.intern("retryWhen")
-        let onErrorReturnName = ctx.interner.intern("onErrorReturn")
-        let onErrorResumeName = ctx.interner.intern("onErrorResume")
         let toListName = ctx.interner.intern("toList")
         let firstName = ctx.interner.intern("first")
 
@@ -160,6 +154,243 @@ extension CoroutineLoweringPass {
             return classType.classSymbol == flowClassSymbol
         }
 
+        // KUU-963: a bare `emit(x)` call is the Flow builder effect only when
+        // it appears inside a `flow { }` builder's scope. Determine that
+        // scope module-wide — the lambda passed to `flow`/`kk_flow_create`,
+        // plus functions referenced from inside such functions (e.g. a
+        // nested `collect { emit(it) }` callback) — so receivers that happen
+        // to declare their own `emit` member keep normal dispatch.
+        var functionNameBySymbol: [SymbolID: InternedString] = [:]
+        var functionSymbolsByName: [InternedString: [SymbolID]] = [:]
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            functionNameBySymbol[function.symbol] = function.name
+            functionSymbolsByName[function.name, default: []].append(function.symbol)
+        }
+        var flowScopeFunctionSymbols: Set<SymbolID> = []
+        var flowScopeFunctionNames: Set<InternedString> = []
+        func addFlowScopeSymbol(_ symbol: SymbolID) {
+            flowScopeFunctionSymbols.insert(symbol)
+            if let name = functionNameBySymbol[symbol] {
+                flowScopeFunctionNames.insert(name)
+            }
+        }
+        // Symbols that directly reference a module-declared function from an
+        // instruction: `constValue(.symbolRef)` values plus the `symbol` field
+        // of direct calls (used by `kk_function_value_adapter_*` forwarders).
+        // Suspend machinery calls lowered copies through `$kk_coro_synthetic_*`
+        // Sema symbols the arena cannot resolve, so the callee name is also
+        // mapped back onto module declarations.
+        func referencedFunctionSymbols(
+            in instruction: KIRInstruction,
+            symbolByExprRaw: [Int32: SymbolID]
+        ) -> [SymbolID] {
+            var symbols: [SymbolID] = []
+            switch instruction {
+            case let .constValue(_, .symbolRef(symbol)):
+                symbols.append(symbol)
+            case let .call(symbol, callee, arguments, _, _, _, _, _),
+                 let .virtualCall(symbol, callee, _, arguments, _, _, _, _):
+                if let symbol {
+                    symbols.append(symbol)
+                }
+                if let byName = functionSymbolsByName[callee] {
+                    symbols.append(contentsOf: byName)
+                }
+                for argument in arguments {
+                    if let symbol = symbolByExprRaw[argument.rawValue] {
+                        symbols.append(symbol)
+                    }
+                }
+            default:
+                break
+            }
+            return symbols
+        }
+        // Calls whose function-value arguments execute with a Flow collector
+        // in scope: `flow { }` builders and the Flow operators whose callback
+        // may invoke the bare `emit` effect (`transform`, `catch`,
+        // `retryWhen`, `onEach`, `onEmpty`, ...). Other argument shapes
+        // (ints, handles) simply resolve to no function symbol.
+        let flowEmitScopeCalleeNames: Set<InternedString> = [
+            flowName, collectName, collectLatestName, mapName, filterName,
+            takeName, transformName, takeWhileName, dropWhileName,
+            flatMapConcatName, flatMapMergeName, flatMapLatestName,
+            combineName, zipName, mergeName, bufferName, conflateName,
+            flowOnName, debounceName, sampleName,
+            catchName, retryName, retryWhenName,
+            ctx.interner.intern("onEach"),
+            ctx.interner.intern("onEmpty"),
+            kkFlowCreateName, kkChannelFlowCreateName, kkCallbackFlowCreateName,
+            // Already-lowered bridge calls carry the callback as a payload:
+            // tagged `kk_flow_emit` (transform/map/catch/...), collector
+            // references of `kk_flow_collect`, and the flatMap/combine family.
+            kkFlowEmitName, kkFlowCollectName, kkFlowCollectLatestName,
+            kkFlowFlatMapConcatName, kkFlowFlatMapMergeName, kkFlowFlatMapLatestName,
+            kkFlowZipName, kkFlowCombineName, kkFlowMergeName,
+        ]
+        // Container writes that carry a callback into an object or
+        // continuation feeding a flow call: `kk_array_set(obj, i, v)` and
+        // `kk_coroutine_launcher_arg_set(cont, i, v)`. kklib-imported call
+        // shapes route `flow`/`collect` arguments through these slots
+        // (e.g. `.map { }` lowering where the lambda is packed into the
+        // collector object next to `externSymbolAddress` launcher thunks).
+        let containerWriteCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_array_set"),
+            ctx.interner.intern("kk_coroutine_launcher_arg_set"),
+        ]
+        func inputExprs(of instruction: KIRInstruction) -> [KIRExprID] {
+            switch instruction {
+            case let .call(_, _, arguments, _, _, _, _, _):
+                return arguments
+            case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
+                return [receiver] + arguments
+            case let .copy(from, _):
+                return [from]
+            case let .binary(_, lhs, rhs, _):
+                return [lhs, rhs]
+            case let .unary(_, operand, _), let .nullAssert(operand, _):
+                return [operand]
+            case let .jumpIfEqual(lhs, rhs, _):
+                return [lhs, rhs]
+            case let .jumpIfNotNull(value, _), let .rethrow(value),
+                 let .returnValue(value), let .storeGlobal(value, _):
+                return [value]
+            case let .nonLocalReturn(value, _):
+                return value.map { [$0] } ?? []
+            default:
+                return []
+            }
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            var symbolByExprRaw: [Int32: SymbolID] = [:]
+            for instruction in function.body {
+                if case let .constValue(result, .symbolRef(symbol)) = instruction {
+                    symbolByExprRaw[result.rawValue] = symbol
+                }
+            }
+            var propagatedSeedSymbols = true
+            while propagatedSeedSymbols {
+                propagatedSeedSymbols = false
+                for instruction in function.body {
+                    if case let .copy(from, to) = instruction,
+                       let symbol = symbolByExprRaw[from.rawValue],
+                       symbolByExprRaw[to.rawValue] == nil
+                    {
+                        symbolByExprRaw[to.rawValue] = symbol
+                        propagatedSeedSymbols = true
+                    }
+                }
+            }
+            var producerByResultRaw: [Int32: KIRInstruction] = [:]
+            var writtenValuesByTargetRaw: [Int32: [KIRExprID]] = [:]
+            for instruction in function.body {
+                switch instruction {
+                case let .copy(from, to):
+                    writtenValuesByTargetRaw[to.rawValue, default: []].append(from)
+                case let .call(_, callee, arguments, result, _, _, _, _):
+                    if let result {
+                        producerByResultRaw[result.rawValue] = instruction
+                    }
+                    if arguments.count == 3, containerWriteCallees.contains(callee) {
+                        writtenValuesByTargetRaw[arguments[0].rawValue, default: []]
+                            .append(arguments[2])
+                    }
+                case let .virtualCall(_, _, _, _, result, _, _, _):
+                    if let result {
+                        producerByResultRaw[result.rawValue] = instruction
+                    }
+                default:
+                    break
+                }
+            }
+            // Bounded closure from a flow-call argument to every expression
+            // that produced it or was written into the containers carrying it,
+            // so indirect callback shapes still resolve to a lambda symbol.
+            func seedFlowArgumentClosure(_ root: KIRExprID) {
+                var queue: [KIRExprID] = [root]
+                var seen: Set<Int32> = []
+                while let expr = queue.popLast() {
+                    guard seen.insert(expr.rawValue).inserted else {
+                        continue
+                    }
+                    if let symbol = symbolByExprRaw[expr.rawValue] {
+                        addFlowScopeSymbol(symbol)
+                    }
+                    if let producer = producerByResultRaw[expr.rawValue] {
+                        queue.append(contentsOf: inputExprs(of: producer))
+                    }
+                    if let writes = writtenValuesByTargetRaw[expr.rawValue] {
+                        queue.append(contentsOf: writes)
+                    }
+                }
+            }
+            for instruction in function.body {
+                let seedArguments: [KIRExprID]?
+                switch instruction {
+                case let .call(_, callee, arguments, _, _, _, _, _):
+                    seedArguments = flowEmitScopeCalleeNames.contains(callee) ? arguments : nil
+                case let .virtualCall(_, callee, _, arguments, _, _, _, _):
+                    seedArguments = flowEmitScopeCalleeNames.contains(callee) ? arguments : nil
+                default:
+                    seedArguments = nil
+                }
+                guard let arguments = seedArguments
+                else {
+                    continue
+                }
+                for lambdaArg in arguments {
+                    seedFlowArgumentClosure(lambdaArg)
+                    // Convention-based fallback for synthetic lambda names,
+                    // mirroring FlowLoweringPass.
+                    flowScopeFunctionNames.insert(
+                        ctx.interner.intern("kk_lambda_\(lambdaArg.rawValue)")
+                    )
+                }
+            }
+        }
+        func isFlowScopeFunction(_ function: KIRFunction) -> Bool {
+            flowScopeFunctionSymbols.contains(function.symbol)
+                || flowScopeFunctionNames.contains(function.name)
+        }
+        // Worklist BFS: scan each in-scope function once; newly discovered
+        // functions are queued for their own scan.
+        var flowScopeWorklist: [SymbolID] = []
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl,
+                  isFlowScopeFunction(function)
+            else {
+                continue
+            }
+            flowScopeWorklist.append(function.symbol)
+        }
+        while let scopeSymbol = flowScopeWorklist.popLast() {
+            guard let function = module.arena.function(for: scopeSymbol) else {
+                continue
+            }
+            var symbolByExprRaw: [Int32: SymbolID] = [:]
+            for instruction in function.body {
+                if case let .constValue(result, .symbolRef(symbol)) = instruction {
+                    symbolByExprRaw[result.rawValue] = symbol
+                }
+            }
+            for instruction in function.body {
+                for symbol in referencedFunctionSymbols(in: instruction, symbolByExprRaw: symbolByExprRaw)
+                where functionNameBySymbol[symbol] != nil
+                    && flowScopeFunctionSymbols.insert(symbol).inserted {
+                    if let name = functionNameBySymbol[symbol] {
+                        flowScopeFunctionNames.insert(name)
+                    }
+                    flowScopeWorklist.append(symbol)
+                }
+            }
+        }
+        let freshFunctions = freshFlowFunctions(module: module, ctx: ctx)
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
 
@@ -246,12 +477,9 @@ extension CoroutineLoweringPass {
                       tagValue == RuntimeFlowTag.flowOn.rawValue ||
                       tagValue == RuntimeFlowTag.debounce.rawValue ||
                       tagValue == RuntimeFlowTag.sample.rawValue ||
-                      tagValue == RuntimeFlowTag.delayEach.rawValue ||
                       tagValue == RuntimeFlowTag.catchHandler.rawValue ||
                       tagValue == RuntimeFlowTag.retry.rawValue ||
-                      tagValue == RuntimeFlowTag.retryWhen.rawValue ||
-                      tagValue == RuntimeFlowTag.onErrorReturn.rawValue ||
-                      tagValue == RuntimeFlowTag.onErrorResume.rawValue
+                      tagValue == RuntimeFlowTag.retryWhen.rawValue
                 else {
                     return false
                 }
@@ -313,8 +541,7 @@ extension CoroutineLoweringPass {
                         }
                         if isFlowRewriteCandidate(symbol, callee),
                            callee == mapName || callee == filterName || callee == takeName ||
-                            callee == catchName || callee == retryName || callee == retryWhenName ||
-                            callee == onErrorReturnName || callee == onErrorResumeName,
+                            callee == catchName || callee == retryName || callee == retryWhenName,
                            arguments.count == 2 ||
                             ((callee == mapName || callee == filterName || callee == catchName ||
                                 callee == retryWhenName) && arguments.count == 3),
@@ -325,7 +552,7 @@ extension CoroutineLoweringPass {
                             continue
                         }
                         if isFlowRewriteCandidate(symbol, callee),
-                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName, delayEachName].contains(callee),
+                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName].contains(callee),
                            arguments.count >= 2,
                            let flowHandleArg = arguments.first,
                            flowExprIDs.contains(flowHandleArg.rawValue)
@@ -369,6 +596,7 @@ extension CoroutineLoweringPass {
                         }
                         if callee == emitName,
                            arguments.count == 1,
+                           isFlowScopeFunction(function),
                            isFlowRewriteCandidate(symbol, callee)
                         {
                             if markFlowExpr(result) { changed = true }
@@ -381,8 +609,7 @@ extension CoroutineLoweringPass {
                         }
                         if isFlowRewriteCandidate(symbol, callee),
                            callee == mapName || callee == filterName || callee == takeName ||
-                            callee == catchName || callee == retryName || callee == retryWhenName ||
-                            callee == onErrorReturnName || callee == onErrorResumeName,
+                            callee == catchName || callee == retryName || callee == retryWhenName,
                            arguments.count == 1,
                            flowExprIDs.contains(receiver.rawValue)
                         {
@@ -390,7 +617,7 @@ extension CoroutineLoweringPass {
                             continue
                         }
                         if isFlowRewriteCandidate(symbol, callee),
-                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName, delayEachName].contains(callee),
+                           [transformName, takeWhileName, dropWhileName, flatMapConcatName, flatMapMergeName, flatMapLatestName, bufferName, flowOnName, debounceName, sampleName].contains(callee),
                            arguments.count == 1,
                            flowExprIDs.contains(receiver.rawValue)
                         {
@@ -453,7 +680,7 @@ extension CoroutineLoweringPass {
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
                         callee == combineName || callee == zipName || callee == mergeName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
-                        callee == debounceName || callee == sampleName || callee == delayEachName ||
+                        callee == debounceName || callee == sampleName ||
                         callee == toListName || callee == firstName || callee == singleName ||
                         callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName ||
                         callee == kkFlowCollectLatestName ||
@@ -465,9 +692,8 @@ extension CoroutineLoweringPass {
                         callee == transformName || callee == takeWhileName || callee == dropWhileName ||
                         callee == flatMapConcatName || callee == flatMapMergeName || callee == flatMapLatestName ||
                         callee == bufferName || callee == conflateName || callee == flowOnName ||
-                        callee == debounceName || callee == sampleName || callee == delayEachName ||
+                        callee == debounceName || callee == sampleName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName ||
                         callee == toListName || callee == firstName || callee == singleName
                 default:
                     false
@@ -490,8 +716,7 @@ extension CoroutineLoweringPass {
                 case let .call(symbol, callee, arguments, _, _, _, _, _):
                     if isFlowRewriteCandidate(symbol, callee),
                    callee == mapName || callee == filterName || callee == takeName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 2 ||
                         ((callee == mapName || callee == filterName || callee == catchName ||
                             callee == retryWhenName) && arguments.count == 3)
@@ -521,7 +746,7 @@ extension CoroutineLoweringPass {
                     if isFlowRewriteCandidate(symbol, callee),
                    callee == mapName || callee == filterName || callee == takeName ||
                         callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName || callee == collectName ||
+                        callee == collectName ||
                         callee == collectLatestName,
                        arguments.count == 1
                     {
@@ -560,12 +785,9 @@ extension CoroutineLoweringPass {
                 flowOn: flowOnName,
                 debounce: debounceName,
                 sample: sampleName,
-                delayEach: delayEachName,
                 catchHandler: catchName,
                 retry: retryName,
                 retryWhen: retryWhenName,
-                onErrorReturn: onErrorReturnName,
-                onErrorResume: onErrorResumeName,
                 toList: toListName,
                 first: firstName,
                 kkFlowCreate: kkFlowCreateName,
@@ -592,10 +814,11 @@ extension CoroutineLoweringPass {
                 flowExprIDs: &flowExprIDs,
                 remainingConsumes: &remainingConsumes,
                 symbolByExprRaw: symbolByExprRaw,
-                names: names
+                names: names,
+                isFlowScopeFunction: isFlowScopeFunction(function)
             )
 
-            updated.replaceBody(loweredBody)
+            updated.replaceBody(cleanUpOwnedFlows(loweredBody, module: module, ctx: ctx, freshFunctions: freshFunctions))
             return updated
         }
         module.arena.transformFunctions(transformFunction)

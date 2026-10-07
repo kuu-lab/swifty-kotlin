@@ -86,7 +86,7 @@ struct CollectionClassificationTests {
             var state = State()
             CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
                 function: function, lookup: CollectionLiteralLookupTables(interner: interner),
-                arena: arena, sema: sema, interner: interner, state: &state
+                arena: arena, sema: sema, state: &state
             )
             return state
         }
@@ -132,7 +132,8 @@ struct CollectionClassificationTests {
             for expr in [parameter, result] {
                 CollectionLiteralLoweringSupport().classifyTrackedExprByStaticType(
                     expr, module: module, sema: fixture.sema,
-                    interner: fixture.interner, state: &directState
+                    lookup: CollectionLiteralLookupTables(interner: fixture.interner),
+                    state: &directState
                 )
             }
             #expect(directState[keyPath: classification] == [parameter.rawValue, result.rawValue])
@@ -147,7 +148,8 @@ struct CollectionClassificationTests {
         for name in ["List", "Set", "Map", "Array", "String", "Range", "Iterator", "File", "Path"] {
             let expr = fixture.arena.appendTemporary(type: fixture.classType(["user", name]))
             CollectionLiteralLoweringSupport().classifyTrackedExprByStaticType(
-                expr, module: module, sema: fixture.sema, interner: fixture.interner, state: &state
+                expr, module: module, sema: fixture.sema,
+                lookup: CollectionLiteralLookupTables(interner: fixture.interner), state: &state
             )
         }
 

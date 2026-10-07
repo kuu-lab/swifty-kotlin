@@ -12,6 +12,14 @@ fun main() {
     val withNaN = sequenceOf(1.0, Double.NaN, 2.0)
     println(withNaN.max())
 
+    val ints = sequenceOf(3, 1, 4, 1, 5)
+    println(ints.max())
+    println(ints.maxOrNull())
+
+    val words2 = sequenceOf("aaa", "b", "cc")
+    println(words2.max())
+    println(words2.maxOrNull())
+
     val items = sequenceOf(Item("a", 2.0), Item("b", 5.0), Item("c", 1.0))
     println(items.maxOf { it.score })
     println(items.maxOfOrNull { it.score })
@@ -25,6 +33,7 @@ fun main() {
     println(words.maxOfWithOrNull(cmp) { it.length })
 
     println(emptySequence<Double>().maxOrNull())
+    println(emptySequence<Float>().maxOrNull())
     try {
         emptySequence<Double>().max()
         println("no throw")

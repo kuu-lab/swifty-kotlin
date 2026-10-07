@@ -27,7 +27,10 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
 @_cdecl("kk_enum_box_ordinal")
 public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) -> Int {
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: namePtr))
-    return registerRuntimeObject(
+    // Tagged-handle registration keeps the box's raw address out of
+    // `objectPointers`, so a raw scalar that equals that address cannot be
+    // mistaken for this box by the `kk_box_*` pass-through (KUU-857).
+    return registerTaggedRuntimeObject(
         RuntimeIntBox(ordinal, enumEntryName: name, enumClassID: Int64(classID)),
         typeID: Int64(classID)
     )
@@ -44,11 +47,9 @@ public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int) -> Int {
         return registerRuntimeObject(RuntimeArrayBox(length: 0))
     }
 
-    let safeCount = max(0, min(count, values.elements.count))
+    let safeCount = max(0, min(count, values.count))
     let box = RuntimeArrayBox(length: safeCount)
-    for i in 0..<safeCount {
-        box.elements[i] = values.elements[i]
-    }
+    box.values = Array(values.values.prefix(safeCount))
     return registerRuntimeObject(box)
 }
 
@@ -62,7 +63,7 @@ public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 
-    let safeCount = max(0, min(count, values.elements.count))
+    let safeCount = max(0, min(count, values.count))
     return registerRuntimeObject(RuntimeListBox(elements: Array(values.elements.prefix(safeCount))))
 }
 
@@ -81,14 +82,12 @@ public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ c
 
     let list: RuntimeListBox
     if let values = runtimeArrayBox(from: valuesRaw) {
-        let safeCount = max(0, min(count, values.elements.count))
-        if safeCount == values.elements.count {
+        let safeCount = max(0, min(count, values.count))
+        if safeCount == values.count {
             list = RuntimeListBox(arrayViewOf: values)
         } else {
             let boundedValues = RuntimeArrayBox(length: safeCount)
-            for index in 0..<safeCount {
-                boundedValues.elements[index] = values.elements[index]
-            }
+            boundedValues.values = Array(values.values.prefix(safeCount))
             list = RuntimeListBox(arrayViewOf: boundedValues)
         }
     } else {

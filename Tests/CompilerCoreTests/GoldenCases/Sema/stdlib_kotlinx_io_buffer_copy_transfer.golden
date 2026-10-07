@@ -1,0 +1,67 @@
+symbol fq=copying.$0.buffer[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=copying.$0.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=copying.$0.rawSink[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=copying.$0.rawSource[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=copying[kind=fun;params=kotlinx.io.Buffer,kotlinx.io.Buffer,kotlinx.io.RawSource,kotlinx.io.RawSink;ret=kotlinx.io.Source;names=[buffer,other,rawSource,rawSink];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.io.Buffer,kotlinx.io.Buffer,kotlinx.io.RawSource,kotlinx.io.RawSink] ret=kotlinx.io.Source
+file fstdlib_kotlinx_io_buffer_copy_transfer package=_
+  decl copying[kind=fun;params=kotlinx.io.Buffer,kotlinx.io.Buffer,kotlinx.io.RawSource,kotlinx.io.RawSink;ret=kotlinx.io.Source;names=[buffer,other,rawSource,rawSink];origin=fixture] fun copying sym=copying[kind=fun;params=kotlinx.io.Buffer,kotlinx.io.Buffer,kotlinx.io.RawSource,kotlinx.io.RawSink;ret=kotlinx.io.Source;names=[buffer,other,rawSource,rawSink];origin=fixture]
+expr e@7:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@7:5#1 memberCall recv=e@7:5 callee=copy args=[] type=kotlinx.io.Buffer call=kotlinx.io.Buffer.copy[kind=fun;recv=kotlinx.io.Buffer;params=;ret=kotlinx.io.Buffer]
+expr e@8:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@8:19 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@8:5#1 memberCall recv=e@8:5 callee=copyTo args=[_:e@8:19] type=Unit call=kotlinx.io.Buffer.copyTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.Buffer,Long,Long;ret=Unit;defaults=[0,1,1];names=[out,startIndex,endIndex]]
+expr e@9:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@9:19 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@9:26 long(0) type=Long
+expr e@9:30 long(1) type=Long
+expr e@9:5#1 memberCall recv=e@9:5 callee=copyTo args=[_:e@9:19,_:e@9:26,_:e@9:30] type=Unit call=kotlinx.io.Buffer.copyTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.Buffer,Long,Long;ret=Unit;defaults=[0,1,1];names=[out,startIndex,endIndex]]
+expr e@10:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@10:16 long(0) type=Long
+expr e@10:5#1 memberCall recv=e@10:5 callee=get args=[_:e@10:16] type=Byte call=kotlinx.io.Buffer.get[kind=fun;recv=kotlinx.io.Buffer;params=Long;ret=Byte;names=[position]]
+expr e@11:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@11:20 int(1) type=Byte
+expr e@11:5#1 memberCall recv=e@11:5 callee=indexOf args=[_:e@11:20] type=Long call=kotlinx.io.Buffer.indexOf[kind=fun;recv=kotlinx.io.Buffer;params=Byte,Long,Long;ret=Long;defaults=[0,1,1];names=[byte,startIndex,endIndex]]
+expr e@12:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@12:25 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@12:32 long(1) type=Long
+expr e@12:5#1 memberCall recv=e@12:5 callee=readAtMostTo args=[_:e@12:25,_:e@12:32] type=Long call=kotlinx.io.Buffer.readAtMostTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.Buffer,Long;ret=Long;names=[sink,byteCount]]
+expr e@13:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@13:18 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@13:25 long(1) type=Long
+expr e@13:5#1 memberCall recv=e@13:5 callee=write args=[_:e@13:18,_:e@13:25] type=Unit call=kotlinx.io.Buffer.write[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.Buffer,Long;ret=Unit;names=[source,byteCount]]
+expr e@14:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@14:18 name(rawSource) type=kotlinx.io.RawSource ref=copying.$0.rawSource[kind=vparam;origin=fixture]
+expr e@14:29 long(1) type=Long
+expr e@14:5#1 memberCall recv=e@14:5 callee=write args=[_:e@14:18,_:e@14:29] type=Unit call=kotlinx.io.Buffer.write[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.RawSource,Long;ret=Unit;names=[source,byteCount]]
+expr e@15:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@15:19 name(rawSink) type=kotlinx.io.RawSink ref=copying.$0.rawSink[kind=vparam;origin=fixture]
+expr e@15:28 long(1) type=Long
+expr e@15:5#1 memberCall recv=e@15:5 callee=readTo args=[_:e@15:19,_:e@15:28] type=Unit call=kotlinx.io.Buffer.readTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.RawSink,Long;ret=Unit;names=[sink,byteCount]]
+expr e@16:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@16:25 name(rawSource) type=kotlinx.io.RawSource ref=copying.$0.rawSource[kind=vparam;origin=fixture]
+expr e@16:5#1 memberCall recv=e@16:5 callee=transferFrom args=[_:e@16:25] type=Long call=kotlinx.io.Buffer.transferFrom[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.RawSource;ret=Long;names=[source]]
+expr e@17:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@17:23 name(rawSink) type=kotlinx.io.RawSink ref=copying.$0.rawSink[kind=vparam;origin=fixture]
+expr e@17:5#1 memberCall recv=e@17:5 callee=transferTo args=[_:e@17:23] type=Long call=kotlinx.io.Buffer.transferTo[kind=fun;recv=kotlinx.io.Buffer;params=kotlinx.io.RawSink;ret=Long;names=[sink]]
+expr e@18:5 name(rawSource) type=kotlinx.io.RawSource ref=copying.$0.rawSource[kind=vparam;origin=fixture]
+expr e@18:28 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@18:35 long(1) type=Long
+expr e@18:5#1 memberCall recv=e@18:5 callee=readAtMostTo args=[_:e@18:28,_:e@18:35] type=Long call=kotlinx.io.RawSource.readAtMostTo[kind=fun;recv=kotlinx.io.RawSource;params=kotlinx.io.Buffer,Long;ret=Long;names=[sink,byteCount]]
+expr e@19:5 name(rawSink) type=kotlinx.io.RawSink ref=copying.$0.rawSink[kind=vparam;origin=fixture]
+expr e@19:19 name(other) type=kotlinx.io.Buffer ref=copying.$0.other[kind=vparam;origin=fixture]
+expr e@19:26 long(1) type=Long
+expr e@19:5#1 memberCall recv=e@19:5 callee=write args=[_:e@19:19,_:e@19:26] type=Unit call=kotlinx.io.RawSink.write[kind=fun;recv=kotlinx.io.RawSink;params=kotlinx.io.Buffer,Long;ret=Unit;names=[source,byteCount]]
+expr e@20:5 name(rawSink) type=kotlinx.io.RawSink ref=copying.$0.rawSink[kind=vparam;origin=fixture]
+expr e@20:5#1 memberCall recv=e@20:5 callee=flush args=[] type=Unit call=kotlinx.io.RawSink.flush[kind=fun;recv=kotlinx.io.RawSink;params=;ret=Unit]
+expr e@21:5 name(rawSource) type=kotlinx.io.RawSource ref=copying.$0.rawSource[kind=vparam;origin=fixture]
+expr e@21:5#1 memberCall recv=e@21:5 callee=close args=[] type=Unit call=kotlinx.io.RawSource.close[kind=fun;recv=kotlinx.io.RawSource;params=;ret=Unit]
+expr e@22:5 name(rawSink) type=kotlinx.io.RawSink ref=copying.$0.rawSink[kind=vparam;origin=fixture]
+expr e@22:5#1 memberCall recv=e@22:5 callee=close args=[] type=Unit call=kotlinx.io.RawSink.close[kind=fun;recv=kotlinx.io.RawSink;params=;ret=Unit]
+expr e@23:5 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@23:18 name(it) type=kotlinx.io.Buffer ref=s-0
+expr e@23:18#1 memberCall recv=e@23:18 callee=clear args=[] type=Unit call=kotlinx.io.Buffer.clear[kind=fun;recv=kotlinx.io.Buffer;params=;ret=Unit]
+expr e@23:16 lambda params=[] body=e@23:18#1 label=use type=(kotlinx.io.Buffer) -> Unit
+expr e@23:5#1 memberCall recv=e@23:5 callee=use args=[_:e@23:16] type=Unit
+expr e@24:12 name(buffer) type=kotlinx.io.Buffer ref=copying.$0.buffer[kind=vparam;origin=fixture]
+expr e@24:12#1 memberCall recv=e@24:12 callee=peek args=[] type=kotlinx.io.Source call=kotlinx.io.Buffer.peek[kind=fun;recv=kotlinx.io.Buffer;params=;ret=kotlinx.io.Source]
+expr e@24:5 return value=e@24:12#1 type=Nothing

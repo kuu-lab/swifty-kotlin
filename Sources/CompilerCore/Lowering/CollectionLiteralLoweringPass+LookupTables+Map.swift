@@ -11,6 +11,11 @@ struct MapLookupNames {
     let emptyMapName: InternedString
     let hashMapName: InternedString
     let linkedHashMapName: InternedString
+    let treeMapName: InternedString
+    let sortedMapOfName: InternedString
+    let kkTreeMapNewName: InternedString
+    let kkTreeMapNewMapName: InternedString
+    let kkTreeMapNewSortedMapName: InternedString
     let kkEmptyMapName: InternedString
     let kkMapOfName: InternedString
     let kkHashMapOfName: InternedString
@@ -34,6 +39,11 @@ struct MapLookupNames {
         emptyMapName = interner.intern("emptyMap")
         hashMapName = interner.intern("HashMap")
         linkedHashMapName = interner.intern("LinkedHashMap")
+        treeMapName = interner.intern("TreeMap")
+        sortedMapOfName = interner.intern("sortedMapOf")
+        kkTreeMapNewName = interner.intern("__kk_tree_map_new")
+        kkTreeMapNewMapName = interner.intern("__kk_tree_map_new_map")
+        kkTreeMapNewSortedMapName = interner.intern("__kk_tree_map_new_sorted_map")
         kkEmptyMapName = interner.intern("__kk_emptyMap")
         kkMapOfName = interner.intern("__kk_map_of")
         kkHashMapOfName = interner.intern("__kk_hash_map_of")

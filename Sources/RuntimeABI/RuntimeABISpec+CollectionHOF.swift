@@ -107,6 +107,7 @@ public extension RuntimeABISpec {
         let listWindowChunkReceiverSizeParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
             RuntimeABIParameter(name: "size", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
         let listWindowChunkReceiverSizeLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -120,6 +121,7 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "size", type: .intptr),
             RuntimeABIParameter(name: "step", type: .intptr),
             RuntimeABIParameter(name: "partialWindows", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
         ]
         let listWindowedTransformParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -152,8 +154,7 @@ public extension RuntimeABISpec {
                 name: "__kk_list_chunked",
                 parameters: listWindowChunkReceiverSizeParams,
                 returnType: .intptr,
-                section: "Collection",
-                isThrowing: false
+                section: "Collection"
             ),
             RuntimeABIFunctionSpec(
                 name: "__kk_list_chunked_transform",
@@ -165,8 +166,7 @@ public extension RuntimeABISpec {
                 name: "__kk_list_windowed",
                 parameters: listWindowedParams,
                 returnType: .intptr,
-                section: "Collection",
-                isThrowing: false
+                section: "Collection"
             ),
             RuntimeABIFunctionSpec(
                 name: "__kk_list_windowed_transform",
@@ -210,6 +210,15 @@ public extension RuntimeABISpec {
         ]
         let asReversedSpec = RuntimeABIFunctionSpec(
             name: "__kk_list_as_reversed",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        )
+        let mutableAsReversedSpec = RuntimeABIFunctionSpec(
+            name: "__kk_mutable_list_as_reversed",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
             ],
@@ -386,7 +395,7 @@ public extension RuntimeABISpec {
         functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
             + [
-                asReversedSpec,
+                asReversedSpec, mutableAsReversedSpec,
                 maxOrNullSpec, minOrNullSpec,
                 maxSpec, minSpec,
                 sortedSpec,

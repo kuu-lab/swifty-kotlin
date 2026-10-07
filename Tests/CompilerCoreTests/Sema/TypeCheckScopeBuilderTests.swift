@@ -4,6 +4,28 @@ import Testing
 @Suite
 struct TypeCheckScopeBuilderTests {
     @Test
+    func inaccessibleWildcardMemberDoesNotShadowDefaultImport() throws {
+        let ctx = makeContextFromSources([
+            "package kotlin\nfun answer(): Int = 1",
+            "package imported\nprivate fun answer(): Int = 2",
+            "package app\nimport imported.*\nfun consume(): Int = answer()",
+        ])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let scopes = TypeCheckScopeBuilder().buildFileScopes(
+            ast: ast, sema: sema, interner: ctx.interner, sourceManager: ctx.sourceManager
+        )
+        let appFile = try #require(ast.sortedFiles.first {
+            $0.packageFQName == [ctx.interner.intern("app")]
+        })
+        let scope = try #require(scopes[appFile.fileID.rawValue])
+        let answer = ctx.interner.intern("answer")
+        #expect(scope.lookup(answer) == sema.symbols.lookupAll(fqName: [ctx.interner.intern("kotlin"), answer]))
+    }
+
+    @Test
     func defaultImportsPreserveFileSpecificShadowingAndAliases() throws {
         let sources = [
             """

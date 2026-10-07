@@ -1,8 +1,7 @@
 
 /// `kotlin.concurrent.atomics` package-level scaffolding — the
-/// `@ExperimentalAtomicApi` annotation, the `MemoryOrder` enum, and the
-/// type aliases back to `kotlin.concurrent` — extracted from
-/// the Atomic residual registration surface.
+/// `@ExperimentalAtomicApi` annotation and the `MemoryOrder` enum —
+/// extracted from the Atomic residual registration surface.
 extension DataFlowSemaPhase {
     func registerSyntheticAtomicAnnotation(
         named name: String,
@@ -89,60 +88,5 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(enumType, for: child)
             }
         }
-    }
-
-    func registerAtomicTypeAlias(
-        aliasName: String,
-        aliasPackageFQName: [InternedString],
-        targetName: String,
-        targetPackageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner,
-        types: TypeSystem,
-        typeParameterNames: [String] = []
-    ) {
-        let aliasInterned = interner.intern(aliasName)
-        let aliasFQName = aliasPackageFQName + [aliasInterned]
-        guard symbols.lookup(fqName: aliasFQName) == nil else { return }
-
-        let targetInterned = interner.intern(targetName)
-        let targetFQName = targetPackageFQName + [targetInterned]
-        guard let targetSymbol = symbols.lookup(fqName: targetFQName) else { return }
-
-        let aliasSymbol = symbols.define(
-            kind: .typeAlias,
-            name: aliasInterned,
-            fqName: aliasFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        let underlyingArgs: [TypeArg]
-        if typeParameterNames.isEmpty {
-            underlyingArgs = []
-        } else {
-            let typeParamSymbols = typeParameterNames.map { paramName in
-                let internedParam = interner.intern(paramName)
-                let typeParamFQName = aliasFQName + [internedParam]
-                return symbols.lookup(fqName: typeParamFQName) ?? symbols.define(
-                    kind: .typeParameter,
-                    name: internedParam,
-                    fqName: typeParamFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-            }
-            symbols.setTypeAliasTypeParameters(typeParamSymbols, for: aliasSymbol)
-            underlyingArgs = typeParamSymbols.map { typeParamSymbol in
-                .invariant(types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: .nullable))))
-            }
-        }
-        let underlyingType = types.make(.classType(ClassType(
-            classSymbol: targetSymbol,
-            args: underlyingArgs,
-            nullability: .nonNull
-        )))
-        symbols.setTypeAliasUnderlyingType(underlyingType, for: aliasSymbol)
     }
 }

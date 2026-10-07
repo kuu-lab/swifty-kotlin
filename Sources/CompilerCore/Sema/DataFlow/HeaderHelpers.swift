@@ -126,7 +126,7 @@ extension DataFlowSemaPhase {
                 )
             }
             let symbolKind = symbols.symbol(symbol)?.kind
-            if (symbolKind == .function || symbolKind == .constructor || symbolKind == .property),
+            if (symbolKind == .function || symbolKind == .constructor || symbolKind == .property || symbolKind == .object),
                let linkName = ksSymbolName.arguments.first.map(annotationStringArgumentValue(_:)),
                !linkName.isEmpty
             {
@@ -469,6 +469,7 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.suspend) { value.insert(.suspendFunction) }
         if modifiers.contains(.inline) { value.insert(.inlineFunction) }
         if modifiers.contains(.operator) { value.insert(.operatorFunction) }
+        if modifiers.contains(.infix) { value.insert(.infixFunction) }
     }
 
     private func insertTypeFlags(
@@ -532,7 +533,7 @@ extension DataFlowSemaPhase {
                 return nonPackageExisting.contains { sym in
                     if isCallableLike(sym.kind) { return false }
                     if sym.kind == .property {
-                        return symbols.extensionPropertyReceiverType(for: sym.id) == nil
+                        return !sym.flags.contains(.synthetic) && !symbols.hasExtensionPropertyReceiver(sym.id)
                     }
                     return true
                 }
@@ -578,7 +579,9 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         newFlags: SymbolFlags = [],
         additionalExisting: [SemanticSymbol] = [],
-        newIsExtensionProperty: Bool = false
+        newIsExtensionProperty: Bool = false,
+        topLevelVisibility: Visibility? = nil,
+        topLevelFileID: FileID? = nil
     ) {
         var existingByID: [SymbolID: SemanticSymbol] = [:]
         for symbol in symbols.lookupAll(fqName: fqName).compactMap({ symbols.symbol($0) }) {
@@ -587,7 +590,12 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
-        let existing = Array(existingByID.values)
+        let existing = existingByID.values.filter { existing in
+            guard let topLevelVisibility, let topLevelFileID else { return true }
+            return !symbols.canCoexistAsFilePrivateTopLevelCallable(
+                kind: newKind, visibility: topLevelVisibility, fileID: topLevelFileID, existing: existing
+            )
+        }
         if newFlags.contains(.expectDeclaration) || newFlags.contains(.actualDeclaration) {
             let existingNonPackage = existing.filter {
                 $0.kind != .package && !$0.flags.contains(.synthetic)
@@ -631,7 +639,8 @@ extension DataFlowSemaPhase {
         receiverType: TypeID,
         parameterTypes: [TypeID],
         returnType: TypeID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        types: TypeSystem
     ) -> Bool {
         symbols.lookupAll(fqName: fqName).contains { id in
             guard let symbol = symbols.symbol(id),
@@ -641,9 +650,14 @@ extension DataFlowSemaPhase {
             else {
                 return false
             }
+            // Expression-bodied members without an explicit return type carry a provisional
+            // `Any` here (the real type is inferred later), so the return type is only compared
+            // when the user declared one that is not that placeholder.
+            let returnTypeMatches = signature.returnType == returnType
+                || signature.returnType == types.anyType
             return signature.receiverType == receiverType
                 && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
+                && returnTypeMatches
         }
     }
 
@@ -675,7 +689,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [],
             returnType: stringType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -685,7 +700,8 @@ extension DataFlowSemaPhase {
             fqName: toStringFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
@@ -734,7 +750,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [nullableAnyType],
             returnType: boolType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -744,7 +761,8 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         let otherParamName = interner.intern("other")
@@ -801,7 +819,8 @@ extension DataFlowSemaPhase {
             receiverType: ownerType,
             parameterTypes: [],
             returnType: intType,
-            symbols: symbols
+            symbols: symbols,
+            types: types
         ) else {
             return
         }
@@ -811,7 +830,8 @@ extension DataFlowSemaPhase {
             fqName: hashCodeFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
         symbols.setFunctionSignature(
@@ -1015,6 +1035,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 localTypeParameters: localTypeParameters
             )
+        case .afterMemberHeaders:
+            // Must run after member headers so a user-declared hashCode() suppresses the synthetic one.
             collectSyntheticHashCode(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
@@ -1025,7 +1047,6 @@ extension DataFlowSemaPhase {
                 scope: scope,
                 interner: interner
             )
-        case .afterMemberHeaders:
             collectSyntheticToString(
                 ownerSymbol: ownerSymbol,
                 ownerFQName: ownerFQName,
@@ -1115,7 +1136,11 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         isInline: Bool,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        enclosingTypeParameters: [InternedString: SymbolID] = [:],
+        relativeOwnerFQName: [InternedString]? = nil,
+        currentPackageFQName: [InternedString]? = nil,
+        imports: [ImportDecl] = []
     ) -> (typeParameterSymbols: [SymbolID], localTypeParameters: [InternedString: SymbolID], reifiedIndices: Set<Int>) {
         var typeParameterSymbols: [SymbolID] = []
         var localTypeParameters: [InternedString: SymbolID] = [:]
@@ -1132,11 +1157,15 @@ extension DataFlowSemaPhase {
                 flags: typeParamFlags
             )
             typeParameterSymbols.append(typeParamSymbol)
+            symbols.setAnnotations(typeParam.annotations.map {
+                MetadataAnnotationRecord(annotationFQName: $0.name, arguments: $0.arguments, useSiteTarget: $0.useSiteTarget)
+            }, for: typeParamSymbol)
             localTypeParameters[typeParam.name] = typeParamSymbol
             if typeParam.isReified {
                 reifiedIndices.insert(index)
             }
         }
+        let boundTypeParameters = enclosingTypeParameters.merging(localTypeParameters) { _, local in local }
         for typeParam in typeParams {
             guard let typeParamSym = localTypeParameters[typeParam.name] else {
                 continue
@@ -1148,7 +1177,11 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    localTypeParameters: localTypeParameters,
+                    localTypeParameters: boundTypeParameters,
+                    relativeOwnerFQName: relativeOwnerFQName,
+                    currentPackageFQName: currentPackageFQName,
+                    imports: imports,
+                    diagnostics: diagnostics,
                     usageRange: declSite
                 )
             }
@@ -1391,9 +1424,12 @@ extension DataFlowSemaPhase {
     /// KSP-707: The bundled `kotlin/Preconditions.kt` source declares `require`/
     /// `check`/`assert` without a `contract { ... }` block, so their smart-cast
     /// narrowing (e.g. `require(x != null); x.length`) is not derived from the
-    /// AST. Attach the `ContractNonNullEffect` directly to the source-backed
-    /// symbols once header collection has registered them, so
-    /// `applyContractEffects` can branch on the passed-in condition expression.
+    /// AST. `requireNotNull`/`checkNotNull` do declare a contract in source, but
+    /// contract effects are not serialized into `.kklib` metadata, so symbols
+    /// imported from a precompiled artifact need it re-attached too. Attach the
+    /// `ContractNonNullEffect` directly to the source-backed or imported symbols
+    /// once header collection has registered them, so `applyContractEffects`
+    /// can branch on the passed-in condition or narrow the nullable argument.
     func patchSourceBackedPreconditionContractEffects(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1449,6 +1485,51 @@ extension DataFlowSemaPhase {
                 ),
                 for: symbol
             )
+        }
+
+        // KUU-1091: `requireNotNull`/`checkNotNull` declare
+        // `contract { returns() implies (value != null) }` in the bundled source,
+        // but `ContractNonNullEffect` is not serialized into `.kklib` metadata,
+        // so symbols imported from a precompiled stdlib artifact still need the
+        // effect attached here. Their `value` parameter is a generic `T?`, so
+        // they are matched by name and arity rather than concrete parameter
+        // types: one `value` parameter, optionally followed by the
+        // `lazyMessage: () -> Any` parameter.
+        let notNullFunctionNames = ["requireNotNull", "checkNotNull"]
+        for name in notNullFunctionNames {
+            let functionFQName = kotlinPkg + [interner.intern(name)]
+            for symbol in symbols.lookupAll(fqName: functionFQName) {
+                guard let symbolInfo = symbols.symbol(symbol),
+                      symbolInfo.kind == .function,
+                      !symbolInfo.flags.contains(.synthetic) || symbolInfo.flags.contains(.importedLibrary),
+                      let signature = symbols.functionSignature(for: symbol),
+                      signature.receiverType == nil,
+                      !signature.valueParameterSymbols.isEmpty
+                else {
+                    continue
+                }
+                let arityMatches = switch signature.parameterTypes.count {
+                case 1:
+                    true
+                case 2:
+                    signature.parameterTypes[1] == lazyMessageType
+                default:
+                    false
+                }
+                // The first parameter must be the nullable `value` — a Boolean
+                // first parameter would route to condition narrowing instead.
+                guard arityMatches,
+                      signature.parameterTypes[0] != types.booleanType else {
+                    continue
+                }
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(
+                        parameterSymbol: signature.valueParameterSymbols[0],
+                        appliesOnAnyReturn: true
+                    ),
+                    for: symbol
+                )
+            }
         }
     }
 

@@ -1,0 +1,58 @@
+symbol fq=golden.sema.atomicArrayCompareAndExchangeAt.$0.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndExchangeAt.$0.expectedValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndExchangeAt.$0.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndExchangeAt.$0.newValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=String;names=[array,index,expectedValue,newValue];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String] ret=String
+symbol fq=golden.sema.atomicArrayCompareAndSetAt.$1.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndSetAt.$1.expectedValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndSetAt.$1.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndSetAt.$1.newValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayCompareAndSetAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=Boolean;names=[array,index,expectedValue,newValue];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String] ret=Boolean
+symbol fq=golden.sema.atomicArrayExchangeAt.$2.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayExchangeAt.$2.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayExchangeAt.$2.newValue[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=String;names=[array,index,newValue];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,Int,String] ret=String
+symbol fq=golden.sema.atomicArrayLoadAt.$3.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayLoadAt.$3.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayLoadAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int;ret=String;names=[array,index];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,Int] ret=String
+symbol fq=golden.sema.atomicArraySize.$4.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=Int;names=[array];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>] ret=Int
+symbol fq=golden.sema.atomicArrayStoreAt.$5.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayStoreAt.$5.index[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayStoreAt.$5.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayStoreAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=Unit;names=[array,index,value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>,Int,String] ret=Unit
+symbol fq=golden.sema.atomicArrayToString.$6.array[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.atomicArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=String;names=[array];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.concurrent.atomics.AtomicArray<String>] ret=String
+file fstdlib_kotlin_concurrent_atomics_AtomicArray_AtomicArray_n package=golden.sema annotations=[@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)]
+  decl golden.sema.atomicArrayCompareAndExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=String;names=[array,index,expectedValue,newValue];origin=fixture] fun atomicArrayCompareAndExchangeAt sym=golden.sema.atomicArrayCompareAndExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=String;names=[array,index,expectedValue,newValue];origin=fixture]
+  decl golden.sema.atomicArrayCompareAndSetAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=Boolean;names=[array,index,expectedValue,newValue];origin=fixture] fun atomicArrayCompareAndSetAt sym=golden.sema.atomicArrayCompareAndSetAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String,String;ret=Boolean;names=[array,index,expectedValue,newValue];origin=fixture]
+  decl golden.sema.atomicArrayExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=String;names=[array,index,newValue];origin=fixture] fun atomicArrayExchangeAt sym=golden.sema.atomicArrayExchangeAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=String;names=[array,index,newValue];origin=fixture]
+  decl golden.sema.atomicArrayLoadAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int;ret=String;names=[array,index];origin=fixture] fun atomicArrayLoadAt sym=golden.sema.atomicArrayLoadAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int;ret=String;names=[array,index];origin=fixture]
+  decl golden.sema.atomicArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=Int;names=[array];origin=fixture] fun atomicArraySize sym=golden.sema.atomicArraySize[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=Int;names=[array];origin=fixture]
+  decl golden.sema.atomicArrayStoreAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=Unit;names=[array,index,value];origin=fixture] fun atomicArrayStoreAt sym=golden.sema.atomicArrayStoreAt[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>,Int,String;ret=Unit;names=[array,index,value];origin=fixture]
+  decl golden.sema.atomicArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=String;names=[array];origin=fixture] fun atomicArrayToString sym=golden.sema.atomicArrayToString[kind=fun;params=kotlin.concurrent.atomics.AtomicArray<String>;ret=String;names=[array];origin=fixture]
+expr e@12:13 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayCompareAndExchangeAt.$0.array[kind=vparam;origin=fixture]
+expr e@12:40 name(index) type=Int ref=golden.sema.atomicArrayCompareAndExchangeAt.$0.index[kind=vparam;origin=fixture]
+expr e@12:47 name(expectedValue) type=String ref=golden.sema.atomicArrayCompareAndExchangeAt.$0.expectedValue[kind=vparam;origin=fixture]
+expr e@12:62 name(newValue) type=String ref=golden.sema.atomicArrayCompareAndExchangeAt.$0.newValue[kind=vparam;origin=fixture]
+expr e@12:13#1 memberCall recv=e@12:13 callee=compareAndExchangeAt args=[_:e@12:40,_:e@12:47,_:e@12:62] type=String call=kotlin.concurrent.atomics.AtomicArray.compareAndExchangeAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,T0,T0;ret=T0;gen=1;classGen=1;names=[index,expectedValue,newValue]] targs=[String]
+expr e@19:14 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayCompareAndSetAt.$1.array[kind=vparam;origin=fixture]
+expr e@19:36 name(index) type=Int ref=golden.sema.atomicArrayCompareAndSetAt.$1.index[kind=vparam;origin=fixture]
+expr e@19:43 name(expectedValue) type=String ref=golden.sema.atomicArrayCompareAndSetAt.$1.expectedValue[kind=vparam;origin=fixture]
+expr e@19:58 name(newValue) type=String ref=golden.sema.atomicArrayCompareAndSetAt.$1.newValue[kind=vparam;origin=fixture]
+expr e@19:14#1 memberCall recv=e@19:14 callee=compareAndSetAt args=[_:e@19:36,_:e@19:43,_:e@19:58] type=Boolean call=kotlin.concurrent.atomics.AtomicArray.compareAndSetAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,T0,T0;ret=Boolean;gen=1;classGen=1;names=[index,expectedValue,newValue]] targs=[String]
+expr e@22:5 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayExchangeAt.$2.array[kind=vparam;origin=fixture]
+expr e@22:22 name(index) type=Int ref=golden.sema.atomicArrayExchangeAt.$2.index[kind=vparam;origin=fixture]
+expr e@22:29 name(newValue) type=String ref=golden.sema.atomicArrayExchangeAt.$2.newValue[kind=vparam;origin=fixture]
+expr e@22:5#1 memberCall recv=e@22:5 callee=exchangeAt args=[_:e@22:22,_:e@22:29] type=String call=kotlin.concurrent.atomics.AtomicArray.exchangeAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,T0;ret=T0;gen=1;classGen=1;names=[index,newValue]] targs=[String]
+expr e@24:73 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayLoadAt.$3.array[kind=vparam;origin=fixture]
+expr e@24:86 name(index) type=Int ref=golden.sema.atomicArrayLoadAt.$3.index[kind=vparam;origin=fixture]
+expr e@24:73#1 memberCall recv=e@24:73 callee=loadAt args=[_:e@24:86] type=String call=kotlin.concurrent.atomics.AtomicArray.loadAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int;ret=T0;gen=1;classGen=1;names=[index]] targs=[String]
+expr e@26:56 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArraySize.$4.array[kind=vparam;origin=fixture]
+expr e@26:56#1 memberCall recv=e@26:56 callee=size args=[] type=Int ref=kotlin.concurrent.atomics.AtomicArray.size[kind=prop;type=Int]
+expr e@29:5 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayStoreAt.$5.array[kind=vparam;origin=fixture]
+expr e@29:19 name(index) type=Int ref=golden.sema.atomicArrayStoreAt.$5.index[kind=vparam;origin=fixture]
+expr e@29:26 name(value) type=String ref=golden.sema.atomicArrayStoreAt.$5.value[kind=vparam;origin=fixture]
+expr e@29:5#1 memberCall recv=e@29:5 callee=storeAt args=[_:e@29:19,_:e@29:26] type=Unit call=kotlin.concurrent.atomics.AtomicArray.storeAt[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=Int,T0;ret=Unit;gen=1;classGen=1;names=[index,value]] targs=[String]
+expr e@32:63 name(array) type=kotlin.concurrent.atomics.AtomicArray<String> ref=golden.sema.atomicArrayToString.$6.array[kind=vparam;origin=fixture]
+expr e@32:63#1 memberCall recv=e@32:63 callee=toString args=[] type=String call=kotlin.concurrent.atomics.AtomicArray.toString[kind=fun;recv=kotlin.concurrent.atomics.AtomicArray<T0>;params=;ret=String;gen=1;classGen=1] targs=[String]

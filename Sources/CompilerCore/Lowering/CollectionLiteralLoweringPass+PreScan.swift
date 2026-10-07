@@ -5,7 +5,6 @@ extension CollectionLiteralLoweringSupport {
         lookup: CollectionLiteralLookupTables,
         arena: KIRArena,
         sema: SemaModule?,
-        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         // Seed tracking sets from static type information (LOWERING-001).
@@ -14,9 +13,9 @@ extension CollectionLiteralLoweringSupport {
         // MutableSet, Map, MutableMap, etc.).
         seedCollectionExprIDsFromStaticTypes(
             function: function,
+            lookup: lookup,
             arena: arena,
             sema: sema,
-            interner: interner,
             state: &state
         )
 
@@ -67,7 +66,7 @@ extension CollectionLiteralLoweringSupport {
             case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
                     symbol: symbol, callee: callee, receiver: receiver, result: result,
-                    lookup: lookup, sema: sema, interner: interner,
+                    lookup: lookup, sema: sema,
                     state: &state
                 )
             case let .copy(from, to):
@@ -172,10 +171,24 @@ extension CollectionLiteralLoweringSupport {
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
                     || callee == lookup.kkLinkedHashSetOfName
-                    || callee == lookup.kkSetOfNotNullName {
+                    || callee == lookup.kkSetOfNotNullName
+                    // java.util.TreeSet construction and the sortedSetOf factory
+                    // produce RuntimeSetBox results — KUU-1361.
+                    || callee == lookup.treeSetName
+                    || callee == lookup.sortedSetOfName
+                    || callee == lookup.kkTreeSetNewName
+                    || callee == lookup.kkTreeSetNewCollectionName
+                    || callee == lookup.kkTreeSetNewSortedSetName {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
-                    || callee == lookup.kkMapOfName {
+                    || callee == lookup.kkMapOfName
+                    // java.util.TreeMap construction and the sortedMapOf
+                    // factory produce RuntimeMapBox results — KUU-1361.
+                    || callee == lookup.treeMapName
+                    || callee == lookup.sortedMapOfName
+                    || callee == lookup.kkTreeMapNewName
+                    || callee == lookup.kkTreeMapNewMapName
+                    || callee == lookup.kkTreeMapNewSortedMapName {
             state.mapExprIDs.insert(result.rawValue)
         } else if lookup.arrayOfFactoryNames.contains(callee)
             || callee == lookup.kkArrayNewName
@@ -231,7 +244,6 @@ extension CollectionLiteralLoweringSupport {
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
-        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         if callee == lookup.asSequenceName
@@ -245,7 +257,7 @@ extension CollectionLiteralLoweringSupport {
                     state.sequenceExprIDs.insert(result.rawValue)
                 } else if let sema, let symbol,
                           isKnownSourceObjectConstructingAsSequenceReceiver(
-                              symbol: symbol, sema: sema, interner: interner
+                              symbol: symbol, sema: sema, lookup: lookup
                           )
                 {
                     // Confirmed by reading the resolved overload's body
@@ -370,9 +382,9 @@ extension CollectionLiteralLoweringSupport {
     /// return values from user-defined functions returning `Set<T>`.
     private func seedCollectionExprIDsFromStaticTypes(
         function: KIRFunction,
+        lookup: CollectionLiteralLookupTables,
         arena: KIRArena,
         sema: SemaModule?,
-        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         guard let sema else { return }
@@ -397,7 +409,7 @@ extension CollectionLiteralLoweringSupport {
             }
             classifyExprByTypeID(
                 expr: exprID, typeID: typeID,
-                types: types, symbols: symbols, interner: interner,
+                types: types, symbols: symbols, lookup: lookup,
                 state: &state
             )
         }
@@ -427,7 +439,7 @@ extension CollectionLiteralLoweringSupport {
         typeID: TypeID,
         types: TypeSystem,
         symbols: SymbolTable,
-        interner: StringInterner,
+        lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState
     ) {
         let kind = types.kind(of: typeID)
@@ -439,7 +451,7 @@ extension CollectionLiteralLoweringSupport {
 
         let classSymbol = classType.classSymbol
         guard let symInfo = symbols.symbol(classSymbol),
-              let trackedKind = trackedStaticTypeKind(of: symInfo, interner: interner)
+              let trackedKind = trackedStaticTypeKind(of: symInfo, lookup: lookup)
         else {
             return
         }

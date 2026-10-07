@@ -197,7 +197,7 @@ struct RuntimeRangeStepTests {
         let progression = __kk_ulong_progression_fromClosedRange(0, 1, 10, 3, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 10)
-        let list = kk_ulong_range_toList(progression)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: progression)!)
         #expect(kk_list_size(list) == 4)
     }
 
@@ -260,7 +260,7 @@ struct RuntimeRangeStepTests {
         let range = __kk_ulong_rangeTo(1, 10)
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 10)
-        let list = kk_ulong_range_toList(range)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: range)!)
         #expect(kk_list_size(list) == 10)
     }
 
@@ -276,16 +276,8 @@ struct RuntimeRangeStepTests {
         let stepped = __kk_ulong_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
-        let list = kk_ulong_range_toList(stepped)
+        let list = RuntimeUnsignedRangeHOFKind.toList(runtimeRangeBox(from: stepped)!)
         #expect(kk_list_size(list) == 4) // 1,4,7,10
-    }
-
-    @Test func testULongRangeReversed() {
-        let range = __kk_ulong_rangeTo(1, 5)
-        let reversed = kk_ulong_range_reversed(range)
-        #expect(kk_range_first(reversed) == 5)
-        #expect(kk_range_last(reversed) == 1)
-        #expect(kk_range_count(reversed) == 5)
     }
 
     // MARK: - IntRange Additional Features (STDLIB-RANGE-034)
@@ -297,6 +289,25 @@ struct RuntimeRangeStepTests {
         #expect(kk_range_contains(range, 10) == 1)
         #expect(kk_range_contains(range, 0) == 0)
         #expect(kk_range_contains(range, 11) == 0)
+    }
+
+    @Test func testGenericRangeContainsUnboxesPrimitiveElements() {
+        #expect(kk_range_contains(kk_op_rangeTo(1, 5), kk_box_int_static(3)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(1, 5), kk_box_long_nonnull_static(3)) == 1)
+        #expect(kk_range_contains(__kk_uint_rangeTo(1, 5), kk_box_uint_static(3)) == 1)
+        #expect(kk_range_contains(__kk_ulong_rangeTo(1, 5), kk_box_ulong_nonnull_static(3)) == 1)
+        #expect(kk_range_contains(kk_char_rangeTo(97, 101), kk_box_char_static(99)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(Int.min, Int.min + 2), kk_box_long_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(kk_long_rangeTo(Int.min, Int.min + 2), Int.min) == 1)
+    }
+
+    @Test func testUnsignedRangeContainsAcrossSignedBoundary() {
+        let range = __kk_ulong_rangeTo(1, -1)
+        #expect(kk_range_contains(range, kk_box_ulong_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(range, 0) == 0)
+        let descending = __kk_ulong_downTo(-1, Int.min)
+        #expect(kk_range_contains(descending, kk_box_ulong_nonnull_static(Int.min)) == 1)
+        #expect(kk_range_contains(descending, 1) == 0)
     }
 
     @Test func testRangeContainsWithStep() {
@@ -419,5 +430,28 @@ struct RuntimeRangeStepTests {
         let range = __kk_op_downTo(10, 1)
         _ = __kk_op_step(range, 3, &thrown)
         #expect(thrown == 0, "downTo with positive step must not throw")
+    }
+
+    @Test func testEmptyRangeFirstLastOrThrow() {
+        let empty = kk_op_rangeTo(1, 0)
+        var thrown = 0
+        _ = kk_range_first_orThrow(empty, &thrown)
+        #expect(thrown != 0, "empty first() must throw NoSuchElementException")
+
+        thrown = 0
+        _ = kk_range_last_orThrow(empty, &thrown)
+        #expect(thrown != 0, "empty last() must throw NoSuchElementException")
+
+        let nonempty = kk_op_rangeTo(1, 4)
+        thrown = 0
+        #expect(kk_range_first_orThrow(nonempty, &thrown) == 1)
+        #expect(thrown == 0)
+        thrown = 0
+        #expect(kk_range_last_orThrow(nonempty, &thrown) == 4)
+        #expect(thrown == 0)
+
+        // Properties still return endpoints on empty ranges.
+        #expect(kk_range_first(empty) == 1)
+        #expect(kk_range_last(empty) == 0)
     }
 }

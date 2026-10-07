@@ -160,6 +160,7 @@ extension OverloadResolver {
         }
         var mapping: [Int: Int] = [:]
         var boundNonVarargParams: Set<Int> = []
+        var boundNamedVarargParams: Set<Int> = []
         var sawNamedArgument = false
         var positionalCursor = 0
         // Highest parameter index bound so far by any argument (named or
@@ -180,6 +181,8 @@ extension OverloadResolver {
                     return nil
                 }
                 if isVararg[paramIndex] {
+                    guard !mapping.values.contains(paramIndex) else { return nil }
+                    boundNamedVarargParams.insert(paramIndex)
                     mapping[argIndex] = paramIndex
                     maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
                     continue
@@ -220,6 +223,7 @@ extension OverloadResolver {
                 if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
                 }
+                guard !boundNamedVarargParams.contains(positionalCursor) else { return nil }
                 maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
                 continue
@@ -244,6 +248,7 @@ extension OverloadResolver {
                 return nil
             }
             if isVararg[paramIndex] {
+                guard !boundNamedVarargParams.contains(paramIndex) else { return nil }
                 mapping[argIndex] = paramIndex
                 continue
             }
@@ -410,11 +415,33 @@ extension OverloadResolver {
         if case let .typeParam(typeParam) = supertypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
+            // Contextual lambda inputs can still refer to the candidate's
+            // own parameters. Keep their relationship in the inference graph
+            // rather than treating the left parameter as an opaque Any value.
+            if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
+               let subVariable = typeVarBySymbol[subParameter.symbol],
+               subParameter.nullability == .nonNull,
+               typeParam.nullability == .nonNull
+            {
+                return [VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(subVariable),
+                    right: .variable(variable),
+                    blameRange: blameRange
+                )]
+            }
             if typeParam.nullability != .nonNull {
                 if case .nothing(.nullable) = typeSystem.kind(of: subtype) {
-                    // `null` / `Nothing?` is compatible with `T?` but does not
-                    // constrain the underlying non-null type variable.
-                    return []
+                    // `null` has type `Nothing?`. Although it is compatible
+                    // with every nullable `T?`, it still provides the bottom
+                    // type as the lower bound, so unconstrained calls such as
+                    // `requireNotNull(null)` infer T = Nothing.
+                    return [VariableConstraint(
+                        kind: .subtype,
+                        left: .type(typeSystem.nothingType),
+                        right: .variable(variable),
+                        blameRange: blameRange
+                    )]
                 }
                 let nonNullSubtype = typeSystem.makeNonNullable(subtype)
                 return [VariableConstraint(
@@ -473,6 +500,34 @@ extension OverloadResolver {
             )
         }
 
+        if containsTypeVariable(subtype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+            || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+        {
+            if case .functionType = typeSystem.kind(of: subtype),
+               let function = typeSystem.nominalFunctionType(for: supertype)
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: subtype, supertype: typeSystem.make(.functionType(function)),
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+            if case let .functionType(superFunction) = supertypeKind,
+               let function = typeSystem.nominalFunctionType(for: subtype)
+                   ?? nominalFunctionTypeThroughInheritance(
+                       subtype,
+                       matchingArityOf: superFunction,
+                       typeSystem: typeSystem
+                   )
+            {
+                return decomposeSubtypeConstraintImpl(
+                    subtype: typeSystem.make(.functionType(function)), supertype: supertype,
+                    typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                    blameRange: blameRange, depth: depth + 1
+                )
+            }
+        }
+
         // Case 2: supertype is a generic class type with inferable variables or
         // use-site projections. Projections such as `Comparator<in Char>` are
         // otherwise left to the nominal subtype check, which cannot distinguish
@@ -490,6 +545,27 @@ extension OverloadResolver {
                }))
         {
             let subtypeKind = typeSystem.kind(of: subtype)
+            let receiverBounds: [TypeID] = switch subtypeKind {
+            case let .typeParam(parameter):
+                typeSystem.symbolTable?.typeParameterUpperBounds(for: parameter.symbol) ?? []
+            case let .intersection(parts):
+                parts
+            default:
+                []
+            }
+            let matchingBounds = receiverBounds.filter { bound in
+                guard case let .classType(boundClass) = typeSystem.kind(of: bound) else { return false }
+                return typeSystem.isNominalSubtypeSymbol(boundClass.classSymbol, of: superClass.classSymbol)
+            }
+            if !matchingBounds.isEmpty {
+                return matchingBounds.flatMap { bound in
+                    decomposeSubtypeConstraintImpl(
+                        subtype: bound, supertype: supertype,
+                        typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
+                        blameRange: blameRange, depth: depth + 1
+                    )
+                }
+            }
             // Kotlin function types are represented as `Function<R>` in source
             // declarations such as `callsInPlace` and `holdsIn`. Preserve the
             // lambda return-type constraint when the source-backed interface is
@@ -633,27 +709,25 @@ extension OverloadResolver {
                || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
-            let receiverShapesMatch: Bool = {
-                switch (subtypeKind, supertypeKind) {
-                case let (.functionType(subFunc), .functionType(superFunc)):
-                    switch (subFunc.receiver, superFunc.receiver) {
-                    case (nil, nil):
-                        true
-                    case (.some, .some):
-                        true
-                    default:
-                        false
-                    }
-                default:
-                    false
-                }
-            }()
+            // A function type's receiver is interchangeable with a leading
+            // parameter: `ProducerScope<Int>.() -> Unit` and
+            // `(ProducerScope<Int>) -> Unit` are the same Kotlin type. Align
+            // each side's effective parameter list — receiver first when
+            // present — and decompose pairwise, contravariantly.
+            let effectiveParams: [TypeID] = if case let .functionType(subFunc) = subtypeKind {
+                (subFunc.receiver.map { [$0] } ?? []) + subFunc.params
+            } else {
+                []
+            }
+            let superEffectiveParams =
+                (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
             if case let .functionType(subFunc) = subtypeKind,
-               subFunc.params.count == superFunc.params.count,
+               effectiveParams.count == superEffectiveParams.count,
                subFunc.contextReceivers.count == superFunc.contextReceivers.count,
-               subFunc.isSuspend == superFunc.isSuspend,
-               subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable,
-               receiverShapesMatch
+               // A non-suspend function is usable wherever a suspend one is
+               // expected (`() -> T <: suspend () -> T`), but not vice versa.
+               superFunc.isSuspend || !subFunc.isSuspend,
+               subFunc.nullability == superFunc.nullability || superFunc.nullability == .nullable
             {
                 var result: [VariableConstraint] = []
                 for (subContextReceiver, superContextReceiver) in zip(subFunc.contextReceivers, superFunc.contextReceivers) {
@@ -666,8 +740,10 @@ extension OverloadResolver {
                         depth: depth + 1
                     ))
                 }
-                // Function types are contravariant in parameter types.
-                for (subParam, superParam) in zip(subFunc.params, superFunc.params) {
+                // Function types are contravariant in the receiver and
+                // parameter types: `ProducerScope<Int>.() -> Unit <:
+                // ProducerScope<E>.() -> Unit` binds E to Int.
+                for (subParam, superParam) in zip(effectiveParams, superEffectiveParams) {
                     result.append(contentsOf: decomposeSubtypeConstraintImpl(
                         subtype: superParam,
                         supertype: subParam,
@@ -817,6 +893,28 @@ extension OverloadResolver {
             targetNullability: subtype.nullability,
             typeSystem: typeSystem
         )
+    }
+
+    /// KUU-1195: a nominal subtype that reaches `kotlin.Function.FunctionN`
+    /// through inheritance (e.g. `KProperty0<Int>` via its `() -> V` supertype
+    /// binding) decomposes against a variable-bearing function supertype the
+    /// same way a literal `FunctionN` does — otherwise `KProperty0<Int> <:
+    /// () -> R` would never bind `R`. Only the subtype side looks through
+    /// inheritance: a plain `() -> Int` is not a `KProperty0<Int>`, so the
+    /// supertype direction keeps the direct `nominalFunctionType` check.
+    private func nominalFunctionTypeThroughInheritance(
+        _ subtype: TypeID,
+        matchingArityOf function: FunctionType,
+        typeSystem: TypeSystem
+    ) -> FunctionType? {
+        guard case let .classType(subClass) = typeSystem.kind(of: subtype) else {
+            return nil
+        }
+        let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
+        guard let lifted = typeSystem.inheritedFunctionNClassType(of: subClass, arity: arity) else {
+            return nil
+        }
+        return typeSystem.nominalFunctionType(for: typeSystem.make(.classType(lifted)))
     }
 
     private func decomposeTypeArgConstraintImpl(

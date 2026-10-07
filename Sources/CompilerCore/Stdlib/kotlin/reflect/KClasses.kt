@@ -176,19 +176,22 @@ public val KClass<*>.isFun: Boolean
 // Runtime bridges live in Sources/Runtime/RuntimeReflection.swift and
 // Sources/Runtime/RuntimeStringArray.swift.
 //
-// NOTE: the collection accessors below (`members`, `constructors`, etc.)
-// return `List<Any?>` rather than their real stdlib signatures (e.g.
-// `Collection<KCallable<*>>`) — the returned runtime handles carry stable
-// reflection nominal IDs (KSP-689), so `is`/`as` and shared `KCallable` metadata
-// dispatch are valid at the Kotlin boundary, but the containing collection
-// itself is not yet precisely typed.
+// NOTE (KUU-1357): the collection accessors below carry their real upstream
+// element types (`Collection<KCallable<*>>`, `Collection<KClass<*>>`,
+// `List<KType>`, …) — the returned runtime handles carry stable reflection
+// nominal IDs (KSP-689), so `is`/`as` and shared `KCallable` metadata
+// dispatch are valid at the Kotlin boundary. `typeParameters` remains
+// `List<Any?>` because the runtime still reports raw parameter indices
+// rather than KTypeParameter handles.
 //
-// NOTE: `findAnnotation<T>()` / `findAssociatedObject<T>()` are NOT covered
-// here — they take a reified type argument, which this compiler only
-// supports for a fixed, non-nested set of built-in intrinsics (see how
-// `typeOf<T>()` is special-cased). Forwarding a reified type parameter as
-// the type argument of a *nested* reified call is not yet general, so they
-// remain compiler special cases (Sources/CompilerCore/KIR/CallLowerer+KClassReflectMemberCalls.swift).
+// NOTE: `findAnnotation<T>()` is NOT covered here — it takes a reified
+// type argument, which this compiler only supports for a fixed, non-nested
+// set of built-in intrinsics (see how `typeOf<T>()` is special-cased).
+// Forwarding a reified type parameter as the type argument of a *nested*
+// reified call is not yet general, so it remains a compiler special case
+// (Sources/CompilerCore/KIR/CallLowerer+KClassReflectMemberCalls.swift).
+// `findAssociatedObject<T>()` is likewise expanded by that special case,
+// but its bundled source declaration now lives in AssociatedObjects.kt.
 //
 // NOTE: `properties` is also NOT covered here, unlike its `memberProperties`/
 // `declaredMemberProperties` siblings. It is not a real kotlin-stdlib name
@@ -201,7 +204,7 @@ public val KClass<*>.isFun: Boolean
 // ─── ABI bridges ─────────────────────────────────────────────────────────────
 
 @KsSymbolName("__kk_kclass_visibility")
-private external fun __kk_kclass_visibility(kclass: KClass<*>): String?
+private external fun __kk_kclass_visibility(kclass: KClass<*>): KVisibility?
 
 @KsSymbolName("__kk_kclass_type_parameters")
 private external fun __kk_kclass_type_parameters(kclass: KClass<*>): List<Any?>
@@ -210,39 +213,42 @@ private external fun __kk_kclass_type_parameters(kclass: KClass<*>): List<Any?>
 private external fun __kk_kclass_get_annotations(kclass: KClass<*>): List<Annotation>
 
 @KsSymbolName("__kk_kclass_members")
-private external fun __kk_kclass_members(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_members(kclass: KClass<*>): List<KCallable<*>>
 
 @KsSymbolName("__kk_kclass_constructors")
-private external fun __kk_kclass_constructors(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_constructors(kclass: KClass<*>): List<KFunction<*>>
 
 @KsSymbolName("__kk_kclass_nested_classes")
-private external fun __kk_kclass_nested_classes(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_nested_classes(kclass: KClass<*>): List<KClass<*>>
 
 @KsSymbolName("__kk_kclass_primary_constructor")
 private external fun __kk_kclass_primary_constructor(kclass: KClass<*>): Any?
 
 @KsSymbolName("__kk_kclass_member_properties")
-private external fun __kk_kclass_member_properties(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_member_properties(kclass: KClass<*>): List<KProperty<*>>
 
 @KsSymbolName("__kk_kclass_declared_member_properties")
-private external fun __kk_kclass_declared_member_properties(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_declared_member_properties(kclass: KClass<*>): List<KProperty<*>>
 
 @KsSymbolName("__kk_kclass_functions")
-private external fun __kk_kclass_functions(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_functions(kclass: KClass<*>): List<KFunction<*>>
 
 @KsSymbolName("__kk_kclass_member_functions")
-private external fun __kk_kclass_member_functions(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_member_functions(kclass: KClass<*>): List<KFunction<*>>
 
 @KsSymbolName("__kk_kclass_declared_member_functions")
-private external fun __kk_kclass_declared_member_functions(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_declared_member_functions(kclass: KClass<*>): List<KFunction<*>>
 
 @KsSymbolName("__kk_kclass_supertypes")
-private external fun __kk_kclass_supertypes(kclass: KClass<*>): List<Any?>
+private external fun __kk_kclass_supertypes(kclass: KClass<*>): List<KType>
+
+@KsSymbolName("__kk_kclass_companion_object")
+private external fun __kk_kclass_companion_object(kclass: KClass<*>): Any?
 
 // ─── visibility / typeParameters / annotations ───────────────────────────────
 
 /** Returns the visibility of this class, or `null` if unknown. */
-public val KClass<*>.visibility: String?
+public val KClass<*>.visibility: KVisibility?
     get() = __kk_kclass_visibility(this)
 
 /** Returns the type parameters of this class. */
@@ -256,41 +262,45 @@ public val KClass<*>.annotations: List<Annotation>
 // ─── member / constructor / supertype collections ────────────────────────────
 
 /** Returns all functions and properties declared in this class and its supertypes. */
-public val KClass<*>.members: List<Any?>
+public val KClass<*>.members: Collection<KCallable<*>>
     get() = __kk_kclass_members(this)
 
 /** Returns the constructors declared in this class. */
-public val KClass<*>.constructors: List<Any?>
+public val KClass<*>.constructors: Collection<KFunction<*>>
     get() = __kk_kclass_constructors(this)
 
 /** Returns the classes declared directly inside this class. */
-public val KClass<*>.nestedClasses: List<Any?>
+public val KClass<*>.nestedClasses: Collection<KClass<*>>
     get() = __kk_kclass_nested_classes(this)
 
 /** Returns the primary constructor of this class, or `null` if it has none. */
-public val KClass<*>.primaryConstructor: Any?
-    get() = __kk_kclass_primary_constructor(this)
+public val KClass<*>.primaryConstructor: KFunction<*>?
+    get() = __kk_kclass_primary_constructor(this) as? KFunction<*>
 
 /** Returns all non-extension member properties declared in this class and its supertypes. */
-public val KClass<*>.memberProperties: List<Any?>
+public val KClass<*>.memberProperties: Collection<KProperty<*>>
     get() = __kk_kclass_member_properties(this)
 
 /** Returns non-extension member properties declared directly in this class, excluding supertypes. */
-public val KClass<*>.declaredMemberProperties: List<Any?>
+public val KClass<*>.declaredMemberProperties: Collection<KProperty<*>>
     get() = __kk_kclass_declared_member_properties(this)
 
 /** Returns all non-extension functions declared in this class and its supertypes. */
-public val KClass<*>.functions: List<Any?>
+public val KClass<*>.functions: Collection<KFunction<*>>
     get() = __kk_kclass_functions(this)
 
 /** Returns all non-extension member functions declared in this class and its supertypes. */
-public val KClass<*>.memberFunctions: List<Any?>
+public val KClass<*>.memberFunctions: Collection<KFunction<*>>
     get() = __kk_kclass_member_functions(this)
 
 /** Returns non-extension member functions declared directly in this class, excluding supertypes. */
-public val KClass<*>.declaredMemberFunctions: List<Any?>
+public val KClass<*>.declaredMemberFunctions: Collection<KFunction<*>>
     get() = __kk_kclass_declared_member_functions(this)
 
 /** Returns the immediate supertypes of this class. */
-public val KClass<*>.supertypes: List<Any?>
+public val KClass<*>.supertypes: List<KType>
     get() = __kk_kclass_supertypes(this)
+
+/** Returns the companion object's [KClass] of this class, or `null` if it has none. */
+public val KClass<*>.companionObject: KClass<*>?
+    get() = __kk_kclass_companion_object(this) as? KClass<*>

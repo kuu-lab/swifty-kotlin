@@ -1,13 +1,13 @@
 import Foundation
 
-public enum DiagnosticSeverity: Sendable {
+public enum DiagnosticSeverity: Hashable, Sendable {
     case error
     case warning
     case note
     case info
 }
 
-public struct Diagnostic: Equatable {
+public struct Diagnostic: Hashable {
     public let severity: DiagnosticSeverity
     public let code: String
     public let message: String
@@ -33,11 +33,30 @@ public struct Diagnostic: Equatable {
 }
 
 public final class DiagnosticEngine: @unchecked Sendable {
+    /// Maximum diagnostics retained per file bucket before overflow is
+    /// aggregated into a single truncation notice. Diagnostics without a
+    /// primary range share one bucket keyed by `FileID.invalid`.
+    public static let defaultMaxDiagnosticsPerFile = 1_000
+
+    /// Diagnostic code attached to the truncation notice.
+    private static let truncationNoticeCode = "KSWIFTK-PIPELINE-0005"
+
     private let lock = NSLock()
     private var _diagnostics: [Diagnostic] = []
+    /// Companion set to `_diagnostics` for O(1) duplicate detection in `emit`.
+    /// Holds exactly the same elements; the array preserves emission order.
+    private var _emittedDiagnostics: Set<Diagnostic> = []
     /// Diagnostic codes suppressed at specific source ranges via `@Suppress` annotations.
     /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
-    private var suppressions: [String: [SourceRange]] = [:]
+    /// `severity` is nil for names that suppress at any severity; some names
+    /// (DEPRECATION vs DEPRECATION_ERROR) only suppress one severity like kotlinc.
+    private var suppressions: [String: [(range: SourceRange, severity: DiagnosticSeverity?)]] = [:]
+    private let maxDiagnosticsPerFile: Int
+    /// Stored diagnostics per file bucket, excluding truncation notices.
+    private var _diagnosticCountByFile: [FileID: Int] = [:]
+    /// The truncation notice appended for each bucket that hit the limit, kept
+    /// so it can be escalated to `.error` or rolled back by `truncate(to:)`.
+    private var _truncationNoticeByFile: [FileID: Diagnostic] = [:]
 
     public var diagnostics: [Diagnostic] {
         lock.lock()
@@ -45,19 +64,50 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return _diagnostics
     }
 
-    public init() {}
+    public init(maxDiagnosticsPerFile: Int = DiagnosticEngine.defaultMaxDiagnosticsPerFile) {
+        self.maxDiagnosticsPerFile = max(1, maxDiagnosticsPerFile)
+    }
 
     /// Register a @Suppress annotation: suppress the given diagnostic code for any
     /// diagnostic whose primary range overlaps or is contained within `range`.
+    /// When the suppression name is severity-constrained (DEPRECATION /
+    /// DEPRECATION_ERROR), only diagnostics of that severity are suppressed.
     public func addSuppression(code: String, range: SourceRange) {
         let expandedCodes = DiagnosticRegistry.suppressionCodes(for: code)
         guard !expandedCodes.isEmpty else {
             return
         }
+        let severity = DiagnosticRegistry.suppressionSeverityConstraint(for: code)
         lock.lock()
         defer { lock.unlock() }
         for expanded in expandedCodes {
-            suppressions[expanded, default: []].append(range)
+            suppressions[expanded, default: []].append((range: range, severity: severity))
+        }
+    }
+
+    public func isSuppressed(code: String, range: SourceRange, severity: DiagnosticSeverity? = nil) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return suppressions[code]?.contains {
+            $0.range.contains(range) && ($0.severity == nil || $0.severity == severity)
+        } == true
+    }
+
+    /// Marks the current diagnostic count for `rollback(to:)`.
+    public func checkpoint() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _diagnostics.count
+    }
+
+    /// Drops diagnostics emitted after `checkpoint`, for speculative paths
+    /// that re-infer an expression and keep the original diagnostic when the
+    /// retry fails.
+    public func rollback(to checkpoint: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        if _diagnostics.count > checkpoint {
+            _diagnostics.removeSubrange(checkpoint...)
         }
     }
 
@@ -65,15 +115,65 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         // Check if this diagnostic is suppressed by a @Suppress annotation.
-        if let ranges = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
-            for suppressRange in ranges where suppressRange.contains(diagRange) {
+        if let entries = suppressions[diagnostic.code], let diagRange = diagnostic.primaryRange {
+            for entry in entries
+            where entry.range.contains(diagRange)
+                && (entry.severity == nil || entry.severity == diagnostic.severity)
+            {
                 return // Suppressed — do not emit.
             }
         }
-        if _diagnostics.contains(diagnostic) {
+        guard _emittedDiagnostics.insert(diagnostic).inserted else {
+            return
+        }
+        let bucket = fileBucket(for: diagnostic)
+        guard (_diagnosticCountByFile[bucket] ?? 0) < maxDiagnosticsPerFile else {
+            _emittedDiagnostics.remove(diagnostic)
+            recordOverflow(in: bucket, dropping: diagnostic)
             return
         }
         _diagnostics.append(diagnostic)
+        _diagnosticCountByFile[bucket, default: 0] += 1
+    }
+
+    /// Bucket key for the per-file diagnostic limit. Diagnostics without a
+    /// primary range share the `FileID.invalid` bucket.
+    private func fileBucket(for diagnostic: Diagnostic) -> FileID {
+        diagnostic.primaryRange?.start.file ?? .invalid
+    }
+
+    /// Handles a diagnostic dropped because its file bucket hit the limit:
+    /// appends the bucket's single truncation notice, or escalates an existing
+    /// softer notice to `.error` once an error diagnostic is dropped, so a
+    /// compile that lost error diagnostics cannot report success.
+    private func recordOverflow(in bucket: FileID, dropping dropped: Diagnostic) {
+        if let existing = _truncationNoticeByFile[bucket] {
+            guard dropped.severity == .error, existing.severity != .error else {
+                return
+            }
+            let upgraded = makeTruncationNotice(severity: .error, inPlaceOf: dropped)
+            if let index = _diagnostics.firstIndex(of: existing) {
+                _diagnostics[index] = upgraded
+            }
+            _emittedDiagnostics.remove(existing)
+            _emittedDiagnostics.insert(upgraded)
+            _truncationNoticeByFile[bucket] = upgraded
+            return
+        }
+        let notice = makeTruncationNotice(severity: dropped.severity, inPlaceOf: dropped)
+        _diagnostics.append(notice)
+        _emittedDiagnostics.insert(notice)
+        _truncationNoticeByFile[bucket] = notice
+    }
+
+    private func makeTruncationNotice(severity: DiagnosticSeverity, inPlaceOf dropped: Diagnostic) -> Diagnostic {
+        Diagnostic(
+            severity: severity,
+            code: Self.truncationNoticeCode,
+            message: "Too many diagnostics for this file; further diagnostics were suppressed.",
+            primaryRange: dropped.primaryRange,
+            secondaryRanges: []
+        )
     }
 
     public func error(
@@ -150,7 +250,45 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard count >= 0, count < _diagnostics.count else { return }
+        for diagnostic in _diagnostics[count...] {
+            let bucket = fileBucket(for: diagnostic)
+            if _truncationNoticeByFile[bucket] == diagnostic {
+                _truncationNoticeByFile.removeValue(forKey: bucket)
+            } else {
+                _diagnosticCountByFile[bucket, default: 0] -= 1
+            }
+        }
+        _emittedDiagnostics.subtract(_diagnostics[count...])
         _diagnostics.removeSubrange(count...)
+    }
+
+    /// Removes error diagnostics whose primary range lies inside `range`,
+    /// wherever they appear in the emission order. TypeCheck re-inference
+    /// retries use this after a nested expression that failed its first pass
+    /// (e.g. `KSWIFTK-SEMA-INFER` on `D(t, 1)` inside `W1(D(t, 1), 0)`)
+    /// succeeds under an expected type: the failed pass's diagnostics inside
+    /// that expression's range are stale and must not surface. Keeps
+    /// `_emittedDiagnostics` and the per-file counts consistent, unlike a
+    /// bare `rollback(to:)` which only truncates the array tail.
+    public func removeErrorDiagnostics(containedIn range: SourceRange) {
+        lock.lock()
+        defer { lock.unlock() }
+        _diagnostics.removeAll { diagnostic in
+            guard diagnostic.severity == .error,
+                  let primaryRange = diagnostic.primaryRange,
+                  range.contains(primaryRange)
+            else {
+                return false
+            }
+            let bucket = fileBucket(for: diagnostic)
+            if _truncationNoticeByFile[bucket] == diagnostic {
+                _truncationNoticeByFile.removeValue(forKey: bucket)
+            } else {
+                _diagnosticCountByFile[bucket, default: 0] -= 1
+            }
+            _emittedDiagnostics.remove(diagnostic)
+            return true
+        }
     }
 
     /// Sort the diagnostics array in-place by source location for deterministic

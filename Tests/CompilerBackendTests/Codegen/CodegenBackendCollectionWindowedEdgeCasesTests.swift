@@ -192,5 +192,57 @@ struct CodegenBackendCollectionWindowedEdgeCasesTests {
                 """ + "\n"
         )
     }
+
+    @Test
+    func testCodegenCollectionChunkedRejectsNonPositiveSizes() throws {
+        let source = try diffCaseSource("list_chunked_invalid_size.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListChunkedInvalidSize",
+            expected:
+                """
+                list-zero:ok
+                list-negative:ok
+                iterable-zero:ok
+                iterable-negative:ok
+                array-iterable-zero:ok
+                array-iterable-negative:ok
+                transform-zero:ok
+                transform-negative:ok
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenConcreteArrayChunkedRejectsNonPositiveSizes() throws {
+        let source = """
+        fun main() {
+            val array = arrayOf(1, 2, 3)
+            try {
+                array.chunked(0)
+                println("array-zero:missing")
+            } catch (e: IllegalArgumentException) {
+                println("array-zero:ok")
+            }
+            try {
+                array.chunked(-2)
+                println("array-negative:missing")
+            } catch (e: IllegalArgumentException) {
+                println("array-negative:ok")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ConcreteArrayChunkedInvalidSize",
+            expected:
+                """
+                array-zero:ok
+                array-negative:ok
+                """ + "\n"
+        )
+    }
 }
 #endif

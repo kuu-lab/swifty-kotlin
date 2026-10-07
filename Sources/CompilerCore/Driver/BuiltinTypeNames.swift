@@ -16,13 +16,18 @@ struct BuiltinTypeNames {
     let byte: InternedString
     let short: InternedString
     let any: InternedString
-    let number: InternedString
     let unit: InternedString
     let nothing: InternedString
     let annotation: InternedString
     let null: InternedString
 
     init(interner: StringInterner) {
+        self = interner.cachedBuiltinTypeNames {
+            Self(uncachedInterner: interner)
+        }
+    }
+
+    private init(uncachedInterner interner: StringInterner) {
         self.int = interner.intern("Int")
         self.long = interner.intern("Long")
         self.float = interner.intern("Float")
@@ -37,7 +42,6 @@ struct BuiltinTypeNames {
         self.byte = interner.intern("Byte")
         self.short = interner.intern("Short")
         self.any = interner.intern("Any")
-        self.number = interner.intern("Number")
         self.unit = interner.intern("Unit")
         self.nothing = interner.intern("Nothing")
         self.annotation = interner.intern("Annotation")
@@ -76,13 +80,7 @@ struct BuiltinTypeNames {
         if name == any {
             return nullability == .nullable ? types.nullableAnyType : types.anyType
         }
-        if name == number {
-            if let numberSym = types.numberClassSymbol {
-                return types.make(.classType(ClassType(classSymbol: numberSym, args: [], nullability: nullability)))
-            }
-            return nullability == .nullable ? types.nullableAnyType : types.anyType
-        }
-        if name == unit { return types.unitType }
+        if name == unit { return types.withNullability(nullability, for: types.unitType) }
         if name == nothing { return nullability == .nullable ? types.nullableNothingType : types.nothingType }
         if name == annotation {
             if let symbol = types.annotationInterfaceSymbol {

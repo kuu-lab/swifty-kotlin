@@ -16,7 +16,7 @@ extension CallTypeChecker {
                 "__kk_op_ulong_rangeUntil",
                 "__kk_uint_rangeTo",
                 "__kk_ulong_rangeTo",
-                "kk_char_rangeTo",
+                "__kk_char_rangeTo",
                 "__kk_int_progression_fromClosedRange",
                 "__kk_long_progression_fromClosedRange",
                 "__kk_uint_progression_fromClosedRange",
@@ -43,6 +43,7 @@ extension CallTypeChecker {
             // Generic source-backed rangeUntil resolves through OpenEndRange<T>.
             // Preserve its concrete floating-point element type for the KIR/runtime
             // bridge, just as the legacy scalar range path does for range literals.
+            sema.bindings.markFloatingPointRangeExpr(id)
             sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
         }
 
@@ -71,12 +72,13 @@ extension CallTypeChecker {
             {
                 sema.bindings.markUIntRangeExpr(id)
             }
-            if externalLinkName == "kk_char_rangeTo" {
+            if externalLinkName == "__kk_char_rangeTo" {
                 sema.bindings.markCharRangeExpr(id)
             }
             if externalLinkName == "__kk_ulong_rangeTo"
                 || externalLinkName == "__kk_ulong_progression_fromClosedRange"
                 || externalLinkName == "__kk_op_ulong_rangeUntil"
+                || externalLinkName == "__kk_ulong_rangeTo"
             {
                 sema.bindings.markULongRangeExpr(id)
             }
@@ -118,6 +120,30 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// How an extension-function-typed callee's own receiver (if any) may be
+    /// supplied when the arity of `argTypes` doesn't by itself say whether
+    /// argument 0 is that receiver or the first ordinary parameter.
+    enum CallableValueArityPolicy {
+        /// The callee type's receiver (if any) is never read from `argTypes`.
+        /// Matches the original, receiver-unaware behavior. Used by the
+        /// member-property callable-invocation sugar (`receiver.prop(args)`),
+        /// which is unrelated to explicit-receiver call forms and must not
+        /// change behavior.
+        case receiverNeverExplicit
+        /// A bare call (`ef(...)`) accepts either the historical shape, where
+        /// the receiver comes from an active implicit-receiver scope
+        /// (`argTypes.count == params.count`, e.g. calling a `T.() -> Unit`
+        /// value bare inside `T.run { ... }`), or the receiver supplied
+        /// positionally as argument 0 (`argTypes.count == params.count + 1`,
+        /// e.g. `ef(3, 4)`).
+        case receiverOptionallyExplicit
+        /// An explicit `.invoke(...)` member call has no implicit-receiver
+        /// concept: when the callee type has a receiver, it must always be
+        /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
+        /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
+        case receiverRequiredExplicit
+    }
+
     func inferCallableValueInvocation(
         _ id: ExprID,
         calleeType: TypeID,
@@ -126,7 +152,10 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         range: SourceRange,
         ctx: TypeInferenceContext,
-        expectedType: TypeID?
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit,
+        extensionCallableExpr: ExprID? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -134,8 +163,16 @@ extension CallTypeChecker {
         guard case let .functionType(functionType) = sema.types.kind(of: nonNullCalleeType) else {
             return nil
         }
+        let receiverArgOffset: Int = switch arityPolicy {
+        case .receiverNeverExplicit:
+            0
+        case .receiverOptionallyExplicit:
+            (functionType.receiver != nil && argTypes.count == functionType.params.count + 1) ? 1 : 0
+        case .receiverRequiredExplicit:
+            functionType.receiver != nil ? 1 : 0
+        }
         guard !args.contains(where: { $0.label != nil || $0.isSpread }),
-              functionType.params.count == argTypes.count
+              functionType.params.count + receiverArgOffset == argTypes.count
         else {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
@@ -146,12 +183,31 @@ extension CallTypeChecker {
             return sema.types.errorType
         }
         var parameterMapping: [Int: Int] = [:]
-        for index in argTypes.indices {
-            parameterMapping[index] = index
+        func contextualizedArgumentType(at index: Int, parameterType: TypeID) -> TypeID {
+            guard integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
+                return argTypes[index]
+            }
+            return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)
+        }
+        if receiverArgOffset == 1, let receiverType = functionType.receiver {
             driver.emitSubtypeConstraint(
-                left: argTypes[index],
-                right: functionType.params[index],
-                range: ast.arena.exprRange(args[index].expr) ?? range,
+                left: contextualizedArgumentType(at: 0, parameterType: receiverType),
+                right: receiverType,
+                range: ast.arena.exprRange(args[0].expr) ?? range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+        }
+        for paramIndex in functionType.params.indices {
+            let argIndex = paramIndex + receiverArgOffset
+            if receiverArgOffset == 0 {
+                parameterMapping[argIndex] = paramIndex
+            }
+            driver.emitSubtypeConstraint(
+                left: contextualizedArgumentType(at: argIndex, parameterType: functionType.params[paramIndex]),
+                right: functionType.params[paramIndex],
+                range: ast.arena.exprRange(args[argIndex].expr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
                 diagnostics: ctx.semaCtx.diagnostics
@@ -172,7 +228,8 @@ extension CallTypeChecker {
             binding: CallableValueCallBinding(
                 target: callableTarget,
                 functionType: nonNullCalleeType,
-                parameterMapping: parameterMapping
+                parameterMapping: parameterMapping,
+                extensionCallableExpr: extensionCallableExpr
             )
         )
         if let callableTarget {
@@ -188,5 +245,80 @@ extension CallTypeChecker {
             return nil
         }
         return nonNullType
+    }
+
+    func inferLexicalExtensionCallableInvocation(
+        _ request: MemberCallInferenceRequest,
+        receiverType: TypeID,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let ctx = request.ctx
+        let sema = ctx.sema
+        let name = request.calleeName
+        let candidateType: TypeID?
+        if let local = locals[name] {
+            candidateType = local.type
+        } else if let implicitReceiver = ctx.implicitReceiverType,
+                  let property = driver.helpers.lookupMemberProperty(
+                      named: name,
+                      receiverType: sema.types.makeNonNullable(implicitReceiver),
+                      sema: sema
+                  ) {
+            candidateType = property.type
+        } else {
+            candidateType = ctx.cachedScopeLookup(name).first(where: {
+                sema.symbols.symbol($0)?.kind == .property
+            }).flatMap { sema.symbols.propertyType(for: $0) }
+        }
+        guard let candidateType,
+              case let .functionType(candidateFunction) = sema.types.kind(of: candidateType),
+              candidateFunction.receiver != nil
+        else {
+            return nil
+        }
+
+        let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
+        let calleeType = driver.inferExpr(calleeExpr, ctx: ctx, locals: &locals)
+        guard case let .functionType(functionType) = sema.types.kind(of: calleeType),
+              functionType.receiver != nil
+        else {
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+        guard functionType.nullability == .nonNull, request.explicitTypeArgs.isEmpty else {
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-0024",
+                "Cannot invoke nullable or type-argument-qualified function value '\(ctx.interner.resolve(name))'.",
+                range: request.range
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
+        }
+        let argumentTypes = request.args.enumerated().map { index, argument in
+            driver.inferExpr(
+                argument.expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: functionType.params.indices.contains(index) ? functionType.params[index] : nil
+            )
+        }
+        let result = inferCallableValueInvocation(
+            request.id,
+            calleeType: calleeType,
+            callableTarget: driver.helpers.callableTargetForCalleeExpr(calleeExpr, sema: sema),
+            args: [CallArgument(expr: request.receiverID)] + request.args,
+            argTypes: [request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType] + argumentTypes,
+            range: request.range,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: request.expectedType,
+            arityPolicy: .receiverRequiredExplicit,
+            extensionCallableExpr: calleeExpr
+        ) ?? sema.types.errorType
+        // Keep the lexical reference visible to lambda/local-class capture analysis.
+        if let symbol = sema.bindings.identifierSymbol(for: calleeExpr) {
+            sema.bindings.bindIdentifier(request.id, symbol: symbol)
+        }
+        let finalType = request.safeCall ? sema.types.makeNullable(result) : result
+        sema.bindings.bindExprType(request.id, type: finalType)
+        return finalType
     }
 }

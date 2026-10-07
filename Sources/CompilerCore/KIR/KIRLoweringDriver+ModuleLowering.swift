@@ -72,23 +72,81 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
 
-        emitSyntheticTopLevelExternalPropertyInitializers(
-            arena: arena,
-            sema: sema,
-            interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
-        )
-
+        // Object and companion handles must exist before any top-level
+        // initializer can trigger their lazy bodies. Keep these allocation-only
+        // calls ahead of user-visible property initialization.
+        var orderedTopLevelInitInstructions: KIRLoweringEmitContext = []
         appendCompanionInitializerCalls(
             arena: arena, sema: sema,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         appendImportedLibraryInitializerCalls(
             arena: arena,
             sema: sema,
             interner: compilationCtx.interner,
-            allTopLevelInitInstructions: &allTopLevelInitInstructions
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
+        )
+
+        // Serialized `.klib` bodies: materialize imported functions, ctors,
+        // accessors, member fields and singleton init into this arena so the
+        // calls lowered above resolve to real definitions. A klib is a
+        // dependency — its top-level initializers run before the consumer's
+        // own, but after `.kklib` stubs and object pre-allocations.
+        for loadedKlib in sema.klibModules {
+            let lowerer = KlibBodyLowerer(
+                loaded: loadedKlib,
+                driver: self,
+                sema: sema,
+                arena: arena,
+                interner: compilationCtx.interner,
+                diagnostics: compilationCtx.diagnostics
+            )
+            let klibResult = lowerer.lowerModule()
+            if let klibFile = klibResult.file {
+                files.append(klibFile)
+            }
+            orderedTopLevelInitInstructions.appendRelocatingLabels(
+                contentsOf: klibResult.topLevelInitInstructions
+            )
+        }
+
+        orderedTopLevelInitInstructions.appendRelocatingLabels(
+            contentsOf: allTopLevelInitInstructions
+        )
+
+        // A library has no `main` to receive its stored top-level property
+        // initializers. Keep them as a callable entry point in the artifact;
+        // importing modules call it before their own property initializers.
+        // Object/companion initializers are imported separately, so this
+        // entry point contains only the library's own property writes.
+        if case .library = compilationCtx.options.emit,
+           !allTopLevelInitInstructions.isEmpty {
+            let symbol = ctx.allocateSyntheticGeneratedSymbol()
+            let name = compilationCtx.interner.intern(
+                "__kk_library_top_level_init_\(compilationCtx.options.moduleName)"
+            )
+            var body: KIRLoweringEmitContext = [.beginBlock]
+            body.appendRelocatingLabels(contentsOf: allTopLevelInitInstructions)
+            body.append(.returnUnit)
+            body.append(.endBlock)
+            _ = arena.appendDecl(.function(KIRFunction(
+                symbol: symbol,
+                name: name,
+                params: [],
+                returnType: sema.types.unitType,
+                body: body.instructions,
+                isSuspend: false,
+                isInline: false,
+                instructionLocations: body.instructionLocations
+            )))
+        }
+
+        emitSyntheticTopLevelExternalPropertyInitializers(
+            arena: arena,
+            sema: sema,
+            interner: compilationCtx.interner,
+            allTopLevelInitInstructions: &orderedTopLevelInitInstructions
         )
 
         postProcessTopLevelInitializersAndDelegates(
@@ -96,11 +154,13 @@ extension KIRLoweringDriver {
             sema: sema,
             compilationCtx: compilationCtx,
             arena: arena,
-            allTopLevelInitInstructions: allTopLevelInitInstructions,
+            allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
+        insertEnumLazyInitTriggers(arena: arena, sema: sema)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
+        module.arena.receiverFirstLauncherLambdaSymbols = ctx.receiverFirstLauncherLambdaSymbols
         return module
     }
 
@@ -118,7 +178,7 @@ extension KIRLoweringDriver {
         let ast = shared.ast
         let arena = shared.arena
         let interner = compilationCtx.interner
-        let prefix = "$enumConstructorProperty$"
+        let prefixes = [EnumPropertyHelperNames.getterPrefix, EnumPropertyHelperNames.setterPrefix]
 
         var neededOwnerIDs = Set<Int32>()
         for decl in arena.declarations {
@@ -126,7 +186,7 @@ extension KIRLoweringDriver {
             for instruction in function.body {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
                 let calleeName = interner.resolve(callee)
-                guard calleeName.hasPrefix(prefix) else { continue }
+                guard let prefix = prefixes.first(where: { calleeName.hasPrefix($0) }) else { continue }
                 let remainder = calleeName.dropFirst(prefix.count)
                 guard let separatorIndex = remainder.firstIndex(of: "$"),
                       let ownerID = Int32(remainder[..<separatorIndex])
@@ -275,6 +335,15 @@ extension KIRLoweringDriver {
         if let companionDeclID = interfaceDecl.companionObject {
             ifaceNestedObjects.append(companionDeclID)
         }
+        // BUG-274: register the companion's lazy-init entry before lowering
+        // this interface's own (default-body) member functions, which can
+        // reference the companion -- see the matching comment in
+        // `lowerTopLevelClassDecl`.
+        var declIDs = synthesizeCompanionInitializerIfNeeded(
+            companionDeclID: interfaceDecl.companionObject,
+            ownerSymbol: symbol,
+            shared: shared
+        )
         let (directMembers, allDecls) = memberLowerer.lowerMemberDecls(
             memberFunctions: interfaceDecl.memberFunctions,
             memberProperties: interfaceDecl.memberProperties,
@@ -285,13 +354,8 @@ extension KIRLoweringDriver {
             isInterfaceContext: true
         )
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
-        var declIDs = [kirID]
+        declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
-        declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
-            companionDeclID: interfaceDecl.companionObject,
-            ownerSymbol: symbol,
-            shared: shared
-        ))
         return declIDs
     }
 
@@ -313,9 +377,17 @@ extension KIRLoweringDriver {
             shared: shared,
             compilationCtx: compilationCtx
         )
-        let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
+        let forwardingDecls = synthesizeClassDelegationForwardingMethods(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        ) + synthesizeClassDelegationForwardingPropertyAccessors(
+            classSymbol: symbol, shared: shared, compilationCtx: compilationCtx
+        )
+        let kirID = arena.appendDecl(.nominalType(KIRNominalType(
+            symbol: symbol, memberDecls: directMembers + forwardingDecls
+        )))
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
+        declIDs.append(contentsOf: forwardingDecls)
 
         // Every source-backed top-level object needs a global slot for its
         // singleton heap pointer. Without it, an object crossing an Any
@@ -426,6 +498,11 @@ extension KIRLoweringDriver {
         }
 
         for symbol in sema.symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
+            if symbol.kind == .function,
+               interner.resolve(symbol.name).hasPrefix("__kk_library_top_level_init_") {
+                appendInitializer(symbol.id)
+                continue
+            }
             switch symbol.kind {
             case .object:
                 appendInitializer(sema.symbols.objectInitializerSymbol(for: symbol.id))

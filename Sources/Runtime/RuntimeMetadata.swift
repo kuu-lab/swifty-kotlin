@@ -17,6 +17,7 @@ public struct KmValueParameter: Codable, Equatable, Sendable {
         case instance
         case extensionReceiver
         case value
+        case context
 
         init(runtimeKind: Int) {
             switch runtimeKind {
@@ -24,6 +25,8 @@ public struct KmValueParameter: Codable, Equatable, Sendable {
                 self = .instance
             case 1:
                 self = .extensionReceiver
+            case 3:
+                self = .context
             default:
                 self = .value
             }
