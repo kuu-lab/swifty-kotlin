@@ -86,6 +86,19 @@ struct SuspendCallContextTests {
     }
 
     @Test
+    func coroutineBuildersAndFlowOperatorsProvideSuspensionContextsWithoutExplicitImport() throws {
+        let result = try diagnostics("""
+        suspend fun sf() = 1
+        fun setup() {
+            runBlocking {
+                sf()
+            }
+        }
+        """, includeStdlib: true)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    @Test
     func ordinaryNestedFunctionsAndEscapingLambdasDoNotInheritSuspension() throws {
         let result = try diagnostics("""
         suspend fun sf() = 1

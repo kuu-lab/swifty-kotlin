@@ -688,7 +688,7 @@ extension CallTypeChecker {
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: lambdaParameterTypes,
                 returnType: lambdaReturnType,
-                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest"].contains(memberName),
+                isSuspend: ["collect", "collectLatest", "takeWhile", "dropWhile", "map", "filter", "flatMapConcat", "flatMapMerge", "flatMapLatest", "retryWhen"].contains(memberName),
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {
