@@ -58,6 +58,7 @@ extension CallTypeChecker {
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
+        var invisibleProperties: [SymbolID] = []
         func hasDispatchReceiverOrImport(for candidate: SymbolID) -> Bool {
             guard let owner = sema.symbols.parentSymbol(for: candidate),
                   let ownerSymbol = sema.symbols.symbol(owner),
@@ -98,6 +99,16 @@ extension CallTypeChecker {
                   ),
                   let getterAccessor = sema.symbols.extensionPropertyGetterAccessor(for: candidate)
             else {
+                return
+            }
+            guard ctx.visibilityChecker.isAccessible(
+                symbol,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            ) else {
+                if !invisibleProperties.contains(candidate) {
+                    invisibleProperties.append(candidate)
+                }
                 return
             }
             if !getterCandidates.contains(getterAccessor) {
@@ -181,6 +192,26 @@ extension CallTypeChecker {
             }
         }
         guard !getterCandidates.isEmpty else {
+            if let firstInvisible = invisibleProperties.first,
+               let invisibleSymbol = sema.symbols.symbol(firstInvisible)
+            {
+                // Compound-assignment reads bind the property identifier rather
+                // than a call; the caller re-checks accessibility on that bound
+                // symbol, so surface the invisible declaration instead of
+                // emitting a duplicate diagnostic here.
+                guard bindCall else {
+                    sema.bindings.bindIdentifier(id, symbol: firstInvisible)
+                    return sema.symbols.propertyType(for: firstInvisible)
+                        ?? sema.types.errorType
+                }
+                driver.helpers.emitVisibilityError(
+                    for: invisibleSymbol,
+                    name: ctx.interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             return nil
         }
 
@@ -298,6 +329,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         var setterCandidates: [SymbolID] = []
         var propertyForSetter: [SymbolID: SymbolID] = [:]
+        var invisibleProperties: [SymbolID] = []
         func collectSetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
@@ -310,6 +342,16 @@ extension CallTypeChecker {
                   ),
                   let setterAccessor = sema.symbols.extensionPropertySetterAccessor(for: candidate)
             else {
+                return
+            }
+            guard ctx.visibilityChecker.isAccessible(
+                symbol,
+                fromFile: ctx.currentFileID,
+                enclosingClass: ctx.enclosingClassSymbol
+            ) else {
+                if !invisibleProperties.contains(candidate) {
+                    invisibleProperties.append(candidate)
+                }
                 return
             }
             if !setterCandidates.contains(setterAccessor) {
@@ -336,6 +378,16 @@ extension CallTypeChecker {
             }
         }
         guard !setterCandidates.isEmpty else {
+            if let firstInvisible = invisibleProperties.first,
+               let invisibleSymbol = sema.symbols.symbol(firstInvisible)
+            {
+                driver.helpers.emitVisibilityError(
+                    for: invisibleSymbol,
+                    name: ctx.interner.resolve(calleeName),
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             return nil
         }
 
