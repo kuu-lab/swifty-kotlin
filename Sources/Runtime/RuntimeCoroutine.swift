@@ -1092,7 +1092,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return
         }
         isCancelled = true
-        thrownException = cause != 0 && cause != runtimeNullSentinelInt ? cause : runtimeAllocateCancellationException()
+        thrownException = cause != 0 && cause != runtimeNullSentinelInt
+            ? cause
+            : runtimeAllocateCancellationException(message: completionJob.defaultCancellationMessage)
         lazyStartBody = nil
         // Running and ATOMIC bodies must finish (including finally) before join resumes.
         isCompleted = !isBodyStarted && !atomicStart
@@ -1364,7 +1366,8 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var failure: Int = 0
     private var cancelCause: Int = 0
     private var cancelMessage: String = "CancellationException"
-    private let defaultCancellationMessage: String
+    private var usesDefaultCancellationMessage = false
+    private let defaultCancellationMessageFallback: String
     weak var continuationState: RuntimeContinuationState?
     var producerChannel: Int?
     private var childJobHandles: [Int] = []
@@ -1425,8 +1428,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// Set when `kk_kxmini_launch_lazy` returns; `startIfNeeded()` runs it once.
     private var lazyStartBody: (@Sendable () -> Void)?
 
+    var defaultCancellationMessage: String {
+        guard let debugName else { return defaultCancellationMessageFallback }
+        return "\(debugName) was cancelled"
+    }
+
     init(defaultCancellationMessage: String = "CancellationException") {
-        self.defaultCancellationMessage = defaultCancellationMessage
+        self.defaultCancellationMessageFallback = defaultCancellationMessage
         RuntimeLiveHandles.register(self)
     }
 
@@ -1794,11 +1802,33 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 
     func cancel(cause: Int = 0) -> Bool {
-        cancel(message: defaultCancellationMessage, cause: cause)
+        let causeMessage = cancellationMessage(for: cause)
+        let usesDefaultMessage = causeMessage == nil
+        return cancel(
+            message: causeMessage ?? defaultCancellationMessage,
+            cause: cause,
+            usesDefaultMessage: usesDefaultMessage
+        )
+    }
+
+    private func cancellationMessage(for cause: Int) -> String? {
+        guard cause != 0, cause != runtimeNullSentinelInt,
+              kk_is_cancellation_exception(cause) != 0,
+              let pointer = UnsafeMutableRawPointer(bitPattern: cause),
+              let cancellation = tryCast(pointer, to: RuntimeCancellationBox.self)
+        else {
+            return nil
+        }
+        return cancellation.message ?? "CancellationException"
     }
 
     @discardableResult
     func cancel(message: String, cause: Int = 0) -> Bool {
+        cancel(message: message, cause: cause, usesDefaultMessage: false)
+    }
+
+    @discardableResult
+    private func cancel(message: String, cause: Int, usesDefaultMessage: Bool) -> Bool {
         let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
             ? cause : runtimeAllocateCancellationException(message: message)
         // If the dispatch work item has not begun executing, cancel it now so
@@ -1824,11 +1854,13 @@ final class RuntimeJobHandle: @unchecked Sendable {
             }
             if cancelMessage == "CancellationException" {
                 cancelMessage = message
+                usesDefaultCancellationMessage = usesDefaultMessage
             }
             lock.unlock()
             return false
         case .new, .active, .completing:
             cancelMessage = message
+            usesDefaultCancellationMessage = usesDefaultMessage
             cancelCause = resolvedCause
             result = 0
             failure = 0
@@ -1916,10 +1948,20 @@ final class RuntimeJobHandle: @unchecked Sendable {
         join()
     }
 
-    func cancellationMessageSnapshot() -> String {
+    func cancellationMessageSnapshot(forSuspensionPoint: Bool = false) -> String {
         lock.lock()
-        defer { lock.unlock() }
-        return cancelMessage
+        let message = cancelMessage
+        let cancellationCause = cancelCause
+        let isCancelling = state == .cancelling
+        let usesDefaultMessage = usesDefaultCancellationMessage
+        lock.unlock()
+
+        guard forSuspensionPoint, isCancelling, usesDefaultMessage,
+              let debugName, kk_is_cancellation_exception(cancellationCause) == 0
+        else {
+            return message
+        }
+        return "\(debugName) is cancelling"
     }
 
     func cancellationCauseSnapshot() -> Int {
@@ -6382,7 +6424,7 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     }
     if let job = state.jobHandle, job.cancellationSnapshot() {
         let cancellation = runtimeAllocateCancellationException(
-            message: job.cancellationMessageSnapshot(),
+            message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
             cause: job.cancellationCauseSnapshot()
         )
         outThrown?.pointee = cancellation
@@ -6452,7 +6494,7 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
 public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if let job = RuntimeJobHandle.current, job.cancellationSnapshot() {
         outThrown?.pointee = runtimeAllocateCancellationException(
-            message: job.cancellationMessageSnapshot(),
+            message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
             cause: job.cancellationCauseSnapshot()
         )
         return 0
