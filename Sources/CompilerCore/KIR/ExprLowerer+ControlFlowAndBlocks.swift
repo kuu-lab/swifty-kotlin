@@ -1803,11 +1803,19 @@ extension ExprLowerer {
                         default:
                             false
                         }
-                        let declaredTypeIsSentinelCollidingNullablePrimitive: Bool = {
-                            guard case let .primitive(primitive, .nullable) = sema.types.kind(of: declaredType) else {
+                        let declaredTypeIsNullablePrimitive: Bool = {
+                            // Every nullable primitive slot must hold a box
+                            // handle (or the null sentinel), never the raw
+                            // scalar: `===` on `P?` operands is JVM reference
+                            // equality on the boxed value, which only works
+                            // when the slot representation is the box
+                            // (KUU-1385). Sentinel-colliding kinds (Long?,
+                            // ULong?, Double?, Float?) needed this already;
+                            // the remaining kinds join them now.
+                            guard case let .primitive(_, nullability) = sema.types.kind(of: declaredType) else {
                                 return false
                             }
-                            return primitive.rawValueCollidesWithNullSentinel
+                            return nullability != .nonNull
                         }()
                         // A mutable local initialized directly from a bare symbol
                         // reference (an enum entry or object singleton, e.g. `var d:
@@ -1827,7 +1835,7 @@ extension ExprLowerer {
                             && declaredTypeIsReferenceLike
                             && initializerIsBareSymbolRef
                         if !isDelegated,
-                           declaredTypeIsReferenceLike || declaredTypeIsSentinelCollidingNullablePrimitive,
+                           declaredTypeIsReferenceLike || declaredTypeIsNullablePrimitive,
                            (initializerType != nil && initializerType != declaredType)
                            || requiresFreshSlotForMutableAlias
                         {

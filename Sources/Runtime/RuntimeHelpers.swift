@@ -51,6 +51,55 @@ func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCS
     return Int(bitPattern: taggedPointer)
 }
 
+/// Cache key for `GCState.identityPrimitiveBoxCache`, or nil when the value
+/// lies outside the JVM-cached range for `domain`. `domain` is the
+/// primitive's `RuntimeTypeTokenEncoding.*Base` so different primitive kinds
+/// never alias one another's entries even when their payloads coincide.
+@inline(__always)
+func runtimePrimitiveIdentityCacheKey(domain: Int64, value: Int, range: Range<Int>) -> Int64? {
+    guard range.contains(value) else {
+        return nil
+    }
+    return (domain << 32) | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: value)))
+}
+
+/// Allocates a same-type/same-payload copy of the primitive box behind a
+/// tagged handle. Used when a shared identity-cache box would otherwise be
+/// mutated in place (e.g. nominal type tagging for a value class).
+func runtimeClonePrimitiveBox(_ raw: Int) -> AnyObject? {
+    guard let ptr = runtimePrimitiveBoxBasePointer(from: raw) else {
+        return nil
+    }
+    if let box = tryCast(ptr, to: RuntimeIntBox.self) {
+        return RuntimeIntBox(
+            box.value,
+            anyFallbackTag: box.anyFallbackTag,
+            primitiveTypeBase: box.primitiveTypeBase,
+            enumEntryName: box.enumEntryName,
+            enumClassID: box.enumClassID
+        )
+    }
+    if let box = tryCast(ptr, to: RuntimeBoolBox.self) {
+        return RuntimeBoolBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeLongBox.self) {
+        return RuntimeLongBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeULongBox.self) {
+        return RuntimeULongBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeFloatBox.self) {
+        return RuntimeFloatBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeDoubleBox.self) {
+        return RuntimeDoubleBox(box.value)
+    }
+    if let box = tryCast(ptr, to: RuntimeCharBox.self) {
+        return RuntimeCharBox(box.value)
+    }
+    return nil
+}
+
 // Coroutine handles (continuation / scope / job / task) are resolved against the
 // liveness registry: generated code and the runtime keep raw handles past the
 // point where the runtime releases the object, and casting a freed pointer either

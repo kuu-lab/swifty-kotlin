@@ -70,11 +70,13 @@ func boxValueForAnySlot<C: RangeReplaceableCollection>(
 /// variable cell, or backing-field global) must leave the slot
 /// box-or-sentinel: a raw `Long`/`ULong`/`Double`/`Float` scalar whose bits
 /// collide with `runtimeNullSentinelInt` would read as `null` to every null
-/// check (KUU-854). Emitting a `.copy` through a `slotType`-typed temporary
-/// lets ABILoweringPass pick the always-boxing `kk_box_*_nonnull` callee for
-/// a non-null source while passing existing box/sentinel content through
-/// verbatim. Returns `value` unchanged when `slotType` is not a nullable
-/// primitive whose scalar can collide with the sentinel.
+/// check (KUU-854), and `===` on `P?` operands is JVM reference equality on
+/// the boxed value, which requires every nullable primitive slot — not just
+/// sentinel-colliding ones — to hold the box (KUU-1385). Emitting a `.copy`
+/// through a `slotType`-typed temporary lets ABILoweringPass pick the
+/// always-boxing `kk_box_*` callee for a non-null source while passing
+/// existing box/sentinel content through verbatim. Returns `value` unchanged
+/// when `slotType` is not a nullable primitive.
 func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     slotType: TypeID,
@@ -82,8 +84,8 @@ func normalizedValueForNullablePrimitiveSlot<C: RangeReplaceableCollection>(
     arena: KIRArena,
     into instructions: inout C
 ) -> KIRExprID where C.Element == KIRInstruction {
-    guard case let .primitive(primitive, .nullable) = types.kind(of: slotType),
-          primitive.rawValueCollidesWithNullSentinel
+    guard case let .primitive(_, nullability) = types.kind(of: slotType),
+          nullability != .nonNull
     else {
         return value
     }

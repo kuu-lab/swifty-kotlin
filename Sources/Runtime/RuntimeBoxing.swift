@@ -39,10 +39,16 @@ public func kk_box_unit(_ value: Int) -> Int {
 /// on Linux, where a sum of 41582640 equalled a live RuntimeIntBox address).
 /// Tagged handles live in a reserved high-bit domain that real scalar values
 /// and raw object addresses cannot reach, so the collision class is closed.
+///
+/// `identityCacheKey` (see `runtimePrimitiveIdentityCacheKey`) enables the
+/// JVM-compatible identity cache: an in-range scalar returns the one shared
+/// box for its (kind, value), so `===` observes reference identity instead
+/// of degenerating into value equality (KUU-1385).
 @inline(__always)
 private func runtimeBoxPrimitive<T: AnyObject>(
     _ value: Int,
     preservesNullSentinel: Bool = true,
+    identityCacheKey: Int64? = nil,
     registeredPassThrough: (UnsafeMutableRawPointer) -> Bool = { _ in true },
     makeBox: () -> T
 ) -> Int {
@@ -56,23 +62,47 @@ private func runtimeBoxPrimitive<T: AnyObject>(
         {
             return value
         }
-        return registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
+        if let identityCacheKey,
+           let cached = state.identityPrimitiveBoxCache[identityCacheKey]
+        {
+            return cached
+        }
+        let handle = registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
+        if let identityCacheKey {
+            state.identityPrimitiveBoxCache[identityCacheKey] = handle
+            state.identityPrimitiveBoxHandles.insert(UInt(bitPattern: handle))
+        }
+        return handle
     }
 }
 
-private func runtimeBoxInt(_ value: Int, anyFallbackTag: Int32, primitiveTypeBase: Int64? = nil) -> Int {
+private func runtimeBoxInt(
+    _ value: Int,
+    anyFallbackTag: Int32,
+    primitiveTypeBase: Int64? = nil,
+    identityCacheKey: Int64? = nil
+) -> Int {
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by kk_op_rangeTo, or an already-boxed RuntimeIntBox), pass it
     // through without double-boxing.
-    runtimeBoxPrimitive(value) {
+    runtimeBoxPrimitive(value, identityCacheKey: identityCacheKey) {
         RuntimeIntBox(value, anyFallbackTag: anyFallbackTag, primitiveTypeBase: primitiveTypeBase)
     }
+}
+
+/// JVM-compatible identity-cache key for `kk_box_*` integer-kind boxes:
+/// Byte/Short/Int/Long cache -128..127. `domain` is the primitive's
+/// `RuntimeTypeTokenEncoding.*Base` so distinct kinds never share entries.
+@inline(__always)
+private func runtimeSignedBoxCacheKey(domain: Int64, value: Int) -> Int64? {
+    runtimePrimitiveIdentityCacheKey(domain: domain, value: value, range: -128 ..< 128)
 }
 
 @inline(__always)
 private func runtimeStaticBox<T: AnyObject>(
     _ value: Int,
     preservesNullSentinel: Bool,
+    identityCacheKey: Int64? = nil,
     makeBox: () -> T
 ) -> Int {
     if preservesNullSentinel, value == runtimeNullSentinelInt {
@@ -95,7 +125,22 @@ private func runtimeStaticBox<T: AnyObject>(
         if runtimePrimitiveBoxBasePointer(from: value) != nil {
             return value
         }
-        return registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
+        // JVM-compatible identity cache: an in-range scalar produces the one
+        // shared box for its (kind, value) so `===` sees reference identity
+        // rather than value equality (KUU-1385). Out-of-range values and
+        // deliberately uncached kinds (Float/Double/unsigned) keep per-call
+        // fresh boxes.
+        if let identityCacheKey,
+           let cached = state.identityPrimitiveBoxCache[identityCacheKey]
+        {
+            return cached
+        }
+        let handle = registerTaggedPrimitiveBox(makeBox(), inLockedState: &state)
+        if let identityCacheKey {
+            state.identityPrimitiveBoxCache[identityCacheKey] = handle
+            state.identityPrimitiveBoxHandles.insert(UInt(bitPattern: handle))
+        }
+        return handle
     }
 }
 
@@ -133,17 +178,26 @@ private func runtimeStaticUnbox<T: AnyObject>(
 
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {
-    runtimeBoxInt(value, anyFallbackTag: 1)
+    runtimeBoxInt(
+        value, anyFallbackTag: 1,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.intBase, value: value)
+    )
 }
 
 @_cdecl("kk_box_byte")
 public func kk_box_byte(_ value: Int) -> Int {
-    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
+    runtimeBoxInt(
+        value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.byteBase, value: value)
+    )
 }
 
 @_cdecl("kk_box_short")
 public func kk_box_short(_ value: Int) -> Int {
-    runtimeBoxInt(value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
+    runtimeBoxInt(
+        value, anyFallbackTag: 1, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.shortBase, value: value)
+    )
 }
 
 @_cdecl("kk_box_uint")
@@ -166,7 +220,14 @@ public func kk_box_bool(_ value: Int) -> Int {
     // If the value is already a registered runtime object (e.g. a Boolean
     // returned by a runtime helper that already boxed it), pass it through
     // without double-boxing so source-level println() preserves the value.
-    runtimeBoxPrimitive(value) {
+    runtimeBoxPrimitive(
+        value,
+        identityCacheKey: runtimePrimitiveIdentityCacheKey(
+            domain: RuntimeTypeTokenEncoding.booleanBase,
+            value: value != 0 ? 1 : 0,
+            range: 0 ..< 2
+        )
+    ) {
         RuntimeBoolBox(value != 0)
     }
 }
@@ -249,7 +310,10 @@ public func kk_box_long(_ value: Int) -> Int {
     // produced by kk_op_rangeTo for LongRange), pass it through without
     // double-boxing so that __kk_print_raw / runtimeElementToString can
     // recognise the original object type.
-    return runtimeBoxPrimitive(value) {
+    return runtimeBoxPrimitive(
+        value,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+    ) {
         RuntimeLongBox(value)
     }
 }
@@ -263,7 +327,11 @@ public func kk_box_long(_ value: Int) -> Int {
 /// `.nonNull`, so a genuine null can never reach this function.
 @_cdecl("kk_box_long_nonnull")
 public func kk_box_long_nonnull(_ value: Int) -> Int {
-    runtimeBoxPrimitive(value, preservesNullSentinel: false) {
+    runtimeBoxPrimitive(
+        value,
+        preservesNullSentinel: false,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+    ) {
         RuntimeLongBox(value)
     }
 }
@@ -429,7 +497,12 @@ public func kk_unbox_double_nonnull(_ obj: Int) -> Int {
 public func kk_box_char(_ value: Int) -> Int {
     // If the value is already a registered runtime object, pass it through
     // without double-boxing.
-    return runtimeBoxPrimitive(value) {
+    return runtimeBoxPrimitive(
+        value,
+        identityCacheKey: runtimePrimitiveIdentityCacheKey(
+            domain: RuntimeTypeTokenEncoding.charBase, value: value, range: 0 ..< 128
+        )
+    ) {
         RuntimeCharBox(value)
     }
 }
@@ -462,21 +535,30 @@ public func kk_unbox_char(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_int_static")
 public func kk_box_int_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.intBase, value: value)
+    ) {
         RuntimeIntBox(value, anyFallbackTag: 1)
     }
 }
 
 @_cdecl("kk_box_byte_static")
 public func kk_box_byte_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.byteBase, value: value)
+    ) {
         RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
     }
 }
 
 @_cdecl("kk_box_short_static")
 public func kk_box_short_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.shortBase, value: value)
+    ) {
         RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
     }
 }
@@ -504,21 +586,34 @@ public func kk_box_ushort_static(_ value: Int) -> Int {
 
 @_cdecl("kk_box_bool_static")
 public func kk_box_bool_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimePrimitiveIdentityCacheKey(
+            domain: RuntimeTypeTokenEncoding.booleanBase,
+            value: value != 0 ? 1 : 0,
+            range: 0 ..< 2
+        )
+    ) {
         RuntimeBoolBox(value != 0)
     }
 }
 
 @_cdecl("kk_box_long_static")
 public func kk_box_long_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+    ) {
         RuntimeLongBox(value)
     }
 }
 
 @_cdecl("kk_box_long_nonnull_static")
 public func kk_box_long_nonnull_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: false) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: false,
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+    ) {
         RuntimeLongBox(value)
     }
 }
@@ -560,7 +655,12 @@ public func kk_box_double_nonnull_static(_ value: Int) -> Int {
 
 @_cdecl("kk_box_char_static")
 public func kk_box_char_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        identityCacheKey: runtimePrimitiveIdentityCacheKey(
+            domain: RuntimeTypeTokenEncoding.charBase, value: value, range: 0 ..< 128
+        )
+    ) {
         RuntimeCharBox(value)
     }
 }
@@ -629,6 +729,18 @@ public func kk_unbox_char_static(_ value: Int) -> Int {
 @_cdecl("kk_tag_value_class_box")
 public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
     guard boxedRaw != runtimeNullSentinelInt else { return boxedRaw }
-    runtimeRegisterObjectType(rawValue: boxedRaw, classID: Int64(classID))
-    return boxedRaw
+    // A box minted through the JVM-compatible identity cache is shared with
+    // every caller that boxes the same primitive value. Tagging it in place
+    // would register this value class's nominal type on all of them, so clone
+    // the payload and tag the fresh box instead (KUU-1385).
+    let effectiveRaw = runtimeStorage.withGCLock { state -> Int in
+        guard state.identityPrimitiveBoxHandles.contains(UInt(bitPattern: boxedRaw)),
+              let clone = runtimeClonePrimitiveBox(boxedRaw)
+        else {
+            return boxedRaw
+        }
+        return registerTaggedPrimitiveBox(clone, inLockedState: &state)
+    }
+    runtimeRegisterObjectType(rawValue: effectiveRaw, classID: Int64(classID))
+    return effectiveRaw
 }

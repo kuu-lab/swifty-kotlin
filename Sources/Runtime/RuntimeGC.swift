@@ -46,6 +46,18 @@ struct GCState {
     /// _dispose). The same target object may be wrapped by several
     /// independent StableRef handles at once — see kk_stable_ref_create.
     var stableRefCounts: [UInt: Int] = [:]
+    /// Kotlin/JVM reference-identity cache for `kk_box_*` primitive boxing:
+    /// Boolean (both values), Char (0..127), and Int/Long/Short/Byte
+    /// (-128..127) boxes share one canonical object per value, so `===` on
+    /// two independently boxed values matches the JVM. Keys are
+    /// `(primitiveTypeBase << 32) | payloadBits`; values are tagged handles.
+    /// Unsigned kinds and Float/Double are deliberately absent — JVM does
+    /// not cache them.
+    var identityPrimitiveBoxCache: [Int64: Int] = [:]
+    /// Tagged handles minted through `identityPrimitiveBoxCache`. A shared
+    /// cache box must never be nominal-type tagged in place, so
+    /// `kk_tag_value_class_box` consults this set and clones instead.
+    var identityPrimitiveBoxHandles: Set<UInt> = []
 }
 
 struct MetadataState {
