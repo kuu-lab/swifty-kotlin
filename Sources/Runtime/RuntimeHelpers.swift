@@ -109,7 +109,12 @@ func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationStat
 }
 
 func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
+    // KUU-1439: `produce`/`channelFlow`/`callbackFlow` bind the ProducerScope
+    // receiver to the raw channel handle, so CoroutineScope member calls on it
+    // (launch/async/cancel/isActive) arrive here carrying a channel. Resolve
+    // the scope facet the producer launcher bound to that channel.
     resolveLiveRuntimeHandle(scopeHandle, as: RuntimeCoroutineScope.self)
+        ?? runtimeProducerScopeForChannelHandle(scopeHandle)
 }
 
 func runtimeAsyncTask(from handle: Int) -> RuntimeAsyncTask? {
