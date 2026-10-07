@@ -10,6 +10,27 @@ import TestStdlibCache
 @Suite
 struct BundledStdlibExtensionVisibilityTests {
     @Test(arguments: [false, true])
+    func userExtensionPropertySurvivesBundledClassifierImport(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        try withTemporaryFile(contents: """
+        import kotlinx.coroutines.channels.ChannelResult
+
+        public val ChannelResult<*>.holdsValue: Boolean get() = false
+
+        fun probe(result: ChannelResult<Int>): Boolean = result.holdsValue
+        """) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], emit: .executable,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test(arguments: [false, true])
     func internalExtensionPropertyReadReportsInvisibleAccess(
         allowDefaultStdlibLibrary: Bool
     ) throws {

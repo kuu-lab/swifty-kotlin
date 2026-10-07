@@ -59,6 +59,14 @@ extension CallTypeChecker {
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
         var invisibleProperties: [SymbolID] = []
+        func isUserSourceDeclaration(_ candidate: SymbolID) -> Bool {
+            guard let sourceFileID = sema.symbols.sourceFileID(for: candidate)
+                    ?? sema.symbols.symbol(candidate)?.declSite?.start.file
+            else {
+                return false
+            }
+            return driver.sourceManager?.origin(of: sourceFileID) == .user
+        }
         func hasDispatchReceiverOrImport(for candidate: SymbolID) -> Bool {
             guard let owner = sema.symbols.parentSymbol(for: candidate),
                   let ownerSymbol = sema.symbols.symbol(owner),
@@ -89,7 +97,7 @@ extension CallTypeChecker {
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
                   hasDispatchReceiverOrImport(for: candidate),
-                  preferredSourcePackage == nil
+                  preferredSourcePackage == nil || isUserSourceDeclaration(candidate)
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   extensionSyntheticFallbackReceiverMatches(
@@ -146,6 +154,7 @@ extension CallTypeChecker {
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .property,
                       Array(symbol.fqName.dropLast()) == preferredSourcePackage
+                          || isUserSourceDeclaration(candidate)
                 else {
                     return false
                 }
