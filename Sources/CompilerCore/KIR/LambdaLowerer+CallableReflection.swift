@@ -11,6 +11,7 @@ extension LambdaLowerer {
         captures: [KIRExprID],
         receiverCount: Int,
         setterSymbol: SymbolID? = nil,
+        includeInvocation: Bool = true,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -75,13 +76,18 @@ extension LambdaLowerer {
                               interner: interner, arena: arena, requireNonNull: true, into: &instructions)
         }
         let environment = list(boxedCaptures)
-        let invoker = callableReflectionInvoker(
-            callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
-            parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
-            sema: sema, arena: arena, interner: interner
-        )
-        if let reference = arena.expr(invoker) {
-            instructions.append(.constValue(result: invoker, value: reference))
+        let invoker: KIRExprID
+        if includeInvocation {
+            invoker = callableReflectionInvoker(
+                callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
+                parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
+                sema: sema, arena: arena, interner: interner
+            )
+            if let reference = arena.expr(invoker) {
+                instructions.append(.constValue(result: invoker, value: reference))
+            }
+        } else {
+            invoker = integer(0)
         }
         let parameterList = parameters(parameterTypes)
         var typeParameterValues: [KIRExprID] = []
