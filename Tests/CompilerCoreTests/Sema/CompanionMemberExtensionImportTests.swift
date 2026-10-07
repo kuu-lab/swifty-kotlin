@@ -78,5 +78,54 @@ struct CompanionMemberExtensionImportTests {
         """
         _ = try SemaFixture(surface: "companion argument receiver").make(source: source)
     }
+
+    @Test
+    func importedCompanionExtensionPreservesFBoundedClassType() throws {
+        let declaration = """
+        package sample
+        interface Copyable<T> where T : Throwable, T : Copyable<T> {
+            fun createCopy(): T?
+        }
+        internal val CLOSED = Tok(null)
+        internal class Tok(private val origin: Throwable?) {
+            companion object {
+                inline fun Tok.wrapCause(wrap: (Throwable) -> Throwable): Throwable? {
+                    return when (origin) {
+                        null -> null
+                        is Copyable<*> -> origin.createCopy()
+                        else -> wrap(origin)
+                    }
+                }
+            }
+        }
+        """
+        let usage = """
+        package sample
+        import sample.Tok.Companion.wrapCause
+
+        class Bar {
+            fun copy(): Throwable? {
+                val x: Tok = CLOSED
+                return x.wrapCause { it }
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [declaration, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(memberCallExprIDs(
+                named: "wrapCause",
+                in: ast,
+                path: paths[1],
+                ctx: ctx,
+                interner: ctx.interner
+            ).first)
+            #expect(sema.bindings.callBinding(for: call)?.chosenCallee != nil)
+        }
+    }
 }
 #endif
