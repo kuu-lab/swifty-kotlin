@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package kotlin
 
 import kotlin.internal.KsSymbolName
