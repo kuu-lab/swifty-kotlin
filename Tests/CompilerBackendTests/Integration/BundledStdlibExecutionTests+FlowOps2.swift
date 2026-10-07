@@ -2,6 +2,22 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testFlowTransformSuspendReceiverAndElementArguments(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.flow.*
+            import kotlinx.coroutines.runBlocking
+
+            fun main() = runBlocking {
+                flowOf(1, 2).transform<Int, Int> { emit(it) }.collect { println(it) }
+            }
+            """,
+            expectedOutput: "1\n2\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testLoopCarriedFlowScopeOwnership(artifact: Bool) throws {
         try compileAndRunKotlin(
             """
