@@ -1294,6 +1294,7 @@ struct RuntimeChannelTests {
         #expect(sendResult.get() == kChannelResultCancelled,
                 "suspended sender must report cancelled after cancel()")
         #expect(kk_throwable_is_cancellation(sendThrown.get()) == 1)
+    }
 
     // MARK: - Close cause / isEmpty / cancel (KSP-1571)
 
@@ -1372,9 +1373,9 @@ struct RuntimeChannelTests {
         // A closed channel is never `isEmpty` upstream (receive side is done).
         #expect(kk_channel_is_empty(channel) == 0)
 
-        // Buffered elements are gone: the receive reports closed at once.
+        // Buffered elements are gone: the receive reports cancelled at once (KUU-1404).
         var value = 0
-        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultClosed)
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultCancelled)
 
         // tryReceive boxes the retained cancellation cause.
         let box = __kk_channel_try_receive(channel)
