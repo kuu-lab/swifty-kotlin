@@ -730,6 +730,12 @@ enum DiagnosticRegistry {
             summary: "Suspend function can only be called from a coroutine or another suspend function."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0309",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Function accessed with property syntax requires invocation parentheses."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-PLATFORM",
             pass: "SEMA",
             defaultSeverity: .warning,

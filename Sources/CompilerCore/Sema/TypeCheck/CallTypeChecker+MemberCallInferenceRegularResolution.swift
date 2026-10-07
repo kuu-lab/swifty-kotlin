@@ -1474,7 +1474,10 @@ extension CallTypeChecker {
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
-            case ("receive", 0):
+            // KUU-1453: `ch.receive` without parentheses is property-access
+            // syntax on a function — fall through so the invocation-syntax
+            // check rejects it like any other bound function.
+            case ("receive", 0) where ast.arena.isExplicitCall(id):
                 let resultType = sema.types.nullableAnyType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -1638,6 +1641,7 @@ extension CallTypeChecker {
            !safeCall,
            args.isEmpty,
            explicitTypeArgs.isEmpty,
+           ast.arena.isExplicitCall(id),
            invisible.isEmpty,
            sema.types.nullability(of: receiverType) == .nullable,
            memberName == "toString" || memberName == "hashCode",
