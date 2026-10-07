@@ -339,6 +339,21 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0423", in: ctx)
     }
 
+    @Test func inlineTopLevelGetterOnlyPropertiesAreAccepted() throws {
+        let ctx = try semaContext(for: """
+            public inline val Short.highByte: Byte get() = 0
+            inline val answer: Int get() = 42
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
+    @Test func inlineTopLevelPropertyWithInitializerIsRejected() throws {
+        let ctx = try semaContext(for: """
+            inline val answer: Int = 42
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0400", in: ctx)
+    }
+
     @Test func privateMembersOfAnonymousObjectsAreAccepted() throws {
         // Regression: object-literal member prefixes share the local
         // declaration parser — `private` there is legal.

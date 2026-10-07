@@ -203,6 +203,9 @@ struct DeclarationPositionValidator {
         let target = propertyTargetName(site: site)
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
+            if modifier == .inline, isTopLevelInlineGetterOnlyProperty(decl, site: site) {
+                continue
+            }
             emitNotApplicable(name, to: target, range: decl.range)
         }
 
@@ -275,6 +278,18 @@ struct DeclarationPositionValidator {
 
     private func isImplicitlyAbstractInterfaceProperty(_ decl: PropertyDecl) -> Bool {
         decl.initializer == nil && decl.getter == nil && decl.setter == nil
+    }
+
+    /// KUU-1459 covers top-level read-only properties with a custom getter and
+    /// no declared storage. Keep this exception matched to that syntax.
+    private func isTopLevelInlineGetterOnlyProperty(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
+        site == .file
+            && !decl.isVar
+            && decl.initializer == nil
+            && decl.getter.map { $0.body != .unit } == true
+            && decl.setter == nil
+            && decl.delegateExpression == nil
+            && decl.explicitBackingField == nil
     }
 
     private func validatePropertyInitialization(_ decl: PropertyDecl, site: OwnerSite) {
