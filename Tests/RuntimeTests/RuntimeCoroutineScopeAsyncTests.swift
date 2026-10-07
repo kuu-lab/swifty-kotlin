@@ -225,7 +225,10 @@ struct RuntimeCoroutineScopeAsyncTests {
             #expect(failure == exception)
             #expect(kk_context_get_name(context) != 0)
             #expect(runtimeAsyncTask(from: kk_context_get_job(context)) != nil)
-            #expect(kk_job_is_completed(kk_context_get_job(context)) == 1)
+            // kotlinx invokes the handler after cancellation starts but before
+            // the failing coroutine reaches its terminal state.
+            #expect(kk_job_is_completed(kk_context_get_job(context)) == 0)
+            #expect(kk_job_is_active(kk_context_get_job(context)) == 0)
             #expect(kk_job_is_cancelled(kk_context_get_job(context)) == 1)
             called.signal()
         }
@@ -241,6 +244,8 @@ struct RuntimeCoroutineScopeAsyncTests {
         _ = kk_job_join(job, 0)
         #expect(called.wait(timeout: .now() + 2) == .success)
         #expect(kk_job_is_cancelled(parent) == 0)
+        #expect(kk_job_is_completed(job) == 1)
+        #expect(kk_job_is_active(job) == 0)
         #expect(kk_job_is_cancelled(job) == 1)
         _ = kk_coroutine_scope_wait(scope)
     }
