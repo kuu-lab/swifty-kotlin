@@ -331,6 +331,15 @@ extension CallTypeChecker {
             && !isULongProgressionFirstLastCall
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)
+            // KUU-1432: every destination HOF takes exactly two arguments
+            // (destination + lambda). The destination arm below only handles
+            // the arity-2 shape, so a call at any other arity fell through to
+            // `default:` with a result type but no callee and lowered to a
+            // phantom `_filterTo`-style symbol (LINK-0001). Skip the fast path
+            // so regular overload resolution reports the missing argument
+            // (SEMA-0002/SEMA-0024), matching kotlinc's "no value passed for
+            // parameter" rejection.
+            && !(Self.destinationCollectionHOFs.contains(calleeStr) && args.count != 2)
 
         // KSP-957: the generic Iterable/Map on-family declarations are real
         // source-backed overloads. Let regular overload resolution select
