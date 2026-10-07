@@ -156,4 +156,37 @@ struct RuntimeStructuredConcurrencyFailureTests {
         _ = child.completeExceptionally(with: runtimeAllocateCancellationException())
         #expect(parent.isActiveSnapshot())
     }
+
+    @Test(arguments: [false, true])
+    func childCancelledNonCancellationFailureCancelsParentSynchronously(async: Bool) {
+        let parent = RuntimeJobHandle()
+        parent.markStarted()
+        let task = RuntimeAsyncTask()
+        let childJob = async ? task.completionJob : RuntimeJobHandle()
+        childJob.markStarted()
+        let childObject: AnyObject = async ? (task as AnyObject) : childJob
+        let childHandle = runtimeRegisterObject(childObject)
+        parent.registerChild(childHandle)
+
+        let failure = runtimeAllocateIllegalStateException(message: "child failure")
+        #expect(kk_job_child_cancelled(childHandle, failure) == 1)
+        #expect(childJob.cancellationSnapshot())
+        #expect(!parent.isActiveSnapshot())
+        #expect(parent.cancellationCauseSnapshot() == failure)
+    }
+
+    @Test
+    func childCancelledCancellationExceptionLeavesJobAndParentActive() {
+        let parent = RuntimeJobHandle()
+        parent.markStarted()
+        let child = RuntimeJobHandle()
+        child.markStarted()
+        let childHandle = runtimeRegisterObject(child)
+        parent.registerChild(childHandle)
+
+        let cancellation = runtimeAllocateCancellationException(message: "normal cancellation")
+        #expect(kk_job_child_cancelled(childHandle, cancellation) == 1)
+        #expect(child.isActiveSnapshot())
+        #expect(parent.isActiveSnapshot())
+    }
 }
