@@ -3011,6 +3011,14 @@ final class CallTypeChecker {
                 }
                 return receiverType
             }.first ?? callImplicitReceiverType
+            let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
+                candidates: candidates,
+                args: args,
+                originalExpectedTypeOverrides: expectedTypeOverrides,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                ctx: ctx,
+                locals: locals
+            )
             var resolved = resolveCallRespectingLambdaReturnType(
                 candidates: candidates,
                 args: args,
@@ -3020,6 +3028,7 @@ final class CallTypeChecker {
                 explicitTypeArgs: explicitTypeArgs,
                 expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
                 implicitReceiverType: callImplicitReceiverType,
+                candidateArgumentTypes: candidateSpecificNestedCallTypes?.argumentTypesByCandidate ?? [:],
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
@@ -3100,6 +3109,19 @@ final class CallTypeChecker {
                        locals: &locals
                    ) {
                     resolved = retried
+                }
+            }
+            if resolved.diagnostic == nil,
+               let chosen = resolved.chosenCallee,
+               let expectedTypes = candidateSpecificNestedCallTypes?.expectedTypesByCandidate[chosen]
+            {
+                for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
+                    _ = driver.inferExpr(
+                        args[index].expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: expectedArgumentType
+                    )
                 }
             }
             if let diagnostic = resolved.diagnostic {
