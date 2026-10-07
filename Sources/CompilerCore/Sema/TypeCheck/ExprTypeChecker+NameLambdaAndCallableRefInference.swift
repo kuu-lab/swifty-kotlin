@@ -1142,6 +1142,122 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: result.type)
             return result.type
         }
+        // KUU-1451: the bundled stdlib models generic extension *properties*
+        // (`List.lastIndex`, `List.indices`, `Array.lastIndex`, ...) as
+        // zero-argument extension functions — see the note in
+        // Stdlib/kotlin/collections/Collections.kt. `lookupMemberProperty`
+        // only walks `.property` symbols, so a bare read on an implicit
+        // receiver (`l.run { lastIndex }`) otherwise binds the raw function
+        // symbol and KIR emits a `symbolRef` of the callee instead of calling
+        // it on `this`. Resolve the receiver-matching zero-argument extension
+        // overload here and record it as a call so lowering materializes the
+        // implicit receiver as the callee's first argument — the same shape
+        // the explicit `this.lastIndex` member-call form produces.
+        //
+        // The property-style facade is a bundled-stdlib convention for the
+        // upstream extension *properties* the bundled parser cannot declare
+        // on generic receivers. The bundled source models exactly three
+        // names this way today — `List/Array/Collection.lastIndex`,
+        // `List/Array/Collection.indices` (Stdlib/kotlin/collections/) and
+        // `Any.javaClass` (Stdlib/kotlin/JavaClass.kt) — so the candidate
+        // set is confined to those names on bundled declarations (source or
+        // imported stdlib artifact). Ordinary functions (`first`, `count`,
+        // member `c.run { m }`, user extensions) keep Kotlin's invocation
+        // syntax requirement and are excluded; the explicit `c.m`
+        // acceptance is a separate pre-existing deviation (KUU-1453).
+        if implicitMemberType == nil {
+            let propertyFacadeNames: Set<InternedString> = [
+                ctx.interner.intern("lastIndex"),
+                ctx.interner.intern("indices"),
+                ctx.interner.intern("javaClass"),
+            ]
+            var seenPropertyStyleCandidates: Set<SymbolID> = []
+            let scopedIDs = ctx.cachedScopeLookup(name) + sema.symbols.lookupByShortName(name)
+            let (visibleIDs, _) = ctx.filterByVisibility(scopedIDs)
+            let propertyStyleFunctions = visibleIDs.filter { candidate in
+                guard seenPropertyStyleCandidates.insert(candidate).inserted,
+                      let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      propertyFacadeNames.contains(symbol.name),
+                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      !signature.isSuspend,
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                if let parentID = sema.symbols.parentSymbol(for: candidate),
+                   let parent = sema.symbols.symbol(parentID)
+                {
+                    // Getter/setter helpers share their property's name; they
+                    // are not callable member candidates.
+                    if parent.kind == .property {
+                        return false
+                    }
+                    // A genuine member is declared under its nominal owner;
+                    // a package-level extension keeps its package FQName even
+                    // when member lookup attaches it to the nominal.
+                    if parent.kind != .package,
+                       symbol.fqName == parent.fqName + [symbol.name]
+                    {
+                        return false
+                    }
+                }
+                // Only bundled stdlib declarations (bundled sources, or the
+                // imported stdlib artifact merged into the index) model
+                // extension properties as zero-argument functions.
+                guard let memberKey = BundledDeclarationIndex.memberKey(
+                    for: symbol,
+                    symbolID: candidate,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: ctx.interner
+                ) else {
+                    return false
+                }
+                let declaredOwnerKey = BundledMemberKey(
+                    ownerFQName: Array(symbol.fqName.dropLast()),
+                    name: symbol.name,
+                    arity: signature.parameterTypes.count
+                )
+                guard sema.bundledIndex.contains(memberKey)
+                    || sema.bundledIndex.contains(declaredOwnerKey)
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+            if !propertyStyleFunctions.isEmpty,
+               let callRange = nameRange ?? ctx.ast.arena.exprRange(id)
+            {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: propertyStyleFunctions,
+                    call: CallExpr(
+                        range: callRange,
+                        calleeName: name,
+                        args: [],
+                        explicitTypeArgs: [],
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: nonNullReceiver,
+                    ctx: ctx.semaCtx
+                )
+                if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
+                    let memberType = driver.callChecker.bindCallAndResolveReturnType(
+                        id, chosen: chosen, resolved: resolved, sema: sema
+                    )
+                    sema.bindings.markImplicitReceiverMember(id, name: name)
+                    sema.bindings.bindExprType(id, type: memberType)
+                    return memberType
+                }
+            }
+        }
         if let memberType = implicitMemberType {
             sema.bindings.markImplicitReceiverMember(id, name: name)
             sema.bindings.bindExprType(id, type: memberType)

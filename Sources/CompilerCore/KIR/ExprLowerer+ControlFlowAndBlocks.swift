@@ -313,6 +313,38 @@ extension ExprLowerer {
                 let resultType = boundType ?? sema.types.anyType
                 let result = arena.appendTemporary(type: resultType
                 )
+                // KUU-1451: bundled "property-style" members are modelled as
+                // zero-argument extension functions (`List.lastIndex`,
+                // `List.indices`, `Array.lastIndex`, ...). Sema records such a
+                // bare read as a call binding plus `implicitReceiverMemberNames`
+                // rather than a `.property` identifier symbol, so emit the call
+                // with the implicit receiver as the callee's first argument —
+                // matching the explicit `receiver.lastIndex` member-call shape.
+                if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+                   let calleeSymbol = sema.symbols.symbol(chosenCallee),
+                   calleeSymbol.kind == .function,
+                   sema.symbols.functionSignature(for: chosenCallee)?.receiverType != nil
+                {
+                    let loweredCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: chosenCallee),
+                                                           !linkName.isEmpty
+                    {
+                        interner.intern(linkName)
+                    } else {
+                        calleeSymbol.name
+                    }
+                    // Facade callees are package-level extension functions —
+                    // statically dispatched with the implicit receiver as the
+                    // first argument.
+                    instructions.append(.call(
+                        symbol: chosenCallee,
+                        callee: loweredCallee,
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 // Enum entry body functions use the enum value itself as
                 // their implicit receiver. Its runtime representation is the
                 // entry ordinal, so the synthetic Enum.name property cannot
