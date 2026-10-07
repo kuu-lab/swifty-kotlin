@@ -851,6 +851,19 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+
+        // KUU-1448: keep the transitive nominal-supertype closure registered
+        // as well — `KType.classifier`-synthesized handles for an ancestor
+        // resolve their own `supertypes` through the same registry.
+        var visitedClassSymbols: Set<SymbolID> = [objectSymbol]
+        driver.callLowerer.emitTransitiveSupertypeKClassMetadataRegistrations(
+            for: objectSymbol,
+            visitedClassSymbols: &visitedClassSymbols,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 
     private func ensureObjectLiteralNominalDecl(

@@ -351,5 +351,19 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+
+        // KUU-1448: construction also makes this class reachable through
+        // `KType.classifier`/`__kk_kclass_of` handles, so its ancestors need
+        // metadata too. Seeded with `objectSymbol` so a sealed ancestor's
+        // subclass walk cannot re-emit this registration.
+        var visitedClassSymbols: Set<SymbolID> = [objectSymbol]
+        emitTransitiveSupertypeKClassMetadataRegistrations(
+            for: objectSymbol,
+            visitedClassSymbols: &visitedClassSymbols,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 }

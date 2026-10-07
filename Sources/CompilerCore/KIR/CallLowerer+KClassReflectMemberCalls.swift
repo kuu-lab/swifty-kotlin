@@ -277,12 +277,38 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
+        var visitedClassSymbols: Set<SymbolID> = []
+        emitClassLiteralMetadataRegistrationImpl(
+            classRefTargetType: classRefTargetType,
+            typeTokenExpr: typeTokenExpr,
+            visitedClassSymbols: &visitedClassSymbols,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Recursive worker for `emitClassLiteralMetadataRegistration` carrying a
+    /// visited set shared across the transitive supertype closure and the
+    /// sealed-subclass walk so neither can re-emit or loop (e.g. a sealed
+    /// parent reached as a supertype re-listing the child being registered).
+    func emitClassLiteralMetadataRegistrationImpl(
+        classRefTargetType: TypeID,
+        typeTokenExpr: KIRExprID,
+        visitedClassSymbols: inout Set<SymbolID>,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard let classType = resolveClassType(classRefTargetType, sema: sema) else {
             return
         }
         let classSymbol = classType.classSymbol
-        guard let symbol = sema.symbols.symbol(classSymbol) else {
+        guard let symbol = sema.symbols.symbol(classSymbol),
+              visitedClassSymbols.insert(classSymbol).inserted else {
             return
         }
 
@@ -367,6 +393,21 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
 
+        // KUU-1448: `KType.classifier` materializes KClass handles at runtime
+        // from the supertype display names stored in this registration, and
+        // resolves *their* metadata through the same token-keyed registry.
+        // Register the transitive nominal-supertype closure so such a handle
+        // answers `supertypes`/`isSubclassOf` even when the ancestor's own
+        // `T::class` literal (or constructor) never ran.
+        emitTransitiveSupertypeKClassMetadataRegistrations(
+            for: classSymbol,
+            visitedClassSymbols: &visitedClassSymbols,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
         if symbol.flags.contains(.sealedType) {
             let subclasses = sema.symbols.sealedSubclasses(for: classSymbol)
                 ?? sema.symbols.directSubtypes(of: classSymbol)
@@ -377,8 +418,9 @@ extension CallLowerer {
                 let token = RuntimeTypeCheckToken.encode(type: subclassType, sema: sema, interner: interner)
                 let tokenExpr = arena.appendExpr(.intLiteral(token), type: intType)
                 instructions.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
-                emitClassLiteralMetadataRegistration(
+                emitClassLiteralMetadataRegistrationImpl(
                     classRefTargetType: subclassType, typeTokenExpr: tokenExpr,
+                    visitedClassSymbols: &visitedClassSymbols,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 let name = interner.intern(RuntimeTypeCheckToken.simpleName(of: subclassType, sema: sema, interner: interner) ?? "")
@@ -400,6 +442,48 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    /// KUU-1448: emits the full `emitClassLiteralMetadataRegistrationImpl`
+    /// block for every direct nominal supertype of `classSymbol`, recursing
+    /// through their own supertypes via the shared `visitedClassSymbols` set.
+    ///
+    /// Only nominal-token classifiers participate: builtin bases
+    /// (`kotlin.Any`, `kotlin.String`, primitives, `FunctionN`) are answered
+    /// by the runtime's builtin tables and never carry registry metadata.
+    /// Other registration emitters (constructor allocation, object literals)
+    /// call this with a set pre-seeded by the symbol they just registered so
+    /// a sealed ancestor's subclass walk cannot re-emit it.
+    func emitTransitiveSupertypeKClassMetadataRegistrations(
+        for classSymbol: SymbolID,
+        visitedClassSymbols: inout Set<SymbolID>,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        for superSymbolID in sema.symbols.directSupertypes(for: classSymbol)
+        where !visitedClassSymbols.contains(superSymbolID) {
+            let superType = sema.types.make(.classType(ClassType(
+                classSymbol: superSymbolID, args: [], nullability: .nonNull
+            )))
+            let superToken = RuntimeTypeCheckToken.encode(type: superType, sema: sema, interner: interner)
+            guard superToken & RuntimeTypeCheckToken.baseMask == RuntimeTypeCheckToken.nominalBase else {
+                continue
+            }
+            let superTokenExpr = arena.appendExpr(.intLiteral(superToken), type: intType)
+            instructions.append(.constValue(result: superTokenExpr, value: .intLiteral(superToken)))
+            emitClassLiteralMetadataRegistrationImpl(
+                classRefTargetType: superType,
+                typeTokenExpr: superTokenExpr,
+                visitedClassSymbols: &visitedClassSymbols,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
     }
 
     /// Returns `true` when `receiverType` is a `kotlin.reflect.KClass<…>` receiver,
