@@ -866,6 +866,15 @@ public func __kk_kconstructor_create(
     )
     registerReflectionRuntimeTypeMetadata()
     let raw = registerRuntimeObject(box, typeID: kConstructorRuntimeTypeID)
+    runtimeStorage.withDelegateLock { state in
+        state.callableRefMetadataByValue[raw] = RuntimeCallableRefMetadata(
+            nameRaw: nameRaw,
+            returnTypeRaw: returnTypeRaw,
+            arity: arity,
+            kind: .function,
+            isSuspend: false
+        )
+    }
     runtimeKConstructorRegistry.register(classRaw: declaringClassRaw, constructorRaw: raw)
     return raw
 }

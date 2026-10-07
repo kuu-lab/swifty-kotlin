@@ -1071,6 +1071,94 @@ extension KIRLoweringDriver {
                 canThrow: false,
                 thrownResult: nil
             ))
+
+            let knownNames = KnownCompilerNames(interner: interner)
+            let isAtomicFactory = sema.symbols.parentSymbol(for: ctorSymbol)
+                .flatMap { sema.symbols.symbol($0) }
+                .map(knownNames.isAtomicScalarFactorySymbol) ?? false
+            let canGenerateInvocation = sema.symbols.externalLinkName(for: ctorSymbol) == nil
+                && !isAtomicFactory
+                && !callLowerer.isRuntimeFactoryConstructor(ctorSymbol, sema: sema)
+            let callableSymbol: SymbolID
+            let callableName: InternedString
+            if canGenerateInvocation {
+                // Reuse normal constructor lowering so the bridge allocates the
+                // instance and enters its body with the reflected arguments.
+                callableSymbol = ctx.allocateSyntheticGeneratedSymbol()
+                callableName = interner.intern("__kconstructor_callable_\(ctorSymbol.rawValue)")
+                let callableParams = signature.parameterTypes.enumerated().map { index, type in
+                    let paramName = interner.intern("arg\(index)")
+                    let paramSymbol = sema.symbols.define(
+                        kind: .valueParameter,
+                        name: paramName,
+                        fqName: [callableName, paramName],
+                        declSite: nil,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    )
+                    return KIRParameter(symbol: paramSymbol, type: type)
+                }
+                let callableBody: [KIRInstruction] = ctx.withNewScope {
+                    ctx.resetScopeForFunction()
+                    ctx.setCurrentFunctionSymbol(callableSymbol)
+                    var instructions: KIRLoweringEmitContext = [.beginBlock]
+                    let loweredArguments = callableParams.map { param -> KIRExprID in
+                        let argument = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+                        instructions.append(.constValue(result: argument, value: .symbolRef(param.symbol)))
+                        return argument
+                    }
+                    let constructedValue = callLowerer.lowerResolvedCallBody(
+                        .invalid,
+                        args: [],
+                        loweredArgIDs: loweredArguments,
+                        chosen: ctorSymbol,
+                        callBinding: nil,
+                        callableValueCallBinding: nil,
+                        loweredCallable: nil,
+                        loweredCalleeExprID: nil,
+                        sourceCalleeName: ctorNameInterned,
+                        boundType: signature.returnType,
+                        knownNames: knownNames,
+                        ast: shared.ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: [:],
+                        instructions: &instructions.instructions
+                    )
+                    instructions.append(.returnValue(constructedValue))
+                    instructions.append(.endBlock)
+                    return instructions.instructions
+                }
+                ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+                    symbol: callableSymbol,
+                    name: callableName,
+                    params: callableParams,
+                    returnType: signature.returnType,
+                    body: callableBody,
+                    isSuspend: false,
+                    isInline: false
+                ))))
+            } else {
+                callableSymbol = ctorSymbol
+                callableName = ctorNameInterned
+            }
+            lambdaLowerer.registerCallableReflection(
+                value: registrationResult,
+                callableSymbol: callableSymbol,
+                callableName: callableName,
+                targetSymbol: ctorSymbol,
+                parameterTypes: signature.parameterTypes,
+                returnType: signature.returnType,
+                captures: [],
+                receiverCount: 0,
+                includeInvocation: canGenerateInvocation,
+                ast: shared.ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
         }
 
         // STDLIB-REFLECT-ABI-002: Register declared member functions and properties.
