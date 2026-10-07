@@ -2470,13 +2470,14 @@
     - `kotlin.ranges.rangeTo` — fun rangeTo(): ClosedRange  -- `final fun <#A: kotlin/Comparable<#A>> (#A).kotlin.ranges/rangeTo(#A): kotlin.ranges/ClosedRange<#A>`
     - `kotlin.ranges.rangeUntil` — fun rangeUntil(): OpenEndRange  -- `final fun <#A: kotlin/Comparable<#A>> (#A).kotlin.ranges/rangeUntil(#A): kotlin.ranges/OpenEndRange<#A>`
 
-- [ ] KSP-1283: kotlin.ranges.ClosedRange の未実装 stdlib API を実装する（30 件）
+- [x] KSP-1283: kotlin.ranges.ClosedRange の未実装 stdlib API を実装する（30 件）
   - 対象: `kotlin.ranges` / receiver `ClosedRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ClosedRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_ClosedRange_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_ClosedRange_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_ClosedRange_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-10-07）: `ClosedRange.kt` に Kotlin 2.3.10 の 30 overloads と変換 helper を追加。`ClosedRangeCrossTypeContainsTests` で宣言数・型の全組み合わせ・可視 14 overloads の source binding を確認し、`stdlib_kotlin_ranges_ClosedRange_cross_contains.kt` は fresh task-private `.kklib` で Kotlin 2.3.10 と parity pass、最小 repro は source injection で実行成功。全 Golden / 全 diff は未実行。
   - 未実装シンボル一覧:
     - `kotlin.ranges.contains` — fun ClosedRange.contains(Double): Boolean  -- `final fun (kotlin.ranges/ClosedRange<kotlin/Byte>).kotlin.ranges/contains(kotlin/Double): kotlin/Boolean`
     - `kotlin.ranges.contains` — fun ClosedRange.contains(Float): Boolean  -- `final fun (kotlin.ranges/ClosedRange<kotlin/Byte>).kotlin.ranges/contains(kotlin/Float): kotlin/Boolean`
