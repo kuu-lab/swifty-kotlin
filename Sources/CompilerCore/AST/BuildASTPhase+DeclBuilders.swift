@@ -259,7 +259,13 @@ extension BuildASTPhase {
         )
     }
 
-    func makeFunDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> FunDecl {
+    func makeFunDecl(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena,
+        prefixedAnnotations: [AnnotationNode] = []
+    ) -> FunDecl {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let isSuspend = modifiers.contains(.suspend)
@@ -287,7 +293,7 @@ extension BuildASTPhase {
             range: node.range,
             name: functionName,
             modifiers: modifiers,
-            annotations: annotations,
+            annotations: prefixedAnnotations + annotations,
             typeParams: typeParams,
             receiverType: receiverType,
             contextReceivers: contextReceivers,

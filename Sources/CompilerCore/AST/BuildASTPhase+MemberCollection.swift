@@ -545,12 +545,25 @@ extension BuildASTPhase {
         var nestedClasses: [DeclID] = []
         var nestedObjects: [DeclID] = []
         var companionObject: DeclID?
+        var pendingMemberAnnotations: [AnnotationNode] = []
 
         for child in arena.children(of: bodyBlockID) {
-            guard case let .node(childID) = child else { continue }
+            guard case let .node(childID) = child else {
+                pendingMemberAnnotations = []
+                continue
+            }
+            if arena.node(childID).kind == .statement {
+                pendingMemberAnnotations = declarationPrefixAnnotations(
+                    from: childID, in: arena, interner: interner
+                ) ?? []
+                continue
+            }
+            let prefixedAnnotations = pendingMemberAnnotations
+            pendingMemberAnnotations = []
             processMemberChild(
                 childID,
                 in: arena, interner: interner, astArena: astArena,
+                prefixedAnnotations: prefixedAnnotations,
                 functions: &functions, properties: &properties,
                 nestedClasses: &nestedClasses, nestedObjects: &nestedObjects,
                 companionObject: &companionObject
@@ -560,11 +573,48 @@ extension BuildASTPhase {
         return (functions, properties, nestedClasses, nestedObjects, companionObject)
     }
 
+    private func declarationPrefixAnnotations(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner
+    ) -> [AnnotationNode]? {
+        let tokens = collectTokens(from: nodeID, in: arena)
+        guard !tokens.isEmpty else {
+            return nil
+        }
+
+        var annotations: [AnnotationNode] = []
+        var sawModifier = false
+        var index = 0
+        while index < tokens.count {
+            if tokens[index].kind == .symbol(.at),
+               let parsed = AnnotationParsingSupport.parseAnnotation(
+                   from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+               )
+            {
+                annotations.append(parsed.annotation)
+                index = parsed.nextIndex
+                continue
+            }
+            guard modifier(from: tokens[index]) != nil else {
+                return nil
+            }
+            sawModifier = true
+            index += 1
+        }
+
+        guard sawModifier, !annotations.isEmpty else {
+            return nil
+        }
+        return annotations
+    }
+
     private func processMemberChild(
         _ childID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena,
+        prefixedAnnotations: [AnnotationNode],
         functions: inout [DeclID],
         properties: inout [DeclID],
         nestedClasses: inout [DeclID],
@@ -574,7 +624,10 @@ extension BuildASTPhase {
         let childNode = arena.node(childID)
         switch childNode.kind {
         case .funDecl:
-            let funDecl = makeFunDecl(from: childID, in: arena, interner: interner, astArena: astArena)
+            let funDecl = makeFunDecl(
+                from: childID, in: arena, interner: interner,
+                astArena: astArena, prefixedAnnotations: prefixedAnnotations
+            )
             functions.append(astArena.appendDecl(.funDecl(funDecl)))
         case .propertyDecl:
             let propDecl = makePropertyDecl(from: childID, in: arena, interner: interner, astArena: astArena)
