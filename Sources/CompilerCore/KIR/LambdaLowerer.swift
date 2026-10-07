@@ -589,6 +589,7 @@ final class LambdaLowerer {
             if let materialized = materializeEscapingCallableValue(
                 exprID: exprID,
                 lambdaSymbol: lambdaSymbol,
+                lambdaName: syntheticLambdaName(for: exprID, interner: interner),
                 lambdaReturnType: lambdaReturnType,
                 functionType: functionType,
                 captureArguments: captureArgs,
@@ -699,6 +700,7 @@ final class LambdaLowerer {
     private func materializeEscapingCallableValue(
         exprID: ExprID,
         lambdaSymbol: SymbolID,
+        lambdaName: InternedString,
         lambdaReturnType: TypeID,
         functionType: FunctionType,
         captureArguments: [KIRExprID],
@@ -715,7 +717,7 @@ final class LambdaLowerer {
             driver.ctx.registerCallableValue(
                 callable,
                 symbol: lambdaSymbol,
-                callee: syntheticLambdaName(for: exprID, interner: interner),
+                callee: lambdaName,
                 captureArguments: captureArguments,
                 hasClosureParam: false
             )
@@ -816,7 +818,7 @@ final class LambdaLowerer {
         body.append(.constValue(result: thrownResult, value: .null))
         body.append(.call(
             symbol: lambdaSymbol,
-            callee: syntheticLambdaName(for: exprID, interner: interner),
+            callee: lambdaName,
             arguments: callArguments,
             result: callResult,
             canThrow: true,
@@ -1995,6 +1997,7 @@ final class LambdaLowerer {
            let materialized = materializeEscapingCallableValue(
                exprID: exprID,
                lambdaSymbol: callableSymbol,
+               lambdaName: callableName,
                lambdaReturnType: functionType.returnType,
                functionType: functionType,
                captureArguments: captureArguments,
