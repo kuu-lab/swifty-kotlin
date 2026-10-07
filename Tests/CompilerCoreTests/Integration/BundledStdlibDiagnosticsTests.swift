@@ -41,6 +41,34 @@ struct BundledStdlibDiagnosticsTests {
         }
     }
 
+    /// A minimal user file still typechecks bundled Result sources but must not expose their unchecked-cast warnings.
+    @Test
+    func testBundledResultUncheckedCastWarningsDoNotHideUserWarnings() throws {
+        let source = """
+        fun cast(value: Any): List<Int> = value as List<Int>
+        fun main() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let uncheckedCastWarnings = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-UNCHECKED-CAST" && $0.severity == .warning
+            }
+            let userWarnings = uncheckedCastWarnings.filter { diagnostic in
+                guard let range = diagnostic.primaryRange else { return false }
+                return isUserSourceRange(range, in: ctx)
+            }
+            let bundledWarnings = uncheckedCastWarnings.filter { diagnostic in
+                guard let range = diagnostic.primaryRange else { return false }
+                return !isUserSourceRange(range, in: ctx)
+            }
+
+            #expect(userWarnings.count == 1, "Expected the user cast warning to remain visible: \(uncheckedCastWarnings)")
+            #expect(bundledWarnings.isEmpty, "Bundled Result cast warnings leaked: \(bundledWarnings)")
+        }
+    }
+
     @Test
     func testStdlibSuppressionsDoNotHideUserWarnings() throws {
         let source = """
