@@ -4289,8 +4289,11 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 /// block register with the freshly created scope rather than the outer one.
 private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?, job: RuntimeJobHandle?) {
     RuntimeCoroutineScope.current = scope
-    RuntimeContinuationState.current?.scope = scope
-    RuntimeContinuationState.current?.jobHandle = job
+    if let state = RuntimeContinuationState.current {
+        state.scope = scope
+        state.jobHandle = job
+        job?.continuationState = state
+    }
     RuntimeJobHandle.current = job
 }
 
