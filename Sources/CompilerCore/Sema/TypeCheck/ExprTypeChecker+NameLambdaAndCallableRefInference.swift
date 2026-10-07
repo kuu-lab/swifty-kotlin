@@ -1441,7 +1441,8 @@ extension ExprTypeChecker {
         body: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        expectedTypeIsHintOnly: Bool = false
     ) -> TypeID {
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = nil
@@ -1649,6 +1650,9 @@ extension ExprTypeChecker {
         // Leaving it out lets the body infer its natural type so the caller can solve
         // the type variable from it.
         let bodyExpectedType: TypeID? = {
+            guard !expectedTypeIsHintOnly else {
+                return nil
+            }
             guard let expectedReturnType = expectedFunctionType?.returnType,
                   expectedReturnType != sema.types.unitType else {
                 return nil
@@ -1661,11 +1665,17 @@ extension ExprTypeChecker {
             }
             return expectedReturnType
         }()
+        let expectedLambdaReturnType: TypeID? = if expectedTypeIsHintOnly {
+            nil
+        } else if expectedFunctionType?.returnType == sema.types.unitType {
+            sema.types.unitType
+        } else {
+            bodyExpectedType
+        }
         let returnScope = LambdaReturnInferenceScope(
             exprID: id,
             label: label,
-            expectedReturnType: expectedFunctionType?.returnType == sema.types.unitType
-                ? sema.types.unitType : bodyExpectedType
+            expectedReturnType: expectedLambdaReturnType
         )
         bodyCtx.lambdaReturnScopes.append(returnScope)
         let fallthroughType = driver.inferExpr(
@@ -1728,7 +1738,8 @@ extension ExprTypeChecker {
         }
 
         if let expectedFunctionType {
-            if let session = ctx.builderInference,
+            if !expectedTypeIsHintOnly,
+               let session = ctx.builderInference,
                expectedFunctionType.returnType != sema.types.unitType,
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
             {
@@ -1744,11 +1755,13 @@ extension ExprTypeChecker {
                 return functionType
             }
             // Enhanced return type inference with Unit optimization
-            let optimizedReturnType = inferOptimizedReturnType(
-                inferredBodyType: inferredBodyType,
-                expectedReturnType: expectedFunctionType.returnType,
-                sema: sema
-            )
+            let optimizedReturnType = expectedTypeIsHintOnly
+                ? inferredBodyType
+                : inferOptimizedReturnType(
+                    inferredBodyType: inferredBodyType,
+                    expectedReturnType: expectedFunctionType.returnType,
+                    sema: sema
+                )
 
             // Skip the local subtype constraint when the expected return is Unit
             // (Kotlin allows any body type) or when it is a generic type variable.
@@ -1766,7 +1779,8 @@ extension ExprTypeChecker {
             // `R` is still a placeholder, and the upper bound is verified by the
             // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
-                expectedFunctionType.returnType == sema.types.unitType
+                expectedTypeIsHintOnly
+                || expectedFunctionType.returnType == sema.types.unitType
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
             if !shouldSkipSubtypeConstraint {
@@ -1795,7 +1809,8 @@ extension ExprTypeChecker {
             // would type the call result as `Any` (e.g. `true && { 1; true }()`
             // then fails `&&`'s Boolean constraint), so the concrete body
             // return must flow through here too.
-            let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
+            let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
+                || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
                 || expectedFunctionType.returnType == sema.types.anyType
                 || expectedFunctionType.returnType == sema.types.nullableAnyType
