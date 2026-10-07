@@ -1,18 +1,44 @@
+private extension CallExpr {
+    func replacingArgumentTypes(_ replacements: [Int: TypeID]) -> CallExpr {
+        guard !replacements.isEmpty else {
+            return self
+        }
+        let updatedArgs = args.enumerated().map { index, arg in
+            CallArg(
+                label: arg.label,
+                isSpread: arg.isSpread,
+                type: replacements[index] ?? arg.type,
+                signedIntegerLiteral: arg.signedIntegerLiteral,
+                unsignedIntegerLiteral: arg.unsignedIntegerLiteral
+            )
+        }
+        return CallExpr(
+            range: range,
+            calleeName: calleeName,
+            args: updatedArgs,
+            explicitTypeArgs: explicitTypeArgs,
+            dispatchReceiverTypes: dispatchReceiverTypes
+        )
+    }
+}
+
 extension OverloadResolver {
     public func probeCall(
         candidates: [SymbolID],
         call: CallExpr,
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         ignoringLambdaReturnTypeArgumentIndices: Set<Int> = [],
         ctx: SemaModule
     ) -> ProbedCallResult {
         let solver = ConstraintSolver()
         var viable: [ViableCandidate] = []
         for candidate in candidates {
+            let candidateCall = call.replacingArgumentTypes(candidateArgumentTypes[candidate] ?? [:])
             let evaluation = evaluateCandidate(
                 candidate,
-                call: call,
+                call: candidateCall,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
                 ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
@@ -159,8 +185,19 @@ extension OverloadResolver {
         call: CallExpr,
         expectedType: TypeID?,
         implicitReceiverType: TypeID? = nil,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         ctx: SemaModule
     ) -> ResolvedCall {
+        if !candidateArgumentTypes.isEmpty {
+            return resolveCallUncached(
+                candidates: candidates,
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
+                ctx: ctx
+            )
+        }
         // --- cache lookup ---
         if let cache = cacheContext {
             let key = SemaCacheContext.makeCallResolutionKey(
@@ -180,6 +217,7 @@ extension OverloadResolver {
                 call: call,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: [:],
                 ctx: ctx
             )
             cache.cacheCallResolution(result, for: key)
@@ -190,6 +228,7 @@ extension OverloadResolver {
             call: call,
             expectedType: expectedType,
             implicitReceiverType: implicitReceiverType,
+            candidateArgumentTypes: [:],
             ctx: ctx
         )
     }
@@ -199,15 +238,17 @@ extension OverloadResolver {
         call: CallExpr,
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]],
         ctx: SemaModule
     ) -> ResolvedCall {
         let solver = ConstraintSolver()
         var viable: [ViableCandidate] = []
         var candidateFailures: [Diagnostic] = []
         for candidate in candidates {
+            let candidateCall = call.replacingArgumentTypes(candidateArgumentTypes[candidate] ?? [:])
             let evaluation = evaluateCandidate(
                 candidate,
-                call: call,
+                call: candidateCall,
                 expectedType: expectedType,
                 implicitReceiverType: implicitReceiverType,
                 ignoredLambdaReturnTypeArgumentIndices: [],

@@ -18,14 +18,17 @@
 /// `T` bound from `t`) still lets the outer parameter `D<T, T>` bind its
 /// variable from the resolved side, after which `R` is re-inferred as `T`.
 ///
-/// The helpers here recover the same result at the TypeCheck layer: when a
-/// call fails to resolve, find arguments that are still-inferable nested
-/// calls (no explicit type arguments) whose inferred type contains
-/// `Nothing` or the error marker, derive their expected type from the
-/// candidate's partially substituted parameter or that parameter's declared
-/// bound, re-infer the argument expression, and resolve once more. The
-/// retry only runs after a failed resolution, so calls that already work
-/// are unaffected.
+/// The failed-resolution retry below recovers nested type arguments that
+/// collapsed to `Nothing` or the error marker by deriving an expected type
+/// from the candidate's partially substituted parameter or declared bound.
+/// The candidate-specific path handles a different case: multiple outer
+/// overloads may provide different concrete expected types for the same
+/// inferable nested call.
+struct CandidateSpecificNestedCallArgumentTypes {
+    let argumentTypesByCandidate: [SymbolID: [Int: TypeID]]
+    let expectedTypesByCandidate: [SymbolID: [Int: TypeID]]
+}
+
 extension CallTypeChecker {
     /// Whether `type` contains `Nothing` anywhere inside its generic
     /// arguments (e.g. `MutableList<Nothing>`), which marks an uninferred
@@ -131,6 +134,123 @@ extension CallTypeChecker {
             return varargIndex
         }
         return nil
+    }
+
+    /// Re-infer a nested call against each concrete outer overload parameter so
+    /// overload resolution can test each candidate with its own contextual type.
+    /// This avoids eliminating candidates from one eagerly inferred argument type.
+    func candidateSpecificNestedCallArgumentTypes(
+        candidates: [SymbolID],
+        args: [CallArgument],
+        originalExpectedTypeOverrides: [Int: TypeID],
+        lambdaLiteralIndices: Set<Int>,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> CandidateSpecificNestedCallArgumentTypes? {
+        guard candidates.count > 1 else {
+            return nil
+        }
+        let nestedArgumentIndices = args.indices.filter { index in
+            !lambdaLiteralIndices.contains(index)
+                && !args[index].isSpread
+                && isInferableNestedCallExpr(args[index].expr, ast: ctx.ast)
+        }
+        guard !nestedArgumentIndices.isEmpty else {
+            return nil
+        }
+
+        var expectedTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
+        for candidate in candidates {
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
+                return nil
+            }
+            let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var candidateExpectedTypes: [Int: TypeID] = [:]
+            for index in nestedArgumentIndices {
+                guard let parameterIndex = parameterIndexForCallArgument(
+                    at: index,
+                    label: args[index].label,
+                    in: signature,
+                    sema: ctx.sema
+                ), parameterIndex < signature.parameterTypes.count else {
+                    return nil
+                }
+                let expectedType = signature.parameterTypes[parameterIndex]
+                guard expectedType != ctx.sema.types.errorType,
+                      !ctx.resolver.containsTypeVariable(
+                          expectedType,
+                          typeVarBySymbol: typeVarBySymbol,
+                          typeSystem: ctx.sema.types
+                      )
+                else {
+                    return nil
+                }
+                candidateExpectedTypes[index] = expectedType
+            }
+            expectedTypesByCandidate[candidate] = candidateExpectedTypes
+        }
+
+        let hasCandidateSpecificExpectation = nestedArgumentIndices.contains { index in
+            var distinctTypes: [TypeID] = []
+            for candidate in candidates {
+                guard let type = expectedTypesByCandidate[candidate]?[index],
+                      !distinctTypes.contains(type)
+                else {
+                    continue
+                }
+                distinctTypes.append(type)
+            }
+            return distinctTypes.count > 1
+        }
+        guard hasCandidateSpecificExpectation else {
+            return nil
+        }
+
+        var argumentTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
+        for candidate in candidates {
+            guard let candidateExpectedTypes = expectedTypesByCandidate[candidate] else {
+                return nil
+            }
+            var candidateArgumentTypes: [Int: TypeID] = [:]
+            for index in nestedArgumentIndices {
+                guard let expectedType = candidateExpectedTypes[index] else {
+                    return nil
+                }
+                let checkpoint = ctx.semaCtx.diagnostics.checkpoint()
+                var candidateLocals = locals
+                let argumentType = driver.inferExpr(
+                    args[index].expr,
+                    ctx: ctx,
+                    locals: &candidateLocals,
+                    expectedType: expectedType
+                )
+                let emittedError = ctx.semaCtx.diagnostics.diagnostics.dropFirst(checkpoint).contains {
+                    $0.severity == .error
+                }
+                ctx.semaCtx.diagnostics.rollback(to: checkpoint)
+                guard !emittedError,
+                      argumentType != ctx.sema.types.errorType,
+                      !typeContainsErrorType(argumentType, sema: ctx.sema)
+                else {
+                    for restoreIndex in nestedArgumentIndices {
+                        var restoreLocals = locals
+                        _ = driver.inferExpr(
+                            args[restoreIndex].expr,
+                            ctx: ctx,
+                            locals: &restoreLocals,
+                            expectedType: originalExpectedTypeOverrides[restoreIndex]
+                        )
+                    }
+                    return nil
+                }
+                candidateArgumentTypes[index] = argumentType
+            }
+            argumentTypesByCandidate[candidate] = candidateArgumentTypes
+        }
+        return CandidateSpecificNestedCallArgumentTypes(
+            argumentTypesByCandidate: argumentTypesByCandidate,
+            expectedTypesByCandidate: expectedTypesByCandidate
+        )
     }
 
     /// Re-parameterizes the nested call's first-pass (Nothing-poisoned) type

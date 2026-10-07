@@ -378,6 +378,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         expectedType: TypeID?,
         implicitReceiverType: TypeID?,
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
         lambdaLiteralIndices: Set<Int>,
         inputOnlyLambdaIndices: Set<Int>,
         blockedLambdaRefinement: Bool,
@@ -454,6 +455,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
@@ -475,6 +477,7 @@ extension CallTypeChecker {
             call: call,
             expectedType: overloadResolutionExpectedType,
             implicitReceiverType: implicitReceiverType,
+            candidateArgumentTypes: candidateArgumentTypes,
             ignoringLambdaReturnTypeArgumentIndices: inputOnlyLambdaIndices,
             ctx: ctx.semaCtx
         )
@@ -485,6 +488,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
@@ -494,6 +498,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
@@ -514,6 +519,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: contextualExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
@@ -537,6 +543,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
@@ -546,6 +553,7 @@ extension CallTypeChecker {
                 call: call,
                 expectedType: overloadResolutionExpectedType,
                 implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
                 ctx: ctx.semaCtx
             )
         }
