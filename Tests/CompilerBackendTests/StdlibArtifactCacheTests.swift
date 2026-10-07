@@ -96,6 +96,49 @@ struct StdlibArtifactCacheTests {
         #expect(fm.fileExists(atPath: missingBlob))
     }
 
+    /// Compilers with different fingerprints must never replace one another's
+    /// artifact paths, because a compile can load inline KIR after resolution.
+    @Test
+    func differentCompilerFingerprintsKeepArtifactsAtSeparatePaths() throws {
+        let fm = FileManager.default
+        let cacheDirectory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: cacheDirectory) }
+        let target = TargetTriple.hostDefault()
+        var buildCounts: [String: Int] = [:]
+
+        func resolve(fingerprint: String) throws -> String {
+            try StdlibArtifactCache.resolveOrBuildCached(
+                target: target,
+                cacheDirectory: cacheDirectory,
+                compilerFingerprint: fingerprint
+            ) { outputBase in
+                buildCounts[fingerprint, default: 0] += 1
+                let path = try Self.writeFakeArtifact(
+                    at: outputBase,
+                    target: target,
+                    inlineMangledNames: ["alpha_inline"]
+                )
+                try fingerprint.write(
+                    toFile: path + "/compiler-id",
+                    atomically: true,
+                    encoding: .utf8
+                )
+                return path
+            }
+        }
+
+        let firstPath = try resolve(fingerprint: "worktree-a")
+        let secondPath = try resolve(fingerprint: "worktree-b")
+        let firstPathAgain = try resolve(fingerprint: "worktree-a")
+
+        #expect(firstPath != secondPath)
+        #expect(firstPathAgain == firstPath)
+        #expect(try String(contentsOfFile: firstPath + "/compiler-id", encoding: .utf8) == "worktree-a")
+        #expect(try String(contentsOfFile: secondPath + "/compiler-id", encoding: .utf8) == "worktree-b")
+        #expect(buildCounts["worktree-a"] == 1)
+        #expect(buildCounts["worktree-b"] == 1)
+    }
+
     /// A compile killed while the artifact was still building leaves only a
     /// `.building-*` staging tree and the (harmless) `.lock` file behind; the
     /// next resolve must ignore them and produce a valid artifact.
@@ -148,13 +191,11 @@ struct StdlibArtifactCacheTests {
         #expect(buildCount == 0)
         #expect(resolved == artifactPath)
 
-        // Force a rebuild (stale fingerprint) and confirm the ancient staging
+        // Force a rebuild by removing a blob and confirm the ancient staging
         // tree is reclaimed while the fresh one is left alone.
-        try "other-binary".write(
-            toFile: artifactPath + ".compiler-fingerprint",
-            atomically: true,
-            encoding: .utf8
-        )
+        let missingBlob = artifactPath + "/inline-kir/"
+            + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
+        try fm.removeItem(atPath: missingBlob)
         _ = try StdlibArtifactCache.resolveOrBuildCached(
             target: target,
             cacheDirectory: cacheDirectory
@@ -187,7 +228,8 @@ struct StdlibArtifactCacheTests {
 
         let artifactPath = try StdlibArtifactCache.resolveOrBuildCached(
             target: target,
-            cacheDirectory: cacheDirectory
+            cacheDirectory: cacheDirectory,
+            compilerFingerprint: "worktree-a"
         ) { outputBase in
             try Self.writeFakeArtifact(
                 at: outputBase,
@@ -196,24 +238,21 @@ struct StdlibArtifactCacheTests {
             )
         }
 
-        // Invalidate only the fingerprint so the artifact itself is still
-        // structurally valid but considered stale.
-        try "other-binary".write(
-            toFile: artifactPath + ".compiler-fingerprint",
-            atomically: true,
-            encoding: .utf8
-        )
-
         struct FakeBuildError: Error {}
         #expect(throws: (any Error).self) {
             try StdlibArtifactCache.resolveOrBuildCached(
                 target: target,
-                cacheDirectory: cacheDirectory
+                cacheDirectory: cacheDirectory,
+                compilerFingerprint: "worktree-b"
             ) { _ in
                 throw FakeBuildError()
             }
         }
         #expect(fm.fileExists(atPath: artifactPath + "/manifest.json"))
+        #expect(fm.fileExists(
+            atPath: artifactPath + "/inline-kir/"
+                + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
+        ))
     }
 
     /// A build that produces a structurally incomplete artifact must not

@@ -186,10 +186,11 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 1. `KSWIFTK_STDLIB_LIBRARY`、実行ファイル相対の `KSwiftKStdlib.kklib`、SwiftPM resource bundle
    (`KSwiftK_CompilerCore.bundle/Contents/Resources` または `KSwiftK_CompilerCore.resources`)、または
    `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
-2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
-   ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
+2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash・
+   compiler binary fingerprint ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
    `stdlib-only` build を一度だけ生成する。cache root は `KSWIFTK_STDLIB_CACHE_DIR` で
-   上書きできる（sandbox・テスト分離用）。生成中はcross-process lockを保持し、build は
+   上書きできる（sandbox・テスト分離用）。異なる compiler fingerprint は別々の artifact
+   path を使い、同じ cache key の初回生成では cross-process lock を保持する。build は
    試行ごとの `.building-<pid>-<uuid>` staging に行い、検証済みの完成品だけを move するため、
    中断・失敗したコンパイルは `.lock` と残骸 staging だけを残し、cache を破損しない。
    破損・不完全な artifact（manifest が参照する inline-KIR blob の欠落を含む）は
