@@ -220,6 +220,51 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testCoroutineLivenessTracksGlobalLoadDefinitionsAndStoreUses() {
+        let pass = CoroutineLoweringPass()
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let globalSymbol = SymbolID(rawValue: 1901)
+        let loadResult = arena.appendTemporary(type: types.stringType)
+        let loadedLiveOut = pass.computeLiveOutByInstruction(
+            [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("suspendPoint"),
+                    arguments: [],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .loadGlobal(result: loadResult, symbol: globalSymbol),
+                .returnValue(loadResult),
+            ],
+            arena: arena
+        )
+        #expect(!(loadedLiveOut[0] ?? []).contains(loadResult))
+
+        let storedValue = arena.appendTemporary(type: types.stringType)
+        let storedLiveOut = pass.computeLiveOutByInstruction(
+            [
+                .constValue(result: storedValue, value: .stringLiteral(interner.intern("before"))),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("suspendPoint"),
+                    arguments: [],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .storeGlobal(value: storedValue, symbol: globalSymbol),
+                .returnUnit,
+            ],
+            arena: arena
+        )
+        #expect((storedLiveOut[1] ?? []).contains(storedValue))
+    }
+
+    @Test
     func testCoroutineLoweringRewritesSuspendCoroutineIntrinsicToFunctionInvoke() throws {
         let source = """
         import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
