@@ -214,9 +214,9 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
-    /// Unbox arguments when a lambda is reached through an erased function
-    /// value.  Concrete lambda parameter types determine the required primitive
-    /// unboxing callee; nullable and reference values stay boxed.
+    /// Normalize arguments before expanding a lambda body. Erased function
+    /// values arrive boxed, and a nullable primitive can also be narrowed by a
+    /// surrounding safe call before it reaches a non-null lambda parameter.
     static func unboxErasedLambdaArguments(
         arguments: [KIRExprID],
         lambdaFunction: KIRFunction,
@@ -230,16 +230,36 @@ enum InlineErasedLambdaABI {
         }
         var normalized = arguments
         for index in arguments.indices {
+            let parameterType = lambdaFunction.params[index].type
+            let argumentType = module.arena.exprType(arguments[index])
             // Instructions restored from a library's inline KIR carry no expr
             // types, so inside such an expansion every value is erased.
-            let argumentIsErased = module.arena.exprType(arguments[index])
+            let argumentIsErased = argumentType
                 .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
+
+            if !argumentIsErased,
+               let argumentType,
+               let types = ctx.sema?.types,
+               case let .primitive(sourcePrimitive, .nullable) = types.kind(of: argumentType),
+               case let .primitive(targetPrimitive, .nonNull) = types.kind(of: parameterType),
+               sourcePrimitive == targetPrimitive
+            {
+                // A safe-call branch proves this value is present, but its
+                // expression still carries the nullable boxed representation.
+                // A typed copy lets ABI lowering unbox it for the lambda's
+                // non-null primitive parameter.
+                let unboxed = module.arena.appendTemporary(type: parameterType)
+                body.append(.copy(from: arguments[index], to: unboxed))
+                normalized[index] = unboxed
+                continue
+            }
+
             guard argumentIsErased,
-                  let primitive = primitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
+                  let primitive = primitiveKind(of: parameterType, ctx: ctx)
             else {
                 continue
             }
-            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
+            let unboxed = module.arena.appendTemporary(type: parameterType)
             body.append(.call(
                 symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
