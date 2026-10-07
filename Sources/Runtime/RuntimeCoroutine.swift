@@ -3819,6 +3819,11 @@ func runtimeKxMiniProduceWithCont(
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: jobPtr))
     }
+    // KUU-1450: publish the job as started up front like the
+    // `__kk_produce_launch*` launchers do — `isActive` reads `.active`, and a
+    // producer left `.new` answers false for `isActive`/`coroutineContext.job
+    // .isActive` inside its own running body.
+    job.markStarted()
 
     if let contState = runtimeContinuationState(from: continuation) {
         job.continuationState = contState
@@ -3842,6 +3847,14 @@ func runtimeKxMiniProduceWithCont(
     }
 
     KxMiniRuntime.launch {
+        // Same cancel-before-start guard as `__kk_produce_launch*`: a cancel()
+        // racing ahead of the dispatched body already moved the job to
+        // cancelling/cancelled, so skip the body and settle the channel.
+        if job.cancellationSnapshot() {
+            _ = kk_channel_close(channelHandle)
+            _ = job.complete(with: 0)
+            return
+        }
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
