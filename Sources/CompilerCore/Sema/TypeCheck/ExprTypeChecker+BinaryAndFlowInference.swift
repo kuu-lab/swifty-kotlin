@@ -122,8 +122,26 @@ extension ExprTypeChecker {
             expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
         )
         // Elvis can narrow an integer literal on the right side to the overall
-        // expected type, e.g. `val b: Byte = parsed ?: 0`.
-        let rhsExpectedType: TypeID? = if op == .elvis { expectedType } else { nil }
+        // expected type, e.g. `val b: Byte = parsed ?: 0`. When no contextual
+        // type is provided, the RHS is instead checked against the LHS's
+        // non-null type, matching kotlinc: `g ?: { it.length }` binds the
+        // implicit `it` parameter from `g`'s `(String) -> Int`, and `x ?: 0`
+        // narrows the literal to `x`'s element type. An `error`/`Nothing`
+        // LHS carries no usable contextual type, so it seeds nothing.
+        let rhsExpectedType: TypeID? = if op == .elvis {
+            if let expectedType {
+                expectedType
+            } else if case let nonNullLhs = sema.types.makeNonNullable(lhs),
+                      nonNullLhs != sema.types.errorType,
+                      nonNullLhs != sema.types.nothingType
+            {
+                nonNullLhs
+            } else {
+                nil
+            }
+        } else {
+            nil
+        }
         let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
