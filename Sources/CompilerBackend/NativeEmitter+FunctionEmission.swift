@@ -2574,22 +2574,34 @@ extension NativeEmitter {
                 }
 
                 // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
+                // KUU-1404: terminal statuses (closed/cancelled) are converted to
+                // Kotlin throwables inside the runtime and reported through the
+                // outThrown channel, so the call now appends a thrown slot like
+                // every other throwing runtime entry point.
                 if calleeName == "kk_channel_receive" {
                     let outValueSlot = buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
                     if let outValueSlot {
                         _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
                     }
+                    var receiveArgs = argumentValues
+                    receiveArgs.append(outValueSlot ?? nullThrownPointer)
+                    var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
+                    if usesThrownChannel {
+                        if let thrownSlot = buildEntrySlot(name: "thrown_slot_\(instructionIndex)") {
+                            _ = bindings.buildStore(builder, value: zeroValue, pointer: thrownSlot)
+                            receiveArgs.append(thrownSlot)
+                            thrownSlotPointer = thrownSlot
+                        } else {
+                            receiveArgs.append(nullThrownPointer)
+                        }
+                    } else {
+                        receiveArgs.append(nullThrownPointer)
+                    }
                     if let receiveFunction = declareExternalFunction(
                         named: "kk_channel_receive",
-                        parameterTypes: [
-                            int64Type,
-                            int64Type,
-                            outThrownPointerType,
-                        ],
-                        returnType: int64Type
+                        argumentCount: 3,
+                        appendThrownChannel: true
                     ) {
-                        var receiveArgs = argumentValues
-                        receiveArgs.append(outValueSlot ?? nullThrownPointer)
                         _ = bindings.buildCall(
                             builder,
                             functionType: receiveFunction.type,
@@ -2611,6 +2623,51 @@ extension NativeEmitter {
                         }
                     } else {
                         storeResult(result, zeroValue)
+                    }
+                    if usesThrownChannel,
+                       let thrownSlotPointer,
+                       let thrownValue = bindings.buildLoad(
+                           builder,
+                           type: int64Type,
+                           pointer: thrownSlotPointer,
+                           name: "thrown_val_\(instructionIndex)"
+                       )
+                    {
+                        if let thrownResult {
+                            if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                                _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
+                            } else {
+                                storeResult(thrownResult, thrownValue)
+                            }
+                        } else if let hasThrown = buildThrownSlotCondition(
+                            from: thrownValue,
+                            name: "has_thrown_\(instructionIndex)"
+                        ),
+                            let thrownBlock = bindings.appendBasicBlock(
+                                context: context,
+                                function: llvmFunction.value,
+                                name: "thrown_\(instructionIndex)"
+                            ),
+                            let continueBlock = bindings.appendBasicBlock(
+                                context: context,
+                                function: llvmFunction.value,
+                                name: "call_cont_\(instructionIndex)"
+                            )
+                        {
+                            _ = bindings.buildCondBr(
+                                builder,
+                                condition: hasThrown,
+                                thenBlock: thrownBlock,
+                                elseBlock: continueBlock
+                            )
+
+                            bindings.positionBuilder(builder, at: thrownBlock)
+                            storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
+                            _ = bindings.buildRet(builder, value: zeroReturnValue)
+
+                            currentBlock = continueBlock
+                            bindings.positionBuilder(builder, at: continueBlock)
+                        }
                     }
                     continue
                 }

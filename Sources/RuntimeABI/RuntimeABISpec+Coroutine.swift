@@ -984,16 +984,19 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // KUU-1404: send on a closed/cancelled channel reports its terminal
+        // status through outThrown (ClosedSendChannelException /
+        // CancellationException) instead of silently succeeding.
         RuntimeABIFunctionSpec(
             name: "kk_channel_send",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
+            section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_select_try_receive",
@@ -1040,12 +1043,16 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             isThrowing: false
         ),
+        // KUU-1404: receive on a drained-closed/cancelled channel reports its
+        // terminal status through outThrown (ClosedReceiveChannelException /
+        // CancellationException) instead of returning a default payload.
         RuntimeABIFunctionSpec(
             name: "kk_channel_receive",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
                 RuntimeABIParameter(name: "outValue", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -1059,6 +1066,17 @@ public extension RuntimeABISpec {
             section: "Coroutine",
             // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
             // Int-returning residual; it does not use the outThrown ABI path.
+            isThrowing: false
+        ),
+        // KUU-1404: Channel.cancel() residual bridge; plain Int (0/1) flag
+        // like kk_channel_close.
+        RuntimeABIFunctionSpec(
+            name: "kk_channel_cancel",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine",
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(

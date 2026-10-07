@@ -148,16 +148,6 @@ internal fun Channel<*>.cancelConsumed(cause: Throwable?) {
 
 // ---- Terminal exceptions (upstream: bottom of Channel.kt)
 
-/**
- * Thrown when trying to send to a channel that was closed normally.
- */
-public class ClosedSendChannelException(message: String?) : IllegalStateException(message)
-
-/**
- * Thrown when trying to receive from a channel that was closed normally.
- */
-public class ClosedReceiveChannelException(message: String?) : NoSuchElementException(message)
-
 // KSP-1573: capacity semantics for Channel.
 //
 // `Channel.Factory` capacity constants (RENDEZVOUS / UNLIMITED / CONFLATED /

@@ -51,6 +51,34 @@ private external fun Channel<*>.__kkChannelIsClosedForReceive(): Int
 
 public fun Channel<*>.close(): Boolean = this.__kkChannelClose() != 0
 
+// KUU-1404: Channel.cancel() residual bridge — cancels the channel, discards
+// pending elements, and makes subsequent send()/receive() fail with
+// CancellationException instead of a default payload.
+@KsSymbolName("kk_channel_cancel")
+private external fun Channel<*>.__kkChannelCancel(): Int
+
+public fun Channel<*>.cancel() {
+    this.__kkChannelCancel()
+}
+
+// KUU-1404: closed-channel exception surface. The runtime throws these from
+// send()/receive() when the channel reaches a terminal closed state, so the
+// classes are also user-visible for typed `catch` clauses. Runtime-allocated
+// boxes preserve the exact throwable identity, matching the
+// CancellationException source-backing pattern (KSP-1150).
+// JVM parity (kotlinx-coroutines 1.10.2): ClosedReceiveChannelException
+// extends NoSuchElementException, ClosedSendChannelException extends
+// IllegalStateException.
+public class ClosedReceiveChannelException : NoSuchElementException {
+    @KsSymbolName("__kk_closed_receive_channel_exception_new_message")
+    public constructor(message: String?)
+}
+
+public class ClosedSendChannelException : IllegalStateException {
+    @KsSymbolName("__kk_closed_send_channel_exception_new_message")
+    public constructor(message: String?)
+}
+
 // NOTE: extension *properties* use a star-projected `Channel<*>` receiver
 // because the parser does not accept type parameters on extension properties.
 public val Channel<*>.isClosedForSend: Boolean

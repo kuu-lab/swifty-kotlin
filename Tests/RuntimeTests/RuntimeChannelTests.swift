@@ -1133,6 +1133,169 @@ struct RuntimeChannelTests {
         #expect(kk_job_join(job, 0) == kChannelResultSuccess)
     }
 
+    // MARK: - KUU-1404: outThrown exception surface
+
+    /// Decode a thrown-channel pointer into its runtime throwable box.
+    private func thrownBox(_ raw: Int) -> RuntimeThrowableBox? {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+            return nil
+        }
+        return Unmanaged<RuntimeThrowableBox>.fromOpaque(ptr).takeUnretainedValue()
+    }
+
+    @Test func receiveOnClosedDrainedChannelReportsThrownClosedReceiveChannelException() {
+        let ch = kk_channel_create(2)
+        #expect(kk_channel_send(ch, 7, 0) == kChannelResultSuccess)
+        _ = kk_channel_close(ch)
+
+        // Buffered value still drains normally with no thrown object.
+        var value = 0
+        var thrown = -1
+        #expect(kk_channel_receive(ch, 0, &value, &thrown) == kChannelResultSuccess)
+        #expect(value == 7)
+        #expect(thrown == 0, "successful receive must not write a thrown object")
+
+        // Closed + drained -> .closed status plus a typed
+        // ClosedReceiveChannelException in outThrown (KUU-1404).
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultClosed)
+        let box = thrownBox(thrown)
+        #expect(
+            box?.exceptionFQName == "kotlinx.coroutines.channels.ClosedReceiveChannelException",
+            "closed receive must throw ClosedReceiveChannelException"
+        )
+        // JVM kotlinx-coroutines: ClosedReceiveChannelException extends
+        // java.util.NoSuchElementException (kotlin.NoSuchElementException).
+        #expect(
+            box?.exceptionHierarchyFQNames.contains("kotlin.NoSuchElementException") == true,
+            "ClosedReceiveChannelException must be catchable as NoSuchElementException"
+        )
+        #expect(
+            box?.exceptionHierarchyFQNames.contains("kotlin.IllegalStateException") == false,
+            "ClosedReceiveChannelException must NOT be an IllegalStateException (JVM parity)"
+        )
+        #expect(kk_throwable_is_cancellation(thrown) == 0)
+    }
+
+    @Test func receiveOnCancelledChannelReportsThrownCancellationException() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var value = 0
+        var thrown = 0
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultCancelled)
+        #expect(kk_throwable_is_cancellation(thrown) == 1,
+                "cancelled receive must throw a CancellationException")
+    }
+
+    @Test func cancelDiscardsBufferedElementsBeforeReceive() {
+        let ch = kk_channel_create(4)
+        #expect(kk_channel_send(ch, 9, 0) == kChannelResultSuccess)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var value = -1
+        var thrown = 0
+        let status = kk_channel_receive(ch, 0, &value, &thrown)
+        #expect(status == kChannelResultCancelled,
+                "cancel discards buffered elements instead of draining them")
+        #expect(kk_throwable_is_cancellation(thrown) == 1)
+    }
+
+    @Test func sendOnClosedChannelReportsThrownClosedSendChannelException() {
+        let ch = kk_channel_create(1)
+        _ = kk_channel_close(ch)
+
+        var thrown = 0
+        let status = kk_channel_send(ch, 42, 0, &thrown)
+        #expect(status == kChannelResultClosed)
+        let box = thrownBox(thrown)
+        #expect(
+            box?.exceptionFQName == "kotlinx.coroutines.channels.ClosedSendChannelException",
+            "closed send must throw ClosedSendChannelException"
+        )
+    }
+
+    @Test func sendOnCancelledChannelReportsThrownCancellationException() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1)
+
+        var thrown = 0
+        let status = kk_channel_send(ch, 42, 0, &thrown)
+        #expect(status == kChannelResultCancelled)
+        #expect(kk_throwable_is_cancellation(thrown) == 1)
+    }
+
+    @Test func cancelReturnsTrueOnlyOnFirstCall() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_cancel(ch) == 1, "first cancel() should report the state change")
+        #expect(kk_channel_cancel(ch) == 0, "second cancel() is a no-op")
+
+        // close() on an already-cancelled channel reports false (already closed).
+        #expect(kk_channel_close(ch) == 0)
+
+        // And vice versa: cancel() on a closed channel reports false.
+        let ch2 = kk_channel_create(1)
+        _ = kk_channel_close(ch2)
+        #expect(kk_channel_cancel(ch2) == 0)
+    }
+
+    @Test func cancelWakesSuspendedReceiverWithCancelledStatus() {
+        let ch = kk_channel_create(0) // rendezvous: receiver suspends waiting for a sender
+
+        let receiveDone = ChannelTestSignal("receive wakes on cancel")
+        let receiveResult = ThreadSafeInt()
+        let receiveThrown = ThreadSafeInt()
+
+        DispatchQueue.global().async {
+            var value = 0
+            var thrown = 0
+            receiveResult.set(kk_channel_receive(ch, 0, &value, &thrown))
+            receiveThrown.set(thrown)
+            receiveDone.fulfill()
+        }
+
+        #expect(
+            waitForSuspendedWaiters(in: ch, receivers: 1),
+            "receiver should be suspended before cancel"
+        )
+
+        #expect(kk_channel_cancel(ch) == 1)
+
+        waitForSignals([receiveDone], timeout: 2.0)
+        #expect(receiveResult.get() == kChannelResultCancelled,
+                "suspended receiver must report cancelled after cancel()")
+        #expect(kk_throwable_is_cancellation(receiveThrown.get()) == 1)
+    }
+
+    @Test func cancelWakesSuspendedSenderWithCancelledStatus() {
+        let ch = kk_channel_create(1)
+        #expect(kk_channel_send(ch, 1, 0) == kChannelResultSuccess) // fill buffer
+
+        let sendDone = ChannelTestSignal("send wakes on cancel")
+        let sendResult = ThreadSafeInt()
+        let sendThrown = ThreadSafeInt()
+
+        DispatchQueue.global().async {
+            var thrown = 0
+            sendResult.set(kk_channel_send(ch, 77, 0, &thrown))
+            sendThrown.set(thrown)
+            sendDone.fulfill()
+        }
+
+        #expect(
+            waitForSuspendedWaiters(in: ch, senders: 1),
+            "sender should be suspended on the full buffer before cancel"
+        )
+
+        #expect(kk_channel_cancel(ch) == 1)
+
+        waitForSignals([sendDone], timeout: 2.0)
+        #expect(sendResult.get() == kChannelResultCancelled,
+                "suspended sender must report cancelled after cancel()")
+        #expect(kk_throwable_is_cancellation(sendThrown.get()) == 1)
+    }
+
     // MARK: - Close cause / isEmpty / cancel (KSP-1571)
 
     /// `__kk_channel_close_cause` retains the `Throwable` handle of the first
@@ -1210,9 +1373,9 @@ struct RuntimeChannelTests {
         // A closed channel is never `isEmpty` upstream (receive side is done).
         #expect(kk_channel_is_empty(channel) == 0)
 
-        // Buffered elements are gone: the receive reports closed at once.
+        // Buffered elements are gone: the receive reports cancelled at once (KUU-1404).
         var value = 0
-        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultClosed)
+        #expect(kk_channel_receive(channel, 0, &value) == kChannelResultCancelled)
 
         // tryReceive boxes the retained cancellation cause.
         let box = __kk_channel_try_receive(channel)
