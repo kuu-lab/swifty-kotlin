@@ -53,6 +53,28 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    @Test(arguments: [true, false])
+    func varargKParameterTypesUseCorrespondingArrayTypes(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.*
+
+            fun sum(vararg values: Long): Long = values.sum()
+            fun collect(vararg values: String): Int = values.size
+
+            fun main() {
+                val primitive = ::sum.parameters.single()
+                val reference = ::collect.parameters.single()
+                println("${primitive.name}:${primitive.type}:${primitive.isVararg}")
+                println("${reference.name}:${reference.type}:${reference.isVararg}")
+            }
+            """,
+            expectedOutput: "values:kotlin.LongArray:true\nvalues:kotlin.Array<out kotlin.String>:true\n",
+            moduleName: "KUU1444VarargKParameterTypes",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test func callableReferencesExposeGenericTypeParameters() throws {
         try compileAndRunKotlin(
             """
