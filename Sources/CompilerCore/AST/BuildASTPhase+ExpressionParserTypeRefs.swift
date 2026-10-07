@@ -11,7 +11,12 @@ extension BuildASTPhase.ExpressionParser {
             case let .named(path, _, _) = astArena.typeRef(parsed.ref),
             let name = path.last,
             startIndex + parsed.consumed < tokens.endIndex,
-            tokens[startIndex + parsed.consumed].kind == .symbol(.doubleColon)
+            tokens[startIndex + parsed.consumed].kind == .symbol(.doubleColon),
+            // The `::` must lie at or ahead of the parser's current position.
+            // A `::` behind `index` was already folded into the expression
+            // (e.g. the `::class` in `T::class.findAssociatedObject<A>()`), so
+            // re-walking it would rewind `index` and loop forever.
+            startIndex + parsed.consumed >= index
         else {
             return nil
         }
