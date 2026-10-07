@@ -60,6 +60,56 @@ extension CallLowerer {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
+        // `P == null` / `P != null` with a statically non-null operand is a
+        // tautology on the JVM. Folding before operand lowering keeps the
+        // floating-point `!=` path below from desugaring `-0.0 != null` into
+        // a Double compare (-0.0 != 0.0 → false), and keeps sentinel-aliased
+        // raw bits (Long.MIN_VALUE, -0.0) out of kk_op_eq/ne.
+        // OperatorLoweringPass folds the residual `.binary` form for operands
+        // that only resolve to a non-null primitive after value-class
+        // unwrapping.
+        if op == .equal || op == .notEqual {
+            func isNullLiteralExpr(_ e: ExprID) -> Bool {
+                guard let kind = ast.arena.expr(e) else { return false }
+                if case .nullLiteral = kind { return true }
+                return false
+            }
+            func isNonNullPrimitiveExpr(_ e: ExprID) -> Bool {
+                guard let typeID = sema.bindings.exprTypes[e],
+                      case .primitive(_, .nonNull) = sema.types.kind(of: typeID)
+                else { return false }
+                return true
+            }
+            let lhsIsNullLiteral = isNullLiteralExpr(lhs)
+            let rhsIsNullLiteral = isNullLiteralExpr(rhs)
+            if lhsIsNullLiteral != rhsIsNullLiteral,
+               isNonNullPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
+            {
+                let foldedID = arena.appendExpr(.boolLiteral(op == .notEqual), type: boolType)
+                instructions.append(.constValue(result: foldedID, value: .boolLiteral(op == .notEqual)))
+                return foldedID
+            }
+        }
+        // KUU-1385: a `+` whose result is String and whose operands are all
+        // compile-time constants is itself a compile-time constant on the
+        // JVM — folded and interned, so `("ab" + "c") === "abc"` is true.
+        // Emit the pooled string literal directly instead of the runtime
+        // concat. Anything non-constant (a var, a plain `val`, a call)
+        // falls through to `__kk_string_concat_flat` unchanged.
+        if op == .add, sema.bindings.exprTypes[exprID] == stringType {
+            var collector = driver.constantCollector
+            collector.resolvedConstant = { constExprID in
+                self.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
+            }
+            if let foldedText = collector.constantStringConcatOperandText(
+                exprID, ast: ast, interner: interner
+            ) {
+                let foldedSymbol = interner.intern(foldedText)
+                let literalID = arena.appendExpr(.stringLiteral(foldedSymbol), type: stringType)
+                instructions.append(.constValue(result: literalID, value: .stringLiteral(foldedSymbol)))
+                return literalID
+            }
+        }
         let rawLhsID = driver.lowerExpr(
             lhs,
             ast: ast,
@@ -265,6 +315,55 @@ extension CallLowerer {
                 canThrow: false, thrownResult: nil
             ))
             return result
+        }
+        // KUU-1385: `===`/`!==` on a nullable-primitive operand is JVM
+        // reference equality on the boxed value. `P?` slots already carry
+        // the tagged box handle (or the null sentinel), so a raw handle
+        // compare is the identity check — `kk_box_*_static` below is a
+        // pass-through for them. The same call boxes a non-null primitive
+        // peer through the JVM-compatible identity cache, so `x === 5`
+        // converges on the shared box while out-of-cache-range values stay
+        // distinct. Operands of any other type keep their existing handle.
+        if op == .identityEqual || op == .notIdentityEqual {
+            let lhsKind = lhsType.map { sema.types.kind(of: $0) }
+            let rhsKind = rhsType.map { sema.types.kind(of: $0) }
+            let hasNullablePrimitiveOperand = [lhsKind, rhsKind].contains { kind in
+                guard case .primitive(_, let nullability) = kind else { return false }
+                return nullability != .nonNull
+            }
+            if hasNullablePrimitiveOperand {
+                let boxingTable = BoxingCalleeTable(interner: interner)
+                var operandIDs = [lhsID, rhsID]
+                for (index, kind) in [lhsKind, rhsKind].enumerated() {
+                    guard let kind,
+                          case .primitive = kind,
+                          let boxCallee = boxingTable.boxCallee(
+                              for: kind,
+                              requireNonNull: false,
+                              preferStaticPrimitive: true
+                          )
+                    else {
+                        continue
+                    }
+                    let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: boxCallee,
+                        arguments: [operandIDs[index]],
+                        result: boxed,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    operandIDs[index] = boxed
+                }
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
+                    arguments: operandIDs, result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+                return result
+            }
         }
         let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
             || (rhsIsString && lhsIsNullLiteral)
@@ -2192,5 +2291,63 @@ extension CallLowerer {
         case let .invariant(t), let .out(t), let .in(t): return t
         case .star: return nil
         }
+    }
+
+    /// Resolves an AST reference to its `const val` constant for compile-time
+    /// string-concat folding (KUU-1385). Deliberately narrower than
+    /// `propertyConstantInitializers`: Kotlin's constant-expression rules
+    /// admit `const val` reads only — a plain `val` holding a literal is NOT
+    /// a compile-time constant on the JVM (`"x" + s` for `val s = "ab"`
+    /// concatenates at runtime and does not intern).
+    private func compileTimeConstantRef(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> KIRExprKind? {
+        if let constant = sema.bindings.constExprValue(for: exprID) {
+            // `constExprValue` also covers `.constValue`-flagged synthetic
+            // enum entries, whose bound value is the ordinal `.intLiteral`.
+            // Their `===` identity is the enum object and a concatenation
+            // must stringify the entry — never fold the ordinal.
+            let symbol: SymbolID? = switch ast.arena.expr(exprID) {
+            case .nameRef?:
+                sema.bindings.identifierSymbols[exprID]
+            case .memberCall?:
+                sema.bindings.callBindings[exprID]?.chosenCallee
+            default:
+                nil
+            }
+            if let symbol, isEnumEntry(symbol, sema: sema) {
+                return nil
+            }
+            return constant
+        }
+        // Member-access const reads (`O.OC`) never reach `constExprValue`;
+        // resolve them the same way tryLowerObjectMemberPropertyRead does,
+        // restricted to `.constValue` symbols so a plain `val` can never fold.
+        guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
+              args.isEmpty,
+              let chosen = sema.bindings.callBindings[exprID]?.chosenCallee
+                  ?? sema.bindings.identifierSymbol(for: exprID),
+              sema.symbols.symbol(chosen)?.flags.contains(.constValue) == true,
+              !isEnumEntry(chosen, sema: sema)
+        else {
+            return nil
+        }
+        // Mirrors tryFoldConstMemberProperty: a nullable receiver goes
+        // through the safe-call path, never the constant.
+        if let receiverType = sema.bindings.exprTypes[receiver],
+           receiverType != sema.types.makeNonNullable(receiverType)
+        {
+            return nil
+        }
+        return sema.symbols.constValueExprKind(for: chosen)
+    }
+
+    private func isEnumEntry(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        guard let parent = sema.symbols.parentSymbol(for: symbol) else {
+            return false
+        }
+        return sema.symbols.symbol(parent)?.kind == .enumClass
     }
 }
