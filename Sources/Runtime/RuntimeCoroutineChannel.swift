@@ -125,6 +125,13 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     private var receiverQueue = RuntimeFIFOQueue<SuspendedReceiver>()
     private var awaitCloseRegistered = false
     private var awaitCloseSignal: DispatchSemaphore?
+    /// KUU-1439: the CoroutineScope facet minted when this channel backs a
+    /// `produce`/`channelFlow`/`callbackFlow` ProducerScope receiver. The
+    /// runtime hands the raw channel handle to the producer block as `this`,
+    /// so CoroutineScope member calls (`launch`/`async`/`cancel`/`isActive`)
+    /// arrive at the kk_coroutine_scope_* bridges carrying a channel handle;
+    /// `runtimeCoroutineScope(from:)` resolves it back through this link.
+    private var producerScopeStorage: RuntimeCoroutineScope?
 
     // KSP-1573: `invokeOnClose` handlers, as (fnPtr, closureRaw) function-value
     // pairs.  They run exactly once, on the first successful `close()`, with a
@@ -447,6 +454,20 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return closed && buffer.isEmpty && senderQueue.isEmpty
+    }
+
+    /// Bind the producer scope facet (see `producerScopeStorage`). Called once
+    /// at producer launch, before the block observes the channel as `this`.
+    func bindProducerScope(_ scope: RuntimeCoroutineScope) {
+        lock.lock()
+        producerScopeStorage = scope
+        lock.unlock()
+    }
+
+    var producerScope: RuntimeCoroutineScope? {
+        lock.lock()
+        defer { lock.unlock() }
+        return producerScopeStorage
     }
 
     func registerAwaitClose(_ signal: DispatchSemaphore) -> Bool {
@@ -773,22 +794,33 @@ public func __kk_identity(_ value: Int) -> Int {
     value
 }
 
-/// True when `raw` is a GC-registered `RuntimeChannelHandle`.
+/// Resolve a GC-registered `RuntimeChannelHandle` from its raw handle.
 ///
 /// Channel send ABIs take `(handle, value)` where both sides are the same
 /// `Int` slot width; compiled code can reach them with the receiver and the
 /// element in either order, so the callee resolves the handle positionally.
-private func runtimeIsRegisteredChannelHandle(_ raw: Int) -> Bool {
+func runtimeChannelHandleObject(from raw: Int) -> RuntimeChannelHandle? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return false
+        return nil
     }
     let isRegistered = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isRegistered else {
-        return false
+        return nil
     }
-    return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
+    return tryCast(ptr, to: RuntimeChannelHandle.self)
+}
+
+private func runtimeIsRegisteredChannelHandle(_ raw: Int) -> Bool {
+    runtimeChannelHandleObject(from: raw) != nil
+}
+
+/// KUU-1439: the CoroutineScope a channel handle stands in for. Only channels
+/// bound to a `produce`/`channelFlow`/`callbackFlow` producer answer — a plain
+/// `Channel()` keeps resolving to nil so the scope bridges keep rejecting it.
+func runtimeProducerScopeForChannelHandle(_ raw: Int) -> RuntimeCoroutineScope? {
+    runtimeChannelHandleObject(from: raw)?.producerScope
 }
 
 /// Split a `(handle, value)` channel call pair into its parts, tolerating

@@ -3695,6 +3695,64 @@ public func kk_produce(_ entryPointRaw: Int, _ capture0: Int) -> Int {
     return kk_kxmini_produce_with_cont(entryPointRaw, continuation)
 }
 
+/// KUU-1439: mint the CoroutineScope facet a channel-backed ProducerScope
+/// resolves to. `produce`/`channelFlow`/`callbackFlow` hand the raw channel
+/// handle to the producer block as `this`, so `CoroutineScope` member calls
+/// (`launch`/`async`/`cancel`/`isActive`) reach the `kk_coroutine_scope_*`
+/// bridges carrying a channel handle. Binding the minted scope on the channel
+/// lets `runtimeCoroutineScope(from:)` resolve it. The scope adopts the
+/// producer job so the child context's Job is the producer's own and a
+/// producer cancellation cascades into children launched on it.
+private func runtimeBindProducerScope(
+    channelHandle: Int,
+    job: RuntimeJobHandle,
+    context: RuntimeCoroutineContext
+) {
+    guard let channel = runtimeChannelHandleObject(from: channelHandle) else { return }
+    let scope = RuntimeCoroutineScope(context: context)
+    scope.adoptJob(job)
+    channel.bindProducerScope(scope)
+}
+
+/// Producer coroutine context for launchers without a continuation state:
+/// the caller scope's dispatcher/name/handler/extras with the producer Job in
+/// the Job slot — the same shape `makeContinuationContext()` yields.
+private func runtimeProducerContext(
+    job: RuntimeJobHandle,
+    inherited: RuntimeCoroutineContext?
+) -> RuntimeCoroutineContext {
+    let extras = runtimeMergedContextExtras(
+        inherited: inherited?.extras ?? [],
+        override: [],
+        jobPresent: true,
+        namePresent: inherited?.name != nil,
+        dispatcherPresent: (inherited?.dispatcher ?? 0) != 0
+            || (inherited?.dispatcherHandleRaw ?? 0) != 0,
+        handlerPresent: inherited?.exceptionHandler != nil
+    )
+    // Same event-loop fallback as makeContinuationContext: a producer launched
+    // on a runBlocking-bound coroutine exposes the loop as its interceptor.
+    var dispatcherHandleRaw = inherited?.dispatcherHandleRaw ?? 0
+    if (inherited?.dispatcher ?? 0) == 0, dispatcherHandleRaw == 0,
+       !extras.contains(where: {
+           $0.key == kk_continuation_interceptor_key()
+               || $0.key == kk_coroutine_dispatcher_key()
+       }),
+       let elementRaw = RuntimeEventLoop.current?.elementHandle()
+    {
+        dispatcherHandleRaw = elementRaw
+    }
+    return RuntimeCoroutineContext(
+        dispatcher: inherited?.dispatcher ?? 0,
+        name: inherited?.name,
+        exceptionHandler: inherited?.exceptionHandler,
+        jobHandleRaw: job.identityHandle,
+        nameHandleRaw: inherited?.nameHandleRaw ?? 0,
+        dispatcherHandleRaw: dispatcherHandleRaw,
+        extras: extras
+    )
+}
+
 /// Launch a producer on a channel with the requested buffering policy.
 /// `channelFlow` and `callbackFlow` use the Kotlin buffered default, while
 /// `produce` retains its rendezvous behavior through the public wrapper below.
@@ -3725,6 +3783,12 @@ func runtimeKxMiniProduceWithCont(
     }
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
+        // The ProducerScope receiver is the raw channel handle; mint its
+        // CoroutineScope facet so the kk_coroutine_scope_* bridges resolve it.
+        runtimeBindProducerScope(
+            channelHandle: channelHandle, job: job,
+            context: contState.makeContinuationContext()
+        )
     }
 
     KxMiniRuntime.launch {
@@ -5109,6 +5173,10 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
     job.markStarted()
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))
+    runtimeBindProducerScope(
+        channelHandle: channelHandle, job: job,
+        context: runtimeProducerContext(job: job, inherited: callerScope?.context)
+    )
 
     // Expand the env slot into the thunk's positional captures: 0 → none, a
     // packed env object (kk_object_new(2+N, classID: 0), captures at slots
@@ -5226,6 +5294,10 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     callerScope?.registerChild(Int(bitPattern: jobPtr))
     contState.scope = callerScope
     contState.eventLoop = RuntimeEventLoop.current
+    runtimeBindProducerScope(
+        channelHandle: channelHandle, job: job,
+        context: contState.makeContinuationContext()
+    )
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
