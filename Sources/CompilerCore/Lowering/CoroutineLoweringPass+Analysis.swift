@@ -488,6 +488,8 @@ extension CoroutineLoweringPass {
             Set([value])
         case let .copy(from, _):
             Set([from])
+        case let .storeGlobal(value, _):
+            Set([value])
         case let .rethrow(value):
             Set([value])
         default:
@@ -513,6 +515,8 @@ extension CoroutineLoweringPass {
             return ids
         case let .copy(_, to):
             return Set([to])
+        case let .loadGlobal(result, _):
+            return Set([result])
         default:
             return []
         }
