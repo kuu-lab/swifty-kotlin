@@ -190,5 +190,18 @@ struct DeclarationBoundaryTests {
         """
         #expect(nodeCount(source, kind: .enumEntry) == 2)
     }
+
+    @Test
+    func testParameterNamedContextOnNewlineDoesNotTerminateParameterList() {
+        let source = """
+        fun run(
+            context: Any = 1,
+            block: () -> Unit
+        ): Unit {}
+        """
+        let parsed = parse(source)
+        #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
+        #expect(nodeCount(source, kind: .funDecl) == 1)
+    }
 }
 #endif

@@ -439,6 +439,12 @@ extension DataFlowSemaPhase {
                             paths.append(importDecl.path)
                         }
                     }
+                    // Wildcard imports: when an unaliased import path does not match
+                    // the short name directly, treat it as a package import and
+                    // probe `importDecl.path + path`.
+                    for importDecl in imports where importDecl.alias == nil && importDecl.path.last != shortName {
+                        paths.append(importDecl.path + path)
+                    }
                 }
                 // An unqualified root symbol is the final fallback. This ordering
                 // keeps an explicit import from being shadowed by a compatibility

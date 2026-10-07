@@ -366,6 +366,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        symbols.insertFlags([.openType, .abstractType], for: dispatcherSymbol)
         let channelSymbol = ensureClassSymbol(
             named: "Channel",
             in: channelsPkg,

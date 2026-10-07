@@ -333,6 +333,9 @@ extension KotlinParser {
             }
             return isDeclarationStart(token.kind)
         }
+        if case .softKeyword(.context) = token.kind {
+            return stream.peek(1).kind == .symbol(.lParen)
+        }
         return isDeclarationStart(token.kind)
     }
 
