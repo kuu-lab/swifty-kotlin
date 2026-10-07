@@ -364,7 +364,8 @@ struct BuildASTBodyParsingRegressionTests {
                 }
 
                 #expect(function.annotations.count == 1)
-                #expect(function.annotations[0].name == "JvmStatic")
+                let annotation = try #require(function.annotations.first)
+                #expect(annotation.name == "JvmStatic")
             }
 
             do {
