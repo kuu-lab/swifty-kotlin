@@ -49,13 +49,17 @@ extension LambdaLowerer {
                 let parameterKind = index < receiverCount
                     ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
                     : 2 // VALUE
+                let reflectedType = callableReflectionParameterType(type, isVararg: vararg, sema: sema, interner: interner)
+                let reflectedTypeName = vararg
+                    ? callableReflectionTypeName(of: reflectedType, sema: sema, interner: interner)
+                    : sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
                 let args = [integer(index), name.map(string) ?? {
                     let null = arena.appendExpr(.null, type: sema.types.nullableAnyType)
                     instructions.append(.constValue(result: null, value: .null))
                     return null
-                }(), string(sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)),
+                }(), string(reflectedTypeName),
                 integer(parameterFlags), integer(parameterKind),
-                integer(Int(RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner))),
+                integer(Int(RuntimeTypeCheckToken.encode(type: reflectedType, sema: sema, interner: interner))),
                 integer(Int((targetSymbol ?? callableSymbol).rawValue) * 2 + (isSetter ? 1 : 0) + 1)]
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
@@ -302,5 +306,96 @@ extension LambdaLowerer {
             body: body, isSuspend: false, isInline: false
         ))))
         return arena.appendExpr(.symbolRef(symbol), type: sema.types.anyType)
+    }
+}
+
+private func callableReflectionParameterType(
+    _ elementType: TypeID,
+    isVararg: Bool,
+    sema: SemaModule,
+    interner: StringInterner
+) -> TypeID {
+    guard isVararg else { return elementType }
+    if let primitiveArray = primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner) {
+        return primitiveArray
+    }
+    guard let arraySymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]) else {
+        return elementType
+    }
+    return sema.types.make(.classType(ClassType(classSymbol: arraySymbol, args: [.out(elementType)])))
+}
+
+/// Renders callable parameter metadata with the fully-qualified type notation used by KType.
+private func callableReflectionTypeName(
+    of type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> String {
+    func nullabilitySuffix(_ nullability: Nullability) -> String {
+        nullability == .nullable ? "?" : ""
+    }
+
+    func typeArgumentName(_ argument: TypeArg) -> String {
+        switch argument {
+        case let .invariant(type):
+            callableReflectionTypeName(of: type, sema: sema, interner: interner)
+        case let .out(type):
+            "out \(callableReflectionTypeName(of: type, sema: sema, interner: interner))"
+        case let .in(type):
+            "in \(callableReflectionTypeName(of: type, sema: sema, interner: interner))"
+        case .star:
+            "*"
+        }
+    }
+
+    switch sema.types.kind(of: type) {
+    case .error:
+        return "<error>"
+    case .unit:
+        return "kotlin.Unit"
+    case .nullableUnit:
+        return "kotlin.Unit?"
+    case let .nothing(nullability):
+        return "kotlin.Nothing\(nullabilitySuffix(nullability))"
+    case let .any(nullability):
+        return "kotlin.Any\(nullabilitySuffix(nullability))"
+    case let .stringStruct(nullability):
+        return "kotlin.String\(nullabilitySuffix(nullability))"
+    case let .primitive(primitive, nullability):
+        return "kotlin.\(primitive.kotlinName)\(nullabilitySuffix(nullability))"
+    case let .classType(classType):
+        let className = sema.symbols.symbol(classType.classSymbol)
+            .map { $0.fqName.map(interner.resolve).joined(separator: ".") }
+            .flatMap { $0.isEmpty ? nil : $0 }
+            ?? sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
+        let arguments = classType.args.isEmpty
+            ? ""
+            : "<" + classType.args.map(typeArgumentName).joined(separator: ", ") + ">"
+        return "\(className)\(arguments)\(nullabilitySuffix(classType.nullability))"
+    case let .typeParam(typeParameter):
+        let name = sema.symbols.symbol(typeParameter.symbol).map { interner.resolve($0.name) } ?? "T"
+        return "\(name)\(nullabilitySuffix(typeParameter.nullability))"
+    case let .functionType(functionType):
+        let contextPrefix = functionType.contextReceivers.isEmpty
+            ? ""
+            : "context(" + functionType.contextReceivers
+                .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+                .joined(separator: ", ") + ") "
+        let receiverPrefix = functionType.receiver
+            .map { "\(callableReflectionTypeName(of: $0, sema: sema, interner: interner))." } ?? ""
+        let suspendPrefix = functionType.isSuspend ? "suspend " : ""
+        let parameters = functionType.params
+            .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+            .joined(separator: ", ")
+        let returnType = callableReflectionTypeName(of: functionType.returnType, sema: sema, interner: interner)
+        let functionName = "\(contextPrefix)\(suspendPrefix)\(receiverPrefix)(\(parameters)) -> \(returnType)"
+        return functionType.nullability == .nullable ? "(\(functionName))?" : functionName
+    case let .intersection(types):
+        return types
+            .map { callableReflectionTypeName(of: $0, sema: sema, interner: interner) }
+            .joined(separator: " & ")
+    case let .kClassType(kClassType):
+        let argument = callableReflectionTypeName(of: kClassType.argument, sema: sema, interner: interner)
+        return "kotlin.reflect.KClass<\(argument)>\(nullabilitySuffix(kClassType.nullability))"
     }
 }
