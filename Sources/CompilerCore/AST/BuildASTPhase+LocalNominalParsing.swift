@@ -19,8 +19,39 @@ extension BuildASTPhase {
         astArena: ASTArena,
         diagnostics: DiagnosticEngine?
     ) -> ExprID? {
-        guard let headIndex = localNominalDeclHeadIndex(in: tokens, interner: interner),
-              localNominalDeclExpectsName(at: headIndex, in: tokens),
+        guard let headIndex = localNominalDeclHeadIndex(in: tokens, interner: interner)
+        else {
+            return nil
+        }
+        // KUU-1407: `interface`, `enum class` and `companion object` heads are
+        // rejected outright inside function bodies on JVM. Returning an empty
+        // block expression swallows the tokens so the generic expression
+        // fallback does not re-parse the body and cascade secondary errors.
+        func rejectedPlaceholder() -> ExprID {
+            astArena.appendExpr(.blockExpr(
+                statements: [], trailingExpr: nil,
+                range: SourceRange(start: tokens[headIndex].range.start, end: tokens[headIndex].range.end)
+            ))
+        }
+        switch tokens[headIndex].kind {
+        case .keyword(.interface):
+            diagnoseLocalInterface(at: headIndex, in: tokens, interner: interner, diagnostics: diagnostics)
+            return rejectedPlaceholder()
+        case .keyword(.fun) where headIndex + 1 < tokens.count
+            && tokens[headIndex + 1].kind == .keyword(.interface):
+            diagnoseLocalInterface(at: headIndex + 1, in: tokens, interner: interner, diagnostics: diagnostics)
+            return rejectedPlaceholder()
+        case .keyword(.companion):
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0401",
+                "modifier 'companion' is not applicable inside 'function'.",
+                range: tokens[headIndex].range
+            )
+            return rejectedPlaceholder()
+        default:
+            break
+        }
+        guard localNominalDeclExpectsName(at: headIndex, in: tokens),
               let first = tokens.first,
               let last = tokens.last
         else {
@@ -49,18 +80,51 @@ extension BuildASTPhase {
             case .objectDecl:
                 declID = astArena.appendDecl(.objectDecl(
                     BuildASTPhase(diagnostics: diagnostics).makeObjectDecl(
-                        from: childID, in: parsed.arena, interner: interner, astArena: astArena
+                        from: childID, in: parsed.arena, interner: interner, astArena: astArena,
+                        companionSiteName: "local object"
                     )
                 ))
             default:
                 continue
             }
+            // KUU-1407: validate the local declaration's own modifiers (e.g.
+            // `sealed class` / `enum class` / visibility) and its members.
+            DeclarationPositionValidator(
+                astArena: astArena, interner: interner, diagnostics: diagnostics
+            ).validate(declID: declID, site: .function)
             return astArena.appendExpr(.localNominalDecl(
                 declID: declID,
                 range: SourceRange(start: first.range.start, end: last.range.end)
             ))
         }
         return nil
+    }
+
+    /// Emits the JVM-parity diagnostic for a local `interface` declaration.
+    private static func diagnoseLocalInterface(
+        at index: Int,
+        in tokens: [Token],
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine?
+    ) {
+        var name = ""
+        if index + 1 < tokens.count {
+            switch tokens[index + 1].kind {
+            case .identifier(let interned), .backtickedIdentifier(let interned):
+                name = interner.resolve(interned)
+            case .keyword(let keyword):
+                name = keyword.rawValue
+            case .softKeyword(let soft):
+                name = soft.rawValue
+            default:
+                break
+            }
+        }
+        diagnostics?.error(
+            "KSWIFTK-SEMA-0429",
+            "interface '\(name)' cannot be local. Try to use an anonymous object or abstract class instead.",
+            range: tokens[index].range
+        )
     }
 
     /// Scans the leading annotation / modifier prefix of a statement token
@@ -102,15 +166,25 @@ extension BuildASTPhase {
         at index: Int,
         in tokens: [Token]
     ) -> Bool {
+        let nameIndex: Int
         switch tokens[index].kind {
         case .keyword(.class), .keyword(.object):
-            break
+            nameIndex = index + 1
+        case .keyword(.enum):
+            // `enum class X` is parsed as a class carrying the enum modifier;
+            // the declaration-level check rejects it as a local class.
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .keyword(.class)
+            else {
+                return false
+            }
+            nameIndex = index + 2
         default:
             return false
         }
-        guard index + 1 < tokens.count else {
+        guard nameIndex < tokens.count else {
             return false
         }
-        return TypeRefParserCore.isDeclarationNameToken(tokens[index + 1].kind)
+        return TypeRefParserCore.isDeclarationNameToken(tokens[nameIndex].kind)
     }
 }

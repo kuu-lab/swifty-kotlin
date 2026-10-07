@@ -13,6 +13,9 @@ extension BuildASTPhase {
         var startIndex = 0
         var isSuspend = false
         var isInfix = false
+        var hasOperator = false
+        var hasExternal = false
+        var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(keyword)
@@ -21,6 +24,9 @@ extension BuildASTPhase {
                 isSuspend = true
             }
             if keyword == .infix { isInfix = true }
+            if keyword == .operator { hasOperator = true }
+            if keyword == .external { hasExternal = true }
+            leadingModifiers.append((keyword.rawValue, statementTokens[startIndex].range))
             startIndex += 1
         }
 
@@ -33,6 +39,26 @@ extension BuildASTPhase {
         else {
             return nil
         }
+        // KUU-1407: local functions accept only `suspend`/`infix`/`operator`/
+        // `tailrec` modifiers on JVM; `inline` gets its own error.
+        for modifier in leadingModifiers {
+            switch modifier.name {
+            case "suspend", "infix", "operator", "tailrec":
+                continue
+            case "inline":
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0400",
+                    "local inline functions are not yet supported.",
+                    range: modifier.range
+                )
+            default:
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0400",
+                    "modifier '\(modifier.name)' is not applicable to 'local function'.",
+                    range: modifier.range
+                )
+            }
+        }
 
         let funTokens = Array(statementTokens[startIndex...])
 
@@ -43,6 +69,16 @@ extension BuildASTPhase {
               let name = internedIdentifier(from: nameToken, interner: interner)
         else {
             return nil
+        }
+
+        if hasOperator,
+           !DeclarationPositionValidator.isLegalOperatorName(interner.resolve(name))
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0416",
+                "'operator' modifier is not applicable: illegal function name.",
+                range: nameToken.range
+            )
         }
 
         let receiverType = declarationReceiverType(from: funTokens, interner: interner, astArena: astArena)
@@ -101,6 +137,15 @@ extension BuildASTPhase {
             )
         } else {
             body = .unit
+        }
+
+        let isSyntheticAnonymous = interner.resolve(name).hasPrefix("__AnonymousFunction_")
+        if body == .unit, !hasExternal, !isSyntheticAnonymous {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0426",
+                "function '\(interner.resolve(name))' must have a body.",
+                range: head.range
+            )
         }
 
         let end: SourceLocation = switch body {

@@ -9,10 +9,12 @@ extension BuildASTPhase {
             return nil
         }
         var startIndex = 0
+        var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(kw) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(kw)
         {
+            leadingModifiers.append((kw.rawValue, statementTokens[startIndex].range))
             startIndex += 1
         }
         guard startIndex < statementTokens.count else {
@@ -28,6 +30,7 @@ extension BuildASTPhase {
         default:
             return nil
         }
+        validateLocalVariableModifiers(leadingModifiers, isMutable: isMutable)
 
         // Check for destructuring declaration: val (a, b) = expr
         if let destructuringResult = Self.parseDestructuringDeclarationExpr(
@@ -92,17 +95,23 @@ extension BuildASTPhase {
     /// Parse destructuring declaration: `val (a, b, _) = expr` from a whole
     /// statement token group, skipping any leading declaration modifiers.
     /// Returns nil if the tokens don't match the destructuring pattern.
+    /// `suppressesLocalModifierDiagnostics` is set when the same token group is
+    /// re-parsed as an anonymous-object member prefix, where visibility
+    /// modifiers are legal and handled by the member-property builder.
     static func parseDestructuringDeclarationStatement(
         from statementTokens: [Token],
         interner: StringInterner,
         astArena: ASTArena,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        suppressesLocalModifierDiagnostics: Bool = false
     ) -> ExprID? {
         var startIndex = 0
+        var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(keyword)
         {
+            leadingModifiers.append((keyword.rawValue, statementTokens[startIndex].range))
             startIndex += 1
         }
         guard startIndex < statementTokens.count else {
@@ -116,6 +125,9 @@ extension BuildASTPhase {
             isMutable = true
         default:
             return nil
+        }
+        if !suppressesLocalModifierDiagnostics {
+            diagnoseLocalVariableModifiers(leadingModifiers, isMutable: isMutable, diagnostics: diagnostics)
         }
         return parseDestructuringDeclarationExpr(
             from: statementTokens,
@@ -264,5 +276,38 @@ extension BuildASTPhase {
             initializer: initializerExpr,
             range: range
         ))
+    }
+
+    /// KUU-1407: local variables reject every declaration modifier except
+    /// `lateinit` on `var`s (JVM reports them as compile errors).
+    private func validateLocalVariableModifiers(
+        _ modifiers: [(name: String, range: SourceRange)],
+        isMutable: Bool
+    ) {
+        Self.diagnoseLocalVariableModifiers(modifiers, isMutable: isMutable, diagnostics: diagnostics)
+    }
+
+    static func diagnoseLocalVariableModifiers(
+        _ modifiers: [(name: String, range: SourceRange)],
+        isMutable: Bool,
+        diagnostics: DiagnosticEngine?
+    ) {
+        for modifier in modifiers {
+            if modifier.name == "lateinit" {
+                if !isMutable {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0418",
+                        "'lateinit' modifier is allowed only on mutable properties.",
+                        range: modifier.range
+                    )
+                }
+                continue
+            }
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0400",
+                "modifier '\(modifier.name)' is not applicable to 'local variable'.",
+                range: modifier.range
+            )
+        }
     }
 }

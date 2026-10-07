@@ -435,7 +435,7 @@ extension BuildASTPhase {
         switch kind {
         case .statement, .propertyDecl, .loopStmt,
              .ifExpr, .whenExpr, .tryExpr, .callExpr,
-             .funDecl, .classDecl, .objectDecl:
+             .funDecl, .classDecl, .objectDecl, .interfaceDecl:
             true
         default:
             false

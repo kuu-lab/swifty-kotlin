@@ -441,6 +441,24 @@ final class ExprTypeChecker {
                     )
                 }
             }
+            // KUU-1407: flag `is` checks that can never succeed because both
+            // sides are incompatible final/value types ("check for instance
+            // is always 'false'").
+            if subjectType != sema.types.errorType, targetType != sema.types.errorType {
+                let subjectNonNull = sema.types.makeNonNullable(subjectType)
+                let targetNonNull = sema.types.makeNonNullable(targetType)
+                let nullEscape = sema.types.nullability(of: subjectType) == .nullable
+                    && sema.types.nullability(of: targetType) == .nullable
+                if !nullEscape,
+                   isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
+                {
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0415",
+                        "check for instance is always 'false'.",
+                        range: range
+                    )
+                }
+            }
             sema.bindings.bindIsCheckTargetType(id, type: targetType)
             _ = negated
             _ = targetType
@@ -565,8 +583,19 @@ final class ExprTypeChecker {
         case let .whenExpr(subjectID, branches, elseExpr, range):
             return driver.controlFlowChecker.inferWhenExpr(id, subjectID: subjectID, branches: branches, elseExpr: elseExpr, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
-        case let .throwExpr(value, _):
-            _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
+        case let .throwExpr(value, range):
+            let operandType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
+            // KUU-1407: `throw` operands must be a subtype of `Throwable`.
+            if operandType != sema.types.errorType,
+               let throwableType = driver.helpers.throwableType(sema: sema, interner: ctx.interner),
+               !sema.types.isSubtype(operandType, throwableType)
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0414",
+                    "type mismatch: inferred type is '\(sema.types.renderType(operandType))', but 'Throwable' was expected.",
+                    range: range
+                )
+            }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
             return sema.types.nothingType
 
@@ -1776,6 +1805,66 @@ final class ExprTypeChecker {
             return []
         }
         return [site]
+    }
+
+    /// Whether a `subject is target` check can never succeed: neither type
+    /// is a subtype of the other and at least one side is a final/value
+    /// type (so no subtype could satisfy both).
+    private func isDefinitelyDisjoint(subject: TypeID, target: TypeID, sema: SemaModule) -> Bool {
+        let types = sema.types
+        if types.isSubtype(subject, target) || types.isSubtype(target, subject) {
+            return false
+        }
+        // Generic shapes and type parameters defeat the nominal disjointness
+        // argument: star projections, variance and erased types are not
+        // compared precisely here, and a type parameter may still be
+        // instantiated to the target type.
+        if hasImpreciseIsCheckShape(subject, sema: sema) || hasImpreciseIsCheckShape(target, sema: sema) {
+            return false
+        }
+        return isFinalForIsCheck(subject, sema: sema) || isFinalForIsCheck(target, sema: sema)
+    }
+
+    /// Types whose nominal disjointness cannot be decided reliably: type
+    /// parameters, generic class applications, intersections and function
+    /// types. Flagging those as "always false" would produce false positives
+    /// (e.g. `x: SharedFlow<T> is SubscribedSharedFlow<*>` is a real runtime
+    /// check even though subtype inference cannot relate the two here).
+    private func hasImpreciseIsCheckShape(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .typeParam, .functionType, .intersection:
+            return true
+        case .classType(let classType):
+            return !classType.args.isEmpty
+        default:
+            return false
+        }
+    }
+
+    /// Whether `type` is a final (non-extensible) type for `is`-check
+    /// disjointness purposes: primitives, `String`/`Unit`, and closed
+    /// nominal declarations. Interfaces, open/abstract/sealed classes,
+    /// type parameters and erased shapes return `false` so subtypes can
+    /// still satisfy the check.
+    private func isFinalForIsCheck(_ type: TypeID, sema: SemaModule) -> Bool {
+        switch sema.types.kind(of: type) {
+        case .primitive, .stringStruct, .unit:
+            return true
+        case .classType(let classType):
+            guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                return false
+            }
+            switch symbol.kind {
+            case .class, .enumClass, .object, .annotationClass:
+                return !symbol.flags.contains(.openType)
+                    && !symbol.flags.contains(.abstractType)
+                    && !symbol.flags.contains(.sealedType)
+            default:
+                return false
+            }
+        default:
+            return false
+        }
     }
 
     /// Resolves a suffixed unsigned integer literal against an expected unsigned

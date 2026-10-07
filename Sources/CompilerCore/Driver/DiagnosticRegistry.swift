@@ -742,6 +742,186 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "@DslMarker restriction: implicit access to outer receiver is prohibited when an inner receiver shares the same DSL marker."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0400",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Modifier is not applicable to this declaration kind."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0401",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Modifier is not applicable inside this declaration kind."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0402",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Two modifiers on the same declaration are mutually incompatible."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0403",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "const 'val' is only allowed on top level, in named objects, in companion objects or companion blocks."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0404",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Data class must have at least one primary constructor parameter."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0405",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Enum classes cannot extend classes."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0406",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Functional interface must have exactly one abstract function."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0407",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Functional interface cannot have abstract properties."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0408",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Anonymous initializers in interfaces are prohibited."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0409",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Interfaces cannot have constructors."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0410",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "actual declaration has no corresponding expected declaration."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0411",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Invalid type of annotation member."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0412",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "There is a cycle in the delegation calls chain."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0413",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Catch parameter type is not a subtype of Throwable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0414",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Throw operand type is not a subtype of Throwable."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0415",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Check for instance is always 'false' because the types are incompatible."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0416",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'operator' modifier is not applicable: illegal function name."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0417",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Constructors are not allowed for objects."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0418",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'lateinit' modifier is allowed only on mutable properties."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0419",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Members are prohibited in annotation classes."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0420",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Value class can be only final."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0421",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'val' keyword is missing in annotation parameter."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0422",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Value class cannot be local or inner."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0423",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Value class primary constructor must only have final read-only ('val') property parameters."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0424",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Property must be initialized or be abstract."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0425",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Extension property must have accessors or be abstract."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0426",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Function is declared without a body where a body is required."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0427",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An annotation parameter cannot be 'var'."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0428",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Abstract members in interfaces cannot be private."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0429",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Declaration kind cannot be local."
+        ),
     ]
 
     // MARK: - Type resolution pass (TYPE)
