@@ -2499,6 +2499,43 @@ final class CallTypeChecker {
                 expectedTypeOverrides[index] = substitutedType
             }
         }
+        // A single outer candidate provides an unambiguous expected type for
+        // each nested call argument. Forward it before eager inference so
+        // `accept(Box(Impl()))` can infer `Box<Thing>` from `accept`'s
+        // `Box<Thing>` parameter instead of committing to invariant `Box<Impl>`.
+        // With multiple candidates, their parameter types may differ and must
+        // not steer a shared argument toward one overload.
+        if candidates.count == 1,
+           let candidate = candidates.first,
+           let signature = sema.symbols.functionSignature(for: candidate)
+        {
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            for index in args.indices {
+                guard isInferableNestedCallExpr(args[index].expr, ast: ast),
+                      let parameterIndex = parameterIndexForCallArgument(
+                          at: index,
+                          label: args[index].label,
+                          in: signature,
+                          sema: sema
+                      ),
+                      parameterIndex < signature.parameterTypes.count
+                else {
+                    continue
+                }
+                let parameterType = signature.parameterTypes[parameterIndex]
+                guard !ctx.resolver.containsTypeVariable(
+                    parameterType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: sema.types
+                ) else {
+                    continue
+                }
+                if let existing = expectedTypeOverrides[index], existing != parameterType {
+                    continue
+                }
+                expectedTypeOverrides[index] = parameterType
+            }
+        }
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType
         {
