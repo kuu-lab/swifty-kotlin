@@ -332,36 +332,17 @@ extension ExprLowerer {
                     } else {
                         calleeSymbol.name
                     }
-                    // A member callee (`c.run { m }`) must dispatch through the
-                    // vtable/itable like the explicit `c.m` member call;
-                    // extension callees keep static dispatch with the receiver
-                    // as the first argument.
-                    if let dispatch = driver.callLowerer.resolveVirtualDispatch(
-                        callee: chosenCallee,
-                        receiverTypeID: nonNullReceiverType,
-                        sema: sema,
-                        interner: interner
-                    ) {
-                        instructions.append(.virtualCall(
-                            symbol: chosenCallee,
-                            callee: loweredCallee,
-                            receiver: receiverExprID,
-                            arguments: [],
-                            result: result,
-                            canThrow: true,
-                            thrownResult: nil,
-                            dispatch: dispatch
-                        ))
-                    } else {
-                        instructions.append(.call(
-                            symbol: chosenCallee,
-                            callee: loweredCallee,
-                            arguments: [receiverExprID],
-                            result: result,
-                            canThrow: true,
-                            thrownResult: nil
-                        ))
-                    }
+                    // Facade callees are package-level extension functions —
+                    // statically dispatched with the implicit receiver as the
+                    // first argument.
+                    instructions.append(.call(
+                        symbol: chosenCallee,
+                        callee: loweredCallee,
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
                     return result
                 }
                 // Enum entry body functions use the enum value itself as

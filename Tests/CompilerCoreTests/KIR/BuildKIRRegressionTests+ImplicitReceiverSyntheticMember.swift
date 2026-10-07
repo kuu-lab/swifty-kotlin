@@ -41,42 +41,47 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// Kotlin requires invocation syntax for functions (`m()`), so a bare
-    /// user-declared extension function on the implicit receiver must not be
-    /// invoked through the property-style path — only bundled stdlib
-    /// declarations participate in that facade. The name falls back to a raw
-    /// `symbolRef` (the pre-existing behavior for unresolved property-style
-    /// reads; real kotlinc rejects this program outright).
-    @Test func testImplicitReceiverUserExtensionFunctionIsNotInvoked() throws {
+    /// Kotlin requires invocation syntax for functions (`f()`), so bare
+    /// ordinary functions on the implicit receiver must not be invoked
+    /// through the property-style path — only the bundled property facades
+    /// (`lastIndex`/`indices`/`javaClass`) participate. This covers both a
+    /// user-declared extension and a bundled non-facade function sharing the
+    /// `kotlin.collections` package and index with the facades; kotlinc
+    /// rejects both programs outright.
+    @Test func testImplicitReceiverOrdinaryFunctionsAreNotInvoked() throws {
         let ctx = makeContextFromSource("""
         fun <T> List<T>.myProp(): Int = 99
 
         fun main() {
             val l = listOf(1, 2, 3)
             println(l.run { myProp })
+            println(l.run { first })
         }
         """)
         try runToKIR(ctx)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
-        let myPropSymbol = try #require(sema.symbols.lookupByShortName(
+        let forbidden = Set(sema.symbols.lookupByShortName(
             ctx.interner.intern("myProp")
-        ).first { symbol in
-            sema.symbols.symbol(symbol)?.kind == .function
-        })
+        ) + sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("first"),
+        ]))
+        #expect(!forbidden.isEmpty)
         let functions = findAllKIRFunctions(in: module)
         #expect(!functions.contains { function in
             function.body.contains { instruction in
-                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
-                return symbol == myPropSymbol
+                switch instruction {
+                case let .call(symbol, _, _, _, _, _, _, _):
+                    return symbol.map { forbidden.contains($0) } == true
+                case let .virtualCall(symbol, _, _, _, _, _, _, _):
+                    return symbol.map { forbidden.contains($0) } == true
+                default:
+                    return false
+                }
             }
-        }, "user-declared extension functions must not be invoked property-style")
-        #expect(!functions.contains { function in
-            function.body.contains { instruction in
-                guard case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction else { return false }
-                return symbol == myPropSymbol
-            }
-        })
+        }, "ordinary functions must not be invoked through the property-style path")
     }
 }
 #endif

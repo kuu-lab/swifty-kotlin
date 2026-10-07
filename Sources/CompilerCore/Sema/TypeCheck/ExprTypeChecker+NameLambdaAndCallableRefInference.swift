@@ -1154,13 +1154,23 @@ extension ExprTypeChecker {
         // implicit receiver as the callee's first argument — the same shape
         // the explicit `this.lastIndex` member-call form produces.
         //
-        // The property-style facade is a bundled-stdlib convention, so the
-        // candidate set is confined to bundled declarations (source or
-        // imported stdlib artifact). Ordinary member functions
-        // (`c.run { m }`) and user-declared extension functions are excluded:
-        // Kotlin requires `m()`/`f()` invocation syntax for them, and the
-        // explicit `c.m` acceptance is a separate pre-existing deviation.
+        // The property-style facade is a bundled-stdlib convention for the
+        // upstream extension *properties* the bundled parser cannot declare
+        // on generic receivers. The bundled source models exactly three
+        // names this way today — `List/Array/Collection.lastIndex`,
+        // `List/Array/Collection.indices` (Stdlib/kotlin/collections/) and
+        // `Any.javaClass` (Stdlib/kotlin/JavaClass.kt) — so the candidate
+        // set is confined to those names on bundled declarations (source or
+        // imported stdlib artifact). Ordinary functions (`first`, `count`,
+        // member `c.run { m }`, user extensions) keep Kotlin's invocation
+        // syntax requirement and are excluded; the explicit `c.m`
+        // acceptance is a separate pre-existing deviation (KUU-1453).
         if implicitMemberType == nil {
+            let propertyFacadeNames: Set<InternedString> = [
+                ctx.interner.intern("lastIndex"),
+                ctx.interner.intern("indices"),
+                ctx.interner.intern("javaClass"),
+            ]
             var seenPropertyStyleCandidates: Set<SymbolID> = []
             let scopedIDs = ctx.cachedScopeLookup(name) + sema.symbols.lookupByShortName(name)
             let (visibleIDs, _) = ctx.filterByVisibility(scopedIDs)
@@ -1168,6 +1178,7 @@ extension ExprTypeChecker {
                 guard seenPropertyStyleCandidates.insert(candidate).inserted,
                       let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
+                      propertyFacadeNames.contains(symbol.name),
                       sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.isEmpty,
