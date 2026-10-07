@@ -3759,6 +3759,20 @@ private func runtimeBindProducerScope(
     context: RuntimeCoroutineContext
 ) {
     guard let channel = runtimeChannelHandleObject(from: channelHandle) else { return }
+    let producerScopeTypeID = runtimeStableNominalTypeID(
+        fqName: "kotlinx.coroutines.channels.ProducerScope"
+    )
+    runtimeRegisterObjectType(rawValue: channelHandle, classID: producerScopeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: producerScopeTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineScope")
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: producerScopeTypeID,
+        parentTypeID: runtimeStableNominalTypeID(
+            fqName: "kotlinx.coroutines.channels.SendChannel"
+        )
+    )
     let scope = RuntimeCoroutineScope(context: context)
     scope.adoptJob(job)
     channel.bindProducerScope(scope)

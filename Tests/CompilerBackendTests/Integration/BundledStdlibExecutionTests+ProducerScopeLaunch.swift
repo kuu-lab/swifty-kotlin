@@ -8,6 +8,45 @@ import Testing
 // pin the fixed behaviour end-to-end: the scope bridges resolve the channel
 // back to the CoroutineScope facet the producer launcher bound to it.
 extension BundledStdlibExecutionTests {
+    /// The raw channel handle used for a ProducerScope receiver must retain
+    /// the scope's nominal interfaces for Kotlin `is` checks.
+    @Test(arguments: [true, false])
+    func testProducerScopeIsChecksMatchNominalInterfaces(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.*
+            import kotlinx.coroutines.flow.*
+
+            fun printProducerScopeTypes(scope: ProducerScope<*>) {
+                println(scope is CoroutineScope)
+                println(scope is SendChannel<*>)
+            }
+
+            fun main() = runBlocking {
+                callbackFlow<Int> {
+                    printProducerScopeTypes(this)
+                    close()
+                }.collect { }
+                channelFlow<Int> {
+                    printProducerScopeTypes(this)
+                    close()
+                }.collect { }
+                val producer = produce<Int> {
+                    printProducerScopeTypes(this)
+                    close()
+                }
+                producer.cancel()
+            }
+            """,
+            expectedOutput: "true\ntrue\ntrue\ntrue\ntrue\ntrue\n",
+            moduleName: "KUU1449ProducerScopeIs",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     /// Minimal reproduction from the issue: `launch` inside `callbackFlow`'s
     /// producer block plus `awaitClose` used to crash before the block ran.
     /// `channelFlow` shares the same launcher, so it is pinned alongside.
