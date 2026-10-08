@@ -1477,7 +1477,7 @@ private func kirFindMatchingMethod(
     return arityMatch ?? firstCandidate
 }
 
-private func kirAlignedOverrideParameterTypes(
+func kirAlignedOverrideParameterTypes(
     interfaceSignature: FunctionSignature,
     candidateSignature: FunctionSignature,
     interfaceOwner: SymbolID?,
@@ -1521,7 +1521,7 @@ private func kirAlignedOverrideParameterTypes(
 /// same-named function on the class. Type parameters are treated as
 /// wildcards on either side since a generic interface method's parameter
 /// type may not be reified the same way on the implementing side.
-private func kirOverrideParameterTypesMatch(
+func kirOverrideParameterTypesMatch(
     candidateParameterTypes: [TypeID],
     interfaceParameterTypes: [TypeID],
     types: TypeSystem

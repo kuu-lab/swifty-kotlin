@@ -557,6 +557,20 @@ if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
 
+# A single candidate-only target has no JVM reference by design. Delegate
+# before kotlinc/JDK discovery, cache fingerprinting, and JVM warm-up so this
+# path remains usable without any reference toolchain installed.
+if [[ -f "$TARGET" ]] && is_candidate_only_case "$TARGET"; then
+  export KSWIFTC DIFF_KSWIFTC_FLAGS
+  export DIFF_COMPILE_TIMEOUT="$COMPILE_TIMEOUT"
+  export DIFF_RUN_TIMEOUT="$RUN_TIMEOUT"
+  export DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT"
+  export DIFF_STDLIB_LIBRARY
+  export DIFF_CANDIDATE_ONLY_KEEP_TEMP="$KEEP_TEMP"
+  export TIMEOUT="$TIMEOUT_CMD"
+  exec bash "$SCRIPT_DIR/run_candidate_only.sh" "$TARGET"
+fi
+
 # Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
 # warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
 # output, so this is deliberately absent from the reference-cache fingerprint.
@@ -1416,6 +1430,14 @@ SKIPPED=0
 if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
+    if is_candidate_only_case "$test_case"; then
+      echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      SKIPPED=$((SKIPPED + 1))
+      if [[ -n "$REPORT_PATH" ]]; then
+        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+      fi
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       echo "SKIP $test_case (// SKIP-DIFF)"
       SKIPPED=$((SKIPPED + 1))
@@ -1450,6 +1472,11 @@ else
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
+    if is_candidate_only_case "$test_case"; then
+      CASE_KIND[$i]="CANDIDATE-ONLY"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       CASE_KIND[$i]="SKIP"
       SKIPPED=$((SKIPPED + 1))
@@ -1491,8 +1518,12 @@ else
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if [[ "${CASE_KIND[$i]:-}" == "SKIP" ]]; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+      if [[ "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+        echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      else
+        echo "SKIP $test_case (// SKIP-DIFF)"
+      fi
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
       fi

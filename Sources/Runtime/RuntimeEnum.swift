@@ -1,4 +1,10 @@
 
+struct RuntimeEnumValueDescriptor {
+    let ordinal: Int
+    let name: String
+    let classID: Int64
+}
+
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 
 @_cdecl("kk_enum_valueOf_throw")
@@ -50,6 +56,48 @@ public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int) -> Int {
     let safeCount = max(0, min(count, values.count))
     let box = RuntimeArrayBox(length: safeCount)
     box.values = Array(values.values.prefix(safeCount))
+    return registerRuntimeObject(box)
+}
+
+/// Registers boxed enum values for a reified `enumValues<T>()` call whose T is
+/// only available as a runtime token inside a non-inline function.
+@_cdecl("kk_enum_register_values")
+public func kk_enum_register_values(_ typeToken: Int, _ valuesRaw: Int, _ count: Int) -> Int {
+    guard let values = runtimeArrayBox(from: valuesRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_enum_register_values received an invalid array")
+    }
+    let safeCount = max(0, min(count, values.count))
+    let descriptors = values.values.prefix(safeCount).map { value -> RuntimeEnumValueDescriptor in
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: value.legacyRawValue),
+              let box = tryCast(pointer, to: RuntimeIntBox.self),
+              let name = box.enumEntryName,
+              let classID = box.enumClassID
+        else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_enum_register_values received an invalid enum entry")
+        }
+        return RuntimeEnumValueDescriptor(ordinal: box.value, name: name, classID: classID)
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.enumValuesByTypeToken[Int64(typeToken)] = descriptors
+    }
+    return 0
+}
+
+/// Returns a fresh Array<T> using the enum values registered for its reified
+/// type token. Kotlin's enumValues<T>() returns a new array on each call.
+@_cdecl("kk_enum_values_for_token")
+public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
+    guard let values = runtimeStorage.withMetadataLock({ $0.enumValuesByTypeToken[Int64(typeToken)] }) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: enumValues received an unregistered enum type token \(typeToken)")
+    }
+    let handles = values.map { value in
+        registerTaggedRuntimeObject(
+            RuntimeIntBox(value.ordinal, enumEntryName: value.name, enumClassID: value.classID),
+            typeID: value.classID
+        )
+    }
+    let box = RuntimeArrayBox(length: handles.count)
+    box.elements = handles
     return registerRuntimeObject(box)
 }
 
