@@ -20,9 +20,9 @@ struct IterableIteratorSourceMigrationTests {
             #expect(info.flags.contains(.operatorFunction))
             let file = try #require(sema.symbols.sourceFileID(for: member))
             #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/collections/Iterable.kt")
-            #expect(sema.symbols.externalLinkName(for: member) == "kk_iterable_iterator")
+            #expect(sema.symbols.externalLinkName(for: member) == runtimeABIName(.iterableIterator))
             // KsSymbolName calls take their exception channel from RuntimeABI.
-            let bridge = try #require(RuntimeABISpec.byName["kk_iterable_iterator"])
+            let bridge = try #require(RuntimeABISpec.byName[runtimeABIName(.iterableIterator)])
             #expect(bridge.isThrowing)
         }
     }
