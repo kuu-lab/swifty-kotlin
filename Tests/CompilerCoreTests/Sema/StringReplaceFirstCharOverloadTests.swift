@@ -90,6 +90,24 @@ struct StringReplaceFirstCharOverloadTests {
         let userFileID = try #require(ctx.sourceManager.fileIDs().first {
             ctx.sourceManager.origin(of: $0) == .user
         })
+        let titlecaseRefExprID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, range) = ast.arena.expr(exprID),
+                  ctx.interner.resolve(member) == "titlecase",
+                  range.start.file == userFileID
+            else {
+                return nil
+            }
+            return exprID
+        }.first)
+        guard case let .symbol(titlecaseTargetID)? = sema.bindings.callableTargets[titlecaseRefExprID],
+              let titlecaseTarget = sema.symbols.symbol(titlecaseTargetID)
+        else {
+            Issue.record("Char::titlecase should bind to a callable target")
+            return
+        }
+        #expect(titlecaseTarget.fqName.map(ctx.interner.resolve) == ["kotlin", "text", "titlecase"])
+        #expect(sema.symbols.functionSignature(for: titlecaseTargetID)?.receiverType == sema.types.charType)
         let charSequenceSymbol = try #require(
             sema.symbols.lookup(fqName: ["kotlin", "CharSequence"].map(ctx.interner.intern))
         )
