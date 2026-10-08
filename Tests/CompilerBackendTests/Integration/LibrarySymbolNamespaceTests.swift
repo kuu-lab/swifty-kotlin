@@ -32,8 +32,12 @@ struct LibrarySymbolNamespaceTests {
             })
             let linkName = try #require(record.externalLinkName)
             let kir = try #require(context.kir)
+            let sema = try #require(context.sema)
+            let functionSymbol = try #require(sema.symbols.lookup(fqName: [
+                context.interner.intern(packageName), context.interner.intern("libraryValue"),
+            ]))
             let function = try #require(findAllKIRFunctions(in: kir).first {
-                context.interner.resolve($0.name) == "libraryValue"
+                $0.symbol == functionSymbol
             })
             #expect(linkName == CodegenSymbolSupport.cFunctionSymbol(
                 for: function, interner: context.interner, moduleName: module,

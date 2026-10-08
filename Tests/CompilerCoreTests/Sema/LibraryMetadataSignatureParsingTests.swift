@@ -35,18 +35,18 @@ struct LibraryMetadataSignatureParsingTests {
                 importedInlineFunctions: ImportedInlineFunctionStore()
             )
             #expect(!diagnostics.hasError)
-            let owner = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "Owner" })
-            let add = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "add" })
-            let other = try #require(symbols.allSymbols().first { interner.resolve($0.name) == "other" })
-            #expect(symbols.memberExtensionOwnerSymbol(for: add.id) == owner.id)
-            #expect(symbols.memberExtensionOwnerSymbol(for: other.id) == owner.id)
-            let stub = SyntheticSymbolScheme.defaultStubSymbol(for: add.id)
+            let owner = try #require(symbols.lookup(fqName: ["receivers", "Owner"].map(interner.intern)))
+            let add = try #require(symbols.lookup(fqName: ["receivers", "Owner", "add"].map(interner.intern)))
+            let other = try #require(symbols.lookup(fqName: ["receivers", "Owner", "other"].map(interner.intern)))
+            #expect(symbols.memberExtensionOwnerSymbol(for: add) == owner)
+            #expect(symbols.memberExtensionOwnerSymbol(for: other) == owner)
+            let stub = SyntheticSymbolScheme.defaultStubSymbol(for: add)
             let signature = try #require(symbols.functionSignature(for: stub))
             #expect(signature.receiverType == nil)
             #expect(signature.parameterTypes.count == 4)
             let dispatchType = try #require(signature.parameterTypes.first)
             if case let .classType(classType) = types.kind(of: dispatchType) {
-                #expect(classType.classSymbol == owner.id)
+                #expect(classType.classSymbol == owner)
             } else {
                 Issue.record("Expected the dispatch receiver before the extension receiver")
             }
@@ -153,9 +153,9 @@ struct LibraryMetadataSignatureParsingTests {
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
             #expect(warnings.count == 1, "Expected a single malformed-signature warning for recursion depth, got: \(diagnostics.diagnostics.map(\.code))")
-            let xSymbol = symbols.allSymbols().first { symbol in
-                interner.resolve(symbol.name) == "x" && symbol.kind == .property
-            }
+            let xSymbol = symbols.lookupAll(fqName: ["deepnest", "x"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { symbol in symbol.kind == .property }
             #expect(xSymbol != nil, "Property symbol should still be imported despite the malformed signature")
         }
     }
@@ -256,9 +256,9 @@ struct LibraryMetadataSignatureParsingTests {
 
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
             #expect(warnings.isEmpty, "Expected a 63-deep nullable signature to parse within the depth limit: \(diagnostics.diagnostics.map(\.code))")
-            let xSymbol = symbols.allSymbols().first { symbol in
-                interner.resolve(symbol.name) == "x" && symbol.kind == .property
-            }
+            let xSymbol = symbols.lookupAll(fqName: ["atdepth", "x"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { symbol in symbol.kind == .property }
             #expect(xSymbol != nil, "Property 'x' should be imported")
         }
     }
@@ -309,12 +309,12 @@ struct LibraryMetadataSignatureParsingTests {
             let warnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0003" }
             #expect(warnings.isEmpty, "Expected Byte/Short signatures to parse without malformed-signature warnings: \(diagnostics.diagnostics.map(\.code))")
 
-            let byteX = symbols.allSymbols().first { symbol in
-                interner.resolve(symbol.name) == "x" && symbol.kind == .property
-            }
-            let shortY = symbols.allSymbols().first { symbol in
-                interner.resolve(symbol.name) == "y" && symbol.kind == .property
-            }
+            let byteX = symbols.lookupAll(fqName: ["byte", "x"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { symbol in symbol.kind == .property }
+            let shortY = symbols.lookupAll(fqName: ["short", "y"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { symbol in symbol.kind == .property }
             #expect(byteX != nil, "Property 'x' should be imported")
             #expect(shortY != nil, "Property 'y' should be imported")
             #expect(byteX.map({ symbols.propertyType(for: $0.id) }) == types.byteType, "Byte signature should resolve to byteType")
