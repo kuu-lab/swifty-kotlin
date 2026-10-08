@@ -93,5 +93,14 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰
 
 - `callsinplace_definite_assignment.kt`: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE / AT_LEAST_ONCE) }` を持つ呼び出し（自作関数、および `run`/`with`/`let`/`apply`/`also`）のラムダ引数内で行う outer `var` への代入を、呼び出し元の definite assignment 解析が初期化済みとして扱う parity
+- `stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicInt` の candidate-only runtime parity。`DIFF_CANDIDATE_ONLY` 指定ケースは sibling `.expected` と stdout を照合し、通常の diff harness でも JVM reference を呼ばずに実行する
 
 The set intentionally includes both successful programs and compile-error cases.
+
+Run a candidate-only case directly, without kotlinc or Java:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt
+```
+
+The expected stdout is stored beside the case as `.expected`. In a regular diff run, `// DIFF_CANDIDATE_ONLY` automatically selects this path.
