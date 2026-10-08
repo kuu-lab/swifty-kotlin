@@ -17,17 +17,24 @@ struct CoroutineNominalSourceTests {
             let start = try #require(sema.symbols.lookup(fqName: [
                 "kotlinx", "coroutines", "Job", "start",
             ].map(ctx.interner.intern)))
-            #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+            #expect(sema.symbols.externalLinkName(for: start) == runtimeABIName(.jobStart))
             #expect(sema.symbols.symbol(start)?.flags.contains(.synthetic) == true)
         }
     }
 
     @Test
     func nominalHierarchyAndConstructorsResolveFromBundledSource() throws {
+        // Keep the qualified super-call regression independent of JobImpl's body.
         let source = """
         import kotlin.coroutines.*
         import kotlinx.coroutines.*
         import kotlinx.coroutines.internal.ScopeCoroutine
+
+        class JobSupportProbe : JobSupport(true), CompletableJob {
+            override fun complete(): Boolean = complete(Unit)
+            override fun completeExceptionally(exception: Throwable): Boolean =
+                super<JobSupport>.completeExceptionally(exception)
+        }
 
         fun job(parent: Job?): CompletableJob = JobImpl(parent)
         fun child(job: JobSupport): ChildJob = job
@@ -95,7 +102,9 @@ struct CoroutineNominalSourceTests {
         #expect(sema.symbols.symbol(jobSupport)?.flags.contains(.abstractType) == true)
         let ast = try #require(ctx.ast)
         let jobSupportCalls = memberCallExprIDs(named: "completeExceptionally", in: ast, interner: ctx.interner).filter { call in
-            guard case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
+            guard let range = ast.arena.exprRange(call),
+                  ctx.options.inputs.contains(ctx.sourceManager.path(of: range.start.file)),
+                  case let .memberCall(receiver, _, _, _, _) = ast.arena.expr(call),
                   case let .superRef(qualifier?, _) = ast.arena.expr(receiver)
             else { return false }
             return ctx.interner.resolve(qualifier) == "JobSupport"
@@ -114,12 +123,12 @@ struct CoroutineNominalSourceTests {
         })
         let active = try #require(sema.symbols.lookup(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("isActive")]))
         #expect(sema.symbols.parentSymbol(for: active) == job)
-        #expect(sema.symbols.externalLinkName(for: active) == "kk_job_is_active")
+        #expect(sema.symbols.externalLinkName(for: active) == runtimeABIName(.jobIsActive))
         let starts = sema.symbols.lookupAll(fqName: root + [ctx.interner.intern("Job"), ctx.interner.intern("start")])
         #expect(starts.count == 1)
         let start = try #require(starts.first)
         #expect(sema.symbols.parentSymbol(for: start) == job)
-        #expect(sema.symbols.externalLinkName(for: start) == "kk_job_start")
+        #expect(sema.symbols.externalLinkName(for: start) == runtimeABIName(.jobStart))
         let signature = try #require(sema.symbols.functionSignature(for: start))
         #expect(signature.parameterTypes.isEmpty)
         #expect(signature.returnType == sema.types.booleanType)

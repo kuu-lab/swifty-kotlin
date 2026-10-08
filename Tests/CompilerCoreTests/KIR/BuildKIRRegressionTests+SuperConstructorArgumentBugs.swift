@@ -24,7 +24,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let delegatesWithFunctionValue = findAllKIRFunctions(in: module).contains { function in
             let callees = extractCallees(from: function.body, interner: ctx.interner)
-            return callees.contains("kk_function_create_1") && callees.contains("Base$default")
+            return callees.contains(runtimeCallee(.functionCreate1)) && callees.contains("Base$default")
         }
         #expect(delegatesWithFunctionValue)
     }
@@ -51,7 +51,7 @@ extension BuildKIRRegressionTests {
         let delegatesWithFunctionValue = findAllKIRFunctions(in: module).contains { function in
             for (index, instruction) in function.body.enumerated() {
                 guard case let .call(_, callee, _, materialized?, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_function_create_1"
+                      callee == ctx.interner.intern(runtimeCallee(.functionCreate1))
                 else { continue }
                 if function.body.dropFirst(index + 1).contains(where: { instruction in
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
@@ -99,10 +99,10 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
 
         let ctorCallees = findAllKIRFunctions(in: module)
-            .filter { ctx.interner.resolve($0.name) == "MyEx" }
+            .filter { $0.name == ctx.interner.intern("MyEx") }
             .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
-        #expect(ctorCallees.contains("__kk_exception_new_message"), "Got: \(ctorCallees)")
-        #expect(ctorCallees.contains("__kk_throwable_setMessage"), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.exceptionNewMessage)), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.throwableSetMessage)), "Got: \(ctorCallees)")
         #expect(!ctorCallees.contains("<init>"), "Got: \(ctorCallees)")
     }
 
@@ -119,11 +119,11 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
 
         let ctorCallees = findAllKIRFunctions(in: module)
-            .filter { ctx.interner.resolve($0.name) == "E" }
+            .filter { $0.name == ctx.interner.intern("E") }
             .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
-        #expect(ctorCallees.contains("__kk_exception_new_cause"), "Got: \(ctorCallees)")
-        #expect(ctorCallees.contains("__kk_throwable_setCause"), "Got: \(ctorCallees)")
-        #expect(ctorCallees.contains("__kk_throwable_setMessage"), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.exceptionNewCause)), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.throwableSetCause)), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.throwableSetMessage)), "Got: \(ctorCallees)")
     }
 }
 #endif
