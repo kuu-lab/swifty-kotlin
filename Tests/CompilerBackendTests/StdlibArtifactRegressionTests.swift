@@ -3396,6 +3396,157 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-1599: hot flows must keep their collectors registered while they
+    /// wait for updates, deliver emissions to every subscriber, and release
+    /// each subscription on completion or cancellation.
+    @Test(arguments: [false, true])
+    func testHotFlowEmissionsReachLiveCollectors(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            suspend fun awaitCondition(label: String, condition: () -> Boolean) {
+                var remaining = 1000
+                while (remaining > 0 && !condition()) {
+                    delay(1)
+                    remaining -= 1
+                }
+                check(condition()) { "Timed out waiting for $label" }
+            }
+
+            suspend fun awaitJob(label: String, job: Job) {
+                awaitCondition(label) { job.isCompleted }
+                job.join()
+            }
+
+            val shared = MutableSharedFlow<Int>()
+            val sharedCount = shared.subscriptionCount
+            val sharedValues = mutableListOf<Int>()
+            val sharedJob = launch {
+                shared.take(3).collect { sharedValues.add(it) }
+            }
+            awaitCondition("shared subscription") { sharedCount.value == 1 }
+            println("sharedCount=${sharedCount.value}")
+            shared.emit(1)
+            delay(5)
+            shared.emit(2)
+            delay(5)
+            shared.emit(3)
+            awaitJob("shared take completion", sharedJob)
+            println("shared=${sharedValues}")
+            println("sharedCountAfter=${sharedCount.value}")
+
+            val state = MutableStateFlow(0)
+            val stateCount = state.subscriptionCount
+            val stateValues = mutableListOf<Int>()
+            val stateJob = launch {
+                state.take(3).collect { stateValues.add(it) }
+            }
+            awaitCondition("state subscription") { stateCount.value == 1 }
+            println("stateCount=${stateCount.value}")
+            state.value = 1
+            delay(5)
+            state.value = 1
+            delay(5)
+            state.value = 2
+            awaitJob("state take completion", stateJob)
+            println("state=${stateValues}")
+            println("stateCountAfter=${stateCount.value}")
+
+            val multiple = MutableSharedFlow<Int>()
+            val multipleCount = multiple.subscriptionCount
+            val firstValues = mutableListOf<Int>()
+            val secondValues = mutableListOf<Int>()
+            val firstJob = launch {
+                multiple.collect { firstValues.add(it) }
+            }
+            val secondJob = launch {
+                multiple.collect { secondValues.add(it) }
+            }
+            awaitCondition("both shared subscriptions") { multipleCount.value == 2 }
+            println("multipleCount=${multipleCount.value}")
+            multiple.emit(10)
+            delay(5)
+            multiple.emit(20)
+            awaitCondition("both shared collectors receive both values") {
+                firstValues.size == 2 && secondValues.size == 2
+            }
+            firstJob.cancelAndJoin()
+            secondJob.cancelAndJoin()
+            println("multipleFirst=${firstValues}")
+            println("multipleSecond=${secondValues}")
+            println("multipleCountAfter=${multipleCount.value}")
+
+            val operators = MutableSharedFlow<Int>()
+            val operatorValues = mutableListOf<Int>()
+            val operatorJob = launch {
+                operators.drop(1).take(2).collect { operatorValues.add(it) }
+            }
+            awaitCondition("operator subscription") { operators.subscriptionCount.value == 1 }
+            operators.emit(4)
+            delay(5)
+            operators.emit(5)
+            delay(5)
+            operators.emit(6)
+            awaitJob("drop/take completion", operatorJob)
+            println("dropTake=${operatorValues}")
+
+            val latest = MutableSharedFlow<Int>()
+            val latestCount = latest.subscriptionCount
+            val latestValues = mutableListOf<Int>()
+            val latestFinished = CompletableDeferred<Int>()
+            val latestJob = launch {
+                latest.collectLatest { value ->
+                    if (value == 1) delay(80)
+                    latestValues.add(value)
+                    if (value == 3) latestFinished.complete(value)
+                }
+            }
+            awaitCondition("collectLatest subscription") { latestCount.value == 1 }
+            println("latestCount=${latestCount.value}")
+            latest.emit(1)
+            delay(10)
+            latest.emit(2)
+            delay(100)
+            latest.emit(3)
+            awaitCondition("collectLatest third value") { latestFinished.isCompleted }
+            println("latestFinished=${latestFinished.await()}")
+            latestJob.cancelAndJoin()
+            println("latest=${latestValues}")
+            println("latestCountAfter=${latestCount.value}")
+
+            val sharingScope = CoroutineScope(Job())
+            val defaultReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly)
+            val explicitReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly, replay = 3)
+            awaitCondition("explicit replay cache") { explicitReplay.replayCache.size == 3 }
+            println("defaultReplay=${defaultReplay.replayCache}")
+            println("explicitReplay=${explicitReplay.replayCache}")
+            sharingScope.cancel()
+        }
+        """
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            sharedCount=1
+            shared=[1, 2, 3]
+            sharedCountAfter=0
+            stateCount=1
+            state=[0, 1, 2]
+            stateCountAfter=0
+            multipleCount=2
+            multipleFirst=[10, 20]
+            multipleSecond=[10, 20]
+            multipleCountAfter=0
+            dropTake=[5, 6]
+            latestCount=1
+            latestFinished=3
+            latest=[2, 3]
+            latestCountAfter=0
+            defaultReplay=[]
+            explicitReplay=[1, 2, 3]\n
+            """)
+    }
+
     @Test(arguments: [false, true])
     func testSnapshotFlowAPIs(fromSource: Bool) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
