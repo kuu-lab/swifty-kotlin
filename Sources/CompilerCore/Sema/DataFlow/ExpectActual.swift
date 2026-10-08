@@ -131,6 +131,13 @@ extension DataFlowSemaPhase {
                 types: types
             )
             return expect.flags.contains(.mutable) == actual.flags.contains(.mutable)
+                && expectActualOptionalTypeMatch(
+                    symbols.extensionPropertyReceiverType(for: expect.id),
+                    symbols.extensionPropertyReceiverType(for: actual.id),
+                    typeParamMapping: typeParamMapping,
+                    symbols: symbols,
+                    types: types
+                )
                 && expectActualTypesMatch(
                     expectType,
                     actualType,

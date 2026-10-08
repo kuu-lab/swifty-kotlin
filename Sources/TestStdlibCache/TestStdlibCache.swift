@@ -155,20 +155,7 @@ public final class TestStdlibCache: @unchecked Sendable {
     private static func contentKey() -> String {
         let manifestHash = BundledStdlib.manifestHash()
         let fingerprint = currentCompilerFingerprint() ?? "unknown"
-        return stableFNV1a64Hex("\(manifestHash)|\(fingerprint)")
-    }
-
-    /// Same FNV-1a construction as `BundledStdlib.manifestHash()`, reimplemented
-    /// locally since that one is private to its type. Folds an arbitrary,
-    /// not-necessarily-filename-safe string (the fingerprint embeds a
-    /// floating-point timestamp) into a fixed-length hex token.
-    private static func stableFNV1a64Hex(_ string: String) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01B3
-        }
-        return String(format: "%016llx", hash)
+        return StableFNV1a64.hex("\(manifestHash)|\(fingerprint)")
     }
 
     /// A cheap fingerprint (mtime + size) of the `KSwiftKPackageTests` test

@@ -10,11 +10,7 @@ enum CodegenRuntimeSupport {
     }
 
     static func stableFNV1a64Hex(_ value: String) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01B3
-        }
-        return String(hash, radix: 16)
+        // Generated identifiers and runtime lock/file names retain their historical minimal-width format.
+        StableFNV1a64.hex(value, zeroPadded: false)
     }
 }

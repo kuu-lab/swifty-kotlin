@@ -31,6 +31,13 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return isHeld
     }
 
+    /// Check the recorded owner by identity without changing the mutex state.
+    func holdsLock(owner: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return owner != 0 && isHeld && self.owner == owner
+    }
+
     /// Try to acquire the lock without suspending.
     /// Returns `true` if the lock was acquired, `false` otherwise.
     func tryLock() -> Bool {
@@ -379,6 +386,17 @@ public func __kk_mutex_isLocked(_ handle: Int) -> Int {
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
     return mutex.isLocked ? 1 : 0
+}
+
+// KUU-1659: Mutex.holdsLock(owner) observes the current owner token by
+// identity, under the same lock as isHeld, without changing either value.
+@_cdecl("__kk_mutex_holdsLock")
+public func __kk_mutex_holdsLock(_ handle: Int, _ owner: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_holdsLock received invalid mutex handle")
+    }
+    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return mutex.holdsLock(owner: runtimeMutexNormalizeOwner(owner)) ? 1 : 0
 }
 
 @_cdecl("__kk_semaphore_create")
