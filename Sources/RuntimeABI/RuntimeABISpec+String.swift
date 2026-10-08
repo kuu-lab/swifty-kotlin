@@ -1173,6 +1173,27 @@ public extension RuntimeABISpec {
             section: "Enum",
             isThrowing: false
         ),
+        // KUU-1462: runtime-token dispatch for enumValues<T>() in a noinline lambda.
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_register_values",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "valuesRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_values_for_token",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
         // ENUM-002: T.entries — returns EnumEntries<T> (List)
         RuntimeABIFunctionSpec(
             name: "kk_enum_make_entries_list",
