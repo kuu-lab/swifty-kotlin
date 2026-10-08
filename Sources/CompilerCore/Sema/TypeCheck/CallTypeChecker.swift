@@ -1829,6 +1829,20 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
+            if let receiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                allCallCandidates.contains { candidate in
+                    guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: entry.type,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }) {
+                callImplicitReceiverType = receiverEntry.type
+            }
             // @DslMarker restriction: filter out candidates that belong to an
             // outer receiver class that shares a DslMarker annotation with the
             // current implicit receiver.
@@ -2680,7 +2694,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
-            receiverType: ctx.implicitReceiverType,
+            receiverType: callImplicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
