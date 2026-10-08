@@ -6,7 +6,7 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
-| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` plus candidate-only expected-output cases; persists failure artifacts |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
@@ -165,6 +165,25 @@ Run all tracked regression cases:
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
+
+### Candidate-only expected-output runs
+
+For a JVM-inapplicable API, pass one `.kt` file to `--candidate-only` and add
+an adjacent `<file.kt>.expected` fixture containing its expected stdout. This
+mode compiles and runs only with `kswiftc`; it does not check or start kotlinc,
+Java, or a JVM reference. Mark the source with
+`// DIFF-CANDIDATE-ONLY: <reason>` to route it through the same expected-output
+comparison when the regular diff suite encounters it. A file still marked
+`SKIP-DIFF` also needs `--force-run-skipped` for an explicit candidate-only run:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only --compile-timeout 600 \
+  Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_AtomicIntArray_n.kt
+```
+
+The expected-output fixture is newline-delimited text and is compared after
+CRLF normalization. The explicit candidate-only option accepts a single `.kt`
+file so each fixture is explicit and independently reviewable.
 
 `diff_kotlinc.sh` detects imports in the target file or recursively in a target
 directory and downloads JVM reference jars from Maven Central:

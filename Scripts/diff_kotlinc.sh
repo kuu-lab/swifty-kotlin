@@ -57,6 +57,7 @@ LAST_ARTIFACT_DIR=""
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_kotlinc}"
 DIFF_STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
 FORCE_RUN_SKIPPED=0
+CANDIDATE_ONLY=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
@@ -105,6 +106,8 @@ Options:
                      Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
+  --candidate-only   Run one .kt file with kswiftc and compare stdout with
+                     the adjacent <file.kt>.expected fixture (no JVM reference)
   --clean-runtime-cache
                      Remove .runtime-build before running diff cases
   -h, --help         Show this help
@@ -279,6 +282,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --force-run-skipped)
       FORCE_RUN_SKIPPED=1
+      ;;
+    --candidate-only)
+      CANDIDATE_ONLY=1
       ;;
     --clean-runtime-cache)
       CLEAN_RUNTIME_CACHE=1
@@ -553,6 +559,17 @@ if [[ -z "$TARGET" ]]; then
   exit 1
 fi
 
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  if [[ ! -f "$TARGET" || "$TARGET" != *.kt ]]; then
+    echo "--candidate-only requires one existing .kt file: $TARGET" >&2
+    exit 1
+  fi
+  if [[ ! -f "$TARGET.expected" ]]; then
+    echo "Expected-output fixture not found: $TARGET.expected" >&2
+    exit 1
+  fi
+fi
+
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
@@ -560,30 +577,32 @@ fi
 # Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
 # warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
 # output, so this is deliberately absent from the reference-cache fingerprint.
-if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
   export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
 fi
 
-ensure_kotlinc_classpath
+if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+  ensure_kotlinc_classpath
 
-# Runs after ensure_kotlinc_classpath (which may have just populated
-# KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
-# (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
-# --kotlinc-classpath), so it sees final values for both instead of racing
-# either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
-# is what keeps a user- or coroutines-supplied classpath intact.
-KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
-KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
-KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
-for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_JAR"; do
-  if [[ -n "$runtime_jar" ]]; then
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
-    else
-      KOTLINC_CLASSPATH="$runtime_jar"
+  # Runs after ensure_kotlinc_classpath (which may have just populated
+  # KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
+  # (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
+  # --kotlinc-classpath), so it sees final values for both instead of racing
+  # either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
+  # is what keeps a user- or coroutines-supplied classpath intact.
+  KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
+  KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
+  KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
+  for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_JAR"; do
+    if [[ -n "$runtime_jar" ]]; then
+      if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+        KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
+      else
+        KOTLINC_CLASSPATH="$runtime_jar"
+      fi
     fi
-  fi
-done
+  done
+fi
 
 # DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
 # Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
@@ -650,7 +669,7 @@ if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
 
-if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   echo "unzip command not found: unzip" >&2
   exit 1
 fi
@@ -659,8 +678,19 @@ fi
 # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
 # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
 # which produces spurious FAILs against kswiftc. CI pins java-version 21.
-require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
-  "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  if ! [[ -x "$KSWIFTC" ]]; then
+    echo "kswiftc not found or not executable: $KSWIFTC" >&2
+    exit 1
+  fi
+  if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
+    echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+    exit 1
+  fi
+else
+  require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
+    "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
+fi
 
 warm_kotlinc() {
   local warm_timeout
@@ -804,7 +834,9 @@ store_kotlinc_ref_cache() {
   fi
 }
 
-configure_kotlinc_ref_cache
+if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+  configure_kotlinc_ref_cache
+fi
 
 # Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
 # else auto-detected CPU count (fallback 4).
@@ -883,15 +915,24 @@ echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  echo "Execution mode: candidate-only (expected output fixture)"
+else
+  echo "Execution mode: kotlinc reference vs kswiftc candidate"
+fi
 echo "kswiftc flags: ${DIFF_KSWIFTC_FLAGS:-<none>}"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
-if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
-  echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  echo "Kotlinc/JVM reference: not used"
 else
-  echo "Kotlinc reference cache: disabled"
+  if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+    echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
+  else
+    echo "Kotlinc reference cache: disabled"
+  fi
+  echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
+  echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
 fi
-echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
-echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
 if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
 else
@@ -902,7 +943,9 @@ echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
 # not the first kotlinc startup cost.
-warm_kotlinc
+if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+  warm_kotlinc
+fi
 
 # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
 # compile below will reference it with --stdlib-library instead of recompiling
@@ -952,6 +995,11 @@ handle_empty_cases() {
   exit 1
 }
 
+is_candidate_only_case() {
+  local kt_file="$1"
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF-CANDIDATE-ONLY:' "$kt_file"
+}
+
 normalize_text() {
   tr -d '\r'
 }
@@ -989,6 +1037,7 @@ persist_artifacts() {
   local cand_compile_exit="$5"
   local ref_run_exit="$6"
   local cand_run_exit="$7"
+  local candidate_only="$8"
 
   mkdir -p "$ARTIFACT_ROOT"
 
@@ -1000,6 +1049,9 @@ persist_artifacts() {
   mv "$tmp_dir" "$destination"
 
   cp "$case_path" "$destination/input.kt"
+  if [[ "$candidate_only" -eq 1 ]]; then
+    cp "$case_path.expected" "$destination/expected.stdout"
+  fi
 
   local escaped_kswiftc_flags
   printf -v escaped_kswiftc_flags '%q' "$DIFF_KSWIFTC_FLAGS"
@@ -1031,19 +1083,34 @@ kswiftc_flags: $DIFF_KSWIFTC_FLAGS
 kotlinc: $KOTLINC
 java: $JAVA_BIN
 force_run_skipped: $FORCE_RUN_SKIPPED
+execution_mode: $(if [[ "$candidate_only" -eq 1 ]]; then printf 'candidate-only'; else printf 'kotlinc-reference'; fi)
+expected_output: $(if [[ "$candidate_only" -eq 1 ]]; then printf '%s' "$case_path.expected"; else printf 'not-used'; fi)
 clean_runtime_cache: $CLEAN_RUNTIME_CACHE
 EOF
 
-  cat >"$destination/repro.sh" <<EOF
+  if [[ "$candidate_only" -eq 1 ]]; then
+    cat >"$destination/repro.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$ROOT_DIR"
+DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --candidate-only --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
+EOF
+  else
+    cat >"$destination/repro.sh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
 DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
+  fi
   chmod +x "$destination/repro.sh"
 
   safe_diff_to_file "$destination/ref_compile_stderr.norm" "$destination/cand_compile_stderr.norm" "$destination/compile_stderr.diff"
-  safe_diff_to_file "$destination/ref_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+  if [[ "$candidate_only" -eq 1 ]]; then
+    safe_diff_to_file "$destination/expected_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+  else
+    safe_diff_to_file "$destination/ref_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+  fi
   safe_diff_to_file "$destination/ref_run.stderr" "$destination/cand_run.stderr" "$destination/stderr.diff"
 
   LAST_ARTIFACT_DIR="$destination"
@@ -1111,9 +1178,45 @@ compare_run_stdout() {
   return 1
 }
 
+# Compare candidate stdout with the adjacent .expected fixture. The same
+# optional line-pattern normalization used by reference diffs is honored.
+compare_expected_stdout() {
+  local tmp_dir="$1"
+  local kt_file="$2"
+  local line_pattern
+  line_pattern="$(get_diff_line_pattern "$kt_file")"
+  normalize_text <"$kt_file.expected" >"$tmp_dir/expected_run_stdout.norm"
+
+  local expected_path="$tmp_dir/expected_run_stdout.norm"
+  local candidate_path="$tmp_dir/cand_run_stdout.norm"
+  if [[ -n "$line_pattern" ]]; then
+    normalize_stdout_for_diff "$expected_path" "$line_pattern" >"$tmp_dir/expected_run_stdout.pat"
+    normalize_stdout_for_diff "$candidate_path" "$line_pattern" >"$tmp_dir/cand_run_stdout.pat"
+    expected_path="$tmp_dir/expected_run_stdout.pat"
+    candidate_path="$tmp_dir/cand_run_stdout.pat"
+  fi
+
+  if diff -u "$expected_path" "$candidate_path" >/dev/null; then
+    return 0
+  fi
+  echo "  stdout mismatch against expected output:"
+  diff -u "$expected_path" "$candidate_path" || true
+  return 1
+}
+
 run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
+  local candidate_only="$CANDIDATE_ONLY"
+  if [[ "$candidate_only" -eq 0 ]] && is_candidate_only_case "$kt_file"; then
+    candidate_only=1
+  fi
+  LAST_ARTIFACT_DIR=""
+  if [[ "$candidate_only" -eq 1 && ! -f "$kt_file.expected" ]]; then
+    echo "Expected-output fixture not found: $kt_file.expected" >&2
+    return 1
+  fi
+
   local tmp_dir
   tmp_dir="$(mktemp -d -t kswiftk-diff-XXXXXX)"
   LAST_ARTIFACT_DIR="$tmp_dir"
@@ -1149,80 +1252,82 @@ run_case() {
     is_script=1
   fi
 
-  local kotlinc_extra_flags
-  kotlinc_extra_flags="$(read_case_directive_flags "$kt_file" 'KOTLINC_FLAGS')"
+  if [[ "$candidate_only" -eq 0 ]]; then
+    local kotlinc_extra_flags
+    kotlinc_extra_flags="$(read_case_directive_flags "$kt_file" 'KOTLINC_FLAGS')"
 
-  local java_extra_flags
-  java_extra_flags="$(get_java_extra_flags "$kt_file")"
+    local java_extra_flags
+    java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
-  if [[ $is_script -eq 1 ]]; then
-    local kts_tmp="$tmp_dir/${basename%.kt}.kts"
-    cp "$kt_file" "$kts_tmp"
-    # kotlinc -script bundles compile+run into a single JVM process, so there
-    # is no independently observable compile-phase exit to split out here —
-    # ref_compile_exit stays 0 and the whole outcome (success, a compile
-    # error, a runtime exception, or a timeout) lands in ref_run_exit as one
-    # value. Splitting it via a "nonzero exit + empty stdout" heuristic used
-    # to misclassify a runtime exception thrown before any output as a
-    # compile failure; the comparison below (the is_script branch) instead
-    # treats script cases as their own category rather than retrofitting a
-    # compile/run split onto a process that never had one.
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-    else
-      # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-    fi
-  else
-    local cached_ref_jar=""
-    local ref_cache_hit=0
-    if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
-      cached_ref_jar="$(kotlinc_ref_cache_path "$kt_file" "$kotlinc_extra_flags")"
-      if [[ -s "$cached_ref_jar" ]] && cp "$cached_ref_jar" "$ref_jar"; then
-        ref_cache_hit=1
-      fi
-    fi
-
-    if [[ $ref_cache_hit -eq 0 ]]; then
+    if [[ $is_script -eq 1 ]]; then
+      local kts_tmp="$tmp_dir/${basename%.kt}.kts"
+      cp "$kt_file" "$kts_tmp"
+      # kotlinc -script bundles compile+run into a single JVM process, so there
+      # is no independently observable compile-phase exit to split out here —
+      # ref_compile_exit stays 0 and the whole outcome (success, a compile
+      # error, a runtime exception, or a timeout) lands in ref_run_exit as one
+      # value. Splitting it via a "nonzero exit + empty stdout" heuristic used
+      # to misclassify a runtime exception thrown before any output as a
+      # compile failure; the comparison below (the is_script branch) instead
+      # treats script cases as their own category rather than retrofitting a
+      # compile/run split onto a process that never had one.
       if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-        # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
-        # jars (see resolve_kotlinc_lib_jar above) whenever they could be
-        # resolved, so the runtime classes needed by ref_run below are
-        # already on the classpath without repackaging them into ref_jar.
         # shellcheck disable=SC2086
-        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+        "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
       else
         # shellcheck disable=SC2086
-        "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+        "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
       fi
-      if [[ $ref_compile_exit -eq 0 && -n "$cached_ref_jar" && -s "$ref_jar" ]]; then
-        store_kotlinc_ref_cache "$ref_jar" "$cached_ref_jar"
+    else
+      local cached_ref_jar=""
+      local ref_cache_hit=0
+      if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
+        cached_ref_jar="$(kotlinc_ref_cache_path "$kt_file" "$kotlinc_extra_flags")"
+        if [[ -s "$cached_ref_jar" ]] && cp "$cached_ref_jar" "$ref_jar"; then
+          ref_cache_hit=1
+        fi
       fi
-    fi
-    if [[ $ref_compile_exit -eq 0 ]]; then
-      if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-        local main_class
-        main_class="$(jar_main_class "$ref_jar")"
-        if [[ -z "$main_class" ]]; then
-          ref_run_exit=1
-          echo "Missing Main-Class in reference jar manifest." >"$ref_run_stderr"
+
+      if [[ $ref_cache_hit -eq 0 ]]; then
+        if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+          # No -include-runtime: KOTLINC_CLASSPATH includes the stdlib/reflect
+          # jars (see resolve_kotlinc_lib_jar above) whenever they could be
+          # resolved, so the runtime classes needed by ref_run below are
+          # already on the classpath without repackaging them into ref_jar.
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" "$kt_file" -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+        else
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags "$kt_file" -include-runtime -d "$ref_jar" >"$ref_compile_stdout" 2>"$ref_compile_stderr" || ref_compile_exit=$?
+        fi
+        if [[ $ref_compile_exit -eq 0 && -n "$cached_ref_jar" && -s "$ref_jar" ]]; then
+          store_kotlinc_ref_cache "$ref_jar" "$cached_ref_jar"
+        fi
+      fi
+      if [[ $ref_compile_exit -eq 0 ]]; then
+        if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+          local main_class
+          main_class="$(jar_main_class "$ref_jar")"
+          if [[ -z "$main_class" ]]; then
+            ref_run_exit=1
+            echo "Missing Main-Class in reference jar manifest." >"$ref_run_stderr"
+          else
+            if needs_stdin_eof "$kt_file"; then
+              # shellcheck disable=SC2086
+              "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            else
+              # shellcheck disable=SC2086
+              "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            fi
+          fi
         else
           if needs_stdin_eof "$kt_file"; then
             # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           else
             # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           fi
-        fi
-      else
-        if needs_stdin_eof "$kt_file"; then
-          # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-        else
-          # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         fi
       fi
     fi
@@ -1251,7 +1356,23 @@ run_case() {
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  if [[ $is_script -eq 1 ]]; then
+  if [[ "$candidate_only" -eq 1 ]]; then
+    if [[ $cand_compile_exit -ne 0 ]]; then
+      ok=0
+      if [[ $cand_compile_exit -ne 124 ]]; then
+        echo "  candidate compile failed with exit=$cand_compile_exit"
+      fi
+    elif [[ $cand_run_exit -ne 0 ]]; then
+      ok=0
+      if [[ $cand_run_exit -eq 124 ]]; then
+        echo "  candidate run timed out after ${RUN_TIMEOUT}s"
+      else
+        echo "  candidate run failed with exit=$cand_run_exit"
+      fi
+    elif ! compare_expected_stdout "$tmp_dir" "$kt_file"; then
+      ok=0
+    fi
+  elif [[ $is_script -eq 1 ]]; then
     # kotlinc -script never had a separate compile phase to compare (see the
     # is_script branch above), so this is not "ref compile exit vs candidate
     # compile exit" — it's ref's single combined exit vs whichever candidate
@@ -1336,33 +1457,46 @@ run_case() {
 
   if [[ $ok -eq 1 ]]; then
     if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
-      echo "PASS $kt_file"
+      if [[ "$candidate_only" -eq 1 ]]; then
+        echo "PASS $kt_file (candidate-only)"
+      else
+        echo "PASS $kt_file"
+      fi
     fi
   else
     echo "FAIL $kt_file"
-    if [[ $is_script -eq 1 ]]; then
-      # There is no separate ref compile phase for script mode (see the
-      # is_script branch above) — kotlinc -script's only stderr output,
-      # whether from a compile diagnostic or an uncaught runtime exception,
-      # lands in ref_run_stderr.
-      echo "  ref script stderr:"
-      sed -n '1,120p' "$ref_run_stderr"
-    else
-      echo "  ref compile stderr:"
-      sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
-    fi
-    echo "  candidate compile stderr:"
-    sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
-    if [[ $is_script -eq 1 ]]; then
+    if [[ "$candidate_only" -eq 1 ]]; then
+      echo "  candidate compile stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
       if [[ $cand_compile_exit -eq 0 ]]; then
         echo "  candidate run stderr:"
         sed -n '1,120p' "$cand_run_stderr"
       fi
-    elif [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
-      echo "  ref run stderr:"
-      sed -n '1,120p' "$ref_run_stderr"
-      echo "  candidate run stderr:"
-      sed -n '1,120p' "$cand_run_stderr"
+    else
+      if [[ $is_script -eq 1 ]]; then
+        # There is no separate ref compile phase for script mode (see the
+        # is_script branch above) — kotlinc -script's only stderr output,
+        # whether from a compile diagnostic or an uncaught runtime exception,
+        # lands in ref_run_stderr.
+        echo "  ref script stderr:"
+        sed -n '1,120p' "$ref_run_stderr"
+      else
+        echo "  ref compile stderr:"
+        sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
+      fi
+      echo "  candidate compile stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
+      if [[ $is_script -eq 1 ]]; then
+        if [[ $cand_compile_exit -eq 0 ]]; then
+          echo "  candidate run stderr:"
+          sed -n '1,120p' "$cand_run_stderr"
+        fi
+      elif [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
+        echo "  ref run stderr:"
+        sed -n '1,120p' "$ref_run_stderr"
+        echo "  candidate run stderr:"
+        sed -n '1,120p' "$cand_run_stderr"
+      fi
     fi
   fi
 
@@ -1374,7 +1508,8 @@ run_case() {
       "$ref_compile_exit" \
       "$cand_compile_exit" \
       "$ref_run_exit" \
-      "$cand_run_exit"
+      "$cand_run_exit" \
+      "$candidate_only"
     echo "  artifacts: $LAST_ARTIFACT_DIR"
   elif [[ $KEEP_TEMP -eq 0 ]]; then
     rm -rf "$tmp_dir"

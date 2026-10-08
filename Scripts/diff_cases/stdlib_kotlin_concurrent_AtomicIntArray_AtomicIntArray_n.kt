@@ -1,6 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.concurrent atomic APIs are Kotlin/Native-only
-// in Kotlin 2.3.10 and are unavailable in the JVM kotlinc reference environment.
-
+// DIFF-CANDIDATE-ONLY: Kotlin/Native AtomicIntArray has no JVM kotlinc reference.
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 
 import kotlin.concurrent.AtomicIntArray
