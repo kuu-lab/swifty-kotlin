@@ -186,6 +186,8 @@ final class ObjectLiteralLowerer {
         let objectValueType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
         let emittedNominal = ensureObjectLiteralNominalDecl(exprID: exprID, objectSymbol: objectSymbol, arena: arena)
         if emittedNominal {
+            let scopeSnapshot = driver.ctx.saveScope()
+            defer { driver.ctx.restoreScope(scopeSnapshot) }
             lowerObjectLiteralMemberFunctions(
                 objectDecl,
                 ast: ast,
@@ -209,6 +211,21 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
+            let shared = KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            )
+            let forwardingDecls = driver.synthesizeClassDelegationForwardingMethods(
+                classSymbol: objectSymbol, shared: shared, compilationCtx: nil
+            ) + driver.synthesizeClassDelegationForwardingPropertyAccessors(
+                classSymbol: objectSymbol, shared: shared, compilationCtx: nil
+            )
+            for declID in forwardingDecls {
+                driver.ctx.appendGeneratedCallableDecl(declID)
+            }
         }
 
         let intType = sema.types.intType
@@ -312,6 +329,24 @@ final class ObjectLiteralLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        // Initialize each delegate once in header order while the enclosing
+        // receiver is still active, before any property or init block can call it.
+        var delegationBody = KIRLoweringEmitContext(instructions)
+        driver.emitClassDelegationInitializers(
+            ownerSymbol: objectSymbol,
+            receiverID: objectValue,
+            superTypeEntries: objectDecl.superTypeEntries,
+            shared: KIRLoweringSharedContext(
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers
+            ),
+            body: &delegationBody
+        )
+        instructions = delegationBody.instructions
 
         // KSP-CAP-001: materialize outer locals/parameters and any enclosing
         // receiver captured by this object's member functions into instance fields, while the

@@ -25,13 +25,13 @@ struct NamedVarargArgumentParsingTests {
         }
         #expect(args.count == 1)
         let arg = try #require(args.first)
-        #expect(arg.label.map { ctx.interner.resolve($0) } == (named ? "xs" : nil))
+        #expect(arg.label == (named ? ctx.interner.intern("xs") : nil))
         #expect(arg.isSpread == spread)
         guard case let .nameRef(value, _) = ast.arena.expr(arg.expr) else {
             Issue.record("Expected the array expression to remain the argument")
             return
         }
-        #expect(ctx.interner.resolve(value) == "values")
+        #expect(value == ctx.interner.intern("values"))
     }
 }
 #endif

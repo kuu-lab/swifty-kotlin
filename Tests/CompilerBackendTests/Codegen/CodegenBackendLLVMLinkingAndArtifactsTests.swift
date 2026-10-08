@@ -2,7 +2,90 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
+
+private let runtimeLinkNamePrefix = String(RuntimeABISpec.compilerGeneratedLinkNamePrefix.dropLast("fn_".count))
+
+/// Select by operation so public/private ABI demotions do not change the fixture.
+/// Missing or ambiguous entries fail instead of silently dropping coverage.
+private func runtimeLinkName(_ operation: String, section: String? = nil) throws -> String {
+    let declarations = RuntimeABISpec.allFunctions.filter {
+        runtimeOperation(in: $0.name) == operation && (section == nil || $0.section == section)
+    }
+    try #require(declarations.count == 1, "Expected one canonical runtime ABI entry for \(operation)")
+    return try #require(declarations.first).name
+}
+
+private func runtimeOperation(in linkName: String) -> String {
+    let publicName = linkName.hasPrefix("__") ? String(linkName.dropFirst(2)) : linkName
+    return String(publicName.dropFirst(runtimeLinkNamePrefix.count))
+}
+
+private func flatRuntimeLinkName(for linkName: String) throws -> String {
+    let operation = runtimeOperation(in: linkName)
+    if operation.hasSuffix("_flat") {
+        return try #require(RuntimeABIExterns.externDecl(named: linkName)).name
+    }
+    return try runtimeLinkName("\(operation)_flat")
+}
+
+/// Catch removed runtime calls without maintaining a second obsolete ABI inventory.
+private func expectOnlyCanonicalRuntimeCalls(in ir: String) throws {
+    let prefix = NSRegularExpression.escapedPattern(for: runtimeLinkNamePrefix)
+    // Function declarations/calls end in '('. Runtime-prefixed globals are not ABI functions.
+    let pattern = try NSRegularExpression(pattern: "@\"?((?:__)?\(prefix)[A-Za-z0-9_]+)\"?\\(")
+    let names = Set(pattern.matches(in: ir, range: NSRange(ir.startIndex..., in: ir)).compactMap { match in
+        Range(match.range(at: 1), in: ir).map { String(ir[$0]) }
+    })
+    let canonicalNames = Set(RuntimeABIExterns.allExterns.map(\.name))
+    let unknownNames = names.filter {
+        !$0.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix) && !canonicalNames.contains($0)
+    }
+    #expect(unknownNames.isEmpty, "Undeclared runtime ABI symbols in LLVM IR: \(unknownNames.sorted())")
+}
+
+private func expectFlatRuntimeCalls(in ir: String, callees: [String]) throws {
+    try #require(!callees.isEmpty, "Expected a nonempty flat runtime call fixture")
+    try expectOnlyCanonicalRuntimeCalls(in: ir)
+    for flatName in try callees.map(flatRuntimeLinkName) {
+        #expect(ir.contains("@\(flatName)("), "Missing flat runtime call: \(flatName)")
+        let rawOperation = String(runtimeOperation(in: flatName).dropLast("_flat".count))
+        // Resolve raw counterparts independently: their public/private prefix can
+        // differ from the flat entry (for example, String.split).
+        for raw in RuntimeABIExterns.allExterns where runtimeOperation(in: raw.name) == rawOperation {
+            #expect(!ir.contains("@\(raw.name)("), "Unexpected raw runtime call: \(raw.name)")
+        }
+    }
+}
+
+private func expectSourceBackedStringCalls(in ir: String, operations: [String]) throws {
+    try expectNoStringRuntimeCalls(in: ir, operations: operations)
+    for operation in operations {
+        let sourceLinkPrefix = RuntimeABISpec.compilerGeneratedLinkNamePrefix + operation + "_"
+        #expect(ir.contains("@\(sourceLinkPrefix)"), "Missing source-backed String.\(operation) call")
+    }
+}
+
+private func expectNoStringRuntimeCalls(in ir: String, operations: [String]) throws {
+    try expectOnlyCanonicalRuntimeCalls(in: ir)
+    for operation in operations {
+        // Generate the forbidden set from the current spec, including compatibility
+        // entries and any legacy entry reintroduced alongside a backend mapping.
+        for declaration in RuntimeABIExterns.allExterns {
+            let candidateOperation = runtimeOperation(in: declaration.name)
+            if candidateOperation == "string_\(operation)" || candidateOperation.hasPrefix("string_\(operation)_") {
+                #expect(!ir.contains("@\(declaration.name)("), "Unexpected String.\(operation) runtime call")
+            }
+        }
+    }
+}
+
+private func expectStringLengthBuiltinsLowered(in ir: String) {
+    for name in RuntimeABISpec.compilerInternalBuiltinCalleeNames {
+        #expect(!ir.contains("@\(name)("), "String length builtin must lower to aggregate access: \(name)")
+    }
+}
 
 private func runCodegenPipeline(
     inputPath: String,
@@ -101,8 +184,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             #expect(ir.contains("extractvalue"), "String.length should read the aggregate length field")
-            #expect(!ir.contains("@kk_string_struct_get_length"))
-            #expect(!ir.contains("@__kk_string_struct_get_length"))
+            expectStringLengthBuiltinsLowered(in: ir)
         }
     }
 
@@ -129,18 +211,20 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             #expect(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
-            #expect(!ir.contains("@kk_string_struct_get_length"))
-            #expect(!ir.contains("@__kk_string_struct_get_length"))
+            expectStringLengthBuiltinsLowered(in: ir)
         }
     }
 
     @Test
     func testLLVMBackendLowersStringLengthRuntimePrimitiveToAggregateFieldExtract() throws {
+        let lengthPrimitive = try #require(RuntimeABISpec.compilerInternalBuiltinCalleeNames.first {
+            $0.hasPrefix("__") && $0.hasSuffix("_string_struct_get_length")
+        })
         let source = """
-        import kswiftk.internal.__kk_string_struct_get_length
+        import kswiftk.internal.\(lengthPrimitive)
 
         fun lengthViaPrimitive(value: String): Int {
-            return __kk_string_struct_get_length(value)
+            return \(lengthPrimitive)(value)
         }
 
         fun main() {
@@ -162,8 +246,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
             #expect(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
-            #expect(!ir.contains("@kk_string_struct_get_length"))
-            #expect(!ir.contains("@__kk_string_struct_get_length"))
+            expectStringLengthBuiltinsLowered(in: ir)
         }
     }
 
@@ -190,8 +273,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(!ir.contains("@kk_string_struct_get_length"))
-            #expect(!ir.contains("@__kk_string_struct_get_length"))
+            expectStringLengthBuiltinsLowered(in: ir)
         }
     }
 
@@ -238,7 +320,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@__kk_print_raw") || ir.contains("@kk_fn_println_"),
+                ir.contains("@\(try runtimeLinkName("print_raw"))(") || ir.contains("@\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)println_"),
                 "Virtual dispatch String result should reach the print implementation through the stdlib artifact"
             )
         }
@@ -274,9 +356,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(ir.contains("@kk_string_to_flat"))
-            #expect(!ir.contains("@kk_string_struct_get_length"))
-            #expect(!ir.contains("@__kk_string_struct_get_length"))
+            #expect(ir.contains("@\(try runtimeLinkName("string_to_flat"))("))
+            expectStringLengthBuiltinsLowered(in: ir)
         }
     }
 
@@ -310,17 +391,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let removedStems = [
-                "kk_string_startsWith",
-                "kk_string_endsWith",
-                "kk_string_removePrefix",
-                "kk_string_removeSuffix",
-                "kk_string_removeSurrounding",
-            ]
-            for stem in removedStems {
-                #expect(!ir.contains("@\(stem)("), "Unexpected raw String call: \(stem)")
-                #expect(!ir.contains("@\(stem)_flat"), "Unexpected flat String call: \(stem)_flat")
-            }
+            try expectSourceBackedStringCalls(
+                in: ir,
+                operations: ["startsWith", "endsWith", "removePrefix", "removeSuffix", "removeSurrounding"]
+            )
         }
     }
 
@@ -349,20 +423,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(!ir.contains("@kk_string_replaceFirst("), "Unexpected raw source-backed replaceFirst call")
-            #expect(!ir.contains("@kk_string_replaceFirst_flat"), "Unexpected flat source-backed replaceFirst call")
-
-            // KSP-406: replaceRange / removeRange are bundled Kotlin source and no
-            // longer lower to a String-specific runtime helper (raw or flat).
-            let removedStems = [
-                "kk_string_replaceRange",
-                "kk_string_removeRange",
-                "kk_string_removeRange_range",
-            ]
-            for stem in removedStems {
-                #expect(!ir.contains("@\(stem)("), "Unexpected raw String range call: \(stem)")
-                #expect(!ir.contains("@\(stem)_flat"), "Unexpected flat String range call: \(stem)_flat")
-            }
+            try expectSourceBackedStringCalls(in: ir, operations: ["replaceFirst", "replaceRange", "removeRange"])
         }
     }
 
@@ -389,15 +450,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let sourceBackedNames = [
-                "kk_string_replace_char",
-                "kk_string_replace_ignoreCase",
-                "kk_string_replace_char_ignoreCase",
-            ]
-            for rawName in sourceBackedNames {
-                #expect(!ir.contains("@\(rawName)("), "Unexpected raw source-backed String replace call: \(rawName)")
-                #expect(!ir.contains("@\(rawName)_flat"), "Unexpected flat source-backed String replace call: \(rawName)_flat")
-            }
+            try expectSourceBackedStringCalls(in: ir, operations: ["replace"])
         }
     }
 
@@ -425,10 +478,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(!ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
-            #expect(!ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
-            #expect(ir.contains("@kk_string_ifBlank_flat"), "Expected flat String ifBlank compatibility call")
-            #expect(ir.contains("@kk_string_ifEmpty_flat"), "Expected flat String ifEmpty compatibility call")
+            let flatCallees = try ["string_ifBlank_flat", "string_ifEmpty_flat"].map { try runtimeLinkName($0) }
+            try expectFlatRuntimeCalls(in: ir, callees: flatCallees)
         }
     }
 
@@ -459,8 +510,27 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(!ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
-            #expect(!ir.contains("@kk_string_replaceFirstChar_flat"), "Unexpected flat replaceFirstChar call")
+            // Function-type parameters cause this Kotlin body to be auto-inlined.
+            // Check its source binding rather than requiring a surviving IR call.
+            let ast = try #require(llvmCtx.ast)
+            let sema = try #require(llvmCtx.sema)
+            let operationName = llvmCtx.interner.intern("replaceFirstChar")
+            let calls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .memberCall(_, callee, _, _, range) = ast.arena.expr(exprID),
+                      callee == operationName,
+                      llvmCtx.sourceManager.origin(of: range.start.file) == .user
+                else {
+                    return nil
+                }
+                return exprID
+            }
+            try #require(calls.count == 1)
+            let binding = try #require(sema.bindings.callBinding(for: calls[0]))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            let sourceLinkName = try #require(sema.symbols.externalLinkName(for: binding.chosenCallee))
+            #expect(sourceLinkName.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "replaceFirstChar_"))
+            try expectNoStringRuntimeCalls(in: ir, operations: ["replaceFirstChar"])
         }
     }
 
@@ -488,26 +558,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            #expect(!ir.contains("@kk_string_commonPrefixWith("), "Unexpected raw commonPrefixWith call")
-            #expect(!ir.contains("@kk_string_commonSuffixWith("), "Unexpected raw commonSuffixWith call")
-            #expect(
-                !ir.contains("@kk_string_commonPrefixWith_ignoreCase("),
-                "Unexpected raw commonPrefixWith(ignoreCase) call"
-            )
-            #expect(
-                !ir.contains("@kk_string_commonSuffixWith_ignoreCase("),
-                "Unexpected raw commonSuffixWith(ignoreCase) call"
-            )
-            #expect(!ir.contains("@kk_string_commonPrefixWith_flat"), "Unexpected flat commonPrefixWith call")
-            #expect(!ir.contains("@kk_string_commonSuffixWith_flat"), "Unexpected flat commonSuffixWith call")
-            #expect(
-                !ir.contains("@kk_string_commonPrefixWith_ignoreCase_flat"),
-                "Unexpected flat commonPrefixWith(ignoreCase) call"
-            )
-            #expect(
-                !ir.contains("@kk_string_commonSuffixWith_ignoreCase_flat"),
-                "Unexpected flat commonSuffixWith(ignoreCase) call"
-            )
+            try expectSourceBackedStringCalls(in: ir, operations: ["commonPrefixWith", "commonSuffixWith"])
         }
     }
 
@@ -536,15 +587,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            // String.format is now a bundled Kotlin declaration. The consumer
-            // module references its source-backed function symbols; the private
-            // __kk_* bridge is emitted by the bundled stdlib artifact itself,
-            // not as a synthetic public call in this module.
-            #expect(ir.contains("@kk_fn_format_"), "Missing source-backed String.format call")
-            #expect(!ir.contains("@__kk_string_format("), "Unexpected raw String format call")
-            #expect(!ir.contains("@__kk_string_format_locale("), "Unexpected raw String format(locale) call")
-            #expect(!ir.contains("@kk_string_format_flat"), "Undemoted flat String format call")
-            #expect(!ir.contains("@kk_string_format_locale_flat"), "Undemoted flat String format(locale) call")
+            try expectSourceBackedStringCalls(in: ir, operations: ["format"])
         }
     }
 
@@ -590,29 +633,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let forbiddenNames = [
-                "kk_string_trimIndent",
-                "kk_string_trimMargin_default",
-                "kk_string_trimMargin",
-                "kk_string_prependIndent_default",
-                "kk_string_prependIndent",
-                "kk_string_replaceIndent_default",
-                "kk_string_replaceIndent",
-                "kk_string_replaceIndentByMargin",
-                "kk_string_trimIndent_flat",
-                "kk_string_trimMargin_default_flat",
-                "kk_string_trimMargin_flat",
-                "kk_string_prependIndent_default_flat",
-                "kk_string_prependIndent_flat",
-                "kk_string_replaceIndent_default_flat",
-                "kk_string_replaceIndent_flat",
-                "kk_string_replaceIndentByMargin_flat",
-                "kk_string_indent",
-                "kk_string_indent_flat",
-            ]
-            for name in forbiddenNames {
-                #expect(!ir.contains("@\(name)("), "Unexpected legacy call in IR: \(name)")
-            }
+            try expectSourceBackedStringCalls(
+                in: ir,
+                operations: ["trimIndent", "trimMargin", "prependIndent", "replaceIndent", "replaceIndentByMargin", "indent"]
+            )
         }
     }
 
@@ -643,28 +667,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
 
-            let rawNames = [
-                "kk_string_trim",
-                "kk_string_trimStart",
-                "kk_string_trimEnd",
-                "kk_string_trim_predicate",
-                "kk_string_trimStart_predicate",
-                "kk_string_trimEnd_predicate",
-            ]
-            for rawName in rawNames {
-                #expect(!ir.contains("@\(rawName)("), "Unexpected raw String trim call: \(rawName)")
-            }
-            let flatNames = [
-                "kk_string_trim_flat",
-                "kk_string_trimStart_flat",
-                "kk_string_trimEnd_flat",
-                "kk_string_trim_predicate_flat",
-                "kk_string_trimStart_predicate_flat",
-                "kk_string_trimEnd_predicate_flat",
-            ]
-            for flatName in flatNames {
-                #expect(!ir.contains("@\(flatName)"), "Unexpected flat String trim call: \(flatName)")
-            }
+            try expectSourceBackedStringCalls(in: ir, operations: ["trim", "trimStart", "trimEnd"])
         }
     }
 
@@ -689,14 +692,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let trimEndResult = arena.appendExpr(.temporary(29), type: types.stringType)
         let lowercaseResult = arena.appendExpr(.temporary(31), type: types.stringType)
         let uppercaseResult = arena.appendExpr(.temporary(32), type: types.stringType)
-        let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let filterResult = arena.appendExpr(.temporary(47), type: types.stringType)
-        let filterThrown = arena.appendExpr(.temporary(48), type: types.intType)
-        let filterIndexedResult = arena.appendExpr(.temporary(49), type: types.stringType)
-        let filterIndexedThrown = arena.appendExpr(.temporary(50), type: types.intType)
-        let filterNotResult = arena.appendExpr(.temporary(51), type: types.stringType)
-        let filterNotThrown = arena.appendExpr(.temporary(52), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
         let compareLocaleResult = arena.appendExpr(.temporary(30), type: types.intType)
@@ -728,32 +723,27 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             body: [
                 .constValue(result: leftExpr, value: .stringLiteral(left)),
                 .constValue(result: rightExpr, value: .stringLiteral(right)),
-                .call(symbol: nil, callee: interner.intern("__kk_string_concat_flat"), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_concat_flat")), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
                 .constValue(result: paddedExpr, value: .stringLiteral(padded)),
-                .call(symbol: nil, callee: interner.intern("kk_string_trim_flat"), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_trimStart_flat"), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_trimEnd_flat"), arguments: [paddedExpr], result: trimEndResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_lowercase_flat"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_uppercase_flat"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
-                .constValue(result: hofFnPtr, value: .intLiteral(0)),
-                .constValue(result: hofClosureRaw, value: .intLiteral(0)),
-                .call(symbol: nil, callee: interner.intern("kk_string_filter_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterResult, canThrow: true, thrownResult: filterThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_filterIndexed_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterIndexedResult, canThrow: true, thrownResult: filterIndexedThrown),
-                .call(symbol: nil, callee: interner.intern("kk_string_filterNot_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterNotResult, canThrow: true, thrownResult: filterNotThrown),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trim_flat")), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trimStart_flat")), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_trimEnd_flat")), arguments: [paddedExpr], result: trimEndResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_lowercase_flat")), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_uppercase_flat")), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isBlank_flat")), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
-                .call(symbol: nil, callee: interner.intern("__kk_string_compareTo_locale_flat"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_compareTo_locale_flat")), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
                 .constValue(result: nullStringExpr, value: .null),
-                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("__kk_string_equals_flat"), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isNullOrEmpty_flat")), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_isNullOrBlank_flat")), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("string_equals_flat")), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("coroutine_suspended")), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_set_label"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_set_label")),
                     arguments: [suspendedResult, labelValue],
                     result: labelResult,
                     canThrow: false,
@@ -762,7 +752,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .constValue(result: spillSlotValue, value: .intLiteral(0)),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_set_spill"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_set_spill")),
                     arguments: [suspendedResult, spillSlotValue, labelValue],
                     result: spillStored,
                     canThrow: false,
@@ -770,7 +760,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_get_spill"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_get_spill")),
                     arguments: [suspendedResult, spillSlotValue],
                     result: spillLoaded,
                     canThrow: false,
@@ -778,7 +768,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_set_completion"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_set_completion")),
                     arguments: [suspendedResult, spillLoaded],
                     result: completionStored,
                     canThrow: false,
@@ -786,7 +776,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_get_completion"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_get_completion")),
                     arguments: [suspendedResult],
                     result: completionLoaded,
                     canThrow: false,
@@ -800,10 +790,10 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .label(900),
                 .copy(from: completionLoaded, to: whenResult),
                 .label(901),
-                .call(symbol: nil, callee: interner.intern("__kk_print_raw"), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [whenResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_continuation_new"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_continuation_new")),
                     arguments: [labelValue],
                     result: continuationResult,
                     canThrow: false,
@@ -811,7 +801,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_coroutine_state_exit"),
+                    callee: interner.intern(try runtimeLinkName("coroutine_state_exit")),
                     arguments: [continuationResult, completionLoaded],
                     result: stateExitResult,
                     canThrow: false,
@@ -841,60 +831,23 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        #expect(!ir.contains("@kk_string_from_utf8"))
-        #expect(!ir.contains("@kk_string_concat("))
-        #expect(!ir.contains("@kk_string_trim("))
-        #expect(!ir.contains("@kk_string_trimStart("))
-        #expect(!ir.contains("@kk_string_trimEnd("))
-        #expect(!ir.contains("@kk_string_lowercase("))
-        #expect(!ir.contains("@kk_string_uppercase("))
-        #expect(!ir.contains("@kk_string_reversed("))
-        #expect(!ir.contains("@kk_string_substring("))
-        #expect(!ir.contains("@kk_string_subSequence("))
-        #expect(!ir.contains("@kk_string_take("))
-        #expect(!ir.contains("@kk_string_repeat("))
-        #expect(!ir.contains("@kk_string_takeLast("))
-        #expect(!ir.contains("@kk_string_drop("))
-        #expect(!ir.contains("@kk_string_dropLast("))
-        #expect(!ir.contains("@kk_string_filter("))
-        #expect(!ir.contains("@kk_string_filterIndexed("))
-        #expect(!ir.contains("@kk_string_filterNot("))
-        #expect(!ir.contains("@kk_string_takeWhile("))
-        #expect(!ir.contains("@kk_string_takeLastWhile("))
-        #expect(!ir.contains("@kk_string_dropWhile("))
-        #expect(ir.contains("@__kk_string_concat_flat"))
-        #expect(ir.contains("@kk_string_trim_flat"))
-        #expect(ir.contains("@kk_string_trimStart_flat"))
-        #expect(ir.contains("@kk_string_trimEnd_flat"))
-        #expect(ir.contains("@kk_string_lowercase_flat"))
-        #expect(ir.contains("@kk_string_uppercase_flat"))
-        #expect(!ir.contains("@kk_string_substring_flat"))
-        #expect(!ir.contains("@kk_string_subSequence_flat"))
-        #expect(ir.contains("@kk_string_filter_flat"))
-        #expect(ir.contains("@kk_string_filterIndexed_flat"))
-        #expect(ir.contains("@kk_string_filterNot_flat"))
-        #expect(ir.contains("@kk_string_isBlank_flat"))
-        #expect(ir.contains("@__kk_string_compareTo_locale_flat"))
-        #expect(ir.contains("@kk_string_isNullOrEmpty_flat"))
-        #expect(ir.contains("@kk_string_isNullOrBlank_flat"))
-        #expect(ir.contains("@__kk_string_equals_flat"))
-        #expect(!ir.contains("@kk_string_equals("))
-        #expect(ir.contains("@__kk_print_raw"))
+        let flatCallees = extractCallees(from: main.body, interner: interner).filter { $0.hasSuffix("_flat") }
+        try expectFlatRuntimeCalls(in: ir, callees: flatCallees)
+        #expect(!ir.contains("@\(try runtimeLinkName("string_from_utf8"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("print_raw"))("))
         // LLVM 14 emits typed pointers (i8*); LLVM 15+ uses opaque pointers (ptr).
         #expect(ir.contains("{ ptr, i64, i64, i64 }") || ir.contains("{ i8*, i64, i64, i64 }"))
-        #expect(ir.contains("@kk_coroutine_suspended"))
-        #expect(ir.contains("@kk_coroutine_state_set_label"))
-        #expect(ir.contains("@kk_coroutine_state_set_spill"))
-        #expect(ir.contains("@kk_coroutine_state_get_spill"))
-        #expect(ir.contains("@kk_coroutine_state_set_completion"))
-        #expect(ir.contains("@kk_coroutine_state_get_completion"))
-        #expect(!ir.contains("@kk_println_any"))
-        #expect(!ir.contains("@kk_println_string_flat"))
-        #expect(!ir.contains("@kk_register_frame_map"))
-        #expect(!ir.contains("@kk_push_frame"))
-        #expect(!ir.contains("@kk_pop_frame"))
-        #expect(ir.contains("@kk_register_coroutine_root"))
-        #expect(ir.contains("@kk_unregister_coroutine_root"))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_suspended"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_state_set_label"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_state_set_spill"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_state_get_spill"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_state_set_completion"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("coroutine_state_get_completion"))("))
+        #expect(!ir.contains("@\(try runtimeLinkName("register_frame_map"))("))
+        #expect(!ir.contains("@\(try runtimeLinkName("push_frame"))("))
+        #expect(!ir.contains("@\(try runtimeLinkName("pop_frame"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("register_coroutine_root"))("))
+        #expect(ir.contains("@\(try runtimeLinkName("unregister_coroutine_root"))("))
         #expect(ir.contains("coroutine_root_register"))
         #expect(ir.contains("coroutine_root_unregister"))
         // select i1 no longer emitted; control flow uses conditional branches instead
@@ -924,7 +877,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
         let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
         let radixExpr = arena.appendExpr(.intLiteral(16), type: types.intType)
-        let formatExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
         var nextTemp: Int32 = 100
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -936,7 +888,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             .constValue(result: textExpr, value: .stringLiteral(text)),
             .constValue(result: nullStringExpr, value: .null),
             .constValue(result: radixExpr, value: .intLiteral(16)),
-            .constValue(result: formatExpr, value: .intLiteral(0)),
         ]
 
         func appendParsingCall(
@@ -957,38 +908,29 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendParsingCall("__kk_string_toBoolean_flat", arguments: [nullStringExpr], resultType: types.booleanType)
-        appendParsingCall("__kk_string_toBooleanStrict_flat", arguments: [textExpr], resultType: types.booleanType, canThrow: true)
-        appendParsingCall("__kk_string_toBooleanStrictOrNull_flat", arguments: [textExpr], resultType: nullableBoolType)
-        appendParsingCall("__kk_string_toInt_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toInt_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toIntOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("__kk_string_toIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableIntType, canThrow: true)
-        appendParsingCall("__kk_string_toUByteOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUByteType, canThrow: true)
-        appendParsingCall("__kk_string_toUShortOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
-        appendParsingCall("__kk_string_toUIntOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
-        appendParsingCall("__kk_string_toULongOrNull_radix_flat", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
-        appendParsingCall("__kk_string_toDouble_flat", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
-        appendParsingCall("__kk_string_toDoubleOrNull_flat", arguments: [textExpr], resultType: nullableDoubleType)
-        appendParsingCall("__kk_string_toLong_flat", arguments: [textExpr], resultType: types.longType, canThrow: true)
-        appendParsingCall("__kk_string_toLongOrNull_flat", arguments: [textExpr], resultType: nullableLongType)
-        appendParsingCall("__kk_string_toFloat_flat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
-        appendParsingCall("__kk_string_toFloatOrNull_flat", arguments: [textExpr], resultType: nullableFloatType)
-        appendParsingCall("__kk_string_toShort_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toShortOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("__kk_string_toByte_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toByte_radix_flat", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("__kk_string_toByteOrNull_flat", arguments: [textExpr], resultType: nullableIntType)
-        appendParsingCall("__kk_string_toBigDecimal_flat", arguments: [textExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_hexToInt_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_hexToShort_flat", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
-        appendParsingCall("kk_string_hexToUByte_flat", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
-        appendParsingCall("kk_string_hexToUShort_flat", arguments: [textExpr, formatExpr], resultType: types.ushortType, canThrow: true)
-        appendParsingCall("kk_string_hexToUInt_flat", arguments: [textExpr, formatExpr], resultType: types.uintType, canThrow: true)
-        appendParsingCall("kk_string_hexToULong_flat", arguments: [textExpr, formatExpr], resultType: types.ulongType, canThrow: true)
-        appendParsingCall("kk_string_hexToLong_flat", arguments: [textExpr, formatExpr], resultType: types.longType, canThrow: true)
-        appendParsingCall("kk_string_hexToByteArray_flat", arguments: [textExpr, formatExpr], resultType: types.intType)
-        appendParsingCall("kk_string_hexToUByteArray_flat", arguments: [textExpr, formatExpr], resultType: types.intType)
+        appendParsingCall(try runtimeLinkName("string_toBoolean_flat"), arguments: [nullStringExpr], resultType: types.booleanType)
+        appendParsingCall(try runtimeLinkName("string_toBooleanStrict_flat"), arguments: [textExpr], resultType: types.booleanType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toBooleanStrictOrNull_flat"), arguments: [textExpr], resultType: nullableBoolType)
+        appendParsingCall(try runtimeLinkName("string_toInt_flat"), arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toInt_radix_flat"), arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toIntOrNull_flat"), arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall(try runtimeLinkName("string_toIntOrNull_radix_flat"), arguments: [textExpr, radixExpr], resultType: nullableIntType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toUByteOrNull_radix_flat"), arguments: [textExpr, radixExpr], resultType: nullableUByteType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toUShortOrNull_radix_flat"), arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toUIntOrNull_radix_flat"), arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toULongOrNull_radix_flat"), arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toDouble_flat"), arguments: [textExpr], resultType: types.doubleType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toDoubleOrNull_flat"), arguments: [textExpr], resultType: nullableDoubleType)
+        appendParsingCall(try runtimeLinkName("string_toLong_flat"), arguments: [textExpr], resultType: types.longType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toLongOrNull_flat"), arguments: [textExpr], resultType: nullableLongType)
+        appendParsingCall(try runtimeLinkName("string_toFloat_flat"), arguments: [textExpr], resultType: types.floatType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toFloatOrNull_flat"), arguments: [textExpr], resultType: nullableFloatType)
+        appendParsingCall(try runtimeLinkName("string_toShort_flat"), arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toShortOrNull_flat"), arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall(try runtimeLinkName("string_toByte_flat"), arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toByte_radix_flat"), arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall(try runtimeLinkName("string_toByteOrNull_flat"), arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall(try runtimeLinkName("string_toBigDecimal_flat"), arguments: [textExpr], resultType: types.intType, canThrow: true)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1018,50 +960,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "__kk_string_toBoolean",
-            "__kk_string_toBooleanStrict",
-            "__kk_string_toBooleanStrictOrNull",
-            "__kk_string_toInt",
-            "__kk_string_toInt_radix",
-            "__kk_string_toIntOrNull",
-            "__kk_string_toIntOrNull_radix",
-            "__kk_string_toUByteOrNull_radix",
-            "__kk_string_toUShortOrNull_radix",
-            "__kk_string_toUIntOrNull_radix",
-            "__kk_string_toULongOrNull_radix",
-            "__kk_string_toDouble",
-            "__kk_string_toDoubleOrNull",
-            "__kk_string_toLong",
-            "__kk_string_toLongOrNull",
-            "__kk_string_toFloat",
-            "__kk_string_toFloatOrNull",
-            "__kk_string_toShort",
-            "__kk_string_toShortOrNull",
-            "__kk_string_toByte",
-            "__kk_string_toByte_radix",
-            "__kk_string_toByteOrNull",
-            "__kk_string_toBigDecimal",
-        ]
-        for rawName in rawNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String parse call: \(rawName)_flat")
-        }
-        let removedRawHexNames = [
-            "Int",
-            "Short",
-            "UByte",
-            "UShort",
-            "UInt",
-            "ULong",
-            "Long",
-            "ByteArray",
-            "UByteArray",
-        ].map { "kk_string_hexTo\($0)" }
-        for rawName in removedRawHexNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw String hex call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String hex call: \(rawName)_flat")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1105,22 +1004,22 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendRegexCall("__kk_regex_create_flat", arguments: [patternExpr])
-        appendRegexCall("__kk_regex_create_with_option_flat", arguments: [patternExpr, optionExpr])
-        appendRegexCall("__kk_regex_create_with_options_flat", arguments: [patternExpr, optionsSetExpr])
-        appendRegexCall("__kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("__kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("__kk_string_toRegex_flat", arguments: [patternExpr])
-        appendRegexCall("__kk_string_toRegex_with_option_flat", arguments: [patternExpr, optionExpr])
-        appendRegexCall("__kk_string_toRegex_with_options_flat", arguments: [patternExpr, optionsSetExpr])
-        appendRegexCall("__kk_regex_find_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("__kk_regex_findAll_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("__kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("__kk_regex_matchEntire_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("__kk_regex_containsMatchIn_flat", arguments: [regexExpr, inputExpr])
-        appendRegexCall("__kk_regex_from_literal_flat", arguments: [optionExpr, patternExpr])
-        appendRegexCall("__kk_match_result_group_index_of_name", arguments: [matchGroupCollectionExpr, patternExpr])
-        appendRegexCall("__kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
+        appendRegexCall(try runtimeLinkName("regex_create_flat"), arguments: [patternExpr])
+        appendRegexCall(try runtimeLinkName("regex_create_with_option_flat"), arguments: [patternExpr, optionExpr])
+        appendRegexCall(try runtimeLinkName("regex_create_with_options_flat"), arguments: [patternExpr, optionsSetExpr])
+        appendRegexCall(try runtimeLinkName("string_matches_regex_flat"), arguments: [inputExpr, regexExpr])
+        appendRegexCall(try runtimeLinkName("string_contains_regex_flat"), arguments: [inputExpr, regexExpr])
+        appendRegexCall(try runtimeLinkName("string_toRegex_flat"), arguments: [patternExpr])
+        appendRegexCall(try runtimeLinkName("string_toRegex_with_option_flat"), arguments: [patternExpr, optionExpr])
+        appendRegexCall(try runtimeLinkName("string_toRegex_with_options_flat"), arguments: [patternExpr, optionsSetExpr])
+        appendRegexCall(try runtimeLinkName("regex_find_flat"), arguments: [regexExpr, inputExpr])
+        appendRegexCall(try runtimeLinkName("regex_findAll_flat"), arguments: [regexExpr, inputExpr])
+        appendRegexCall(try runtimeLinkName("string_split_regex_flat"), arguments: [inputExpr, regexExpr])
+        appendRegexCall(try runtimeLinkName("regex_matchEntire_flat"), arguments: [regexExpr, inputExpr])
+        appendRegexCall(try runtimeLinkName("regex_containsMatchIn_flat"), arguments: [regexExpr, inputExpr])
+        appendRegexCall(try runtimeLinkName("regex_from_literal_flat"), arguments: [optionExpr, patternExpr])
+        appendRegexCall(try runtimeLinkName("match_result_group_index_of_name"), arguments: [matchGroupCollectionExpr, patternExpr])
+        appendRegexCall(try runtimeLinkName("regex_matches_flat", section: "Regex"), arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1150,34 +1049,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "__kk_regex_create",
-            "__kk_regex_create_with_option",
-            "__kk_regex_create_with_options",
-            "__kk_string_toRegex",
-            "__kk_string_toRegex_with_option",
-            "__kk_string_toRegex_with_options",
-            "__kk_regex_find",
-            "__kk_regex_findAll",
-            "__kk_regex_matchEntire",
-            "__kk_regex_containsMatchIn",
-            "__kk_regex_from_literal",
-            "__kk_match_result_group_index_of_name",
-            "__kk_regex_matches",
-        ]
-        for rawName in rawNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
-        }
-
-        #expect(!ir.contains("@__kk_string_split_regex("), "Unexpected raw Regex String call: __kk_string_split_regex")
-        #expect(ir.contains("@__kk_string_split_regex_flat"), "Missing flat Regex String call: __kk_string_split_regex_flat")
-
-        let removedRawStringPredicateNames = ["matches", "contains"].map { "__kk_string_\($0)_regex" }
-        for rawName in removedRawStringPredicateNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw Regex String call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1212,8 +1084,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendBuilderCall("__kk_string_builder_new_from_string_flat", arguments: [textExpr])
-        appendBuilderCall("__kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
+        appendBuilderCall(try runtimeLinkName("string_builder_new_from_string_flat"), arguments: [textExpr])
+        appendBuilderCall(try runtimeLinkName("string_builder_append_obj"), arguments: [builderExpr, textExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1243,14 +1115,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "__kk_string_builder_new_from_string",
-            "__kk_string_builder_append_obj",
-        ]
-        for rawName in rawNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw StringBuilder String call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat StringBuilder String call: \(rawName)_flat")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1289,8 +1154,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendLocaleCall("__kk_locale_new_flat", arguments: [identifierExpr])
-        appendLocaleCall("__kk_locale_new_language_country_flat", arguments: [languageExpr, countryExpr])
+        appendLocaleCall(try runtimeLinkName("locale_new_flat"), arguments: [identifierExpr])
+        appendLocaleCall(try runtimeLinkName("locale_new_language_country_flat"), arguments: [languageExpr, countryExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1320,10 +1185,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        #expect(!ir.contains("@kk_locale_new("), "Unexpected raw Locale constructor call")
-        #expect(!ir.contains("@kk_locale_new_language_country("), "Unexpected raw Locale language/country constructor call")
-        #expect(ir.contains("@__kk_locale_new_flat"), "Missing flat Locale constructor call")
-        #expect(ir.contains("@__kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1366,14 +1228,14 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendSelectionCall("__kk_string_first_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("__kk_string_last_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("__kk_string_single_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("__kk_string_firstOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("__kk_string_lastOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("__kk_string_singleOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("__kk_string_get_flat", arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("__kk_string_getOrNull_flat", arguments: [textExpr, indexExpr], resultType: nullableCharType)
+        appendSelectionCall(try runtimeLinkName("string_first_flat"), arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall(try runtimeLinkName("string_last_flat"), arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall(try runtimeLinkName("string_single_flat"), arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall(try runtimeLinkName("string_firstOrNull_flat"), arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall(try runtimeLinkName("string_lastOrNull_flat"), arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall(try runtimeLinkName("string_singleOrNull_flat"), arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall(try runtimeLinkName("string_get_flat"), arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall(try runtimeLinkName("string_getOrNull_flat"), arguments: [textExpr, indexExpr], resultType: nullableCharType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1403,21 +1265,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let flatNames = [
-            "__kk_string_first_flat",
-            "__kk_string_last_flat",
-            "__kk_string_single_flat",
-            "__kk_string_firstOrNull_flat",
-            "__kk_string_lastOrNull_flat",
-            "__kk_string_singleOrNull_flat",
-            "__kk_string_getOrNull_flat",
-        ]
-        for flatName in flatNames {
-            let rawName = String(flatName.dropLast("_flat".count))
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
-            #expect(ir.contains("@\(flatName)"), "Missing flat String char-selection call: \(flatName)")
-        }
-        #expect(ir.contains("@__kk_string_get_flat"), "Missing flat String.get call")
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1451,9 +1299,9 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendPredicateCall("kk_string_isNotEmpty_flat")
-        appendPredicateCall("kk_string_isNotBlank_flat")
-        appendPredicateCall("__kk_string_isNormalized_flat", arguments: [textExpr, formTagExpr])
+        appendPredicateCall(try runtimeLinkName("string_isNotEmpty_flat"))
+        appendPredicateCall(try runtimeLinkName("string_isNotBlank_flat"))
+        appendPredicateCall(try runtimeLinkName("string_isNormalized_flat"), arguments: [textExpr, formTagExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1483,118 +1331,11 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let flatNames = [
-            "kk_string_isNotEmpty_flat",
-            "kk_string_isNotBlank_flat",
-            "__kk_string_isNormalized_flat",
-        ]
-        for flatName in flatNames {
-            let rawName = String(flatName.dropLast("_flat".count))
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String predicate call: \(rawName)")
-            #expect(ir.contains("@\(flatName)"), "Missing flat String predicate call: \(flatName)")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
-    @Test
-    func testLLVMBackendEmitsFlatStringCallbackScalarRuntimeCalls() throws {
-        let interner = StringInterner()
-        let types = TypeSystem()
-        let arena = KIRArena()
-
-        let text = interner.intern("a1b2")
-        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
-        let fnPtrExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
-        let closureExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
-
-        var nextTemp: Int32 = 300
-        func temporary(_ type: TypeID) -> KIRExprID {
-            nextTemp += 1
-            return arena.appendExpr(.temporary(nextTemp), type: type)
-        }
-
-        var body: [KIRInstruction] = [
-            .constValue(result: textExpr, value: .stringLiteral(text)),
-            .constValue(result: fnPtrExpr, value: .intLiteral(0)),
-            .constValue(result: closureExpr, value: .intLiteral(0)),
-        ]
-
-        func appendCallbackCall(_ calleeName: String, resultType: TypeID) {
-            let result = temporary(resultType)
-            let thrownResult = temporary(types.intType)
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
-                arguments: [textExpr, fnPtrExpr, closureExpr],
-                result: result,
-                canThrow: true,
-                thrownResult: thrownResult
-            ))
-        }
-
-        appendCallbackCall("kk_string_count_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_any_flat", resultType: types.booleanType)
-        appendCallbackCall("kk_string_all_flat", resultType: types.booleanType)
-        appendCallbackCall("kk_string_none_flat", resultType: types.booleanType)
-        appendCallbackCall("kk_string_find_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
-        appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightOrNull_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_sumBy_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_sumByDouble_flat", resultType: types.doubleType)
-        body.append(.returnUnit)
-
-        let main = KIRFunction(
-            symbol: SymbolID(rawValue: 1203),
-            name: interner.intern("main"),
-            params: [],
-            returnType: types.unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-
-        let mainID = arena.appendDecl(.function(main))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
-            arena: arena
-        )
-
-        let backend = try LLVMBackend(
-            target: defaultTargetTriple(),
-            optLevel: .O0,
-            debugInfo: false,
-            diagnostics: DiagnosticEngine()
-        )
-        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
-
-        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
-        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-
-        let flatNames = [
-            "kk_string_count_flat",
-            "kk_string_any_flat",
-            "kk_string_all_flat",
-            "kk_string_none_flat",
-            "kk_string_find_flat",
-            "kk_string_findLast_flat",
-            "kk_string_partition_flat",
-            "kk_string_reduceOrNull_flat",
-            "kk_string_reduceRightIndexed_flat",
-            "kk_string_reduceRightIndexedOrNull_flat",
-            "kk_string_reduceRightOrNull_flat",
-            "kk_string_sumBy_flat",
-            "kk_string_sumByDouble_flat",
-        ]
-        for flatName in flatNames {
-            let rawName = String(flatName.dropLast("_flat".count))
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
-            #expect(ir.contains("@\(flatName)"), "Missing flat String callback scalar call: \(flatName)")
-        }
-
-    }
+    // String callback scalars and hex parsing now use bundled Kotlin functions.
+    // Hand-built calls to their removed ABI names only exercised generic extern emission.
 
     // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are bundled Kotlin
     // source (StringIndexOf.kt); their flat runtime bridges and this IR-emission test
@@ -1661,9 +1402,9 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendScalarCall("kk_string_split_flat", [textExpr, delimiterExpr])
-        appendScalarCall("kk_string_split_limit_flat", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
-        appendScalarCall("kk_string_splitToSequence_flat", [textExpr, delimiterExpr])
+        appendScalarCall(try runtimeLinkName("string_split_flat"), [textExpr, delimiterExpr])
+        appendScalarCall(try runtimeLinkName("string_split_limit_flat"), [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
+        appendScalarCall(try runtimeLinkName("string_splitToSequence_flat"), [textExpr, delimiterExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1693,15 +1434,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_split",
-            "kk_string_split_limit",
-            "kk_string_splitToSequence",
-        ]
-        for rawName in rawNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String list/sequence call: \(rawName)_flat")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1740,13 +1473,13 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendByteArrayCall("__kk_string_toByteArray_flat", [textExpr])
-        appendByteArrayCall("__kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("__kk_string_encodeToByteArray_flat", [textExpr])
-        appendByteArrayCall("__kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
-        appendByteArrayCall("__kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("__kk_string_byteInputStream_flat", [textExpr])
-        appendByteArrayCall("__kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall(try runtimeLinkName("string_toByteArray_flat"), [textExpr])
+        appendByteArrayCall(try runtimeLinkName("string_toByteArray_charset_flat"), [textExpr, charsetExpr])
+        appendByteArrayCall(try runtimeLinkName("string_encodeToByteArray_flat"), [textExpr])
+        appendByteArrayCall(try runtimeLinkName("string_encodeToByteArray_range_flat"), [textExpr, startExpr, endExpr])
+        appendByteArrayCall(try runtimeLinkName("string_encodeToByteArray_charset_flat"), [textExpr, charsetExpr])
+        appendByteArrayCall(try runtimeLinkName("string_byteInputStream_flat"), [textExpr])
+        appendByteArrayCall(try runtimeLinkName("string_byteInputStream_charset_flat"), [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1776,25 +1509,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let flatPrefixes = [
-            "kk_string_toByteArray": "__kk_string_toByteArray_flat",
-            "kk_string_toByteArray_charset": "__kk_string_toByteArray_charset_flat",
-            "kk_string_encodeToByteArray": "__kk_string_encodeToByteArray_flat",
-            "kk_string_encodeToByteArray_range": "__kk_string_encodeToByteArray_range_flat",
-            "kk_string_encodeToByteArray_charset": "__kk_string_encodeToByteArray_charset_flat",
-        ]
-        for (rawName, flatName) in flatPrefixes {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
-            #expect(ir.contains("@\(flatName)"), "Missing flat String byte-array call: \(flatName)")
-        }
-        let stringStreamFlatNames = [
-            ("kk_string_byteInputStream", "__kk_string_byteInputStream_flat"),
-            ("kk_string_byteInputStream_charset", "__kk_string_byteInputStream_charset_flat"),
-        ]
-        for (rawName, flatName) in stringStreamFlatNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected removed raw String stream call: \(rawName)")
-            #expect(ir.contains("@\(flatName)"), "Missing flat String stream call: \(flatName)")
-        }
+        try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
     @Test
@@ -1864,7 +1579,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ),
             interner: interner
         )
-        #expect(fnName.hasPrefix("kk_fn__1_bad_name_9"))
+        #expect(fnName.hasPrefix("\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)_1_bad_name_9"))
     }
 
     @Test
@@ -1890,8 +1605,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             )
         }
 
-        #expect(name(forSymbolRawValue: 104_789).hasPrefix("kk_fn_get_104789__"))
-        #expect(name(forSymbolRawValue: -104_789).hasPrefix("kk_fn_get_s104789__"))
+        #expect(name(forSymbolRawValue: 104_789).hasPrefix("\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)get_104789__"))
+        #expect(name(forSymbolRawValue: -104_789).hasPrefix("\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)get_s104789__"))
         #expect(name(forSymbolRawValue: 104_789) != name(forSymbolRawValue: -104_789))
     }
 
@@ -1969,7 +1684,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             symbols: symbols
         )
 
-        #expect(fnName.hasPrefix("kk_fn_renamedForJava_"))
+        #expect(fnName.hasPrefix("\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)renamedForJava_"))
     }
 }
 #endif
