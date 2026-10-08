@@ -111,6 +111,7 @@ extension BuildKIRRegressionTests {
         try Self._sharedVarargLoweringCtx.get()
     }
     @Test func testNamedVarargArrayUsesSpreadPacking() throws {
+        let runtime = try RuntimeNames()
         let ctx = makeContextFromSource("""
         fun collect(vararg xs: Int, y: Int = 9): Int = xs.size + y
         fun namedArray(xs: IntArray): Int = collect(xs = xs)
@@ -121,13 +122,14 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "namedArray", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         // A single spread array is passed through rather than packed as one element.
-        #expect(!callees.contains("kk_array_new"))
-        #expect(!callees.contains("kk_array_set"))
+        #expect(!callees.contains(runtime[.arrayNew]))
+        #expect(!callees.contains(runtime[.arraySet]))
         #expect(callees.contains("collect$default"))
     }
 
     @Test
     func testVarargNamedArgSkipsToVarargParameter() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected vararg with named arg to compile without errors.")
@@ -135,8 +137,8 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing with named arg, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for vararg packing with named arg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for vararg packing with named arg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for vararg packing with named arg, got: \(callNames)")
     }
 
     @Test func testVarargSpreadFlagIsParsedInCallArgument() throws {
@@ -170,6 +172,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testVarargWithDefaultAndNamedArgsCombined() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected vararg+default+named combination to compile without errors.")
@@ -177,11 +180,12 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main2", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg packing in combined scenario, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for vararg packing in combined scenario, got: \(callNames)")
     }
 
     @Test
     func testVarargMemberCallPacksArgsCorrectly() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected vararg member call to compile without errors.")
@@ -189,25 +193,25 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main3", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for vararg member call, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for vararg member call, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for vararg member call, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for vararg member call, got: \(callNames)")
     }
 
     @Test
     func testABILoweringSkipsBoxingForVarargPackedArrayArgument() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargLoweringCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
-        let callNames = extractCallees(from: body, interner: ctx.interner)
+        let sumSymbol = try sourceSymbol(named: "sum", in: ctx)
 
         // After ABI lowering, the vararg-packed array should NOT be boxed.
         // If boxing were incorrectly applied, we would see kk_box_int
         // targeting the array argument passed to `sum`.
         let loweredAggregateCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            let calleeName = ctx.interner.resolve(callee)
-            return calleeName == "sum" || calleeName == "kk_list_sum"
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == sumSymbol
         }
         #expect(!(loweredAggregateCalls.isEmpty), "Expected an aggregate call after ABI lowering.")
 
@@ -230,18 +234,23 @@ extension BuildKIRRegressionTests {
         // The real check: kk_box_int should NOT appear before the call to sum
         // for the purpose of boxing vararg elements into the packed argument.
         // The array_set calls handle packing, not boxing.
-        let sumIndex = callNames.firstIndex(where: { $0 == "sum" || $0 == "kk_list_sum" })
-        let boxIntIndices = callNames.indices.filter { callNames[$0] == "kk_box_int" }
+        let sumIndex = try #require(body.firstIndex { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == sumSymbol
+        })
+        let boxIntIndices = body.indices.filter { index in
+            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
+            return callee == ctx.interner.intern(runtime[.boxInt])
+        }
         // Any kk_box_int calls that appear should be for array_set element boxing,
         // not for the final argument to sum itself.
-        if let sumIdx = sumIndex {
-            let boxCallsAfterArrayPacking = boxIntIndices.filter { $0 > sumIdx }
-            #expect(boxCallsAfterArrayPacking.isEmpty, "Unexpected kk_box_int after sum call; vararg array argument should not be boxed.")
-        }
+        let boxCallsAfterArrayPacking = boxIntIndices.filter { $0 > sumIndex }
+        #expect(boxCallsAfterArrayPacking.isEmpty, "Unexpected boxing after sum call; vararg array argument should not be boxed.")
     }
 
     @Test
     func testVarargDefaultNamedRegressionCompilesToKIRWithoutErrors() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected vararg+default+named regression cases to compile without errors.")
@@ -251,12 +260,13 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
 
         // All three call sites should produce array packing
-        let arrayNewCount = callNames.filter { $0 == "kk_array_new" }.count
+        let arrayNewCount = callNames.filter { $0 == runtime[.arrayNew] }.count
         #expect(arrayNewCount >= 2, "Expected at least 2 kk_array_new calls for vararg packing across call sites, got: \(arrayNewCount)")
     }
 
     @Test
     func testVarargPositionalAfterNamedArgPacksCorrectly() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected positional vararg after named arg to compile without errors.")
@@ -264,12 +274,13 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main6", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for positional vararg after named arg, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for positional vararg after named arg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for positional vararg after named arg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for positional vararg after named arg, got: \(callNames)")
     }
 
     @Test
     func testVarargCharArgumentsAreStoredUnboxed() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Char vararg call to compile without errors.")
@@ -279,13 +290,14 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         // A primitive vararg is packed directly into its primitive array, so the
         // elements are stored raw rather than boxed.
-        let boxCharCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        let boxCharCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxCharCount == 0, "Expected Char vararg elements to be stored unboxed, got: \(callNames)")
-        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Char vararg element to be stored in the array, got: \(callNames)")
+        #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Char vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
     func testVarargBooleanArgumentsAreStoredUnboxed() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Boolean vararg call to compile without errors.")
@@ -295,13 +307,14 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         // A primitive vararg is packed directly into its primitive array, so the
         // elements are stored raw rather than boxed.
-        let boxBoolCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        let boxBoolCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxBoolCount == 0, "Expected Boolean vararg elements to be stored unboxed, got: \(callNames)")
-        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Boolean vararg element to be stored in the array, got: \(callNames)")
+        #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Boolean vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
     func testVarargDoubleArgumentsAreStoredUnboxed() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Double vararg call to compile without errors.")
@@ -311,13 +324,14 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         // A primitive vararg is packed directly into its primitive array, so the
         // elements are stored raw rather than boxed.
-        let boxDoubleCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        let boxDoubleCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxDoubleCount == 0, "Expected Double vararg elements to be stored unboxed, got: \(callNames)")
-        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Double vararg element to be stored in the array, got: \(callNames)")
+        #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Double vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
     func testVarargLongArgumentsAreStoredUnboxed() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected Long vararg call to compile without errors.")
@@ -327,13 +341,14 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         // A primitive vararg is packed directly into its primitive array, so the
         // elements are stored raw rather than boxed.
-        let boxLongCount = callNames.filter { $0.hasPrefix("kk_box_") }.count
+        let boxLongCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxLongCount == 0, "Expected Long vararg elements to be stored unboxed, got: \(callNames)")
-        #expect(callNames.filter { $0 == "kk_array_set" }.count == 3, "Expected each Long vararg element to be stored in the array, got: \(callNames)")
+        #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Long vararg element to be stored in the array, got: \(callNames)")
     }
 
     @Test
     func testPrimitiveArrayFactoryElementsUseTheirDeclaredElementType() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedVarargCtx()
 
         #expect(!(ctx.diagnostics.hasError), "Expected doubleArrayOf/arrayOf calls to compile without errors.")
@@ -348,10 +363,10 @@ extension BuildKIRRegressionTests {
             interner: ctx.interner
         )
         #expect(
-            !doubleArrayCalls.contains(where: { $0.hasPrefix("kk_box_double") }),
+            !doubleArrayCalls.contains(where: { runtime.doubleBoxingNames.contains($0) }),
             "Expected doubleArrayOf's raw Double elements NOT to be boxed, got: \(doubleArrayCalls)"
         )
-        let genericBoxDoubleCount = genericArrayCalls.filter { $0 == "kk_box_double_nonnull" }.count
+        let genericBoxDoubleCount = genericArrayCalls.filter { $0 == runtime[.boxDoubleNonnull] }.count
         #expect(
             genericBoxDoubleCount == 2,
             "Expected arrayOf<Double> to box each erased element, got: \(genericArrayCalls)"
