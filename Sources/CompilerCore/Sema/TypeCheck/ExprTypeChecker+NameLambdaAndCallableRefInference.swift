@@ -2330,7 +2330,7 @@ extension ExprTypeChecker {
                 // itself — but this could not be verified: referencing an
                 // entry with a body at all (`EnumClass.ENTRY`) hits a
                 // separate, pre-existing, unrelated bug (see
-                // docs/diff-skip-inventory.md's `enum_edge_cases.kt` entry).
+                // the `enum_edge_cases.kt` entry).
                 // `.interface` stays excluded here too: interface-owned
                 // properties have no storage of their own (always dispatched
                 // through whichever class implements them), which this

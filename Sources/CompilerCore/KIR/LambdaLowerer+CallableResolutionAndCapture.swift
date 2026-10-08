@@ -257,7 +257,7 @@ extension LambdaLowerer {
     ///   that entry's own synthesized subclass rather than `.enumClass`
     ///   itself — but this could not be verified either: referencing an
     ///   entry with a body at all (`EnumClass.ENTRY`) hits a separate,
-    ///   pre-existing, unrelated bug (see docs/diff-skip-inventory.md's
+    ///   pre-existing, unrelated bug (see the
     ///   `enum_edge_cases.kt` entry).
     /// - `.interface` is excluded because interface-owned properties have no
     ///   storage of their own (always dispatched through whichever class

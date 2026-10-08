@@ -21,3 +21,4 @@ firebase-debug.log
 .vscode/
 .windsurf/
 .kswiftk-cache/
+/docs/diff-skip-inventory.md
