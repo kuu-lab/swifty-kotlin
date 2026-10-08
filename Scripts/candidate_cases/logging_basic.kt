@@ -1,8 +1,9 @@
-// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no synthetic org.slf4j.* stub yet; classpath injection (verified 2026-07-09) only fixes the kotlinc reference side. See docs/diff-skip-inventory.md
+// Candidate-only coverage of the logging calls, backed by a test source fixture.
 import org.slf4j.LoggerFactory
 
 class MyService {
-    private val logger = LoggerFactory.getLogger(MyService::class.java)
+    // Use SLF4J's name overload because KSwiftK targets native code, not JVM Class.
+    private val logger = LoggerFactory.getLogger("MyService")
 
     fun greet(name: String) {
         logger.trace("greet called")

@@ -28,18 +28,23 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の再集計は **122 タグ / 122 ファイル**。
-DEBT-DIFF-001 は **117 件**（旧表の 85 件は 2026-09-20 時点）。カテゴリ別集計から
+2026-10-08（KUU-1485 のケース移設後）の実測は **117 タグ / 117 ファイル**。
+DEBT-DIFF-001 は **111 件**。2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の記録は
+122 / 122 と 117 件だったが、KUU-1485 適用前の HEAD を再計測すると 118 / 118 と
+112 件だったため、古い記録はそれぞれ 4 / 5 件多かった（旧表の 85 件は 2026-09-20
+時点）。カテゴリ別集計から
 漏れていた `stdlib_kotlin_collections_n_throw.kt` の `SKIP-DIFF (KSP-959)` を、
 internal `@PublishedApi` helper の既存理由に従い DEBT-DIFF-001 へ正規化した。
-skip の新規追加／解除はなく、全 skip ケースの `--force-run-skipped` 再実行も
-今回行っていない。以下の過去の実行結果は当時の検証範囲として保持する。
+2026-10-05 時点では skip の新規追加／解除はなく、全 skip ケースの
+`--force-run-skipped` 再実行も行っていなかった。2026-10-08 に KUU-1485 で
+`logging_basic.kt` を candidate-only suite へ移し、SKIP-DIFF 対象から外した。
+以下の過去の実行結果は当時の検証範囲として保持する。
 
 件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'SKIP-DIFF\s*\(DEBT-DIFF-[0-9]{3}\)|KSWIFTK_DIFF_IGNORE.*DEBT-DIFF-[0-9]{3}' -N | rg -o 'DEBT-DIFF-[0-9]{3}' | sort | uniq -c`）に同期する。単純な `rg -o 'DEBT-DIFF-[0-9]{3}'`（アクティブなタグ/経緯コメント両方にマッチ）ではなく、アクティブな `SKIP-DIFF`/`KSWIFTK_DIFF_IGNORE` タグのみに絞ること — `case_insensitive_order_identity.kt` のように「過去 DEBT-DIFF-005 として追跡していたが解消済み」という経緯コメントだけが残るケースがあり、単純な文字列一致では解消済みの件数を残存として誤カウントする（2026-08-02、並行マージでの再計測差異から判明）。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 117 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
+| DEBT-DIFF-001 | 111 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 1 | advanced coroutine / channel / Flow / structured concurrency | `kotlinx_coroutines_flow_transform_latest_cancellation.kt` は KUU-955 の continuation-aware callable ABI 対応待ち。従来の coroutine / channel ケースは解除済み |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
@@ -61,11 +66,11 @@ skip の新規追加／解除はなく、全 skip ケースの `--force-run-skip
 
 `Scripts/diff_kotlinc.sh` の `--kotlinc-classpath` / coroutines jar 自動取得は **reference(kotlinc)側にしか作用しない**。kswiftc は jar/classpath を一切消費しない設計で、`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` に手書き登録した合成シンボルだけを認識し、対応する Runtime 実装を呼ぶ。したがって candidate 側が特定の Java/Kotlin API を新たに認識するには synthetic stub の実装が要り、jar 注入は原理的に届かない。「dependency injection で実行可能化」できるのは reference 側だけが理由で落ちているケースに限られるが、以下のケースはいずれも candidate 側の未実装、またはテスト内容自体が実 API 呼び出し規約と非互換という、jar 注入では解決しない理由だった。
 
-### keep skip インベントリ（現行117件、2026-10-05 実測）
+### keep skip インベントリ（現行111件、2026-10-08 実測）
 
 下表は理由別の代表例と過去の検証記録。現在の全ファイルは
 `rg -l '^// SKIP-DIFF \(DEBT-DIFF-001\)' Scripts/diff_cases` で再列挙できる。
-117 件全ての実行再検証を意味するものではない。
+111 件全ての実行再検証を意味するものではない。
 
 serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt`)は、synthetic stub を除去した CLEANUP-STUB-121 でケースごと削除した(実 kotlinx.serialization の呼び出し規約で書き直す道は取らず、`kotlinx.serialization` サポート自体を target-out とした)。
 
@@ -81,7 +86,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | JDBC / java.sql | `jdbc_basic.kt`, `prepared_statement_complete.kt`, `resultset_complete.kt`, `connection_validation.kt`, `transaction_management.kt` | **訂正**: 従来「custom jdbc:kswiftk driver をこの runtime が提供する」としていたが誤り。`Sources/` 全体を検索しても `DriverManager` / `java.sql` / `JDBC` / `jdbc:kswiftk` は一件もヒットせず、kswiftc は java.sql.\* を一切実装していない。再検証で `ref_compile_exit=0 / cand_compile_exit=1`(reference は素の JDK `java.sql` で普通にコンパイルが通り、candidate 側が `Unresolved reference 'DriverManager'` で落ちる)ことを確認 — reference 側の問題ではなく candidate 側の未実装機能だった。なお `jdbc_basic.kt` のみ実在し移植可能な `"jdbc:sqlite::memory:"` という URL を使っており(他4件は架空の `"jdbc:kswiftk:memory"`)、将来 JDBC 対応に着手する際の再開候補として最有望 | kswiftc に java.sql.\*(DriverManager/Connection/Statement/PreparedStatement/ResultSet 相当)の synthetic stub と対応する Runtime 実装を追加する大きめの機能追加が前提。実装後は `jdbc_basic.kt` を実 SQLite JDBC driver(`org.xerial:sqlite-jdbc`)の reference 側注入で検証し、他4件は URL を `jdbc:sqlite:` 系に書き換えてから同様に戻す |
 | KMP expect/actual(単一ファイル制約) | `kmp_common.kt`, `expect_actual_class_member_body.kt` | kotlinc 2.4.10 は `-Xmulti-platform` と `-Xcommon-sources=<file>` を付けても単一ファイル内の expect/actual を `'expect' and 'actual' declarations can be used only in multiplatform projects` / `expect and corresponding actual are declared in the same module` で拒否することを実測で確認した。common ソースと platform ソースを別コンパイル単位にして最終的にリンクする、genuinely 複数回起動する KMP 専用ビルドモデルが必須で、`kotlinc file.kt` 一発では原理的に表現できない。kswiftc 側も独立した expect/actual バグを抱える | harness に「1ファイルを common/platform に分割して2回コンパイル+リンクする」専用 KMP runner を新設しない限り不可能。ROI が低いため現時点では見送り、`Scripts/diff_kotlinc.sh` の対象外に据え置く |
 | Bundled coroutine API shape | `state_flow_kotlin.kt` | KSwiftK の bundled `stateIn(initialValue)` / `shareIn(replay)` は JVM `kotlinx.coroutines` の `CoroutineScope` / `SharingStarted` 引数と意図的に異なるため、kotlinc reference 側だけがコンパイル失敗する。KSwiftK 側の動作は candidate-only の直接実行と `StdlibArtifactRegressionTests` で検証する | API 形状が収束するまで `SKIP-DIFF` を維持し、KSwiftK 固有の bundled stdlib smoke/artifact test を owner とする |
-| SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | kswiftc は `org.slf4j.*` を一切実装していない(`Sources/` 全体検索で0件、`Unresolved reference 'LoggerFactory'` で確認)。reference 側は実 slf4j-api + binding 注入で通す経路が既にある(2026-07-09 検証済み)が、candidate 側に synthetic stub が無い限り届かない。`logging_advanced.kt` はさらに `MDC` は実在するが import が無く、`AdvancedLogger`/`StructuredAppender` は実 SLF4J に存在しない架空 API であり、架空 API 部分を残す限り reference 側を通す余地自体が無い | kswiftc に `org.slf4j.*`(Logger/LoggerFactory/MDC 程度)の synthetic stub を追加する機能実装が前提。`logging_advanced.kt` は架空 API 部分を切り離すか削除しない限り、stub 追加後も keep skip のまま |
+| SLF4J / logging | `logging_advanced.kt`（keep skip） | `logging_basic.kt` は `Scripts/candidate_cases/` へ移し、`Scripts/run_candidate_only.sh` で候補だけを実行して期待 stdout と比較する。テスト用 Kotlin source fixture が `org.slf4j.Logger` / `LoggerFactory` の使用メソッドを提供する。KSwiftK の native target は `KClass.java` を codegen できないため candidate-only 版は実 SLF4J にもある logger-name overload を使う。これは実 SLF4J binary 互換性の検証ではない。元の diff 判定では kotlinc / kswiftc の双方が `LoggerFactory` の未解決で失敗したことを確認した。`logging_advanced.kt` はさらに `MDC` の import がなく、`AdvancedLogger` / `StructuredAppender` は実 SLF4J に存在しない架空 API である | `logging_advanced.kt` は架空 API 部分を切り離すか削除しない限り keep skip のまま。SLF4J 実装の互換性確認には将来 compiler/runtime 側の実 API 支援が必要 |
 
 ### 解除済みの周辺ケース(現行85件には含まれないが、過去の調査ノートに記載があったため参考として残す)
 
