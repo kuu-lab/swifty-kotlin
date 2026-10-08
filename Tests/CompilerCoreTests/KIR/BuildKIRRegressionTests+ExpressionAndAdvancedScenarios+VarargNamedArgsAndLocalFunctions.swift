@@ -140,9 +140,8 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testVarargSpreadFlagIsParsedInCallArgument() throws {
-        // Verify that the spread operator (*) is parsed at the AST level.
-        // Full end-to-end spread lowering requires IntArray type inference
-        // improvements (tracked separately).
+        // Keep an isolated parser assertion alongside the end-to-end KUU-1589
+        // call-resolution and kotlinc differential coverage.
         let source = """
         fun collect(vararg items: Int): Int = 0
         fun main() {
