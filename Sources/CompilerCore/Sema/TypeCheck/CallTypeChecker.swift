@@ -2472,15 +2472,29 @@ final class CallTypeChecker {
            let signature = sema.symbols.functionSignature(for: candidate),
            case let .typeParam(returnTypeParam) = sema.types.kind(of: signature.returnType)
         {
-            for (index, parameterType) in signature.parameterTypes.enumerated()
-                where index < args.count
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            if let returnTypeVariable = typeVarBySymbol[returnTypeParam.symbol],
+               let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
             {
-                guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
-                      parameterTypeParam.symbol == returnTypeParam.symbol
-                else {
-                    continue
+                for (argumentIndex, parameterIndex) in parameterMapping {
+                    guard signature.parameterTypes.indices.contains(parameterIndex),
+                          let parameterType = contextualCallArgumentType(
+                              args[argumentIndex], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
+                    else {
+                        continue
+                    }
+                    guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                          parameterTypeParam.symbol == returnTypeParam.symbol
+                    else {
+                        continue
+                    }
+                    expectedTypeOverrides[argumentIndex] = sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: [returnTypeVariable: expectedType],
+                        typeVarBySymbol: typeVarBySymbol
+                    )
                 }
-                expectedTypeOverrides[index] = expectedType
             }
         }
         // A generic factory whose return type is a class parameterized by its
@@ -2530,6 +2544,9 @@ final class CallTypeChecker {
                         ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                    continue
+                }
                 for index in args.indices {
                     let isLambda: Bool = if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
                         true
@@ -2537,7 +2554,10 @@ final class CallTypeChecker {
                         false
                     }
                     guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
-                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                          let parameterIndex = parameterMapping[index],
+                          let parameterType = contextualCallArgumentType(
+                              args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
                     else {
                         continue
                     }
@@ -2584,6 +2604,9 @@ final class CallTypeChecker {
                 else {
                     continue
                 }
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                    continue
+                }
                 let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
                 let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
                 guard signature.typeParameterSymbols.count >= typeArgOffset + explicitTypeArgs.count
@@ -2599,7 +2622,10 @@ final class CallTypeChecker {
                 }
                 for index in args.indices {
                     guard isInferableNestedCallExpr(args[index].expr, ast: ast),
-                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                          let parameterIndex = parameterMapping[index],
+                          let parameterType = contextualCallArgumentType(
+                              args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
                     else {
                         continue
                     }
@@ -2646,19 +2672,19 @@ final class CallTypeChecker {
            let signature = sema.symbols.functionSignature(for: candidate)
         {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
             for index in args.indices {
                 guard isInferableNestedCallExpr(args[index].expr, ast: ast),
-                      let parameterIndex = parameterIndexForCallArgument(
-                          at: index,
-                          label: args[index].label,
-                          in: signature,
-                          sema: sema
-                      ),
+                      let parameterIndex = parameterMapping?[index],
                       parameterIndex < signature.parameterTypes.count
                 else {
                     continue
                 }
-                let parameterType = signature.parameterTypes[parameterIndex]
+                guard let parameterType = contextualCallArgumentType(
+                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                ) else {
+                    continue
+                }
                 guard !ctx.resolver.containsTypeVariable(
                     parameterType,
                     typeVarBySymbol: typeVarBySymbol,

@@ -12,6 +12,7 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlin.time.TimedValue
 
+// KUU-1597 Sema owner: pin experimental time API cross-type assignments; identity and epoch behavior stays in Scripts/diff_cases/stdlib_kotlin_time_n_n.kt.
 @OptIn(ExperimentalTime::class)
 private class DoubleProbe : AbstractDoubleTimeSource(DurationUnit.MILLISECONDS) {
     override fun read(): Double = 1.0
@@ -30,10 +31,4 @@ fun main() {
     val instant: Instant = Instant.fromEpochMilliseconds(0L)
     val timed: TimedValue<String> = TimedValue("value", Duration.ZERO)
     val doubleMark: ComparableTimeMark = DoubleProbe().markNow()
-
-    println(clock === Clock.System)
-    println(mark !== comparable)
-    println(instant.epochSeconds == 0L)
-    println(timed.value)
-    println(doubleMark !== comparable)
 }

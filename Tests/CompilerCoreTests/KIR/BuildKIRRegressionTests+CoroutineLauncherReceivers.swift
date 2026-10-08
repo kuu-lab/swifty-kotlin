@@ -22,26 +22,31 @@ extension BuildKIRRegressionTests {
             guard case let .function(function) = declaration else { return nil }
             return function
         }
-        let main = try #require(functions.first { ctx.interner.resolve($0.name) == "main" })
-        #expect(extractCallees(from: main.body, interner: ctx.interner).contains("kk_function_create_\(parameterCount + 1)"))
-        let adapter = try #require(functions.first {
-            ctx.interner.resolve($0.name).hasPrefix("kk_function_value_adapter_")
-        })
+        let main = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).main })
+        let constructor = ctx.interner.intern(runtimeFunctionCreateCallee(arity: parameterCount + 1))
+        let entry = try #require(main.body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                  callee == constructor else { return nil }
+            return arguments.first
+        }.first)
+        let adapter = try referencedKIRFunction(entry, in: module)
         #expect(adapter.isSuspend)
         #expect(adapter.params.count == parameterCount + 2)
         let captureLoad = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_get_inbounds",
+                  callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds)),
                   case .intLiteral(2) = module.arena.expr(args[1])
             else { return nil }
             return result
         }.first)
-        let lambdaArgs = try #require(adapter.body.compactMap { instruction -> [KIRExprID]? in
-            guard case let .call(_, callee, args, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+        let lambdaSymbols = Set(try findKIRLambdaFunctions(in: ctx).map(\.symbol))
+        let lambdaCallArguments = adapter.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(symbol?, _, args, _, _, _, _, _) = instruction,
+                  lambdaSymbols.contains(symbol)
             else { return nil }
             return args
-        }.first)
+        }
+        let lambdaArgs = try #require(lambdaCallArguments.first)
         #expect(lambdaArgs.count == parameterCount + 2)
         #expect(lambdaArgs[0] == captureLoad)
         #expect(module.arena.expr(lambdaArgs[1]) == .symbolRef(adapter.params[1].symbol))
@@ -87,23 +92,19 @@ extension BuildKIRRegressionTests {
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
         let owner = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Launcher")]))
-        let lambda = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda_"),
-                  function.body.contains(where: { instruction in
-                      guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                      return ctx.interner.resolve(callee) == "accept"
-                  })
-            else { return nil }
-            return function
-        }.first)
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
+            function.body.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == ctx.interner.intern("accept")
+            }
+        })
         let capture = try #require(lambda.params.first { param in
             guard case let .classType(type) = sema.types.kind(of: param.type) else { return false }
             return type.classSymbol == owner
         })
         #expect(lambda.body.contains { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_get_inbounds",
+                  callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds)),
                   let receiver = arguments.first,
                   case let .symbolRef(symbol) = module.arena.expr(receiver)
             else { return false }
@@ -111,7 +112,7 @@ extension BuildKIRRegressionTests {
         })
         #expect(lambda.body.contains { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "accept",
+                  callee == ctx.interner.intern("accept"),
                   let receiver = arguments.first,
                   let type = module.arena.exprType(receiver),
                   case let .classType(classType) = sema.types.kind(of: type)
@@ -138,26 +139,22 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
-        let lambda = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda_"),
-                  function.body.contains(where: { instruction in
-                      guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                      return ctx.interner.resolve(callee) == "kk_coroutine_current_scope"
-                  })
-            else { return nil }
-            return function
-        }.first)
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
+            function.body.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                return callee == ctx.interner.intern(runtimeCallee(.coroutineCurrentScope))
+            }
+        })
         #expect(lambda.params.count == (capturesLocal ? 1 : 0))
         let receiver = try #require(lambda.body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_coroutine_current_scope"
+                  callee == ctx.interner.intern(runtimeCallee(.coroutineCurrentScope))
             else { return nil }
             return result
         }.first)
         #expect(lambda.body.contains { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "accept" && arguments == [receiver]
+            return callee == ctx.interner.intern("accept") && arguments == [receiver]
         })
     }
 }

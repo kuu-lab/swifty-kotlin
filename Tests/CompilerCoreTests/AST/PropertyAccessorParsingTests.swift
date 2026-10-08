@@ -41,6 +41,23 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func explicitEmptySetterRetainsAnEmptyBlockBody() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class C {
+            var value: Int
+                get() = 42
+                set(value) {}
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "value", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case let .block(statements, _) = property.setter?.body else {
+            Issue.record("An explicit empty setter body must remain a block rather than `.unit`")
+            return
+        }
+        #expect(statements.isEmpty)
+    }
+
+    @Test
     func sameLineBlockGetterAndSetterKeepTypeAndBodies() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class C {

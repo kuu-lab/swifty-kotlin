@@ -15,9 +15,10 @@ struct RangeEndInclusiveLoweringTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "bounds", in: module, interner: ctx.interner)
-        let names = extractCallees(from: body, interner: ctx.interner)
-        #expect(names.filter { $0 == "__kk_floating_range_endpoint_or_null" }.count == 2)
-        #expect(names.filter { $0 == "kk_unbox_\(element.lowercased())" }.count == 2)
+        let calls = kirCalls(in: body)
+        #expect(kirCalls(to: .floatingRangeEndpoint, in: body, interner: ctx.interner).count == 2)
+        let unbox: KIRRuntimeFunction = element == "Double" ? .unboxDouble : .unboxFloat
+        #expect(kirCalls(to: unbox, in: body, interner: ctx.interner).count == 2)
         let getterDispatches = body.compactMap { instruction -> KIRDispatchKind? in
             guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else { return nil }
             return dispatch
@@ -27,19 +28,19 @@ struct RangeEndInclusiveLoweringTests {
             if case .itableDynamic = $0 { return true }
             return false
         })
-        #expect(!names.contains("endInclusive"))
+        #expect(!calls.contains { $0.callee == ctx.interner.intern("endInclusive") })
     }
 
-    private func callNames(in source: String, function: String) throws -> [String] {
+    private func loweredCalls(in source: String, function: String) throws -> (StringInterner, [KIRCallSite]) {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: function, in: module, interner: ctx.interner)
-        return extractCallees(from: body, interner: ctx.interner)
+        return (ctx.interner, kirCalls(in: body))
     }
 
     @Test func testIntRangeEndInclusiveLowersToRuntimeGetter() throws {
-        let names = try callNames(
+        let (interner, calls) = try loweredCalls(
             in: """
             fun bounds(): Int {
                 val range = 1..5
@@ -48,13 +49,13 @@ struct RangeEndInclusiveLoweringTests {
             """,
             function: "bounds"
         )
-        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for IntRange.endInclusive, got: \(names)")
-        #expect(names.contains("__kk_range_first"), "Expected __kk_range_first for IntRange.start, got: \(names)")
-        #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.rangeLast.name(in: interner) }, "Expected __kk_range_last for IntRange.endInclusive, got: \(calls)")
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.rangeFirst.name(in: interner) }, "Expected __kk_range_first for IntRange.start, got: \(calls)")
+        #expect(!calls.contains { $0.callee == interner.intern("endInclusive") }, "endInclusive must not be emitted as a bare callee, got: \(calls)")
     }
 
     @Test func testLongRangeEndInclusiveLowersToTypedRuntimeGetter() throws {
-        let names = try callNames(
+        let (interner, calls) = try loweredCalls(
             in: """
             fun bounds(): Long {
                 val range = 1L..5L
@@ -63,13 +64,17 @@ struct RangeEndInclusiveLoweringTests {
             """,
             function: "bounds"
         )
-        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for LongRange.endInclusive, got: \(names)")
-        #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.rangeLast.name(in: interner) }, "Expected __kk_range_last for LongRange.endInclusive, got: \(calls)")
+        #expect(!calls.contains { $0.callee == interner.intern("endInclusive") }, "endInclusive must not be emitted as a bare callee, got: \(calls)")
     }
 
     @Test func testFloatingPointRangeBoundsUseTypedRuntimeGetters() throws {
-        for (type, suffix, prefix) in [("Double", "", "double"), ("Float", "f", "float")] {
-            let names = try callNames(
+        let cases: [(String, String, KIRRuntimeFunction, KIRRuntimeFunction)] = [
+            ("Double", "", .doubleRangeStart, .doubleRangeEndInclusive),
+            ("Float", "f", .floatRangeStart, .floatRangeEndInclusive),
+        ]
+        for (type, suffix, start, end) in cases {
+            let (interner, calls) = try loweredCalls(
                 in: """
                 fun bounds(): \(type) {
                     val range = -1.25\(suffix)..2.5\(suffix)
@@ -80,10 +85,10 @@ struct RangeEndInclusiveLoweringTests {
                 """,
                 function: "bounds"
             )
-            #expect(names.contains("__kk_\(prefix)_range_start"))
-            #expect(names.contains("__kk_\(prefix)_range_endInclusive"))
-            #expect(!names.contains("__kk_range_first"))
-            #expect(!names.contains("__kk_range_last"))
+            #expect(calls.contains { $0.callee == start.name(in: interner) })
+            #expect(calls.contains { $0.callee == end.name(in: interner) })
+            #expect(!calls.contains { $0.callee == KIRRuntimeFunction.rangeFirst.name(in: interner) })
+            #expect(!calls.contains { $0.callee == KIRRuntimeFunction.rangeLast.name(in: interner) })
         }
     }
 }

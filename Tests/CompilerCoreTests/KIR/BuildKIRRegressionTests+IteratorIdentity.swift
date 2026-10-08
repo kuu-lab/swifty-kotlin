@@ -35,8 +35,9 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
         let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
         let allCallees = callees + virtualCallees
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
         #expect(
-            allCallees.allSatisfy { !$0.hasPrefix("kk_iterator_") },
+            Set(allCallees).isDisjoint(with: runtimeCallees(in: .iterator)),
             "Iterator.iterator must not lower to an iterator runtime callee, got: \(allCallees)"
         )
     }

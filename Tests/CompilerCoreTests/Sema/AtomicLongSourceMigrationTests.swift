@@ -51,7 +51,7 @@ struct AtomicLongSourceMigrationTests {
         #expect(factoryInfo.visibility == .public)
         #expect(!factoryInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(factory))
-        #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_long_create")
+        #expect(sema.symbols.externalLinkName(for: factory) == runtimeABIName(.atomicLongCreate))
 
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
         #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/AtomicLong/Stdlib.kt")
@@ -120,7 +120,7 @@ struct AtomicLongSourceMigrationTests {
         #expect(factoryInfo.visibility == .public)
         #expect(!factoryInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(factory))
-        #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_long_create")
+        #expect(sema.symbols.externalLinkName(for: factory) == runtimeABIName(.atomicLongCreate))
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
         #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicLong/Stdlib.kt")
 

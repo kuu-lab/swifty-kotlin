@@ -644,6 +644,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        validateJsExportDeclarations(
+            ast: ast,
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         validateExperimentalTypeInferenceOptIn(
             ast: ast,
             symbols: symbols,

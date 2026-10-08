@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import RuntimeABI
 import Testing
 import TestStdlibCache
 
@@ -67,7 +68,7 @@ struct AbstractListOpenMemberTests {
                     let file = try #require(sema.symbols.sourceFileID(for: member))
                     #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/collections/AbstractList.kt")
                 } else {
-                    #expect(sema.symbols.externalLinkName(for: member)?.hasPrefix("kk_fn_\(name)_") == true)
+                    #expect(sema.symbols.externalLinkName(for: member)?.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "\(name)_") == true)
                 }
             }
             var calls = 0
