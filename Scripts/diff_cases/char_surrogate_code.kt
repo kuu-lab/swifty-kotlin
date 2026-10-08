@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): Char.Companion code-point helpers are Kotlin/Native-only APIs not available in kotlinc.
+// CANDIDATE-ONLY: Char.Companion code-point helpers are Kotlin/Native-only APIs without a JVM kotlinc reference.
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
 fun main() {
