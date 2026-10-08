@@ -3338,6 +3338,40 @@ struct StdlibArtifactRegressionTests {
     }
 
     @Test(arguments: [false, true])
+    func testMutableSharedFlowSubscriptionCountTracksLaunchedCollectors(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1465_mutable_shared_flow_subscription_count.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "MutableSharedFlowSubscriptionCount",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                1
+                0
+
+                """)
+        }
+    }
+
+    @Test(arguments: [false, true])
     func testSnapshotFlowAPIs(fromSource: Bool) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
         let source = """
@@ -3352,7 +3386,7 @@ struct StdlibArtifactRegressionTests {
             val count = shared.subscriptionCount
             val view = shared.asSharedFlow()
             println(count.value)
-            view.collect { value ->
+            view.take(2).collect { value ->
                 println("shared=$value/count=${count.value}")
                 if (value == 1) {
                     shared.resetReplayCache()
@@ -3366,8 +3400,8 @@ struct StdlibArtifactRegressionTests {
             } catch (e: IllegalStateException) {
                 println("exception/count=${count.value}")
             }
-            shared.collect {
-                shared.collect { println("nested=${count.value}") }
+            shared.take(1).collect {
+                shared.take(1).collect { println("nested=${count.value}") }
                 println("outer=${count.value}")
             }
             println(count.value)
