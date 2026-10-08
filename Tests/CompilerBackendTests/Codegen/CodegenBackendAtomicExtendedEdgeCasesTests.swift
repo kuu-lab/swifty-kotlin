@@ -527,6 +527,30 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
     }
 
     @Test
+    func testCodegenLegacyAtomicArrayConstructorsAndCopySemantics() throws {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
+        import kotlin.concurrent.AtomicArray
+
+        fun main() {
+            val initialized = AtomicArray(2) { index -> index.toString() }
+            val source = arrayOf("alpha", "beta")
+            val copied = AtomicArray(source)
+            source[0] = "x"
+            println(initialized)
+            println(copied)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LegacyAtomicArrayConstructors",
+            expected: "[0, 1]\n[alpha, beta]\n"
+        )
+    }
+
+    @Test
     func testCodegenAtomicArrayOfFactory() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
