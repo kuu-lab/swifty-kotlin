@@ -2,6 +2,7 @@ import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.CoroutineContext as Context
 
+// KUU-1597 Sema owner: pin inherited/overridden CoroutineContext.Key types; key identity checks stay in Scripts/diff_cases/stdlib_kotlin_coroutines_AbstractCoroutineContextElement_AbstractCoroutineContextElement_n.kt.
 private class Element : AbstractCoroutineContextElement(Key) {
     companion object Key : CoroutineContext.Key<Element> {}
 }
@@ -12,11 +13,8 @@ private class Alternate : AbstractCoroutineContextElement(Element.Key) {
 }
 
 fun main() {
-    val concrete = Element()
-    val base: AbstractCoroutineContextElement = concrete
-    println(concrete.key === Element.Key)
-    println(base.key === Element.Key)
+    val concrete: AbstractCoroutineContextElement = Element()
+    val elementKey: CoroutineContext.Key<*> = concrete.key
     val alternate: AbstractCoroutineContextElement = Alternate()
-    println(alternate.key === Alternate.Key)
-    println(alternate.key === Element.Key)
+    val alternateKey: CoroutineContext.Key<*> = alternate.key
 }

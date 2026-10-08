@@ -252,6 +252,23 @@ struct CodegenBackendIOHelpersTests {
     }
 
     @Test
+    func testCodegenReadLineEchoesInputLine() throws {
+        let source = """
+        fun main() {
+            val line = readLine()
+            println("line: $line")
+        }
+        """
+
+        let normalizedStdout = try runWithStdin(
+            source,
+            moduleName: "ReadLineEchoInput",
+            shellInvocation: "printf 'hello\\n' | \"$1\""
+        )
+        #expect(normalizedStdout == "line: hello\n")
+    }
+
+    @Test
     func testCodegenReadlnEOFThrows() throws {
         let source = """
         fun main() {

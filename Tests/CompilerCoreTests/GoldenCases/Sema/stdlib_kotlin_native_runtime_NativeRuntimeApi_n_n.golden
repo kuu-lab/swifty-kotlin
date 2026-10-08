@@ -1,3 +1,8 @@
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.nativeRuntimeApiSurface[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_native_runtime_NativeRuntimeApi_n_n package=golden.sema
   decl golden.sema.nativeRuntimeApiSurface[kind=fun;params=;ret=Unit;origin=fixture] fun nativeRuntimeApiSurface sym=golden.sema.nativeRuntimeApiSurface[kind=fun;params=;ret=Unit;origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@11:5 call callee=e@11:5#1 args=[] type=Unit call=golden.sema.nativeRuntimeApiSurface[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@12:13 string(native_runtime_api_ok=true) type=String
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]

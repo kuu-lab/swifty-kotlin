@@ -1,0 +1,9 @@
+main|INFO|Application started
+main|DEBUG|Debug info: startup complete
+MyService|TRACE|greet called
+MyService|DEBUG|Greeting user: Kotlin
+MyService|INFO|Hello, Kotlin!
+MyService|WARN|This is a warning: low disk space
+MyService|ERROR|This is an error message
+main|INFO|Done: one two three
+main|WARN|Shutting down
