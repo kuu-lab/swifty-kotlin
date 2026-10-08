@@ -28,7 +28,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-08 の実測は **112 タグ / 112 ファイル**。DEBT-DIFF-001 は **108 件**。
+2026-10-08 の実測は **111 タグ / 111 ファイル**。DEBT-DIFF-001 は **108 件**。
 本 PR の対象ケースの解除・移設と、master 側の解除記録を保ち、アクティブなタグを再集計した。
 その他の skip ケースの `--force-run-skipped` 再実行を意味するものではない。
 以下の過去の実行結果は当時の検証範囲として保持する。
@@ -43,7 +43,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 2 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。詳細は該当節） |
+| DEBT-DIFF-007 | 1 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。2026-10-08 に `kclass_members.kt` を追加解除し現行1件へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 0 | script mode 失敗系 exit code 規約差異（解消済み、2026-10-08 / KUU-1472） | — |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
@@ -302,7 +302,7 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 - **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
 - **コンパイラ本体の修正(1件、DEBT-DIFF-007 調査の副産物)**: `error_parameters.kt` の triage 中に、`varargFun(name = "bad", 1, 2)`(named引数の後に来る positional 引数が、宣言順序上その named引数より前にある vararg パラメータへ逆流して束縛される)を kswiftc が誤って受理する実バグを発見・修正した。`Sources/CompilerCore/Sema/Resolution/Resolution+TypeConstraints.swift` の `buildParameterMapping` に `maxBoundParamIndex`(そこまでに束縛済みの最大パラメータ index)を追加し、named引数の後の positional 引数が vararg パラメータへ束縛される際に「宣言順序が逆行していないか」を検証するよう修正(回帰は `error_parameters.kt` の golden ケースで固定、既存の `OverloadResolverTests` 79件は無回帰を確認済み)。
 
-以下、現行タグ2件を分類ごとに記載する（2026-09-23 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
+以下、現行タグ1件を分類ごとに記載する（2026-10-08 更新）。テスト入力側の修正で解決できず、コンパイラ/ランタイム側に実バグが残っている、または未実装機能がブロックしているものは「次アクション」に owner の当たりを付けた。
 
 ### グループ2: enum/data class/interface(残り0件)
 
@@ -344,11 +344,11 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 | ~~`flow_advanced_operators.kt`~~ | 解除済み（2026-09-23、テスト入力の書き換え：`.transform { it * 10 }`の`emit()`無し誤用を`.map`へ、`delayEach`(Kotlin 2.3 で deprecated-to-error)を `.onEach { delay(1) }` へ、timing 依存で ref でも不安定だった `.conflate()`/`.debounce(1)`/`.sample(1)` を除去。stdlib 側は `flatMapConcat`/`flatMapMerge`/`flatMapLatest`/`takeWhile`/`dropWhile`/`onEach`/`flowOn`/`buffer`/`sample`/`conflate` を eager suspend オペレーターとして `Flow.kt` に実装） | — |
 | ~~`flow_error_handling.kt`~~ | 解除済み（2026-09-23、テスト入力の書き換え：kotlinx.flow に存在しない `onErrorReturn`/`onErrorResume` を `try/catch` + `emptyFlow`/fallback flow の `toList()` で実kotlinc互換に書き換え、`onCompletion` の action を `cause: Throwable?` 明示型付き lambda に。stdlib 側は `catch`/`onCompletion`/`retry`/`retryWhen` を eager suspend オペレーターとして `Flow.kt` に実装） | — |
 
-### グループ5: reflection(残り1件)
+### グループ5: reflection(残り0件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
+| ~~`kclass_members.kt`~~ | 解除済み（2026-10-08、force-run artifact で ref 側は `kotlin.reflect.full.*` の import 欠落と JVM に存在しない `KClass.properties` の使用、candidate 側はこの特殊ケースが返す `List<Any>` の要素に `.name` を参照して失敗すると確認。入力を標準 API に絞った後、data class の synthetic `componentN()` が candidate の KClass 関数一覧に未登録と判明したため、reflection registration に追加。`kotlin.reflect.full.*` import 追加・非標準 `properties` 除去とこの実装修正を行い、force-run PASS） | — |
 | ~~`mock_objects.kt`~~ | 解除済み（2026-08-18、テスト入力の書き換え：内部 `Stub` クラスの非 private 化、`returns` の明示型注釈付与） | — |
 | ~~`annotation_reflection.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：annotation reflection API (`KClass<*>` 引数の `Annotation` 取得・配列化) を実kotlinc互換に修正） | — |
 | ~~`kclass_ktype_basic.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：`KClass.simpleName`/`isInstance`/`typeOf` を利用し、未対応の `KType.toString()` はテストから回避） | — |
