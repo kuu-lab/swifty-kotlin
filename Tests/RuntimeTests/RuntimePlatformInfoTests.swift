@@ -30,7 +30,7 @@ struct RuntimePlatformInfoTests {
     func testOsFamilyIsStableAcrossRepeatedCalls() {
         let first  = kk_platform_osFamily(0)
         let second = kk_platform_osFamily(0)
-        #expect(first == second, "kk_platform_osFamily should return a stable cached value")
+        #expect(first == second, "OS family must return a stable cached value")
     }
 
     @Test

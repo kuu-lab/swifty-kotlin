@@ -43,7 +43,7 @@ struct CallableReferenceParsingTests {
             return
         }
         #expect(receiver != nil)
-        #expect(lexed.interner.resolve(member) == "echo")
+        #expect(member == lexed.interner.intern("echo"))
         #expect(range.start.offset == 0)
         #expect(range.end.offset == source.utf8.count)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
@@ -53,7 +53,8 @@ struct CallableReferenceParsingTests {
             Issue.record("Expected a named type receiver.")
             return
         }
-        #expect(lexed.interner.resolve(try #require(path.last)) == "Box")
+        let typeName = try #require(path.last)
+        #expect(typeName == lexed.interner.intern("Box"))
         #expect(args.count == 1)
         #expect(!nullable)
         let encoded = try JSONEncoder().encode(arena.snapshot())
@@ -158,7 +159,7 @@ struct CallableReferenceParsingTests {
         #expect(lexed.diagnostics.diagnostics.isEmpty)
         #expect((receiver == nil) == source.hasPrefix("::"))
         let expectedMember = source.components(separatedBy: "::")[1].replacingOccurrences(of: "`", with: "")
-        #expect(lexed.interner.resolve(member) == expectedMember)
+        #expect(member == lexed.interner.intern(expectedMember))
         #expect(range.start.offset == 0)
         #expect(range.end.offset == source.utf8.count)
         #expect(parser.current() == nil)
@@ -213,7 +214,7 @@ struct CallableReferenceParsingTests {
                 Issue.record("Expected a callable reference")
                 return
             }
-            #expect(lexed.interner.resolve(member) == "f")
+            #expect(member == lexed.interner.intern("f"))
             guard case .memberCall = arena.expr(try #require(receiver)) else {
                 Issue.record("Expected a member-call receiver")
                 return
@@ -226,12 +227,13 @@ struct CallableReferenceParsingTests {
             return
         }
         #expect(typeArgs.count == 1)
-        #expect(lexed.interner.resolve(callee) != "class")
+        let className = KnownCompilerNames(interner: lexed.interner).className
+        #expect(callee != className)
         guard case let .callableRef(_, classMember, _) = arena.expr(receiver) else {
             Issue.record("Expected a callable-ref receiver")
             return
         }
-        #expect(lexed.interner.resolve(classMember) == "class")
+        #expect(classMember == className)
     }
 
     /// KUU-1376 (sibling path): an infix `<` after `T::class` hit the same
@@ -250,12 +252,13 @@ struct CallableReferenceParsingTests {
             return
         }
         #expect(op == .lessThan)
+        let className = KnownCompilerNames(interner: lexed.interner).className
         for side in [lhs, rhs] {
             guard case let .callableRef(_, member, _) = arena.expr(side) else {
                 Issue.record("Expected callable-ref operands")
                 return
             }
-            #expect(lexed.interner.resolve(member) == "class")
+            #expect(member == className)
         }
         #expect(parser.current() == nil)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
