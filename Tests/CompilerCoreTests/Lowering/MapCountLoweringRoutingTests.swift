@@ -46,19 +46,6 @@ struct MapCountLoweringRoutingTests {
     }
     """
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     /// `.call` instructions whose callee resolves to `"count"`, with the
     /// resolved symbol and argument count (receiver + lambda [+ closure word]).
     private static func countCalls(
@@ -88,7 +75,7 @@ struct MapCountLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let countCalls = Self.countCalls(in: body, interner: ctx.interner)

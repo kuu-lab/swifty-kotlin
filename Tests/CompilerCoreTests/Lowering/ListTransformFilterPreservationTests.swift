@@ -63,19 +63,6 @@ struct ListTransformFilterPreservationTests {
         return listTransformFilterNames.contains { member == $0 || member.hasPrefix($0) }
     }
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     /// Every `.call` in `body` named `name`, with its resolved symbol.
     private static func calls(
         named name: String,
@@ -232,7 +219,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.label) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
@@ -304,7 +291,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.callee) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
@@ -345,7 +332,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.callee) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
