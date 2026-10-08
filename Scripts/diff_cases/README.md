@@ -15,6 +15,11 @@ bash Scripts/diff_kotlinc.sh \
   Scripts/diff_cases/flow_cold.kt
 ```
 
+Cases marked `// CANDIDATE-ONLY` have no usable JVM reference. Run them with
+`bash Scripts/run_candidate_only.sh <file-or-dir>`; each case must have either
+`<name>.expected.stdout` or `<name>.expected.stderr` beside its `.kt` file.
+The regular `diff_kotlinc.sh` lane excludes these cases.
+
 Cases:
 
 The list below is representative rather than exhaustive. The runner discovers
@@ -53,6 +58,7 @@ adjacent `.expected` file.
 - `generic_typealias.kt`: 循環 typealias（`A = B`, `B = A`）の compile-error parity
 - `cast_operators.kt`: `as` / `as?` キャストと null 結果の parity
 - `reified_generics.kt`: `reified` inline 関数の `is` / `as` / `as?` / `T::class` と bounded type parameter の parity
+- `enum_values_reified_noinline_lambda.kt`: inline `Choice<T>` factory の noinline lambda 内 `enumValues<T>()` の materialization parity
 - `is_type_check.kt`: `is` / `!is` と `&&` / `||` の smart-cast 伝播 parity
 - `is_type_check_non_reified_error.kt`: non-reified 型パラメータへの `is` チェック compile-error parity
 - `try_expression.kt`: `try` 式（multi-catch / partial catch / `finally` 実行順）の parity
@@ -78,6 +84,7 @@ adjacent `.expected` file.
 - `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
 - `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
 - `ksp687_map_not_null.kt`: primitive array `mapNotNull` の bundled Kotlin source candidate-only coverage（JVM kotlinc に primitive-array API がないため `SKIP-DIFF`、KIR回帰テストがsource dispatchを検証）
+- `connection_validation.kt`: `java.sql` / JVM `Thread` API が未実装のため、kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
