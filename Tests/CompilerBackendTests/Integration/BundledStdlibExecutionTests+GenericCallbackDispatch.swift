@@ -74,8 +74,8 @@ extension BundledStdlibExecutionTests {
                 val shared = MutableSharedFlow<Int>(2)
                 shared.tryEmit(1)
                 val subscribed: Flow<Int> = shared.onSubscription { emit(0) }
-                subscribed.collect { println(it) }
-                subscribed.collect { println(it) }
+                subscribed.take(2).collect { println(it) }
+                subscribed.take(2).collect { println(it) }
             }
             """,
             expectedOutput: "4\n4\n0\n1\n0\n1\n",

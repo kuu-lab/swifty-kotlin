@@ -20,8 +20,11 @@ extension BuildKIRRegressionTests {
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
         #expect(callees.contains("take"), "Expected Iterable.take to remain a bundled Kotlin callee")
-        #expect(!callees.contains("kk_iterable_take"))
-        #expect(!callees.contains("kk_iterable_takeWhile"))
+        try expectSourceBackedCalls(
+            named: KnownCompilerNames(interner: ctx.interner).take, in: body, context: ctx, count: 1
+        )
+        try expectSourceBackedCalls(named: ctx.interner.intern("takeWhile"), in: body, context: ctx, count: 1)
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 }
 #endif

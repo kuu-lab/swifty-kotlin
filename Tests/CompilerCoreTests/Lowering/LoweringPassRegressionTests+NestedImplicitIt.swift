@@ -20,7 +20,7 @@ extension LoweringPassRegressionTests {
         let main = try findKIRFunction(named: "main", in: module, interner: interner)
         let lambdaSymbol = try #require(main.body.lazy.compactMap { instruction -> SymbolID? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "forEach",
+                  callee == interner.intern("forEach"),
                   let lambdaExpr = arguments.last,
                   case let .symbolRef(symbol) = module.arena.expr(lambdaExpr)
             else { return nil }
@@ -119,7 +119,7 @@ extension LoweringPassRegressionTests {
             let lambda = try forEachLambda(in: module, interner: ctx.interner)
             // kk_array_new_checked + kk_array_set mark the inlined init loop.
             let callees = Set(extractCallees(from: lambda.body, interner: ctx.interner))
-            #expect(callees.isSuperset(of: ["kk_array_new_checked", "kk_array_set"]))
+            #expect(callees.isSuperset(of: [RuntimeCall.arrayNewChecked.name, RuntimeCall.arraySet.name]))
             let outerParamExprs = try enclosingLambdaParamExprs(in: lambda)
             // The outer `it` is never used by this program, so no instruction
             // in the lambda body may read the parameter's register; the
@@ -170,7 +170,7 @@ extension LoweringPassRegressionTests {
             let module = try #require(ctx.kir)
             let lambda = try forEachLambda(in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: lambda.body, interner: ctx.interner))
-            #expect(callees.isSuperset(of: ["kk_array_new_checked", "kk_array_set"]))
+            #expect(callees.isSuperset(of: [RuntimeCall.arrayNewChecked.name, RuntimeCall.arraySet.name]))
             let outerParamExprs = try enclosingLambdaParamExprs(in: lambda)
             #expect(readExprIDs(in: lambda).contains { outerParamExprs.contains($0) })
         }

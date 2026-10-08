@@ -58,7 +58,7 @@ struct AtomicReferenceSourceMigrationTests {
             #expect(symbol.visibility == .public)
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(factory))
-            #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_ref_create")
+            #expect(sema.symbols.externalLinkName(for: factory) == runtimeABIName(.atomicRefCreate))
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
             #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicReference/Stdlib.kt")
 
@@ -92,7 +92,7 @@ struct AtomicReferenceSourceMigrationTests {
             // allocate through the canonical AtomicReference runtime ABI.
             #expect(
                 chosenCallee == factory
-                    || sema.symbols.externalLinkName(for: chosenCallee) == "kk_atomic_ref_create"
+                    || sema.symbols.externalLinkName(for: chosenCallee) == runtimeABIName(.atomicRefCreate)
             )
         }
     }

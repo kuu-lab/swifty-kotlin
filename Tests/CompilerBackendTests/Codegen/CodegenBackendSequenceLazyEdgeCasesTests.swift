@@ -1192,8 +1192,9 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "normalize", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("orEmpty", in: ctx)
             #expect(callees.contains("orEmpty"), "Expected the bundled orEmpty call, got: \(callees)")
-            #expect(!callees.contains("kk_sequence_orEmpty"), "Legacy Sequence.orEmpty bridge must not be emitted: \(callees)")
         }
     }
 }

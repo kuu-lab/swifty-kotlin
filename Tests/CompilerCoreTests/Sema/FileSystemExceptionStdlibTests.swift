@@ -37,7 +37,7 @@ struct FileSystemExceptionStdlibTests {
     private func expectConstructors(
         of exceptionSymbol: SymbolID,
         fqName: [String],
-        linkNamePrefix: String,
+        bridges: [SemaRuntimeFunction],
         sema: SemaModule,
         interner: StringInterner
     ) throws {
@@ -63,12 +63,14 @@ struct FileSystemExceptionStdlibTests {
         let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
             sema.symbols.symbol($0)?.kind == .constructor
         }
-        let expected: [([TypeID], String)] = [
-            ([fileType], "\(linkNamePrefix)_new_file"),
-            ([fileType, nullableFileType], "\(linkNamePrefix)_new_file_other"),
-            ([fileType, nullableFileType, nullableStringType], "\(linkNamePrefix)_new_file_other_reason"),
+        let expectedParameterTypes: [[TypeID]] = [
+            [fileType],
+            [fileType, nullableFileType],
+            [fileType, nullableFileType, nullableStringType],
         ]
-        for (parameterTypes, linkName) in expected {
+        #expect(bridges.count == expectedParameterTypes.count)
+        for (parameterTypes, bridge) in zip(expectedParameterTypes, bridges) {
+            let linkName = runtimeABIName(bridge)
             let constructor = try #require(constructors.first {
                 sema.symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
             })
@@ -94,18 +96,18 @@ struct FileSystemExceptionStdlibTests {
     @Test func testConstructorsBindToRuntimeStorage() throws {
         let (sema, interner) = try sharedSema()
 
-        let cases: [([String], String)] = [
-            (["kotlin", "io", "FileSystemException"], "__kk_file_system_exception"),
-            (["kotlin", "io", "FileAlreadyExistsException"], "__kk_file_already_exists_exception"),
-            (["kotlin", "io", "AccessDeniedException"], "__kk_access_denied_exception"),
-            (["kotlin", "io", "NoSuchFileException"], "__kk_no_such_file_exception"),
+        let cases: [([String], [SemaRuntimeFunction])] = [
+            (["kotlin", "io", "FileSystemException"], [.fileSystemExceptionNewFile, .fileSystemExceptionNewFileOther, .fileSystemExceptionNewFileOtherReason]),
+            (["kotlin", "io", "FileAlreadyExistsException"], [.fileAlreadyExistsExceptionNewFile, .fileAlreadyExistsExceptionNewFileOther, .fileAlreadyExistsExceptionNewFileOtherReason]),
+            (["kotlin", "io", "AccessDeniedException"], [.accessDeniedExceptionNewFile, .accessDeniedExceptionNewFileOther, .accessDeniedExceptionNewFileOtherReason]),
+            (["kotlin", "io", "NoSuchFileException"], [.noSuchFileExceptionNewFile, .noSuchFileExceptionNewFileOther, .noSuchFileExceptionNewFileOtherReason]),
         ]
-        for (fqName, linkNamePrefix) in cases {
+        for (fqName, bridges) in cases {
             let symbol = try classSymbol(fqName, sema, interner)
             try expectConstructors(
                 of: symbol,
                 fqName: fqName,
-                linkNamePrefix: linkNamePrefix,
+                bridges: bridges,
                 sema: sema,
                 interner: interner
             )
