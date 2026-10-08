@@ -103,9 +103,9 @@ struct LibMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0010", in: ctx)
-            let noSymbols = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "foo" && symbol.flags.contains(.synthetic)
-            }
+            let noSymbols = ctx.sema?.symbols.lookupAll(fqName: ["nv", "foo"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(noSymbols ?? false))
         }
     }
@@ -274,9 +274,9 @@ struct LibMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0013", in: ctx)
-            let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "fn" && symbol.flags.contains(.synthetic)
-            }
+            let hasImported = ctx.sema?.symbols.lookupAll(fqName: ["wt", "fn"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(hasImported ?? false))
         }
     }
@@ -765,11 +765,12 @@ struct LibMetadataImportIntegrationTests {
             return libDir
         }
 
-        let libA = try writeLibrary("DuplicateA")
-        let libB = try writeLibrary("DuplicateB", extraMember: true)
+        let firstModule = "DuplicateA"
+        let secondModule = "DuplicateB"
+        let libA = try writeLibrary(firstModule)
+        let libB = try writeLibrary(secondModule, extraMember: true)
 
-        func winningOwnerModule(searchPaths: [String], winnerHasExtra: Bool) throws -> String? {
-            var module: String?
+        func assertWinningOwner(searchPaths: [String], expectedModule: String, winnerHasExtra: Bool) throws {
             try withTemporaryFile(contents: "fun main() = 0") { path in
                 let ctx = makeCompilationContext(
                     inputs: [path],
@@ -783,7 +784,7 @@ struct LibMetadataImportIntegrationTests {
                 let owner = try #require(sema.symbols.lookup(
                     fqName: ["dup", "Owner"].map(ctx.interner.intern)
                 ))
-                module = sema.symbols.moduleFQN(for: owner).map { ctx.interner.resolve($0) }
+                #expect(sema.symbols.moduleFQN(for: owner) == ctx.interner.intern(expectedModule))
                 // Both libraries declare `dup.Owner.value`: exactly one
                 // symbol survives. The losing library's extra member is
                 // hidden with its owner instead of resolving onto the
@@ -796,11 +797,10 @@ struct LibMetadataImportIntegrationTests {
                 )
                 #expect(extraSymbols.isEmpty != winnerHasExtra)
             }
-            return module
         }
 
-        #expect(try winningOwnerModule(searchPaths: [libA.path, libB.path], winnerHasExtra: false) == "DuplicateA")
-        #expect(try winningOwnerModule(searchPaths: [libB.path, libA.path], winnerHasExtra: true) == "DuplicateB")
+        try assertWinningOwner(searchPaths: [libA.path, libB.path], expectedModule: firstModule, winnerHasExtra: false)
+        try assertWinningOwner(searchPaths: [libB.path, libA.path], expectedModule: secondModule, winnerHasExtra: true)
     }
 }
 #endif

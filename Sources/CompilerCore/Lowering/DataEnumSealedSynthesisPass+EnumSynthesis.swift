@@ -794,8 +794,6 @@ extension DataEnumSealedSynthesisPass {
         existingFunctionSymbols: Set<SymbolID>,
         interner: StringInterner
     ) {
-        guard !entries.isEmpty else { return }
-
         let intType = sema.types.make(.primitive(.int, .nonNull))
         // Collect existing global symbols so we don't create duplicates.
         var existingGlobalSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
@@ -841,6 +839,66 @@ extension DataEnumSealedSynthesisPass {
             // Store ordinal into the global slot.
             body.append(.copy(from: ordinalExpr, to: entryRef))
         }
+
+        // Retain a token-indexed descriptor for enumValues<T>() calls that
+        // execute in non-inline lambdas after their factory has returned.
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: owner.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let typeToken = RuntimeTypeCheckToken.encode(type: enumType, sema: sema, interner: interner)
+        let typeTokenExpr = module.arena.appendExpr(.intLiteral(typeToken), type: intType)
+        body.append(.constValue(result: typeTokenExpr, value: .intLiteral(typeToken)))
+        let valuesCount = module.arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
+        body.append(.constValue(result: valuesCount, value: .intLiteral(Int64(entries.count))))
+        let valuesArray = module.arena.appendTemporary(type: sema.types.anyType)
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_new"),
+            arguments: [valuesCount],
+            result: valuesArray,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: owner.id,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        for (ordinal, entry) in entries.enumerated() {
+            let ordinalExpr = module.arena.appendExpr(.intLiteral(Int64(ordinal)), type: intType)
+            body.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
+            let nameExpr = module.arena.appendExpr(.stringLiteral(entry.name), type: sema.types.stringType)
+            body.append(.constValue(result: nameExpr, value: .stringLiteral(entry.name)))
+            let boxedEntry = module.arena.appendTemporary(type: sema.types.anyType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_enum_box_ordinal"),
+                arguments: [ordinalExpr, nameExpr, classIDExpr],
+                result: boxedEntry,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [valuesArray, ordinalExpr, boxedEntry],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_enum_register_values"),
+            arguments: [typeTokenExpr, valuesArray, valuesCount],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
 
         // Register supertype edges so boxed enum values can answer `is`/`as`
         // against kotlin.Enum and implemented interfaces (e.g. Comparable).

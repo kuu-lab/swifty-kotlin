@@ -63,6 +63,8 @@ jobs:
           echo "Detected $worker_count logical CPUs"
       - name: Build compiler and all tests
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Verify candidate-only diff cases
+        run: bash Scripts/run_candidate_only.sh Scripts/diff_cases
       - name: Package debug test bundle
         run: |
           archive_name="swift-debug-tests.tar.zst"
