@@ -119,7 +119,7 @@ struct StringReplaceFirstCharOverloadTests {
         let calls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
             guard case let .memberCall(_, callee, _, _, range) = ast.arena.expr(exprID),
-                  ctx.interner.resolve(callee) == "replaceFirstChar",
+                  callee == ctx.interner.intern("replaceFirstChar"),
                   range.start.file == userFileID
             else {
                 return nil

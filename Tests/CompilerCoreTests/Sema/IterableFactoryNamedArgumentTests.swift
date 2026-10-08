@@ -20,7 +20,7 @@ struct IterableFactoryNamedArgumentTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "Iterable"
+                return name == KnownCompilerNames(interner: ctx.interner).iterable
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
             let chosen = try #require(binding.chosenCallee)
