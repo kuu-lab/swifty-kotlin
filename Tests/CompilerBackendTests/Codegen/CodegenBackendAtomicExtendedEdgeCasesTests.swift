@@ -407,6 +407,32 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "LegacyAtomicRefStringCAE", expected: "true\ny\nz\n")
     }
 
+    /// KUU-1507: Keep the Kotlin/Native-only legacy API covered without JVM kotlinc.
+    @Test
+    func testCodegenLegacyAtomicArrayOperations() throws {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
+        import kotlin.concurrent.AtomicArray
+
+        fun main() {
+            val values = AtomicArray(2) { "v$it" }
+            println(values.length)
+            println(values[0])
+            values[0] = "updated"
+            println(values.getAndSet(0, "exchanged"))
+            println(values.compareAndSet(0, "exchanged", "cas"))
+            println(values.compareAndExchange(0, "cas", "changed"))
+            println(values.toString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LegacyAtomicArrayOperations",
+            expected: "2\nv0\nupdated\ntrue\ncas\n[changed, v1]\n"
+        )
+    }
+
     @Test
     func testCodegenAtomicReferenceExchangeAndStore() throws {
         let source = """
