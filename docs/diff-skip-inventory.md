@@ -46,7 +46,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-007 | 0 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。2026-10-08 に `kclass_members.kt` と `platform_time_conversion.kt` を解除し現行0件へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 0 | script mode 失敗系 exit code 規約差異（解消済み、2026-10-08 / KUU-1472） | — |
-| DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
+| DEBT-DIFF-010 | 0（2026-10-08 解消） | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。KUU-1473 で修正済み |
 | DEBT-DIFF-011 | 0 (2026-10-08 解消) | KSwiftK-superset 構文で JVM kotlinc がコンパイル自体を拒否するケース | `local_named_object.kt` を diff 対象から削除。superset 構文の検証は Parser / Sema golden と unit test が担う（詳細は下記節） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -387,13 +387,13 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 | --- | --- |
 | `script_runtime_exception_before_output.kt` | KUU-1472 で `SKIP-DIFF` を解除し、`DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=1` を追加。script ケースでは指定された reference / candidate の exit code を個別に照合し、candidate compile 成功と stdout 一致も必須にする。値が一致しない場合は失敗する。`Scripts/test_diff_kotlinc_script_classification.sh` に期待値一致・不一致の回帰を追加 |
 
-## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ
+## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ（解消済み、2026-10-08）
 
 KSP-1519（`sequence`/`iterator` builder トップレベル関数の Kotlin 化）のテスト追加（ticket が要求する「yieldAll(sequence) の遅延評価順序ケース」）で発見。本バグの機構に関わる `__kk_sequence_builder_yieldAll`/`RuntimeSequenceCoroutine` は KSP-1519 で変更していないため同 PR が原因ではなく、分岐元コミット `3e3545a536` から存在する既存バグと確認済み（詳細な原因分析は BUG-255 を参照）。同 PR は同じファイル内の別関数 `__kk_iterator_builder_build` の ABI パラメータ数不一致（CI の `RuntimeABIExternalLinkValidationTests` で検出、本バグとは無関係）を修正しているため、`Sources/Runtime/` ディレクトリ全体としては無変更ではない。
 
 | case | 結果 |
 | --- | --- |
-| `sequence_yieldall_lazy_order.kt` | `SKIP-DIFF` — real kotlinc と kswiftc の出力が構造的に発散する最小 repro として保持 |
+| `sequence_yieldall_lazy_order.kt` | `PASS` — KUU-1473 で修正し、通常モードの単一ケース diff で real kotlinc と一致 |
 
 症状（`bash Scripts/diff_kotlinc.sh --keep-temp Scripts/diff_cases/sequence_yieldall_lazy_order.kt`）:
 
@@ -419,7 +419,9 @@ real kotlinc は `next()` を呼ぶたびに要素を1個ずつ pull して prod
 
 KIR 実測（`--emit kir`）で、`yieldAll(inner)` は `call __kk_sequence_builder_yieldAll symbol=yieldAll args=[builder, innerSeq] thrown=true` という単一呼び出しへ解決され、`innerSeq` は先行する `.iterator()` 呼び出しの結果ではなく捕捉済みローカルへの直接参照（`symbolRef`）であることを確認した。`SequenceScope.kt` の `yieldAll(sequence: Sequence<T>): Unit = yieldAll(sequence.iterator())` という Kotlin source 委譲本体（`.iterator()` を経由するはず）は実行されていない（dead code）。`symbol` が nil でなく `thrown=true` である点から、`CollectionLiteralLoweringPass+CallRewriteSequenceBuilders.swift` の raw-name 書き換え分岐（`symbol: nil, canThrow: false` を設定）ではなく、`CallLowerer+MemberCallEmission.swift` の `sequenceBuilderRuntimeCalleeName`（解決済み symbol の owner が `kotlin.sequences.SequenceScope` であれば通常の member-call emission 時にコールバック名を runtime bridge へ差し替える経路）が実際に発火しているとみられる。`yield`/`yieldAll` のディスパッチには他にも独立した機構が存在する: `CallTypeChecker+BuilderDSL.swift:1107-1129` にも `externalLinkName == "__kk_sequence_builder_yieldAll"` を条件にした専用オーバーロード選択があるが、`rg -n 'externalLinkName' Sources/CompilerCore/Sema/ | rg -i 'sequence|yield'` で確認した限り、現行コードベースには `SequenceScope.yieldAll` のいずれのオーバーロードにもこの externalLinkName を設定する setter が存在せず、この選択ロジックは常に false（到達不能）と確認済み。いずれの経路でも「元の Kotlin 引数をそのまま runtime bridge へ転送し、委譲 body 自体は実行しない」という結果は同じであり、dead-body の結論と runtime 側の根本原因は変わらない。
 
-次アクション: `RuntimeSequenceCoroutine`（`Sources/Runtime/RuntimeTypes.swift`）へ「サブイテレータへ委譲中」状態を追加し、`nextElement()`/`nextElementAsync()` がこの状態を消費側 pull のたびにチェックして初めて内側シーケンスから1要素引き出す設計に変更する（CPS・legacy thread 両 producer 経路と `RuntimeSequence.swift` の `.lazyBuilder` traversal に影響する coroutine ランタイム自体の再設計）。BUG-255 で追跡。
+修正: `RuntimeSequenceCoroutine` が委譲中の iterator を保持し、`nextElement()`/`nextElementAsync()` が consumer pull ごとに1要素ずつ引き出す。`__kk_sequence_builder_yieldAll` は同期 traversal で CPS の `COROUTINE_SUSPENDED` を握り潰さず、CPS・legacy 両 producer 経路で yieldAll 完了後に outer builder を再開する。
+
+回帰テスト: `Tests/RuntimeTests/RuntimeSequenceTests+SequenceYieldAll.swift` で outer/inner の CPS・legacy 組み合わせ4通りを検証。2026-10-08 に `swift build`、同テストの `swift_test.sh --no-parallel --filter`、既存の nested sequence 例外伝播テスト、および通常モードの `diff_kotlinc.sh Scripts/diff_cases/sequence_yieldall_lazy_order.kt` が PASS。
 
 ## DEBT-DIFF-011: KSwiftK-superset 構文（JVM kotlinc が拒否）
 
