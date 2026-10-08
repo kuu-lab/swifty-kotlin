@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-10-05
+最終更新: 2026-10-08
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -28,24 +28,21 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の再集計は **122 タグ / 122 ファイル**。
-DEBT-DIFF-001 は **117 件**（旧表の 85 件は 2026-09-20 時点）。カテゴリ別集計から
-漏れていた `stdlib_kotlin_collections_n_throw.kt` の `SKIP-DIFF (KSP-959)` を、
-internal `@PublishedApi` helper の既存理由に従い DEBT-DIFF-001 へ正規化した。
-skip の新規追加／解除はなく、全 skip ケースの `--force-run-skipped` 再実行も
-今回行っていない。以下の過去の実行結果は当時の検証範囲として保持する。
+2026-10-08（KUU-1471 と最新 master 反映後）の公式集計コマンドによる現在値は **116 タグ / 116 ファイル**、DEBT-DIFF-001 は **111 件**。
+2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の記録は **122 タグ / 122 ファイル**、DEBT-DIFF-001 は **117 件**であり、差分6件のうち本 issue の1件を除く5件の履歴はこの issue の範囲では追跡していない。
+KUU-1471 では `platform_time_conversion.kt` を解除し、通常の単一ケース差分を実行した。全 skip ケースの `--force-run-skipped` 再実行はしていない。以下の DEBT-DIFF-001 一覧と過去の実行結果は、各記録時点の検証範囲として保持する。
 
 件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'SKIP-DIFF\s*\(DEBT-DIFF-[0-9]{3}\)|KSWIFTK_DIFF_IGNORE.*DEBT-DIFF-[0-9]{3}' -N | rg -o 'DEBT-DIFF-[0-9]{3}' | sort | uniq -c`）に同期する。単純な `rg -o 'DEBT-DIFF-[0-9]{3}'`（アクティブなタグ/経緯コメント両方にマッチ）ではなく、アクティブな `SKIP-DIFF`/`KSWIFTK_DIFF_IGNORE` タグのみに絞ること — `case_insensitive_order_identity.kt` のように「過去 DEBT-DIFF-005 として追跡していたが解消済み」という経緯コメントだけが残るケースがあり、単純な文字列一致では解消済みの件数を残存として誤カウントする（2026-08-02、並行マージでの再計測差異から判明）。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 117 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
+| DEBT-DIFF-001 | 112 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 1 | advanced coroutine / channel / Flow / structured concurrency | `kotlinx_coroutines_flow_transform_latest_cancellation.kt` は KUU-955 の continuation-aware callable ABI 対応待ち。従来の coroutine / channel ケースは解除済み |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 2 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。詳細は該当節） |
+| DEBT-DIFF-007 | 1 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し2件へ。2026-10-08 に `platform_time_conversion.kt` を解除し、現行1件（`kclass_members.kt`）。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
@@ -61,7 +58,7 @@ skip の新規追加／解除はなく、全 skip ケースの `--force-run-skip
 
 `Scripts/diff_kotlinc.sh` の `--kotlinc-classpath` / coroutines jar 自動取得は **reference(kotlinc)側にしか作用しない**。kswiftc は jar/classpath を一切消費しない設計で、`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` に手書き登録した合成シンボルだけを認識し、対応する Runtime 実装を呼ぶ。したがって candidate 側が特定の Java/Kotlin API を新たに認識するには synthetic stub の実装が要り、jar 注入は原理的に届かない。「dependency injection で実行可能化」できるのは reference 側だけが理由で落ちているケースに限られるが、以下のケースはいずれも candidate 側の未実装、またはテスト内容自体が実 API 呼び出し規約と非互換という、jar 注入では解決しない理由だった。
 
-### keep skip インベントリ（現行117件、2026-10-05 実測）
+### keep skip インベントリ（2026-10-05 のスナップショット、117件）
 
 下表は理由別の代表例と過去の検証記録。現在の全ファイルは
 `rg -l '^// SKIP-DIFF \(DEBT-DIFF-001\)' Scripts/diff_cases` で再列挙できる。
@@ -355,7 +352,7 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `platform_time_conversion.kt` | CLEANUP-STUB-126 で `java.time` / `java.util.concurrent.TimeUnit` の JVM interop synthetic surface を target-out として削除。kotlinc reference は成立するが kswiftc candidate の比較対象外 | JVM interop surface を再導入しない限り `SKIP-DIFF` を維持。Native/common time API の検証は別の Duration/Instant テストで行う |
+| ~~`platform_time_conversion.kt`~~ | 解除済み（2026-10-08、JVM interop の往復変換を `kotlin.time.Instant` の epoch millisecond と `Duration` の `DurationUnit` 変換へ置き換え。JVM-only `TimeUnit` surface は引き続き target-out） | — |
 | ~~`jvm_preview.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：2件目以降のトップレベル複数行文字列プロパティと`@JvmRecord`/data class `toString()` 呼び出しをテストから除外） | — |
 | ~~`time_edge_cases.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`Duration.Companion` の import を追加し、companion-extension 呼び出しで実kotlinc互換に修正） | — |
 | ~~`test_primitive_conversions.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：存在しない変換呼び出しを削除し、実kotlinc互換の primitive 変換に修正） | — |
