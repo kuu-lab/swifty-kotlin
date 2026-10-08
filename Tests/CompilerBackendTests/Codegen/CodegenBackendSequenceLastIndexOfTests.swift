@@ -44,8 +44,9 @@ struct CodegenBackendSequenceLastIndexOfTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            let legacyCallee = try runtimeABICallee("sequence_lastIndexOf")
             #expect(
-                containsKotlinCallee("lastIndexOf", in: callees) && !callees.contains("kk_sequence_lastIndexOf"),
+                containsKotlinCallee("lastIndexOf", in: callees) && !callees.contains(legacyCallee),
                 "Expected Sequence.lastIndexOf to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }

@@ -368,7 +368,7 @@ struct FlowSemaTests {
                 guard case let .call(callee, _, _, range) = expr,
                       ctx.sourceManager.path(of: range.start.file) == path,
                       case let .nameRef(name, _) = ast.arena.expr(callee),
-                      ctx.interner.resolve(name) == "produce"
+                      name == KnownCompilerNames(interner: ctx.interner).produce
                 else { return nil }
                 return ExprID(rawValue: Int32(index))
             }

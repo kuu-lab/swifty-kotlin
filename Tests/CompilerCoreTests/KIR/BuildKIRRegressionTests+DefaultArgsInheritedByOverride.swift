@@ -25,9 +25,10 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
-        let defaultStubs = findAllKIRFunctions(in: module).filter {
-            ctx.interner.resolve($0.name) == "f$default"
-        }
+        let functions = findAllKIRFunctions(in: module)
+        let stubSymbols = Set(functions.filter { $0.name == ctx.interner.intern("f") }
+            .map { SyntheticSymbolScheme.defaultStubSymbol(for: $0.symbol) })
+        let defaultStubs = functions.filter { stubSymbols.contains($0.symbol) }
         #expect(defaultStubs.count == 1, "Expected exactly one f$default stub (owned by A.f), got: \(defaultStubs.count)")
 
         let sema = try #require(ctx.sema)
@@ -37,8 +38,11 @@ extension BuildKIRRegressionTests {
         }
 
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("f$default"), "Expected probe() to route both omitted-argument calls through f$default, got: \(callees)")
+        let baseStub = SyntheticSymbolScheme.defaultStubSymbol(for: aF)
+        #expect(body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == baseStub
+        }, "Expected probe() to call the base declaration's default stub")
     }
 
     @Test
@@ -60,14 +64,18 @@ extension BuildKIRRegressionTests {
         // expression was never collected and no `m$default` stub was ever
         // generated -- every call through it failed at link time with an
         // undefined `_m$default` symbol.
-        let defaultStubs = findAllKIRFunctions(in: module).filter {
-            ctx.interner.resolve($0.name) == "m$default"
-        }
+        let functions = findAllKIRFunctions(in: module)
+        let stubSymbols = Set(functions.filter { $0.name == ctx.interner.intern("m") }
+            .map { SyntheticSymbolScheme.defaultStubSymbol(for: $0.symbol) })
+        let defaultStubs = functions.filter { stubSymbols.contains($0.symbol) }
         #expect(defaultStubs.count == 1, "Expected exactly one m$default stub (owned by I.m), got: \(defaultStubs.count)")
 
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("m$default"), "Got: \(callees)")
+        let stub = try #require(defaultStubs.first)
+        #expect(body.contains { instruction in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == stub.symbol
+        })
     }
 }
 #endif

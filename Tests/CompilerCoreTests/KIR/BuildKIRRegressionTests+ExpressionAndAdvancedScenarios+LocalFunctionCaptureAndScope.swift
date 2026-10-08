@@ -150,7 +150,7 @@ extension BuildKIRRegressionTests {
                 return localSuspendBridge(value)
             }
 
-            fun main14(): Any? = runBlocking(outerSuspendHost)
+            suspend fun main14(): Int = outerSuspendHost(1)
             """,
             """
             package sample15
@@ -329,16 +329,18 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let allFunctions = findAllKIRFunctions(in: module)
 
+        let localSymbol = try sourceSymbol(named: "localSuspendBridge", in: ctx)
+        let outerSymbol = try sourceSymbol(named: "outerSuspendHost", in: ctx)
         let localSuspendFunction = try #require(allFunctions.first(where: { function in
-            ctx.interner.resolve(function.name) == "localSuspendBridge"
+            function.symbol == localSymbol
         }))
         #expect(localSuspendFunction.isSuspend, "Expected local suspend function KIR node to preserve isSuspend flag.")
 
         let outerSuspendFunction = try #require(allFunctions.first(where: { function in
-            ctx.interner.resolve(function.name) == "outerSuspendHost"
+            function.symbol == outerSymbol
         }))
-        let outerCallees = extractCallees(from: outerSuspendFunction.body, interner: ctx.interner)
-        #expect(outerCallees.contains("localSuspendBridge"), "Expected outer suspend function to call the local suspend function before lowering.")
+        #expect(callsSymbol(localSymbol, in: outerSuspendFunction.body),
+                "Expected outer suspend function to call the local suspend function before lowering.")
     }
 
     @Test

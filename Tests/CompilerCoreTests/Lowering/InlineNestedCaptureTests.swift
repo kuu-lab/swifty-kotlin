@@ -81,7 +81,7 @@ struct InlineNestedCaptureTests {
         let visit = function(visitSymbol, "visit", [valueParam, actionParam], [
             .constValue(result: value, value: .symbolRef(valueParam)),
             .constValue(result: action, value: .symbolRef(actionParam)),
-            .call(symbol: nil, callee: interner.intern("kk_function_invoke"),
+            .call(symbol: nil, callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
                   arguments: [action, value], result: visitResult, canThrow: false, thrownResult: nil),
             .returnValue(visitResult),
         ], inline: true, bodyless: bodylessSnapshot)
@@ -134,7 +134,7 @@ struct InlineNestedCaptureTests {
             arena.appendExpr(.symbolRef(symbol), type: types.intType)
         }
         func invoke(_ args: [KIRExprID], result: KIRExprID) -> KIRInstruction {
-            .call(symbol: nil, callee: interner.intern("kk_function_invoke"),
+            .call(symbol: nil, callee: LoweringTestRuntime.callee("function_invoke", interner: interner),
                   arguments: args, result: result, canThrow: false, thrownResult: nil)
         }
         func function(

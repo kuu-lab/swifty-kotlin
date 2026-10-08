@@ -39,8 +39,8 @@ extension BuildKIRRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         #expect(
-            callees.contains(interner.intern("__kk_uuid_toKotlinUuid")),
-            "__kk_uuid_toKotlinUuid should not receive an outThrown slot during ABI lowering"
+            callees.contains(interner.intern(runtimeCallee(.uuidToKotlinUuid))),
+            "The UUID interop bridge must not receive an outThrown slot during ABI lowering"
         )
     }
 }

@@ -223,23 +223,23 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let body = try findKIRFunctionBody(named: "f", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_iterable_iterator"),
+            callees.contains(try runtimeABICallee("iterable_iterator")),
             "Iterable for-loop should acquire its iterator through the generic bridge, got: \(callees)"
         )
         #expect(
-            callees.contains("kk_iterator_hasNext"),
+            callees.contains(try runtimeABICallee("iterator_hasNext")),
             "Iterable for-loop should use Iterator.hasNext dispatch, got: \(callees)"
         )
         #expect(
-            callees.contains("kk_iterator_next"),
+            callees.contains(try runtimeABICallee("iterator_next")),
             "Iterable for-loop should use Iterator.next dispatch, got: \(callees)"
         )
         #expect(
-            !callees.contains("kk_range_hasNext"),
+            !callees.contains(try runtimeABICallee("range_hasNext")),
             "Iterable for-loop must not use kk_range_hasNext, got: \(callees)"
         )
         #expect(
-            !callees.contains("kk_range_next"),
+            !callees.contains(try runtimeABICallee("range_next")),
             "Iterable for-loop must not use kk_range_next, got: \(callees)"
         )
     }
@@ -259,15 +259,15 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("kk_list_iterator"), "List for-loop should acquire a list iterator, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_hasNext"), "List for-loop should use list iterator hasNext, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_next"), "List for-loop should keep using kk_list_iterator_next, got: \(callees)")
-        #expect(!callees.contains("kk_iterable_iterator"), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_hasNext"), "Concrete List must not use generic hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_next"), "Concrete List must not use generic next, got: \(callees)")
-        #expect(!callees.contains("kk_range_iterator"), "Concrete List must not use the range iterator, got: \(callees)")
-        #expect(!callees.contains("kk_range_hasNext"), "Concrete List must not use range hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_range_next"), "Concrete List must not use range next, got: \(callees)")
+        #expect(callees.contains(try runtimeABICallee("list_iterator")), "List for-loop should acquire a list iterator, got: \(callees)")
+        #expect(callees.contains(try runtimeABICallee("list_iterator_hasNext")), "List for-loop should use list iterator hasNext, got: \(callees)")
+        #expect(callees.contains(try runtimeABICallee("list_iterator_next")), "List for-loop should keep using kk_list_iterator_next, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("iterable_iterator")), "Concrete List must not use the generic Iterable bridge, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("iterator_hasNext")), "Concrete List must not use generic hasNext, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("iterator_next")), "Concrete List must not use generic next, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_iterator")), "Concrete List must not use the range iterator, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_hasNext")), "Concrete List must not use range hasNext, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_next")), "Concrete List must not use range next, got: \(callees)")
     }
 
     @Test
@@ -284,12 +284,12 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(!callees.contains("kk_range_for_in_iterator"), "IntRange induction loop must not allocate a runtime iterator, got: \(callees)")
-        #expect(!callees.contains("kk_range_for_in_hasNext"), "IntRange induction loop must not call hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_range_for_in_next"), "IntRange induction loop must not call next, got: \(callees)")
-        #expect(!callees.contains("__kk_range_first"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
-        #expect(!callees.contains("__kk_range_last"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
-        #expect(callees.contains("__kk_int_range_induction_le"), "IntRange induction loop should compare bounds, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_for_in_iterator")), "IntRange induction loop must not allocate a runtime iterator, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_for_in_hasNext")), "IntRange induction loop must not call hasNext, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_for_in_next")), "IntRange induction loop must not call next, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_first")), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_last")), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(callees.contains(try compilerInternalCallee("int_range_induction_le")), "IntRange induction loop should compare bounds, got: \(callees)")
     }
 
     // BUG-231: `for (x in xs)` where `xs` is statically `List<T>`/`Set<T>`
