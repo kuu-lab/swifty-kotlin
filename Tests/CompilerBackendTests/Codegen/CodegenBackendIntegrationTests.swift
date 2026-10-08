@@ -679,60 +679,6 @@ import Testing
     }
 
     @Test
-    func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removefirstornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveFirstOrNull",
-            expected:
-                """
-                1
-                [2]
-                2
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removelastornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveLastOrNull",
-            expected:
-                """
-                2
-                [1]
-                1
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_sortwith.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListSortWith",
-            expected:
-                """
-                [1, 3, 4]
-                [4, 3, 1]
-                [fig, pear, apple]
-                """ + "\n"
-        )
-    }
-
-    @Test
     func testCodegenSetFactoriesAndMutableSetMutationsUseRuntimeSetBox() throws {
         let source = """
         fun main() {

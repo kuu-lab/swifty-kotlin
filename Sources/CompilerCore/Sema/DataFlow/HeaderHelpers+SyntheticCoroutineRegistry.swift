@@ -259,6 +259,11 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let throwableType = types.make(.classType(ClassType(
+            classSymbol: throwableSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
         let exceptionSymbol = ensureClassSymbol(
             named: "Exception",
             in: kotlinPkg,
@@ -1537,7 +1542,7 @@ extension DataFlowSemaPhase {
             named: "CoroutineExceptionHandler",
             packageFQName: coroutinesPkg,
             parameters: [(name: "handler", type: types.make(.functionType(FunctionType(
-                params: [kotlinCoroutineContextType, types.anyType],
+                params: [kotlinCoroutineContextType, throwableType],
                 returnType: types.unitType,
                 isSuspend: false,
                 nullability: .nonNull
@@ -1552,7 +1557,7 @@ extension DataFlowSemaPhase {
             ownerType: coroutineExceptionHandlerType,
             externalLinkName: "kk_exception_handler_create",
             parameters: [(name: "handler", type: types.make(.functionType(FunctionType(
-                params: [kotlinCoroutineContextType, types.anyType],
+                params: [kotlinCoroutineContextType, throwableType],
                 returnType: types.unitType,
                 isSuspend: false,
                 nullability: .nonNull
