@@ -41,7 +41,7 @@ struct InlineNonLocalReturnTypeTests {
         let bindings = try #require(ctx.sema?.bindings)
         let returns = bindings.lambdaReturnTargets.keys.filter { exprID in
             guard case let .returnExpr(_, label?, _) = ctx.ast?.arena.expr(exprID) else { return false }
-            return ctx.interner.resolve(label) == "outer"
+            return label == ctx.interner.intern("outer")
         }
         #expect(returns.count == 1)
         let returnExpr = try #require(returns.first)

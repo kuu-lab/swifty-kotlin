@@ -32,6 +32,9 @@ struct TopLevelDelegateThrowRoutingTests {
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let sema = try #require(ctx.sema)
+        let property = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("late")]))
+        let accessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
 
         var inGuard = false
         var accessorThrownResult: KIRExprID?
@@ -42,8 +45,8 @@ struct TopLevelDelegateThrowRoutingTests {
                 inGuard = true
             case .endFinallyGuard:
                 inGuard = false
-            case let .call(_, callee, _, _, _, thrownResult, _, _) where inGuard:
-                if ctx.interner.resolve(callee) == "get" {
+            case let .call(symbol, _, _, _, _, thrownResult, _, _) where inGuard:
+                if symbol == accessor {
                     accessorThrownResult = thrownResult
                 }
             case let .jumpIfNotNull(value, _) where inGuard:
@@ -84,6 +87,9 @@ struct TopLevelDelegateThrowRoutingTests {
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let sema = try #require(ctx.sema)
+        let property = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("accepted")]))
+        let accessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property)
 
         var inGuard = false
         var accessorThrownResult: KIRExprID?
@@ -94,8 +100,8 @@ struct TopLevelDelegateThrowRoutingTests {
                 inGuard = true
             case .endFinallyGuard:
                 inGuard = false
-            case let .call(_, callee, _, _, _, thrownResult, _, _) where inGuard:
-                if ctx.interner.resolve(callee) == "set" {
+            case let .call(symbol, _, _, _, _, thrownResult, _, _) where inGuard:
+                if symbol == accessor {
                     accessorThrownResult = thrownResult
                 }
             case let .jumpIfNotNull(value, _) where inGuard:
@@ -136,6 +142,9 @@ struct TopLevelDelegateThrowRoutingTests {
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let sema = try #require(ctx.sema)
+        let property = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("late")]))
+        let accessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
 
         var inGuard = false
         var accessorThrownResult: KIRExprID?
@@ -146,8 +155,8 @@ struct TopLevelDelegateThrowRoutingTests {
                 inGuard = true
             case .endFinallyGuard:
                 inGuard = false
-            case let .call(_, callee, _, _, _, thrownResult, _, _) where inGuard:
-                if ctx.interner.resolve(callee) == "get" {
+            case let .call(symbol, _, _, _, _, thrownResult, _, _) where inGuard:
+                if symbol == accessor {
                     accessorThrownResult = thrownResult
                 }
             case let .jumpIfNotNull(value, _) where inGuard:

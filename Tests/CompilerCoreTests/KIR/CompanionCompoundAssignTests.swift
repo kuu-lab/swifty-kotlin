@@ -27,7 +27,7 @@ struct CompanionCompoundAssignTests {
         let assignments = ast.arena.exprs.indices.filter { index in
             switch ast.arena.exprs[index] {
             case let .compoundAssign(_, name, _, _), let .memberCompoundAssign(_, _, name, _, _):
-                ctx.interner.resolve(name) == "log"
+                name == ctx.interner.intern("log")
             default: false
             }
         }

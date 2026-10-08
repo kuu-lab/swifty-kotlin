@@ -37,7 +37,7 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "appendInt", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_any_to_string"),
+            #expect(callees.contains(RuntimeCall.anyToString.name),
                     "a non-String RHS must be converted before __kk_string_concat_flat; callees: \(callees)")
         }
     }

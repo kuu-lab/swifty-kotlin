@@ -94,11 +94,13 @@ extension BuildKIRRegressionTests {
             )
         }
 
-        let calleeNames = findAllKIRFunctions(in: module).flatMap {
+        let functions = findAllKIRFunctions(in: module)
+        try expectResolvedKIRCallTargets(in: functions.flatMap(\.body), context: ctx)
+        let calleeNames = functions.flatMap {
             extractCallees(from: $0.body, interner: ctx.interner)
         }
         #expect(
-            calleeNames.allSatisfy { !$0.hasPrefix("kk_base64_") },
+            Set(calleeNames).isDisjoint(with: runtimeCallees(in: .base64)),
             "Base64 consumer KIR must not reference legacy runtime bridges: \(calleeNames)"
         )
     }

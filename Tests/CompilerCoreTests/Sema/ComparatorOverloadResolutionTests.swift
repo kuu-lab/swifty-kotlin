@@ -13,19 +13,22 @@ struct ComparatorOverloadResolutionTests {
     // MARK: - Helpers
 
     private func sourceBackedComparatorExtension(
-        named name: String,
+        named name: InternedString,
         parameterCount: Int? = nil,
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
-        let fqName = ["kotlin", "comparisons", name].map { interner.intern($0) }
+        let names = KnownCompilerNames(interner: interner)
+        let fqName = [names.kotlin, names.comparisons, name]
+        guard let comparator = sema.symbols.lookup(fqName: names.kotlinComparatorFQName) else {
+            return nil
+        }
         return sema.symbols.lookupAll(fqName: fqName).first { symbolID in
             guard sema.symbols.externalLinkName(for: symbolID) == nil,
                   let signature = sema.symbols.functionSignature(for: symbolID),
                   let receiver = signature.receiverType,
                   case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiver)),
-                  let symbol = sema.symbols.symbol(classType.classSymbol),
-                  symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "Comparator"]
+                  classType.classSymbol == comparator
             else {
                 return false
             }
@@ -60,12 +63,13 @@ struct ComparatorOverloadResolutionTests {
         try runSema(ctx)
         let sema = try #require(ctx.sema)
         let ast = try #require(ctx.ast)
+        let names = KnownCompilerNames(interner: ctx.interner)
         #expect(!ctx.diagnostics.hasError)
         let callID = try #require(firstExprID(in: ast) { _, expr in
             guard case let .call(callee, _, _, _) = expr,
                   case let .nameRef(name, _) = ast.arena.expr(callee)
             else { return false }
-            return ctx.interner.resolve(name) == "compareBy"
+            return name == names.compareBy
         })
         let chosen = try #require(sema.bindings.callBindings[callID]?.chosenCallee)
         let signature = try #require(sema.symbols.functionSignature(for: chosen))
@@ -216,6 +220,14 @@ struct ComparatorOverloadResolutionTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
+            let names = KnownCompilerNames(interner: interner)
+            let comparator = try #require(sema.symbols.lookup(fqName: names.kotlinComparatorFQName))
+            let thenBy = interner.intern("thenBy")
+            let thenByDescending = interner.intern("thenByDescending")
+            let naturalOrder = interner.intern("naturalOrder")
+            let reverseOrder = interner.intern("reverseOrder")
+            let nullsFirst = interner.intern("nullsFirst")
+            let nullsLast = interner.intern("nullsLast")
             // paths[0] is the noop source; paths[1...] map to the original sample sources.
 
             // === testCompareByLambdaOverloadSelectsSourceBackedVariant ===
@@ -226,12 +238,12 @@ struct ComparatorOverloadResolutionTests {
                                guard case let .call(calleeExpr, _, _, _) = expr,
                                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                else { return false }
-                               return interner.resolve(calleeName) == "compareBy"
+                               return calleeName == names.compareBy
                            }, "Expected a call to compareBy")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy { }")
                            let symbol = try #require(sema.symbols.symbol(chosenCallee))
-                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "comparisons", "compareBy"], "Expected compareBy<Int> { } to resolve to the bundled stdlib compareBy")
+                           #expect(symbol.fqName == [names.kotlin, names.comparisons, names.compareBy], "Expected compareBy<Int> { } to resolve to the bundled stdlib compareBy")
                            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected compareBy<Int> { } to be source-backed without a runtime comparator link")
 
             }
@@ -244,7 +256,7 @@ struct ComparatorOverloadResolutionTests {
                                guard case let .call(calleeExpr, _, _, _) = expr,
                                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                else { return false }
-                               return interner.resolve(calleeName) == "compareBy"
+                               return calleeName == names.compareBy
                            })
 
                            let exprType = try #require(sema.bindings.exprTypes[callExpr])
@@ -252,8 +264,7 @@ struct ComparatorOverloadResolutionTests {
                                Issue.record("Expected compareBy result to be a class type (Comparator<T>)")
                                return
                            }
-                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected compareBy { } to return kotlin.Comparator<T>")
+                           #expect(ct.classSymbol == comparator, "Expected compareBy { } to return kotlin.Comparator<T>")
 
             }
 
@@ -265,7 +276,7 @@ struct ComparatorOverloadResolutionTests {
                                    guard case let .call(calleeExpr, _, args, _) = expr,
                                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                    else { return false }
-                                   return interner.resolve(calleeName) == "compareBy" && args.count == 2
+                                   return calleeName == names.compareBy && args.count == 2
                                }.first, "Expected 2-selector compareBy call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2)")
@@ -283,7 +294,7 @@ struct ComparatorOverloadResolutionTests {
                                    guard case let .call(calleeExpr, _, args, _) = expr,
                                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                    else { return false }
-                                   return interner.resolve(calleeName) == "compareBy" && args.count == 3
+                                   return calleeName == names.compareBy && args.count == 3
                                }.first, "Expected 3-selector compareBy call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(s1, s2, s3)")
@@ -301,7 +312,7 @@ struct ComparatorOverloadResolutionTests {
                                    guard case let .call(calleeExpr, _, args, _) = expr,
                                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                    else { return false }
-                                   return interner.resolve(calleeName) == "compareBy" && args.count == 4
+                                   return calleeName == names.compareBy && args.count == 4
                                }.first, "Expected 4-selector compareBy call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected overload resolution to produce a chosen callee for compareBy(vararg selectors)")
@@ -322,7 +333,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "thenBy",
+                               named: thenBy,
                                sema: sema,
                                interner: interner
                            ), "Expected source-backed Comparator.thenBy to be registered")
@@ -336,7 +347,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[6], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "thenBy"
+                               return callee == thenBy
                            }, "Expected a thenBy member call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenBy to resolve to a callee")
@@ -349,7 +360,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "thenByDescending",
+                               named: thenByDescending,
                                sema: sema,
                                interner: interner
                            ), "Expected source-backed Comparator.thenByDescending to be registered")
@@ -363,7 +374,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[7], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "thenByDescending"
+                               return callee == thenByDescending
                            }, "Expected a thenByDescending member call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected thenByDescending to resolve to a callee")
@@ -377,7 +388,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[8], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "thenByDescending"
+                               return callee == thenByDescending
                            })
 
                            let exprType = try #require(sema.bindings.exprTypes[callExpr])
@@ -385,8 +396,7 @@ struct ComparatorOverloadResolutionTests {
                                Issue.record("Expected thenByDescending result to be Comparator<T>")
                                return
                            }
-                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected thenByDescending to return kotlin.Comparator<T>")
+                           #expect(ct.classSymbol == comparator, "Expected thenByDescending to return kotlin.Comparator<T>")
 
             }
 
@@ -395,7 +405,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "reversed",
+                               named: names.reversed,
                                parameterCount: 0,
                                sema: sema,
                                interner: interner
@@ -410,7 +420,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[9], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "reversed"
+                               return callee == names.reversed
                            }, "Expected a reversed member call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reversed() to resolve to a callee")
@@ -424,7 +434,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[10], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "reversed"
+                               return callee == names.reversed
                            })
 
                            let exprType = try #require(sema.bindings.exprTypes[callExpr])
@@ -432,8 +442,7 @@ struct ComparatorOverloadResolutionTests {
                                Issue.record("Expected reversed() result to be Comparator<T>")
                                return
                            }
-                           let symbol = try #require(sema.symbols.symbol(ct.classSymbol))
-                           #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"], "Expected reversed() to return kotlin.Comparator<T>")
+                           #expect(ct.classSymbol == comparator, "Expected reversed() to return kotlin.Comparator<T>")
 
             }
 
@@ -442,9 +451,9 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                                   interner.intern("kotlin"),
-                                   interner.intern("comparisons"),
-                                   interner.intern("naturalOrder"),
+                                   names.kotlin,
+                                   names.comparisons,
+                                   naturalOrder,
                                ]), "Expected source-backed naturalOrder to be registered")
                            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected naturalOrder() to be source-backed")
 
@@ -455,9 +464,9 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                                   interner.intern("kotlin"),
-                                   interner.intern("comparisons"),
-                                   interner.intern("reverseOrder"),
+                                   names.kotlin,
+                                   names.comparisons,
+                                   reverseOrder,
                                ]), "Expected source-backed reverseOrder to be registered")
                            #expect(sema.symbols.externalLinkName(for: symbolID) == nil, "Expected reverseOrder() to be source-backed")
 
@@ -471,7 +480,7 @@ struct ComparatorOverloadResolutionTests {
                                    guard case let .call(calleeExpr, _, _, _) = expr,
                                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                    else { return false }
-                                   return interner.resolve(calleeName) == "naturalOrder"
+                                   return calleeName == naturalOrder
                                }.first, "Expected a naturalOrder() call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected naturalOrder() to resolve to a callee")
@@ -487,7 +496,7 @@ struct ComparatorOverloadResolutionTests {
                                    guard case let .call(calleeExpr, _, _, _) = expr,
                                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                                    else { return false }
-                                   return interner.resolve(calleeName) == "reverseOrder"
+                                   return calleeName == reverseOrder
                                }.first, "Expected a reverseOrder() call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected reverseOrder() to resolve to a callee")
@@ -500,9 +509,9 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                               interner.intern("kotlin"),
-                               interner.intern("comparisons"),
-                               interner.intern("naturalOrder"),
+                               names.kotlin,
+                               names.comparisons,
+                               naturalOrder,
                            ]))
                            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
                            #expect(sig.parameterTypes.isEmpty, "Expected naturalOrder() to take no parameters")
@@ -514,9 +523,9 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sema.symbols.lookup(fqName: [
-                               interner.intern("kotlin"),
-                               interner.intern("comparisons"),
-                               interner.intern("reverseOrder"),
+                               names.kotlin,
+                               names.comparisons,
+                               reverseOrder,
                            ]))
                            let sig = try #require(sema.symbols.functionSignature(for: symbolID))
                            #expect(sig.parameterTypes.isEmpty, "Expected reverseOrder() to take no parameters")
@@ -528,7 +537,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "nullsFirst",
+                               named: nullsFirst,
                                parameterCount: 0,
                                sema: sema,
                                interner: interner
@@ -542,7 +551,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "nullsLast",
+                               named: nullsLast,
                                parameterCount: 0,
                                sema: sema,
                                interner: interner
@@ -557,7 +566,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[13], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "nullsFirst"
+                               return callee == nullsFirst
                            }, "Expected a nullsFirst member call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsFirst() to resolve to a callee")
@@ -571,7 +580,7 @@ struct ComparatorOverloadResolutionTests {
 
                            let callExpr = try #require(firstExprID(in: ast, path: paths[14], ctx: ctx) { _, expr in
                                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                               return interner.resolve(callee) == "nullsLast"
+                               return callee == nullsLast
                            }, "Expected a nullsLast member call")
 
                            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee, "Expected nullsLast() to resolve to a callee")
@@ -584,7 +593,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "nullsFirst",
+                               named: nullsFirst,
                                parameterCount: 0,
                                sema: sema,
                                interner: interner
@@ -599,7 +608,7 @@ struct ComparatorOverloadResolutionTests {
             do {
 
                            let symbolID = try #require(sourceBackedComparatorExtension(
-                               named: "nullsLast",
+                               named: nullsLast,
                                parameterCount: 0,
                                sema: sema,
                                interner: interner
