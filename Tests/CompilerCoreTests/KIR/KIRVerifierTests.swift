@@ -82,10 +82,13 @@ struct KIRVerifierTests {
     func testUnresolvableCalleeIsReported() {
         let interner = StringInterner()
         let arena = KIRArena()
+        let unknownRuntimeName = interner.intern(
+            interner.resolve(KIRRuntimeFunction.unboxInt.name(in: interner)) + "_unresolvable"
+        )
         let module = makeModule(arena: arena, interner: interner, body: [
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_definitely_not_a_runtime_function"),
+                callee: unknownRuntimeName,
                 arguments: [],
                 result: nil,
                 canThrow: false,
@@ -142,7 +145,7 @@ struct KIRVerifierTests {
             .constValue(result: value, value: .intLiteral(1)),
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_unbox_int"),
+                callee: KIRRuntimeFunction.unboxInt.name(in: interner),
                 arguments: [value],
                 result: result,
                 canThrow: false,

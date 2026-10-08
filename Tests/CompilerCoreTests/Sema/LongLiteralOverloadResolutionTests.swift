@@ -42,7 +42,7 @@ struct LongLiteralOverloadResolutionTests {
                     let signature = try #require(sema.symbols.functionSignature(for: chosen))
                     #expect(signature.parameterTypes == [sema.types.longType])
                     #expect(signature.returnType == sema.types.byteType)
-                case let .memberCall(_, name, _, _, _) where ctx.interner.resolve(name) == "toInt":
+                case let .memberCall(_, name, _, _, _) where name == ctx.interner.intern("toInt"):
                     conversionCount += 1
                     #expect(sema.bindings.exprType(for: id) == sema.types.intType)
                 default:

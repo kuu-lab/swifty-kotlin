@@ -18,7 +18,7 @@ struct PrimitiveVarargContainsTests {
             for index in ast.arena.exprs.indices {
                 let id = ExprID(rawValue: Int32(index))
                 guard case let .memberCall(_, name, _, _, range) = ast.arena.expr(id),
-                      ctx.interner.resolve(name) == "contains",
+                      name == KnownCompilerNames(interner: ctx.interner).contains,
                       ctx.sourceManager.path(of: range.start.file) == path
                 else { continue }
                 let binding = try #require(sema.bindings.callBinding(for: id))
@@ -64,7 +64,7 @@ struct PrimitiveVarargContainsTests {
             for index in ast.arena.exprs.indices {
                 let id = ExprID(rawValue: Int32(index))
                 guard case let .memberCall(_, name, _, _, range) = ast.arena.expr(id),
-                      ctx.interner.resolve(name) == "contains",
+                      name == KnownCompilerNames(interner: ctx.interner).contains,
                       ctx.sourceManager.path(of: range.start.file) == path
                 else { continue }
                 let binding = try #require(sema.bindings.callBinding(for: id))

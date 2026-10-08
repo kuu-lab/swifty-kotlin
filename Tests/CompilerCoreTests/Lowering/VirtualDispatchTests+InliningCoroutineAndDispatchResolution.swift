@@ -240,7 +240,7 @@ extension VirtualDispatchTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_unrelated_map_iterator_marker"),
+                    callee: interner.intern("unrelatedIteratorFixtureMarker"),
                     arguments: [],
                     result: markerResult,
                     canThrow: false,
@@ -262,7 +262,7 @@ extension VirtualDispatchTests {
         let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(
-            !callees.contains("kk_unrelated_map_iterator_marker"),
+            !callees.contains("unrelatedIteratorFixtureMarker"),
             "A call with a known-but-unmatched symbol must not be spliced with an unrelated same-named bundled inline function's body. Body: \(lowered.body)"
         )
         #expect(
@@ -431,27 +431,15 @@ extension VirtualDispatchTests {
         let sema = makeSemaModule(symbols: symbols, types: types).ctx
         try runLowering(module: module, interner: interner, moduleName: "VirtualSuspend", sema: sema)
 
-        // After coroutine lowering, the suspend function should be rewritten.
-        // Look for the lowered suspend function (kk_suspend_outerSuspend)
-        let allFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            return fn
+        // Follow the wrapper's continuation target to the lowered state machine.
+        let allFunctions = findAllKIRFunctions(in: module)
+        let wrapper = try #require(allFunctions.first { $0.symbol == outerSuspendSym })
+        let suspendFunction = try LoweringTestRuntime.loweredSuspendFunction(for: wrapper, in: module, interner: interner)
+        let hasVirtualCall = suspendFunction.body.contains { instruction in
+            if case .virtualCall = instruction { return true }
+            return false
         }
-        let suspendFunction = allFunctions.first { fn in
-            interner.resolve(fn.name).contains("kk_suspend_outerSuspend")
-        }
-        if let suspendFunction {
-            // The lowered state machine should contain a virtualCall instruction
-            let hasVirtualCall = suspendFunction.body.contains { instruction in
-                if case .virtualCall = instruction { return true }
-                return false
-            }
-            #expect(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
-        }
-        // If no lowered suspend function is found, the test still passes because
-        // the coroutine lowering may not have triggered (depends on whether
-        // outerSuspend was detected as a suspend function). The key test is
-        // testCoroutineLoweringExtractCallInfoForVirtualCall above which tests
-        // the core mechanism.
+        #expect(hasVirtualCall, "Coroutine state machine should emit virtualCall for virtual suspend calls, not .call. Body callees: \(suspendFunction.body)")
     }
 
     @Test func testSuspendCallableRefVirtualDispatchUsesWrapperABI() throws {
@@ -467,7 +455,7 @@ extension VirtualDispatchTests {
         let virtualFlushCalls = findAllKIRFunctions(in: module).flatMap { function in
             function.body.compactMap { instruction -> [KIRExprID]? in
                 guard case let .virtualCall(_, callee, _, arguments, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "flush"
+                      callee == ctx.interner.intern("flush")
                 else { return nil }
                 return arguments
             }

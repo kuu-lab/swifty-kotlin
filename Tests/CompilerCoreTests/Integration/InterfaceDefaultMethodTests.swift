@@ -272,26 +272,26 @@ import Testing
 
             // testInterfaceDefaultMethodNotMarkedAbstract
             do {
-                let samplePackage = "sample0"
-
                 #expect(!ctx.diagnostics.hasError)
 
                 // The greet function should NOT have the abstractType flag
-                let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
-                #expect(greetSymbols.count == 1)
-                #expect(!(greetSymbols[0].flags.contains(.abstractType)),
+                let greetIDs = sema.symbols.lookupAll(fqName: ["sample0", "Greeter", "greet"].map(interner.intern))
+                #expect(greetIDs.count == 1)
+                let greet = try #require(greetIDs.first.flatMap(sema.symbols.symbol))
+                #expect(greet.kind == .function)
+                #expect(!(greet.flags.contains(.abstractType)),
                                "Interface default method should not be marked abstract")
             }
 
             // testInterfaceAbstractMethodIsMarkedAbstract
             do {
-                let samplePackage = "sample1"
-
                 #expect(!ctx.diagnostics.hasError)
 
-                let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
-                #expect(greetSymbols.count == 1)
-                #expect(greetSymbols[0].flags.contains(.abstractType),
+                let greetIDs = sema.symbols.lookupAll(fqName: ["sample1", "Greeter", "greet"].map(interner.intern))
+                #expect(greetIDs.count == 1)
+                let greet = try #require(greetIDs.first.flatMap(sema.symbols.symbol))
+                #expect(greet.kind == .function)
+                #expect(greet.flags.contains(.abstractType),
                               "Interface method without body should be marked abstract")
             }
 
