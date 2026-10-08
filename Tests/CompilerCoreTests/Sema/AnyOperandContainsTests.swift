@@ -86,7 +86,7 @@ struct AnyOperandContainsTests {
                   ctx.sourceManager.origin(of: range.start.file) == .user,
                   let binding = sema.bindings.callBinding(for: id),
                   let symbol = sema.symbols.symbol(binding.chosenCallee),
-                  ctx.interner.resolve(symbol.name) == "contains"
+                  symbol.name == KnownCompilerNames(interner: ctx.interner).contains
             else { continue }
             #expect(symbol.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "contains"])
             #expect(sema.symbols.isSourceBackedSymbol(symbol.id))

@@ -634,19 +634,14 @@ import TestStdlibCache
             interner: ctx.interner
         )
 
-        guard let shapeSymbol = symbols.allSymbols().first(where: {
-            ctx.interner.resolve($0.name) == "Shape" && $0.kind == .class
-        }) else {
-            Issue.record("Shape symbol not found")
-            return
-        }
+        let shapeID = try #require(symbols.lookup(fqName: [ctx.interner.intern("Shape")]))
+        let shapeSymbol = try #require(symbols.symbol(shapeID))
+        #expect(shapeSymbol.kind == .class)
         let otherModule = ctx.interner.intern("OtherModule")
         symbols.setModuleFQN(otherModule, for: shapeSymbol.id)
-        if let describeSymbol = symbols.children(ofFQName: shapeSymbol.fqName).compactMap({ symbols.symbol($0) }).first(where: {
-            ctx.interner.resolve($0.name) == "describe" && $0.kind == .function
-        }) {
-            symbols.setModuleFQN(otherModule, for: describeSymbol.id)
-        }
+        let describeID = try #require(symbols.lookup(fqName: shapeSymbol.fqName + [ctx.interner.intern("describe")]))
+        #expect(symbols.symbol(describeID)?.kind == .function)
+        symbols.setModuleFQN(otherModule, for: describeID)
 
         phase.validateOpenFinalOverride(
             ast: try #require(ctx.ast),
@@ -704,13 +699,9 @@ import TestStdlibCache
                 importedInlineFunctions: inlineFns
             )
 
-            let baseSymbol = symbols.allSymbols().first {
-                ctx.interner.resolve($0.name) == "Base" && $0.kind == .class
-            }
-            #expect(baseSymbol != nil)
-            #expect(
-                ctx.interner.resolve(symbols.moduleFQN(for: baseSymbol!.id)!) == "BaseLib"
-            )
+            let baseID = try #require(symbols.lookup(fqName: ["base", "Base"].map(ctx.interner.intern)))
+            #expect(symbols.symbol(baseID)?.kind == .class)
+            #expect(symbols.moduleFQN(for: baseID) == ctx.interner.intern("BaseLib"))
         }
     }
 

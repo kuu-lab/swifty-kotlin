@@ -22,12 +22,15 @@ struct NestedWithContextLoweringTests {
         let module = try #require(ctx.kir)
         let functions = findAllKIRFunctions(in: module)
         let adapters = functions.filter {
-            ctx.interner.resolve($0.name).hasPrefix("kk_suspend_kk_coroutine_block_adapter_")
+            guard let operation = LoweringTestRuntime.operation(of: ctx.interner.resolve($0.name)),
+                  operation.hasPrefix("suspend_") else { return false }
+            let originalName = String(operation.dropFirst("suspend_".count))
+            return LoweringTestRuntime.operation(of: originalName)?.hasPrefix("coroutine_block_adapter_") == true
         }
         #expect(!adapters.isEmpty)
         let callees = functions.flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
         #expect(!callees.contains("withContext"))
-        #expect(callees.contains("kk_with_context"))
-        #expect(callees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(callees.contains(LoweringTestRuntime.name("with_context")))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
     }
 }

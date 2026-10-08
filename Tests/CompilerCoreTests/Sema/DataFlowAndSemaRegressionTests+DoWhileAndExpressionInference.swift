@@ -133,7 +133,7 @@ extension DataFlowAndSemaRegressionTests {
 
 
                 let boxSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "Box"
+                    symbol.name == interner.intern("Box")
                 }
                 #expect(boxSymbol != nil)
 
@@ -420,7 +420,7 @@ extension DataFlowAndSemaRegressionTests {
 
 
                 let xSymbol = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "x" && symbol.kind == .local
+                    symbol.name == interner.intern("x") && symbol.kind == .local
                 }
                 #expect(xSymbol != nil)
 

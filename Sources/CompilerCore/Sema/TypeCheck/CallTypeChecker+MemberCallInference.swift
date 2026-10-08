@@ -139,7 +139,18 @@ extension CallTypeChecker {
         result: TypeID
     ) -> TypeID {
         let sema = request.ctx.sema
-        guard request.args.isEmpty,
+        // This check protects dotted property syntax (`recv.name`). A
+        // nominal callable value written as `f()` is routed through member
+        // inference for its generated `invoke`, but the source expression
+        // remains `.call` rather than a dotted member access.
+        let isDottedMemberAccess = switch request.ctx.ast.arena.expr(request.id) {
+        case .memberCall, .safeMemberCall:
+            true
+        default:
+            false
+        }
+        guard isDottedMemberAccess,
+              request.args.isEmpty,
               request.explicitTypeArgs.isEmpty,
               !request.ctx.ast.arena.isExplicitCall(request.id),
               result != sema.types.errorType,

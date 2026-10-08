@@ -23,9 +23,9 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(callees.filter { $0 == "none" }.count == 2)
-        #expect(!callees.contains("kk_sequence_none"))
-        #expect(!callees.contains("kk_iterable_none"))
-        #expect(!callees.contains("__kk_iterable_none"))
+        #expect(!callees.contains(runtimeCallee(.sequenceNone)))
+        try expectSourceBackedCalls(named: ctx.interner.intern("none"), in: body, context: ctx, count: 2)
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 }
 #endif
