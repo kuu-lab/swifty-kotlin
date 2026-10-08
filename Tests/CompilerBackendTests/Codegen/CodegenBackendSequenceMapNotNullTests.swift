@@ -106,7 +106,7 @@ struct CodegenBackendSequenceMapNotNullTests {
             // imported sequence factory plus retired-bridge absence is the
             // stable consumer invariant.
             #expect(containsKotlinCallee("sequenceOf", in: callees))
-            #expect(!callees.contains("kk_sequence_mapNotNull"))
+            #expect(!callees.contains(try runtimeABICallee("sequence_mapNotNull")))
         }
     }
 }

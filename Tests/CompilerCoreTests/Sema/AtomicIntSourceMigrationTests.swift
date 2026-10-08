@@ -54,7 +54,7 @@ struct AtomicIntSourceMigrationTests {
             #expect(symbol.visibility == .public)
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(factory))
-            #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_int_create")
+            #expect(sema.symbols.externalLinkName(for: factory) == runtimeABIName(.atomicIntCreate))
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
             #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/atomics/AtomicInt/Stdlib.kt")
 
@@ -126,7 +126,7 @@ struct AtomicIntSourceMigrationTests {
         #expect(factoryInfo.visibility == .public)
         #expect(!factoryInfo.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(factory))
-        #expect(sema.symbols.externalLinkName(for: factory) == "kk_atomic_int_create")
+        #expect(sema.symbols.externalLinkName(for: factory) == runtimeABIName(.atomicIntCreate))
 
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: factory))
         #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/concurrent/AtomicInt/Stdlib.kt")

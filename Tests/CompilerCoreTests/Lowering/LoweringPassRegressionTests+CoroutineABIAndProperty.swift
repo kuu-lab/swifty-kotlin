@@ -23,11 +23,11 @@ extension LoweringPassRegressionTests {
             let callees = findAllKIRFunctions(in: module).flatMap {
                 extractCallees(from: $0.body, interner: ctx.interner)
             }
-            #expect(callees.filter { $0 == "kk_duration_inWholeMilliseconds" }.count == 3)
-            #expect(callees.contains("kk_kxmini_delay"))
-            #expect(callees.contains("kk_with_timeout"))
-            #expect(callees.contains("kk_with_timeout_or_null_throwing"))
-            #expect(!callees.contains("kk_with_timeout_or_null"))
+            #expect(callees.filter { $0 == RuntimeCall.durationInWholeMilliseconds.name }.count == 3)
+            #expect(callees.contains(RuntimeCall.kxminiDelay.name))
+            #expect(callees.contains(RuntimeCall.withTimeout.name))
+            #expect(callees.contains(RuntimeCall.withTimeoutOrNullThrowing.name))
+            #expect(!callees.contains(RuntimeCall.withTimeoutOrNull.name))
         }
     }
 
@@ -87,27 +87,26 @@ extension LoweringPassRegressionTests {
 
         let ctx = try runLowering(module: module, interner: interner, moduleName: "LauncherArgTest")
 
-        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
-        }
+        let thunkFunctions = launcherThunks(in: module, interner: interner)
         #expect(thunkFunctions.count == 1)
         let thunk = try #require(thunkFunctions.first)
         #expect(thunk.params.count == 1)
 
         let thunkCallees = extractCallees(from: thunk.body, interner: interner)
-        #expect(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
-        #expect(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
+        #expect(thunkCallees.contains(RuntimeCall.coroutineLauncherArgGet.name))
+        let loweredTarget = try loweredSuspendFunction(originalNamed: interner.resolve(suspendFn.name), in: module, interner: interner)
+        #expect(thunkCallees.contains(interner.resolve(loweredTarget.name)))
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_coroutine_continuation_new"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(mainCallees.contains(RuntimeCall.coroutineContinuationNew.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
+        #expect(mainCallees.contains(RuntimeCall.kxminiRunBlockingWithCont.name))
         #expect(!mainCallees.contains("runBlocking"))
 
         let blockingCall = try #require(loweredMain.body.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return interner.resolve(callee) == "kk_kxmini_run_blocking_with_cont"
+            return callee == interner.intern(RuntimeCall.kxminiRunBlockingWithCont.name)
         })
         if case let .call(_, _, _, _, canThrow, loweredThrownResult, _, _) = blockingCall {
             #expect(canThrow)
@@ -169,9 +168,9 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_kxmini_run_blocking"))
-        #expect(!mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains(RuntimeCall.kxminiRunBlocking.name))
+        #expect(!mainCallees.contains(RuntimeCall.kxminiRunBlockingWithCont.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
@@ -228,7 +227,7 @@ extension LoweringPassRegressionTests {
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let callees = extractCallees(from: loweredMain.body, interner: interner)
         #expect(callees.contains("map"))
-        #expect(!callees.contains("kk_flow_emit"))
+        #expect(!callees.contains(RuntimeCall.flowEmit.name))
     }
 
     @Test
@@ -284,10 +283,10 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(!mainCallees.contains("kk_coroutine_continuation_new"))
-        #expect(!mainCallees.contains("kk_coroutine_state_set_completion"))
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineContinuationNew.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineStateSetCompletion.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         #expect(!mainCallees.contains("createCoroutineUnintercepted"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -345,7 +344,7 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
         #expect(!mainCallees.contains("createCoroutine"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -405,10 +404,10 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(!mainCallees.contains("kk_coroutine_continuation_new"))
-        #expect(!mainCallees.contains("kk_coroutine_state_set_completion"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineContinuationNew.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineStateSetCompletion.name))
         #expect(!mainCallees.contains("createCoroutineUnintercepted"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -466,8 +465,8 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(mainCallees.contains(RuntimeCall.startCoroutineUninterceptedOrReturn.name))
         #expect(!mainCallees.contains("startCoroutineUninterceptedOrReturn"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -527,9 +526,9 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
+        #expect(mainCallees.contains(RuntimeCall.startCoroutineUninterceptedOrReturn.name))
         #expect(!mainCallees.contains("startCoroutineUninterceptedOrReturn"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -586,10 +585,10 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(mainCallees.contains("kk_coroutine_continuation_resume"))
-        #expect(!mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineContinuationResume.name))
+        #expect(!mainCallees.contains(RuntimeCall.startCoroutineUninterceptedOrReturn.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         #expect(!mainCallees.contains("startCoroutine"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -648,10 +647,10 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_create_coroutine_unintercepted"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(mainCallees.contains("kk_coroutine_continuation_resume"))
-        #expect(!mainCallees.contains("kk_start_coroutine_unintercepted_or_return"))
+        #expect(mainCallees.contains(RuntimeCall.createCoroutineUnintercepted.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineContinuationResume.name))
+        #expect(!mainCallees.contains(RuntimeCall.startCoroutineUninterceptedOrReturn.name))
         #expect(!mainCallees.contains("startCoroutine"))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
@@ -716,22 +715,21 @@ extension LoweringPassRegressionTests {
 
         let ctx = try runLowering(module: module, interner: interner, moduleName: "LauncherLambdaCaptureTest")
 
-        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
-        }
+        let thunkFunctions = launcherThunks(in: module, interner: interner)
         #expect(thunkFunctions.count == 1)
         let thunk = try #require(thunkFunctions.first)
         #expect(thunk.params.count == 1)
 
         let thunkCallees = extractCallees(from: thunk.body, interner: interner)
-        #expect(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
-        #expect(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
+        #expect(thunkCallees.contains(RuntimeCall.coroutineLauncherArgGet.name))
+        let loweredTarget = try loweredSuspendFunction(originalNamed: interner.resolve(lambdaFn.name), in: module, interner: interner)
+        #expect(thunkCallees.contains(interner.resolve(loweredTarget.name)))
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_coroutine_continuation_new"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
-        #expect(mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
+        #expect(mainCallees.contains(RuntimeCall.coroutineContinuationNew.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
+        #expect(mainCallees.contains(RuntimeCall.kxminiRunBlockingWithCont.name))
         #expect(!mainCallees.contains("runBlocking"))
 
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
@@ -794,9 +792,9 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_kxmini_run_blocking"))
-        #expect(!mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains(RuntimeCall.kxminiRunBlocking.name))
+        #expect(!mainCallees.contains(RuntimeCall.kxminiRunBlockingWithCont.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
@@ -855,15 +853,13 @@ extension LoweringPassRegressionTests {
 
         let ctx = try runLowering(module: module, interner: interner, moduleName: "LauncherLaunchLambdaTest")
 
-        let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
-        }
+        let thunkFunctions = launcherThunks(in: module, interner: interner)
         #expect(thunkFunctions.count == 1)
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(mainCallees.contains("kk_kxmini_launch_with_cont"))
-        #expect(mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(mainCallees.contains(RuntimeCall.kxminiLaunchWithCont.name))
+        #expect(mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         #expect(!mainCallees.contains("launch"))
 
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
@@ -902,7 +898,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: packedEnvironmentExpr, value: .intLiteral(77)),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("__kk_produce_launch"),
+                    callee: interner.intern(RuntimeCall.produceLaunch.name),
                     arguments: [channelExpr, suspendRefExpr] + (hasPackedEnvironment ? [packedEnvironmentExpr] : []),
                     result: produceResult,
                     canThrow: false,
@@ -945,7 +941,7 @@ extension LoweringPassRegressionTests {
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == (hasClosureParam ? "__kk_produce_launch_with_cont" : "__kk_produce_launch")
+                  interner.resolve(callee) == (hasClosureParam ? RuntimeCall.produceLaunchWithCont.name : RuntimeCall.produceLaunch.name)
             else { return nil }
             return arguments
         }
@@ -955,7 +951,7 @@ extension LoweringPassRegressionTests {
         if hasClosureParam {
             let launcherSlots = loweredMain.body.compactMap { instruction -> KIRExprID? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      interner.resolve(callee) == "kk_coroutine_launcher_arg_set"
+                      callee == interner.intern(RuntimeCall.coroutineLauncherArgSet.name)
                 else { return nil }
                 return arguments[2]
             }
@@ -964,18 +960,18 @@ extension LoweringPassRegressionTests {
             #expect(arena.expr(launchArgs[1]) == .symbolRef(suspendSymbol))
             let envAllocations = loweredMain.body.compactMap { instruction -> KIRExprID? in
                 guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                      interner.resolve(callee) == "kk_object_new" else { return nil }
+                      callee == interner.intern(RuntimeCall.objectNew.name) else { return nil }
                 return result
             }
             #expect(envAllocations == [launchArgs[2]])
             #expect(loweredMain.body.contains { instruction in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      interner.resolve(callee) == "kk_array_set" else { return false }
+                      callee == interner.intern(RuntimeCall.arraySet.name) else { return false }
                 return arguments.first == launchArgs[2] && arguments.last == captureExpr
             })
-            #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+            #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
         }
-        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
+        #expect(!mainCallees.contains(RuntimeCall.functionValueFnPtr.name))
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
@@ -1005,7 +1001,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: environmentExpr, value: .intLiteral(17)),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("__kk_produce_launch"),
+                    callee: interner.intern(RuntimeCall.produceLaunch.name),
                     arguments: [channelExpr, suspendRefExpr] + (hasExplicitEnvironment ? [environmentExpr] : []),
                     result: produceResult,
                     canThrow: false,
@@ -1037,13 +1033,13 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(!mainCallees.contains("kk_function_value_fn_ptr"))
-        #expect(!mainCallees.contains("kk_function_value_closure_raw"))
-        #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(!mainCallees.contains(RuntimeCall.functionValueFnPtr.name))
+        #expect(!mainCallees.contains(RuntimeCall.functionValueClosureRaw.name))
+        #expect(!mainCallees.contains(RuntimeCall.coroutineLauncherArgSet.name))
 
         let launchCalls = loweredMain.body.compactMap { instruction -> [KIRExprID]? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "__kk_produce_launch"
+                  callee == interner.intern(RuntimeCall.produceLaunch.name)
             else { return nil }
             return arguments
         }

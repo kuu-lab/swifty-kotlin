@@ -34,7 +34,8 @@ struct ClockNowKIRRegressionTests {
                 }
                 return (callee, dispatch)
             }
-            let clockCall = try #require(virtualCalls.first { ctx.interner.resolve($0.0) == "kk_clock_now" })
+            let clockCallee = ctx.interner.intern(try runtimeABICallee("clock_now"))
+            let clockCall = try #require(virtualCalls.first { $0.0 == clockCallee })
             guard case let .itableDynamic(_, methodSlot) = clockCall.1 else {
                 Issue.record("Expected Clock.now to use dynamic itable dispatch, got \(clockCall.1)")
                 return

@@ -70,11 +70,12 @@ func memberCallExprIDs(
     ctx: CompilationContext,
     interner: StringInterner
 ) -> [ExprID] {
-    ast.arena.exprs.indices.compactMap { index in
+    let expectedCallee = interner.intern(name)
+    return ast.arena.exprs.indices.compactMap { index in
         let exprID = ExprID(rawValue: Int32(index))
         guard let expr = ast.arena.expr(exprID),
               case let .memberCall(_, callee, _, _, range) = expr,
-              interner.resolve(callee) == name,
+              callee == expectedCallee,
               ctx.sourceManager.path(of: range.start.file) == path
         else {
             return nil
@@ -110,12 +111,13 @@ func findMainBodyStatements(
     interner: StringInterner
 ) -> [ExprID]? {
     guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
+    let mainName = KnownCompilerNames(interner: interner).main
     for file in ast.files {
         guard file.fileID == fileID else { continue }
         for declID in file.topLevelDecls {
             guard let decl = ast.arena.decl(declID),
                   case let .funDecl(function) = decl,
-                  interner.resolve(function.name) == "main",
+                  function.name == mainName,
                   case let .block(statements, _) = function.body
             else { continue }
             return statements

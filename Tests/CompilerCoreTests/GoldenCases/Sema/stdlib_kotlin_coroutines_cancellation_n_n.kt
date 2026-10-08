@@ -1,20 +1,17 @@
 import kotlin.coroutines.cancellation.CancellationException
 
+// KUU-1597 Sema owner: pin CancellationException constructor overloads and supertypes; message/cause values stay in Scripts/diff_cases/stdlib_kotlin_coroutines_cancellation_n_n.kt.
 fun main() {
-    val noArg = CancellationException()
-    val message = CancellationException("message")
-    val cause = CancellationException(IllegalArgumentException("cause"))
-    val messageAndCause = CancellationException("both", IllegalArgumentException("root"))
-
-    println(CancellationException(null as Throwable?).message)
-    println(CancellationException(null, null).cause)
-    println(noArg.message ?: "null")
-    println(message.message ?: "null")
-    println(cause.message ?: "null")
-    println(cause.cause?.message ?: "null")
-    println(messageAndCause.message ?: "null")
-    println(messageAndCause.cause?.message ?: "null")
-    println(messageAndCause is IllegalStateException)
-    println(messageAndCause is Exception)
-    println(messageAndCause is Throwable)
+    val noArg: CancellationException = CancellationException()
+    val message: CancellationException = CancellationException("message")
+    val cause: CancellationException = CancellationException(IllegalArgumentException("cause"))
+    val messageAndCause: CancellationException = CancellationException(
+        "both",
+        IllegalArgumentException("root"),
+    )
+    val nullableMessage: String? = CancellationException(null as Throwable?).message
+    val nullableCause: Throwable? = CancellationException(null, null).cause
+    val isIllegalState: Boolean = messageAndCause is IllegalStateException
+    val isException: Boolean = messageAndCause is Exception
+    val isThrowable: Boolean = messageAndCause is Throwable
 }

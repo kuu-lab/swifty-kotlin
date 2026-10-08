@@ -117,7 +117,7 @@ struct CodegenBackendSequenceMapIndexedNotNullTests {
             // The imported sequence factory and retired-bridge absence remain
             // concrete artifact-backed routing checks.
             #expect(containsKotlinCallee("sequenceOf", in: callees))
-            #expect(!callees.contains("kk_sequence_mapIndexedNotNull"), "Sequence.mapIndexedNotNull should no longer route through the retired native bridge, got: \(callees)")
+            #expect(!callees.contains(try runtimeABICallee("sequence_mapIndexedNotNull")), "Sequence.mapIndexedNotNull should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

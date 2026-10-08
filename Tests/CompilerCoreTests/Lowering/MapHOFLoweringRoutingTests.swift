@@ -43,18 +43,18 @@ struct MapHOFLoweringRoutingTests {
     /// The `kk_map_*` names the deleted `mapHOFRuntimeName` switch in
     /// `+CallRewriteHandlers.swift` used to produce. None has a `@_cdecl` in
     /// `Sources/Runtime` any more.
-    static let legacyMapHOFRuntimeCallees: Set<String> = [
-        "kk_map_map", "kk_map_filter", "kk_map_forEach",
-        "kk_map_mapValues", "kk_map_mapKeys",
-        "kk_map_filterKeys", "kk_map_filterValues",
-        "kk_map_flatMap", "kk_map_any", "kk_map_all", "kk_map_none",
-        "kk_map_maxByOrNull", "kk_map_minByOrNull",
+    static let legacyMapHOFRuntimeOperations: Set<String> = [
+        "map_map", "map_filter", "map_forEach",
+        "map_mapValues", "map_mapKeys",
+        "map_filterKeys", "map_filterValues",
+        "map_flatMap", "map_any", "map_all", "map_none",
+        "map_maxByOrNull", "map_minByOrNull",
     ]
 
     /// Every name the removed Map branches used to match, exercised on a
     /// `Map` receiver. `mapValuesTo` / `mapKeysTo` / `filterNot` /
     /// `mapNotNull` were never in the deleted `mapHOFRuntimeName` switch (so
-    /// they have no corresponding `legacyMapHOFRuntimeCallees` entry), but
+    /// they have no corresponding `legacyMapHOFRuntimeOperations` entry), but
     /// they shared the same dead outer gates and are worth pinning too.
     static let expectedSourceCallees: Set<String> = [
         "map", "filter", "filterNot", "mapNotNull", "forEach",
@@ -175,8 +175,8 @@ struct MapHOFLoweringRoutingTests {
                 arities.append(functionType.params.count)
             }
             #expect(arities == [2, 1, 1, 1, 2, 2])
-            #expect(Set(Self.allCallees(in: module, interner: ctx.interner))
-                .intersection(Self.legacyMapHOFRuntimeCallees).isEmpty)
+            #expect(LoweringTestRuntime.operations(in: Self.allCallees(in: module, interner: ctx.interner))
+                .intersection(Self.legacyMapHOFRuntimeOperations).isEmpty)
         }
     }
 
@@ -222,7 +222,7 @@ struct MapHOFLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyMapHOFRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyMapHOFRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_map_* HOF rewrite may reach lowered KIR; got \(redirects.sorted())"
@@ -304,7 +304,7 @@ struct MapHOFLoweringRoutingTests {
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
             #expect(
-                callees.intersection(Self.legacyMapHOFRuntimeCallees).isEmpty,
+                LoweringTestRuntime.operations(in: callees).intersection(Self.legacyMapHOFRuntimeOperations).isEmpty,
                 "a user function may never be rewritten to a runtime bridge; callees: \(callees.sorted())"
             )
         }
@@ -377,7 +377,7 @@ struct MapHOFLoweringRoutingTests {
                 allCallees.isSuperset(of: ["mapValues", "filterKeys"]),
                 "the Map HOF source calls must survive as direct calls; callees: \(allCallees.sorted())"
             )
-            let redirects = allCallees.intersection(Self.legacyMapHOFRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: allCallees).intersection(Self.legacyMapHOFRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_map_* HOF rewrite may reach lowered KIR; got \(redirects.sorted())"
