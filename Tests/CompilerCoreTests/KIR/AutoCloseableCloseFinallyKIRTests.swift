@@ -25,14 +25,9 @@ struct AutoCloseableCloseFinallyKIRTests {
         )
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let closeFinallyCalls = body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
-            guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "closeFinally"
-            else {
-                return nil
-            }
-            return (arguments, canThrow)
-        }
+        let sema = try #require(ctx.sema)
+        let closeFinally = try #require(sema.symbols.lookup(fqName: ["kotlin", "closeFinally"].map(ctx.interner.intern)))
+        let closeFinallyCalls = kirCalls(to: closeFinally, in: body)
         #expect(closeFinallyCalls.count == 1, "Expected one source-backed closeFinally call in main KIR")
         #expect(closeFinallyCalls.first?.arguments.count == 2)
         #expect(closeFinallyCalls.first?.canThrow == true)

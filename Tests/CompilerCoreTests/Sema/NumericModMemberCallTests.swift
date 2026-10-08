@@ -69,7 +69,7 @@ struct NumericModMemberCallTests {
                     guard let expr = ast.arena.expr(exprID),
                           case let .memberCall(_, callee, _, _, range) = expr,
                           ctx.sourceManager.path(of: range.start.file) == sample0Path,
-                          interner.resolve(callee) == "mod"
+                          callee == interner.intern("mod")
                     else {
                         return nil
                     }

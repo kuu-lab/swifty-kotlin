@@ -1,29 +1,14 @@
-// SKIP-DIFF (DEBT-DIFF-010): pre-existing runtime laziness bug (BUG-255),
-// unrelated to KSP-1519 itself (Sources/Runtime/ untouched by that PR).
-//
-// KSP-1519: Verify that yieldAll(sequence) pulls from the source sequence
+// BUG-255 regression: Verify that yieldAll(sequence) pulls from the source sequence
 // lazily, interleaved with the outer builder's own execution, rather than
 // eagerly draining it up front. If yieldAll materialized the whole inner
 // sequence before yielding, "inner:3" would print before we stop early.
 //
-// Expected (real kotlinc, the oracle to restore once BUG-255 is fixed):
+// Expected output (matches real kotlinc):
 //   start
 //   outer:before
 //   inner:1
 //   1
 //   inner:2
-//   2
-//   stop early
-//
-// Actual (kswiftc, BUG-255): the whole inner sequence and the rest of the
-// outer builder's body run synchronously before the first next() returns:
-//   start
-//   outer:before
-//   inner:1
-//   inner:2
-//   inner:3
-//   outer:after
-//   1
 //   2
 //   stop early
 fun main() {

@@ -68,7 +68,7 @@ struct LocalVariableCallableReferenceTests {
             return false
         })
         let topLevelSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            guard symbol.kind == .property, ctx.interner.resolve(symbol.name) == "shadowed" else { return false }
+            guard symbol.kind == .property, symbol.name == ctx.interner.intern("shadowed") else { return false }
             let parentKind = sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0)?.kind }
             return parentKind == .package || parentKind == nil
         })?.id)
@@ -99,7 +99,7 @@ struct LocalVariableCallableReferenceTests {
             return false
         })
         let memberSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            guard symbol.kind == .property, ctx.interner.resolve(symbol.name) == "nm" else { return false }
+            guard symbol.kind == .property, symbol.name == ctx.interner.intern("nm") else { return false }
             return sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0)?.kind } == .class
         })?.id)
         #expect(
@@ -128,7 +128,7 @@ struct LocalVariableCallableReferenceTests {
             return false
         })
         let localFnSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "localFn"
+            symbol.kind == .function && symbol.name == ctx.interner.intern("localFn")
         })?.id)
         #expect(
             sema.bindings.identifierSymbols[callableRefExprID] == localFnSymbol,

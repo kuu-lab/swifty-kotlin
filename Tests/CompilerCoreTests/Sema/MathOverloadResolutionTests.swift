@@ -846,7 +846,7 @@ struct MathOverloadResolutionTests {
                   functionRange.contains(exprRange),
                   case let .call(calleeExpr, _, _, _) = expr,
                   case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
-                  ctx.interner.resolve(calleeName) == "abs",
+                  calleeName == ctx.interner.intern("abs"),
                   let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
             else { continue }
             chosenCallees.append(chosenCallee)
