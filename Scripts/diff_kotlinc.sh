@@ -557,6 +557,39 @@ if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
 
+# Preserve the separate master runner's stdout/stderr sidecars alongside this
+# PR's candidate-only marker and expected-output format.
+is_master_candidate_only_case() {
+  local case_path="$1"
+  is_candidate_only_case "$case_path" || return 1
+  [[ -f "${case_path%.kt}.expected.stdout" || -f "${case_path%.kt}.expected.stderr" ]]
+}
+
+# A single candidate-only target has no JVM reference by design. Delegate
+# before kotlinc/JDK discovery, cache fingerprinting, and JVM warm-up so this
+# path remains usable without any reference toolchain installed.
+if [[ -f "$TARGET" ]] && is_master_candidate_only_case "$TARGET"; then
+  export KSWIFTC DIFF_KSWIFTC_FLAGS
+  export DIFF_COMPILE_TIMEOUT="$COMPILE_TIMEOUT"
+  export DIFF_RUN_TIMEOUT="$RUN_TIMEOUT"
+  export DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT"
+  export DIFF_STDLIB_LIBRARY
+  export DIFF_CANDIDATE_ONLY_KEEP_TEMP="$KEEP_TEMP"
+  export TIMEOUT="$TIMEOUT_CMD"
+  exec bash "$SCRIPT_DIR/run_candidate_only.sh" "$TARGET"
+fi
+
+is_pr_candidate_only_case() {
+  local kt_file="$1"
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|$)' "$kt_file"
+}
+
+PR_CANDIDATE_ONLY_TARGET=0
+if [[ -f "$TARGET" ]] && is_pr_candidate_only_case "$TARGET"; then
+  PR_CANDIDATE_ONLY_TARGET=1
+fi
+
+if [[ "$PR_CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
 # Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
 # warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
 # output, so this is deliberately absent from the reference-cache fingerprint.
@@ -584,6 +617,8 @@ for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_J
     fi
   fi
 done
+
+fi
 
 # DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
 # Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
@@ -650,7 +685,7 @@ if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
 
-if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
+if [[ "$PR_CANDIDATE_ONLY_TARGET" -eq 0 && -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   echo "unzip command not found: unzip" >&2
   exit 1
 fi
@@ -659,8 +694,17 @@ fi
 # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
 # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
 # which produces spurious FAILs against kswiftc. CI pins java-version 21.
+if [[ "$PR_CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
 require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
   "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
+else
+  for candidate_tool in "$KSWIFTC" "$TIMEOUT_CMD"; do
+    if ! command -v "$candidate_tool" >/dev/null 2>&1; then
+      echo "Required candidate tool not found: $candidate_tool" >&2
+      exit 1
+    fi
+  done
+fi
 
 warm_kotlinc() {
   local warm_timeout
@@ -804,7 +848,9 @@ store_kotlinc_ref_cache() {
   fi
 }
 
-configure_kotlinc_ref_cache
+if [[ "$PR_CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
+  configure_kotlinc_ref_cache
+fi
 
 # Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
 # else auto-detected CPU count (fallback 4).
@@ -902,7 +948,9 @@ echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
 # not the first kotlinc startup cost.
-warm_kotlinc
+if [[ "$PR_CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
+  warm_kotlinc
+fi
 
 # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
 # compile below will reference it with --stdlib-library instead of recompiling
@@ -1071,10 +1119,6 @@ get_java_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*JAVA_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*JAVA_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
-is_candidate_only_case() {
-  local kt_file="$1"
-  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|$)' "$kt_file"
-}
 
 # Write one expected stdout line for each // DIFF_EXPECT_OUTPUT: directive.
 # Repeated directives represent multiple lines; an empty directive represents
@@ -1234,7 +1278,7 @@ run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
 
-  if is_candidate_only_case "$kt_file"; then
+  if is_pr_candidate_only_case "$kt_file"; then
     run_candidate_only_case "$kt_file" "$artifact_file"
     return $?
   fi
@@ -1541,6 +1585,14 @@ SKIPPED=0
 if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
+    if is_master_candidate_only_case "$test_case"; then
+      echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      SKIPPED=$((SKIPPED + 1))
+      if [[ -n "$REPORT_PATH" ]]; then
+        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+      fi
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       echo "SKIP $test_case (// SKIP-DIFF)"
       SKIPPED=$((SKIPPED + 1))
@@ -1575,6 +1627,11 @@ else
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
+    if is_master_candidate_only_case "$test_case"; then
+      CASE_KIND[$i]="CANDIDATE-ONLY"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       CASE_KIND[$i]="SKIP"
       SKIPPED=$((SKIPPED + 1))
@@ -1616,8 +1673,12 @@ else
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if [[ "${CASE_KIND[$i]:-}" == "SKIP" ]]; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+      if [[ "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+        echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      else
+        echo "SKIP $test_case (// SKIP-DIFF)"
+      fi
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
       fi

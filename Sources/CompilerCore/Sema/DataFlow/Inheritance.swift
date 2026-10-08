@@ -770,8 +770,7 @@ extension DataFlowSemaPhase {
         for file in ast.sortedFiles {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 guard let decl = ast.arena.decl(declID),
-                      let classSymbol = bindings.declSymbols[declID],
-                      let classSym = symbols.symbol(classSymbol)
+                      let classSymbol = bindings.declSymbols[declID]
                 else {
                     continue
                 }
@@ -811,43 +810,70 @@ extension DataFlowSemaPhase {
                     ) else {
                         continue
                     }
-                    guard let superSymbol = symbols.symbol(resolved.symbol) else {
-                        continue
-                    }
-                    if superSymbol.kind != .interface {
-                        let name = superSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                        diagnostics.error(
-                            "KSWIFTK-SEMA-DELEGATE",
-                            "Class delegation is only supported for interfaces, not '\(name)'.",
-                            range: range
-                        )
-                    } else if let delegateExpr = entry.delegateExpression
-                    {
-                        symbols.addDelegatedInterface(resolved.symbol, forClass: classSymbol)
-                        symbols.setClassDelegationExpr(delegateExpr, forClass: classSymbol, interface: resolved.symbol)
-                        let interfaceName = interner.resolve(superSymbol.fqName.last ?? interner.intern(""))
-                        let fieldName = interner.intern("$delegate_\(interfaceName)")
-                        let fieldFQName = classSym.fqName + [fieldName]
-                        let fieldSymbol = symbols.define(
-                            kind: .field,
-                            name: fieldName,
-                            fqName: fieldFQName,
-                            declSite: range,
-                            visibility: .private,
-                            flags: []
-                        )
-                        symbols.setParentSymbol(classSymbol, for: fieldSymbol)
+                    if let delegateExpr = entry.delegateExpression {
                         let interfaceType = types.make(.classType(ClassType(
                             classSymbol: resolved.symbol,
                             args: resolved.typeArgs,
                             nullability: .nonNull
                         )))
-                        symbols.setPropertyType(interfaceType, for: fieldSymbol)
-                        symbols.setClassDelegationField(fieldSymbol, forClass: classSymbol, interface: resolved.symbol)
+                        registerClassDelegation(
+                            delegateExpression: delegateExpr,
+                            interfaceType: interfaceType,
+                            classSymbol: classSymbol,
+                            range: range,
+                            symbols: symbols,
+                            types: types,
+                            diagnostics: diagnostics,
+                            interner: interner
+                        )
                     }
                 }
             }
         }
+    }
+
+    /// Records the same delegation storage for header-time named nominals and
+    /// anonymous objects discovered later during body type checking.
+    @discardableResult
+    func registerClassDelegation(
+        delegateExpression: ExprID,
+        interfaceType: TypeID,
+        classSymbol: SymbolID,
+        range: SourceRange,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard case let .classType(delegatedType) = types.kind(of: interfaceType),
+              let interfaceSymbol = symbols.symbol(delegatedType.classSymbol),
+              let classInfo = symbols.symbol(classSymbol)
+        else { return nil }
+        guard interfaceSymbol.kind == .interface else {
+            let name = interfaceSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            diagnostics.error(
+                "KSWIFTK-SEMA-DELEGATE",
+                "Class delegation is only supported for interfaces, not '\(name)'.",
+                range: range
+            )
+            return nil
+        }
+        symbols.addDelegatedInterface(interfaceSymbol.id, forClass: classSymbol)
+        symbols.setClassDelegationExpr(delegateExpression, forClass: classSymbol, interface: interfaceSymbol.id)
+        let interfaceName = interner.resolve(interfaceSymbol.fqName.last ?? interner.intern(""))
+        let fieldName = interner.intern("$delegate_\(interfaceName)")
+        let fieldSymbol = symbols.define(
+            kind: .field,
+            name: fieldName,
+            fqName: classInfo.fqName + [fieldName],
+            declSite: range,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setParentSymbol(classSymbol, for: fieldSymbol)
+        symbols.setPropertyType(interfaceType, for: fieldSymbol)
+        symbols.setClassDelegationField(fieldSymbol, forClass: classSymbol, interface: interfaceSymbol.id)
+        return fieldSymbol
     }
 
     private func nominalDeclarationIDs(in file: ASTFile, ast: ASTModule) -> [DeclID] {
@@ -874,23 +900,43 @@ extension DataFlowSemaPhase {
 
     /// CLASS-008: Create synthetic method symbols for delegated interface methods
     /// that the class does not override. These are used for itable layout and KIR lowering.
-    private struct DelegationDispatchKey: Hashable, CustomStringConvertible {
+    private struct DelegationDispatchKey {
         let name: InternedString
-        let arity: Int
+        let parameterTypes: [TypeID]
+        let methodTypeParameters: [SymbolID]
         let isSuspend: Bool
 
-        var description: String {
-            return "\(name):\(arity)"
+        func matches(_ other: DelegationDispatchKey, types: TypeSystem) -> Bool {
+            guard name == other.name, isSuspend == other.isSuspend,
+                  parameterTypes.count == other.parameterTypes.count,
+                  methodTypeParameters.count == other.methodTypeParameters.count
+            else { return false }
+            // Compare alpha-equivalent method parameters after the interface's
+            // class parameters have been substituted. Arity alone loses overloads.
+            let typeVarBySymbol = types.makeTypeVarBySymbol(methodTypeParameters)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (parameter, otherParameter) in zip(methodTypeParameters, other.methodTypeParameters) {
+                guard let typeVar = typeVarBySymbol[parameter] else { continue }
+                substitution[typeVar] = types.make(.typeParam(TypeParamType(
+                    symbol: otherParameter, nullability: .nonNull
+                )))
+            }
+            return parameterTypes.map {
+                types.substituteTypeParameters(in: $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+            } == other.parameterTypes
         }
     }
 
-    private func delegationDispatchKey(for methodSymbol: SymbolID, symbols: SymbolTable, interner: StringInterner) -> DelegationDispatchKey {
-        let signature = symbols.functionSignature(for: methodSymbol)
-        let methodInfo = symbols.symbol(methodSymbol)
+    private func delegationDispatchKey(
+        for method: SemanticSymbol,
+        signature: FunctionSignature,
+        parameterTypes: [TypeID]? = nil
+    ) -> DelegationDispatchKey {
         return DelegationDispatchKey(
-            name: methodInfo?.name ?? interner.intern(""),
-            arity: signature?.parameterTypes.count ?? 0,
-            isSuspend: signature?.isSuspend ?? false
+            name: method.name,
+            parameterTypes: parameterTypes ?? signature.parameterTypes,
+            methodTypeParameters: Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)),
+            isSuspend: signature.isSuspend
         )
     }
 
@@ -933,7 +979,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func synthesizeDelegationForwardingForClass(
+    func synthesizeDelegationForwardingForClass(
         range: SourceRange,
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
@@ -944,10 +990,13 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        var classMethodKeys: Set<DelegationDispatchKey> = []
+        var classMethodKeys: [DelegationDispatchKey] = []
         for funDeclID in memberFunctions {
-            guard let funSymbol = bindings.declSymbols[funDeclID] else { continue }
-            classMethodKeys.insert(delegationDispatchKey(for: funSymbol, symbols: symbols, interner: interner))
+            guard let funSymbol = bindings.declSymbols[funDeclID],
+                  let method = symbols.symbol(funSymbol),
+                  let signature = symbols.functionSignature(for: funSymbol)
+            else { continue }
+            classMethodKeys.append(delegationDispatchKey(for: method, signature: signature))
         }
         var classPropertyNames: Set<InternedString> = []
         for propDeclID in memberProperties {
@@ -1005,10 +1054,17 @@ extension DataFlowSemaPhase {
                 for memberSym in interfaceMembers {
                     switch memberSym.kind {
                     case .function:
-                        let key = delegationDispatchKey(for: memberSym.id, symbols: symbols, interner: interner)
-                        guard seenMethodKeys.insert(key).inserted,
-                              let ifaceSig = symbols.functionSignature(for: memberSym.id)
-                        else { continue }
+                        guard let ifaceSig = symbols.functionSignature(for: memberSym.id) else { continue }
+                        let key = delegationDispatchKey(
+                            for: memberSym, signature: ifaceSig,
+                            parameterTypes: ifaceSig.parameterTypes.map {
+                                substituteDelegationType(
+                                    $0, substitution: substitution, typeVarBySymbol: typeVarBySymbol, types: types
+                                )
+                            }
+                        )
+                        guard !seenMethodKeys.contains(where: { key.matches($0, types: types) }) else { continue }
+                        seenMethodKeys.append(key)
                         synthesizeForwardingMethod(
                             methodSym: memberSym, ifaceSig: ifaceSig,
                             range: range, classSymbol: classSymbol, classFQName: classFQName,

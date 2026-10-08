@@ -1,0 +1,65 @@
+{
+  "revision": "679366a83f99851b42f64795f10ed803ff011c73",
+  "sources": [
+    {
+      "path": "libraries/stdlib/common/src/kotlin/JsAnnotationsH.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/common/src/kotlin/JsAnnotationsH.kt",
+      "sha256": "5b8169765377d8e985b7d06351583c583d1c8a2fd635322cc3a978d79d68523a",
+      "lineCount": 210
+    },
+    {
+      "path": "libraries/stdlib/js/src/kotlin/annotationsJs.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/js/src/kotlin/annotationsJs.kt",
+      "sha256": "03b6dbd92d578bcfd5c513af4351ea471e3a5d2c83d5ea899ce121da7f658957",
+      "lineCount": 343
+    },
+    {
+      "path": "libraries/stdlib/js/builtins/Collections.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/js/builtins/Collections.kt",
+      "sha256": "b058ce7d6b915a21574207394231a1a72dcf2c1546b5ce5b04bdf5cfb6c141dc",
+      "lineCount": 795
+    },
+    {
+      "path": "libraries/stdlib/js/src/kotlin/js.collections.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/js/src/kotlin/js.collections.kt",
+      "sha256": "4d599786647e59ce526a538465204da6cfbb84daeacb7e4cb1a4ce2eff5d0a66",
+      "lineCount": 86
+    },
+    {
+      "path": "libraries/stdlib/js/runtime/collectionsInterop.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/js/runtime/collectionsInterop.kt",
+      "sha256": "6cf79796f2410444ba27f3863865d0f4972091fc95b2b4d1fe0538e675a05da7",
+      "lineCount": 251
+    },
+    {
+      "path": "libraries/stdlib/js/src/kotlin/reflect/createInstance.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/js/src/kotlin/reflect/createInstance.kt",
+      "sha256": "c6cd2618871f4f985979a39e9196eaa4ba7526cab3e658543c383e44059429c5",
+      "lineCount": 28
+    },
+    {
+      "path": "libraries/stdlib/src/kotlin/annotation/Annotations.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/libraries/stdlib/src/kotlin/annotation/Annotations.kt",
+      "sha256": "839a718b60811e99363fdb739bf4ae3090a2941a32ca8c76a8f4fb71bdaf2a6f",
+      "lineCount": 94
+    },
+    {
+      "path": "compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt",
+      "sha256": "afa50fbdef06d80240cb3983db7cab4fb34fd049e772ad0111c8c45c58b98c16",
+      "lineCount": 823
+    },
+    {
+      "path": "compiler/fir/checkers/checkers.js/src/org/jetbrains/kotlin/fir/analysis/js/checkers/declaration/FirJsStaticChecker.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/compiler/fir/checkers/checkers.js/src/org/jetbrains/kotlin/fir/analysis/js/checkers/declaration/FirJsStaticChecker.kt",
+      "sha256": "b92b127d41605e10a5e5bcb4be19dd6067eff5e2c8a12add3a21f2a2a1538578",
+      "lineCount": 151
+    },
+    {
+      "path": "compiler/fir/checkers/checkers.js/src/org/jetbrains/kotlin/fir/analysis/js/checkers/declaration/FirJsExportDeclarationChecker.kt",
+      "url": "https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/compiler/fir/checkers/checkers.js/src/org/jetbrains/kotlin/fir/analysis/js/checkers/declaration/FirJsExportDeclarationChecker.kt",
+      "sha256": "6e30695c7d3e031a2256276e49014ee4e7318f6064e0cdafe0a2115fb87f3d4a",
+      "lineCount": 320
+    }
+  ]
+}

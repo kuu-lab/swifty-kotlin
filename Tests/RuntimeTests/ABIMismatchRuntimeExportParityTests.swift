@@ -7,14 +7,16 @@ import Testing
 
 @Suite
 struct ABIMismatchRuntimeExportParityTests {
+    private typealias Symbol = RuntimeABISpecTestSymbol
+
     /// The String/Regex/Locale ABI surface is governed by the branch's flat-only
     /// contract, so it is reconciled by the dedicated flat-string tests rather than
     /// the cross-section export/spec parity checks here.
     private func isFlatOnlyExcludedABIName(_ name: String) -> Bool {
-        name.hasPrefix("kk_string_")
-            || name.hasPrefix("__kk_string_")
-            || name.hasPrefix("kk_regex_")
-            || name.hasPrefix("kk_locale_")
+        Symbol.matchesFamily(.string, namespace: .runtime, name: name)
+            || Symbol.matchesFamily(.string, namespace: .bridge, name: name)
+            || Symbol.matchesFamily(.regex, namespace: .runtime, name: name)
+            || Symbol.matchesFamily(.locale, namespace: .runtime, name: name)
     }
 
     @Test
@@ -25,7 +27,6 @@ struct ABIMismatchRuntimeExportParityTests {
             .filter {
                 !isFlatOnlyExcludedABIName($0)
                     && !specNames.contains($0)
-                    && !allowedRuntimeExportOnlyABINames.contains($0)
             }
             .sorted()
 
@@ -40,7 +41,6 @@ struct ABIMismatchRuntimeExportParityTests {
         let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
         for exported in try runtimeExportedABIs() {
             guard !isFlatOnlyExcludedABIName(exported.name) else { continue }
-            guard !allowedRuntimeExportOnlyABINames.contains(exported.name) else { continue }
             // Generic functions cannot have their parameter types validated against C ABI types
             guard exported.returnType != "generic" else { continue }
             let spec = try #require(
@@ -60,64 +60,62 @@ struct ABIMismatchRuntimeExportParityTests {
 
     @Test
     func testSchedulerClockUsesWordABI() throws {
-        let specs = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
-        for name in ["kk_test_scope_current_time", "kk_test_scheduler_current_time"] {
-            let spec = try #require(specs[name])
+        for name in [RuntimeABISpec.testScopeCurrentTimeSpec, RuntimeABISpec.testSchedulerCurrentTimeSpec] {
+            let spec = try name.requireRegistration()
             #expect(spec.returnType == .intptr)
             #expect(spec.parameters.map(\.type) == [.intptr])
         }
-        let advance = try #require(specs["kk_test_scheduler_advance_time_by"])
+        let advance = try RuntimeABISpec.testSchedulerAdvanceTimeBySpec.requireRegistration()
         #expect(advance.parameters.map(\.type) == [.intptr, .intptr])
     }
 
     @Test
     func testMigratedBridgeExportsPreserveThrowingChannelContract() throws {
-        let expected: [(name: String, isThrowing: Bool)] = [
-            ("kk_duration_parse", true),
-            ("kk_duration_parseOrNull", false),
-            ("kk_duration_parseIsoString", true),
-            ("kk_duration_parseIsoStringOrNull", false),
-            ("kk_sequence_filterNot", false),
-            ("kk_sequence_contains", false),
-            ("kk_sequence_elementAtOrNull", false),
-            ("__kk_mutable_list_add", true),
-            ("__kk_mutable_collection_add", false),
-            ("__kk_mutable_collection_remove", false),
-            ("__kk_mutable_collection_clear", false),
-            ("__kk_mutable_collection_addAll", false),
-            ("__kk_mutable_collection_removeAll", false),
-            ("__kk_mutable_collection_retainAll", false),
-            ("__kk_mutable_collection_add_throwing", true),
-            ("__kk_mutable_collection_remove_throwing", true),
-            ("__kk_mutable_collection_clear_throwing", true),
-            ("__kk_mutable_collection_addAll_throwing", true),
-            ("__kk_mutable_collection_removeAll_throwing", true),
-            ("__kk_mutable_collection_retainAll_throwing", true),
-            ("__kk_mutable_set_add", true),
-            ("__kk_mutable_set_remove", true),
-            ("__kk_mutable_map_put", true),
-            ("__kk_mutable_map_remove", true),
-            ("__kk_mutable_map_clear", true),
+        let expected: [(spec: RuntimeABIFunctionSpec, isThrowing: Bool)] = [
+            (RuntimeABISpec.durationParseSpec, true),
+            (RuntimeABISpec.durationParseOrNullSpec, false),
+            (RuntimeABISpec.durationParseIsoStringSpec, true),
+            (RuntimeABISpec.durationParseIsoStringOrNullSpec, false),
+            (RuntimeABISpec.sequenceFilterNotSpec, false),
+            (RuntimeABISpec.sequenceContainsSpec, false),
+            (RuntimeABISpec.sequenceElementAtOrNullSpec, false),
+            (RuntimeABISpec.bridgeMutableListAddSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionAddSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionRemoveSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionClearSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionAddAllSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionRemoveAllSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionRetainAllSpec, false),
+            (RuntimeABISpec.bridgeMutableCollectionAddThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionRemoveThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionClearThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionAddAllThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionRemoveAllThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableCollectionRetainAllThrowingSpec, true),
+            (RuntimeABISpec.bridgeMutableSetAddSpec, true),
+            (RuntimeABISpec.bridgeMutableSetRemoveSpec, true),
+            (RuntimeABISpec.bridgeMutableMapPutSpec, true),
+            (RuntimeABISpec.bridgeMutableMapRemoveSpec, true),
+            (RuntimeABISpec.bridgeMutableMapClearSpec, true),
         ]
         let exportsByName = Dictionary(grouping: try runtimeExportedABIs(), by: \.name)
-        let specsByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
 
         for item in expected {
-            let export = try #require(exportsByName[item.name]?.first, "Missing runtime export \(item.name)")
-            let spec = try #require(specsByName[item.name]?.first, "Missing RuntimeABISpec entry \(item.name)")
+            let spec = try item.spec.requireRegistration()
+            let export = try #require(exportsByName[spec.name]?.first, "Missing runtime export \(spec.name)")
             let exportHasThrownChannel = export.parameterTypes.last == RuntimeABICType.nullableIntptrPointer.rawValue
             #expect(spec.isThrowing == item.isThrowing)
             #expect(
                 exportHasThrownChannel == item.isThrowing,
-                "Runtime export \(item.name) has the wrong throwing channel"
+                "Runtime export \(spec.name) has the wrong throwing channel"
             )
             #expect(
                 spec.parameters.map(\.type.rawValue) == export.parameterTypes,
-                "Runtime export \(item.name) parameter types must match RuntimeABISpec"
+                "Runtime export \(spec.name) parameter types must match RuntimeABISpec"
             )
             #expect(
                 spec.returnType.rawValue == export.returnType,
-                "Runtime export \(item.name) return type must match RuntimeABISpec"
+                "Runtime export \(spec.name) return type must match RuntimeABISpec"
             )
         }
     }
@@ -128,7 +126,7 @@ struct ABIMismatchRuntimeExportParityTests {
         let specNames = Set(RuntimeABISpec.allFunctions.map { $0.name })
         let unexpected = Set(specNames.filter { !isFlatOnlyExcludedABIName($0) })
             .subtracting(exportedNames)
-            .subtracting(allowedSpecOnlyRuntimeABINames)
+            .subtracting(try allowedSpecOnlyRuntimeABINames())
             .sorted()
 
         #expect(
@@ -137,108 +135,82 @@ struct ABIMismatchRuntimeExportParityTests {
         )
     }
 
-    private var allowedRuntimeExportOnlyABINames: Set<String> {
-        [
-            "kk_regex_create_with_option",
-            "kk_regex_create_with_options",
-            "kk_string_toByte",
-            "kk_string_toByte_radix",
-            "kk_string_toRegex_with_option",
-            "kk_string_toRegex_with_options",
-            "kk_string_toShort",
-        ]
-    }
-
-    private var allowedSpecOnlyRuntimeABINames: Set<String> {
-        [
-            "kk_callable_ref_call_0",
-            "kk_callable_ref_call_1",
-            "kk_callable_ref_call_2",
-            "kk_callable_ref_call_3",
-            "kk_channel_send_suspending",
-            "kk_flow_catch",
-            "kk_flow_on_completion",
-            "kk_flow_on_error_resume",
-            "kk_flow_on_error_return",
-            "kk_flow_retry",
-            "kk_flow_retry_when",
-            "kk_math_e",
-            "kk_math_pi",
-            "kk_mem_scope_alloc",
-            "kk_mem_scope_enter",
-            "kk_mem_scope_exit",
-            "kk_native_alloc_bytes",
-            "kk_char_sequence_length",
-            "kk_dynamic_iterator",
-            "kk_int_to_int",
-            // Kept in RuntimeABISpec for source-migration compatibility; the
-            // runtime exports only the __kk_ bridge.
-            "kk_list_fold",
-            "kk_list_foldIndexed",
-            "kk_list_foldRight",
-            "kk_list_foldRightIndexed",
-            "kk_list_reduceIndexedOrNull",
-            "kk_list_reduceOrNull",
-            "kk_list_runningFold",
-            "kk_list_runningFoldIndexed",
-            "kk_list_runningReduce",
-            "kk_list_runningReduceIndexed",
-            "kk_list_scan",
-            "kk_list_scanIndexed",
+    private func allowedSpecOnlyRuntimeABINames() throws -> Set<String> {
+        let canonicalSpecs: [RuntimeABIFunctionSpec] = [
+            RuntimeABISpec.callableRefCall0Spec,
+            RuntimeABISpec.callableRefCall1Spec,
+            RuntimeABISpec.callableRefCall2Spec,
+            RuntimeABISpec.callableRefCall3Spec,
+            RuntimeABISpec.channelSendSuspendingSpec,
+            RuntimeABISpec.flowCatchSpec,
+            RuntimeABISpec.flowOnCompletionSpec,
+            RuntimeABISpec.flowOnErrorResumeSpec,
+            RuntimeABISpec.flowOnErrorReturnSpec,
+            RuntimeABISpec.flowRetrySpec,
+            RuntimeABISpec.flowRetryWhenSpec,
+            RuntimeABISpec.mathESpec,
+            RuntimeABISpec.mathPiSpec,
+            RuntimeABISpec.memScopeAllocSpec,
+            RuntimeABISpec.memScopeEnterSpec,
+            RuntimeABISpec.memScopeExitSpec,
+            RuntimeABISpec.nativeAllocBytesSpec,
+            RuntimeABISpec.charSequenceLengthSpec,
+            RuntimeABISpec.dynamicIteratorSpec,
+            RuntimeABISpec.intToIntSpec,
             // KSP-426: source-backed in ListSortingHOF.kt / ListExtremaHOF.kt;
             // retained only in RuntimeABISpec and test-only compatibility shims.
-            "kk_list_max",
-            "kk_list_maxBy",
-            "kk_list_maxByOrNull",
-            "kk_list_maxOf",
-            "kk_list_maxOfOrNull",
-            "kk_list_maxOfWith",
-            "kk_list_maxOfWithOrNull",
-            "kk_list_maxOrNull",
-            "kk_list_maxWith",
-            "kk_list_maxWithOrNull",
-            "kk_list_min",
-            "kk_list_minBy",
-            "kk_list_minByOrNull",
-            "kk_list_minOf",
-            "kk_list_minOfOrNull",
-            "kk_list_minOfWith",
-            "kk_list_minOfWithOrNull",
-            "kk_list_minOrNull",
-            "kk_list_minWith",
-            "kk_list_minWithOrNull",
-            "kk_list_sorted",
-            "kk_list_sortedBy",
-            "kk_list_sortedByDescending",
-            "kk_list_sortedByDescending_primitive",
-            "kk_list_sortedBy_primitive",
-            "kk_list_sortedDescending",
-            "kk_list_sortedDescending_primitive",
-            "kk_list_sortedWith",
-            "kk_list_sorted_primitive",
+            RuntimeABISpec.listMaxSpec,
+            RuntimeABISpec.listMaxOrNullSpec,
+            RuntimeABISpec.listMinSpec,
+            RuntimeABISpec.listMinOrNullSpec,
+            RuntimeABISpec.listMaxBySpec,
+            RuntimeABISpec.listMaxByOrNullSpec,
+            RuntimeABISpec.listMinBySpec,
+            RuntimeABISpec.listMinByOrNullSpec,
+            RuntimeABISpec.listMaxOfSpec,
+            RuntimeABISpec.listMaxOfOrNullSpec,
+            RuntimeABISpec.listMinOfSpec,
+            RuntimeABISpec.listMinOfOrNullSpec,
+            RuntimeABISpec.listMaxOfWithSpec,
+            RuntimeABISpec.listMaxOfWithOrNullSpec,
+            RuntimeABISpec.listMinOfWithSpec,
+            RuntimeABISpec.listMinOfWithOrNullSpec,
+            RuntimeABISpec.listMaxWithSpec,
+            RuntimeABISpec.listMaxWithOrNullSpec,
+            RuntimeABISpec.listMinWithSpec,
+            RuntimeABISpec.listMinWithOrNullSpec,
+            RuntimeABISpec.listSortedSpec,
+            RuntimeABISpec.listSortedDescendingSpec,
+            RuntimeABISpec.listSortedWithSpec,
+            RuntimeABISpec.listSortedPrimitiveSpec,
+            RuntimeABISpec.listSortedDescendingPrimitiveSpec,
+            RuntimeABISpec.listSortedBySpec,
+            RuntimeABISpec.listSortedByDescendingSpec,
+            RuntimeABISpec.listSortedByPrimitiveSpec,
+            RuntimeABISpec.listSortedByDescendingPrimitiveSpec,
             // KSP-1511: shuffled/shuffled(Random) source-backed in
             // ListSortingHOF.kt; retained only in RuntimeABISpec (same
             // treatment as the KSP-426 block above).
-            "kk_list_shuffled",
-            "kk_list_shuffled_random",
-            "kk_list_zip_transform",
+            RuntimeABISpec.listShuffledSpec,
+            RuntimeABISpec.listShuffledRandomSpec,
+            RuntimeABISpec.listZipTransformSpec,
             // KSP-688: List slice/take/drop HOFs are source-backed in
             // kotlin.collections.ListSliceTakeDrop.kt; their compatibility
             // ABI specs remain but no runtime exports are emitted.
-            "kk_list_takeWhile",
-            "kk_list_takeLastWhile",
-            "kk_list_dropWhile",
-            "kk_list_dropLastWhile",
+            RuntimeABISpec.listTakeWhileSpec,
+            RuntimeABISpec.listTakeLastWhileSpec,
+            RuntimeABISpec.listDropWhileSpec,
+            RuntimeABISpec.listDropLastWhileSpec,
             // KSP-445: Sequence scan HOFs are source-backed in bundled
             // kotlin.collections/sequences; runtime bridges are no longer exported.
-            "kk_sequence_reduceIndexed",
-            "kk_sequence_reduceIndexedOrNull",
-            "kk_sequence_runningFold",
-            "kk_sequence_runningFoldIndexed",
-            "kk_sequence_runningReduce",
-            "kk_sequence_runningReduceIndexed",
-            "kk_sequence_scan",
-            "kk_sequence_scanIndexed",
+            RuntimeABISpec.sequenceReduceIndexedSpec,
+            RuntimeABISpec.sequenceReduceIndexedOrNullSpec,
+            RuntimeABISpec.sequenceRunningFoldSpec,
+            RuntimeABISpec.sequenceRunningFoldIndexedSpec,
+            RuntimeABISpec.sequenceRunningReduceSpec,
+            RuntimeABISpec.sequenceRunningReduceIndexedSpec,
+            RuntimeABISpec.sequenceScanSpec,
+            RuntimeABISpec.sequenceScanIndexedSpec,
             // KSP-430: Map higher-order functions are now source-backed in
             // bundled MapHOF.kt. RF-LOWER-CALL-012 removed the Lowering-side
             // rewrites and KSP-703 removed the Sema-side synthetic stub
@@ -246,33 +218,28 @@ struct ABIMismatchRuntimeExportParityTests {
             // `@_cdecl` and no compiler-side reference remain for any of
             // them — but the `RuntimeABISpec` entries themselves stay
             // allowed here pending a decision on pruning the spec.
-            "kk_map_all",
-            "kk_map_any",
-            "kk_map_count",
-            "kk_map_filter",
-            "kk_map_filterKeys",
-            "kk_map_filterNot",
-            "kk_map_filterValues",
-            "kk_map_flatMap",
-            "kk_map_forEach",
-            "kk_map_map",
-            "kk_map_mapKeys",
-            "kk_map_mapKeysTo",
-            "kk_map_mapNotNull",
-            "kk_map_mapValues",
-            "kk_map_mapValuesTo",
-            "kk_map_maxByOrNull",
-            "kk_map_minByOrNull",
-            "kk_map_minus",
-            "kk_map_none",
-            "kk_map_plus",
-            "kk_native_atomic_ref_compareAndSet",
-            "kk_native_atomic_ref_compareAndSwap",
-            "kk_native_atomic_ref_create",
-            "kk_native_atomic_ref_load",
-            "kk_long_range_firstOrNull",
-            "kk_long_range_lastOrNull",
+            RuntimeABISpec.mapAllSpec,
+            RuntimeABISpec.mapAnySpec,
+            RuntimeABISpec.mapCountSpec,
+            RuntimeABISpec.mapNoneSpec,
+            RuntimeABISpec.mapFilterSpec,
+            RuntimeABISpec.mapFilterKeysSpec,
+            RuntimeABISpec.mapFilterNotSpec,
+            RuntimeABISpec.mapFilterValuesSpec,
+            RuntimeABISpec.mapFlatMapSpec,
+            RuntimeABISpec.mapForEachSpec,
+            RuntimeABISpec.mapMapSpec,
+            RuntimeABISpec.mapMapNotNullSpec,
+            RuntimeABISpec.mapMapKeysSpec,
+            RuntimeABISpec.mapMapKeysToSpec,
+            RuntimeABISpec.mapMapValuesSpec,
+            RuntimeABISpec.mapMapValuesToSpec,
+            RuntimeABISpec.mapMaxByOrNullSpec,
+            RuntimeABISpec.mapMinByOrNullSpec,
+            RuntimeABISpec.mapMinusSpec,
+            RuntimeABISpec.mapPlusSpec,
         ]
+        return Set(try canonicalSpecs.map { try $0.requireRegistration().name })
     }
 
     private struct RuntimeExportedABI {
@@ -395,7 +362,7 @@ struct ABIMismatchRuntimeExportParityTests {
             }
             let typeStart = parameter.index(after: colonIndex)
             let swiftType = normalizedSwiftType(String(parameter[typeStart...]))
-            if exportName == "kk_alloc", index == 1, swiftType == "UnsafeRawPointer" {
+            if exportName == RuntimeABISpec.allocSpec.name, index == 1, swiftType == "UnsafeRawPointer" {
                 return RuntimeABICType.constTypeInfoPointer.rawValue
             }
             return try cTypeString(forSwiftType: swiftType, source: source)
