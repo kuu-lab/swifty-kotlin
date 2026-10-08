@@ -505,12 +505,23 @@ extension KIRLoweringDriver {
     func emitClassDelegationInitializers(
         ownerSymbol: SymbolID,
         receiverID: KIRExprID,
+        superTypeEntries: [SuperTypeEntry]? = nil,
         shared: KIRLoweringSharedContext,
         body: inout KIRLoweringEmitContext
     ) {
         let sema = shared.sema
         let arena = shared.arena
-        for interfaceSymbol in sema.symbols.delegatedInterfaces(forClass: ownerSymbol) {
+        let delegatedInterfaces = sema.symbols.delegatedInterfaces(forClass: ownerSymbol)
+        let orderedInterfaces = superTypeEntries.map { entries in
+            entries.compactMap { entry in
+                entry.delegateExpression.flatMap { expr in
+                    delegatedInterfaces.first {
+                        sema.symbols.classDelegationExpr(forClass: ownerSymbol, interface: $0) == expr
+                    }
+                }
+            }
+        } ?? delegatedInterfaces
+        for interfaceSymbol in orderedInterfaces {
             guard let delegateExpr = sema.symbols.classDelegationExpr(forClass: ownerSymbol, interface: interfaceSymbol),
                   let fieldSymbol = sema.symbols.classDelegationField(forClass: ownerSymbol, interface: interfaceSymbol)
             else {
