@@ -735,7 +735,7 @@ if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
 fi
 
 if [[ "$REFERENCE_CASES_REQUIRED" -eq 0 ]]; then
-  if ! [[ -x "$KSWIFTC" ]]; then
+  if [[ ! -x "$KSWIFTC" ]] && ! command -v "$KSWIFTC" >/dev/null 2>&1; then
     echo "kswiftc not found or not executable: $KSWIFTC" >&2
     exit 1
   fi
@@ -1222,10 +1222,30 @@ persist_source_candidate_artifacts() {
   fi
   mv "$tmp_dir" "$destination"
   cp "$kt_file" "$destination/input.kt"
+  safe_diff_to_file "$destination/expected.stdout.norm" "$destination/candidate.stdout.norm" "$destination/stdout.diff"
+
+  # Retain this lane's KIR, crash diagnostics, and runnable reproduction.
+  if [[ $compile_exit -eq 0 ]]; then
+    KSWIFTK_STDLIB_CACHE_DIR="$destination/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" --emit kir "$kt_file" -o "$destination/candidate.kir" \
+      >"$destination/candidate_kir.stdout" 2>"$destination/candidate_kir.stderr" || true
+    if [[ $run_exit -ge 128 ]]; then
+      save_runtime_backtrace "$destination/candidate.out" "$destination/backtrace.txt"
+    fi
+  fi
+  {
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'cd %q\n' "$ROOT_DIR"
+    printf 'KSWIFTC=%q DIFF_KSWIFTC_FLAGS=%q DIFF_ARTIFACT_ROOT=%q bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --compile-timeout %q --run-timeout %q %q\n' \
+      "$KSWIFTC" "$DIFF_KSWIFTC_FLAGS" "$ARTIFACT_ROOT" "$COMPILE_TIMEOUT" "$RUN_TIMEOUT" "$kt_file"
+  } >"$destination/repro.sh"
+  chmod +x "$destination/repro.sh"
 
   cat >"$destination/summary.txt" <<EOF
 case: $kt_file
 result: FAIL (candidate-only)
+artifact_dir: $destination
+compile_timeout_seconds: $COMPILE_TIMEOUT
+run_timeout_seconds: $RUN_TIMEOUT
 expected_output: $expected_file
 candidate_compile_exit: $compile_exit
 candidate_run_exit: $run_exit

@@ -30,6 +30,7 @@ esac
 printf '%s\n' '#!/usr/bin/env bash' >"$out"
 case "$(basename "$src")" in
   source_inline.kt) printf '%s\n' "printf 'first\\n\\nlast\\n'" >>"$out" ;;
+  source_runfail.kt) printf '%s\n' "printf 'partial output\\n'; exit 1" >>"$out" ;;
   source_*) printf '%s\n' "printf 'sidecar output\\n'" >>"$out" ;;
   canonical.kt) printf '%s\n' "printf 'canonical output\\n'" >>"$out" ;;
 esac
@@ -70,12 +71,23 @@ grep -qF "PASS $TEMP_DIR/cases/canonical.kt" "$TEMP_DIR/canonical.log" || fail '
 DIFF_STDLIB_LIBRARY= bash "$SCRIPT_DIR/diff_kotlinc.sh" --candidate-only "$TEMP_DIR/cases/source_sidecar.kt" >"$TEMP_DIR/explicit.log" 2>&1 || fail 'explicit source mode must remain supported'
 grep -qF "PASS $TEMP_DIR/cases/source_sidecar.kt" "$TEMP_DIR/explicit.log" || fail 'explicit source mode did not run'
 
+PATH="$TEMP_DIR:$PATH" KSWIFTC=kswiftc bash "$SCRIPT_DIR/diff_kotlinc.sh" --no-parallel "$TEMP_DIR/cases" >"$TEMP_DIR/path-directory.log" 2>&1 || fail 'PATH-resolved compiler must work for source directories'
+grep -qF 'Summary: total=2 failed=0 passed=2 skipped=2' "$TEMP_DIR/path-directory.log" || fail 'PATH-resolved source directory summary'
+PATH="$TEMP_DIR:$PATH" bash "$SCRIPT_DIR/diff_kotlinc.sh" --kswiftc kswiftc "$TEMP_DIR/cases/source_inline.kt" >"$TEMP_DIR/path-single.log" 2>&1 || fail 'PATH-resolved compiler option must work for a single source case'
+grep -qF "PASS $TEMP_DIR/cases/source_inline.kt" "$TEMP_DIR/path-single.log" || fail 'PATH-resolved single source case did not execute'
+
 mkdir -p "$TEMP_DIR/failure"
 cp "$TEMP_DIR/cases/source_sidecar.kt" "$TEMP_DIR/failure/source_mismatch.kt"
 printf 'different expected output\n' >"$TEMP_DIR/failure/source_mismatch.expected"
+cp "$TEMP_DIR/cases/source_sidecar.kt" "$TEMP_DIR/failure/source_runfail.kt"
+printf 'complete expected output\n' >"$TEMP_DIR/failure/source_runfail.expected"
 if bash "$SCRIPT_DIR/diff_kotlinc.sh" --parallel --jobs 2 --report "$TEMP_DIR/failure.tsv" "$TEMP_DIR/failure" >"$TEMP_DIR/failure.log" 2>&1; then
   fail 'source stdout mismatch must fail'
 fi
-artifact="$(awk -F '\t' '$2 == "FAIL" { print $3 }' "$TEMP_DIR/failure.tsv")"
-[[ -n "$artifact" && -f "$artifact/summary.txt" && -s "$artifact/stdout.diff" ]] || fail 'parallel source failure must expose its artifact path and stdout diff'
+for name in source_mismatch source_runfail; do
+  artifact="$(awk -F '\t' -v path="$TEMP_DIR/failure/$name.kt" '$1 == path && $2 == "FAIL" { print $3 }' "$TEMP_DIR/failure.tsv")"
+  [[ -n "$artifact" && -f "$artifact/summary.txt" && -s "$artifact/stdout.diff" ]] || fail "parallel $name failure must expose its artifact path and stdout diff"
+  [[ -s "$artifact/candidate.kir" && -x "$artifact/repro.sh" ]] || fail "$name failure must preserve KIR and reproduction diagnostics"
+  bash -n "$artifact/repro.sh" || fail 'reproduction script must have valid shell syntax'
+done
 echo 'OK: source candidate-only discovery, execution, and artifacts are correct'
