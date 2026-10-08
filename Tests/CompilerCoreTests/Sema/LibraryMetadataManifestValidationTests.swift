@@ -35,9 +35,9 @@ struct LibraryMetadataManifestValidationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0015", in: ctx)
-            let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "foo" && symbol.flags.contains(.synthetic)
-            }
+            let hasImported = ctx.sema?.symbols.lookupAll(fqName: ["nm", "foo"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(hasImported ?? false), "Library without manifest.json should not load symbols")
         }
     }
@@ -67,9 +67,9 @@ struct LibraryMetadataManifestValidationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0015", in: ctx)
-            let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "bar" && symbol.flags.contains(.synthetic)
-            }
+            let hasImported = ctx.sema?.symbols.lookupAll(fqName: ["ij", "bar"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(hasImported ?? false), "Library with invalid JSON manifest should not load symbols")
         }
     }
@@ -516,9 +516,9 @@ struct LibraryMetadataManifestValidationTests {
             assertNoDiagnostic("KSWIFTK-LIB-0018", in: ctx)
 
             // Verify the symbol was loaded
-            let fnSymbol = ctx.sema?.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "fn" && symbol.flags.contains(.synthetic)
-            }
+            let fnSymbol = ctx.sema?.symbols.lookupAll(fqName: ["fv", "fn"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .first { symbol in symbol.flags.contains(.synthetic) }
             #expect(fnSymbol != nil, "Fully valid manifest should load symbols successfully")
         }
     }

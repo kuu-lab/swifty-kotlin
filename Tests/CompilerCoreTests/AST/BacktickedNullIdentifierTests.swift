@@ -14,9 +14,10 @@ struct BacktickedNullIdentifierTests {
             println(null)
         }
         """, includeStdlib: false)
+        let nullName = KnownCompilerNames(interner: ctx.interner).null
         let references = ast.arena.exprs.filter {
             guard case let .nameRef(name, _) = $0 else { return false }
-            return ctx.interner.resolve(name) == "null"
+            return name == nullName
         }
         let literals = ast.arena.exprs.filter {
             if case .nullLiteral = $0 { return true }
@@ -36,10 +37,11 @@ struct BacktickedNullIdentifierTests {
         #expect(!ctx.diagnostics.hasError)
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let nullName = KnownCompilerNames(interner: ctx.interner).null
         var referenceCount = 0
         for (index, expr) in ast.arena.exprs.enumerated() {
             guard case let .nameRef(name, _) = expr,
-                  ctx.interner.resolve(name) == "null" else { continue }
+                  name == nullName else { continue }
             referenceCount += 1
             let id = ExprID(rawValue: Int32(index))
             #expect(sema.bindings.identifierSymbols[id] != nil)

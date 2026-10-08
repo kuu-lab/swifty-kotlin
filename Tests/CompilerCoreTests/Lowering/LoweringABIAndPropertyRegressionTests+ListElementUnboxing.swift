@@ -13,6 +13,8 @@ extension LoweringABIAndPropertyRegressionTests {
         let types = TypeSystem()
         let symbols = SymbolTable()
         let elementType = types.make(.primitive(primitive, .nonNull))
+        let getCallee = interner.intern(try loweringRuntimeABI("list_get").name)
+        let consumeCallee = interner.intern("consumeElement")
         let getSymbol = SymbolID(rawValue: 7201)
         if hasSymbol {
             // Indexed access can retain a specialized signature, even though
@@ -30,10 +32,10 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7200), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: hasSymbol ? getSymbol : nil, callee: interner.intern("__kk_list_get"),
+                .call(symbol: hasSymbol ? getSymbol : nil, callee: getCallee,
                       arguments: [list, index], result: element, canThrow: true, thrownResult: thrown),
                 .jumpIfNotNull(value: thrown, target: 1),
-                .call(symbol: nil, callee: interner.intern("consumeElement"), arguments: [element],
+                .call(symbol: nil, callee: consumeCallee, arguments: [element],
                       result: nil, canThrow: false, thrownResult: nil),
                 .label(1),
                 .returnUnit,
@@ -45,26 +47,24 @@ extension LoweringABIAndPropertyRegressionTests {
         try ABILoweringPass().run(module: module, ctx: makeKIRContext(interner: interner, sema: sema))
 
         let body = try findKIRFunctionBody(named: "main", in: module, interner: interner)
-        guard case let .call(_, getCallee, _, boxed, _, getThrown, _, _) = body[0],
+        guard case let .call(_, actualGetCallee, getArgs, boxed, _, getThrown, _, _) = body[0],
               let boxed,
               case let .jumpIfNotNull(checkedThrown, _) = body[1],
               case let .call(_, unboxCallee, unboxArgs, unboxed, _, _, _, _) = body[2],
-              case let .call(_, consumeCallee, consumeArgs, _, _, _, _, _) = body[3]
+              case let .call(_, actualConsumeCallee, consumeArgs, _, _, _, _, _) = body[3]
         else {
             Issue.record("Expected get, exception check, unbox, then extension call")
             return
         }
-        #expect(interner.resolve(getCallee) == "__kk_list_get")
+        #expect(actualGetCallee == getCallee)
+        #expect(getArgs == [list, index])
         #expect(boxed != element)
         #expect(getThrown == thrown && checkedThrown == thrown)
-        let expectedUnbox = BoxingCalleeTable(interner: interner).unboxCallee(
-            for: elementType, types: types, requireNonNull: true, preferStaticPrimitive: true
-        )
-        #expect(expectedUnbox != nil)
-        #expect(unboxCallee == expectedUnbox)
+        let expectedUnbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true, staticPrimitive: true)
+        #expect(unboxCallee == interner.intern(expectedUnbox.name))
         #expect(unboxArgs == [boxed])
         #expect(unboxed == element)
-        #expect(interner.resolve(consumeCallee) == "consumeElement")
+        #expect(actualConsumeCallee == consumeCallee)
         #expect(consumeArgs == [element])
         #expect(arena.exprType(element) == elementType)
     }
@@ -74,6 +74,7 @@ extension LoweringABIAndPropertyRegressionTests {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
+        let getCallee = interner.intern(try loweringRuntimeABI("list_get").name)
         let list = arena.appendTemporary(type: types.anyType)
         let index = arena.appendExpr(.intLiteral(0), type: types.intType)
         let results = [types.makeNullable(types.shortType), types.nullableAnyType, types.stringType].map {
@@ -83,7 +84,7 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7210), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: results.map { result in
-                .call(symbol: nil, callee: interner.intern("__kk_list_get"), arguments: [list, index],
+                .call(symbol: nil, callee: getCallee, arguments: [list, index],
                       result: result, canThrow: true, thrownResult: nil)
             } + [.returnUnit], isSuspend: false, isInline: false
         )
@@ -93,7 +94,10 @@ extension LoweringABIAndPropertyRegressionTests {
         try ABILoweringPass().run(module: module, ctx: makeKIRContext(interner: interner, sema: sema))
 
         let body = try findKIRFunctionBody(named: "main", in: module, interner: interner)
-        #expect(extractCallees(from: body, interner: interner) == Array(repeating: "__kk_list_get", count: 3))
+        let calls = loweringCalls(in: body)
+        #expect(calls.map(\.callee) == Array(repeating: getCallee, count: results.count))
+        #expect(calls.map(\.result) == results.map { Optional($0) })
+        #expect(calls.allSatisfy { $0.arguments == [list, index] && $0.canThrow })
     }
 }
 #endif
