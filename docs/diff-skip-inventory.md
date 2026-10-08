@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-10-05
+最終更新: 2026-10-08
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -28,18 +28,18 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の再集計は **122 タグ / 122 ファイル**。
-DEBT-DIFF-001 は **117 件**（旧表の 85 件は 2026-09-20 時点）。カテゴリ別集計から
+2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の記録では **122 タグ / 122 ファイル**、DEBT-DIFF-001 は **117 件**だった。
+同じ集計コマンドで現 HEAD (`9fa8da8d42`) を再計測すると、KUU-1500 着手前は **118 タグ / 118 ファイル**、DEBT-DIFF-001 は **112 件**。2026-10-08（KUU-1500）に対象1件を candidate-only expected-output 経路へ移し、現行は **117 タグ / 117 ファイル**、DEBT-DIFF-001 は **111 件**となった。10-05 の記録値は当時の履歴として残す。
+旧表の 85 件は 2026-09-20 時点。カテゴリ別集計から
 漏れていた `stdlib_kotlin_collections_n_throw.kt` の `SKIP-DIFF (KSP-959)` を、
 internal `@PublishedApi` helper の既存理由に従い DEBT-DIFF-001 へ正規化した。
-skip の新規追加／解除はなく、全 skip ケースの `--force-run-skipped` 再実行も
-今回行っていない。以下の過去の実行結果は当時の検証範囲として保持する。
+KUU-1500 では対象ケースを candidate-only 経路で実行した。全 skip ケースの `--force-run-skipped` 再実行は行っていない。以下の過去の実行結果は当時の検証範囲として保持する。
 
 件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'SKIP-DIFF\s*\(DEBT-DIFF-[0-9]{3}\)|KSWIFTK_DIFF_IGNORE.*DEBT-DIFF-[0-9]{3}' -N | rg -o 'DEBT-DIFF-[0-9]{3}' | sort | uniq -c`）に同期する。単純な `rg -o 'DEBT-DIFF-[0-9]{3}'`（アクティブなタグ/経緯コメント両方にマッチ）ではなく、アクティブな `SKIP-DIFF`/`KSWIFTK_DIFF_IGNORE` タグのみに絞ること — `case_insensitive_order_identity.kt` のように「過去 DEBT-DIFF-005 として追跡していたが解消済み」という経緯コメントだけが残るケースがあり、単純な文字列一致では解消済みの件数を残存として誤カウントする（2026-08-02、並行マージでの再計測差異から判明）。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 117 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
+| DEBT-DIFF-001 | 111 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 1 | advanced coroutine / channel / Flow / structured concurrency | `kotlinx_coroutines_flow_transform_latest_cancellation.kt` は KUU-955 の continuation-aware callable ABI 対応待ち。従来の coroutine / channel ケースは解除済み |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
@@ -61,18 +61,19 @@ skip の新規追加／解除はなく、全 skip ケースの `--force-run-skip
 
 `Scripts/diff_kotlinc.sh` の `--kotlinc-classpath` / coroutines jar 自動取得は **reference(kotlinc)側にしか作用しない**。kswiftc は jar/classpath を一切消費しない設計で、`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` に手書き登録した合成シンボルだけを認識し、対応する Runtime 実装を呼ぶ。したがって candidate 側が特定の Java/Kotlin API を新たに認識するには synthetic stub の実装が要り、jar 注入は原理的に届かない。「dependency injection で実行可能化」できるのは reference 側だけが理由で落ちているケースに限られるが、以下のケースはいずれも candidate 側の未実装、またはテスト内容自体が実 API 呼び出し規約と非互換という、jar 注入では解決しない理由だった。
 
-### keep skip インベントリ（現行117件、2026-10-05 実測）
+### keep skip インベントリ（現行111件、2026-10-08 実測）
 
 下表は理由別の代表例と過去の検証記録。現在の全ファイルは
 `rg -l '^// SKIP-DIFF \(DEBT-DIFF-001\)' Scripts/diff_cases` で再列挙できる。
-117 件全ての実行再検証を意味するものではない。
+111 件全ての実行再検証を意味するものではない。
 
 serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt`)は、synthetic stub を除去した CLEANUP-STUB-121 でケースごと削除した(実 kotlinx.serialization の呼び出し規約で書き直す道は取らず、`kotlinx.serialization` サポート自体を target-out とした)。
+
+2026-10-08（KUU-1500）: `stdlib_kotlin_text_CharacterCodingException_n_n.kt` は JVM kotlinc の参照対象に nullable-message constructor がないため通常の JVM 比較には戻せないが、`DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT` と同階層の expected-output sidecar で candidate-only 実行する。対象を単独指定した場合、diff harness は kotlinc / Java の確認・起動を行わず、kswiftc の実行結果を sidecar と比較する。
 
 | 領域 | cases | 確定理由 | 恒久対応の道筋 |
 | --- | --- | --- | --- |
 | Kotlin/Native / cinterop(2026-07-29 確定 + 2026-09-13 追加36件) | 代表例: `native_annotations.kt`, `native_api.kt`, `platform_info.kt`, `char_surrogate_code.kt`。2026-09-13 追加分(36件、全件が同一理由の `stdlib_kotlin_native_*` 系ゴールデン兼diffケース): `stdlib_kotlin_native_BitSet_BitSet_n.kt`, `stdlib_kotlin_native_BitSet_n_n.kt`, `stdlib_kotlin_native_CpuArchitecture_CpuArchitecture_n.kt`, `stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt`, `stdlib_kotlin_native_OsFamily_OsFamily_n.kt`, `stdlib_kotlin_native_Platform_Platform_n.kt`, `stdlib_kotlin_native_SymbolName_n_n.kt`, `stdlib_kotlin_native_Throwable_n.kt`, `stdlib_kotlin_native_concurrent_AtomicLong_n_n.kt`, `stdlib_kotlin_native_concurrent_AtomicNativePtr_n_n.kt`, `stdlib_kotlin_native_concurrent_AtomicReference_n_n.kt`, `stdlib_kotlin_native_concurrent_FreezableAtomicReference_n_n.kt`, `stdlib_kotlin_native_concurrent_FreezingException_n_n.kt`, `stdlib_kotlin_native_concurrent_FutureState_FutureState_n.kt`, `stdlib_kotlin_native_concurrent_Future_Future_n.kt`, `stdlib_kotlin_native_concurrent_Future_n_n.kt`, `stdlib_kotlin_native_concurrent_InvalidMutabilityException_n_n.kt`, `stdlib_kotlin_native_concurrent_MutableData_n_n.kt`, `stdlib_kotlin_native_concurrent_ObsoleteWorkersApi_n_n.kt`, `stdlib_kotlin_native_concurrent_SharedImmutable_n_n.kt`, `stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt`, `stdlib_kotlin_native_concurrent_TransferMode_TransferMode_n.kt`, `stdlib_kotlin_native_concurrent_WorkerBoundReference_n_n.kt`, `stdlib_kotlin_native_concurrent_Worker_Worker_n.kt`, `stdlib_kotlin_native_concurrent_Worker_n_n.kt`, `stdlib_kotlin_native_concurrent_n_n.kt`, `stdlib_kotlin_native_ref_WeakReference_WeakReference_n.kt`, `stdlib_kotlin_native_ref_n_n.kt`, `stdlib_kotlin_native_runtime_GCInfo_n_n.kt`, `stdlib_kotlin_native_runtime_GC_n_n.kt`, `stdlib_kotlin_native_runtime_MemoryUsage_n_n.kt`, `stdlib_kotlin_native_runtime_MemoryUsage_totalObjectsSizeBytes_n.kt`, `stdlib_kotlin_native_runtime_NativeRuntimeApi_n_n.kt`, `stdlib_kotlin_native_runtime_RootSetStatistics_n_n.kt`, `stdlib_kotlin_native_runtime_SweepStatistics_n_n.kt`, `stdlib_kotlin_native_runtime_SweepStatistics_properties_n.kt`。加えて `kotlin.concurrent` 直下(non-`native`接頭辞だが同一理由)の `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`, `stdlib_kotlin_concurrent_n_n.kt` | `kotlin.native.*` / `kotlinx.cinterop.*` / `kotlin.concurrent` の atomics API は JVM kotlinc に存在しない。kotlinc 2.4.10 は全件 `unresolved reference` で即失敗、kswiftc は候補シンボルとして受理し正常コンパイルすることを確認。2026-09-13 追加分は8件を個別に reason コメントを読んで確認(`kotlin.native.* APIs are Kotlin/Native-only ...` の同一パターン)、残りは同一 `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` 命名規約とファイル内 `@file:OptIn`/import から同種と判定。`platform_info.kt` は一時的に `--compile-timeout 15` を超えたが、システム負荷起因の見かけ上のタイムアウトで(`--compile-timeout 60` で再実行すると `time` 計測で user 8s 程度で正常終了、CPU使用率35%と待ち時間が主でビジーループではない)、無限ハングではない。件数が今後も増え続ける open-ended なカテゴリのため、この行の内訳は `rg -l 'SKIP-DIFF \(DEBT-DIFF-001\)' Scripts/diff_cases/stdlib_kotlin_native_*.kt Scripts/diff_cases/stdlib_kotlin_concurrent_*.kt` で都度再列挙すること | Native surface 専用の Sema golden / target-specific smoke test へ移す(JVM reference を使わない)。実際、これら36+2件はすでに `Tests/CompilerCoreTests/GoldenCases/Sema/` にも同名の golden ケースが存在し、Sema golden 側は実質的にこの owner を兼ねている |
-| Kotlin/Native 型の JVM/Native `actual` 形状差異 | `stdlib_kotlin_text_CharacterCodingException_n_n.kt`(2026-09-13 追加) | 上記と異なり「存在しない」のではなく、`expect`/`actual` の実装差: Kotlin/Native 2.3.10 の `CharacterCodingException` は nullable-message constructor を追加公開しているが、JVM kotlinc reference 側の `actual` は no-arg constructor しか公開しない。JVM 側がコンパイル自体に失敗するため通常 diff には戻せない | Native/JVM 双方の `actual` 宣言が収束するまで `SKIP-DIFF` を維持。candidate-only 直接実行で検証 |
 | Kotlin/JS | `js_annotations.kt`, `js_api.kt` | `kotlin.js.*` は JVM kotlinc に存在しない。`error: symbol is declared in module 'kotlin.stdlib' which does not export package 'kotlin.js'` 等で即失敗を確認 | JS/Wasm stub cleanup の target-out backlog と接続する |
 | Runtime-only system API | `system_process_start_nanos.kt` | `System.processStartNanos()` は KSwiftK 独自 API。kotlinc は `unresolved reference` で即失敗を確認 | Runtime unit test または candidate-only smoke に移す |
 | KSwiftK bundled comparisons API | `top_level_max_min_with.kt` | `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith(comparator, a, b)` は KSwiftK の bundled source API で、JVM kotlinc 2.4.10 では `unresolved reference` になる | candidate-only 直接実行を owner とする |
