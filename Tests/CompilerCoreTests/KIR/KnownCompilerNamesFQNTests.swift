@@ -130,7 +130,7 @@ struct KnownCompilerNamesFQNTests {
         )
 
         #expect(
-            result.map { interner.resolve($0) } == "__kk_regex_create_with_option_flat",
+            result == KIRRuntimeFunction.regexCreateWithOption.name(in: interner),
             "Regex(String, user-defined-Set) should NOT route to kk_regex_create_with_options"
         )
     }
@@ -170,7 +170,7 @@ struct KnownCompilerNamesFQNTests {
         )
 
         #expect(
-            result.map { interner.resolve($0) } == "__kk_regex_create_with_options_flat",
+            result == KIRRuntimeFunction.regexCreateWithOptions.name(in: interner),
             "Regex(String, stdlib-Set) should route to kk_regex_create_with_options"
         )
     }
