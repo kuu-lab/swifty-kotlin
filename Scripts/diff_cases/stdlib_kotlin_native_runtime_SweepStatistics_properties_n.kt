@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// The adjacent .expected file selects diff_kotlinc.sh's candidate-only runner.
 import kotlin.native.runtime.SweepStatistics
 
 @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
