@@ -1429,6 +1429,7 @@ extension CallLowerer {
                   ?? bareNameRefClassLikeSymbol(receiverExpr, ast: ast, sema: sema),
               let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
               receiverSymbol.kind == .class || receiverSymbol.kind == .interface
+                  || receiverSymbol.kind == .object
                   || receiverSymbol.kind == .enumClass || receiverSymbol.kind == .annotationClass
         else {
             return nil
