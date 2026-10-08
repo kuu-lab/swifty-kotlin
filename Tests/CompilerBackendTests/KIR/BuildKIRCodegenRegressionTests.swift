@@ -780,9 +780,13 @@ struct BuildKIRCodegenRegressionTests {
             val values = intArrayOf(1, 2, 3)
             val mapped = values.map { it * 2 }
             val mappedNotNull = values.mapNotNull { if (it > 1) it.toString() else null }
+            val unsignedValues = UByteArray(3) { (it + 1).toUByte() }
+            val unsignedMappedNotNull = unsignedValues.mapNotNull {
+                if (it.toInt() > 1) it.toString() else null
+            }
             val total = values.fold(0) { accumulator, value -> accumulator + value }
             val rendered = values.joinToString(transform = { it.toString() })
-            return listOf(mapped, mappedNotNull, total, rendered)
+            return listOf(mapped, mappedNotNull, unsignedMappedNotNull, total, rendered)
         }
         """
 
@@ -795,7 +799,8 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             #expect(containsKotlinCallee("map", in: callNames))
-            #expect(containsKotlinCallee("mapNotNull", in: callNames))
+            // Both signed and unsigned primitive-array calls must bind to source.
+            #expect(callNames.filter { isKotlinCallee($0, named: "mapNotNull") }.count == 2)
             #expect(containsKotlinCallee("fold", in: callNames))
             // Source-backed default lowering may retain the default suffix or
             // emit the resolved source function name directly.
