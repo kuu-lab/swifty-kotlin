@@ -20,6 +20,14 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
+For a case with no usable JVM reference, add `// CANDIDATE-ONLY: <reason>` and
+one or more ordered `// EXPECT-STDOUT: <line>` directives. The behavioral
+runner compiles and runs `kswiftc` for that case, checks for a successful exit,
+and compares its normalized stdout with the expected lines without invoking
+`kotlinc` for the case. A directly selected candidate-only file skips JVM and
+precompiled-artifact setup and compiles against bundled Kotlin sources, which
+keeps internal stdlib declarations available to the fixture.
+
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
@@ -63,6 +71,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
+- `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values
 - `list_binary_search_by.kt`: `List.binarySearchBy(key, fromIndex, toIndex, selector)` の parity
 - `stdlib_string_ops.kt`: String stdlib parity（`trim/split/replace/startsWith/endsWith/contains/toInt/toDouble/format/substring/lowercase/uppercase/toIntOrNull/toDoubleOrNull/indexOf/lastIndexOf/padStart/padEnd/repeat/reversed/toList/toCharArray/drop/take/dropLast/takeLast`）
 - `string_decode_to_string.kt`: `ByteArray.decodeToString` UTF-8, range, strict malformed input, and bounds parity
