@@ -2575,6 +2575,12 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
     return registerRuntimeObject(box)
 }
 
+/// KUU-1377: backs `KClassifier.createType` / `starProjectedType`.
+@_cdecl("__kk_ktype_create")
+public func __kk_ktype_create(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
+    runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
+}
+
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
 @_cdecl("__kk_ktype_classifier")
 public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
