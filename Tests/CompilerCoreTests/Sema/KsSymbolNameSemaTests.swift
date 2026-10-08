@@ -8,6 +8,8 @@ struct KsSymbolNameSemaTests {
 
     @Test
     func testKsSymbolNameSema() throws {
+        let userBridgeLink = "kk_user_bridge"
+        let runtimeBridgeLink = "kk_runtime_bridge"
         let sources: [String] = [
             // interfaceBodylessFunctionDoesNotRequireBody
             """
@@ -24,7 +26,7 @@ struct KsSymbolNameSemaTests {
 
                     import kotlin.internal.KsSymbolName
 
-                    @KsSymbolName("kk_user_bridge")
+                    @KsSymbolName("\(userBridgeLink)")
                     fun userBridge(value: Int): Int = value
 
             """,
@@ -41,7 +43,7 @@ struct KsSymbolNameSemaTests {
 
                     import kotlin.internal.KsSymbolName
 
-                    @KsSymbolName(name = "kk_user_bridge")
+                    @KsSymbolName(name = "\(userBridgeLink)")
                     external fun userBridge(value: Int): Int
 
             """,
@@ -59,7 +61,7 @@ struct KsSymbolNameSemaTests {
                     import kotlin.internal.KsSymbolName
 
                     interface RuntimeBridge {
-                        @KsSymbolName("kk_runtime_bridge")
+                        @KsSymbolName("\(runtimeBridgeLink)")
                         fun bridge(): Int
                     }
 
@@ -118,7 +120,7 @@ struct KsSymbolNameSemaTests {
                     ctx.interner.intern("bridge"),
                 ]))
                 #expect(!sema.symbols.symbol(bridge)!.flags.contains(.abstractType))
-                #expect(sema.symbols.externalLinkName(for: bridge) == "kk_runtime_bridge")
+                #expect(sema.symbols.externalLinkName(for: bridge) == runtimeBridgeLink)
             }
         }
     }
@@ -139,7 +141,7 @@ struct KsSymbolNameSemaTests {
 
         #expect(sema.symbols.symbol(firstSymbol)?.kind == .property)
         #expect(sema.symbols.parentSymbol(for: firstSymbol) == pairSymbol)
-        #expect(sema.symbols.externalLinkName(for: firstSymbol) == "__kk_pair_first")
+        #expect(sema.symbols.externalLinkName(for: firstSymbol) == runtimeABIName(.pairFirst))
         #expect(
             sema.symbols.annotations(for: firstSymbol).contains {
                 KnownCompilerAnnotation.ksSymbolName.matches($0.annotationFQName)
