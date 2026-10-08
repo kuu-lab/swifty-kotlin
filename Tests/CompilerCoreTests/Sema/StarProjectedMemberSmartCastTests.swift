@@ -28,7 +28,7 @@ struct StarProjectedMemberSmartCastTests {
         let calls = ast.arena.exprs.indices.map { ExprID(rawValue: Int32($0)) }.filter { id in
             guard let expr = ast.arena.expr(id) else { return false }
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         }
         #expect(calls.count == 4)
         let throwableType = try #require(TypeCheckHelpers().throwableType(sema: sema, interner: ctx.interner))
@@ -68,7 +68,7 @@ struct StarProjectedMemberSmartCastTests {
         let sema = try #require(ctx.sema)
         let call = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         })
         #expect(sema.bindings.exprType(for: call) == sema.types.nullableAnyType)
     }

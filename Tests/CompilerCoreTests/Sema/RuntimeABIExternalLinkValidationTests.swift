@@ -63,11 +63,11 @@ struct RuntimeABIExternalLinkValidationTests {
     @Test(arguments: ["suspend () -> T", "suspend CoroutineScope.() -> T"])
     func testTimeoutLauncherUsesPackedChildContinuationABI(blockType: String) throws {
         let declarations = bundledKsSymbolNameDeclarations(in: """
-        @KsSymbolName("kk_with_timeout")
+        @KsSymbolName("\(runtimeABIName(.withTimeout))")
         external suspend fun <T> withTimeout(timeMillis: Long, block: \(blockType)): T
-        @KsSymbolName("kk_with_timeout_or_null")
+        @KsSymbolName("\(runtimeABIName(.withTimeoutOrNull))")
         external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: \(blockType)): T?
-        @KsSymbolName("kk_with_timeout_or_null_throwing")
+        @KsSymbolName("\(runtimeABIName(.withTimeoutOrNullThrowing))")
         external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: \(blockType)): T?
         """, relativePath: "timeout.kt")
         #expect(declarations.count == 3)
@@ -79,7 +79,7 @@ struct RuntimeABIExternalLinkValidationTests {
             let specs = RuntimeABISpec.allFunctions.filter { $0.name == declaration.linkName }
             #expect(specs.count == 1)
             let spec = try #require(specs.first)
-            let isThrowing = declaration.linkName != "kk_with_timeout_or_null"
+            let isThrowing = declaration.linkName != runtimeABIName(.withTimeoutOrNull)
             let valueParameterTypes = Array(repeating: RuntimeABICType.intptr.rawValue, count: 3)
             let thrownParameterTypes = isThrowing ? [RuntimeABICType.nullableIntptrPointer.rawValue] : []
             #expect(spec.isThrowing == isThrowing)
@@ -732,22 +732,22 @@ struct RuntimeABIExternalLinkValidationTests {
     /// emitted shape; the pinned parameter types below cover only the emitted
     /// value arguments, the part the signature check compares a throwing spec on.
     private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
-        "kk_with_timeout": 4,
-        "kk_with_timeout_or_null": 3,
-        "kk_with_timeout_or_null_throwing": 4,
+        runtimeABIName(.withTimeout): 4,
+        runtimeABIName(.withTimeoutOrNull): 3,
+        runtimeABIName(.withTimeoutOrNullThrowing): 4,
     ]
     private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
-        "kk_with_timeout": [
+        runtimeABIName(.withTimeout): [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
-        "kk_with_timeout_or_null": [
+        runtimeABIName(.withTimeoutOrNull): [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
         ],
-        "kk_with_timeout_or_null_throwing": [
+        runtimeABIName(.withTimeoutOrNullThrowing): [
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
             RuntimeABICType.intptr.rawValue,
@@ -822,7 +822,7 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
         declaration.isSuspend
-            && ["kk_with_timeout", "kk_with_timeout_or_null", "kk_with_timeout_or_null_throwing"].contains(declaration.linkName)
+            && [runtimeABIName(.withTimeout), runtimeABIName(.withTimeoutOrNull), runtimeABIName(.withTimeoutOrNullThrowing)].contains(declaration.linkName)
             && declaration.valueParameterTypes.count == 2
             && isFunctionType(declaration.valueParameterTypes[1])
     }

@@ -1,14 +1,8 @@
+// KUU-1597 Sema owner: pin ULongProgression.fromClosedRange overloads and result type; equality, iteration, and formatting stay in Scripts/diff_cases/stdlib_kotlin_ranges_ULongProgression_ULongProgression_n.kt.
 fun main() {
-    val positive = ULongProgression.fromClosedRange(2uL, 11uL, 3L)
-    val samePositive = ULongProgression.fromClosedRange(2uL, 11uL, 3L)
-    val negative = ULongProgression.fromClosedRange(10uL, 0uL, -3L)
-    val emptyPositive = ULongProgression.fromClosedRange(5uL, 1uL, 1L)
-    val emptyNegative = ULongProgression.fromClosedRange(1uL, 5uL, -1L)
-
-    println("positive=${positive.first},${positive.last},${positive.step}")
-    println("negative=${negative.first},${negative.last},${negative.step}")
-    println("same=${positive.equals(samePositive)},${positive.hashCode() == samePositive.hashCode()}")
-    println("empty=${emptyPositive == emptyNegative},${emptyPositive.hashCode()},${emptyNegative.hashCode()}")
-    println("text=${positive.toString()},${negative.toString()}")
-    println("iter=${positive.iterator().asSequence().toList()}")
+    val positive: ULongProgression = ULongProgression.fromClosedRange(2uL, 11uL, 3L)
+    val samePositive: ULongProgression = ULongProgression.fromClosedRange(2uL, 11uL, 3L)
+    val negative: ULongProgression = ULongProgression.fromClosedRange(10uL, 0uL, -3L)
+    val emptyPositive: ULongProgression = ULongProgression.fromClosedRange(5uL, 1uL, 1L)
+    val emptyNegative: ULongProgression = ULongProgression.fromClosedRange(1uL, 5uL, -1L)
 }

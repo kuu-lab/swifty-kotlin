@@ -67,7 +67,7 @@ struct MapCountLoweringRoutingTests {
     ) -> [(argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
             guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "count"
+                  callee == KnownCompilerNames(interner: interner).count
             else { return nil }
             return (arguments.count, symbol)
         }
@@ -99,8 +99,8 @@ struct MapCountLoweringRoutingTests {
 
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
             #expect(
-                !callees.contains("kk_map_count"),
-                "kk_map_count has no @_cdecl in Sources/Runtime and must never be emitted; callees: \(callees.sorted())"
+                !LoweringTestRuntime.operations(in: callees).contains("map_count"),
+                "The retired Map count bridge must never be emitted; callees: \(callees.sorted())"
             )
 
             // The exact shape the deleted rewrite branch produced: a
@@ -110,7 +110,7 @@ struct MapCountLoweringRoutingTests {
             let brokenCountRewrites = body.filter { instruction in
                 guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return false }
                 return symbol == nil
-                    && ctx.interner.resolve(callee) == "count"
+                    && callee == KnownCompilerNames(interner: ctx.interner).count
                     && arguments.count == 3
             }
             #expect(

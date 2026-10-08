@@ -290,19 +290,20 @@ extension DataFlowAndSemaRegressionTests {
             }
             #expect(clauses.count == 2)
             for (clause, packageName) in zip(clauses, ["first", "second"]) {
+                let expectedFQName = [packageName, "Error"].map(ctx.interner.intern)
+                let expectedSymbol = try #require(sema.symbols.lookup(fqName: expectedFQName))
                 let typeRef = try #require(clause.paramType)
                 guard let ref = ast.arena.typeRef(typeRef), case let .named(path, _, _) = ref else {
                     Issue.record("Expected named catch parameter type")
                     continue
                 }
-                #expect(path.map { ctx.interner.resolve($0) } == [packageName, "Error"])
+                #expect(path == expectedFQName)
                 let binding = try #require(sema.bindings.catchClauseBinding(for: clause.body))
                 guard case let .classType(type) = sema.types.kind(of: binding.parameterType) else {
                     Issue.record("Expected nominal catch parameter type")
                     continue
                 }
-                let symbol = try #require(sema.symbols.symbol(type.classSymbol))
-                #expect(symbol.fqName.map { ctx.interner.resolve($0) } == [packageName, "Error"])
+                #expect(type.classSymbol == expectedSymbol)
             }
         }
     }
@@ -323,17 +324,10 @@ extension DataFlowAndSemaRegressionTests {
         let samplePath = paths[0]
             let sema = try #require(ctx.sema)
             let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: samplePath))
-            let wrapSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "wrap" &&
-                    sema.symbols.sourceFileID(for: symbol.id) == sourceFileID
-            }
-            #expect(wrapSymbol != nil)
-            if let sym = wrapSymbol,
-               let sig = sema.symbols.functionSignature(for: sym.id)
-            {
-                let typeParamEmpty = sig.typeParameterSymbols.isEmpty
-                #expect(!typeParamEmpty)
-            }
+            let wrapSymbol = try #require(sema.symbols.lookup(fqName: ["sample0", "wrap"].map(ctx.interner.intern)))
+            #expect(sema.symbols.sourceFileID(for: wrapSymbol) == sourceFileID)
+            let signature = try #require(sema.symbols.functionSignature(for: wrapSymbol))
+            #expect(!signature.typeParameterSymbols.isEmpty)
     }
 
     @Test func testReifiedInlineFunctionSupportsUnsafeCastAndBoundedTypeParameter() throws {
@@ -341,17 +335,13 @@ extension DataFlowAndSemaRegressionTests {
 
             let sema = try #require(ctx.sema)
 
-            let castSymbol = try #require(sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "castOrThrow"
-            })
-            let castSignature = try #require(sema.symbols.functionSignature(for: castSymbol.id))
+            let castSymbol = try #require(sema.symbols.lookup(fqName: ["sample1", "castOrThrow"].map(ctx.interner.intern)))
+            let castSignature = try #require(sema.symbols.functionSignature(for: castSymbol))
             #expect(castSignature.reifiedTypeParameterIndices == Set([0]))
             #expect(castSignature.typeParameterSymbols.count == 1)
 
-            let boundedSymbol = try #require(sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "boundedTypeName"
-            })
-            let boundedSignature = try #require(sema.symbols.functionSignature(for: boundedSymbol.id))
+            let boundedSymbol = try #require(sema.symbols.lookup(fqName: ["sample1", "boundedTypeName"].map(ctx.interner.intern)))
+            let boundedSignature = try #require(sema.symbols.functionSignature(for: boundedSymbol))
             #expect(boundedSignature.reifiedTypeParameterIndices == Set([0]))
             #expect(boundedSignature.typeParameterSymbols.count == 1)
 
@@ -411,23 +401,20 @@ extension DataFlowAndSemaRegressionTests {
             #expect(firstBinding.parameterType == intType)
             #expect(sema.symbols.propertyType(for: firstBinding.parameterSymbol) == intType)
 
-            let customErrorSymbol = sema.symbols.allSymbols().first { symbol in
-                symbol.kind == .class && ctx.interner.resolve(symbol.name) == "MyError"
-            }
-            let resolvedCustomErrorSymbol = try #require(customErrorSymbol)
+            let customErrorSymbol = try #require(sema.symbols.lookup(fqName: ["sample3", "MyError"].map(ctx.interner.intern)))
+            #expect(sema.symbols.symbol(customErrorSymbol)?.kind == .class)
             guard case let .classType(customErrorType) = sema.types.kind(of: secondBinding.parameterType) else {
                 Issue.record("Expected nominal catch parameter type")
                 return
             }
-            #expect(customErrorType.classSymbol == resolvedCustomErrorSymbol.id)
+            #expect(customErrorType.classSymbol == customErrorSymbol)
             #expect(sema.symbols.propertyType(for: secondBinding.parameterSymbol) == secondBinding.parameterType)
 
             let catchNameRef = try #require(firstExprID(in: ast) { exprID, expr in
-                guard case let .nameRef(name, _) = expr else {
+                guard case .nameRef = expr else {
                     return false
                 }
-                return ctx.interner.resolve(name) == "e"
-                    && sema.bindings.identifierSymbol(for: exprID) == firstBinding.parameterSymbol
+                return sema.bindings.identifierSymbol(for: exprID) == firstBinding.parameterSymbol
             })
             #expect(sema.bindings.identifierSymbol(for: catchNameRef) == firstBinding.parameterSymbol)
             #expect(sema.bindings.exprType(for: catchNameRef) == intType)
@@ -511,15 +498,9 @@ extension DataFlowAndSemaRegressionTests {
     @Test func testSuspendFunctionSignature() throws {
         let (ctx, _) = try sharedDataFlowTryCatchCtx()
             let sema = try #require(ctx.sema)
-            let delayedSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "delayed"
-            }
-            #expect(delayedSymbol != nil)
-            if let sym = delayedSymbol,
-               let sig = sema.symbols.functionSignature(for: sym.id)
-            {
-                #expect(sig.isSuspend)
-            }
+            let delayedSymbol = try #require(sema.symbols.lookup(fqName: ["sample12", "delayed"].map(ctx.interner.intern)))
+            let signature = try #require(sema.symbols.functionSignature(for: delayedSymbol))
+            #expect(signature.isSuspend)
     }
 
     @Test func testStringSplitMarksCollectionForFallbackMembers() throws {

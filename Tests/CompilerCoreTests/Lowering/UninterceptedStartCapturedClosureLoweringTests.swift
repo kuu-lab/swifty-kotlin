@@ -15,8 +15,8 @@ struct UninterceptedStartCapturedClosureLoweringTests {
         try runToLowering(ctx)
         let module = try #require(ctx.kir)
         let expectedArities = [
-            "kk_start_coroutine_unintercepted_or_return_no_receiver": 3,
-            "kk_start_coroutine_unintercepted_or_return_with_receiver": 4,
+            LoweringTestRuntime.name("start_coroutine_unintercepted_or_return_no_receiver"): 3,
+            LoweringTestRuntime.name("start_coroutine_unintercepted_or_return_with_receiver"): 4,
         ]
         var seen = Set<String>()
         for declaration in module.arena.declarations {
@@ -57,9 +57,9 @@ struct UninterceptedStartCapturedClosureLoweringTests {
     @Test
     func testCapturedVarThreadsClosureStateIntoLauncherArgSlot() throws {
         let callees = try mainCallees(for: program(capturing: true, call: "startCoroutineUninterceptedOrReturn"))
-        #expect(callees.contains("kk_create_coroutine_unintercepted"))
-        #expect(callees.contains("kk_start_coroutine_unintercepted_or_return"))
-        #expect(callees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(callees.contains(LoweringTestRuntime.name("create_coroutine_unintercepted")))
+        #expect(callees.contains(LoweringTestRuntime.name("start_coroutine_unintercepted_or_return")))
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
     }
 
     @Test
@@ -68,14 +68,14 @@ struct UninterceptedStartCapturedClosureLoweringTests {
         // The non-inline source builder receives the boxed callable; the
         // runtime create bridge transfers its closure state into the launcher.
         #expect(callees.contains("startCoroutine"))
-        #expect(callees.contains("kk_suspend_function_create"))
+        #expect(callees.contains(LoweringTestRuntime.name("suspend_function_create")))
     }
 
     @Test
     func testNonCapturingLambdaKeepsBareEntryPoint() throws {
         let callees = try mainCallees(for: program(capturing: false, call: "startCoroutineUninterceptedOrReturn"))
-        #expect(callees.contains("kk_start_coroutine_unintercepted_or_return"))
-        #expect(!callees.contains("kk_coroutine_launcher_arg_set"))
+        #expect(callees.contains(LoweringTestRuntime.name("start_coroutine_unintercepted_or_return")))
+        #expect(!callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
     }
 }
 #endif

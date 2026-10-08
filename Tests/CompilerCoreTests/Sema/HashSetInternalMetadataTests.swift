@@ -1,4 +1,5 @@
 @testable import CompilerCore
+import RuntimeABI
 import Testing
 import TestStdlibCache
 
@@ -23,7 +24,7 @@ struct HashSetInternalMetadataTests {
             #expect(sema.symbols.parentSymbol(for: member) == owner)
             if useArtifact {
                 let linkName = try #require(sema.symbols.externalLinkName(for: member))
-                #expect(linkName.hasPrefix("kk_fn_\(name)_"))
+                #expect(linkName.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "\(name)_"))
             } else {
                 #expect(!info.flags.contains(.synthetic))
                 #expect(sema.symbols.externalLinkName(for: member) == nil)
