@@ -246,6 +246,72 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
     }
 
+    @Test func computedVarWithEmptySetterIsAccepted() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                var value: Int
+                    get() = 42
+                    set(value) {}
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func computedVarWithDefaultSetterStillNeedsInitialization() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                var value: Int
+                    get() = 42
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+    }
+
+    @Test func computedVarWithPrivateSetterStillNeedsInitialization() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                var value: Int
+                    get() = 42
+                    private set
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+    }
+
+    @Test func backingFieldInComputedGetterStillNeedsInitialization() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                var value: Int
+                    get() = field
+                    set(value) {}
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+    }
+
+    @Test func backingFieldInCustomSetterStillNeedsInitialization() throws {
+        let ctx = try semaContext(for: """
+            class C {
+                var value: Int
+                    get() = 42
+                    set(value) { field = value }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+    }
+
+    @Test func interfacePropertyWithBackingFieldReferenceIsRejected() throws {
+        let ctx = try semaContext(for: """
+            interface I {
+                var value: Int
+                    get() = field
+                    set(value) {}
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+    }
+
     @Test func abstractMemberPropertyIsAccepted() throws {
         let ctx = try semaContext(for: """
             abstract class C { abstract val x: Int }
