@@ -208,34 +208,16 @@ final class TypeCheckDriver {
             return symbol.kind == .class || symbol.kind == .enumClass
         }
 
-        func hasIndependentBooleanInitializer(_ property: PropertyDecl) -> Bool {
-            guard property.type == nil,
-                  property.initializer != nil,
-                  property.delegateExpression == nil,
-                  property.getter == nil,
-                  property.setter == nil,
-                  property.explicitBackingField == nil,
-                  property.receiverType == nil,
-                  let initializer = property.initializer,
-                  case .boolLiteral = ast.arena.expr(initializer)
-            else {
-                return false
-            }
-            return true
-        }
-
-        // A direct constructor call has a type fixed by its collected header,
-        // and a bare Boolean literal has no declaration dependencies. Infer
-        // those properties before earlier files can observe the nullable-Any
-        // placeholder. Keep all other initializers in source order because
-        // their types may depend on inferred function returns or other props.
+        // A direct constructor call has a type fixed by its collected header.
+        // Infer those properties before earlier files can observe the
+        // nullable-Any placeholder; pure inferred expressions are resolved in
+        // dependency order below.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
-                      hasHeaderResolvedConstructorInitializer(property, in: file)
-                      || hasIndependentBooleanInitializer(property),
+                      hasHeaderResolvedConstructorInitializer(property, in: file),
                       let symbol = sema.bindings.declSymbols[declID]
                 else {
                     continue
@@ -252,10 +234,42 @@ final class TypeCheckDriver {
             }
         }
 
-        // Resolve dependency-free inferred member properties in later classes
-        // before an earlier file's function body tries to use their header
-        // placeholders. The class helper deliberately leaves any initializer
-        // with unresolved property/function dependencies on the normal path.
+        // Revisit simple property initializers until their inferred property
+        // dependencies have types. Calls, arbitrary control flow and unresolved
+        // references stay on the source-order pass so inferred function return
+        // types and cycles retain their established diagnostics.
+        var didPrecheckProperty: Bool
+        repeat {
+            didPrecheckProperty = false
+            for file in files {
+                guard let inferCtx = inferenceContext(for: file) else { continue }
+                for declID in file.topLevelDecls {
+                    guard !precheckedPropertyDecls.contains(declID),
+                          let decl = ast.arena.decl(declID),
+                          case let .propertyDecl(property) = decl,
+                          declChecker.canSafelyPrecheckInferredProperty(property, in: inferCtx),
+                          let symbol = sema.bindings.declSymbols[declID]
+                    else {
+                        continue
+                    }
+                    declChecker.typeCheckBoundPropertyDecl(
+                        property,
+                        declID: declID,
+                        symbol: symbol,
+                        ctx: inferCtx.with(currentDeclSymbol: symbol),
+                        solver: solver,
+                        diagnostics: diagnostics
+                    )
+                    precheckedPropertyDecls.insert(declID)
+                    didPrecheckProperty = true
+                }
+            }
+        } while didPrecheckProperty
+
+        // Resolve simple inferred member properties in later classes before an
+        // earlier file's function body observes their header placeholders.
+        // Each class helper repeats until its inferred member dependencies are
+        // concrete or the remaining expressions are outside the safe subset.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {

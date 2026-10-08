@@ -58,81 +58,70 @@ extension DeclTypeChecker {
         )
         let sema = ctx.sema
 
-        // Literal properties are independent of other declarations. Resolve
-        // them first so a lazy Boolean property can safely depend on one.
-        for declID in classDecl.memberProperties {
-            guard let decl = ctx.ast.arena.decl(declID),
-                  case let .propertyDecl(property) = decl,
-                  hasIndependentBooleanInitializer(property, ast: ctx.ast),
-                  let propertySymbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
+        // Revisit member properties until their simple inferred dependencies
+        // resolve. The eligibility check only accepts expressions whose types
+        // follow from literals and already-typed values; calls and cycles stay
+        // on the normal pass.
+        var didPrecheckProperty: Bool
+        repeat {
+            didPrecheckProperty = false
+            for declID in classDecl.memberProperties {
+                guard !driver.precheckedPropertyDecls.contains(declID),
+                      let decl = ctx.ast.arena.decl(declID),
+                      case let .propertyDecl(property) = decl,
+                      canSafelyPrecheckInferredProperty(
+                          property,
+                          in: classContext,
+                          initialLocals: primaryConstructorLocals
+                      ),
+                      let propertySymbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                typeCheckBoundPropertyDecl(
+                    property,
+                    declID: declID,
+                    symbol: propertySymbol,
+                    ctx: classContext.with(currentDeclSymbol: propertySymbol),
+                    initialLocals: primaryConstructorLocals,
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
+                driver.precheckedPropertyDecls.insert(declID)
+                didPrecheckProperty = true
             }
-            typeCheckBoundPropertyDecl(
-                property,
-                declID: declID,
-                symbol: propertySymbol,
-                ctx: classContext.with(currentDeclSymbol: propertySymbol),
-                initialLocals: primaryConstructorLocals,
-                solver: solver,
-                diagnostics: diagnostics
-            )
-            driver.precheckedPropertyDecls.insert(declID)
-        }
-
-        // A lazy property's type comes from its lambda body. Pre-check only
-        // simple Boolean expressions whose property references already have a
-        // concrete header or prechecked type. Calls and unresolved references
-        // stay in declaration order, preserving inferred-function and cycle
-        // diagnostics instead of speculatively checking them twice.
-        for declID in classDecl.memberProperties {
-            guard let decl = ctx.ast.arena.decl(declID),
-                  case let .propertyDecl(property) = decl,
-                  hasIndependentLazyBooleanBody(property, in: classContext),
-                  let propertySymbol = sema.bindings.declSymbols[declID]
-            else {
-                continue
-            }
-            typeCheckBoundPropertyDecl(
-                property,
-                declID: declID,
-                symbol: propertySymbol,
-                ctx: classContext.with(currentDeclSymbol: propertySymbol),
-                initialLocals: primaryConstructorLocals,
-                solver: solver,
-                diagnostics: diagnostics
-            )
-            driver.precheckedPropertyDecls.insert(declID)
-        }
+        } while didPrecheckProperty
     }
 
-    private func hasIndependentBooleanInitializer(_ property: PropertyDecl, ast: ASTModule) -> Bool {
+    func canSafelyPrecheckInferredProperty(
+        _ property: PropertyDecl,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
         guard property.type == nil,
-              property.initializer != nil,
-              property.delegateExpression == nil,
               property.getter == nil,
               property.setter == nil,
               property.explicitBackingField == nil,
-              property.receiverType == nil,
-              let initializer = property.initializer,
-              case .boolLiteral = ast.arena.expr(initializer)
+              property.receiverType == nil
         else {
             return false
         }
-        return true
-    }
 
-    private func hasIndependentLazyBooleanBody(
-        _ property: PropertyDecl,
-        in ctx: TypeInferenceContext
-    ) -> Bool {
+        if property.delegateExpression == nil,
+           let initializer = property.initializer
+        {
+            guard let type = safePrecheckExpressionType(
+                initializer,
+                in: ctx,
+                locals: initialLocals
+            ) else {
+                return false
+            }
+            return type != ctx.sema.types.nullableNothingType
+        }
+
         guard !property.isVar,
-              property.type == nil,
               property.initializer == nil,
-              property.getter == nil,
-              property.setter == nil,
-              property.explicitBackingField == nil,
-              property.receiverType == nil,
               property.delegateBodyParams.isEmpty,
               let delegateExpression = property.delegateExpression,
               StdlibDelegateKind.detect(
@@ -140,58 +129,225 @@ extension DeclTypeChecker {
                   ast: ctx.ast,
                   interner: ctx.interner
               ) == .lazy,
-              case let .expr(bodyExpr, _) = property.delegateBody
+              case let .expr(bodyExpr, _) = property.delegateBody,
+              let type = safePrecheckExpressionType(
+                  bodyExpr,
+                  in: ctx,
+                  locals: initialLocals
+              )
         else {
             return false
         }
-        return isIndependentBooleanExpression(bodyExpr, in: ctx)
+        return type != ctx.sema.types.nullableNothingType
     }
 
-    private func isIndependentBooleanExpression(
+    private func safePrecheckExpressionType(
         _ exprID: ExprID,
-        in ctx: TypeInferenceContext
-    ) -> Bool {
-        guard let expr = ctx.ast.arena.expr(exprID) else { return false }
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        guard let expr = ctx.ast.arena.expr(exprID) else { return nil }
+        let types = ctx.sema.types
+
         switch expr {
+        case .intLiteral:
+            return types.intType
+        case .longLiteral:
+            return types.longType
+        case .uintLiteral:
+            return types.uintType
+        case .ulongLiteral:
+            return types.ulongType
+        case .floatLiteral:
+            return types.floatType
+        case .doubleLiteral:
+            return types.doubleType
+        case .charLiteral:
+            return types.charType
         case .boolLiteral:
-            return true
-        case let .unaryExpr(op, operand, _) where op == .not:
-            return isIndependentBooleanExpression(operand, in: ctx)
+            return types.booleanType
+        case .stringLiteral:
+            return types.stringType
+        case .nullLiteral:
+            return types.nullableNothingType
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(expression) = part,
+                   safePrecheckExpressionType(expression, in: ctx, locals: locals) == nil
+                {
+                    return nil
+                }
+            }
+            return types.stringType
+        case let .nameRef(name, _):
+            if let local = locals[name] {
+                return local.isInitialized && isSafePrecheckValueType(local.type, in: ctx)
+                    ? local.type : nil
+            }
+            let candidates = ctx.scope.lookup(name)
+            guard candidates.count == 1,
+                  let symbol = ctx.sema.symbols.symbol(candidates[0]),
+                  symbol.kind == .property || symbol.kind == .field,
+                  let type = ctx.sema.symbols.propertyType(for: candidates[0]),
+                  isSafePrecheckValueType(type, in: ctx)
+            else {
+                return nil
+            }
+            return type
+        case let .unaryExpr(op, operand, _):
+            guard let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals) else {
+                return nil
+            }
+            if op == .not {
+                return operandType == types.booleanType ? types.booleanType : nil
+            }
+            return isSafeNumericType(operandType, in: ctx) ? operandType : nil
         case let .binary(op, lhs, rhs, _):
-            if op == .logicalAnd || op == .logicalOr {
-                return isIndependentBooleanExpression(lhs, in: ctx)
-                    && isIndependentBooleanExpression(rhs, in: ctx)
-            }
-            if op == .equal || op == .notEqual || op == .identityEqual || op == .notIdentityEqual {
-                return isHeaderResolvedBooleanOperand(lhs, in: ctx)
-                    && isHeaderResolvedBooleanOperand(rhs, in: ctx)
-            }
-            return false
+            return safePrecheckBinaryType(op, lhs: lhs, rhs: rhs, in: ctx, locals: locals)
         default:
+            // Calls, member access, arbitrary control flow and delegates are
+            // deliberately left on the normal declaration-order path.
+            return nil
+        }
+    }
+
+    private func safePrecheckBinaryType(
+        _ op: BinaryOp,
+        lhs: ExprID,
+        rhs: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let types = ctx.sema.types
+        guard let lhsType = safePrecheckExpressionType(lhs, in: ctx, locals: locals),
+              let rhsType = safePrecheckExpressionType(rhs, in: ctx, locals: locals)
+        else {
+            return nil
+        }
+
+        switch op {
+        case .logicalAnd, .logicalOr:
+            return lhsType == types.booleanType && rhsType == types.booleanType
+                ? types.booleanType : nil
+        case .equal, .notEqual:
+            if isNullLiteral(lhs, in: ctx) || isNullLiteral(rhs, in: ctx) {
+                return types.booleanType
+            }
+            return lhsType == rhsType && isSafeEqualityType(lhsType, in: ctx)
+                ? types.booleanType : nil
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            return lhsType == rhsType && isSafeComparableType(lhsType, in: ctx)
+                ? types.booleanType : nil
+        case .add:
+            if lhsType == types.stringType {
+                return isSafePrecheckValueType(rhsType, in: ctx) ? types.stringType : nil
+            }
+            return safePrecheckNumericBinaryType(op, lhs: lhsType, rhs: rhsType, in: ctx)
+        case .subtract, .multiply, .divide, .modulo:
+            return safePrecheckNumericBinaryType(op, lhs: lhsType, rhs: rhsType, in: ctx)
+        default:
+            return nil
+        }
+    }
+
+    private func isSafePrecheckValueType(_ type: TypeID, in ctx: TypeInferenceContext) -> Bool {
+        guard type != ctx.sema.types.errorType,
+              type != ctx.sema.types.nullableAnyType
+        else {
+            return false
+        }
+        switch ctx.sema.types.kind(of: type) {
+        case .primitive, .stringStruct, .classType, .typeParam, .any(.nonNull):
+            return true
+        case .error, .unit, .nullableUnit, .nothing, .any(.nullable), .any(.platformType),
+             .functionType, .intersection, .kClassType:
             return false
         }
     }
 
-    private func isHeaderResolvedBooleanOperand(
-        _ exprID: ExprID,
-        in ctx: TypeInferenceContext
-    ) -> Bool {
-        guard let expr = ctx.ast.arena.expr(exprID) else { return false }
-        switch expr {
-        case .boolLiteral, .nullLiteral:
-            return true
-        case let .nameRef(name, _):
-            let propertySymbols = ctx.scope.lookup(name).filter { symbol in
-                guard let kind = ctx.sema.symbols.symbol(symbol)?.kind else { return false }
-                return kind == .property || kind == .field
-            }
-            guard !propertySymbols.isEmpty else { return false }
-            return propertySymbols.allSatisfy { symbol in
-                guard let type = ctx.sema.symbols.propertyType(for: symbol) else { return false }
-                return type != ctx.sema.types.nullableAnyType
-            }
-        default:
+    private func isSafeNumericType(_ type: TypeID, in ctx: TypeInferenceContext) -> Bool {
+        guard case let .primitive(primitive, .nonNull) = ctx.sema.types.kind(of: type) else {
             return false
+        }
+        switch primitive {
+        case .int, .long, .float, .double, .uint, .ulong, .ubyte, .ushort, .byte, .short:
+            return true
+        case .boolean, .char:
+            return false
+        }
+    }
+
+    private func isSafeEqualityType(_ type: TypeID, in ctx: TypeInferenceContext) -> Bool {
+        type == ctx.sema.types.stringType
+            || type == ctx.sema.types.booleanType
+            || type == ctx.sema.types.charType
+            || isSafeNumericType(type, in: ctx)
+    }
+
+    private func isSafeComparableType(_ type: TypeID, in ctx: TypeInferenceContext) -> Bool {
+        isSafeNumericType(type, in: ctx) || type == ctx.sema.types.charType
+    }
+
+    private func isNullLiteral(_ exprID: ExprID, in ctx: TypeInferenceContext) -> Bool {
+        if case .nullLiteral? = ctx.ast.arena.expr(exprID) {
+            return true
+        }
+        return false
+    }
+
+    private func safePrecheckNumericBinaryType(
+        _ op: BinaryOp,
+        lhs: TypeID,
+        rhs: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let types = ctx.sema.types
+        let signedTypes: Set<TypeID> = [types.byteType, types.shortType, types.intType, types.longType]
+        let unsignedTypes: Set<TypeID> = [types.ubyteType, types.ushortType, types.uintType, types.ulongType]
+        guard isSafeNumericType(lhs, in: ctx), isSafeNumericType(rhs, in: ctx),
+              !((signedTypes.contains(lhs) && unsignedTypes.contains(rhs))
+                  || (unsignedTypes.contains(lhs) && signedTypes.contains(rhs)))
+        else {
+            return nil
+        }
+
+        switch op {
+        case .add, .subtract:
+            if lhs == types.doubleType || rhs == types.doubleType {
+                return types.doubleType
+            }
+            if lhs == types.floatType || rhs == types.floatType {
+                return types.floatType
+            }
+            if lhs == types.longType || rhs == types.longType {
+                return types.longType
+            }
+            if lhs == types.ulongType || rhs == types.ulongType {
+                return types.ulongType
+            }
+            if unsignedTypes.contains(lhs) || unsignedTypes.contains(rhs) {
+                return types.uintType
+            }
+            return types.intType
+        case .multiply, .divide, .modulo:
+            if lhs == types.doubleType || rhs == types.doubleType {
+                return types.doubleType
+            }
+            if lhs == types.floatType || rhs == types.floatType {
+                return types.floatType
+            }
+            if lhs == types.longType || rhs == types.longType {
+                return types.longType
+            }
+            if lhs == types.ulongType || rhs == types.ulongType {
+                return types.ulongType
+            }
+            if unsignedTypes.contains(lhs) || unsignedTypes.contains(rhs) {
+                return types.uintType
+            }
+            return types.intType
+        default:
+            return nil
         }
     }
 }

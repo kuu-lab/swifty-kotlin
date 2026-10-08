@@ -77,6 +77,94 @@
         }
 
         @Test
+        func inferredIntegerStringAndDependentPropertiesResolveInEitherFileOrder() throws {
+            let use = """
+            package sample
+            fun readTopLevelInt(): Int = dependentInt
+            fun readTopLevelString(): String = dependentString
+            fun readMemberInt(holder: Holder): Int = holder.dependentMemberInt
+            fun readMemberString(holder: Holder): String = holder.dependentMemberString
+            fun readLazyInt(holder: Holder): Int = holder.lazyMemberInt
+            fun readLazyString(holder: Holder): String = holder.lazyMemberString
+            """
+            let declarations = """
+            package sample
+            val dependentInt = forwardInt + 2
+            val forwardInt = 40
+            val dependentString = forwardString + "!"
+            val forwardString = "forward"
+            class Holder {
+                val dependentMemberInt = forwardMemberInt + 2
+                val forwardMemberInt = 40
+                val dependentMemberString = forwardMemberString + "!"
+                val forwardMemberString = "member"
+                val lazyMemberInt by lazy { forwardMemberInt + 2 }
+                val lazyMemberString by lazy { forwardMemberString + "!" }
+            }
+            """
+
+            for sources in [[use, declarations], [declarations, use]] {
+                let (sema, interner) = try SemaFixture(
+                    surface: "inferred Int and String properties across files"
+                ).make(sources: sources)
+
+                for propertyName in ["forwardInt", "dependentInt"] {
+                    try expectPropertyType(
+                        ["sample", propertyName],
+                        equals: sema.types.intType,
+                        in: sema,
+                        interner: interner
+                    )
+                }
+                for propertyName in ["forwardString", "dependentString"] {
+                    try expectPropertyType(
+                        ["sample", propertyName],
+                        equals: sema.types.stringType,
+                        in: sema,
+                        interner: interner
+                    )
+                }
+                for propertyName in ["forwardMemberInt", "dependentMemberInt", "lazyMemberInt"] {
+                    try expectPropertyType(
+                        ["sample", "Holder", propertyName],
+                        equals: sema.types.intType,
+                        in: sema,
+                        interner: interner
+                    )
+                }
+                for propertyName in ["forwardMemberString", "dependentMemberString", "lazyMemberString"] {
+                    try expectPropertyType(
+                        ["sample", "Holder", propertyName],
+                        equals: sema.types.stringType,
+                        in: sema,
+                        interner: interner
+                    )
+                }
+            }
+        }
+
+        @Test
+        func inferredPropertyCyclesKeepTheirTypeDiagnosticInEitherFileOrder() throws {
+            let use = """
+            package sample
+            fun readCycle(): Int = cycleA
+            """
+            let declarations = """
+            package sample
+            val cycleA = cycleB
+            val cycleB = cycleA
+            """
+
+            for sources in [[use, declarations], [declarations, use]] {
+                try withTemporaryFiles(contents: sources) { paths in
+                    let ctx = makeCompilationContext(inputs: paths)
+                    try runSema(ctx)
+                    #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+                }
+            }
+        }
+
+        @Test
         func directConstructorPropertyStillPrechecksAgainstItsHeader() throws {
             let use = """
             package sample
