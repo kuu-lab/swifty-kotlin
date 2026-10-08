@@ -108,7 +108,7 @@ struct CodegenBackendSequenceMapTests {
             // sequence factory and the absence of the retired bridge still
             // prove artifact-backed routing.
             #expect(containsKotlinCallee("sequenceOf", in: callees))
-            #expect(!callees.contains("kk_sequence_map"), "Sequence.map should no longer route through the retired native bridge, got: \(callees)")
+            #expect(!callees.contains(try runtimeABICallee("sequence_map")), "Sequence.map should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

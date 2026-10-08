@@ -1094,34 +1094,34 @@ struct StdlibArtifactRegressionTests {
                 from: try findKIRFunctionBody(named: "sumList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(listCallees.contains("kk_list_iterator"), "artifact List loop must use kk_list_iterator: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_hasNext"), "artifact List loop must use list hasNext: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_next"), "artifact List loop must use list next: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterable_iterator"), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_hasNext"), "artifact List loop must not use generic hasNext: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_next"), "artifact List loop must not use generic next: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator")), "artifact List loop must use kk_list_iterator: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact List loop must use list hasNext: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact List loop must use list next: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact List loop must not use generic hasNext: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_next")), "artifact List loop must not use generic next: \(listCallees)")
 
             let iterableCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumIterable", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(iterableCallees.contains("kk_iterable_iterator"), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_hasNext"), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_next"), "artifact Iterable loop must use generic next: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_hasNext"), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_next"), "artifact Iterable loop must not use list next: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_next")), "artifact Iterable loop must use generic next: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact Iterable loop must not use list next: \(iterableCallees)")
 
             let mutableListCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(mutableListCallees.contains("kk_list_iterator"), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must use list next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterable_iterator"), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator")), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact MutableList loop must use list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_next")), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("range_iterator")), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
 
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
@@ -2196,7 +2196,7 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// Imported runtime-backed interface getters retain a direct external link
+    /// Imported runtime-backed interface getters retain a direct runtime target
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.
     @Test
@@ -2233,14 +2233,15 @@ struct StdlibArtifactRegressionTests {
                 interner: ctx.interner
             )
             let directGetterLinks = body.compactMap { instruction -> String? in
-                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                      let symbol
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction
                 else {
                     return nil
                 }
-                return sema.symbols.externalLinkName(for: symbol)
+                // Runtime intrinsics may use a direct KIR callee without a Sema symbol.
+                return symbol.flatMap { sema.symbols.externalLinkName(for: $0) }
+                    ?? ctx.interner.resolve(callee)
             }
-            #expect(directGetterLinks.contains("__kk_collection_size"))
+            #expect(directGetterLinks.contains(try runtimeABICallee("collection_size")))
             #expect(!body.contains { instruction in
                 guard case .virtualCall = instruction else { return false }
                 return true
