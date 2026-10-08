@@ -52,7 +52,7 @@ struct TypeRefParserTests {
                 Issue.record("Expected makeIt as the callee")
                 continue
             }
-            #expect(lexed.interner.resolve(name) == "makeIt")
+            #expect(name == lexed.interner.intern("makeIt"))
             #expect(typeArgs.count == 1)
             #expect(args.count == 1)
             #expect(parser.current() == nil)

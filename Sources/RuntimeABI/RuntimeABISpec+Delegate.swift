@@ -2,6 +2,69 @@
 
 /// `RuntimeABISpec.delegateFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let suspendFunctionInvokeSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_suspend_function_invoke",
+        parameters: [
+            RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            RuntimeABIParameter(name: "arg", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let suspendFunctionInvoke0Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_suspend_function_invoke_0",
+        parameters: [
+            RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let suspendFunctionInvoke2Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_suspend_function_invoke_2",
+        parameters: [
+            RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            RuntimeABIParameter(name: "arg1", type: .intptr),
+            RuntimeABIParameter(name: "arg2", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
+    static let suspendFunctionCreateSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_suspend_function_create",
+        parameters: [
+            RuntimeABIParameter(name: "bodyRaw", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "arity", type: .intptr),
+            RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine",
+        isThrowing: false
+    )
+
+    static let suspendFunctionInvoke3Spec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_suspend_function_invoke_3",
+        parameters: [
+            RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            RuntimeABIParameter(name: "arg1", type: .intptr),
+            RuntimeABIParameter(name: "arg2", type: .intptr),
+            RuntimeABIParameter(name: "arg3", type: .intptr),
+            RuntimeABIParameter(name: "continuation", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
     static let delegateFunctions: [RuntimeABIFunctionSpec] = [
         // Lazy(SYNCHRONIZED) locking (KSP-491). `lazy`/`Delegates.observable/vetoable/notNull`
         // themselves are bundled Kotlin source (Stdlib/kotlin/Lazy.kt,
@@ -55,64 +118,11 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Delegate"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_suspend_function_invoke",
-            parameters: [
-                RuntimeABIParameter(name: "functionRaw", type: .intptr),
-                RuntimeABIParameter(name: "arg", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_suspend_function_invoke_0",
-            parameters: [
-                RuntimeABIParameter(name: "functionRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_suspend_function_invoke_2",
-            parameters: [
-                RuntimeABIParameter(name: "functionRaw", type: .intptr),
-                RuntimeABIParameter(name: "arg1", type: .intptr),
-                RuntimeABIParameter(name: "arg2", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_suspend_function_create",
-            parameters: [
-                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "arity", type: .intptr),
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_suspend_function_invoke_3",
-            parameters: [
-                RuntimeABIParameter(name: "functionRaw", type: .intptr),
-                RuntimeABIParameter(name: "arg1", type: .intptr),
-                RuntimeABIParameter(name: "arg2", type: .intptr),
-                RuntimeABIParameter(name: "arg3", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
+        suspendFunctionInvokeSpec,
+        suspendFunctionInvoke0Spec,
+        suspendFunctionInvoke2Spec,
+        suspendFunctionCreateSpec,
+        suspendFunctionInvoke3Spec,
         RuntimeABIFunctionSpec(
             name: "kk_suspend_function_invoke_4",
             parameters: [

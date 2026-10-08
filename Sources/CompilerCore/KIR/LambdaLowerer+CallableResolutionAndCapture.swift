@@ -509,6 +509,9 @@ extension LambdaLowerer {
             if objectDecl.superTypeConstructorArgs.contains(where: { check($0.expr) }) {
                 return true
             }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: check) {
+                return true
+            }
             // KSP-CAP-018: see the accessor-body note in
             // `collectBoundIdentifierSymbols`.
             return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains { check($0) }

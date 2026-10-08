@@ -2,6 +2,50 @@
 
 /// `RuntimeABISpec.bitwiseFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let opFloorDivSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_floor_div",
+        parameters: [
+            RuntimeABIParameter(name: "lhs", type: .intptr),
+            RuntimeABIParameter(name: "rhs", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Bitwise"
+    )
+
+    static let opLfloorDivSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_lfloor_div",
+        parameters: [
+            RuntimeABIParameter(name: "lhs", type: .intptr),
+            RuntimeABIParameter(name: "rhs", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Bitwise"
+    )
+
+    static let opFloorModSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_floor_mod",
+        parameters: [
+            RuntimeABIParameter(name: "lhs", type: .intptr),
+            RuntimeABIParameter(name: "rhs", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Bitwise"
+    )
+
+    static let opLfloorModSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_lfloor_mod",
+        parameters: [
+            RuntimeABIParameter(name: "lhs", type: .intptr),
+            RuntimeABIParameter(name: "rhs", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Bitwise"
+    )
+
     /// Bitwise/Shift (P5-103)
     static let bitwiseFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -192,26 +236,8 @@ public extension RuntimeABISpec {
             section: "Bitwise"
         ),
         // Int/Long flooring division and modulo operators — throwing (PEC-NUM-0002)
-        RuntimeABIFunctionSpec(
-            name: "kk_op_floor_div",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_lfloor_div",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        opFloorDivSpec,
+        opLfloorDivSpec,
         RuntimeABIFunctionSpec(
             name: "kk_op_mod",
             parameters: [
@@ -222,26 +248,8 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Bitwise"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_floor_mod",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_lfloor_mod",
-            parameters: [
-                RuntimeABIParameter(name: "lhs", type: .intptr),
-                RuntimeABIParameter(name: "rhs", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Bitwise"
-        ),
+        opFloorModSpec,
+        opLfloorModSpec,
         // UInt/ULong/UByte/UShort division and remainder — throwing (PEC-NUM-0002 / KSP-466).
         // Reinterprets both operands as unsigned (UInt(bitPattern:)) instead of the
         // plain signed division kk_op_div/kk_op_mod use, which misreads ULong values

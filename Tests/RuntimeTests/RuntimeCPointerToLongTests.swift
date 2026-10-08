@@ -21,7 +21,7 @@ struct RuntimeCPointerToLongTests {
     func testCPointerToLongNonNullReturnsAddress() throws {
         let expectedAddress: UInt = 0x1234_5678
         let handle = kk_cpointer_new(Int(bitPattern: expectedAddress))
-        #expect(handle != 0, "kk_cpointer_new must return a non-zero handle")
+        #expect(handle != 0, "Creating a native pointer must return a non-zero handle")
 
         let result = kk_cpointer_toLong(handle)
         #expect(result == Int(bitPattern: expectedAddress),
