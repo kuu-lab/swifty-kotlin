@@ -6,10 +6,9 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let candidates = ctx.cachedScopeLookup(name)
-        guard let receiverType = ctx.implicitReceiverType, !candidates.isEmpty else { return candidates }
-        func matchesReceiver(_ candidate: SymbolID) -> Bool {
-            guard isScopeExtensionCandidate(candidate, ctx: ctx),
-                  let receiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
+        guard !candidates.isEmpty else { return candidates }
+        func matchesReceiver(_ candidate: SymbolID, receiverType: TypeID) -> Bool {
+            guard let receiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
             else { return false }
             return extensionSyntheticFallbackReceiverMatches(
                 callSiteReceiver: receiverType,
@@ -17,15 +16,22 @@ extension CallTypeChecker {
                 sema: ctx.sema
             )
         }
-        // Keep ordinary callables and viable nearer extensions on their existing
-        // resolution paths. Only bypass a scope consisting of foreign receivers.
-        guard candidates.allSatisfy({ isScopeExtensionCandidate($0, ctx: ctx) }),
-              !candidates.contains(where: matchesReceiver)
-        else { return candidates }
-        let applicable = ctx.scope.lookup(name, matching: matchesReceiver)
-        // Matching lookup stops at the first scope with suitable receivers,
-        // preserving package/import precedence instead of merging all overloads.
-        return applicable.isEmpty ? candidates : applicable
+        // Keep ordinary callables on their existing resolution path. Scope
+        // lookup can contain receiver-bearing library functions attached to
+        // nominal receivers as well as package extensions, and overloads with
+        // unrelated receivers must not contribute lambda parameter types.
+        // Resolve the nearest applicable receiver in the tower, which may be
+        // farther out when the active receiver is a dispatch owner.
+        guard candidates.allSatisfy({ ctx.sema.symbols.functionSignature(for: $0)?.receiverType != nil }) else {
+            return candidates
+        }
+        for entry in ctx.implicitReceiverMemberLookupEntries() {
+            let applicable = candidates.filter { matchesReceiver($0, receiverType: entry.type) }
+            if !applicable.isEmpty {
+                return applicable
+            }
+        }
+        return candidates
     }
 
     private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
