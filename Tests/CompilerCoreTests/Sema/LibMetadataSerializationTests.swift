@@ -37,9 +37,10 @@ struct LibMetadataSerializationTests {
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let sema = try #require(ctx.sema)
-            let functions = sema.symbols.allSymbols().filter {
-                $0.fqName.map(ctx.interner.resolve) == ["kotlinx", "coroutines", "invokeOnCompletion"]
-            }
+            let names = KnownCompilerNames(interner: ctx.interner)
+            let completionFQName = Array(names.kotlinxCoroutinesJobFQName.dropLast()) + [ctx.interner.intern("invokeOnCompletion")]
+            let functions = sema.symbols.lookupAll(fqName: completionFQName)
+                .compactMap { sema.symbols.symbol($0) }
             #expect(functions.count == 2)
             for function in functions {
                 let signature = try #require(sema.symbols.functionSignature(for: function.id))
@@ -135,13 +136,15 @@ struct LibMetadataSerializationTests {
             importedInlineFunctions: importedInlineFunctions
         )
 
-        let used = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "used" })
-        let unused = try #require(work.importedBindings.first { ctx.interner.resolve($0.record.fqName.last!) == "unused" })
+        let usedSymbol = try #require(symbols.lookup(fqName: ["lazy", "used"].map(ctx.interner.intern)))
+        let unusedSymbol = try #require(symbols.lookup(fqName: ["lazy", "unused"].map(ctx.interner.intern)))
+        let used = try #require(work.importedBindings.first { $0.symbol == usedSymbol })
+        let unused = try #require(work.importedBindings.first { $0.symbol == unusedSymbol })
         let package = try #require(work.importedBindings.first { $0.record.kind == .package })
         #expect(work.lazyLoaderState != nil)
         #expect(!used.isMaterialized)
         #expect(!unused.isMaterialized)
-        #expect(used.record.receiverOwnerFQName?.map { ctx.interner.resolve($0) } == ["lazy", "Receiver"])
+        #expect(used.record.receiverOwnerFQName == ["lazy", "Receiver"].map(ctx.interner.intern))
         #expect(symbols.parentSymbol(for: used.symbol) == package.symbol)
         #expect(symbols.functionSignature(for: used.symbol)?.parameterTypes.count == 1)
         #expect(used.isMaterialized)
@@ -709,9 +712,9 @@ struct LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let pointSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "Point" && symbol.kind == .class
-            }
+            let pointSymbol = sema.symbols.lookupAll(fqName: ["ext", "Point"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .class }
             #expect(pointSymbol != nil)
             #expect(pointSymbol?.flags.contains(.dataType) ?? false)
             #expect(!(pointSymbol?.flags.contains(.sealedType) ?? true))
@@ -748,9 +751,9 @@ struct LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let baseSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "Base" && symbol.kind == .class
-            }
+            let baseSymbol = sema.symbols.lookupAll(fqName: ["ext", "Base"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .class }
             #expect(baseSymbol != nil)
             #expect(baseSymbol?.flags.contains(.openType) ?? false)
             #expect(!(baseSymbol?.flags.contains(.sealedType) ?? true))
@@ -803,9 +806,9 @@ struct LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let phantomSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "phantom" && symbol.kind == .function
-            }
+            let phantomSymbol = sema.symbols.lookupAll(fqName: ["ext", "phantom"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             let phantomSymbolID = try #require(phantomSymbol?.id)
             let signature = try #require(sema.symbols.functionSignature(for: phantomSymbolID))
             #expect(signature.typeParameterSymbols.count == 1)
@@ -871,9 +874,9 @@ struct LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let filterToSymbol = sema.symbols.allSymbols().first { symbol in
-                ctx.interner.resolve(symbol.name) == "filterTo" && symbol.kind == .function
-            }
+            let filterToSymbol = sema.symbols.lookupAll(fqName: ["ext", "filterTo"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             let filterToSymbolID = try #require(filterToSymbol?.id)
             let signature = try #require(sema.symbols.functionSignature(for: filterToSymbolID))
             #expect(signature.typeParameterSymbols.count == 2)
@@ -940,9 +943,9 @@ struct LibMetadataSerializationTests {
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
-            let overloads = sema.symbols.allSymbols().filter { symbol in
-                ctx.interner.resolve(symbol.name) == "ov" && symbol.kind == .function
-            }
+            let overloads = sema.symbols.lookupAll(fqName: ["ext", "ov"].map(ctx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .filter { $0.kind == .function }
             #expect(overloads.count == 2)
             let signatures = try overloads.map { try #require(sema.symbols.functionSignature(for: $0.id)) }
             let phantomOverload = try #require(signatures.first { $0.parameterTypes.isEmpty })

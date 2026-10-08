@@ -89,6 +89,54 @@ extension LambdaLowerer {
         return ordered
     }
 
+    private func collectReifiedTypeParameterSymbols(
+        in type: TypeID,
+        sema: SemaModule,
+        referenced: inout [SymbolID],
+        seen: inout Set<SymbolID>
+    ) {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case let .typeParam(typeParameter):
+            guard let symbol = sema.symbols.symbol(typeParameter.symbol),
+                  symbol.flags.contains(.reifiedTypeParameter),
+                  seen.insert(typeParameter.symbol).inserted else { return }
+            referenced.append(typeParameter.symbol)
+
+        case let .classType(classType):
+            for argument in classType.args {
+                switch argument {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    collectReifiedTypeParameterSymbols(in: inner, sema: sema, referenced: &referenced, seen: &seen)
+                case .star:
+                    continue
+                }
+            }
+
+        case let .functionType(functionType):
+            for receiver in functionType.contextReceivers {
+                collectReifiedTypeParameterSymbols(in: receiver, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            if let receiver = functionType.receiver {
+                collectReifiedTypeParameterSymbols(in: receiver, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            for parameter in functionType.params {
+                collectReifiedTypeParameterSymbols(in: parameter, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            collectReifiedTypeParameterSymbols(in: functionType.returnType, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .kClassType(kClassType):
+            collectReifiedTypeParameterSymbols(in: kClassType.argument, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .intersection(members):
+            for member in members {
+                collectReifiedTypeParameterSymbols(in: member, sema: sema, referenced: &referenced, seen: &seen)
+            }
+
+        default:
+            return
+        }
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func collectBoundIdentifierSymbols(
         in exprID: ExprID,
@@ -99,6 +147,19 @@ extension LambdaLowerer {
     ) {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
+        }
+        if let binding = sema.bindings.callBindings[exprID],
+           let signature = sema.symbols.functionSignature(for: binding.chosenCallee) {
+            for index in signature.reifiedTypeParameterIndices.sorted()
+                where index < binding.substitutedTypeArguments.count
+            {
+                collectReifiedTypeParameterSymbols(
+                    in: binding.substitutedTypeArguments[index],
+                    sema: sema,
+                    referenced: &referenced,
+                    seen: &seen
+                )
+            }
         }
         let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
             ?? sema.bindings.identifierSymbols[exprID]
@@ -155,6 +216,9 @@ extension LambdaLowerer {
             }
             for arg in objectDecl.superTypeConstructorArgs {
                 collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
+                collectBoundIdentifierSymbols(in: delegateExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
             // KSP-CAP-018: an accessor body's captures are materialized into
             // the literal's instance fields at construction time, which happens
@@ -515,6 +579,11 @@ extension LambdaLowerer {
             }
             if objectDecl.superTypeConstructorArgs.contains(where: {
                 containsImplicitReceiverReference(in: $0.expr, ast: ast)
+            }) {
+                return true
+            }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: {
+                containsImplicitReceiverReference(in: $0, ast: ast)
             }) {
                 return true
             }

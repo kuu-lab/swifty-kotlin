@@ -64,6 +64,7 @@ struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
     var kTypeProjectionStarRaw: Int?
     var enumEntriesCache: [Int64: Int] = [:]
+    var enumValuesByTypeToken: [Int64: [RuntimeEnumValueDescriptor]] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
