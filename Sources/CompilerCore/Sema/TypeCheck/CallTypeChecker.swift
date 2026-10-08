@@ -747,6 +747,38 @@ final class CallTypeChecker {
         // kotlinx.coroutines.
 
         // --- Flow builder lambda calls (CORO-003) ---
+        // During generic receiver-builder inference, postpone an unqualified
+        // FlowCollector.emit argument as a constraint on the enclosing type
+        // variables. The regular member-call path cannot resolve `R` until
+        // these emissions have contributed evidence for it.
+        if let builderInference = ctx.builderInference,
+           let calleeName,
+           calleeName == knownNames.emit,
+           args.count == 1,
+           locals[calleeName] == nil,
+           let receiverType = ctx.implicitReceiverType,
+           isFlowCollectorType(receiverType, ctx: ctx),
+           let collectorType = resolveClassType(receiverType, sema: sema),
+           let elementProjection = collectorType.args.first
+        {
+            let elementType: TypeID? = switch elementProjection {
+            case let .invariant(type), let .in(type), let .out(type): type
+            case .star: nil
+            }
+            if let elementType {
+                let emittedType = driver.inferExpr(
+                    args[0].expr, ctx: ctx, locals: &locals, expectedType: elementType
+                )
+                builderInference.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: emittedType, supertype: elementType,
+                    typeVarBySymbol: builderInference.typeVarBySymbol,
+                    typeSystem: sema.types, blameRange: ast.arena.exprRange(args[0].expr)
+                ))
+                sema.bindings.bindExprType(id, type: sema.types.unitType)
+                return sema.types.unitType
+            }
+        }
+
         // Inside `flow { ... }`, unqualified `emit` resolves as a builtin
         // effect call and returns Unit.
         if ctx.isFlowBuilderLambdaScope,
@@ -1797,6 +1829,20 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
+            if let receiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                allCallCandidates.contains { candidate in
+                    guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: entry.type,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }) {
+                callImplicitReceiverType = receiverEntry.type
+            }
             // @DslMarker restriction: filter out candidates that belong to an
             // outer receiver class that shares a DslMarker annotation with the
             // current implicit receiver.
@@ -2648,7 +2694,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
-            receiverType: ctx.implicitReceiverType,
+            receiverType: callImplicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals
