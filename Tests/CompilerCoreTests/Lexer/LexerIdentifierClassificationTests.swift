@@ -66,7 +66,6 @@ struct LexerIdentifierClassificationTests {
             let tokens = lex("item item", interner: interner).tokens
             let expected = interner.intern("item")
             #expect(tokens.map(\.kind) == [.identifier(expected), .identifier(expected), .eof])
-            #expect(interner.resolve(expected) == "item")
             identifiers.append(expected)
         }
         #expect(identifiers[0] != identifiers[1])

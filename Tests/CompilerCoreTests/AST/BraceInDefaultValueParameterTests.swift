@@ -24,7 +24,7 @@ struct BraceInDefaultValueParameterTests {
         let funDecl = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
 
         #expect(ctx.diagnostics.diagnostics.isEmpty)
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x", "y"])
+        #expect(funDecl.valueParams.map(\.name) == ["x", "y"].map(ctx.interner.intern))
         #expect(funDecl.valueParams.allSatisfy { $0.hasDefaultValue })
         let defaultValue = try #require(funDecl.valueParams.first?.defaultValue)
         guard case let .call(_, _, args, _) = ast.arena.expr(defaultValue),
@@ -41,7 +41,7 @@ struct BraceInDefaultValueParameterTests {
             Issue.record("Expected the lambda to return count")
             return
         }
-        #expect(ctx.interner.resolve(name) == "count")
+        #expect(name == ctx.interner.intern("count"))
     }
 
     @Test
@@ -52,7 +52,7 @@ struct BraceInDefaultValueParameterTests {
         """, includeStdlib: false)
         let funDecl = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x"])
+        #expect(funDecl.valueParams.map(\.name) == [ctx.interner.intern("x")])
         #expect(funDecl.valueParams.first?.hasDefaultValue == true)
     }
 
@@ -64,7 +64,7 @@ struct BraceInDefaultValueParameterTests {
         """, includeStdlib: false)
         let funDecl = try #require(firstFunDecl(named: "g", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["action"])
+        #expect(funDecl.valueParams.map(\.name) == [ctx.interner.intern("action")])
         #expect(funDecl.valueParams.first?.hasDefaultValue == true)
     }
 
@@ -76,7 +76,7 @@ struct BraceInDefaultValueParameterTests {
         """, includeStdlib: false)
         let funDecl = try #require(firstFunDecl(named: "h", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x", "y"])
+        #expect(funDecl.valueParams.map(\.name) == ["x", "y"].map(ctx.interner.intern))
         #expect(funDecl.valueParams.allSatisfy { $0.hasDefaultValue })
     }
 
@@ -102,7 +102,7 @@ struct BraceInDefaultValueParameterTests {
             Issue.record("Expected the lambda's trailing count reference")
             return
         }
-        #expect(ctx.interner.resolve(name) == "count")
+        #expect(name == ctx.interner.intern("count"))
     }
 }
 #endif

@@ -317,6 +317,9 @@ struct CaptureAnalyzer {
                 for arg in objectDecl.superTypeConstructorArgs {
                     visit(arg.expr)
                 }
+                for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
+                    visit(delegateExpr)
+                }
                 for memberFunctionID in objectDecl.memberFunctions {
                     guard let memberDecl = ast.arena.decl(memberFunctionID),
                           case let .funDecl(memberFunction) = memberDecl

@@ -42,38 +42,51 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
                 }
                 guard case let .call(symbol?, _, arguments, result?, _, _, _, _) = instruction,
                       sema.wellKnownSymbols.enumIntrinsic(for: symbol) == .enumValues,
-                      arguments.count == 1,
-                      let token = constants[arguments[0]] ?? {
-                          if case let .intLiteral(value) = module.arena.expr(arguments[0]) { return value }
-                          return nil
-                      }(),
-                      let enumType = enumTypesByToken[token],
-                      case let .classType(classType) = sema.types.kind(of: enumType),
-                      let nominalSymbol = sema.symbols.symbol(classType.classSymbol) else {
-                    if case let .call(symbol?, _, arguments, _, _, _, _, _) = instruction,
-                       !arguments.contains(where: { parameterTokens.contains($0) }),
-                       arguments.count == 1,
-                       sema.wellKnownSymbols.enumIntrinsic(for: symbol) == .enumValues {
-                        ctx.diagnostics.error(
-                            "KSWIFTK-INL-0001",
-                            "Reified enumValues requires a concrete enum type after inline expansion.",
-                            range: body.currentSourceRange ?? function.sourceRange
-                        )
-                    }
+                      arguments.count == 1 else {
                     body.append(instruction)
                     continue
                 }
-                var generated: [KIRInstruction] = []
-                let arrayType = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Array")]).map {
-                    sema.types.make(.classType(ClassType(classSymbol: $0, args: [.invariant(enumType)], nullability: .nonNull)))
-                } ?? sema.types.anyType
-                let values = emitEnumEntryCollection(
-                    classType: classType, nominalSymbol: nominalSymbol, boundType: arrayType,
-                    kind: .enumValues, runtimeCalleeName: "kk_enum_make_values_array",
-                    sema: sema, arena: module.arena, interner: ctx.interner, instructions: &generated
-                )
-                for generatedInstruction in generated { body.append(generatedInstruction) }
-                body.append(.copy(from: values, to: result))
+                let token = constants[arguments[0]] ?? {
+                    if case let .intLiteral(value) = module.arena.expr(arguments[0]) { return value }
+                    return nil
+                }()
+                if let token,
+                   let enumType = enumTypesByToken[token],
+                   case let .classType(classType) = sema.types.kind(of: enumType),
+                   let nominalSymbol = sema.symbols.symbol(classType.classSymbol) {
+                    var generated: [KIRInstruction] = []
+                    let arrayType = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Array")]).map {
+                        sema.types.make(.classType(ClassType(classSymbol: $0, args: [.invariant(enumType)], nullability: .nonNull)))
+                    } ?? sema.types.anyType
+                    let values = emitEnumEntryCollection(
+                        classType: classType, nominalSymbol: nominalSymbol, boundType: arrayType,
+                        kind: .enumValues, runtimeCalleeName: "kk_enum_make_values_array",
+                        sema: sema, arena: module.arena, interner: ctx.interner, instructions: &generated
+                    )
+                    for generatedInstruction in generated { body.append(generatedInstruction) }
+                    body.append(.copy(from: values, to: result))
+                    continue
+                }
+                if parameterTokens.contains(arguments[0]), !function.isInline {
+                    body.append(.call(
+                        symbol: nil,
+                        callee: ctx.interner.intern("kk_enum_values_for_token"),
+                        arguments: [arguments[0]],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    continue
+                }
+                if !parameterTokens.contains(arguments[0]) {
+                    ctx.diagnostics.error(
+                        "KSWIFTK-INL-0001",
+                        "Reified enumValues requires a concrete enum type after inline expansion.",
+                        range: body.currentSourceRange ?? function.sourceRange
+                    )
+                }
+                body.append(instruction)
+                continue
             }
             var updated = function
             updated.replaceBody(body)
