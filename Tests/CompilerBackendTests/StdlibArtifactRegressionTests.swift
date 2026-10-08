@@ -3517,6 +3517,38 @@ struct StdlibArtifactRegressionTests {
             println("latest=${latestValues}")
             println("latestCountAfter=${latestCount.value}")
 
+            val lazySubscriptionCount = MutableStateFlow(0)
+            val lazyCommands = mutableListOf<SharingCommand>()
+            val lazyCommandJob = launch {
+                SharingStarted.Lazily.command(lazySubscriptionCount).take(1)
+                    .collect { lazyCommands.add(it) }
+            }
+            awaitCondition("lazy command subscription") {
+                lazySubscriptionCount.subscriptionCount.value == 1
+            }
+            lazySubscriptionCount.value = 1
+            awaitJob("lazy command start", lazyCommandJob)
+            println("lazyCommands=${lazyCommands}")
+            println("lazyCommandCountAfter=${lazySubscriptionCount.subscriptionCount.value}")
+
+            val whileSubscribedCount = MutableStateFlow(0)
+            val whileSubscribedCommands = mutableListOf<SharingCommand>()
+            val whileSubscribedJob = launch {
+                SharingStarted.WhileSubscribed().command(whileSubscribedCount).take(2)
+                    .collect { whileSubscribedCommands.add(it) }
+            }
+            awaitCondition("while-subscribed command subscription") {
+                whileSubscribedCount.subscriptionCount.value == 1
+            }
+            whileSubscribedCount.value = 1
+            awaitCondition("while-subscribed start command") {
+                whileSubscribedCommands.size == 1
+            }
+            whileSubscribedCount.value = 0
+            awaitJob("while-subscribed stop command", whileSubscribedJob)
+            println("whileSubscribedCommands=${whileSubscribedCommands}")
+            println("whileSubscribedCommandCountAfter=${whileSubscribedCount.subscriptionCount.value}")
+
             val sharingScope = CoroutineScope(Job())
             val defaultReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly)
             val explicitReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly, replay = 3)
@@ -3542,6 +3574,10 @@ struct StdlibArtifactRegressionTests {
             latestFinished=3
             latest=[2, 3]
             latestCountAfter=0
+            lazyCommands=[START]
+            lazyCommandCountAfter=0
+            whileSubscribedCommands=[START, STOP]
+            whileSubscribedCommandCountAfter=0
             defaultReplay=[]
             explicitReplay=[1, 2, 3]\n
             """)
