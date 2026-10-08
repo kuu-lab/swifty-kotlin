@@ -6,7 +6,7 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
-| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
@@ -75,6 +75,20 @@ sudo xcode-select -s /Applications/Xcode.app
 # or per-invocation:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/swift_test.sh ...
 ```
+
+## Candidate-only diff cases
+
+Some cases have no JVM `kotlinc` reference target. Mark these in the Kotlin
+source with `// CANDIDATE-ONLY`, add a sibling `.expected` file containing the
+expected stdout, then run the case without kotlinc or a JDK reference. The
+candidate compiles bundled stdlib sources with the case rather than using a
+precompiled artifact, preserving internal source-backed declarations:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt
+```
+
+The regular differential run reports these as skipped and points to this mode.
 
 ## Runtime ABI link validation
 
