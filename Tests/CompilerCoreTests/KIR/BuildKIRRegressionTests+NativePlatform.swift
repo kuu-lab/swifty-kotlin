@@ -256,7 +256,7 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(!callees.contains("kk_platform_memoryModel"))
+        #expect(!callees.contains(runtimeCallee(.platformMemoryModel)))
     }
     @Test func testABILoweringMarksNativePlatformMemoryModelAsNonThrowing() {
         let pass = ABILoweringPass()
@@ -264,8 +264,8 @@ extension BuildKIRRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         #expect(
-            callees.contains(interner.intern("kk_platform_memoryModel")),
-            "kk_platform_memoryModel should not receive an outThrown slot during ABI lowering"
+            callees.contains(interner.intern(runtimeCallee(.platformMemoryModel))),
+            "The platform memory-model bridge must not receive an outThrown slot during ABI lowering"
         )
     }
 
@@ -277,7 +277,8 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("getAvailableProcessors"))
         #expect(callees.contains("set"), "Expected the source-backed Platform var setter call")
-        #expect(!callees.contains(where: { $0.hasPrefix("kk_platform_") }))
+        #expect(Set(callees).isDisjoint(with: runtimeCallees(in: .platform)))
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 
     @Test func testABILoweringMarksNativePlatformRuntimeBridgesAsNonThrowing() {
@@ -286,17 +287,17 @@ extension BuildKIRRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         for callee in [
-            "kk_platform_canAccessUnaligned",
-            "kk_platform_isLittleEndian",
-            "kk_platform_osFamily",
-            "kk_platform_cpuArchitecture",
-            "kk_platform_memoryModel",
-            "kk_platform_isDebugBinary",
-            "kk_platform_programName",
-            "kk_platform_isMemoryLeakCheckerActive_load",
-            "kk_platform_isMemoryLeakCheckerActive_store",
-            "kk_platform_getAvailableProcessorsEnv",
-            "kk_platform_getAvailableProcessors",
+            runtimeCallee(.platformCanAccessUnaligned),
+            runtimeCallee(.platformIsLittleEndian),
+            runtimeCallee(.platformOsFamily),
+            runtimeCallee(.platformCpuArchitecture),
+            runtimeCallee(.platformMemoryModel),
+            runtimeCallee(.platformIsDebugBinary),
+            runtimeCallee(.platformProgramName),
+            runtimeCallee(.platformIsMemoryLeakCheckerActiveLoad),
+            runtimeCallee(.platformIsMemoryLeakCheckerActiveStore),
+            runtimeCallee(.platformGetAvailableProcessorsEnv),
+            runtimeCallee(.platformGetAvailableProcessors),
         ] {
             #expect(callees.contains(interner.intern(callee)), "Expected non-throwing ABI entry for \(callee)")
         }
@@ -308,14 +309,14 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe1", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_identityHashCode"))
+        #expect(callees.contains(runtimeCallee(.nativeIdentityHashCode)))
     }
     @Test func testABILoweringMarksNativeIdentityHashCodeAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_identityHashCode")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeIdentityHashCode))))
     }
 
     @Test func testNativeGetStackTraceAddressesLowersToRuntimeCallee() throws {
@@ -324,7 +325,7 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_getStackTraceAddresses"))
+        #expect(callees.contains(runtimeCallee(.nativeGetStackTraceAddresses)))
     }
     @Test func testThrowableSubclassCaptureLowersBeforeStackTraceAddressLookup() throws {
         let ctx = try sharedNativePlatformKIRCtx()
@@ -332,15 +333,15 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe2Subclass", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("__kk_throwable_captureStackTrace"))
-        #expect(callees.contains("kk_native_getStackTraceAddresses"))
+        #expect(callees.contains(runtimeCallee(.throwableCaptureStackTrace)))
+        #expect(callees.contains(runtimeCallee(.nativeGetStackTraceAddresses)))
     }
     @Test func testABILoweringMarksNativeGetStackTraceAddressesAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_getStackTraceAddresses")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeGetStackTraceAddresses))))
     }
 
     @Test func testNativeUnhandledExceptionHooksLowerToRuntimeCallees() throws {
@@ -351,20 +352,20 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: probeBody, interner: ctx.interner)
             + extractCallees(from: dieBody, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_getUnhandledExceptionHook"))
-        #expect(callees.contains("kk_native_setUnhandledExceptionHook"))
-        #expect(callees.contains("kk_native_processUnhandledException"))
-        #expect(callees.contains("kk_native_terminateWithUnhandledException"))
+        #expect(callees.contains(runtimeCallee(.nativeGetUnhandledExceptionHook)))
+        #expect(callees.contains(runtimeCallee(.nativeSetUnhandledExceptionHook)))
+        #expect(callees.contains(runtimeCallee(.nativeProcessUnhandledException)))
+        #expect(callees.contains(runtimeCallee(.nativeTerminateWithUnhandledException)))
     }
     @Test func testABILoweringMarksNonThrowingNativeUnhandledExceptionHooks() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_getUnhandledExceptionHook")))
-        #expect(callees.contains(interner.intern("kk_native_setUnhandledExceptionHook")))
-        #expect(callees.contains(interner.intern("kk_native_terminateWithUnhandledException")))
-        #expect(!(callees.contains(interner.intern("kk_native_processUnhandledException"))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeGetUnhandledExceptionHook))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeSetUnhandledExceptionHook))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeTerminateWithUnhandledException))))
+        #expect(!(callees.contains(interner.intern(runtimeCallee(.nativeProcessUnhandledException)))))
     }
 
     @Test func testNativeByteArrayAccessorsLowerToRuntimeCallees() throws {
@@ -373,20 +374,20 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe4", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_getByteAt"))
-        #expect(callees.contains("kk_native_byteArray_getShortAt"))
-        #expect(callees.contains("kk_native_byteArray_getIntAt"))
-        #expect(callees.contains("kk_native_byteArray_getLongAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetByteAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetShortAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetIntAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetLongAt)))
     }
     @Test func testABILoweringMarksNativeByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getByteAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getShortAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getIntAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getLongAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetByteAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetShortAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetIntAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetLongAt))))
     }
 
     @Test func testNativeByteArraySettersLowerToRuntimeCallees() throws {
@@ -395,20 +396,20 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe5", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_setByteAt"))
-        #expect(callees.contains("kk_native_byteArray_setShortAt"))
-        #expect(callees.contains("kk_native_byteArray_setIntAt"))
-        #expect(callees.contains("kk_native_byteArray_setLongAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetByteAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetShortAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetIntAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetLongAt)))
     }
     @Test func testABILoweringMarksNativeByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setByteAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setShortAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setIntAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setLongAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetByteAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetShortAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetIntAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetLongAt))))
     }
 
     @Test func testNativeUnsignedByteArrayAccessorsLowerToRuntimeCallees() throws {
@@ -417,20 +418,20 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe6", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_getUByteAt"))
-        #expect(callees.contains("kk_native_byteArray_getUShortAt"))
-        #expect(callees.contains("kk_native_byteArray_getUIntAt"))
-        #expect(callees.contains("kk_native_byteArray_getULongAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetUByteAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetUShortAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetUIntAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetULongAt)))
     }
     @Test func testABILoweringMarksNativeUnsignedByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getUByteAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getUShortAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getUIntAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getULongAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetUByteAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetUShortAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetUIntAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetULongAt))))
     }
 
     @Test func testNativeUnsignedByteArraySettersLowerToRuntimeCallees() throws {
@@ -439,20 +440,20 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe7", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_setUByteAt"))
-        #expect(callees.contains("kk_native_byteArray_setUShortAt"))
-        #expect(callees.contains("kk_native_byteArray_setUIntAt"))
-        #expect(callees.contains("kk_native_byteArray_setULongAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetUByteAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetUShortAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetUIntAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetULongAt)))
     }
     @Test func testABILoweringMarksNativeUnsignedByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setUByteAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setUShortAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setUIntAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setULongAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetUByteAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetUShortAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetUIntAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetULongAt))))
     }
 
     @Test func testNativePrimitiveByteArrayAccessorsLowerToRuntimeCallees() throws {
@@ -461,18 +462,18 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe8", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_getCharAt"))
-        #expect(callees.contains("kk_native_byteArray_getFloatAt"))
-        #expect(callees.contains("kk_native_byteArray_getDoubleAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetCharAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetFloatAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArrayGetDoubleAt)))
     }
     @Test func testABILoweringMarksNativePrimitiveByteArrayAccessorsAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getCharAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getFloatAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_getDoubleAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetCharAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetFloatAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArrayGetDoubleAt))))
     }
 
     @Test func testNativePrimitiveByteArraySettersLowerToRuntimeCallee() throws {
@@ -481,18 +482,18 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe9", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_native_byteArray_setCharAt"))
-        #expect(callees.contains("kk_native_byteArray_setFloatAt"))
-        #expect(callees.contains("kk_native_byteArray_setDoubleAt"))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetCharAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetFloatAt)))
+        #expect(callees.contains(runtimeCallee(.nativeByteArraySetDoubleAt)))
     }
     @Test func testABILoweringMarksNativePrimitiveByteArraySettersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setCharAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setFloatAt")))
-        #expect(callees.contains(interner.intern("kk_native_byteArray_setDoubleAt")))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetCharAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetFloatAt))))
+        #expect(callees.contains(interner.intern(runtimeCallee(.nativeByteArraySetDoubleAt))))
     }
 
     @Test func testCPointerIntVarToKStringFromUtf32LowersToRuntimeCallee() throws {
@@ -502,7 +503,7 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_cpointer_toKStringFromUtf32"),
+            callees.contains(runtimeCallee(.cpointerToKStringFromUtf32)),
             "Expected kk_cpointer_toKStringFromUtf32 runtime call in KIR"
         )
     }
@@ -513,7 +514,7 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_cpointer_toKStringFromUtf16"),
+            callees.contains(runtimeCallee(.cpointerToKStringFromUtf16)),
             "Expected kk_cpointer_toKStringFromUtf16 runtime call in KIR"
         )
     }
@@ -524,7 +525,7 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_cpointer_toKStringFromUtf16"),
+            callees.contains(runtimeCallee(.cpointerToKStringFromUtf16)),
             "Expected kk_cpointer_toKStringFromUtf16 runtime call in KIR"
         )
     }
@@ -535,7 +536,7 @@ extension BuildKIRRegressionTests {
         let callees = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_cpointer_toKStringFromUtf16"),
+            callees.contains(runtimeCallee(.cpointerToKStringFromUtf16)),
             "Expected CPointer<UShortVar>.toKString() to lower to kk_cpointer_toKStringFromUtf16"
         )
     }

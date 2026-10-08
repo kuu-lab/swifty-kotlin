@@ -126,7 +126,7 @@ struct ConstPropertyEvaluationTests {
             #expect(actual == value)
         }
         let min = try #require(sema.symbols.allSymbols().first {
-            ctx.interner.resolve($0.name) == "MIN" && $0.flags.contains(.constValue)
+            $0.name == ctx.interner.intern("MIN") && $0.flags.contains(.constValue)
         })
         guard case let .longLiteral(value) = sema.symbols.constValueExprKind(for: min.id) else {
             Issue.record("Missing Long.MIN_VALUE constant")
