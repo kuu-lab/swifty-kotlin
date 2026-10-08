@@ -493,7 +493,6 @@ struct StdlibArtifactRegressionTests {
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
-            defer { try? FileManager.default.removeItem(atPath: outputBase) }
             let ctx = makeCompilationContext(
                 inputs: [userPath],
                 moduleName: "OutputStreamBulkWrites",
@@ -3869,6 +3868,7 @@ struct StdlibArtifactRegressionTests {
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
             let ctx = makeCompilationContext(
                 inputs: [userPath],
                 moduleName: "ImportedEnumMembersArtifact",
