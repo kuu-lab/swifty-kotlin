@@ -52,7 +52,7 @@ struct CoroutineNameSourceTests {
         let companion = try #require(sema.symbols.companionObjectSymbol(for: nameSymbol))
         #expect(sema.symbols.symbol(companion)?.name == ctx.interner.intern("Key"))
         #expect(sema.symbols.isSourceBackedSymbol(companion))
-        #expect(sema.symbols.externalLinkName(for: companion) == "kk_coroutine_name_key")
+        #expect(sema.symbols.externalLinkName(for: companion) == runtimeABIName(.coroutineNameKey))
         let records = MetadataEncoder().buildRecords(
             symbols: sema.symbols,
             types: sema.types,
@@ -63,13 +63,13 @@ struct CoroutineNameSourceTests {
         let keyRecord = try #require(records.first {
             $0.fqName == "kotlinx.coroutines.CoroutineName.Key"
         })
-        #expect(keyRecord.externalLinkName == "kk_coroutine_name_key")
+        #expect(keyRecord.externalLinkName == runtimeABIName(.coroutineNameKey))
         for encoded in [MetadataEncoder().serialize(records), MetadataEncoder().serializeIndexed(records)] {
             let decoded = MetadataDecoder().decode(encoded)
-            #expect(decoded.first { $0.fqName == keyRecord.fqName }?.externalLinkName == "kk_coroutine_name_key")
-            #expect(decoded.first { $0.fqName == "kotlinx.coroutines.CoroutineName.name" }?.externalLinkName == "kk_coroutine_name_get")
+            #expect(decoded.first { $0.fqName == keyRecord.fqName }?.externalLinkName == runtimeABIName(.coroutineNameKey))
+            #expect(decoded.first { $0.fqName == "kotlinx.coroutines.CoroutineName.name" }?.externalLinkName == runtimeABIName(.coroutineNameGet))
         }
-        for (member, link) in [("name", "kk_coroutine_name_get"), ("key", "kk_coroutine_name_key_get")] {
+        for (member, link) in [("name", runtimeABIName(.coroutineNameGet)), ("key", runtimeABIName(.coroutineNameKeyGet))] {
             let property = try #require(sema.symbols.lookup(fqName: fqName + [ctx.interner.intern(member)]))
             #expect(sema.symbols.isSourceBackedSymbol(property))
             #expect(sema.symbols.externalLinkName(for: property) == link)

@@ -107,7 +107,7 @@ struct CollectionContainsAllReceiverTests {
             default:
                 return nil
             }
-            guard ctx.interner.resolve(name) == "containsAll",
+            guard name == KnownCompilerNames(interner: ctx.interner).containsAll,
                   let range = ast.arena.exprRange(id),
                   ctx.sourceManager.origin(of: range.start.file) == .user
             else {

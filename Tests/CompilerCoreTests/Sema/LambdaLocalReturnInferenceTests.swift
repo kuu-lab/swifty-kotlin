@@ -101,7 +101,7 @@ struct LambdaLocalReturnInferenceTests {
             let shadowLambdas = allExprIDs(in: ast, path: path, ctx: ctx) { id, expr in
                 guard sema.bindings.exprType(for: id) != nil else { return false }
                 guard case let .lambdaLiteral(_, _, label?, _) = expr else { return false }
-                return ctx.interner.resolve(label) == "shadow"
+                return label == ctx.interner.intern("shadow")
             }
             #expect(shadowLambdas.count == 2)
             let returnTypes = try shadowLambdas.map { id in

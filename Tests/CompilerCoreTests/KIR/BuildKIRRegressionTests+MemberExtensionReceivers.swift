@@ -14,7 +14,7 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let function = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "plusOffset"
+            $0.name == ctx.interner.intern("plusOffset")
         })
         #expect(function.params.count == 2)
         let sema = try #require(ctx.sema)
@@ -43,13 +43,14 @@ extension BuildKIRRegressionTests {
         """)
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
+        let original = try findKIRFunction(named: "plusOffset", in: module, interner: ctx.interner)
         let stub = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "plusOffset$default"
+            $0.symbol == SyntheticSymbolScheme.defaultStubSymbol(for: original.symbol)
         })
         #expect(stub.params.count == 4)
         #expect(stub.body.contains { instruction in
-            if case let .call(_, callee, arguments, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "plusOffset" && arguments.count == 3
+            if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
+                return symbol == original.symbol && arguments.count == 3
             }
             return false
         })
@@ -70,11 +71,9 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let functions = findAllKIRFunctions(in: module)
         let member = try #require(functions.first {
-            ctx.interner.resolve($0.name) == "plusOffset"
+            $0.name == ctx.interner.intern("plusOffset")
         })
-        let lambda = try #require(functions.first {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda_")
-        })
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 2)
         #expect(lambda.body.contains { instruction in
             if case let .call(symbol, _, arguments, _, _, _, _, _) = instruction {
@@ -93,9 +92,7 @@ extension BuildKIRRegressionTests {
         """)
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
-        let lambda = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda_")
-        })
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 2)
         let sema = try #require(ctx.sema)
         #expect(lambda.params.contains {
@@ -116,13 +113,11 @@ extension BuildKIRRegressionTests {
         """)
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
-        let lambda = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda_")
-        })
+        let lambda = try #require(findKIRLambdaFunctions(in: ctx).first)
         #expect(lambda.params.count == 2)
         let propertyReceivers = lambda.body.compactMap { instruction -> KIRExprID? in
             if case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-               ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+               callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds))
             {
                 return arguments.first
             }
@@ -142,7 +137,7 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
         let function = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "sum"
+            $0.name == KnownCompilerNames(interner: ctx.interner).sum
         })
         #expect(function.params.count == 2)
         let sema = try #require(ctx.sema)
