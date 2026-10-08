@@ -1107,7 +1107,7 @@ extension CallTypeChecker {
         )
     }
 
-    private func applyDispatchReceiverClassTypeArgs(
+    func applyDispatchReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
@@ -1117,7 +1117,8 @@ extension CallTypeChecker {
         guard signature.classTypeParameterCount > 0,
               let owner = sema.symbols.parentSymbol(for: candidate)
         else { return parameterType }
-        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+        let receivers = ctx.implicitReceiverStack.reversed().map(\.type)
+            + [ctx.implicitReceiverType].compactMap { $0 }
             + ctx.outerReceiverTypes.reversed().map(\.type)
         for receiver in receivers {
             guard let receiverClass = resolveClassType(receiver, sema: sema),

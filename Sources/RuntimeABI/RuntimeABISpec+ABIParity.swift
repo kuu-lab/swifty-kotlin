@@ -2,6 +2,102 @@
 // Runtime-backed entries below are generated from Sources/Runtime exported C symbols.
 
 public extension RuntimeABISpec {
+    static let intToIntSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_int_to_int", parameters: [
+        p("value", .intptr),
+    ])
+
+    static let callableRefCall0Spec: RuntimeABIFunctionSpec = abiParitySpec("kk_callable_ref_call_0", parameters: [
+        p("tagged", .intptr),
+        p("outThrown", .nullableIntptrPointer),
+    ])
+
+    static let callableRefCall1Spec: RuntimeABIFunctionSpec = abiParitySpec("kk_callable_ref_call_1", parameters: [
+        p("tagged", .intptr),
+        p("arg", .intptr),
+        p("outThrown", .nullableIntptrPointer),
+    ])
+
+    static let callableRefCall2Spec: RuntimeABIFunctionSpec = abiParitySpec("kk_callable_ref_call_2", parameters: [
+        p("tagged", .intptr),
+        p("arg1", .intptr),
+        p("arg2", .intptr),
+        p("outThrown", .nullableIntptrPointer),
+    ])
+
+    static let callableRefCall3Spec: RuntimeABIFunctionSpec = abiParitySpec("kk_callable_ref_call_3", parameters: [
+        p("tagged", .intptr),
+        p("arg1", .intptr),
+        p("arg2", .intptr),
+        p("arg3", .intptr),
+        p("outThrown", .nullableIntptrPointer),
+    ])
+
+    static let channelSendSuspendingSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_channel_send_suspending", parameters: [
+        p("handle", .intptr),
+        p("value", .intptr),
+        p("continuation", .intptr),
+    ])
+
+    static let flowCatchSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_catch", parameters: [
+        p("flowHandle", .intptr),
+        p("handlerFnPtr", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let flowOnCompletionSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_on_completion", parameters: [
+        p("flowHandle", .intptr),
+        p("handlerFnPtr", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let flowOnErrorResumeSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_on_error_resume", parameters: [
+        p("flowHandle", .intptr),
+        p("fallbackFlowHandle", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let flowOnErrorReturnSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_on_error_return", parameters: [
+        p("flowHandle", .intptr),
+        p("fallbackValue", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let flowRetrySpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_retry", parameters: [
+        p("flowHandle", .intptr),
+        p("retries", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let flowRetryWhenSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_flow_retry_when", parameters: [
+        p("flowHandle", .intptr),
+        p("predicateFnPtr", .intptr),
+        p("arg2", .intptr),
+    ])
+
+    static let iteratorNextSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_iterator_next", parameters: [
+        p("iterRaw", .intptr),
+        p("outThrown", .nullableIntptrPointer),
+    ])
+
+    static let mathESpec: RuntimeABIFunctionSpec = abiParitySpec("kk_math_e")
+
+    static let mathPiSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_math_pi")
+
+    static let memScopeAllocSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_mem_scope_alloc", parameters: [
+        p("scopeHandle", .intptr),
+        p("byteCount", .intptr),
+    ])
+
+    static let memScopeEnterSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_mem_scope_enter")
+
+    static let memScopeExitSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_mem_scope_exit", parameters: [
+        p("handle", .intptr),
+    ])
+
+    static let nativeAllocBytesSpec: RuntimeABIFunctionSpec = abiParitySpec("kk_native_alloc_bytes", parameters: [
+        p("byteCount", .intptr),
+    ])
+
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
         abiParitySpec("__kk_any_javaClass", parameters: [
             p("receiverRaw", .intptr),
@@ -15,9 +111,7 @@ public extension RuntimeABISpec {
             p("valueRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_int_to_int", parameters: [
-            p("value", .intptr),
-        ]),
+        intToIntSpec,
         // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
             p("pairRaw", .intptr),
@@ -46,28 +140,10 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_callable_ref_call_0", parameters: [
-            p("tagged", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_1", parameters: [
-            p("tagged", .intptr),
-            p("arg", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_2", parameters: [
-            p("tagged", .intptr),
-            p("arg1", .intptr),
-            p("arg2", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callable_ref_call_3", parameters: [
-            p("tagged", .intptr),
-            p("arg1", .intptr),
-            p("arg2", .intptr),
-            p("arg3", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+        callableRefCall0Spec,
+        callableRefCall1Spec,
+        callableRefCall2Spec,
+        callableRefCall3Spec,
         // KSP-678: these Channel residuals are bridged from bundled Kotlin
         // (Channels.kt) and return a plain Int handle/flag; they do not use the
         // outThrown ABI lowering path.
@@ -120,11 +196,7 @@ public extension RuntimeABISpec {
             p("value", .intptr),
             p("cause", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_channel_send_suspending", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-            p("continuation", .intptr),
-        ]),
+        channelSendSuspendingSpec,
         abiParitySpec("kk_char_isISOControl", parameters: [
             p("value", .intptr),
         ]),
@@ -398,42 +470,18 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_cinterop_alignof", parameters: [
             p("typeToken", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_flow_catch", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
+        flowCatchSpec,
         abiParitySpec("__kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
             p("timestamp", .uint64),
         ]),
-        abiParitySpec("kk_flow_on_completion", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_resume", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackFlowHandle", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_return", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackValue", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry", parameters: [
-            p("flowHandle", .intptr),
-            p("retries", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry_when", parameters: [
-            p("flowHandle", .intptr),
-            p("predicateFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
+        flowOnCompletionSpec,
+        flowOnErrorResumeSpec,
+        flowOnErrorReturnSpec,
+        flowRetrySpec,
+        flowRetryWhenSpec,
         // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
         abiParitySpec("kk_freeze_object", parameters: [
             p("objectRaw", .intptr),
@@ -573,10 +621,7 @@ public extension RuntimeABISpec {
             p("iterRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_iterator_next", parameters: [
-            p("iterRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
+        iteratorNextSpec,
         abiParitySpec("__kk_kclass_is_final", parameters: [
             p("kclassRaw", .intptr),
         ],
@@ -643,20 +688,13 @@ public extension RuntimeABISpec {
         abiParitySpec("__kk_match_result_destructured_match", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-        abiParitySpec("kk_math_e"),
-        abiParitySpec("kk_math_pi"),
-        abiParitySpec("kk_mem_scope_alloc", parameters: [
-            p("scopeHandle", .intptr),
-            p("byteCount", .intptr),
-        ]),
-        abiParitySpec("kk_mem_scope_enter"),
-        abiParitySpec("kk_mem_scope_exit", parameters: [
-            p("handle", .intptr),
-        ]),
+        mathESpec,
+        mathPiSpec,
+        memScopeAllocSpec,
+        memScopeEnterSpec,
+        memScopeExitSpec,
         // KSP-676: MutableStateFlow is bundled Kotlin source; these C bridges are gone.
-        abiParitySpec("kk_native_alloc_bytes", parameters: [
-            p("byteCount", .intptr),
-        ]),
+        nativeAllocBytesSpec,
         // KSP-717: __kk_normalization_form_nfc/nfd/nfkc/nfkd removed. Their
         // tag values are plain Kotlin constants now (StringNormalize.kt).
         abiParitySpec("kk_pin_object", parameters: [

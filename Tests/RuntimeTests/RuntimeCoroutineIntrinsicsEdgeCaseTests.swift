@@ -407,16 +407,16 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
     @Test func isCancellationExceptionReturnsTrueForCancellation() {
         let exc = runtimeAllocateCancellationException()
-        #expect(kk_is_cancellation_exception(exc) == 1, "kk_is_cancellation_exception must return 1 for a CancellationException")
+        #expect(kk_is_cancellation_exception(exc) == 1, "CancellationException type check must return true for cancellation")
     }
 
     @Test func isCancellationExceptionReturnsFalseForRegularThrowable() {
         let exc = runtimeAllocateThrowable(message: "regular error")
-        #expect(kk_is_cancellation_exception(exc) == 0, "kk_is_cancellation_exception must return 0 for a non-CancellationException")
+        #expect(kk_is_cancellation_exception(exc) == 0, "CancellationException type check must return false for a regular throwable")
     }
 
     @Test func isCancellationExceptionReturnsFalseForNull() {
-        #expect(kk_is_cancellation_exception(0) == 0, "kk_is_cancellation_exception(null) must return 0")
+        #expect(kk_is_cancellation_exception(0) == 0, "CancellationException type check must return false for null")
     }
 
     @Test func cancellationExceptionCustomMessageRoundTrips() {

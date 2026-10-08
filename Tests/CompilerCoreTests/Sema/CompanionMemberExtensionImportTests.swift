@@ -127,5 +127,94 @@ struct CompanionMemberExtensionImportTests {
             #expect(sema.bindings.callBinding(for: call)?.chosenCallee != nil)
         }
     }
+
+    @Test
+    func importedCloseTokenCompanionExtensionsPreserveOwnerType() throws {
+        let closeToken = """
+        package io.ktor.utils.io
+        import kotlinx.coroutines.CancellationException
+        import kotlinx.coroutines.CopyableThrowable
+        import kotlinx.coroutines.ExperimentalCoroutinesApi
+
+        internal fun newCloseToken() = CloseToken(null)
+        internal val CLOSED = CloseToken(null)
+        internal val CLOSED_FROM_FUNCTION = newCloseToken()
+        internal fun requireCloseToken(): CloseToken = CLOSED_FROM_FUNCTION
+        internal open class ClosedByteChannelException(cause: Throwable? = null) : Throwable(cause)
+        internal class ClosedReadChannelException(cause: Throwable? = null) : ClosedByteChannelException(cause)
+        internal class ClosedWriteChannelException(cause: Throwable? = null) : ClosedByteChannelException(cause)
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        internal class CloseToken(private val origin: Throwable?) {
+            companion object {
+                inline fun CloseToken.wrapCause(
+                    wrap: (Throwable) -> Throwable = ::ClosedByteChannelException
+                ): Throwable? {
+                    return when (origin) {
+                        null -> null
+                        is CopyableThrowable<*> -> origin.createCopy()
+                        is CancellationException -> CancellationException(origin.message, origin)
+                        else -> wrap(origin)
+                    }
+                }
+
+                inline fun CloseToken.throwOrNull(wrap: (Throwable) -> Throwable): Unit? =
+                    wrapCause(wrap)?.let { throw it }
+            }
+        }
+        """
+        let atomicfu = """
+        package kotlinx.atomicfu
+
+        class AtomicRef<T>(var value: T) {
+            fun compareAndSet(expect: T, update: T): Boolean = true
+        }
+
+        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
+        """
+        let byteChannel = """
+        package io.ktor.utils.io
+        import io.ktor.utils.io.CloseToken.Companion.throwOrNull
+        import io.ktor.utils.io.CloseToken.Companion.wrapCause
+        import kotlinx.atomicfu.atomic
+
+        class ByteChannel {
+            private val _closedCause = atomic<CloseToken?>(null)
+
+            fun readBufferCause(): Unit? = _closedCause.value?.throwOrNull(::ClosedReadChannelException)
+
+            fun closedCause(): Throwable? = _closedCause.value?.wrapCause()
+
+            fun close() {
+                if (!_closedCause.compareAndSet(expect = null, update = CLOSED)) return
+            }
+        }
+        """
+        let sinkByteWriteChannel = """
+        package io.ktor.utils.io
+        import io.ktor.utils.io.CloseToken.Companion.wrapCause
+        import kotlinx.atomicfu.atomic
+
+        class SinkByteWriteChannel {
+            private val closed = atomic<CloseToken?>(null)
+
+            fun closedCause(): Throwable? = closed.value?.wrapCause()
+
+            fun close() {
+                if (!closed.compareAndSet(expect = null, update = CLOSED)) return
+            }
+
+            fun cancel(cause: Throwable?) {
+                val token = if (cause == null) CLOSED else CloseToken(cause)
+                if (!closed.compareAndSet(expect = null, update = token)) return
+            }
+        }
+        """
+        try withTemporaryFiles(contents: [byteChannel, closeToken, sinkByteWriteChannel, atomicfu]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
