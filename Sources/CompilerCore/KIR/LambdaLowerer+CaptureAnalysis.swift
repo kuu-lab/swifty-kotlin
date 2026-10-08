@@ -156,6 +156,9 @@ extension LambdaLowerer {
             for arg in objectDecl.superTypeConstructorArgs {
                 collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
+            for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
+                collectBoundIdentifierSymbols(in: delegateExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            }
             // KSP-CAP-018: an accessor body's captures are materialized into
             // the literal's instance fields at construction time, which happens
             // in this lambda's body — so the value has to reach the lambda
@@ -515,6 +518,11 @@ extension LambdaLowerer {
             }
             if objectDecl.superTypeConstructorArgs.contains(where: {
                 containsImplicitReceiverReference(in: $0.expr, ast: ast)
+            }) {
+                return true
+            }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: {
+                containsImplicitReceiverReference(in: $0, ast: ast)
             }) {
                 return true
             }
