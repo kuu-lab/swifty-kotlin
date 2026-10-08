@@ -2234,9 +2234,22 @@ extension ExprTypeChecker {
                         )
                     }
                 }
-                candidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                // A same-named non-extension function in a nearer scope must
+                // not hide a legal receiver extension. Filter for applicable
+                // extensions during scope lookup so only matching candidates
+                // participate in shadowing. Keep member candidates above as
+                // the higher-priority tier.
+                candidates = ctx.scope.lookup(member, matching: { symbolID in
                     guard let symbol = ctx.cachedSymbol(symbolID),
                           symbol.kind == .function,
+                          !(symbol.flags.contains(.expectDeclaration)
+                              && sema.symbols.actualSymbol(for: symbolID) != nil),
+                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID,
+                              sema: sema,
+                              interner: interner
+                          ),
                           let signature = sema.symbols.functionSignature(for: symbolID),
                           let declaredReceiver = signature.receiverType
                     else {
@@ -2247,7 +2260,7 @@ extension ExprTypeChecker {
                         declaredReceiver: declaredReceiver,
                         sema: sema
                     )
-                }
+                })
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound

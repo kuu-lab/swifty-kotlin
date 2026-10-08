@@ -37,7 +37,7 @@ extension BuildKIRRegressionTests {
         })
         let getter = try #require(sema.symbols.extensionPropertyGetterAccessor(for: senderProperty))
         let inspect = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "inspect"
+            $0.name == ctx.interner.intern("inspect")
         })
         #expect(inspect.body.contains { instruction in
             guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction else { return false }

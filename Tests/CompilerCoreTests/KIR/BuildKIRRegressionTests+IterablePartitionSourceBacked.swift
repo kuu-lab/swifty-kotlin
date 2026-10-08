@@ -20,10 +20,11 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
-        let callees = Set(extractCallees(from: body, interner: ctx.interner))
-        #expect(!callees.contains("kk_list_partition"))
-        #expect(!callees.contains("kk_iterable_partition"))
-        #expect(!callees.contains("__kk_iterable_partition"))
+        try expectSourceBackedCalls(
+            named: KnownCompilerNames(interner: ctx.interner).partition,
+            in: body, context: ctx, count: 1
+        )
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 }
 #endif

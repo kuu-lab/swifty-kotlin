@@ -17,11 +17,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "CharArray(n) { init } must emit checked primitive-array allocation; got: \(callNames)"
         )
         #expect(
-            callNames.contains("kk_array_set"),
+            callNames.contains(runtimeCallee(.arraySet)),
             "CharArray(n) { init } must emit primitive-array stores; got: \(callNames)"
         )
         #expect(
@@ -29,7 +29,7 @@ extension BuildKIRRegressionTests {
             "CharArray initializer must be inlined rather than left as a call; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_box_char"),
+            !callNames.contains(runtimeCallee(.boxChar)),
             "CharArray initializer must keep Char elements unboxed; got: \(callNames)"
         )
     }

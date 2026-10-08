@@ -65,7 +65,7 @@ struct AtomicLongArrayCanonicalSourceMigrationTests {
             #expect(sizeInfo.visibility == .public)
             #expect(!sizeInfo.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(sizeConstructor))
-            #expect(sema.symbols.externalLinkName(for: sizeConstructor) == "kk_atomic_long_array_create")
+            #expect(sema.symbols.externalLinkName(for: sizeConstructor) == runtimeABIName(.atomicLongArrayCreate))
 
             let arrayInfo = try #require(sema.symbols.symbol(arrayConstructor))
             #expect(arrayInfo.visibility == .public)

@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import RuntimeABI
 import Testing
 
 @Suite
@@ -97,6 +98,8 @@ struct MetadataSerializerTests {
     }
 
     @Test func testMetadataRecordWithAllFields() {
+        let getterLink = RuntimeABISpec.compilerGeneratedLinkNamePrefix + "get_abc"
+        let setterLink = RuntimeABISpec.compilerGeneratedLinkNamePrefix + "set_abc"
         let record = MetadataRecord(
             kind: .class,
             mangledName: "_KK_mod__Foo__C__abc",
@@ -121,8 +124,8 @@ struct MetadataSerializerTests {
             valueClassUnderlyingTypeSig: "I",
             sealedSubclassFQNames: ["com.example.SubA", "com.example.SubB"],
             propertyReceiverTypeSignature: "Lkotlin/reflect/KClass<*>;",
-            propertyGetterExternalLinkName: "kk_fn_get_abc",
-            propertySetterExternalLinkName: "kk_fn_set_abc",
+            propertyGetterExternalLinkName: getterLink,
+            propertySetterExternalLinkName: setterLink,
             isMutable: true
         )
         #expect(record.kind == .class)
@@ -145,8 +148,8 @@ struct MetadataSerializerTests {
         #expect(record.sealedSubclassFQNames == ["com.example.SubA", "com.example.SubB"])
         #expect(record.annotations.count == 1)
         #expect(record.propertyReceiverTypeSignature == "Lkotlin/reflect/KClass<*>;")
-        #expect(record.propertyGetterExternalLinkName == "kk_fn_get_abc")
-        #expect(record.propertySetterExternalLinkName == "kk_fn_set_abc")
+        #expect(record.propertyGetterExternalLinkName == getterLink)
+        #expect(record.propertySetterExternalLinkName == setterLink)
         #expect(record.isMutable)
     }
 
@@ -619,14 +622,14 @@ struct MetadataSerializerTests {
             mangledName: "_KK_test__x__P__I",
             fqName: "test.x",
             typeSignature: "I",
-            propertyGetterExternalLinkName: "kk_fn_x_get",
-            propertySetterExternalLinkName: "kk_fn_x_set",
+            propertyGetterExternalLinkName: RuntimeABISpec.compilerGeneratedLinkNamePrefix + "x_get",
+            propertySetterExternalLinkName: RuntimeABISpec.compilerGeneratedLinkNamePrefix + "x_set",
             isMutable: true
         )
         let records = decoder.decode(encoder.serialize([record]))
         #expect(records.count == 1)
-        #expect(records[0].propertyGetterExternalLinkName == "kk_fn_x_get")
-        #expect(records[0].propertySetterExternalLinkName == "kk_fn_x_set")
+        #expect(records[0].propertyGetterExternalLinkName == record.propertyGetterExternalLinkName)
+        #expect(records[0].propertySetterExternalLinkName == record.propertySetterExternalLinkName)
         #expect(records[0].isMutable)
     }
 
@@ -643,7 +646,7 @@ struct MetadataSerializerTests {
             flags: [.abstractType]
         )
         symbols.setPropertyType(types.intType, for: property)
-        symbols.setExternalLinkName("__kk_collection_size", for: property)
+        symbols.setExternalLinkName(runtimeABIName(.collectionSize), for: property)
         let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
         let encoder = MetadataEncoder()
         let record = encoder.buildRecord(
@@ -652,11 +655,11 @@ struct MetadataSerializerTests {
             types: types,
             moduleName: "Test",
             interner: interner,
-            functionLinkNames: [getter: "kk_fn_get_stub"]
+            functionLinkNames: [getter: RuntimeABISpec.compilerGeneratedLinkNamePrefix + "get_stub"]
         )
-        #expect(record.propertyGetterExternalLinkName == "__kk_collection_size")
+        #expect(record.propertyGetterExternalLinkName == runtimeABIName(.collectionSize))
         let decoded = MetadataDecoder().decode(encoder.serialize([record]))
-        #expect(decoded.first?.propertyGetterExternalLinkName == "__kk_collection_size")
+        #expect(decoded.first?.propertyGetterExternalLinkName == runtimeABIName(.collectionSize))
     }
 
     @Test func testBuildRecordsPreservesNominalSupertypeSignaturesForNonGenericClass() {
@@ -756,18 +759,19 @@ struct MetadataSerializerTests {
             for: helperSymbol
         )
 
+        let helperLink = RuntimeABISpec.compilerGeneratedLinkNamePrefix + "_enumConstructorProperty_bitness_42"
         let records = encoder.buildRecords(
             symbols: symbols,
             types: types,
             moduleName: "Stdlib",
             interner: interner,
-            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_bitness_42"],
+            functionLinkNames: [helperSymbol: helperLink],
             includeNonPublic: true,
             includeSynthetic: false
         )
 
         let helperRecord = try #require(records.first { $0.fqName == "kotlin.native.CpuArchitecture.$enumConstructorProperty$bitness" })
-        #expect(helperRecord.externalLinkName == "kk_fn__enumConstructorProperty_bitness_42")
+        #expect(helperRecord.externalLinkName == helperLink)
     }
 
     /// Bundled stdlib enums may reuse a synthetic nominal shell (synthetic
@@ -821,7 +825,7 @@ struct MetadataSerializerTests {
             types: types,
             moduleName: "Stdlib",
             interner: interner,
-            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_value_9"],
+            functionLinkNames: [helperSymbol: RuntimeABISpec.compilerGeneratedLinkNamePrefix + "_enumConstructorProperty_value_9"],
             includeNonPublic: true,
             includeSynthetic: false
         )

@@ -188,7 +188,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaTenExpr, value: .intLiteral(10)),
                 .call(
                     symbol: nil,
-                    callee: tc.interner.intern("kk_op_add"),
+                    callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaTenExpr],
                     result: lambdaSumExpr,
                     canThrow: false,
@@ -277,11 +277,11 @@ extension LoweringPassRegressionTests {
             "Lambda should have been inlined, got callees: \(callees)"
         )
         #expect(
-            !callees.contains("kk_lambda_invoke"),
+            !callees.contains(CompilerCall.lambdaInvoke.name),
             "Should not have indirect lambda invoke, got callees: \(callees)"
         )
         #expect(
-            callees.contains("kk_op_add"),
+            callees.contains(CompilerCall.opAdd.name),
             "Lambda body should be inlined with kk_op_add, got callees: \(callees)"
         )
     }
@@ -401,7 +401,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaTwoExpr, value: .intLiteral(2)),
                 .call(
                     symbol: nil,
-                    callee: tc.interner.intern("kk_op_mul"),
+                    callee: tc.interner.intern(CompilerCall.opMul.name),
                     arguments: [lambdaArgExpr, lambdaTwoExpr],
                     result: lambdaDoubledExpr,
                     canThrow: false,
@@ -410,7 +410,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
                 .call(
                     symbol: nil,
-                    callee: tc.interner.intern("kk_op_add"),
+                    callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaDoubledExpr, lambdaOneExpr],
                     result: lambdaResultExpr,
                     canThrow: false,
@@ -491,11 +491,11 @@ extension LoweringPassRegressionTests {
         #expect(!callees.contains("$lambda_1"))
         // Both operations from the lambda body should appear.
         #expect(
-            callees.contains("kk_op_mul"),
+            callees.contains(CompilerCall.opMul.name),
             "Lambda mul operation should be inlined, got: \(callees)"
         )
         #expect(
-            callees.contains("kk_op_add"),
+            callees.contains(CompilerCall.opAdd.name),
             "Lambda add operation should be inlined, got: \(callees)"
         )
     }
@@ -537,7 +537,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
                 .call(
                     symbol: nil,
-                    callee: tc.interner.intern("kk_op_add"),
+                    callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaOneExpr],
                     result: lambdaSumExpr,
                     canThrow: false,
@@ -629,7 +629,7 @@ extension LoweringPassRegressionTests {
 
         // The add operation from branch A should be present.
         #expect(
-            callees.contains("kk_op_add"),
+            callees.contains(CompilerCall.opAdd.name),
             "Branch A (kk_op_add) should be preserved, got callees: \(callees)"
         )
 
@@ -708,7 +708,7 @@ extension LoweringPassRegressionTests {
                 .constValue(result: lambdaTwentyExpr, value: .intLiteral(20)),
                 .call(
                     symbol: nil,
-                    callee: tc.interner.intern("kk_op_add"),
+                    callee: tc.interner.intern(CompilerCall.opAdd.name),
                     arguments: [lambdaArgExpr, lambdaTwentyExpr],
                     result: lambdaSumExpr,
                     canThrow: false,
@@ -801,7 +801,7 @@ extension LoweringPassRegressionTests {
             "Lambda should have been resolved through constValue and inlined, got callees: \(callees)"
         )
         #expect(
-            callees.contains("kk_op_add"),
+            callees.contains(CompilerCall.opAdd.name),
             "Lambda body should be inlined with kk_op_add, got callees: \(callees)"
         )
     }
