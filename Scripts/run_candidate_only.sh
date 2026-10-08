@@ -156,6 +156,10 @@ fi
 cd "$ROOT_DIR"
 
 is_runnable_candidate_case() {
+  # A .expected sidecar does not change ownership of an internal source case.
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE([[:space:]:]|$)' "$1"; then
+    return 1
+  fi
   is_candidate_only_case "$1" || [[ -f "${1%.kt}.expected" ]]
 }
 
@@ -164,7 +168,7 @@ if [[ -f "$TARGET" ]]; then
   if is_runnable_candidate_case "$TARGET"; then
     CASES+=("$TARGET")
   else
-    echo "Case needs // CANDIDATE-ONLY or a .expected sidecar: $TARGET" >&2
+    echo "Case needs an artifact oracle; source-only cases use Scripts/diff_kotlinc.sh: $TARGET" >&2
     exit 2
   fi
 elif [[ -d "$TARGET" ]]; then
