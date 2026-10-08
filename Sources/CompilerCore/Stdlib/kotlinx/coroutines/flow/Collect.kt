@@ -16,9 +16,8 @@ public suspend fun <T> Flow<T>.collectIndexed(action: suspend (index: Int, value
     }
 }
 
-// The retained cold-flow core delivers collector calls synchronously.
 public suspend fun <T> Flow<T>.collectLatest(action: suspend (value: T) -> Unit) {
-    this.collect { value -> action(value) }
+    this.mapLatest { value -> action(value) }.collect { }
 }
 
 public suspend fun <T> FlowCollector<T>.emitAll(flow: Flow<T>) {

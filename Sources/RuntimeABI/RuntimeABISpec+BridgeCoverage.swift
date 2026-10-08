@@ -41,18 +41,9 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
     ),
 ]
 
-private let listClosureBridgeNames = [
-    "kk_list_maxOf",
-    "kk_list_maxWith",
-    "kk_list_maxWithOrNull",
-    "kk_list_minOf",
-    "kk_list_minWith",
-    "kk_list_minWithOrNull",
-]
-
-private let listClosureBridgeFunctions = listClosureBridgeNames.map {
+private func listClosureBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("listRaw", .intptr),
@@ -63,14 +54,18 @@ private let listClosureBridgeFunctions = listClosureBridgeNames.map {
     )
 }
 
-private let listComparatorBridgeFunctions = [
-    "kk_list_maxOfWith",
-    "kk_list_maxOfWithOrNull",
-    "kk_list_minOfWith",
-    "kk_list_minOfWithOrNull",
-].map {
+private let listClosureBridgeFunctions = [
+    RuntimeABISpec.listMaxOfSpec,
+    RuntimeABISpec.listMaxWithSpec,
+    RuntimeABISpec.listMaxWithOrNullSpec,
+    RuntimeABISpec.listMinOfSpec,
+    RuntimeABISpec.listMinWithSpec,
+    RuntimeABISpec.listMinWithOrNullSpec,
+]
+
+private func listComparatorBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("listRaw", .intptr),
@@ -83,17 +78,20 @@ private let listComparatorBridgeFunctions = [
     )
 }
 
+private let listComparatorBridgeFunctions = [
+    RuntimeABISpec.listMaxOfWithSpec,
+    RuntimeABISpec.listMaxOfWithOrNullSpec,
+    RuntimeABISpec.listMinOfWithSpec,
+    RuntimeABISpec.listMinOfWithOrNullSpec,
+]
+
 private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
-private let mapBridgeFunctions = [
-    "kk_map_flatMap",
-    "kk_map_maxByOrNull",
-    "kk_map_minByOrNull",
-].map {
+private func mapBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("mapRaw", .intptr),
@@ -103,6 +101,12 @@ private let mapBridgeFunctions = [
         ]
     )
 }
+
+private let mapBridgeFunctions = [
+    RuntimeABISpec.mapFlatMapSpec,
+    RuntimeABISpec.mapMaxByOrNullSpec,
+    RuntimeABISpec.mapMinByOrNullSpec,
+]
 
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
@@ -119,13 +123,29 @@ private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
             isThrowing: false),
     bridgeSpec("kk_range_for_in_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
-            isThrowing: false),
+    RuntimeABISpec.sequenceFilterNotSpec,
     bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
             isThrowing: false),
 ]
 
 public extension RuntimeABISpec {
+    static let listMaxOfSpec = listClosureBridgeSpec("kk_list_maxOf")
+    static let listMaxWithSpec = listClosureBridgeSpec("kk_list_maxWith")
+    static let listMaxWithOrNullSpec = listClosureBridgeSpec("kk_list_maxWithOrNull")
+    static let listMinOfSpec = listClosureBridgeSpec("kk_list_minOf")
+    static let listMinWithSpec = listClosureBridgeSpec("kk_list_minWith")
+    static let listMinWithOrNullSpec = listClosureBridgeSpec("kk_list_minWithOrNull")
+    static let listMaxOfWithSpec = listComparatorBridgeSpec("kk_list_maxOfWith")
+    static let listMaxOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_maxOfWithOrNull")
+    static let listMinOfWithSpec = listComparatorBridgeSpec("kk_list_minOfWith")
+    static let listMinOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_minOfWithOrNull")
+    static let mapFlatMapSpec = mapBridgeSpec("kk_map_flatMap")
+    static let mapMaxByOrNullSpec = mapBridgeSpec("kk_map_maxByOrNull")
+    static let mapMinByOrNullSpec = mapBridgeSpec("kk_map_minByOrNull")
+
+    static let sequenceFilterNotSpec: RuntimeABIFunctionSpec = bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
+            isThrowing: false)
+
     static let numericRuntimeBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
             "kk_char_category",
