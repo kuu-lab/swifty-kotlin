@@ -4,6 +4,7 @@ import Testing
 
 extension BuildKIRRegressionTests {
     @Test func testBuildKIRMaterializesNominalFunctionArguments() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun widen(f: Function1<Int, String>): (Int) -> String = f
         fun main() {
@@ -20,13 +21,14 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let boxedValues = Set(body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_function_create_1"
+                  callee == ctx.interner.intern(runtime[.functionCreate1])
             else { return nil }
             return result
         })
+        let widenSymbol = try sourceSymbol(named: "widen", in: ctx)
         let widenArguments = body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "widen"
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == widenSymbol
             else { return nil }
             return arguments.first
         }
@@ -67,6 +69,7 @@ extension BuildKIRRegressionTests {
 
     @Test(arguments: 0 ... 5)
     func testBuildKIRRegistersAritySpecificNominalInvokeABI(arity: Int) throws {
+        let runtime = try RuntimeNames()
         let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
         let parameters = (0 ..< arity).map { "p\($0)" }.joined(separator: ", ")
         let arrow = arity == 0 ? "" : "\(parameters) -> "
@@ -89,11 +92,12 @@ extension BuildKIRRegressionTests {
         let owner = try #require(sema.types.functionNInterfaceSymbols[arity])
         let symbol = try #require(sema.symbols.symbol(owner))
         let invoke = try #require(sema.symbols.lookup(fqName: symbol.fqName + [ctx.interner.intern("invoke")]))
-        let linkName = arity == 1 ? "kk_function_invoke" : "kk_function_invoke_\(arity)"
+        let linkName = try runtime.functionInvoke(arity: arity)
         #expect(sema.symbols.externalLinkName(for: invoke) == linkName)
     }
 
     @Test func testBuildKIRCompareValuesByVarargSelectorsAreMaterialized() throws {
+        let runtime = try RuntimeNames()
         let ctx = makeContextFromSource("""
         data class P(val n: String, val a: Int)
         fun name(p: P): String = p.n
@@ -105,13 +109,13 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let materialized = body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_function_create_1"
+                  callee == ctx.interner.intern(runtime[.functionCreate1])
             else { return nil }
             return result
         }
         let stored = body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_set"
+                  callee == ctx.interner.intern(runtime[.arraySet])
             else { return nil }
             return arguments[2]
         }
@@ -120,6 +124,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRImportedCompareValuesByCallableReferenceIsMaterialized() throws {
+        let runtime = try RuntimeNames()
         let ctx = makeContextFromSource("""
         data class P(val n: String, val a: Int)
         fun name(p: P): String = p.n
@@ -131,13 +136,13 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let materialized = try #require(body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_function_create_1"
+                  callee == ctx.interner.intern(runtime[.functionCreate1])
             else { return nil }
             return result
         }.first)
         let call = try #require(body.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "compareValuesBy"
+            return callee == KnownCompilerNames(interner: ctx.interner).compareValuesBy
         })
         if case let .call(_, _, arguments, _, _, _, _, _) = call {
             #expect(arguments[2] == materialized)
@@ -145,6 +150,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRInlineCallableReferencesUseErasedFunctionValueAdapters() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun visit(key: String, value: Int) { println("$key$value") }
         inline fun <K, V> visitPair(key: K, value: V, action: (K, V) -> Unit) {
@@ -165,13 +171,14 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let materializedCallbacks = body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_function_create_2"
+                  callee == ctx.interner.intern(runtime[.functionCreate2])
             else { return nil }
             return result
         }
+        let visitPairSymbol = try sourceSymbol(named: "visitPair", in: ctx)
         let callbacks = body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "visitPair"
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == visitPairSymbol
             else { return nil }
             return arguments.last
         }
@@ -200,11 +207,12 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let consumeSymbol = try sourceSymbol(named: "consume", in: ctx)
         let consumeCall = try #require(mainBody.first { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee) == "consume"
+            return symbol == consumeSymbol
         })
         guard case let .call(_, _, arguments, _, _, _, _, _) = consumeCall else {
             Issue.record("Expected call instruction for consume(instance).")
@@ -218,6 +226,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRLowersLambdaLiteralToGeneratedCallableAndPrependsCapturesOnCall() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun main(): Int {
             val base = 40
@@ -235,15 +244,16 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee).hasPrefix("kk_function_value_adapter_")
+            return isCallableAdapter(callee, in: module)
         })
 
         guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = lambdaCall else {
             Issue.record("Expected lowered lambda call in main.")
             return
         }
-        #expect(callSymbol != nil)
-        #expect(ctx.interner.resolve(callee).hasPrefix("kk_function_value_adapter_"))
+        let adapterSymbol = try #require(callSymbol)
+        let adapterFunction = try #require(module.arena.function(for: adapterSymbol))
+        #expect(callee == adapterFunction.name)
         #expect(arguments.count == 2, "Closure-backed callable-value calls should pass closure object plus explicit args.")
         if case .unit? = module.arena.expr(arguments[0]) {
             Issue.record("Expected first lambda call argument to be a closure object reference.")
@@ -254,28 +264,22 @@ extension BuildKIRRegressionTests {
             return
         }
         let callNames = extractCallees(from: mainBody, interner: ctx.interner)
-        #expect(callNames.contains("kk_object_new"))
-        #expect(callNames.contains("kk_array_set"))
-        #expect(callNames.contains("kk_function_create_1"))
+        #expect(callNames.contains(runtime[.objectNew]))
+        #expect(callNames.contains(runtime[.arraySet]))
+        #expect(callNames.contains(runtime[.functionCreate1]))
 
-        let adapterFunction = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
-        })
         let adapterCallNames = extractCallees(from: adapterFunction.body, interner: ctx.interner)
-        #expect(adapterCallNames.contains("kk_unbox_int"))
+        #expect(adapterCallNames.contains(runtime[.unboxInt]))
 
-        let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-        }
-        #expect(!(generatedLambdaFunctions.isEmpty))
-        if let generatedSymbol = callSymbol,
-           let generatedFunction = generatedLambdaFunctions.first(where: { $0.symbol == generatedSymbol })
-        {
-            #expect(generatedFunction.params.count == 2, "capture + elem")
-        }
+        let lambdaSymbol = try #require(module.arena.callableValueInfoByExprID.values
+            .first { $0.symbol == adapterSymbol }?.unboxedSymbol)
+        let generatedFunction = try #require(module.arena.function(for: lambdaSymbol))
+        #expect(callsSymbol(lambdaSymbol, in: adapterFunction.body))
+        #expect(generatedFunction.params.count == 2, "capture + elem")
     }
 
     @Test func testBuildKIRLambdaCapturesImplicitReceiverForUnqualifiedMemberCall() throws {
+        let runtime = try RuntimeNames()
         let source = """
         class Counter(var value: Int) {
             fun step(): Int {
@@ -294,12 +298,14 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let counterSymbol = try sourceSymbol(named: "Counter", kind: .class, in: ctx)
+        let stepSymbol = try #require(sema.symbols.lookup(fqName: ["Counter", "step"].map(ctx.interner.intern)))
         let lambdaFunction = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-                && extractCallees(from: function.body, interner: ctx.interner).contains("step")
+            unboxedCallableSymbols(in: module).contains(function.symbol)
+                && callsSymbol(stepSymbol, in: function.body)
         })
         #expect(!ctx.diagnostics.hasError)
-        let sema = try #require(ctx.sema)
         // The owner-class capture and implicit `this` capture precede the value parameter.
         #expect(lambdaFunction.params.count == 3)
         #expect(lambdaFunction.params.last?.type == sema.types.intType)
@@ -307,11 +313,11 @@ extension BuildKIRRegressionTests {
         #expect(receiverParams.count == 2)
         #expect(receiverParams.allSatisfy { parameter in
             guard case let .classType(type) = sema.types.kind(of: parameter.type) else { return false }
-            return sema.symbols.symbol(type.classSymbol).map { ctx.interner.resolve($0.name) == "Counter" } == true
+            return type.classSymbol == counterSymbol
         })
         let stepArguments = try #require(lambdaFunction.body.compactMap { instruction -> [KIRExprID]? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "step"
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == stepSymbol
             else { return nil }
             return arguments
         }.first)
@@ -326,7 +332,7 @@ extension BuildKIRRegressionTests {
         let runBody = try findKIRFunctionBody(named: "run", in: module, interner: ctx.interner)
         let storedCaptures = runBody.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_array_set", arguments.count == 3
+                  callee == ctx.interner.intern(runtime[.arraySet]), arguments.count == 3
             else { return nil }
             return arguments[2]
         }
@@ -346,17 +352,25 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
-        let generatedLambdaFunctions = findAllKIRFunctions(in: module).filter { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_lambda_")
-        }
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let lambdaSymbols = Set(mainBody.compactMap { instruction -> SymbolID? in
+            guard case let .constValue(result, _) = instruction,
+                  let info = module.arena.callableValueInfo(for: result),
+                  !info.hasClosureParam
+            else { return nil }
+            return info.unboxedSymbol ?? info.symbol
+        })
+        try #require(lambdaSymbols.count == 1, "Expected one raw lambda value in main")
+        let lambdaSymbol = try #require(lambdaSymbols.first)
         // Source-backed map uses an ordinary boxed lambda (1 param: element),
         // not the native collection-HOF (closureObj, elem) ABI.
-        let generatedFunction = try #require(generatedLambdaFunctions.last)
+        let generatedFunction = try #require(module.arena.function(for: lambdaSymbol))
         #expect(generatedFunction.params.count == 1, "single element param")
         #expect(generatedFunction.params.first?.type == ctx.sema?.types.intType)
     }
 
     @Test func testBuildKIRWorkerExecuteExpandsProducerAndJobLambdas() throws {
+        let runtime = try RuntimeNames()
         let source = """
         import kotlin.native.concurrent.TransferMode
         import kotlin.native.concurrent.Worker
@@ -382,7 +396,7 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee) == "kk_worker_execute" && arguments.count == 6
+            return callee == ctx.interner.intern(runtime[.workerExecute]) && arguments.count == 6
         }, "Expected kk_worker_execute with 6 args; calls: \(callSummaries)")
 
         guard case let .call(_, _, arguments, _, _, _, _, _) = executeCall else {
@@ -417,7 +431,7 @@ extension BuildKIRRegressionTests {
             else {
                 return false
             }
-            return ctx.interner.resolve(calleeName) == "add"
+            return calleeName == KnownCompilerNames(interner: ctx.interner).add
                 && ast.arena.exprRange(exprID)?.start.file == sourceFileID
         })
         let existingBinding = try #require(sema.bindings.callableValueCalls[addCallExprID])
@@ -438,7 +452,7 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee).hasPrefix("kk_function_value_adapter_")
+            return isCallableAdapter(callee, in: module)
         })
 
         guard case let .call(_, _, arguments, _, _, _, _, _) = lambdaCall else {
@@ -461,6 +475,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRNestedEscapingFunctionTypeComparesArithmeticBeforeReturn() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun main() {
             val f: (Int) -> (String) -> Boolean = { m -> { s -> s.length * m > 10 } }
@@ -474,26 +489,30 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let innerLambda = try #require(findAllKIRFunctions(in: module).first { function in
-            guard ctx.interner.resolve(function.name).hasPrefix("kk_lambda_") else {
+            guard unboxedCallableSymbols(in: module).contains(function.symbol) else {
                 return false
             }
             let callNames = extractCallees(from: function.body, interner: ctx.interner)
-            return callNames.contains("kk_op_mul") && callNames.contains("kk_op_gt")
+            return callNames.contains(runtime[.multiply]) && callNames.contains(runtime[.greater])
         })
         let innerCallNames = extractCallees(from: innerLambda.body, interner: ctx.interner)
-        #expect(innerCallNames.contains("__kk_string_struct_get_length"))
-        #expect(innerCallNames.contains("kk_op_mul"))
-        #expect(innerCallNames.contains("kk_op_gt"))
+        #expect(innerCallNames.contains(runtime[.stringLength]))
+        #expect(innerCallNames.contains(runtime[.multiply]))
+        #expect(innerCallNames.contains(runtime[.greater]))
 
         let adapterFunction = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            callableAdapterSymbols(in: module).contains(function.symbol)
         })
-        let adapterCallNames = extractCallees(from: adapterFunction.body, interner: ctx.interner)
-        #expect(
-            adapterCallNames.contains { name in
-                name.hasPrefix("kk_closure_invoke_") || name.hasPrefix("kk_lambda_")
+        let targets = unboxedCallableSymbols(in: module)
+        #expect(adapterFunction.body.contains { instruction in
+            guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return false }
+            if targets.contains(symbol) { return true }
+            guard let wrapper = module.arena.function(for: symbol) else { return false }
+            return wrapper.body.contains { instruction in
+                guard case let .call(target?, _, _, _, _, _, _, _) = instruction else { return false }
+                return targets.contains(target)
             }
-        )
+        })
     }
 
     @Test func testSyntheticLambdaSymbolGenerationNeverUsesZeroOrInvalidSentinel() {
@@ -529,7 +548,7 @@ extension BuildKIRRegressionTests {
         let incSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function
                 && symbol.declSite != nil
-                && ctx.interner.resolve(symbol.name) == "inc"
+                && symbol.fqName == [ctx.interner.intern("inc")]
                 && sema.symbols.functionSignature(for: symbol.id)?.receiverType == nil
         })?.id)
 
@@ -546,7 +565,7 @@ extension BuildKIRRegressionTests {
             return
         }
         #expect(callSymbol == incSymbol)
-        #expect(ctx.interner.resolve(callee) == "inc")
+        #expect(callee == sema.symbols.symbol(incSymbol)?.name)
         #expect(arguments.count == 1)
         guard case .intLiteral(2)? = module.arena.expr(arguments[0]) else {
             Issue.record("Expected callable reference call to forward the explicit argument.")
@@ -555,6 +574,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testImplicitInterfaceCallableRefUsesVirtualDispatch() throws {
+        let runtime = try RuntimeNames()
         let source = """
         interface Writer { fun flush(): Int }
         class BufferedWriter : Writer { override fun flush(): Int = 42 }
@@ -568,7 +588,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
             symbol.kind == .function
-                && ctx.interner.resolve(symbol.name) == "flush"
+                && symbol.fqName == ["Writer", "flush"].map(ctx.interner.intern)
                 && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
                     == [ctx.interner.intern("Writer")]
         }?.id)
@@ -592,7 +612,7 @@ extension BuildKIRRegressionTests {
         let flushLaterBody = try findKIRFunctionBody(named: "flushLater", in: module, interner: ctx.interner)
         #expect(flushLaterBody.contains { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "kk_function_create_0"
+                return callee == ctx.interner.intern(runtime[.functionCreate0])
             }
             return false
         }, "A bound reference returned from a function must carry its receiver at runtime.")
@@ -613,14 +633,30 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let interfaceFlush = try #require(sema.symbols.allSymbols().first { symbol in
             symbol.kind == .function
-                && ctx.interner.resolve(symbol.name) == "flush"
+                && symbol.fqName == ["Writer", "flush"].map(ctx.interner.intern)
                 && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
                     == [ctx.interner.intern("Writer")]
         }?.id)
         let allFunctions = findAllKIRFunctions(in: module)
-        #expect(allFunctions.contains { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_sam_ref_thunk_")
-        })
+        let samMethod = try samImplementation(named: "Action", in: ctx)
+        let thunkSymbols = samMethod.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction,
+                  sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == true
+            else { return nil }
+            return symbol
+        }
+        let thunkSymbol = try #require(thunkSymbols.first)
+        let thunk = try #require(module.arena.function(for: thunkSymbol))
+        let virtualThunkSymbols = thunk.body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol?, _, _, _, _, _, _, _) = instruction else { return nil }
+            return symbol
+        }
+        let virtualThunkSymbol = try #require(virtualThunkSymbols.first)
+        let virtualThunk = try #require(module.arena.function(for: virtualThunkSymbol))
+        #expect(virtualThunk.body.contains { instruction in
+            guard case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+            return symbol == interfaceFlush
+        }, "The generated SAM method must reach the interface member through its reference thunks")
         // The SAM thunk reaches the interface member through a virtual call
         // (directly or via the bound-reference helper), never a direct call.
         #expect(allFunctions.contains { function in
@@ -651,18 +687,21 @@ extension BuildKIRRegressionTests {
         #expect(!ctx.diagnostics.hasError)
 
         let module = try #require(ctx.kir)
-        let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "run"
-                && function.body.contains { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
-                    }
-                    return false
-                }
-        })
+        let sema = try #require(ctx.sema)
+        let wrapper = try samImplementation(named: "Action", in: ctx)
+        let actionSymbol = try sourceSymbol(named: "action", in: ctx)
+        let callbackType = try #require(sema.symbols.functionSignature(for: actionSymbol)?.parameterTypes.first)
+        let callbacks = findAllKIRFunctions(in: module).filter { function in
+            function.params.map(\.type) == [callbackType]
+                && sema.symbols.parentSymbol(for: function.symbol) == nil
+                && sema.symbols.symbol(function.symbol)?.flags.contains(.synthetic) == true
+                && callsSymbol(function.symbol, in: wrapper.body)
+        }
+        let callback = try #require(callbacks.first)
+        #expect(callbacks.count == 1)
         let throwingCalls = wrapper.body.compactMap { instruction -> Bool? in
-            guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction,
-                  ctx.interner.resolve(callee).hasPrefix("kk_lambda_")
+            guard case let .call(symbol, _, _, _, canThrow, _, _, _) = instruction,
+                  symbol == callback.symbol
             else { return nil }
             return canThrow
         }
@@ -723,18 +762,20 @@ extension BuildKIRRegressionTests {
             guard isUserSourceExpr(exprID, in: ctx),
                   case let .call(callee, _, _, _) = ast.arena.expr(exprID),
                   case let .nameRef(name, _) = ast.arena.expr(callee),
-                  ctx.interner.resolve(name) == "emptyList"
+                  name == KnownCompilerNames(interner: ctx.interner).emptyListFn
             else { return nil }
             return sema.bindings.callBinding(for: exprID)
         }
         #expect(emptyListCalls.count == 2)
         #expect(emptyListCalls.allSatisfy { binding in
             guard let symbol = sema.symbols.symbol(binding.chosenCallee) else { return false }
-            return symbol.kind == .function && ctx.interner.resolve(symbol.name) == "emptyList"
+            let known = KnownCompilerNames(interner: ctx.interner)
+            return symbol.kind == .function && symbol.fqName == known.kotlinCollectionsPackage + [known.emptyListFn]
         })
     }
 
     @Test func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {
+        let runtime = try RuntimeNames()
         let source = """
         class Box {
             fun plus(x: Int): Int = x
@@ -751,18 +792,18 @@ extension BuildKIRRegressionTests {
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
         let plusSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            guard symbol.kind == .function, ctx.interner.resolve(symbol.name) == "plus",
+            guard symbol.kind == .function, symbol.name == KnownCompilerNames(interner: ctx.interner).plus,
                   let ownerID = sema.symbols.parentSymbol(for: symbol.id),
                   let owner = sema.symbols.symbol(ownerID)
             else { return false }
-            return ctx.interner.resolve(owner.name) == "Box"
+            return owner.fqName == [ctx.interner.intern("Box")]
         })?.id)
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         #expect(!ctx.diagnostics.hasError)
         // Bound references store their receiver in a closure and invoke a generated adapter.
         let adapter = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+            callableAdapterSymbols(in: module).contains(function.symbol)
                 && function.body.contains { instruction in
                     guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
                     return symbol == plusSymbol
@@ -781,7 +822,7 @@ extension BuildKIRRegressionTests {
         }
         let storedCapture = try #require(mainBody.first { instruction in
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_array_set"
+            return callee == ctx.interner.intern(runtime[.arraySet])
                 && arguments.count == 3 && arguments[0] == invocationArguments[0]
         })
         guard case let .call(_, _, storedArguments, _, _, _, _, _) = storedCapture,
@@ -792,10 +833,10 @@ extension BuildKIRRegressionTests {
             Issue.record("Expected closure slot 2 to store the bound receiver.")
             return
         }
-        #expect(ctx.interner.resolve(receiver.name) == "box")
+        #expect(receiver.id == (try findKIRFunction(named: "main", in: module, interner: ctx.interner)).params.first?.symbol)
         let loadedCapture = try #require(adapter.body.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            return callee == ctx.interner.intern(runtime[.arrayGetInbounds])
         })
         guard case let .call(_, _, loadArguments, loadedReceiver, _, _, _, _) = loadedCapture,
               case let .symbolRef(closureSymbol)? = module.arena.expr(loadArguments[0]),
@@ -815,7 +856,7 @@ extension BuildKIRRegressionTests {
         #expect(plusArguments[0] == loadedReceiver)
         let unbox = try #require(adapter.body.first { instruction in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_unbox_int" && result == plusArguments[1]
+            return callee == ctx.interner.intern(runtime[.unboxInt]) && result == plusArguments[1]
         })
         guard case let .call(_, _, unboxArguments, _, _, _, _, _) = unbox,
               case let .symbolRef(valueSymbol)? = module.arena.expr(unboxArguments[0])
