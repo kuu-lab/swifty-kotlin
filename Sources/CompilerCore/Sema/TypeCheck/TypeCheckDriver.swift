@@ -234,10 +234,11 @@ final class TypeCheckDriver {
             }
         }
 
-        // Revisit simple property initializers until their inferred property
-        // dependencies have types. Calls, arbitrary control flow and unresolved
-        // references stay on the source-order pass so inferred function return
-        // types and cycles retain their established diagnostics.
+        // Revisit property initializers until their inferred property
+        // dependencies have types. Calls are eligible only when every
+        // candidate has a concrete declared return type; arbitrary control flow,
+        // unresolved references, inferred-return calls and cycles stay on the
+        // source-order pass.
         var didPrecheckProperty: Bool
         repeat {
             didPrecheckProperty = false

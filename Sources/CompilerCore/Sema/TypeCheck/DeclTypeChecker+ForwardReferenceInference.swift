@@ -58,10 +58,10 @@ extension DeclTypeChecker {
         )
         let sema = ctx.sema
 
-        // Revisit member properties until their simple inferred dependencies
-        // resolve. The eligibility check only accepts expressions whose types
-        // follow from literals and already-typed values; calls and cycles stay
-        // on the normal pass.
+        // Revisit member properties until their dependencies resolve. Calls and
+        // member reads are eligible only when their referenced signatures or
+        // property types are already concrete; inferred-return calls and cycles
+        // stay on the normal pass.
         var didPrecheckProperty: Bool
         repeat {
             didPrecheckProperty = false
@@ -180,20 +180,7 @@ extension DeclTypeChecker {
             }
             return types.stringType
         case let .nameRef(name, _):
-            if let local = locals[name] {
-                return local.isInitialized && isSafePrecheckValueType(local.type, in: ctx)
-                    ? local.type : nil
-            }
-            let candidates = ctx.scope.lookup(name)
-            guard candidates.count == 1,
-                  let symbol = ctx.sema.symbols.symbol(candidates[0]),
-                  symbol.kind == .property || symbol.kind == .field,
-                  let type = ctx.sema.symbols.propertyType(for: candidates[0]),
-                  isSafePrecheckValueType(type, in: ctx)
-            else {
-                return nil
-            }
-            return type
+            return safePrecheckNameReference(name, in: ctx, locals: locals)
         case let .unaryExpr(op, operand, _):
             guard let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals) else {
                 return nil
@@ -204,10 +191,265 @@ extension DeclTypeChecker {
             return isSafeNumericType(operandType, in: ctx) ? operandType : nil
         case let .binary(op, lhs, rhs, _):
             return safePrecheckBinaryType(op, lhs: lhs, rhs: rhs, in: ctx, locals: locals)
+        case let .isCheck(operand, _, _, _):
+            guard safePrecheckExpressionType(operand, in: ctx, locals: locals) != nil else {
+                return nil
+            }
+            return types.booleanType
+        case .call:
+            return safePrecheckTopLevelCall(exprID, in: ctx, locals: locals)
+        case .memberCall:
+            return safePrecheckMemberCall(exprID, in: ctx, locals: locals)
         default:
-            // Calls, member access, arbitrary control flow and delegates are
-            // deliberately left on the normal declaration-order path.
+            // Arbitrary control flow, mutation, and delegates are deliberately
+            // left on the normal declaration-order path.
             return nil
+        }
+    }
+
+    private func safePrecheckNameReference(
+        _ name: InternedString,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        if let local = locals[name] {
+            let type = safePrecheckFlowType(for: local.symbol, fallback: local.type, in: ctx)
+            return local.isInitialized && isSafePrecheckValueType(type, in: ctx) ? type : nil
+        }
+        let candidates = ctx.scope.lookup(name)
+        guard candidates.count == 1,
+              let symbol = ctx.sema.symbols.symbol(candidates[0]),
+              symbol.kind == .property || symbol.kind == .field,
+              let declaredType = ctx.sema.symbols.propertyType(for: candidates[0])
+        else {
+            return nil
+        }
+        let type = safePrecheckFlowType(for: candidates[0], fallback: declaredType, in: ctx)
+        return isSafePrecheckValueType(type, in: ctx) ? type : nil
+    }
+
+    private func safePrecheckTopLevelCall(
+        _ exprID: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        guard case let .call(callee, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
+              typeArgs.isEmpty,
+              args.isEmpty,
+              case let .nameRef(name, _)? = ctx.ast.arena.expr(callee),
+              locals[name] == nil
+        else {
+            return nil
+        }
+        let candidates = ctx.cachedScopeLookup(name).filter { candidate in
+            guard let symbol = ctx.sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate)
+            else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.contextReceiverTypes.isEmpty
+                && canBeCalledWithoutArguments(signature)
+        }
+        return safePrecheckCallResultType(candidates, in: ctx)
+    }
+
+    private func safePrecheckMemberCall(
+        _ exprID: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        guard case let .memberCall(receiver, name, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
+              typeArgs.isEmpty,
+              args.isEmpty,
+              let receiverType = safePrecheckExpressionType(receiver, in: ctx, locals: locals)
+        else {
+            return nil
+        }
+        if !ctx.ast.arena.isExplicitCall(exprID) {
+            guard let property = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: receiverType,
+                sema: ctx.sema
+            ), isSafePrecheckValueType(property.type, in: ctx)
+            else {
+                return nil
+            }
+            return property.type
+        }
+
+        let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
+        var candidates = driver.helpers.collectMemberFunctionCandidates(
+            named: name,
+            receiverType: nonNullReceiverType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
+        candidates.append(contentsOf: safePrecheckExtensionCandidates(
+            named: name,
+            receiverType: nonNullReceiverType,
+            in: ctx
+        ))
+        // Bundled source extensions are not always present in the lexical
+        // scope (the regular member-call resolver also falls back to the
+        // symbol table by short name for these declarations).
+        candidates.append(contentsOf: ctx.sema.symbols.lookupByShortName(name).filter { candidate in
+            isSafePrecheckExtensionCandidate(
+                candidate,
+                receiverType: nonNullReceiverType,
+                in: ctx
+            )
+        })
+        return safePrecheckCallResultType(Array(Set(candidates)), in: ctx)
+    }
+
+    private func safePrecheckExtensionCandidates(
+        named name: InternedString,
+        receiverType: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        ctx.cachedScopeLookup(name).filter { candidate in
+            isSafePrecheckExtensionCandidate(candidate, receiverType: receiverType, in: ctx)
+        }
+    }
+
+    private func isSafePrecheckExtensionCandidate(
+        _ candidate: SymbolID,
+        receiverType: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let symbol = ctx.sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              let signature = ctx.sema.symbols.functionSignature(for: candidate),
+              let declaredReceiver = signature.receiverType
+        else {
+            return false
+        }
+        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: receiverType,
+            declaredReceiver: declaredReceiver,
+            sema: ctx.sema
+        ) && signature.contextReceiverTypes.isEmpty
+            && canBeCalledWithoutArguments(signature)
+    }
+
+    private func safePrecheckFlowType(
+        for symbol: SymbolID,
+        fallback: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> TypeID {
+        guard let flow = ctx.flowState.variables[symbol],
+              flow.possibleTypes.count == 1,
+              let narrowedType = flow.possibleTypes.first
+        else {
+            return fallback
+        }
+        return narrowedType
+    }
+
+    private func canBeCalledWithoutArguments(_ signature: FunctionSignature) -> Bool {
+        signature.parameterTypes.indices.allSatisfy { index in
+            (index < signature.valueParameterHasDefaultValues.count
+                && signature.valueParameterHasDefaultValues[index])
+                || (index < signature.valueParameterIsVararg.count
+                    && signature.valueParameterIsVararg[index])
+        }
+    }
+
+    private func safePrecheckCallResultType(
+        _ candidates: [SymbolID],
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        var resultType: TypeID?
+        for candidate in Set(candidates) {
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  hasExplicitReturnTypeIfSourceDefined(candidate, in: ctx),
+                  !signature.isSuspend,
+                  signature.contextReceiverTypes.isEmpty,
+                  canBeCalledWithoutArguments(signature),
+                  signature.returnType != ctx.sema.types.nullableAnyType,
+                  isSafePrecheckValueType(signature.returnType, in: ctx),
+                  !returnTypeDependsOnFunctionTypeParameters(signature, in: ctx)
+            else {
+                return nil
+            }
+            if let resultType, resultType != signature.returnType {
+                // Without resolving an overload, only accept a result type that
+                // is the same for every zero-argument candidate.
+                return nil
+            }
+            resultType = signature.returnType
+        }
+        return resultType
+    }
+
+    private func hasExplicitReturnTypeIfSourceDefined(
+        _ candidate: SymbolID,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        for declID in ctx.ast.activeDeclarationIDs
+            where ctx.sema.bindings.declSymbols[declID] == candidate
+        {
+            guard case let .funDecl(function)? = ctx.ast.arena.decl(declID) else {
+                return false
+            }
+            return function.returnType != nil
+        }
+        // Precompiled stdlib and dependency symbols already carry a resolved
+        // signature and have no source declaration in this AST.
+        return true
+    }
+
+    private func returnTypeDependsOnFunctionTypeParameters(
+        _ signature: FunctionSignature,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        let functionTypeParameters = Set(
+            signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+        )
+        guard !functionTypeParameters.isEmpty else { return false }
+        return typeUsesAnyParameter(
+            in: signature.returnType,
+            symbols: functionTypeParameters,
+            types: ctx.sema.types
+        )
+    }
+
+    private func typeUsesAnyParameter(
+        in type: TypeID,
+        symbols: Set<SymbolID>,
+        types: TypeSystem
+    ) -> Bool {
+        switch types.kind(of: types.makeNonNullable(type)) {
+        case let .typeParam(typeParam):
+            symbols.contains(typeParam.symbol)
+        case let .classType(classType):
+            classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeUsesAnyParameter(in: inner, symbols: symbols, types: types)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(functionType):
+            (functionType.receiver.map {
+                typeUsesAnyParameter(in: $0, symbols: symbols, types: types)
+            } ?? false)
+                || functionType.params.contains {
+                    typeUsesAnyParameter(in: $0, symbols: symbols, types: types)
+                }
+                || typeUsesAnyParameter(in: functionType.returnType, symbols: symbols, types: types)
+                || functionType.contextReceivers.contains {
+                    typeUsesAnyParameter(in: $0, symbols: symbols, types: types)
+                }
+        case let .kClassType(kClassType):
+            typeUsesAnyParameter(in: kClassType.argument, symbols: symbols, types: types)
+        case let .intersection(parts):
+            parts.contains { typeUsesAnyParameter(in: $0, symbols: symbols, types: types) }
+        default:
+            false
         }
     }
 
@@ -219,6 +461,53 @@ extension DeclTypeChecker {
         locals: LocalBindings
     ) -> TypeID? {
         let types = ctx.sema.types
+        if op == .logicalAnd || op == .logicalOr {
+            guard let lhsType = safePrecheckExpressionType(lhs, in: ctx, locals: locals),
+                  lhsType == types.booleanType
+            else {
+                return nil
+            }
+            let branch = ctx.dataFlow.branchOnCondition(
+                lhs,
+                base: ctx.flowState.includingMembers(from: locals),
+                locals: locals,
+                ast: ctx.ast,
+                sema: ctx.sema,
+                interner: ctx.interner,
+                scope: ctx.scope
+            )
+            var rhsState = op == .logicalAnd ? branch.trueState : branch.falseState
+            if op == .logicalAnd,
+               case let .isCheck(subject, targetTypeRef, false, _)? = ctx.ast.arena.expr(lhs),
+               let subjectSymbol = safePrecheckReferenceSymbol(subject, in: ctx, locals: locals),
+               let targetType = safePrecheckTypeRef(targetTypeRef, in: ctx)
+            {
+                // Header-time bindings for implicit member properties do not
+                // yet exist, so DataFlowAnalyzer cannot identify this stable
+                // reference. Mirror the positive `is` refinement from the AST
+                // for the right-hand side of `&&`.
+                rhsState.variables[subjectSymbol] = VariableFlowState(
+                    possibleTypes: [targetType],
+                    nullability: types.nullability(of: targetType),
+                    isStable: true
+                )
+            }
+            var rhsLocals = locals
+            driver.exprChecker.applyFlowStateToLocals(
+                rhsState,
+                locals: &rhsLocals,
+                sema: ctx.sema
+            )
+            guard let rhsType = safePrecheckExpressionType(
+                rhs,
+                in: ctx.copying(flowState: rhsState),
+                locals: rhsLocals
+            ), rhsType == types.booleanType
+            else {
+                return nil
+            }
+            return types.booleanType
+        }
         guard let lhsType = safePrecheckExpressionType(lhs, in: ctx, locals: locals),
               let rhsType = safePrecheckExpressionType(rhs, in: ctx, locals: locals)
         else {
@@ -226,9 +515,6 @@ extension DeclTypeChecker {
         }
 
         switch op {
-        case .logicalAnd, .logicalOr:
-            return lhsType == types.booleanType && rhsType == types.booleanType
-                ? types.booleanType : nil
         case .equal, .notEqual:
             if isNullLiteral(lhs, in: ctx) || isNullLiteral(rhs, in: ctx) {
                 return types.booleanType
@@ -248,6 +534,55 @@ extension DeclTypeChecker {
         default:
             return nil
         }
+    }
+
+    private func safePrecheckReferenceSymbol(
+        _ exprID: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> SymbolID? {
+        guard let expr = ctx.ast.arena.expr(exprID) else { return nil }
+        switch expr {
+        case let .nameRef(name, _):
+            if let local = locals[name] {
+                return local.symbol
+            }
+            let candidates = ctx.scope.lookup(name)
+            guard candidates.count == 1,
+                  let symbol = ctx.sema.symbols.symbol(candidates[0]),
+                  symbol.kind == .property || symbol.kind == .field
+            else {
+                return nil
+            }
+            return candidates[0]
+        case let .memberCall(receiver, name, typeArgs, args, _)
+            where typeArgs.isEmpty && args.isEmpty && !ctx.ast.arena.isExplicitCall(exprID):
+            guard let receiverType = safePrecheckExpressionType(receiver, in: ctx, locals: locals) else {
+                return nil
+            }
+            return driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: receiverType,
+                sema: ctx.sema
+            )?.symbol
+        default:
+            return nil
+        }
+    }
+
+    private func safePrecheckTypeRef(
+        _ typeRef: TypeRefID,
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let type = driver.helpers.resolveTypeRef(
+            typeRef,
+            ast: ctx.ast,
+            sema: ctx.sema,
+            interner: ctx.interner,
+            scope: ctx.scope,
+            inferenceContext: ctx
+        )
+        return type == ctx.sema.types.errorType ? nil : type
     }
 
     private func isSafePrecheckValueType(_ type: TypeID, in ctx: TypeInferenceContext) -> Bool {

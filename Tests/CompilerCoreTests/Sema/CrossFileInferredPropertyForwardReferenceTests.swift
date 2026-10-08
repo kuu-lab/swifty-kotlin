@@ -11,7 +11,7 @@
             fun readExplicitTopLevel(): Boolean = explicitTopLevel
             fun readInferredMember(holder: Holder): Boolean = holder.inferredMember
             fun readExplicitMember(holder: Holder): Boolean = holder.explicitMember
-            fun readLazy(descriptor: Descriptor<String>): Boolean = descriptor.defaultValueSet
+            fun readLazy(descriptor: Descriptor<String, Any>): Boolean = descriptor.defaultValueSet
             fun readExplicitReturn(holder: Holder): Boolean = holder.explicitReturn()
             fun readInferredReturnWithoutConstraint(holder: Holder) = holder.inferredReturn()
             """
@@ -25,8 +25,14 @@
                 fun inferredReturn() = true
                 fun explicitReturn(): Boolean = true
             }
-            class Descriptor<T>(val defaultValue: T?) {
-                val defaultValueSet by lazy { defaultValue != null }
+            class ArgType<T : Any>
+            class Descriptor<T : Any, TResult>(
+                val type: ArgType<T>,
+                val defaultValue: TResult? = null
+            ) {
+                val defaultValueSet by lazy {
+                    defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+                }
             }
             """
 
@@ -73,6 +79,52 @@
                         sema.symbols.functionSignature(for: function)?.returnType == sema.types.booleanType
                     )
                 }
+            }
+        }
+
+        @Test
+        func inferredPropertiesWithKnownCallsAndMemberReadsResolveInEitherFileOrder() throws {
+            let use = """
+            package sample
+            fun readTopLevelCall(): Int = topLevelCallValue
+            fun readMemberCall(holder: Holder): Int = holder.memberCallValue
+            fun readMemberRead(holder: Holder): Int = holder.memberReadValue
+            """
+            let declarations = """
+            package sample
+            fun explicitInt(): Int = 7
+            val topLevelCallValue = explicitInt()
+            class Holder {
+                val payload: Payload = Payload(1)
+                val memberReadValue = payload.number
+                val memberCallValue = explicitInt()
+            }
+            class Payload(val number: Int)
+            """
+
+            for sources in [[use, declarations], [declarations, use]] {
+                let (sema, interner) = try SemaFixture(
+                    surface: "known-signature calls and member reads across files"
+                ).make(sources: sources)
+
+                try expectPropertyType(
+                    ["sample", "topLevelCallValue"],
+                    equals: sema.types.intType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "Holder", "memberCallValue"],
+                    equals: sema.types.intType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "Holder", "memberReadValue"],
+                    equals: sema.types.intType,
+                    in: sema,
+                    interner: interner
+                )
             }
         }
 
