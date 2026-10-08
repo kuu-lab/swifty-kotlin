@@ -137,12 +137,12 @@ struct RuntimeNativeRefGCStabilityTests {
 struct RuntimeNativeRefMemoryTests {
     @Test func getRuntimeReturnsPositiveHandle() {
         #expect(__kk_runtime_getRuntime() > 0,
-                "__kk_runtime_getRuntime must return a non-zero singleton handle")
+                "Runtime singleton must have a non-zero handle")
     }
 
     @Test func getRuntimeIsSingleton() {
         #expect(__kk_runtime_getRuntime() == __kk_runtime_getRuntime(),
-                "__kk_runtime_getRuntime must return the same value on repeated calls")
+                "Runtime singleton handle must be stable across repeated calls")
     }
 
     @Test func totalMemoryIsPositive() {
@@ -309,7 +309,7 @@ struct RuntimeNativeRefPinnedTests {
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
             #expect(pinHandle != 0,
-                    "kk_pin_object must return a non-zero Pinned handle")
+                    "Pinning an object must return a non-zero Pinned handle")
             _ = kk_unpin_object(pinHandle)
         }
     }
@@ -327,7 +327,7 @@ struct RuntimeNativeRefPinnedTests {
             let objectRaw = Int(bitPattern: slot.pointee)
             let pinHandle = kk_pin_object(objectRaw)
             #expect(kk_pinned_get(pinHandle) == objectRaw,
-                    "kk_pinned_get must return the same raw value passed to kk_pin_object")
+                    "Pinned value must equal the original object's raw handle")
             _ = kk_unpin_object(pinHandle)
         }
     }
@@ -346,7 +346,7 @@ struct RuntimeNativeRefPinnedTests {
             let pinHandle = kk_pin_object(objectRaw)
             let returned = kk_unpin_object(pinHandle)
             #expect(returned == objectRaw,
-                    "kk_unpin_object must return the original object raw value")
+                    "Unpinning must return the original object's raw handle")
         }
     }
 
@@ -461,7 +461,7 @@ struct RuntimeNativeRefFreezeTests {
         let handle = makeNativeRefFreezeHandle()
         let returned = kk_freeze_object(handle)
         #expect(returned > 0,
-                "kk_freeze_object must return a positive (non-zero) value")
+                "Freezing an object must return a positive (non-zero) handle")
     }
 
     @Test func freezeObjectReturnsOriginalHandle() {
@@ -564,7 +564,7 @@ struct RuntimeNativeRefDebuggingTests {
     @Test func assertionsEnabledReturnsBooleanValue() {
         let result = __kk_assertions_enabled()
         #expect(result == 0 || result == 1,
-                "__kk_assertions_enabled must return 0 or 1")
+                "Assertions enabled state must be a raw Boolean (0 or 1)")
     }
 
     @Test func disableEnableAssertionsIdempotent() {
@@ -597,7 +597,7 @@ struct RuntimeNativeRefDebuggingTests {
         _ = kk_assertions_reset()
         let result = __kk_assertions_enabled()
         #expect(result == 0 || result == 1,
-                "kk_assertions_reset must leave assertions in a valid boolean state")
+                "Resetting assertions must leave a valid Boolean state")
     }
 
     @Test func repeatedAssertionsResetIsIdempotent() {

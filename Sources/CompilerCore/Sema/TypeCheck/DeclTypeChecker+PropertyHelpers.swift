@@ -99,6 +99,18 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var result = inferredPropertyType
+        let thisName = interner.intern("this")
+        if locals[thisName] == nil, let receiverType = ctx.implicitReceiverType {
+            // Delegate lambdas capture the property's implicit receiver. Keep
+            // that receiver in locals so data-flow analysis can key stable
+            // member-property facts to the same `this` reference.
+            locals[thisName] = (
+                receiverType,
+                SyntheticSymbolScheme.receiverParameterSymbol(for: symbol),
+                false,
+                true
+            )
+        }
         let stdlibDelegateKind = StdlibDelegateKind.detect(
             delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
         )

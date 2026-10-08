@@ -2,16 +2,186 @@
 
 /// `RuntimeABISpec.exceptionFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let bridgeThrowableNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_new",
+        parameters: [
+            RuntimeABIParameter(name: "message", type: .nullableOpaquePointer),
+        ],
+        returnType: .opaquePointer,
+        section: "Exception"
+    )
+
+    static let bridgeThrowableNewCauseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_new_cause",
+        parameters: [
+            RuntimeABIParameter(name: "causeRaw", type: .intptr),
+        ],
+        returnType: .opaquePointer,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeNoWhenBranchMatchedExceptionNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_no_when_branch_matched_exception_new",
+        parameters: [],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeNoWhenBranchMatchedExceptionNewMessageSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_no_when_branch_matched_exception_new_message",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeNoWhenBranchMatchedExceptionNewMessageCauseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_no_when_branch_matched_exception_new_message_cause",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            RuntimeABIParameter(name: "causeRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeNoWhenBranchMatchedExceptionNewCauseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_no_when_branch_matched_exception_new_cause",
+        parameters: [
+            RuntimeABIParameter(name: "causeRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeConcurrentModificationExceptionNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_concurrent_modification_exception_new",
+        parameters: [],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeConcurrentModificationExceptionNewMessageSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_concurrent_modification_exception_new_message",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeConcurrentModificationExceptionNewMessageCauseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_concurrent_modification_exception_new_message_cause",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            RuntimeABIParameter(name: "causeRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeConcurrentModificationExceptionNewCauseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_concurrent_modification_exception_new_cause",
+        parameters: [
+            RuntimeABIParameter(name: "causeRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeArrayIndexOutOfBoundsExceptionNewSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_array_index_out_of_bounds_exception_new",
+        parameters: [],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeArrayIndexOutOfBoundsExceptionNewMessageSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_array_index_out_of_bounds_exception_new_message",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let throwableIsCancellationSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_throwable_is_cancellation",
+        parameters: [
+            RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeSynchronizedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_synchronized",
+        parameters: [
+            RuntimeABIParameter(name: "lock", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Exception"
+    )
+
+    static let bridgeThrowableRawStackFramesSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_rawStackFrames",
+        parameters: [
+            RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Exception"
+    )
+
+    static let bridgeThrowableToStringSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_toString",
+        parameters: [
+            RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Exception"
+    )
+
+    static let bridgePrintStderrSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_printStderr",
+        parameters: [
+            RuntimeABIParameter(name: "messageRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
+    static let bridgeThrowableSuppressedRawSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_throwable_suppressedRaw",
+        parameters: [
+            RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Exception",
+        isThrowing: false
+    )
+
 
     static let exceptionFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_new",
-            parameters: [
-                RuntimeABIParameter(name: "message", type: .nullableOpaquePointer),
-            ],
-            returnType: .opaquePointer,
-            section: "Exception"
-        ),
+        bridgeThrowableNewSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_throwable_new_with_cause",
             parameters: [
@@ -22,15 +192,7 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_new_cause",
-            parameters: [
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Exception",
-            isThrowing: false
-        ),
+        bridgeThrowableNewCauseSpec,
         RuntimeABIFunctionSpec(
             name: "kk_throwable_new_cause",
             parameters: [
@@ -50,57 +212,12 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_no_when_branch_matched_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_no_when_branch_matched_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_no_when_branch_matched_exception_new_message_cause",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_no_when_branch_matched_exception_new_cause",
-            parameters: [
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_concurrent_modification_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_concurrent_modification_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
+        bridgeNoWhenBranchMatchedExceptionNewSpec,
+        bridgeNoWhenBranchMatchedExceptionNewMessageSpec,
+        bridgeNoWhenBranchMatchedExceptionNewMessageCauseSpec,
+        bridgeNoWhenBranchMatchedExceptionNewCauseSpec,
+        bridgeConcurrentModificationExceptionNewSpec,
+        bridgeConcurrentModificationExceptionNewMessageSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_invalid_mutability_exception_new_message",
             parameters: [
@@ -110,41 +227,10 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_concurrent_modification_exception_new_message_cause",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_concurrent_modification_exception_new_cause",
-            parameters: [
-                RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_index_out_of_bounds_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_array_index_out_of_bounds_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
+        bridgeConcurrentModificationExceptionNewMessageCauseSpec,
+        bridgeConcurrentModificationExceptionNewCauseSpec,
+        bridgeArrayIndexOutOfBoundsExceptionNewSpec,
+        bridgeArrayIndexOutOfBoundsExceptionNewMessageSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_string_index_out_of_bounds_exception_new",
             parameters: [],
@@ -715,15 +801,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Exception"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_throwable_is_cancellation",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
+        throwableIsCancellationSpec,
         RuntimeABIFunctionSpec(
             name: "kk_abort_unreachable",
             parameters: [
@@ -736,17 +814,7 @@ public extension RuntimeABISpec {
         // KSP-618: synchronized(lock) { } is Kotlin source delegating to this
         // demoted bridge; the block arrives as a function pointer + closure
         // environment pair with the usual outThrown channel.
-        RuntimeABIFunctionSpec(
-            name: "__kk_synchronized",
-            parameters: [
-                RuntimeABIParameter(name: "lock", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
+        bridgeSynchronizedSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_assertions_enabled",
             parameters: [],
@@ -801,33 +869,9 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_rawStackFrames",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_toString",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_printStderr",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
+        bridgeThrowableRawStackFramesSpec,
+        bridgeThrowableToStringSpec,
+        bridgePrintStderrSpec,
         // STDLIB-EXCEPT-105: Advanced exception handling
         RuntimeABIFunctionSpec(
             name: "__kk_throwable_setCause",
@@ -849,15 +893,7 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_suppressedRaw",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
+        bridgeThrowableSuppressedRawSpec,
         RuntimeABIFunctionSpec(
             name: "__kk_throwable_captureStackTrace",
             parameters: [
