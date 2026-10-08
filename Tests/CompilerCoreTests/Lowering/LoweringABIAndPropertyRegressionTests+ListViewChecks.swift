@@ -15,11 +15,11 @@ extension LoweringABIAndPropertyRegressionTests {
             symbol: SymbolID(rawValue: 7900), name: interner.intern("main"), params: [],
             returnType: types.unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("__kk_list_size"), arguments: [receiver],
+                .call(symbol: nil, callee: interner.intern(try loweringRuntimeABI("list_size").name), arguments: [receiver],
                       result: nil, canThrow: false, thrownResult: thrown),
                 .copy(from: thrown, to: forwardedThrown),
                 .jumpIfNotNull(value: forwardedThrown, target: 1),
-                .call(symbol: nil, callee: interner.intern("kk_list_iterator"), arguments: [receiver],
+                .call(symbol: nil, callee: interner.intern(try loweringRuntimeABI("list_iterator").name), arguments: [receiver],
                       result: nil, canThrow: false, thrownResult: thrown),
                 .jumpIfNotNull(value: thrown, target: 1),
                 .label(1),
@@ -31,12 +31,15 @@ extension LoweringABIAndPropertyRegressionTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [id])], arena: arena)
         try runLowering(module: module, interner: interner, moduleName: "ListViewChecks")
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
+        let checkCallee = interner.intern(try loweringRuntimeABI("list_check_modification").name)
+        let sizeCallee = interner.intern(try loweringRuntimeABI("list_size").name)
+        let iteratorCallee = interner.intern(try loweringRuntimeABI("list_iterator").name)
         var checks = 0
         var legacyCalls = 0
         for (index, instruction) in lowered.body.enumerated() {
             guard case let .call(_, callee, args, _, canThrow, thrownResult, _, _) = instruction else { continue }
-            switch interner.resolve(callee) {
-            case "__kk_list_check_modification":
+            switch callee {
+            case checkCallee:
                 checks += 1
                 #expect(args == [receiver])
                 #expect(canThrow && thrownResult == thrown)
@@ -45,7 +48,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     if case .jumpIfNotNull(_, target: 1) = $0 { return true }
                     return false
                 })
-            case "__kk_list_size", "kk_list_iterator":
+            case sizeCallee, iteratorCallee:
                 legacyCalls += 1
                 #expect(args == [receiver])
                 #expect(!canThrow)
@@ -57,14 +60,14 @@ extension LoweringABIAndPropertyRegressionTests {
     }
 
     @Test
-    func testListViewChecksCoverCollectionArgumentsWithoutInstrumentingUnrelatedCalls() {
+    func testListViewChecksCoverCollectionArgumentsWithoutInstrumentingUnrelatedCalls() throws {
         let interner = StringInterner()
         let checks = ABILoweringPass().listViewCheckedArguments(interner: interner)
-        #expect(checks[interner.intern("__kk_collection_size")] == [0])
-        #expect(checks[interner.intern("__kk_mutable_list_addAll")] == [0, 1])
-        #expect(checks[interner.intern("kk_range_iterator")] == [0])
-        #expect(checks[interner.intern("__kk_map_size")] == nil)
-        #expect(checks[interner.intern("__kk_list_check_modification")] == nil)
+        #expect(checks[interner.intern(try loweringRuntimeABI("collection_size").name)] == [0])
+        #expect(checks[interner.intern(try loweringRuntimeABI("mutable_list_addAll").name)] == [0, 1])
+        #expect(checks[interner.intern(try loweringRuntimeABI("range_iterator").name)] == [0])
+        #expect(checks[interner.intern(try loweringRuntimeABI("map_size").name)] == nil)
+        #expect(checks[interner.intern(try loweringRuntimeABI("list_check_modification").name)] == nil)
     }
 
     @Test
