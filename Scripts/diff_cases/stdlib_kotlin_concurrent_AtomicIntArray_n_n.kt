@@ -1,4 +1,4 @@
-// CANDIDATE-ONLY: kotlin.concurrent.AtomicIntArray is Kotlin/Native-only and has no JVM kotlinc oracle.
+// DIFF_CANDIDATE_ONLY_FROM_SOURCE: kotlin.concurrent.AtomicIntArray is Kotlin/Native-only and has no JVM kotlinc oracle.
 
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")

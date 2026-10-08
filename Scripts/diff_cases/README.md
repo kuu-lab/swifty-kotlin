@@ -25,10 +25,11 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
-Cases marked `// CANDIDATE-ONLY` stay out of JVM differential runs. Run one with
-`bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`; the runner
+Cases marked `// DIFF_CANDIDATE_ONLY_FROM_SOURCE` execute automatically in
+serial and parallel `diff_kotlinc.sh` runs without a JVM reference. The runner
 compiles bundled stdlib sources with kswiftc and compares stdout with the
-adjacent `.expected` file.
+adjacent `.expected` file or ordered `// EXPECT-STDOUT:` lines. A single case
+can also be run with `bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`.
 
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
