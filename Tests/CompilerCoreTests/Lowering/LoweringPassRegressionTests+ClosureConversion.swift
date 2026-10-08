@@ -65,9 +65,6 @@ extension LoweringPassRegressionTests {
         #expect(pass.shouldRun(module: module, ctx: ctx) == hasMarker)
         try pass.run(module: module, ctx: ctx)
         #expect(arena.declarations.count == 2)
-        #expect(!findAllKIRFunctions(in: module).contains {
-            interner.resolve($0.name).hasPrefix("kk_closure_invoke_")
-        })
     }
 
     @Test
@@ -118,7 +115,7 @@ extension LoweringPassRegressionTests {
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(callees.contains("kk_lambda_invoke"),
+        #expect(callees.contains(CompilerCall.lambdaInvoke.name),
             "Expected <lambda> to be rewritten to kk_lambda_invoke")
         #expect(!callees.contains("<lambda>"),
             "Expected <lambda> marker to be removed")
@@ -215,20 +212,20 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // Verify closure object allocation.
-        #expect(callees.contains("kk_object_new"),
+        #expect(callees.contains(RuntimeCall.objectNew.name),
             "Expected closure object allocation via kk_object_new")
 
         // Verify capture storage.
-        #expect(callees.contains("kk_array_set"),
+        #expect(callees.contains(RuntimeCall.arraySet.name),
             "Expected capture storage via kk_array_set")
 
         // Verify the invoke wrapper is called instead of the raw lambda.
-        let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
+        let invokeWrapperName = interner.resolve(try closureWrapper(for: lambdaSym, in: module).name)
         #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper \(invokeWrapperName) to be called")
 
         // The original lambda name should no longer appear as a direct call in main.
-        #expect(!callees.contains("kk_lambda_42"),
+        #expect(!callees.contains(interner.resolve(lambdaName)),
             "Expected direct lambda call to be replaced by closure invoke")
 
         // Verify synthesized declarations were added.
@@ -323,11 +320,11 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // No closure object should be allocated.
-        #expect(!callees.contains("kk_object_new"),
+        #expect(!callees.contains(RuntimeCall.objectNew.name),
             "Expected no closure object for zero-capture lambda")
 
         // Direct call to the lambda should remain.
-        #expect(callees.contains("kk_lambda_50"),
+        #expect(callees.contains(interner.resolve(lambdaName)),
             "Expected direct lambda call to remain for zero-capture lambda")
     }
 
@@ -412,12 +409,7 @@ extension LoweringPassRegressionTests {
         try pass.run(module: module, ctx: ctx)
 
         // Find the synthesized invoke wrapper.
-        let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return interner.resolve(function.name) == invokeWrapperName ? function : nil
-        }.first
-
-        let wrapper = try #require(invokeWrapper, "Expected invoke wrapper to be synthesized")
+        let wrapper = try closureWrapper(for: lambdaSym, in: module)
 
         // Wrapper should have params: (closureObj, valueParam).
         #expect(wrapper.params.count == 2,
@@ -425,7 +417,7 @@ extension LoweringPassRegressionTests {
 
         // Wrapper body should contain kk_array_get_inbounds to load capture.
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
-        #expect(wrapperCallees.contains("kk_array_get_inbounds"),
+        #expect(wrapperCallees.contains(RuntimeCall.arrayGetInbounds.name),
             "Expected invoke wrapper to load captures via kk_array_get_inbounds")
 
         let wrapperCalls = wrapper.body.compactMap { instruction -> (callee: String, canThrow: Bool)? in
@@ -434,10 +426,10 @@ extension LoweringPassRegressionTests {
             }
             return (callee: interner.resolve(callee), canThrow: canThrow)
         }
-        #expect(wrapperCalls.first(where: { $0.callee == "kk_lambda_99" })?.canThrow == false)
+        #expect(wrapperCalls.first(where: { $0.callee == interner.resolve(lambdaName) })?.canThrow == false)
 
         // Wrapper body should call the original lambda.
-        #expect(wrapperCallees.contains("kk_lambda_99"),
+        #expect(wrapperCallees.contains(interner.resolve(lambdaName)),
             "Expected invoke wrapper to forward to original lambda")
     }
 
@@ -490,10 +482,7 @@ extension LoweringPassRegressionTests {
         #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        let synthesizedNames = findAllKIRFunctions(in: module).map { function in
-            interner.resolve(function.name)
-        }
-        #expect(!synthesizedNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
+        #expect(findAllKIRFunctions(in: module).map(\.symbol) == [lambdaSym])
     }
 
     @Test
@@ -577,7 +566,8 @@ extension LoweringPassRegressionTests {
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
-        #expect(callees.contains("kk_closure_invoke_\(lambdaSym.rawValue)"),
+        let wrapper = try closureWrapper(for: lambdaSym, in: module)
+        #expect(callees.contains(interner.resolve(wrapper.name)),
             "Expected large-ExprID lambda to be converted")
     }
 
@@ -657,10 +647,7 @@ extension LoweringPassRegressionTests {
         #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        let functionNames = findAllKIRFunctions(in: module).map { function in
-            interner.resolve(function.name)
-        }
-        #expect(!functionNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
+        #expect(Set(findAllKIRFunctions(in: module).map(\.symbol)) == Set([lambdaSym, mainSym]))
     }
 
     // MARK: - CLSR-001: Multiple capture tests
@@ -762,27 +749,23 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
         // Verify closure object allocation.
-        #expect(callees.contains("kk_object_new"),
+        #expect(callees.contains(RuntimeCall.objectNew.name),
             "Expected closure object allocation")
 
         // Two captures -> two kk_array_set calls.
-        let arraySetCount = callees.filter { $0 == "kk_array_set" }.count
+        let arraySetCount = callees.filter { $0 == RuntimeCall.arraySet.name }.count
         #expect(arraySetCount == 2,
             "Expected two kk_array_set calls for two captures")
 
         // Verify the invoke wrapper is called.
-        let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
+        let wrapper = try closureWrapper(for: lambdaSym, in: module)
+        let invokeWrapperName = interner.resolve(wrapper.name)
         #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper to be called")
 
         // Verify the invoke wrapper loads two captures.
-        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return interner.resolve(function.name) == invokeWrapperName ? function : nil
-        }.first
-
-        let wrapper = try #require(invokeWrapper)
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
-        let arrayGetCount = wrapperCallees.filter { $0 == "kk_array_get_inbounds" }.count
+        let arrayGetCount = wrapperCallees.filter { $0 == RuntimeCall.arrayGetInbounds.name }.count
         #expect(arrayGetCount == 2,
             "Expected invoke wrapper to load two captures via kk_array_get_inbounds")
 
@@ -872,7 +855,7 @@ extension LoweringPassRegressionTests {
 
         // Verify that both the invoke wrapper and the lambda target are registered
         // as non-throwing closure callees on the module.
-        let invokeWrapperName = interner.intern("kk_closure_invoke_\(lambdaSym.rawValue)")
+        let invokeWrapperName = try closureWrapper(for: lambdaSym, in: module).name
         #expect(module.nonThrowingClosureCallees.contains(invokeWrapperName),
             "Expected invoke wrapper to be registered as non-throwing callee")
         #expect(module.nonThrowingClosureCallees.contains(lambdaName),
@@ -1032,12 +1015,7 @@ extension LoweringPassRegressionTests {
 
         try pass.run(module: module, ctx: ctx)
 
-        let invokeWrapperName = "kk_closure_invoke_\(lambdaSym.rawValue)"
-        let invokeWrapper = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return interner.resolve(function.name) == invokeWrapperName ? function : nil
-        }.first
-
-        let wrapper = try #require(invokeWrapper, "Expected invoke wrapper")
+        let wrapper = try closureWrapper(for: lambdaSym, in: module)
         #expect(wrapper.isSuspend,
             "Expected invoke wrapper to preserve isSuspend=true from the original lambda")
     }

@@ -96,7 +96,7 @@ extension DataFlowAndSemaRegressionTests {
 
 
                 let countSym = sema.symbols.allSymbols().first { symbol in
-                    interner.resolve(symbol.name) == "count" && symbol.kind == .property
+                    symbol.name == KnownCompilerNames(interner: interner).count && symbol.kind == .property
                 }
                 #expect(countSym != nil)
                 if let sym = countSym {

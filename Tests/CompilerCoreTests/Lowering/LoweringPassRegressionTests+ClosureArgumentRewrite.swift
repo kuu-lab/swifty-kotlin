@@ -33,7 +33,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("__kk_buffered_reader_useLines"),
+                    callee: interner.intern(RuntimeCall.bufferedReaderUseLines.name),
                     arguments: [readerExpr, lambdaExpr],
                     result: resultExpr,
                     canThrow: true,
@@ -53,7 +53,7 @@ extension LoweringPassRegressionTests {
 
         let useLinesCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  interner.resolve(callee) == "__kk_buffered_reader_useLines"
+                  callee == interner.intern(RuntimeCall.bufferedReaderUseLines.name)
             else { return nil }
             return (arguments, canThrow)
         }.first
@@ -62,7 +62,7 @@ extension LoweringPassRegressionTests {
             Issue.record("Expected __kk_buffered_reader_useLines call after collection literal lowering")
             return
         }
-        #expect(call.arguments.count == 3, "__kk_buffered_reader_useLines should receive receiverRaw, fnPtr, and closureRaw")
+        #expect(call.arguments.count == 3, "useLines should receive receiverRaw, fnPtr, and closureRaw")
         #expect(call.canThrow)
     }
 
@@ -87,7 +87,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("__kk_buffered_reader_forEachLine"),
+                    callee: interner.intern(RuntimeCall.bufferedReaderForEachLine.name),
                     arguments: [readerExpr, actionExpr],
                     result: resultExpr,
                     canThrow: true,
@@ -107,7 +107,7 @@ extension LoweringPassRegressionTests {
 
         let forEachLineCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
-                  interner.resolve(callee) == "__kk_buffered_reader_forEachLine"
+                  callee == interner.intern(RuntimeCall.bufferedReaderForEachLine.name)
             else { return nil }
             return (arguments, canThrow)
         }.first
@@ -116,7 +116,7 @@ extension LoweringPassRegressionTests {
             Issue.record("Expected __kk_buffered_reader_forEachLine call after collection literal lowering")
             return
         }
-        #expect(call.arguments.count == 3, "__kk_buffered_reader_forEachLine should receive receiverRaw, fnPtr, and closureRaw")
+        #expect(call.arguments.count == 3, "forEachLine should receive receiverRaw, fnPtr, and closureRaw")
         #expect(call.canThrow)
     }
 }

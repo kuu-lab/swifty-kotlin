@@ -17,13 +17,14 @@ struct CancellableContinuationLoweringTests {
             let ctx = makeCompilationContext(inputs: [path], moduleName: "CapturedContinuation", emit: .kirDump)
             try runToLowering(ctx)
             let module = try #require(ctx.kir)
-            let function = try findKIRFunction(named: "kk_suspend_expose", in: module, interner: ctx.interner)
+            let wrapper = try findKIRFunction(named: "expose", in: module, interner: ctx.interner)
+            let function = try LoweringTestRuntime.loweredSuspendFunction(for: wrapper, in: module, interner: ctx.interner)
             let calls = extractCallees(from: function.body, interner: ctx.interner)
-            #expect(calls.contains("kk_function_invoke"))
+            #expect(calls.contains(LoweringTestRuntime.name("function_invoke")))
             #expect(!calls.contains("<suspendCoroutineUninterceptedOrReturn>"))
             #expect(function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_function_invoke" else {
+                      callee == LoweringTestRuntime.callee("function_invoke", interner: ctx.interner) else {
                     return false
                 }
                 return canThrow && thrownResult != nil
@@ -42,10 +43,10 @@ struct CancellableContinuationLoweringTests {
             try runToLowering(ctx)
             let module = try #require(ctx.kir)
             let adapterCalls = findAllKIRFunctions(in: module).filter {
-                ctx.interner.resolve($0.name).hasPrefix("kk_function_value_adapter_")
+                LoweringTestRuntime.operation(of: ctx.interner.resolve($0.name))?.hasPrefix("function_value_adapter_") == true
             }.flatMap(\.body).compactMap { instruction -> (Bool, KIRExprID?)? in
                 guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction,
-                      ctx.interner.resolve(callee).hasPrefix("kk_lambda_") else {
+                      LoweringTestRuntime.operation(of: ctx.interner.resolve(callee))?.hasPrefix("lambda_") == true else {
                     return nil
                 }
                 return (canThrow, thrownResult)
@@ -97,7 +98,7 @@ struct CancellableContinuationLoweringTests {
             let inlineBody = try #require(module.inlineBodiesBeforeCoroutineLowering[function.symbol])
             #expect(inlineBody.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                return ctx.interner.resolve(callee) == "<suspendCoroutineUninterceptedOrReturn>"
+                return callee == ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>")
             })
         }
     }

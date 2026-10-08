@@ -1087,8 +1087,8 @@ import Testing
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!(callees.contains("kk_list_flatMapIndexed")), "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())")
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("flatMapIndexed", in: ctx)
 
             // The artifact may inline flatMapIndexed, so prove the imported
             // implementation through its observable result instead of a

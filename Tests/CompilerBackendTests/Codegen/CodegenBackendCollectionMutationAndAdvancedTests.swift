@@ -467,30 +467,30 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
             // flatMap and the fold/*Indexed family are now bundled Kotlin source
             // functions, so they are inlined/expanded into the core List access
             // helpers (__kk_list_get / __kk_list_size) and mutable add.  The
             // aggregate helpers that still lack source implementations continue
             // to call their runtime counterparts.
-            #expect(callees.contains("__kk_list_get"), "callees: \(callees.sorted())")
-            #expect(callees.contains("__kk_list_size") || callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
-            #expect(callees.contains("__kk_collection_size"), "callees: \(callees.sorted())")
-            #expect(callees.contains("__kk_mutable_list_add"), "callees: \(callees.sorted())")
+            #expect(callees.contains(try runtimeABICallee("list_get")), "callees: \(callees.sorted())")
+            let listSize = try runtimeABICallee("list_size")
+            let collectionSize = try runtimeABICallee("collection_size")
+            #expect(callees.contains(listSize) || callees.contains(collectionSize), "callees: \(callees.sorted())")
+            #expect(callees.contains(collectionSize), "callees: \(callees.sorted())")
+            #expect(callees.contains(try runtimeABICallee("mutable_list_add")), "callees: \(callees.sorted())")
             // KSP-426: List extrema HOFs are bundled Kotlin source and are
             // expanded inline rather than routed through legacy ABI bridges.
             for legacyCallee in [
-                "kk_list_minBy", "kk_list_maxOrNull", "kk_list_minOrNull",
-                "kk_list_minOfOrNull", "kk_list_minByOrNull",
+                (try runtimeABICallee("list_minBy")), (try runtimeABICallee("list_maxOrNull")), (try runtimeABICallee("list_minOrNull")),
+                (try runtimeABICallee("list_minOfOrNull")), (try runtimeABICallee("list_minByOrNull")),
             ] {
                 #expect(!callees.contains(legacyCallee), "callees: \(callees.sorted())")
             }
-            // The old runtime entry points for source-backed HOFs must not appear
-            // after lowering; their bodies have been expanded inline.
-            #expect(!(callees.contains("kk_list_flatMap")), "callees: \(callees.sorted())")
-            #expect(!(callees.contains("kk_list_find")), "callees: \(callees.sorted())")
-            #expect(!(callees.contains("kk_list_fold")), "callees: \(callees.sorted())")
-            #expect(!(callees.contains("kk_list_foldIndexed")), "callees: \(callees.sorted())")
-            #expect(!(callees.contains("kk_list_foldRightIndexed")), "callees: \(callees.sorted())")
+            // Inlined artifact calls still retain their source identity in Sema.
+            for name in ["flatMap", "find", "fold", "foldIndexed", "foldRightIndexed"] {
+                try expectSourceBackedCall(name, in: ctx)
+            }
         }
     }
 

@@ -2,6 +2,7 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
 
 private func runCodegenPipeline(
@@ -125,12 +126,13 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             // Property accessors in the artifact use the mangled JVM-style
             // `get` entry name rather than the Kotlin property name.  The
             // source has ten math property reads, each with one receiver.
             let artifactAccessors = calls.filter {
-                $0.0.hasPrefix("kk_fn_get_") && $0.1 == 1
+                $0.0.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "get_") && $0.1 == 1
             }
             #expect(
                 artifactAccessors.count == 10,
@@ -148,21 +150,10 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 )
             }
 
-            for removedHelper in [
-                "__kk_math_abs_int",
-                "__kk_math_abs_long",
-                "__kk_math_abs_float",
-                "__kk_math_abs",
-                "__kk_math_sign_int",
-                "__kk_math_sign_long",
-                "__kk_math_sign_float",
-                "__kk_math_sign",
-            ] {
-                #expect(
-                    !calls.contains(where: { $0.0 == removedHelper }),
-                    "\(removedHelper) is Kotlin-source backed and must not be called, got \(calls)"
-                )
-            }
+            #expect(
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
+                "Math property accessors must remain Kotlin-source backed, got \(calls)"
+            )
         }
     }
 
@@ -205,6 +196,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for expected in ["max", "min"] {
                 #expect(
@@ -214,7 +206,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.0.hasPrefix("__kk_math_max") || $0.0.hasPrefix("__kk_math_min") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
                 "min/max are Kotlin-source backed and must not call __kk_math_* helpers, got \(calls)"
             )
         }
@@ -254,6 +246,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for sourceFunction in [
                 "atan2", "cbrt", "sinh", "cosh", "tanh", "atanh",
@@ -265,7 +258,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls),
                 "Consumer calls must use source-backed math declarations, got \(calls)"
             )
         }
@@ -298,6 +291,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             for sourceFunction in ["IEEErem", "nextTowards", "pow"] {
                 #expect(
@@ -307,7 +301,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                !calls.contains(where: { $0.0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: calls.map(\.0)),
                 "Consumer calls must use source-backed math declarations, got \(calls)"
             )
         }
@@ -335,6 +329,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
             #expect(
                 callees.filter { isKotlinCallee($0, named: "abs") }.count == 2,
@@ -342,7 +337,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             )
             #expect(containsKotlinCallee("sqrt", in: callees), "FQN sqrt(Double) must lower to the stdlib artifact, got \(callees)")
             #expect(
-                !callees.contains(where: { $0.hasPrefix("__kk_math_") }),
+                Set(RuntimeABISpec.mathFunctions.map(\.name)).isDisjoint(with: callees),
                 "FQN consumer calls must not bypass source-backed math declarations, got \(callees)"
             )
         }
