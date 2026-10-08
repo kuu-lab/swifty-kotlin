@@ -2811,11 +2811,11 @@ struct StdlibArtifactRegressionTests {
             shared.emit(2)
             shared.emit(3)
             println(shared.replayCache)
-            shared.collect { value -> println("class=$value") }
+            shared.take(2).collect { value -> println("class=$value") }
 
             val view: SharedFlow<Int> = shared
             println(view.replayCache)
-            view.collect { value -> println("iface=$value") }
+            view.take(2).collect { value -> println("iface=$value") }
 
             println(flowOf(4, 5, 6).shareIn(2).replayCache)
         }
@@ -2908,19 +2908,19 @@ struct StdlibArtifactRegressionTests {
                 listOf(SharingCommand.START, SharingCommand.STOP_AND_RESET_REPLAY_CACHE))
             val state = flowOf(2, 3).stateIn(scope, SharingStarted.Lazily, -1)
             println(state.value)
-            state.collect { println("state=$it") }
+            state.take(1).collect { println("state=$it") }
             println(state.value)
             val shared = flowOf(4, 5).shareIn(scope, SharingStarted.Lazily, 2)
             println(shared.replayCache)
-            shared.collect { println("shared=$it") }
+            shared.take(2).collect { println("shared=$it") }
             println(shared.replayCache)
             val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
-            reset.collect { println("reset=$it") }
+            reset.take(1).collect { println("reset=$it") }
             println(reset.value)
-            reset.collect { println("restart=$it") }
+            reset.take(1).collect { println("restart=$it") }
             println(reset.value)
             val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
-            eager.collect { println("eager=$it") }
+            eager.take(1).collect { println("eager=$it") }
             println(eager.replayCache)
             val mutable = MutableStateFlow(0)
             val collector: FlowCollector<Int> = mutable
@@ -2964,7 +2964,7 @@ struct StdlibArtifactRegressionTests {
 
             fun main() = runBlocking {
                 val shared = flowOf(1, 2).shareIn(this, SharingStarted.Lazily, 2)
-                println(shared.toList())
+                println(shared.take(2).toList())
             }
             """, artifactPath: artifactPath, expected: "[1, 2]\n")
     }

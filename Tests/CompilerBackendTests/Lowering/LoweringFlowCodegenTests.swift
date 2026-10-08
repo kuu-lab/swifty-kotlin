@@ -363,8 +363,8 @@ struct LoweringFlowCodegenTests {
                     shared.tryEmit(2)
                     val subscribed = shared.onSubscription { emit(0) }
                     println(subscribed.replayCache)
-                    subscribed.collect { println(it) }
-                    subscribed.collect { println(it) }
+                    subscribed.take(3).collect { println(it) }
+                    subscribed.take(3).collect { println(it) }
                 }
             }
             """,
