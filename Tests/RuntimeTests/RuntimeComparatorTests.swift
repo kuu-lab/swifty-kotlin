@@ -75,10 +75,6 @@ private func comparatorPtr(_ fn: @convention(c) (Int, Int, Int, UnsafeMutablePoi
     unsafeBitCast(fn, to: Int.self)
 }
 
-private func primitiveComparatorPtr(_ fn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int) -> Int {
-    unsafeBitCast(fn, to: Int.self)
-}
-
 private func makeList(_ elements: [Int]) -> Int {
     let box = RuntimeListBox(elements: elements)
     return registerRuntimeObject(box)
