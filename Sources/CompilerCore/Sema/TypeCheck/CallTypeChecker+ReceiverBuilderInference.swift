@@ -20,9 +20,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
-        explicitTypeArgs: [TypeID]
+        explicitTypeArgs: [TypeID],
+        receiverType: TypeID? = nil,
+        candidateOverride: [SymbolID]? = nil
     ) -> TypeID? {
-        guard let calleeName, locals[calleeName] == nil else { return nil }
+        guard let calleeName, (receiverType != nil || locals[calleeName] == nil) else { return nil }
         // Coroutine launcher and sequence builders (`produce { }`,
         // `runBlocking { }`, `sequence { }`, ...) have dedicated handling
         // below that derives their element/result type from `send`/`yield`
@@ -42,11 +44,11 @@ extension CallTypeChecker {
               calleeName != launcherNames.suspendCoroutine,
               calleeName != launcherNames.sequenceFn
         else { return nil }
-        let candidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        let candidates = candidateOverride ?? ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         guard candidates.count == 1,
               let candidate = candidates.first,
               let signature = ctx.sema.symbols.functionSignature(for: candidate),
-              signature.receiverType == nil,
+              (signature.receiverType == nil) == (receiverType == nil),
               signature.classTypeParameterCount == 0,
               !signature.typeParameterSymbols.isEmpty,
               explicitTypeArgs.isEmpty,
@@ -61,6 +63,12 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let session = BuilderInferenceSession(typeVarBySymbol: variables)
+        if let receiverType, let declaredReceiver = signature.receiverType {
+            session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                subtype: receiverType, supertype: declaredReceiver,
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: range
+            ))
+        }
         let lambdaIndices = args.indices.filter { index in
             guard case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr),
                   let parameter = mapping[index],
@@ -110,10 +118,19 @@ extension CallTypeChecker {
                 ))
             }
         }
-        let seed = ctx.resolver.probeArgumentTypeSubstitution(
+        var seed = ctx.resolver.probeArgumentTypeSubstitution(
             signature: signature, typeVarBySymbol: variables,
             knownArgumentTypes: knownArguments, typeSystem: sema.types
         )
+        if receiverType != nil {
+            let receiverSolution = ConstraintSolver().solve(
+                vars: ctx.resolver.usedTypeVariables(from: session.constraints),
+                constraints: session.constraints, typeSystem: sema.types
+            )
+            if receiverSolution.isSuccess {
+                seed.merge(receiverSolution.substitution) { _, receiverValue in receiverValue }
+            }
+        }
         let provisionalLambdaType = sema.types.substituteTypeParameters(
             in: signature.parameterTypes[parameterIndex], substitution: seed, typeVarBySymbol: variables
         )
@@ -161,7 +178,7 @@ extension CallTypeChecker {
             }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
                 variables[symbol].flatMap { solution.substitution[$0] }
             }),
-            expectedType: expectedType, implicitReceiverType: ctx.implicitReceiverType, ctx: sema
+            expectedType: expectedType, implicitReceiverType: receiverType ?? ctx.implicitReceiverType, ctx: sema
         )
         if let diagnostic = resolved.diagnostic {
             ctx.semaCtx.diagnostics.emit(diagnostic)
@@ -199,10 +216,17 @@ extension CallTypeChecker {
               )
         else { return argTypes }
         let sema = ctx.sema
-        for index in args.indices where session.mentionsVariable(argTypes[index], types: sema.types) {
+        for index in args.indices {
             guard let parameter = mapping[index] else { continue }
+            let parameterType = applyDispatchReceiverClassTypeArgs(
+                to: signature.parameterTypes[parameter], signature: signature,
+                candidate: candidate, ctx: ctx
+            )
+            guard session.mentionsVariable(parameterType, types: sema.types)
+                || session.mentionsVariable(argTypes[index], types: sema.types)
+            else { continue }
             session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
-                subtype: argTypes[index], supertype: signature.parameterTypes[parameter],
+                subtype: argTypes[index], supertype: parameterType,
                 typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
                 blameRange: ctx.ast.arena.exprRange(args[index].expr)
             ))

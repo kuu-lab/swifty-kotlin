@@ -28,7 +28,7 @@ struct CollectionLiteralLoweringTests {
         callee: InternedString,
         interner: StringInterner,
         arena: KIRArena
-    ) -> (KIRModule, KIRDeclID) {
+    ) throws -> (KIRModule, KIRDeclID) {
         let start = arena.appendExpr(.temporary(0))
         let end = arena.appendExpr(.temporary(1))
         let range = arena.appendExpr(.temporary(2))
@@ -36,7 +36,7 @@ struct CollectionLiteralLoweringTests {
         return makeModule(body: [
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_op_rangeTo"),
+                callee: interner.intern(try loweringRuntimeABI("op_rangeTo").name),
                 arguments: [start, end],
                 result: range,
                 canThrow: false,
@@ -77,7 +77,7 @@ struct CollectionLiteralLoweringTests {
                 .constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_range_iterator"),
+                    callee: interner.intern(try loweringRuntimeABI("range_iterator").name),
                     arguments: [parameterExpr],
                     result: iteratorExpr,
                     canThrow: false,
@@ -91,13 +91,29 @@ struct CollectionLiteralLoweringTests {
         let declID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(
-            !callees.contains { $0.hasPrefix("kk_string_") && $0.contains("iterator") },
-            "String iterator lowering must use the bundled Kotlin iterator, got: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
+    }
+
+    /// Map factory construction may insert only these ABI operations alongside
+    /// the untouched source call. Reject additional legacy HOF calls even when
+    /// the original call is also present.
+    private func expectMapSourceCallPreserved(
+        _ original: KIRInstruction,
+        in body: [KIRInstruction],
+        interner: StringInterner
+    ) throws {
+        let factoryCallees = try ["array_new", "array_set", "pair_first", "pair_second", "map_of"].map {
+            interner.intern(try loweringRuntimeABI($0).name)
+        }
+        let calls = body.filter { if case .call = $0 { return true }; return false }
+        #expect(calls.filter { $0 == original }.count == 1)
+        #expect(calls.allSatisfy {
+            guard case let .call(_, callee, _, _, _, _, _, _) = $0 else { return false }
+            return $0 == original || factoryCallees.contains(callee)
+        })
     }
 
     // MARK: - listOf rewriting
@@ -114,7 +130,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf should be rewritten")
-        #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
+        #expect(callees.contains(try loweringRuntimeABI("list_of").name), "listOf should become __kk_list_of")
     }
 
     /// KSP-697: after List became source-backed, ControlFlowLowerer can emit
@@ -137,7 +153,7 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_list_iterator"),
+                    callee: interner.intern(try loweringRuntimeABI("list_iterator").name),
                     arguments: [list],
                     result: iterator,
                     canThrow: false,
@@ -145,7 +161,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_iterator_hasNext"),
+                    callee: interner.intern(try loweringRuntimeABI("iterator_hasNext").name),
                     arguments: [iterator],
                     result: hasNext,
                     canThrow: true,
@@ -153,7 +169,7 @@ struct CollectionLiteralLoweringTests {
                 ),
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_iterator_next"),
+                    callee: interner.intern(try loweringRuntimeABI("iterator_next").name),
                     arguments: [iterator],
                     result: next,
                     canThrow: true,
@@ -167,11 +183,11 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_list_iterator"), "List iterator acquisition must remain specialized, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_hasNext"), "List hasNext must use the specialized bridge, got: \(callees)")
-        #expect(callees.contains("kk_list_iterator_next"), "List next must use the specialized bridge, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_hasNext"), "Proven list iterator must not keep generic hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_iterator_next"), "Proven list iterator must not keep generic next, got: \(callees)")
+        #expect(callees.contains(try loweringRuntimeABI("list_iterator").name), "List iterator acquisition must remain specialized, got: \(callees)")
+        #expect(callees.contains(try loweringRuntimeABI("list_iterator_hasNext").name), "List hasNext must use the specialized bridge, got: \(callees)")
+        #expect(callees.contains(try loweringRuntimeABI("list_iterator_next").name), "List next must use the specialized bridge, got: \(callees)")
+        #expect(!callees.contains(try loweringRuntimeABI("iterator_hasNext").name), "Proven list iterator must not keep generic hasNext, got: \(callees)")
+        #expect(!callees.contains(try loweringRuntimeABI("iterator_next").name), "Proven list iterator must not keep generic next, got: \(callees)")
     }
 
     /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
@@ -190,10 +206,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
         #expect(
-            callees.contains("__kk_array_list_of"),
+            callees.contains(try loweringRuntimeABI("array_list_of").name),
             "mutableListOf should become __kk_array_list_of; got: \(callees)"
         )
-        #expect(!callees.contains("__kk_list_of"), "mutableListOf must not keep the read-only List tag")
+        #expect(!callees.contains(try loweringRuntimeABI("list_of").name), "mutableListOf must not keep the read-only List tag")
     }
 
     @Test
@@ -208,7 +224,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf should be rewritten")
-        #expect(callees.contains("__kk_array_list_of"), "arrayListOf should become __kk_array_list_of")
+        #expect(callees.contains(try loweringRuntimeABI("array_list_of").name), "arrayListOf should become __kk_array_list_of")
     }
 
     @Test
@@ -223,7 +239,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyList"), "emptyList should be rewritten")
-        #expect(callees.contains("__kk_emptyList"), "emptyList should become __kk_emptyList")
+        #expect(callees.contains(try loweringRuntimeABI("emptyList").name), "emptyList should become __kk_emptyList")
     }
 
     @Test
@@ -234,11 +250,10 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("listOfNotNull"), "listOfNotNull should remain a source call")
-        #expect(!callees.contains("kk_list_of_not_null"), "listOfNotNull must not use the removed ABI")
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     // MARK: - mapOf rewriting
@@ -272,7 +287,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
+        #expect(callees.contains(try loweringRuntimeABI("map_of").name), "mapOf should become __kk_map_of")
     }
 
     @Test
@@ -303,7 +318,7 @@ struct CollectionLiteralLoweringTests {
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
         // KUU-646: linkedMapOf / mutableMapOf share the LinkedHashMap tag;
         // hashMapOf uses HashMap. `__kk_map_of` is the read-only Map factory.
-        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
+        #expect(callees.contains(try loweringRuntimeABI("linked_hash_map_of").name), "linkedMapOf should become __kk_linked_hash_map_of")
     }
 
     @Test
@@ -332,8 +347,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf should be rewritten")
-        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf should become __kk_hash_map_of")
-        #expect(!callees.contains("__kk_map_of"), "hashMapOf must not keep the read-only Map tag")
+        #expect(callees.contains(try loweringRuntimeABI("hash_map_of").name), "hashMapOf should become __kk_hash_map_of")
+        #expect(!callees.contains(try loweringRuntimeABI("map_of").name), "hashMapOf must not keep the read-only Map tag")
     }
 
     @Test
@@ -351,7 +366,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("HashMap"), "HashMap should be rewritten")
-        #expect(callees.contains("__kk_hash_map_of"), "HashMap should become __kk_hash_map_of")
+        #expect(callees.contains(try loweringRuntimeABI("hash_map_of").name), "HashMap should become __kk_hash_map_of")
     }
 
     @Test
@@ -366,7 +381,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptyMap"), "emptyMap should be rewritten")
-        #expect(callees.contains("__kk_emptyMap"), "emptyMap should become __kk_emptyMap")
+        #expect(callees.contains(try loweringRuntimeABI("emptyMap").name), "emptyMap should become __kk_emptyMap")
     }
 
     /// A `count(predicate)` call on a Map receiver with `symbol: nil` — the
@@ -424,9 +439,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("count"), "map.count(predicate) must survive as a source call")
-        #expect(!callees.contains("kk_map_count"), "kk_map_count has no @_cdecl in Runtime and must never be emitted")
+        #expect(callees.contains(try loweringRuntimeABI("map_of").name), "mapOf should become __kk_map_of")
+        try expectMapSourceCallPreserved(fn.body[1], in: bodyInDecl(declID, module: module), interner: interner)
     }
 
     @Test
@@ -480,9 +494,8 @@ struct CollectionLiteralLoweringTests {
         // gets from the source-backed preservation gate.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
-        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(!callees.contains("kk_map_any"), "kk_map_any has no @_cdecl in Runtime and must never be emitted")
+        #expect(callees.contains(try loweringRuntimeABI("map_of").name), "mapOf should become __kk_map_of")
+        try expectMapSourceCallPreserved(fn.body[1], in: bodyInDecl(declID, module: module), interner: interner)
     }
 
     @Test
@@ -532,9 +545,8 @@ struct CollectionLiteralLoweringTests {
         // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("all"), "map.all has no rewrite target left and must survive unchanged")
-        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(!callees.contains("kk_map_all"), "kk_map_all has no @_cdecl in Runtime and must never be emitted")
+        #expect(callees.contains(try loweringRuntimeABI("map_of").name), "mapOf should become __kk_map_of")
+        try expectMapSourceCallPreserved(fn.body[1], in: bodyInDecl(declID, module: module), interner: interner)
     }
 
     @Test
@@ -584,9 +596,8 @@ struct CollectionLiteralLoweringTests {
         // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(callees.contains("none"), "map.none has no rewrite target left and must survive unchanged")
-        #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(!callees.contains("kk_map_none"), "kk_map_none has no @_cdecl in Runtime and must never be emitted")
+        #expect(callees.contains(try loweringRuntimeABI("map_of").name), "mapOf should become __kk_map_of")
+        try expectMapSourceCallPreserved(fn.body[1], in: bodyInDecl(declID, module: module), interner: interner)
     }
 
     // MARK: - emptySet rewriting
@@ -603,7 +614,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("emptySet"), "emptySet should be rewritten")
-        #expect(callees.contains("__kk_emptySet"), "emptySet should become __kk_emptySet")
+        #expect(callees.contains(try loweringRuntimeABI("emptySet").name), "emptySet should become __kk_emptySet")
     }
 
     // MARK: - Zero-arg factory rewriting
@@ -620,7 +631,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("listOf"), "listOf() with zero args should be rewritten")
-        #expect(callees.contains("__kk_emptyList"), "listOf() should become __kk_emptyList")
+        #expect(callees.contains(try loweringRuntimeABI("emptyList").name), "listOf() should become __kk_emptyList")
     }
 
     @Test
@@ -635,7 +646,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf() with zero args should be rewritten")
-        #expect(callees.contains("__kk_emptySet"), "setOf() should become __kk_emptySet")
+        #expect(callees.contains(try loweringRuntimeABI("emptySet").name), "setOf() should become __kk_emptySet")
     }
 
     @Test
@@ -650,7 +661,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf() with zero args should be rewritten")
-        #expect(callees.contains("__kk_emptyMap"), "mapOf() should become __kk_emptyMap")
+        #expect(callees.contains(try loweringRuntimeABI("emptyMap").name), "mapOf() should become __kk_emptyMap")
     }
 
     // MARK: - Zero-arg mutable factory rewriting
@@ -668,10 +679,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
         #expect(
-            callees.contains("__kk_array_list_of"),
+            callees.contains(try loweringRuntimeABI("array_list_of").name),
             "mutableListOf() should become __kk_array_list_of (fresh mutable); got: \(callees)"
         )
-        #expect(!callees.contains("__kk_list_of"), "mutableListOf() must not keep the read-only List tag")
+        #expect(!callees.contains(try loweringRuntimeABI("list_of").name), "mutableListOf() must not keep the read-only List tag")
     }
 
     @Test
@@ -686,7 +697,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("arrayListOf"), "arrayListOf() should be rewritten")
-        #expect(callees.contains("__kk_array_list_of"), "arrayListOf() should become __kk_array_list_of (fresh mutable)")
+        #expect(callees.contains(try loweringRuntimeABI("array_list_of").name), "arrayListOf() should become __kk_array_list_of (fresh mutable)")
     }
 
     /// BUG-254: `mutableSetOf` declares a `MutableSet` result backed by
@@ -706,10 +717,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
         #expect(
-            callees.contains("__kk_linked_hash_set_of"),
+            callees.contains(try loweringRuntimeABI("linked_hash_set_of").name),
             "mutableSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
         )
-        #expect(!callees.contains("__kk_set_of"), "mutableSetOf() must not keep the read-only Set tag")
+        #expect(!callees.contains(try loweringRuntimeABI("set_of").name), "mutableSetOf() must not keep the read-only Set tag")
     }
 
     @Test
@@ -725,10 +736,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
         #expect(
-            callees.contains("__kk_linked_hash_set_of"),
+            callees.contains(try loweringRuntimeABI("linked_hash_set_of").name),
             "linkedSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
         )
-        #expect(!callees.contains("__kk_set_of"), "linkedSetOf() must not keep the read-only Set tag")
+        #expect(!callees.contains(try loweringRuntimeABI("set_of").name), "linkedSetOf() must not keep the read-only Set tag")
     }
 
     @Test
@@ -743,7 +754,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf() should be rewritten")
-        #expect(callees.contains("__kk_hash_set_of"), "hashSetOf() should become __kk_hash_set_of (fresh mutable)")
+        #expect(callees.contains(try loweringRuntimeABI("hash_set_of").name), "hashSetOf() should become __kk_hash_set_of (fresh mutable)")
     }
 
     @Test
@@ -759,10 +770,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
         #expect(
-            callees.contains("__kk_linked_hash_map_of"),
+            callees.contains(try loweringRuntimeABI("linked_hash_map_of").name),
             "mutableMapOf() should become __kk_linked_hash_map_of (fresh mutable); got: \(callees)"
         )
-        #expect(!callees.contains("__kk_map_of"), "mutableMapOf() must not keep the read-only Map tag")
+        #expect(!callees.contains(try loweringRuntimeABI("map_of").name), "mutableMapOf() must not keep the read-only Map tag")
     }
 
     @Test
@@ -777,7 +788,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
+        #expect(callees.contains(try loweringRuntimeABI("linked_hash_map_of").name), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test
@@ -792,8 +803,8 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashMapOf"), "hashMapOf() should be rewritten")
-        #expect(callees.contains("__kk_hash_map_of"), "hashMapOf() should become __kk_hash_map_of (fresh mutable)")
-        #expect(!callees.contains("__kk_map_of"), "hashMapOf() must not keep the read-only Map tag")
+        #expect(callees.contains(try loweringRuntimeABI("hash_map_of").name), "hashMapOf() should become __kk_hash_map_of (fresh mutable)")
+        #expect(!callees.contains(try loweringRuntimeABI("map_of").name), "hashMapOf() must not keep the read-only Map tag")
     }
 
     // MARK: - setOf rewriting
@@ -825,7 +836,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOf"), "setOf should be rewritten")
-        #expect(callees.contains("__kk_set_of"),
+        #expect(callees.contains(try loweringRuntimeABI("set_of").name),
                       "setOf should be rewritten to __kk_set_of, got: \(callees)")
     }
 
@@ -842,7 +853,7 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
         #expect(
-            callees.contains("__kk_set_of_not_null"),
+            callees.contains(try loweringRuntimeABI("set_of_not_null").name),
             "setOfNotNull should be rewritten to __kk_set_of_not_null, got: \(callees)"
         )
     }
@@ -860,10 +871,10 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
         #expect(
-            callees.contains("__kk_linked_hash_set_of"),
+            callees.contains(try loweringRuntimeABI("linked_hash_set_of").name),
             "linkedSetOf should become __kk_linked_hash_set_of; got: \(callees)"
         )
-        #expect(!callees.contains("__kk_set_of"), "linkedSetOf must not keep the read-only Set tag")
+        #expect(!callees.contains(try loweringRuntimeABI("set_of").name), "linkedSetOf must not keep the read-only Set tag")
     }
 
     @Test
@@ -878,7 +889,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("hashSetOf"), "hashSetOf should be rewritten")
-        #expect(callees.contains("__kk_hash_set_of"), "hashSetOf should become __kk_hash_set_of")
+        #expect(callees.contains(try loweringRuntimeABI("hash_set_of").name), "hashSetOf should become __kk_hash_set_of")
     }
 
     // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
@@ -895,14 +906,10 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildList"), "buildList must survive the pass unrewritten")
-        #expect(
-            !callees.contains("__kk_build_list"),
-            "the legacy __kk_build_list rewrite was removed; callees: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     /// Capacity counterpart of the above: the two-argument shape used to map to
@@ -937,14 +944,10 @@ struct CollectionLiteralLoweringTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildList"), "buildList(capacity) must survive the pass unrewritten")
-        #expect(
-            !callees.contains("__kk_build_list_with_capacity"),
-            "the legacy __kk_build_list_with_capacity rewrite was removed; callees: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     @Test
@@ -955,14 +958,10 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder should not be rewritten")
-        #expect(
-            !callees.contains("kk_build_string_builder"),
-            "buildStringBuilder should not become kk_build_string_builder"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     @Test
@@ -995,14 +994,10 @@ struct CollectionLiteralLoweringTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should not be rewritten")
-        #expect(
-            !callees.contains("kk_build_string_builder_with_capacity"),
-            "buildStringBuilder(capacity) should not become kk_build_string_builder_with_capacity"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     // MARK: - buildSet is no longer rewritten (RF-LOWER-CALL-005)
@@ -1021,14 +1016,10 @@ struct CollectionLiteralLoweringTests {
         let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildSet"), "buildSet should not be rewritten; callees: \(callees)")
-        #expect(
-            !callees.contains("__kk_build_set"),
-            "the legacy __kk_build_set rewrite must not come back; callees: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     @Test
@@ -1061,14 +1052,10 @@ struct CollectionLiteralLoweringTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildSet"), "buildSet(capacity) should not be rewritten; callees: \(callees)")
-        #expect(
-            !callees.contains("__kk_build_set_with_capacity"),
-            "the legacy __kk_build_set_with_capacity rewrite must not come back; callees: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
@@ -1109,25 +1096,17 @@ struct CollectionLiteralLoweringTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("buildMap"), "buildMap must stay a plain call; callees: \(callees)")
-        #expect(
-            !callees.contains("__kk_build_map"),
-            "the __kk_build_map rewrite is deleted; callees: \(callees)"
-        )
-        #expect(
-            !callees.contains("__kk_build_map_with_capacity"),
-            "the __kk_build_map_with_capacity rewrite is deleted; callees: \(callees)"
-        )
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     @Test
     func testRangeReversedRewrittenToKkRangeReversed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let (module, declID) = makeModuleWithRangeReceiverCall(
+        let (module, declID) = try makeModuleWithRangeReceiverCall(
             callee: interner.intern("reversed"),
             interner: interner,
             arena: arena
@@ -1138,14 +1117,14 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("reversed"), "range.reversed should be rewritten")
-        #expect(callees.contains("__kk_range_reversed"), "range.reversed should become __kk_range_reversed")
+        #expect(callees.contains(try loweringRuntimeABI("range_reversed").name), "range.reversed should become __kk_range_reversed")
     }
 
     @Test
     func testRangeEndExclusiveRewrittenToKkRangeEndExclusive() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let (module, declID) = makeModuleWithRangeReceiverCall(
+        let (module, declID) = try makeModuleWithRangeReceiverCall(
             callee: interner.intern("endExclusive"),
             interner: interner,
             arena: arena
@@ -1156,7 +1135,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("endExclusive"), "range.endExclusive should be rewritten")
-        #expect(callees.contains("__kk_range_endExclusive"), "range.endExclusive should become __kk_range_endExclusive")
+        #expect(callees.contains(try loweringRuntimeABI("range_endExclusive").name), "range.endExclusive should become __kk_range_endExclusive")
     }
 
     @Test
@@ -1175,7 +1154,7 @@ struct CollectionLiteralLoweringTests {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_op_rangeTo"),
+                    callee: interner.intern(try loweringRuntimeABI("op_rangeTo").name),
                     arguments: [start, end],
                     result: range,
                     canThrow: false,
@@ -1198,11 +1177,10 @@ struct CollectionLiteralLoweringTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let ctx = makeKIRContext(interner: interner)
 
+        let originalBody = bodyInDecl(declID, module: module)
         try runPass(module: module, kirCtx: ctx)
 
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("asReversed"), "range.asReversed should remain unresolved for non-list receivers")
-        #expect(!callees.contains("__kk_range_reversed"), "range.asReversed must not become __kk_range_reversed")
+        #expect(bodyInDecl(declID, module: module) == originalBody, "Source call, operands, result and throwing contract must survive unchanged")
     }
 
     @Test
@@ -1286,58 +1264,60 @@ struct CollectionLiteralLoweringTests {
     /// run the lowering pass, and return the resulting callees.
     @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_list_size"),
+            callees.contains(try loweringRuntimeABI("list_size").name),
             "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("kk_list_is_empty"),
+            callees.contains(try loweringRuntimeABI("list_is_empty").name),
             "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_set_size"),
+            callees.contains(try loweringRuntimeABI("set_size").name),
             "virtualCall(size) on Set-typed parameter should be rewritten to __kk_set_size, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnMapTypedParameterRewritesToKkMapSize() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_map_size"),
+            callees.contains(try loweringRuntimeABI("map_size").name),
             "virtualCall(size) on Map-typed parameter should be rewritten to __kk_map_size, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnUserDefinedListTypedParameterDoesNotRewriteToKkListSize() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "List",
             callee: "size",
             fqNameComponents: ["com", "example", "List"]
         )
-        #expect(
-            !callees.contains("__kk_list_size"),
-            "virtualCall(size) on user-defined List must not be rewritten to __kk_list_size, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnMutableListTypedParameterRewritesToKkListIsEmpty() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "MutableList", callee: "isEmpty")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "MutableList", callee: "isEmpty")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("kk_list_is_empty"),
+            callees.contains(try loweringRuntimeABI("list_is_empty").name),
             "virtualCall(isEmpty) on MutableList-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
     }
@@ -1351,7 +1331,7 @@ struct CollectionLiteralLoweringTests {
         callee: String,
         argCount: Int = 0,
         fqNameComponents: [String]? = nil
-    ) throws -> [String] {
+    ) throws -> (body: [KIRInstruction], originalBody: [KIRInstruction], interner: StringInterner) {
         let interner = StringInterner()
         let arena = KIRArena()
         let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
@@ -1402,7 +1382,12 @@ struct CollectionLiteralLoweringTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
-        return calleesInDecl(declID, module: module, interner: interner)
+        let loweredBody = bodyInDecl(declID, module: module)
+        for call in loweringCalls(in: loweredBody) {
+            #expect(call.arguments == [paramExpr] + argExprs)
+            #expect(call.result == resultExpr)
+        }
+        return (loweredBody, bodyInstructions, interner)
     }
 
     /// RF-LOWER-CALL-013: `toList` on every array receiver class (generic,
@@ -1421,172 +1406,142 @@ struct CollectionLiteralLoweringTests {
     /// `.call` callees) reports none at all.
     @Test
     func testVirtualCallOnArrayTypedParameterLeavesToListUnrewritten() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
-        #expect(
-            !callees.contains("__kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter must not be rewritten to the removed __kk_array_toList shortcut, got: \(callees)"
-        )
-        #expect(callees.isEmpty, "the unresolved call should fall through as an untouched virtualCall, got: \(callees)")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnArrayTypedParameterRewritesToKkArraySize() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "size")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "size")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_array_size"),
+            callees.contains(try loweringRuntimeABI("array_size").name),
             "virtualCall(size) on Array-typed parameter should be rewritten to __kk_array_size, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
-        #expect(!callees.contains("kk_array_all"),
-                "source-backed Array HOF must not be rewritten to a removed runtime bridge, got: \(callees)")
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListAsSequence() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "asSequence")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "asSequence")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("kk_list_asSequence"),
+            callees.contains(try loweringRuntimeABI("list_asSequence").name),
             "virtualCall(asSequence) on List-typed parameter should be rewritten to kk_list_asSequence, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListContains() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
-        #expect(
-            !callees.contains("kk_list_contains"),
-            "virtualCall(contains) on List-typed parameter should not be rewritten to deleted kk_list_contains, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetContains() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Set", callee: "contains", argCount: 1
         )
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_set_contains"),
+            callees.contains(try loweringRuntimeABI("set_contains").name),
             "virtualCall(contains) on Set-typed parameter should be rewritten to __kk_set_contains, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetIsEmpty() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "isEmpty")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "isEmpty")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_set_is_empty"),
+            callees.contains(try loweringRuntimeABI("set_is_empty").name),
             "virtualCall(isEmpty) on Set-typed parameter should be rewritten to __kk_set_is_empty, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnMapTypedParameterRewritesToKkMapIsEmpty() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
+        let callees = extractCallees(from: lowered.body, interner: lowered.interner)
         #expect(
-            callees.contains("__kk_map_is_empty"),
+            callees.contains(try loweringRuntimeABI("map_is_empty").name),
             "virtualCall(isEmpty) on Map-typed parameter should be rewritten to __kk_map_is_empty, got: \(callees)"
         )
     }
 
     @Test
     func testVirtualCallOnListTypedParameterKeepsSourceBackedSortedCall() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
-        #expect(
-            !callees.contains("kk_list_sorted"),
-            "source-backed sorted on List-typed parameter must not emit kk_list_sorted, got: \(callees)"
-        )
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "sorted")
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListIndexOf() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
-        #expect(
-            !callees.contains("kk_list_indexOf"),
-            "virtualCall(indexOf) on List-typed parameter should not be rewritten to deleted kk_list_indexOf, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToList() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
-        #expect(
-            !callees.contains("kk_sequence_to_list"),
-            "virtualCall(toList) on Sequence-typed parameter should not be rewritten to kk_sequence_to_list, got: \(callees)"
-        )
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "toList")
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToCollection() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "toCollection", argCount: 1
         )
-        #expect(
-            !callees.contains("kk_sequence_toCollection"),
-            "virtualCall(toCollection) on Sequence-typed parameter should not be rewritten to kk_sequence_toCollection, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapTo() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapTo", argCount: 2
         )
-        #expect(
-            !callees.contains("kk_sequence_mapTo"),
-            "virtualCall(mapTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapTo, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapNotNullTo", argCount: 2
         )
-        #expect(
-            !callees.contains("kk_sequence_mapNotNullTo"),
-            "virtualCall(mapNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapNotNullTo, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedTo() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedTo", argCount: 2
         )
-        #expect(
-            !callees.contains("kk_sequence_mapIndexedTo"),
-            "virtualCall(mapIndexedTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedTo, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCall(
+        let lowered = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedNotNullTo", argCount: 2
         )
-        #expect(
-            !callees.contains("kk_sequence_mapIndexedNotNullTo"),
-            "virtualCall(mapIndexedNotNullTo) on Sequence-typed parameter should not be rewritten to kk_sequence_mapIndexedNotNullTo, got: \(callees)"
-        )
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMax() throws {
-        let callees = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "max")
-        #expect(
-            !callees.contains("kk_sequence_max"),
-            "virtualCall(max) on Sequence-typed parameter should not be rewritten to kk_sequence_max, got: \(callees)"
-        )
+        let lowered = try buildAndLowerVirtualCall(receiverTypeName: "Sequence", callee: "max")
+        #expect(lowered.body == lowered.originalBody, "Unresolved virtual call must retain receiver, arguments, result and dispatch")
     }
 
     @Test
