@@ -12,8 +12,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-// Latest operators finish each transform sequentially, like flatMapLatest.
-public fun <T, R> Flow<T>.mapLatest(transform: suspend (T) -> R): Flow<R> = map(transform)
+public fun <T, R> Flow<T>.mapLatest(transform: suspend (T) -> R): Flow<R> {
+    val source = this
+    return flow {
+        coroutineScope {
+            var previous: Job? = null
+            source.collect { value ->
+                // Let each transform run until suspension so upstream can
+                // reach the next emission and cancel the previous child.
+                previous?.cancel()
+                previous?.join()
+                previous = launch(start = CoroutineStart.UNDISPATCHED) {
+                    emit(transform(value))
+                }
+            }
+            previous?.join()
+        }
+    }
+}
 
 // Each upstream value cancels the previous transform before starting the next.
 public fun <T, R> Flow<T>.transformLatest(

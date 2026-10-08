@@ -71,8 +71,8 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: a CoroutineExceptionHandler in the launch context still
-    /// consumes the failure — the uncaught report must not also fire.
+    /// KUU-1601: the factory callback exposes `Throwable`, and a handler in
+    /// the launch context consumes a supervisor child failure.
     @Test
     func testExplicitCoroutineExceptionHandlerStillConsumes() throws {
         let result = try compileAndRunCapturingAll(
@@ -80,7 +80,9 @@ extension BundledStdlibExecutionTests {
             import kotlinx.coroutines.*
 
             fun main() = runBlocking {
-                val handler = CoroutineExceptionHandler { _, _ -> println("ceh-hit") }
+                val handler = CoroutineExceptionHandler { _, exception ->
+                    println("ceh-hit:${exception.message}")
+                }
                 supervisorScope {
                     launch { delay(10); println("sup-sib-alive") }
                     launch(handler) { delay(1); throw IllegalStateException("y") }
@@ -90,7 +92,7 @@ extension BundledStdlibExecutionTests {
             """
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout == "ceh-hit\nsup-sib-alive\nafter\n")
+        #expect(result.stdout == "ceh-hit:y\nsup-sib-alive\nafter\n")
         #expect(
             !result.stderr.contains("Exception in thread"),
             "explicit CEH should suppress the uncaught report, got stderr: \(result.stderr)"

@@ -1,23 +1,88 @@
 import RuntimeABI
 import Testing
 
+/// Historical identities for removed-symbol assertions and family exclusions.
+/// These stay independent of the current spec so resurrected exports are detected.
+enum RuntimeABISpecTestSymbol: Hashable, CustomStringConvertible {
+    enum Family: String {
+        case array
+        case callableRef = "callable_ref"
+        case char
+        case indexedValue = "indexed_value"
+        case iterable
+        case kfunction
+        case kpropertyStub = "kproperty_stub"
+        case list
+        case locale
+        case long
+        case mutableCollection = "mutable_collection"
+        case regex
+        case string
+        case ubyte
+        case uint
+        case ulong
+        case ushort
+    }
+
+    enum Namespace {
+        case runtime, bridge
+
+        fileprivate func stem(in name: String) -> String? {
+            let components = name.split(separator: "_", omittingEmptySubsequences: false)
+            let prefix: [Substring] = switch self {
+            case .runtime: ["kk"]
+            case .bridge: ["", "", "kk"]
+            }
+            guard components.starts(with: prefix) else { return nil }
+            return components.dropFirst(prefix.count).joined(separator: "_")
+        }
+    }
+
+    case runtime(Family, String)
+    case bridge(Family, String)
+
+    private var identity: (namespace: Namespace, family: Family, member: String) {
+        switch self {
+        case let .runtime(family, member): (.runtime, family, member)
+        case let .bridge(family, member): (.bridge, family, member)
+        }
+    }
+
+    var description: String {
+        let (namespace, family, member) = identity
+        return "\(namespace).\(family).\(member)"
+    }
+
+    func matches(_ name: String) -> Bool {
+        let (namespace, family, member) = identity
+        let stem = family.rawValue + "_" + member
+        return namespace.stem(in: name) == stem
+    }
+
+    static func matchesFamily(_ family: Family, namespace: Namespace, name: String) -> Bool {
+        namespace.stem(in: name)?.hasPrefix(family.rawValue + "_") == true
+    }
+}
+
+extension RuntimeABIFunctionSpec {
+    /// Require canonical records to remain uniquely registered in the inventory.
+    func requireRegistration() throws -> Self {
+        let registered = RuntimeABISpec.allFunctions.filter { $0.name == name }
+        try #require(registered.count == 1, "Expected one RuntimeABISpec entry for \(name), found \(registered.count)")
+        let spec = try #require(registered.first)
+        try #require(spec == self, "RuntimeABISpec inventory disagrees with canonical record \(name)")
+        return spec
+    }
+}
+
 @Suite
 struct ABIMismatchTests {
     // MARK: - Helpers
 
-    private struct MissingSpecError: Error, CustomStringConvertible {
-        let name: String
+    private typealias Symbol = RuntimeABISpecTestSymbol
 
-        var description: String {
-            "'\(name)' not found in RuntimeABISpec.allFunctions"
-        }
-    }
-
-    private func requireSpec(_ name: String) throws -> RuntimeABIFunctionSpec {
-        guard let spec = RuntimeABISpec.allFunctions.first(where: { $0.name == name }) else {
-            throw MissingSpecError(name: name)
-        }
-        return spec
+    private func requireSpec(_ canonical: RuntimeABIFunctionSpec) throws -> RuntimeABIFunctionSpec {
+        try canonical.requireRegistration()
     }
 
     // MARK: - Spec Integrity
@@ -48,37 +113,37 @@ struct ABIMismatchTests {
 
     @Test
     func collectionMutationSignaturesIncludeThrowingChannel() throws {
-        let expected: [(name: String, parameters: [String])] = [
-            ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
-            ("__kk_mutable_list_remove_dispatch", ["listRaw", "elem", "outThrown"]),
-            ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
-            ("__kk_mutable_set_remove", ["setRaw", "elem", "outThrown"]),
-            ("__kk_mutable_set_clear", ["setRaw", "outThrown"]),
-            ("__kk_mutable_map_put", ["mapRaw", "key", "value", "outThrown"]),
-            ("__kk_mutable_map_remove", ["mapRaw", "key", "outThrown"]),
-            ("__kk_mutable_map_clear", ["mapRaw", "outThrown"]),
-            ("__kk_mutable_map_putAll", ["mapRaw", "entriesRaw", "outThrown"]),
+        let expected: [(spec: RuntimeABIFunctionSpec, parameters: [String])] = [
+            (RuntimeABISpec.bridgeMutableListAddSpec, ["listRaw", "elem", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableListRemoveDispatchSpec, ["listRaw", "elem", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableSetAddSpec, ["setRaw", "elem", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableSetRemoveSpec, ["setRaw", "elem", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableSetClearSpec, ["setRaw", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableMapPutSpec, ["mapRaw", "key", "value", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableMapRemoveSpec, ["mapRaw", "key", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableMapClearSpec, ["mapRaw", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableMapPutAllSpec, ["mapRaw", "entriesRaw", "outThrown"]),
         ]
         for item in expected {
-            let spec = try requireSpec(item.name)
+            let spec = try requireSpec(item.spec)
             #expect(spec.parameters.map(\.name) == item.parameters)
             #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
             #expect(spec.parameters.last?.type == .nullableIntptrPointer)
             #expect(spec.isThrowing)
-            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
 
-            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            let extern = try #require(RuntimeABIExterns.externDecl(named: spec.name))
             #expect(extern.parameterTypes == spec.parameterTypeStrings)
             #expect(
                 RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
-                "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
+                "Generated C header must expose the throwing collection mutation ABI for \(spec.name)"
             )
         }
     }
 
     @Test
     func legacyMutableListRemoveKeepsNonThrowingABI() throws {
-        let spec = try requireSpec("__kk_mutable_list_remove")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutableListRemoveSpec)
         #expect(spec.parameters.map(\.name) == ["listRaw", "elem"])
         #expect(spec.parameters.allSatisfy { $0.type == .intptr })
         #expect(!spec.isThrowing)
@@ -88,60 +153,60 @@ struct ABIMismatchTests {
 
     @Test
     func durationParsingBridgesMatchThrowingAndReturnContracts() throws {
-        let expected: [(name: String, isThrowing: Bool)] = [
-            ("kk_duration_parse", true),
-            ("kk_duration_parseOrNull", false),
-            ("kk_duration_parseIsoString", true),
-            ("kk_duration_parseIsoStringOrNull", false),
+        let expected: [(spec: RuntimeABIFunctionSpec, isThrowing: Bool)] = [
+            (RuntimeABISpec.durationParseSpec, true),
+            (RuntimeABISpec.durationParseOrNullSpec, false),
+            (RuntimeABISpec.durationParseIsoStringSpec, true),
+            (RuntimeABISpec.durationParseIsoStringOrNullSpec, false),
         ]
 
         for item in expected {
-            let spec = try requireSpec(item.name)
+            let spec = try requireSpec(item.spec)
             let expectedTypes: [RuntimeABICType] = [.intptr]
                 + (item.isThrowing ? [.nullableIntptrPointer] : [])
             #expect(spec.returnType == .intptr)
             #expect(spec.parameters.map(\.type) == expectedTypes)
             #expect(spec.isThrowing == item.isThrowing)
             #expect(
-                RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name) == !item.isThrowing,
-                "Non-throwing set disagrees with \(item.name)"
+                RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name) == !item.isThrowing,
+                "Non-throwing set disagrees with \(spec.name)"
             )
         }
     }
 
     @Test
     func listBoundsSignaturesIncludeThrowingChannel() throws {
-        let expected: [(name: String, parameters: [String])] = [
-            ("__kk_list_get", ["listRaw", "index", "outThrown"]),
-            ("kk_list_iterator_next", ["iterRaw", "outThrown"]),
-            ("kk_iterator_next", ["iterRaw", "outThrown"]),
-            ("kk_indexing_iterable_next", ["iterRaw", "outThrown"]),
-            ("__kk_map_iterator_next", ["iterRaw", "outThrown"]),
-            ("__kk_mutable_map_iterator_next", ["iterRaw", "outThrown"]),
-            ("__kk_mutable_list_removeAt", ["listRaw", "index", "outThrown"]),
+        let expected: [(spec: RuntimeABIFunctionSpec, parameters: [String])] = [
+            (RuntimeABISpec.bridgeListGetSpec, ["listRaw", "index", "outThrown"]),
+            (RuntimeABISpec.listIteratorNextSpec, ["iterRaw", "outThrown"]),
+            (RuntimeABISpec.iteratorNextSpec, ["iterRaw", "outThrown"]),
+            (RuntimeABISpec.indexingIterableNextSpec, ["iterRaw", "outThrown"]),
+            (RuntimeABISpec.bridgeMapIteratorNextSpec, ["iterRaw", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableMapIteratorNextSpec, ["iterRaw", "outThrown"]),
+            (RuntimeABISpec.bridgeMutableListRemoveAtSpec, ["listRaw", "index", "outThrown"]),
         ]
         for item in expected {
-            let spec = try requireSpec(item.name)
+            let spec = try requireSpec(item.spec)
             #expect(spec.parameters.map(\.name) == item.parameters)
             #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
             #expect(spec.parameters.last?.type == .nullableIntptrPointer)
             #expect(spec.isThrowing)
-            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(spec.name))
 
-            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            let extern = try #require(RuntimeABIExterns.externDecl(named: spec.name))
             #expect(extern.parameterTypes == spec.parameterTypeStrings)
             #expect(
                 RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
-                "Generated C header must expose the throwing list bounds ABI for \(item.name)"
+                "Generated C header must expose the throwing list bounds ABI for \(spec.name)"
             )
         }
     }
 
     @Test
     func charNumericBridgeABIsRemoved() {
-        for name in ["kk_char_to_int", "kk_char_to_long", "kk_char_to_uint", "kk_char_to_ulong"] {
+        for name in [Symbol.runtime(.char, "to_int"), Symbol.runtime(.char, "to_long"), Symbol.runtime(.char, "to_uint"), Symbol.runtime(.char, "to_ulong")] {
             #expect(
-                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                !RuntimeABISpec.allFunctions.contains { name.matches($0.name) },
                 "Char numeric conversion bridge \(name) should be removed after KSP-1539"
             )
         }
@@ -150,16 +215,16 @@ struct ABIMismatchTests {
     @Test
     func longToCharBridgeABIIsRemoved() {
         #expect(
-            !RuntimeABISpec.allFunctions.contains { $0.name == "kk_long_to_char" },
+            !RuntimeABISpec.allFunctions.contains { Symbol.runtime(.long, "to_char").matches($0.name) },
             "Long.toChar should be provided by bundled Kotlin source, not RuntimeABI"
         )
     }
 
     @Test
     func unsignedToCharBridgeABIsRemoved() {
-        for name in ["kk_uint_to_char", "kk_ulong_to_char", "kk_ubyte_to_char", "kk_ushort_to_char"] {
+        for name in [Symbol.runtime(.uint, "to_char"), Symbol.runtime(.ulong, "to_char"), Symbol.runtime(.ubyte, "to_char"), Symbol.runtime(.ushort, "to_char")] {
             #expect(
-                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                !RuntimeABISpec.allFunctions.contains { name.matches($0.name) },
                 "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
             )
         }
@@ -170,21 +235,21 @@ struct ABIMismatchTests {
     @Test
     func deadReflectionAndCollectionBridgeABIsAreRemoved() {
         let removedNames = [
-            "__kk_kfunction_get_name",
-            "__kk_kfunction_get_arity",
-            "__kk_kfunction_get_return_type",
-            "kk_callable_ref_name",
-            "kk_callable_ref_arity",
-            "kk_callable_ref_is_suspend",
-            "kk_callable_ref_parameters",
-            "__kk_kproperty_stub_name",
-            "__kk_kproperty_stub_return_type",
-            "kk_indexed_value_new",
-            "__kk_mutable_collection_addAll_sequence",
+            Symbol.bridge(.kfunction, "get_name"),
+            Symbol.bridge(.kfunction, "get_arity"),
+            Symbol.bridge(.kfunction, "get_return_type"),
+            Symbol.runtime(.callableRef, "name"),
+            Symbol.runtime(.callableRef, "arity"),
+            Symbol.runtime(.callableRef, "is_suspend"),
+            Symbol.runtime(.callableRef, "parameters"),
+            Symbol.bridge(.kpropertyStub, "name"),
+            Symbol.bridge(.kpropertyStub, "return_type"),
+            Symbol.runtime(.indexedValue, "new"),
+            Symbol.bridge(.mutableCollection, "addAll_sequence"),
         ]
         for name in removedNames {
             #expect(
-                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                !RuntimeABISpec.allFunctions.contains { name.matches($0.name) },
                 "\(name) should be removed after its source-backed migration"
             )
         }
@@ -192,7 +257,7 @@ struct ABIMismatchTests {
 
     @Test
     func floorDivABISignatures() throws {
-        for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
+        for name in [RuntimeABISpec.opFloorDivSpec, RuntimeABISpec.opLfloorDivSpec] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
             #expect(spec.isThrowing)
@@ -205,7 +270,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkAllocSignature() throws {
-        let spec = try requireSpec("kk_alloc")
+        let spec = try requireSpec(RuntimeABISpec.allocSpec)
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "size")
@@ -213,13 +278,13 @@ struct ABIMismatchTests {
         #expect(spec.parameters[1].name == "typeInfo")
         #expect(
             spec.parameters[1].type == .constTypeInfoPointer,
-            "kk_alloc typeInfo must be const KTypeInfo * per J16.1"
+            "\(spec.name) typeInfo must be const KTypeInfo * per J16.1"
         )
     }
 
     @Test
     func kkGcCollectSignature() throws {
-        let spec = try requireSpec("kk_gc_collect")
+        let spec = try requireSpec(RuntimeABISpec.gcCollectSpec)
         #expect(spec.returnType == .void)
         // GC.collect() is a real bundled-source `object` member now, so the
         // GC receiver crosses the ABI as the sole parameter (see Platform.kt's
@@ -230,14 +295,14 @@ struct ABIMismatchTests {
 
     @Test
     func kkThreadLocalNewSignature() throws {
-        let spec = try requireSpec("kk_thread_local_new")
+        let spec = try requireSpec(RuntimeABISpec.threadLocalNewSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 0)
     }
 
     @Test
     func kkThreadLocalGetOrSetSignature() throws {
-        let spec = try requireSpec("kk_thread_local_getOrSet")
+        let spec = try requireSpec(RuntimeABISpec.threadLocalGetOrSetSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "receiver")
@@ -252,7 +317,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkThrowableNewSignature() throws {
-        let spec = try requireSpec("__kk_throwable_new")
+        let spec = try requireSpec(RuntimeABISpec.bridgeThrowableNewSpec)
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .nullableOpaquePointer)
@@ -260,14 +325,14 @@ struct ABIMismatchTests {
 
     @Test
     func kkThrowableNewCauseSignature() throws {
-        let spec = try requireSpec("__kk_throwable_new_cause")
+        let spec = try requireSpec(RuntimeABISpec.bridgeThrowableNewCauseSpec)
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.map(\.type) == [.intptr])
     }
 
     @Test
     func kkFloorModSignatures() throws {
-        for name in ["kk_op_floor_mod", "kk_op_lfloor_mod"] {
+        for name in [RuntimeABISpec.opFloorModSpec, RuntimeABISpec.opLfloorModSpec] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .intptr)
             #expect(spec.isThrowing)
@@ -280,7 +345,7 @@ struct ABIMismatchTests {
     /// source-backed callee ABI appends.
     @Test
     func throwableRawStackFramesSignature() throws {
-        let spec = try requireSpec("__kk_throwable_rawStackFrames")
+        let spec = try requireSpec(RuntimeABISpec.bridgeThrowableRawStackFramesSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.isThrowing)
         #expect(spec.parameters.map(\.type) == [.intptr, .nullableIntptrPointer])
@@ -288,7 +353,7 @@ struct ABIMismatchTests {
 
     @Test
     func throwableToStringSignature() throws {
-        let spec = try requireSpec("__kk_throwable_toString")
+        let spec = try requireSpec(RuntimeABISpec.bridgeThrowableToStringSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.isThrowing)
         #expect(spec.parameters.map(\.type) == [.intptr, .nullableIntptrPointer])
@@ -296,7 +361,7 @@ struct ABIMismatchTests {
 
     @Test
     func printStderrSignature() throws {
-        let spec = try requireSpec("__kk_printStderr")
+        let spec = try requireSpec(RuntimeABISpec.bridgePrintStderrSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -304,49 +369,49 @@ struct ABIMismatchTests {
 
     @Test
     func kkNoWhenBranchMatchedExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("__kk_no_when_branch_matched_exception_new")
+        let noArg = try requireSpec(RuntimeABISpec.bridgeNoWhenBranchMatchedExceptionNewSpec)
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("__kk_no_when_branch_matched_exception_new_message")
+        let message = try requireSpec(RuntimeABISpec.bridgeNoWhenBranchMatchedExceptionNewMessageSpec)
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
 
-        let messageCause = try requireSpec("__kk_no_when_branch_matched_exception_new_message_cause")
+        let messageCause = try requireSpec(RuntimeABISpec.bridgeNoWhenBranchMatchedExceptionNewMessageCauseSpec)
         #expect(messageCause.returnType == .intptr)
         #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
-        let cause = try requireSpec("__kk_no_when_branch_matched_exception_new_cause")
+        let cause = try requireSpec(RuntimeABISpec.bridgeNoWhenBranchMatchedExceptionNewCauseSpec)
         #expect(cause.returnType == .intptr)
         #expect(cause.parameters.map(\.type) == [.intptr])
     }
 
     @Test
     func kkConcurrentModificationExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("__kk_concurrent_modification_exception_new")
+        let noArg = try requireSpec(RuntimeABISpec.bridgeConcurrentModificationExceptionNewSpec)
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("__kk_concurrent_modification_exception_new_message")
+        let message = try requireSpec(RuntimeABISpec.bridgeConcurrentModificationExceptionNewMessageSpec)
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
 
-        let messageCause = try requireSpec("__kk_concurrent_modification_exception_new_message_cause")
+        let messageCause = try requireSpec(RuntimeABISpec.bridgeConcurrentModificationExceptionNewMessageCauseSpec)
         #expect(messageCause.returnType == .intptr)
         #expect(messageCause.parameters.map(\.type) == [.intptr, .intptr])
 
-        let cause = try requireSpec("__kk_concurrent_modification_exception_new_cause")
+        let cause = try requireSpec(RuntimeABISpec.bridgeConcurrentModificationExceptionNewCauseSpec)
         #expect(cause.returnType == .intptr)
         #expect(cause.parameters.map(\.type) == [.intptr])
     }
 
     @Test
     func kkArrayIndexOutOfBoundsExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("__kk_array_index_out_of_bounds_exception_new")
+        let noArg = try requireSpec(RuntimeABISpec.bridgeArrayIndexOutOfBoundsExceptionNewSpec)
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("__kk_array_index_out_of_bounds_exception_new_message")
+        let message = try requireSpec(RuntimeABISpec.bridgeArrayIndexOutOfBoundsExceptionNewMessageSpec)
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
     }
@@ -354,12 +419,12 @@ struct ABIMismatchTests {
     @Test
     func genericListAndArrayJoinToStringABIsAreSourceBacked() throws {
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_list_joinToString" }) == nil
+            RuntimeABISpec.allFunctions.first(where: { Symbol.runtime(.list, "joinToString").matches($0.name) }) == nil
         )
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_array_joinToString" }) == nil
+            RuntimeABISpec.allFunctions.first(where: { Symbol.runtime(.array, "joinToString").matches($0.name) }) == nil
         )
-        let privateBridge = try requireSpec("__kk_string_joinToString")
+        let privateBridge = try requireSpec(RuntimeABISpec.bridgeStringJoinToStringSpec)
         #expect(privateBridge.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr])
         #expect(privateBridge.returnType == .intptr)
     }
@@ -371,19 +436,19 @@ struct ABIMismatchTests {
     @Test
     func iterableJoinToABIsAreSourceBacked() throws {
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinTo" }) == nil
+            RuntimeABISpec.allFunctions.first(where: { Symbol.bridge(.iterable, "joinTo").matches($0.name) }) == nil
         )
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString" }) == nil
+            RuntimeABISpec.allFunctions.first(where: { Symbol.bridge(.iterable, "joinToString").matches($0.name) }) == nil
         )
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString_transform" }) == nil
+            RuntimeABISpec.allFunctions.first(where: { Symbol.bridge(.iterable, "joinToString_transform").matches($0.name) }) == nil
         )
     }
 
     @Test
     func kkThrowableIsCancellationSignature() throws {
-        let spec = try requireSpec("kk_throwable_is_cancellation")
+        let spec = try requireSpec(RuntimeABISpec.throwableIsCancellationSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -391,7 +456,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkThrowableSuppressedRawSignature() throws {
-        let spec = try requireSpec("__kk_throwable_suppressedRaw")
+        let spec = try requireSpec(RuntimeABISpec.bridgeThrowableSuppressedRawSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -399,7 +464,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringFromUTF8Signature() throws {
-        let spec = try requireSpec("kk_string_from_utf8")
+        let spec = try requireSpec(RuntimeABISpec.stringFromUtf8Spec)
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].type == .constUInt8Pointer)
@@ -409,7 +474,7 @@ struct ABIMismatchTests {
     @Test
     func kkStringConcatPointerABIRemoved() {
         #expect(
-            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" }),
+            !(RuntimeABISpec.allFunctions.contains { Symbol.runtime(.string, "concat").matches($0.name) }),
             "String concat should use __kk_string_concat_flat instead of the legacy pointer ABI"
         )
     }
@@ -417,34 +482,17 @@ struct ABIMismatchTests {
     @Test
     func kkStringRepeatPointerABIRemoved() {
         #expect(
-            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_repeat" }),
+            !(RuntimeABISpec.allFunctions.contains { Symbol.runtime(.string, "repeat").matches($0.name) }),
             "String repeat should use kk_string_repeat_flat instead of the legacy pointer ABI"
         )
     }
 
     @Test
     func kkStringSubstringAndReplaceSegmentPointerABIRemoved() {
-        let legacyNames = [
-            "kk_string_substringBefore",
-            "kk_string_substringBefore_char",
-            "kk_string_substringBeforeLast",
-            "kk_string_substringBeforeLast_char",
-            "kk_string_substringAfter",
-            "kk_string_substringAfter_char",
-            "kk_string_substringAfterLast",
-            "kk_string_substringAfterLast_char",
-            "kk_string_replaceAfter",
-            "kk_string_replaceAfter_char",
-            "kk_string_replaceAfterLast",
-            "kk_string_replaceAfterLast_char",
-            "kk_string_replaceBefore",
-            "kk_string_replaceBefore_char",
-            "kk_string_replaceBeforeLast",
-            "kk_string_replaceBeforeLast_char",
-        ]
+        let legacyNames = stringSegmentMembers.map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
             )
         }
@@ -456,35 +504,25 @@ struct ABIMismatchTests {
     // runtime ABI remains.
     @Test
     func kkStringSubstringAndReplaceSegmentFlatABIRemoved() {
-        let removedNames = [
-            "kk_string_substringBefore_flat",
-            "kk_string_substringBefore_char_flat",
-            "kk_string_substringBeforeLast_flat",
-            "kk_string_substringBeforeLast_char_flat",
-            "kk_string_substringAfter_flat",
-            "kk_string_substringAfter_char_flat",
-            "kk_string_substringAfterLast_flat",
-            "kk_string_substringAfterLast_char_flat",
-            "kk_string_replaceAfter_flat",
-            "kk_string_replaceAfter_char_flat",
-            "kk_string_replaceAfterLast_flat",
-            "kk_string_replaceAfterLast_char_flat",
-            "kk_string_replaceBefore_flat",
-            "kk_string_replaceBefore_char_flat",
-            "kk_string_replaceBeforeLast_flat",
-            "kk_string_replaceBeforeLast_char_flat",
-        ]
+        let removedNames = stringSegmentMembers.map { Symbol.runtime(.string, $0 + "_flat") }
         for removedName in removedNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                !(RuntimeABISpec.allFunctions.contains { removedName.matches($0.name) }),
                 "\(removedName) should be removed in favor of bundled Kotlin source (StringSearchReplace.kt)"
             )
         }
     }
 
+    private var stringSegmentMembers: [String] {
+        [
+            "substringBefore", "substringBeforeLast", "substringAfter", "substringAfterLast",
+            "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast",
+        ].flatMap { [$0, $0 + "_char"] }
+    }
+
     @Test
     func kkStringConcatFlatSignature() throws {
-        let spec = try requireSpec("__kk_string_concat_flat")
+        let spec = try requireSpec(RuntimeABISpec.bridgeStringConcatFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 11)
         #expect(spec.parameters.map(\.type) == [
@@ -505,14 +543,14 @@ struct ABIMismatchTests {
     @Test
     func kkStringReplacePointerABIRemoved() {
         let legacyNames = [
-            "kk_string_replace",
-            "kk_string_replace_char",
-            "kk_string_replace_ignoreCase",
-            "kk_string_replace_char_ignoreCase",
-        ]
+            "replace",
+            "replace_char",
+            "replace_ignoreCase",
+            "replace_char_ignoreCase",
+        ].map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -524,22 +562,22 @@ struct ABIMismatchTests {
     @Test
     func kkStringPrefixSuffixABIRemoved() {
         let removedNames = [
-            "kk_string_startsWith",
-            "kk_string_startsWith_flat",
-            "kk_string_endsWith",
-            "kk_string_endsWith_flat",
-            "kk_string_removePrefix",
-            "kk_string_removePrefix_flat",
-            "kk_string_removeSuffix",
-            "kk_string_removeSuffix_flat",
-            "kk_string_removeSurrounding",
-            "kk_string_removeSurrounding_flat",
-            "kk_string_removeSurrounding_pair",
-            "kk_string_removeSurrounding_pair_flat",
-        ]
+            "startsWith",
+            "startsWith_flat",
+            "endsWith",
+            "endsWith_flat",
+            "removePrefix",
+            "removePrefix_flat",
+            "removeSuffix",
+            "removeSuffix_flat",
+            "removeSurrounding",
+            "removeSurrounding_flat",
+            "removeSurrounding_pair",
+            "removeSurrounding_pair_flat",
+        ].map { Symbol.runtime(.string, $0) }
         for removedName in removedNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                !(RuntimeABISpec.allFunctions.contains { removedName.matches($0.name) }),
                 "\(removedName) should be removed in favor of bundled Kotlin source (StringPrefixSuffix.kt)"
             )
         }
@@ -547,7 +585,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringReplaceFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replace_flat")
+        let spec = try requireSpec(RuntimeABISpec.stringReplaceFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 15)
         #expect(spec.parameters.map(\.type) == [
@@ -571,7 +609,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringReplaceCharFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replace_char_flat")
+        let spec = try requireSpec(RuntimeABISpec.stringReplaceCharFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 9)
         #expect(spec.parameters.map(\.type) == [
@@ -589,7 +627,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringReplaceIgnoreCaseFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replace_ignoreCase_flat")
+        let spec = try requireSpec(RuntimeABISpec.stringReplaceIgnoreCaseFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 16)
         #expect(spec.parameters.map(\.type) == [
@@ -614,7 +652,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringReplaceCharIgnoreCaseFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replace_char_ignoreCase_flat")
+        let spec = try requireSpec(RuntimeABISpec.stringReplaceCharIgnoreCaseFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 10)
         #expect(spec.parameters.map(\.type) == [
@@ -634,15 +672,15 @@ struct ABIMismatchTests {
     @Test
     func kkStringReplaceFirstRangePointerABIRemoved() {
         let legacyNames = [
-            "kk_string_replaceFirst",
-            "kk_string_replaceFirst_ignoreCase",
-            "kk_string_replaceRange",
-            "kk_string_removeRange",
-            "kk_string_removeRange_range",
-        ]
+            "replaceFirst",
+            "replaceFirst_ignoreCase",
+            "replaceRange",
+            "removeRange",
+            "removeRange_range",
+        ].map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -650,7 +688,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringReplaceFirstFlatSignature() throws {
-        let spec = try requireSpec("kk_string_replaceFirst_flat")
+        let spec = try requireSpec(RuntimeABISpec.stringReplaceFirstFlatSpec)
         #expect(spec.returnType == .nullableUInt8Pointer)
         #expect(spec.parameters.count == 15)
         #expect(spec.parameters.map(\.type) == [
@@ -677,23 +715,23 @@ struct ABIMismatchTests {
         // KSP-406: substring / subSequence / slice / removeRange / replaceRange are
         // bundled Kotlin source with no String-specific runtime ABI (raw or flat).
         let removedNames = [
-            "kk_string_substring",
-            "kk_string_substring_flat",
-            "kk_string_subSequence",
-            "kk_string_subSequence_flat",
-            "kk_string_slice_range",
-            "kk_string_slice_iterable",
-            "kk_string_removeRange",
-            "kk_string_removeRange_flat",
-            "kk_string_removeRange_range",
-            "kk_string_removeRange_range_flat",
-            "kk_string_replaceRange",
-            "kk_string_replaceRange_flat",
-            "kk_string_replaceRange_indices",
-        ]
+            "substring",
+            "substring_flat",
+            "subSequence",
+            "subSequence_flat",
+            "slice_range",
+            "slice_iterable",
+            "removeRange",
+            "removeRange_flat",
+            "removeRange_range",
+            "removeRange_range_flat",
+            "replaceRange",
+            "replaceRange_flat",
+            "replaceRange_indices",
+        ].map { Symbol.runtime(.string, $0) }
         for removedName in removedNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == removedName }),
+                !(RuntimeABISpec.allFunctions.contains { removedName.matches($0.name) }),
                 "\(removedName) should be removed: substring/slice/range edits are source-backed after KSP-406"
             )
         }
@@ -702,18 +740,18 @@ struct ABIMismatchTests {
     @Test
     func kkStringPadABIRemoved() {
         let legacyNames = [
-            "kk_string_padStart_default",
-            "kk_string_padEnd_default",
-            "kk_string_padStart",
-            "kk_string_padEnd",
-            "kk_string_padStart_default_flat",
-            "kk_string_padEnd_default_flat",
-            "kk_string_padStart_flat",
-            "kk_string_padEnd_flat",
-        ]
+            "padStart_default",
+            "padEnd_default",
+            "padStart",
+            "padEnd",
+            "padStart_default_flat",
+            "padEnd_default_flat",
+            "padStart_flat",
+            "padEnd_flat",
+        ].map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should be removed because String pad APIs are source-backed"
             )
         }
@@ -722,16 +760,16 @@ struct ABIMismatchTests {
     @Test
     func kkStringTrimPointerABIRemoved() {
         let legacyNames = [
-            "kk_string_trim",
-            "kk_string_trim_predicate",
-            "kk_string_trimStart",
-            "kk_string_trimStart_predicate",
-            "kk_string_trimEnd",
-            "kk_string_trimEnd_predicate",
-        ]
+            "trim",
+            "trim_predicate",
+            "trimStart",
+            "trimStart_predicate",
+            "trimEnd",
+            "trimEnd_predicate",
+        ].map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -740,9 +778,9 @@ struct ABIMismatchTests {
     @Test
     func kkStringTrimPredicateFlatSignatures() throws {
         let names = [
-            "kk_string_trim_predicate_flat",
-            "kk_string_trimStart_predicate_flat",
-            "kk_string_trimEnd_predicate_flat",
+            RuntimeABISpec.stringTrimPredicateFlatSpec,
+            RuntimeABISpec.stringTrimStartPredicateFlatSpec,
+            RuntimeABISpec.stringTrimEndPredicateFlatSpec,
         ]
         for name in names {
             let spec = try requireSpec(name)
@@ -765,7 +803,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringIfBlankEmptyFlatCompatibilitySignatures() throws {
-        for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
+        for name in [RuntimeABISpec.stringIfBlankFlatSpec, RuntimeABISpec.stringIfEmptyFlatSpec] {
             let spec = try requireSpec(name)
             #expect(spec.returnType == .nullableUInt8Pointer)
             #expect(spec.parameters.count == 10)
@@ -775,30 +813,30 @@ struct ABIMismatchTests {
     @Test
     func kkStringReplaceFirstCharABIRemoved() {
         #expect(
-            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar" }),
-            "kk_string_replaceFirstChar should be removed now that replaceFirstChar is source-backed"
+            !(RuntimeABISpec.allFunctions.contains { Symbol.runtime(.string, "replaceFirstChar").matches($0.name) }),
+            "String.replaceFirstChar must have no legacy runtime ABI now that it is source-backed"
         )
         #expect(
-            !(RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replaceFirstChar_flat" }),
-            "kk_string_replaceFirstChar_flat should be removed now that replaceFirstChar is source-backed"
+            !(RuntimeABISpec.allFunctions.contains { Symbol.runtime(.string, "replaceFirstChar_flat").matches($0.name) }),
+            "String.replaceFirstChar must have no flattened runtime ABI now that it is source-backed"
         )
     }
 
     @Test
     func kkStringCommonPrefixSuffixRuntimeABIRemoved() {
         let migratedNames = [
-            "kk_string_commonPrefixWith",
-            "kk_string_commonSuffixWith",
-            "kk_string_commonPrefixWith_ignoreCase",
-            "kk_string_commonSuffixWith_ignoreCase",
-            "kk_string_commonPrefixWith_flat",
-            "kk_string_commonSuffixWith_flat",
-            "kk_string_commonPrefixWith_ignoreCase_flat",
-            "kk_string_commonSuffixWith_ignoreCase_flat",
-        ]
+            "commonPrefixWith",
+            "commonSuffixWith",
+            "commonPrefixWith_ignoreCase",
+            "commonSuffixWith_ignoreCase",
+            "commonPrefixWith_flat",
+            "commonSuffixWith_flat",
+            "commonPrefixWith_ignoreCase_flat",
+            "commonSuffixWith_ignoreCase_flat",
+        ].map { Symbol.runtime(.string, $0) }
         for migratedName in migratedNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == migratedName }),
+                !(RuntimeABISpec.allFunctions.contains { migratedName.matches($0.name) }),
                 "\(migratedName) should be provided by bundled Kotlin source, not runtime ABI"
             )
         }
@@ -806,9 +844,9 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringFormatPointerABIRemoved() {
-        for legacyName in ["kk_string_format", "kk_string_format_locale"] {
+        for legacyName in [Symbol.runtime(.string, "format"), Symbol.runtime(.string, "format_locale")] {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -818,9 +856,9 @@ struct ABIMismatchTests {
     /// entry points may exist.
     @Test
     func kkStringFormatPublicNamesDemoted() {
-        for publicName in ["kk_string_format_flat", "kk_string_format_locale_flat"] {
+        for publicName in [Symbol.runtime(.string, "format_flat"), Symbol.runtime(.string, "format_locale_flat")] {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == publicName }),
+                !(RuntimeABISpec.allFunctions.contains { publicName.matches($0.name) }),
                 "\(publicName) should be demoted to the __kk_ bridge namespace"
             )
         }
@@ -828,7 +866,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStringFormatFlatSignatures() throws {
-        let formatSpec = try requireSpec("__kk_string_format_flat")
+        let formatSpec = try requireSpec(RuntimeABISpec.bridgeStringFormatFlatSpec)
         #expect(formatSpec.isThrowing)
         #expect(formatSpec.returnType == .nullableUInt8Pointer)
         #expect(formatSpec.parameters.map(\.type) == [
@@ -843,7 +881,7 @@ struct ABIMismatchTests {
             .nullableIntptrPointer,
         ])
 
-        let localeSpec = try requireSpec("__kk_string_format_locale_flat")
+        let localeSpec = try requireSpec(RuntimeABISpec.bridgeStringFormatLocaleFlatSpec)
         #expect(localeSpec.isThrowing)
         #expect(localeSpec.returnType == .nullableUInt8Pointer)
         #expect(localeSpec.parameters.map(\.type) == [
@@ -863,18 +901,18 @@ struct ABIMismatchTests {
     @Test
     func kkStringIndentPointerABIRemoved() {
         let legacyNames = [
-            "kk_string_trimIndent",
-            "kk_string_trimMargin_default",
-            "kk_string_trimMargin",
-            "kk_string_prependIndent_default",
-            "kk_string_prependIndent",
-            "kk_string_replaceIndent_default",
-            "kk_string_replaceIndent",
-            "kk_string_replaceIndentByMargin",
-        ]
+            "trimIndent",
+            "trimMargin_default",
+            "trimMargin",
+            "prependIndent_default",
+            "prependIndent",
+            "replaceIndent_default",
+            "replaceIndent",
+            "replaceIndentByMargin",
+        ].map { Symbol.runtime(.string, $0) }
         for legacyName in legacyNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
+                !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
         }
@@ -883,18 +921,18 @@ struct ABIMismatchTests {
     @Test
     func kkStringIndentFlatABIRemoved() {
         let flatNames = [
-            "kk_string_trimIndent_flat",
-            "kk_string_trimMargin_default_flat",
-            "kk_string_trimMargin_flat",
-            "kk_string_prependIndent_default_flat",
-            "kk_string_prependIndent_flat",
-            "kk_string_replaceIndent_default_flat",
-            "kk_string_replaceIndent_flat",
-            "kk_string_replaceIndentByMargin_flat",
-        ]
+            "trimIndent_flat",
+            "trimMargin_default_flat",
+            "trimMargin_flat",
+            "prependIndent_default_flat",
+            "prependIndent_flat",
+            "replaceIndent_default_flat",
+            "replaceIndent_flat",
+            "replaceIndentByMargin_flat",
+        ].map { Symbol.runtime(.string, $0) }
         for name in flatNames {
             #expect(
-                !(RuntimeABISpec.allFunctions.contains { $0.name == name }),
+                !(RuntimeABISpec.allFunctions.contains { name.matches($0.name) }),
                 "\(name) should be provided by bundled Kotlin source, not the flattened runtime ABI"
             )
         }
@@ -902,7 +940,7 @@ struct ABIMismatchTests {
 
     @Test
     func printRawSignature() throws {
-        let spec = try requireSpec("__kk_print_raw")
+        let spec = try requireSpec(RuntimeABISpec.bridgePrintRawSpec)
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -910,7 +948,7 @@ struct ABIMismatchTests {
 
     @Test
     func printlnRawSignature() throws {
-        let spec = try requireSpec("__kk_println_raw")
+        let spec = try requireSpec(RuntimeABISpec.bridgePrintlnRawSpec)
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -919,14 +957,14 @@ struct ABIMismatchTests {
     @Test
     func stringLengthHasNoRuntimeABISignature() {
         #expect(
-            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_string_struct_get_length" }) == nil,
+            RuntimeABISpec.allFunctions.first(where: { Symbol.runtime(.string, "struct_get_length").matches($0.name) }) == nil,
             "String.length is lowered as an aggregate field extract and must not have a runtime ABI entry"
         )
     }
 
     @Test
     func kkOpIsSignature() throws {
-        let spec = try requireSpec("kk_op_is")
+        let spec = try requireSpec(RuntimeABISpec.opIsSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].type == .intptr)
@@ -935,14 +973,14 @@ struct ABIMismatchTests {
 
     @Test
     func kkCoroutineSuspendedSignature() throws {
-        let spec = try requireSpec("kk_coroutine_suspended")
+        let spec = try requireSpec(RuntimeABISpec.coroutineSuspendedSpec)
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.count == 0)
     }
 
     @Test
     func kkCreateCoroutineUninterceptedSignature() throws {
-        let spec = try requireSpec("kk_create_coroutine_unintercepted")
+        let spec = try requireSpec(RuntimeABISpec.createCoroutineUninterceptedSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "entryPointRaw")
@@ -953,7 +991,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkStartCoroutineUninterceptedOrReturnSignature() throws {
-        let spec = try requireSpec("kk_start_coroutine_unintercepted_or_return")
+        let spec = try requireSpec(RuntimeABISpec.startCoroutineUninterceptedOrReturnSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 3)
         #expect(spec.parameters[0].name == "entryPointRaw")
@@ -966,7 +1004,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSuspendFunctionInvokeSignature() throws {
-        let spec = try requireSpec("kk_suspend_function_invoke")
+        let spec = try requireSpec(RuntimeABISpec.suspendFunctionInvokeSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "functionRaw")
@@ -981,7 +1019,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSuspendFunctionInvokeZeroAritySignature() throws {
-        let spec = try requireSpec("kk_suspend_function_invoke_0")
+        let spec = try requireSpec(RuntimeABISpec.suspendFunctionInvoke0Spec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 3)
         #expect(spec.parameters[0].name == "functionRaw")
@@ -994,7 +1032,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSuspendFunctionInvokeTwoAritySignature() throws {
-        let spec = try requireSpec("kk_suspend_function_invoke_2")
+        let spec = try requireSpec(RuntimeABISpec.suspendFunctionInvoke2Spec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "continuation", "outThrown"])
         #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
@@ -1002,7 +1040,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSuspendFunctionCreateSignature() throws {
-        let spec = try requireSpec("kk_suspend_function_create")
+        let spec = try requireSpec(RuntimeABISpec.suspendFunctionCreateSpec)
         #expect(spec.returnType == .intptr)
         #expect(!spec.isThrowing)
         #expect(spec.parameters.map(\.name) == ["bodyRaw", "closureRaw", "arity", "entryPointRaw"])
@@ -1011,7 +1049,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSuspendFunctionInvokeThreeAritySignature() throws {
-        let spec = try requireSpec("kk_suspend_function_invoke_3")
+        let spec = try requireSpec(RuntimeABISpec.suspendFunctionInvoke3Spec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.map(\.name) == ["functionRaw", "arg1", "arg2", "arg3", "continuation", "outThrown"])
         #expect(spec.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr, .intptr, .nullableIntptrPointer])
@@ -1019,7 +1057,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListAddAtSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_add_at")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutableListAddAtSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "listRaw")
@@ -1034,7 +1072,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutableListSetSignature() throws {
-        let spec = try requireSpec("__kk_mutable_list_set")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutableListSetSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "listRaw")
@@ -1049,7 +1087,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedSignature() throws {
-        let spec = try requireSpec("kk_list_sorted")
+        let spec = try requireSpec(RuntimeABISpec.listSortedSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -1057,7 +1095,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_list_sorted_primitive")
+        let spec = try requireSpec(RuntimeABISpec.listSortedPrimitiveSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].type == .intptr)
@@ -1066,7 +1104,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedDescendingSignature() throws {
-        let spec = try requireSpec("kk_list_sortedDescending")
+        let spec = try requireSpec(RuntimeABISpec.listSortedDescendingSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)
@@ -1074,7 +1112,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedBySignature() throws {
-        let spec = try requireSpec("kk_list_sortedBy")
+        let spec = try requireSpec(RuntimeABISpec.listSortedBySpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1085,7 +1123,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedByPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_list_sortedBy_primitive")
+        let spec = try requireSpec(RuntimeABISpec.listSortedByPrimitiveSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 5)
         #expect(spec.parameters[0].type == .intptr)
@@ -1097,7 +1135,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedByDescendingSignature() throws {
-        let spec = try requireSpec("kk_list_sortedByDescending")
+        let spec = try requireSpec(RuntimeABISpec.listSortedByDescendingSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1108,7 +1146,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedByDescendingPrimitiveSignature() throws {
-        let spec = try requireSpec("kk_list_sortedByDescending_primitive")
+        let spec = try requireSpec(RuntimeABISpec.listSortedByDescendingPrimitiveSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 5)
         #expect(spec.parameters[0].type == .intptr)
@@ -1120,7 +1158,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkListSortedWithSignature() throws {
-        let spec = try requireSpec("kk_list_sortedWith")
+        let spec = try requireSpec(RuntimeABISpec.listSortedWithSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].type == .intptr)
@@ -1131,7 +1169,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkLockWithLockSignature() throws {
-        let spec = try requireSpec("__kk_lock_withLock")
+        let spec = try requireSpec(RuntimeABISpec.bridgeLockWithLockSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "handle")
@@ -1147,7 +1185,7 @@ struct ABIMismatchTests {
     // KSP-618: kotlin.synchronized is Kotlin source over this demoted bridge.
     @Test
     func kkSynchronizedSignature() throws {
-        let spec = try requireSpec("__kk_synchronized")
+        let spec = try requireSpec(RuntimeABISpec.bridgeSynchronizedSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 4)
         #expect(spec.parameters[0].name == "lock")
@@ -1162,14 +1200,14 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutexCreateSignature() throws {
-        let spec = try requireSpec("__kk_mutex_create")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutexCreateSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 0)
     }
 
     @Test
     func kkMutexLockSignature() throws {
-        let spec = try requireSpec("kk_mutex_lock")
+        let spec = try requireSpec(RuntimeABISpec.mutexLockSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "handle")
@@ -1180,7 +1218,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutexUnlockSignature() throws {
-        let spec = try requireSpec("kk_mutex_unlock")
+        let spec = try requireSpec(RuntimeABISpec.mutexUnlockSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "handle")
@@ -1193,7 +1231,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutexTryLockSignature() throws {
-        let spec = try requireSpec("__kk_mutex_tryLock")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutexTryLockSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].name == "handle")
@@ -1202,7 +1240,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkMutexIsLockedSignature() throws {
-        let spec = try requireSpec("__kk_mutex_isLocked")
+        let spec = try requireSpec(RuntimeABISpec.bridgeMutexIsLockedSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].name == "handle")
@@ -1211,7 +1249,7 @@ struct ABIMismatchTests {
 
     @Test
     func kkSemaphoreReleaseSignature() throws {
-        let spec = try requireSpec("kk_semaphore_release")
+        let spec = try requireSpec(RuntimeABISpec.semaphoreReleaseSpec)
         #expect(spec.returnType == .intptr)
         #expect(spec.parameters.count == 2)
         #expect(spec.parameters[0].name == "handle")
