@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// CANDIDATE-ONLY: kotlin.native.runtime.Debugging has no JVM kotlinc reference; compare stdout with the adjacent sidecar.
 @file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
 
 import kotlin.native.runtime.Debugging
