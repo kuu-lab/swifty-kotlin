@@ -99,7 +99,7 @@ extension LoweringPassRegressionTests {
                     .constValue(result: valueExpr, value: .symbolRef(valueParameter)),
                     .constValue(result: blockExpr, value: .symbolRef(blockParameter)),
                     .call(
-                        symbol: nil, callee: interner.intern("kk_function_invoke"),
+                        symbol: nil, callee: interner.intern(RuntimeCall.functionInvoke.name),
                         arguments: [blockExpr, valueExpr], result: blockResult,
                         canThrow: true, thrownResult: nil
                     ),
@@ -273,7 +273,7 @@ extension LoweringPassRegressionTests {
 
         let lambdaSymbol = SymbolID(rawValue: 1)
         let inlineSymbol = SymbolID(rawValue: 2)
-        let invokeCallee = interner.intern("kk_function_invoke")
+        let invokeCallee = interner.intern(RuntimeCall.functionInvoke.name)
 
         // Both callees branch and return twice, so each expansion needs the
         // callee's own label plus a merge label for the two exits.

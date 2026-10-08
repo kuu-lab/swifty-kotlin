@@ -1,28 +1,21 @@
+// KUU-1597 Sema owner: pin MutableMap.MutableEntry-to-Map.Entry covariance, destructuring, and setValue resolution; values and mutation are exercised in Scripts/diff_cases/stdlib_kotlin_collections_MutableMap_n_n.kt.
 private fun <K, V> readOnly(entry: MutableMap.MutableEntry<K, V>): Map.Entry<K, V> = entry
 
-private fun show(entry: MutableMap.MutableEntry<String, Int>) {
-    println(entry.key)
-    println(entry.value)
+private fun show(entry: MutableMap.MutableEntry<String, Int>): Pair<String, Int> {
     val wide: Map.Entry<Any, Any> = readOnly(entry)
-    println(wide.key)
-    println(wide.value)
     val (key, value) = entry
-    println(key)
-    println(value)
+    return Pair(key, value)
 }
 
 fun main() {
     val map = mutableMapOf("key" to 1)
     val entry: MutableMap.MutableEntry<String, Int> = map.entries.iterator().next()
-    show(entry)
-    println(entry.setValue(42))
-    println(entry.value)
-    println(map["key"])
+    val pair: Pair<String, Int> = show(entry)
+    val previous: Int = entry.setValue(42)
+
     val nullableMap = mutableMapOf<String?, Int?>(null to null)
     val nullable: MutableMap.MutableEntry<String?, Int?> = nullableMap.entries.iterator().next()
-    println(nullable.key)
-    println(nullable.value)
-    println(nullable.setValue(7))
-    println(nullable.value)
-    println(nullableMap[null])
+    val nullableKey: String? = nullable.key
+    val nullableValue: Int? = nullable.value
+    val nullablePrevious: Int? = nullable.setValue(7)
 }

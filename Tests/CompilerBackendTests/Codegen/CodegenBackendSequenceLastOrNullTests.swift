@@ -108,8 +108,9 @@ struct CodegenBackendSequenceLastOrNullTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            let legacyCallee = try runtimeABICallee("sequence_lastOrNull")
             #expect(
-                containsKotlinCallee("lastOrNull", in: callees) && !callees.contains("kk_sequence_lastOrNull"),
+                containsKotlinCallee("lastOrNull", in: callees) && !callees.contains(legacyCallee),
                 "Expected Sequence.lastOrNull to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }

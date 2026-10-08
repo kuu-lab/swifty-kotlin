@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import RuntimeABI
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -213,16 +214,17 @@ extension BuildKIRRegressionTests {
         #expect(catchBindings[1].parameterSymbol != .invalid)
 
         let body = try findKIRFunctionBody(named: "demo3", in: module, interner: ctx.interner)
+        let runtimeNames = Set(RuntimeABIExterns.allExterns.map(\.name))
         let matcherCalls = body.compactMap { instruction -> KIRInstruction? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_catch_type_matches"
+            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                  symbol == nil,
+                  !runtimeNames.contains(ctx.interner.resolve(callee))
             else {
                 return nil
             }
-            _ = arguments
             return instruction
         }
-        #expect(matcherCalls.isEmpty, "Try-catch lowering should not require runtime matcher helper calls.")
+        #expect(matcherCalls.isEmpty, "Try-catch lowering must not emit undeclared runtime helpers.")
 
         let labelPositions: [Int32: Int] = body.enumerated().reduce(into: [:]) { partial, entry in
             if case let .label(labelID) = entry.element {
@@ -335,6 +337,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
@@ -345,14 +348,14 @@ extension BuildKIRRegressionTests {
         // kk_op_is for other reasons in the same function body.
         let opIsCalls = body.filter { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_op_is"
+            return callee == ctx.interner.intern(runtime[.isType])
         }
         #expect(opIsCalls.count >= 1, "Expected at least one kk_op_is call for runtime type check fallback on UNKNOWN token.")
 
         // Verify the kk_op_is call receives the exception slot and the type token
         let firstOpIsCall = try #require(opIsCalls.first)
         if case let .call(_, _, arguments, _, _, _, _, _) = firstOpIsCall {
-            #expect(arguments.count == 2, "kk_op_is should receive exception value and type token.")
+            #expect(arguments.count == 2, "Runtime type tests should receive exception value and type token.")
         }
 
         // Verify that the UNKNOWN-token (0) comparison gates the kk_op_is call:
@@ -382,6 +385,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
@@ -389,7 +393,7 @@ extension BuildKIRRegressionTests {
 
         // Verify that kk_op_is is called for each typed catch clause.
         // Use >= numberOfTypedClauses to be resilient against future lowering changes.
-        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == runtime[.isType] }
         #expect(opIsCount >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
     }
 
@@ -398,13 +402,14 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo6", in: module, interner: ctx.interner)
 
         // catch-all should not require runtime type checking
-        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == runtime[.isType] }
         #expect(opIsCount == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
     }
 
@@ -419,6 +424,7 @@ extension BuildKIRRegressionTests {
     // with its own stable nominal type ID.
     @Test
     func testBuildKIRLowersEmptyBodyObjectLiteralToInlineRuntimeObjectEntity() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
@@ -431,15 +437,15 @@ extension BuildKIRRegressionTests {
         ))
         let makeBody = try findKIRFunctionBody(named: "make7", in: module, interner: ctx.interner)
 
-        #expect(!extractCallees(from: makeBody, interner: ctx.interner).contains {
-            $0.hasPrefix("kk_object_literal_")
-        })
+        #expect(extractCallees(from: makeBody, interner: ctx.interner).allSatisfy {
+            RuntimeABIExterns.externDecl(named: $0) != nil
+        }, "Inline object allocation must use declared runtime helpers without a generated factory call")
 
         let allocationCall = try #require(makeBody.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee) == "kk_object_new"
+            return callee == ctx.interner.intern(runtime[.objectNew])
         })
         guard case let .call(_, _, arguments, result, _, _, _, _) = allocationCall else {
             Issue.record("Expected object literal to lower to a kk_object_new call.")
@@ -488,15 +494,16 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testBuildKIRObjectLiteralStoredPropertyReadUsesNonThrowingFastPath() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main8", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_get_inbounds"))
+        #expect(callNames.contains(runtime[.arrayGetInbounds]))
 
         let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-        #expect(throwFlags["kk_array_get_inbounds"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[runtime[.arrayGetInbounds]]?.allSatisfy { $0 == false } == true)
     }
 
 
@@ -509,12 +516,13 @@ extension BuildKIRRegressionTests {
     // body is now checked too: it must load `seed` from the instance and must
     // not contain a `.unit` constant standing in for an unresolved identifier.
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main9", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(!(callNames.contains("kk_array_get")))
+        #expect(!(callNames.contains(runtime[.arrayGet])))
         #expect(callNames.contains("get"))
 
         // Every accessor this fixture emits is a one-parameter `get` function.
@@ -523,7 +531,7 @@ extension BuildKIRRegressionTests {
         // and no instance read at all.
         let getterBodies = module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
             guard case let .function(function) = decl,
-                  ctx.interner.resolve(function.name) == "get",
+                  function.name == KnownCompilerNames(interner: ctx.interner).get,
                   function.params.count == 1
             else {
                 return nil
@@ -548,7 +556,7 @@ extension BuildKIRRegressionTests {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
                 }
-                return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+                return callee == ctx.interner.intern(runtime[.arrayGetInbounds])
             }
         }
 
