@@ -18,12 +18,14 @@ struct CoroutineOptInMarkerTests {
     import kotlinx.coroutines.*
     import kotlinx.coroutines.channels.*
     import kotlinx.coroutines.flow.*
-    import kotlinx.coroutines.flow.debounce as delayed
+    import kotlin.time.DurationUnit
+    import kotlin.time.toDuration
 
     fun useDelicate() { GlobalScope.launch { } }
     fun useFlowPreview() {
-        flowOf(1).delayed(1L)
+        flowOf(1).debounce(1L)
         flowOf(1).sample(1L)
+        flowOf(1).sample(1.toDuration(DurationUnit.MILLISECONDS))
     }
     fun useObsolete(scope: CoroutineScope) { scope.actor<Int> { } }
     fun useActorScope(scope: ActorScope<Int>) { scope.channel }
@@ -32,14 +34,15 @@ struct CoroutineOptInMarkerTests {
         if (token != null) c.completeResume(token)
         c.tryResumeWithException(IllegalStateException())
     }
-    suspend fun useStableCollectLatest() { flowOf(1).collectLatest { } }
+    suspend fun useStableCollectLatest() {
+        flowOf(1).buffer().flowOn(Dispatchers.Default).collectLatest { }
+    }
     """
 
     private let optedInSource = """
     import kotlinx.coroutines.*
     import kotlinx.coroutines.channels.*
     import kotlinx.coroutines.flow.*
-    import kotlinx.coroutines.flow.debounce as delayed
     import kotlin.time.DurationUnit
     import kotlin.time.toDuration
 
@@ -47,7 +50,7 @@ struct CoroutineOptInMarkerTests {
     fun useDelicate() { GlobalScope.launch { } }
     @OptIn(FlowPreview::class)
     fun useFlowPreview() {
-        flowOf(1).delayed(1L)
+        flowOf(1).debounce(1L)
         flowOf(1).sample(1L)
         flowOf(1).sample(1.toDuration(DurationUnit.MILLISECONDS))
     }
@@ -73,7 +76,7 @@ struct CoroutineOptInMarkerTests {
         #expect(delicate.allSatisfy { $0.severity == .warning })
 
         let flowPreview = matchingDiagnostics(for: markerNames[1], in: allOptInDiagnostics)
-        #expect(flowPreview.count == 2, "Expected debounce and sample to require FlowPreview: \(allOptInDiagnostics)")
+        #expect(flowPreview.count == 3, "Expected canonical debounce and both sample overloads to require FlowPreview: \(allOptInDiagnostics)")
         #expect(flowPreview.allSatisfy { $0.severity == .warning })
 
         let obsolete = matchingDiagnostics(for: markerNames[2], in: allOptInDiagnostics)
@@ -102,6 +105,41 @@ struct CoroutineOptInMarkerTests {
             let context = semaContext(optedInSource, usingFreshKklib: useFreshKklib)
             #expect(userOptInDiagnostics(in: context).isEmpty,
                     "Explicit @OptIn should suppress coroutines diagnostics: \(context.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func aliasedDebounceMatchesCanonicalOptInDiagnosticsFromSourceAndFreshKklib() {
+        let canonicalSource = """
+        import kotlinx.coroutines.flow.*
+        fun useFlowPreview() { flowOf(1).debounce(1L) }
+        """
+        let aliasedSource = """
+        import kotlinx.coroutines.flow.*
+        import kotlinx.coroutines.flow.debounce as delayed
+        fun useFlowPreview() { flowOf(1).delayed(1L) }
+        """
+
+        for useFreshKklib in [false, true] {
+            let canonicalContext = semaContext(canonicalSource, usingFreshKklib: useFreshKklib)
+            let aliasedContext = semaContext(aliasedSource, usingFreshKklib: useFreshKklib)
+            let canonicalDiagnostics = matchingDiagnostics(
+                for: markerNames[1],
+                in: userOptInDiagnostics(in: canonicalContext)
+            )
+            let aliasedDiagnostics = matchingDiagnostics(
+                for: markerNames[1],
+                in: userOptInDiagnostics(in: aliasedContext)
+            )
+
+            #expect(canonicalDiagnostics.count == 1,
+                    "Canonical debounce should report exactly one FlowPreview warning: \(canonicalDiagnostics)")
+            #expect(canonicalDiagnostics.allSatisfy { $0.severity == .warning })
+            #expect(aliasedDiagnostics.count == 1,
+                    "Aliased debounce should report exactly one FlowPreview warning: \(aliasedDiagnostics)")
+            #expect(aliasedDiagnostics.allSatisfy { $0.severity == .warning })
+            #expect(diagnosticSignatures(canonicalDiagnostics) == diagnosticSignatures(aliasedDiagnostics),
+                    "Import aliases should preserve FlowPreview marker and severity")
         }
     }
 
