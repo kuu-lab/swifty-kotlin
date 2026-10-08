@@ -2219,6 +2219,11 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// Values published by the producer but not consumed yet.
     private var pendingYieldedValues: [Int] = []
 
+    /// Iterator currently delegated by yieldAll(sequence).
+    private var delegatedIterator: Int = 0
+    /// A legacy producer's thrown channel remains live while yieldAll blocks.
+    private var delegatedThrownPointer: UnsafeMutablePointer<Int>?
+
     /// Whether the producer has finished (either completed or threw).
     private var finished = false
     private var failure: Int = 0
@@ -2271,6 +2276,39 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         return 0
     }
 
+    /// Delegates to an iterator and suspends the producer until the consumer
+    /// has pulled every element from it.
+    func yieldAll(_ iterator: Int, outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        var thrown = 0
+        let hasNext = kk_iterator_hasNext(iterator, &thrown)
+        if thrown != 0 {
+            recordFailure(thrown)
+            outThrown?.pointee = thrown
+            consumerGate.signal()
+            return 0
+        }
+        guard hasNext != 0 else { return 0 }
+
+        stateLock.lock()
+        delegatedIterator = iterator
+        delegatedThrownPointer = usesCPSProducer ? nil : outThrown
+        stateLock.unlock()
+
+        consumerGate.signal()
+        if usesCPSProducer {
+            return Int(bitPattern: kk_coroutine_suspended())
+        }
+        producerGate.wait()
+        stateLock.lock()
+        let delegatedFailure = failure
+        delegatedThrownPointer = nil
+        stateLock.unlock()
+        if delegatedFailure != 0 {
+            outThrown?.pointee = delegatedFailure
+        }
+        return 0
+    }
+
     /// Called by the producer when it finishes (normally or via exception).
     func markFinished(thrown: Int = 0) {
         stateLock.lock()
@@ -2280,8 +2318,8 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         consumerGate.signal()
     }
 
-    // The retained yieldAll ABI has no outThrown slot; keep its delegated
-    // failure until the legacy callback completes and the consumer receives it.
+    /// Preserve the first failure for the sequence consumer and a blocked
+    /// legacy producer waiting to return from yieldAll.
     func recordFailure(_ thrown: Int) {
         stateLock.lock()
         if failure == 0 { failure = thrown }
@@ -2293,6 +2331,43 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
             return nil
         }
         return pendingYieldedValues.removeFirst()
+    }
+
+    /// Pulls one value from the active delegate. A nil result means the
+    /// delegate is exhausted and the producer can resume after yieldAll.
+    private func nextDelegatedElement(
+        _ iterator: Int,
+        outThrown: UnsafeMutablePointer<Int>?
+    ) -> NextResult? {
+        var thrown = 0
+        let hasNext = kk_iterator_hasNext(iterator, &thrown)
+        let value = hasNext != 0 && thrown == 0
+            ? kk_iterator_next(iterator, &thrown)
+            : 0
+
+        if thrown != 0 {
+            stateLock.lock()
+            if failure == 0 { failure = thrown }
+            let producerThrownPointer = delegatedThrownPointer
+            delegatedThrownPointer = nil
+            stateLock.unlock()
+            outThrown?.pointee = thrown
+            producerThrownPointer?.pointee = thrown
+            if !usesCPSProducer { producerGate.signal() }
+            return .done
+        }
+        guard hasNext != 0 else {
+            stateLock.lock()
+            if delegatedIterator == iterator { delegatedIterator = 0 }
+            stateLock.unlock()
+            return nil
+        }
+
+        stateLock.lock()
+        materializedElements.append(value)
+        consumptionIndex += 1
+        stateLock.unlock()
+        return .value(value)
     }
 
     /// Consumer side: advance the producer one step and block until it yields or finishes.
@@ -2314,24 +2389,19 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         requestProducerStep()
         let coroutine = self
         let didSuspend = consumerGate.wait(resumeContinuation: {
-            coroutine.stateLock.lock()
-            if let value = coroutine.consumePendingValueLocked() {
-                coroutine.materializedElements.append(value)
-                coroutine.consumptionIndex += 1
-                coroutine.stateLock.unlock()
+            guard let result = coroutine.nextElementAsync(callerState: callerState) else {
+                return
+            }
+            switch result {
+            case let .value(value):
                 callerState.resume(with: value)
-            } else if coroutine.finished {
-                coroutine.fullyMaterialized = true
-                coroutine.stateLock.unlock()
+            case .done:
                 let doneSentinel = Int(bitPattern:
                     UnsafeMutableRawPointer(
                         Unmanaged.passUnretained(runtimeStorage.sequenceCompletedBox).toOpaque()
                     )
                 )
                 callerState.resume(with: doneSentinel)
-            } else {
-                coroutine.stateLock.unlock()
-                callerState.resume(with: 0)
             }
         })
         return didSuspend
@@ -2366,56 +2436,48 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     private var consumptionIndex: Int = 0
 
     func nextElement(outThrown: UnsafeMutablePointer<Int>? = nil) -> NextResult {
-        stateLock.lock()
-        if failure != 0 {
-            outThrown?.pointee = failure
+        while true {
+            stateLock.lock()
+            if failure != 0 {
+                outThrown?.pointee = failure
+                stateLock.unlock()
+                return .done
+            }
+            if consumptionIndex < materializedElements.count {
+                let elem = materializedElements[consumptionIndex]
+                consumptionIndex += 1
+                stateLock.unlock()
+                return .value(elem)
+            }
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                consumptionIndex += 1
+                stateLock.unlock()
+                return .value(value)
+            }
+            let delegate = delegatedIterator
+            if delegate == 0 {
+                if fullyMaterialized {
+                    stateLock.unlock()
+                    return .done
+                }
+                if finished {
+                    fullyMaterialized = true
+                    stateLock.unlock()
+                    return .done
+                }
+            }
             stateLock.unlock()
-            return .done
-        }
-        if consumptionIndex < materializedElements.count {
-            let elem = materializedElements[consumptionIndex]
-            consumptionIndex += 1
-            stateLock.unlock()
-            return .value(elem)
-        }
-        if let value = consumePendingValueLocked() {
-            materializedElements.append(value)
-            consumptionIndex += 1
-            stateLock.unlock()
-            return .value(value)
-        }
-        if fullyMaterialized {
-            stateLock.unlock()
-            return .done
-        }
-        if finished {
-            fullyMaterialized = true
-            stateLock.unlock()
-            return .done
-        }
-        stateLock.unlock()
 
-        awaitProducerYield()
+            if delegate != 0 {
+                if let result = nextDelegatedElement(delegate, outThrown: outThrown) {
+                    return result
+                }
+                continue
+            }
 
-        stateLock.lock()
-        if failure != 0 {
-            outThrown?.pointee = failure
-            stateLock.unlock()
-            return .done
+            awaitProducerYield()
         }
-        if let value = consumePendingValueLocked() {
-            materializedElements.append(value)
-            consumptionIndex += 1
-            stateLock.unlock()
-            return .value(value)
-        }
-        if finished {
-            fullyMaterialized = true
-            stateLock.unlock()
-            return .done
-        }
-        stateLock.unlock()
-        return .done
     }
 
     /// Suspension-aware element request for coroutine callers (CORO-004 Phase 2).
@@ -2430,50 +2492,51 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     ///   - `.value(elem)`  — result was immediately available (cache hit).
     ///   - `.done`         — sequence already fully materialised.
     func nextElementAsync(callerState: RuntimeContinuationState) -> NextResult? {
-        stateLock.lock()
-        if consumptionIndex < materializedElements.count {
-            let elem = materializedElements[consumptionIndex]
-            consumptionIndex += 1
+        while true {
+            stateLock.lock()
+            if failure != 0 {
+                stateLock.unlock()
+                return .done
+            }
+            if consumptionIndex < materializedElements.count {
+                let elem = materializedElements[consumptionIndex]
+                consumptionIndex += 1
+                stateLock.unlock()
+                return .value(elem)
+            }
+            if let value = consumePendingValueLocked() {
+                materializedElements.append(value)
+                consumptionIndex += 1
+                stateLock.unlock()
+                return .value(value)
+            }
+            let delegate = delegatedIterator
+            if delegate == 0 {
+                if fullyMaterialized {
+                    stateLock.unlock()
+                    return .done
+                }
+                if finished {
+                    fullyMaterialized = true
+                    stateLock.unlock()
+                    return .done
+                }
+            }
             stateLock.unlock()
-            return .value(elem)
-        }
-        if let value = consumePendingValueLocked() {
-            materializedElements.append(value)
-            consumptionIndex += 1
-            stateLock.unlock()
-            return .value(value)
-        }
-        if fullyMaterialized {
-            stateLock.unlock()
-            return .done
-        }
-        if finished {
-            fullyMaterialized = true
-            stateLock.unlock()
-            return .done
-        }
-        stateLock.unlock()
 
-        let didSuspend = awaitProducerYieldAsync(callerState: callerState)
-        if didSuspend {
-            return nil
+            if delegate != 0 {
+                if let result = nextDelegatedElement(delegate, outThrown: nil) {
+                    return result
+                }
+                continue
+            }
+
+            if awaitProducerYieldAsync(callerState: callerState) {
+                return nil
+            }
+            // A signal arrived before the continuation was installed. Recheck
+            // producer, delegate, and cache state synchronously.
         }
-        // Signal arrived before the continuation could be installed — fall
-        // through to read the result synchronously (same as nextElement()).
-        stateLock.lock()
-        if let value = consumePendingValueLocked() {
-            materializedElements.append(value)
-            consumptionIndex += 1
-            stateLock.unlock()
-            return .value(value)
-        }
-        if finished {
-            fullyMaterialized = true
-            stateLock.unlock()
-            return .done
-        }
-        stateLock.unlock()
-        return .done
     }
 
     /// Reset the consumption index so re-iteration over the same coroutine
