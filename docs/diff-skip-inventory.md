@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-10-05
+最終更新: 2026-10-08
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -28,18 +28,16 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-05（DEADCODE-014、分岐元 `fc977cd93`）の再集計は **122 タグ / 122 ファイル**。
-DEBT-DIFF-001 は **117 件**（旧表の 85 件は 2026-09-20 時点）。カテゴリ別集計から
-漏れていた `stdlib_kotlin_collections_n_throw.kt` の `SKIP-DIFF (KSP-959)` を、
-internal `@PublishedApi` helper の既存理由に従い DEBT-DIFF-001 へ正規化した。
-skip の新規追加／解除はなく、全 skip ケースの `--force-run-skipped` 再実行も
-今回行っていない。以下の過去の実行結果は当時の検証範囲として保持する。
+2026-10-08 の実測は **116 タグ / 116 ファイル**。DEBT-DIFF-001 は **111 件**。
+2026-10-05 の集計値から現在値が変わっているため、下表は対象タグを数え直した値へ同期した。
+今回 `local_named_object.kt` の DEBT-DIFF-011 タグを除去したが、その他の skip ケースを
+`--force-run-skipped` で再実行してはいない。以下の過去の実行結果は当時の検証範囲として保持する。
 
 件数は実測値（`find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 | xargs -0 rg -o 'SKIP-DIFF\s*\(DEBT-DIFF-[0-9]{3}\)|KSWIFTK_DIFF_IGNORE.*DEBT-DIFF-[0-9]{3}' -N | rg -o 'DEBT-DIFF-[0-9]{3}' | sort | uniq -c`）に同期する。単純な `rg -o 'DEBT-DIFF-[0-9]{3}'`（アクティブなタグ/経緯コメント両方にマッチ）ではなく、アクティブな `SKIP-DIFF`/`KSWIFTK_DIFF_IGNORE` タグのみに絞ること — `case_insensitive_order_identity.kt` のように「過去 DEBT-DIFF-005 として追跡していたが解消済み」という経緯コメントだけが残るケースがあり、単純な文字列一致では解消済みの件数を残存として誤カウントする（2026-08-02、並行マージでの再計測差異から判明）。
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 117 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期 |
+| DEBT-DIFF-001 | 111 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期。**2026-10-08 実測**: 111件 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 1 | advanced coroutine / channel / Flow / structured concurrency | `kotlinx_coroutines_flow_transform_latest_cancellation.kt` は KUU-955 の continuation-aware callable ABI 対応待ち。従来の coroutine / channel ケースは解除済み |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
@@ -49,7 +47,7 @@ skip の新規追加／解除はなく、全 skip ケースの `--force-run-skip
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
-| DEBT-DIFF-011 | 1 | KSwiftK-superset 構文で JVM kotlinc がコンパイル自体を拒否するケース（例: 関数本体内の named local `object` 宣言） | 詳細は下記節。candidate 出力が正しくても reference oracle が存在しないため keep skip。superset 部分の検証は sema golden / unit test 側で行う |
+| DEBT-DIFF-011 | 0 (2026-10-08 解消) | KSwiftK-superset 構文で JVM kotlinc がコンパイル自体を拒否するケース | `local_named_object.kt` を diff 対象から削除。superset 構文の検証は Parser / Sema golden と unit test が担う（詳細は下記節） |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -427,7 +425,7 @@ KIR 実測（`--emit kir`）で、`yieldAll(inner)` は `call __kk_sequence_buil
 
 KSwiftK が JVM より広い構文を意図的に受理するケースでは、reference kotlinc が compile exit 1 で終了するため差分 oracle が成立しない。`compile exit mismatch: ref=1 candidate=0` で常に FAIL するが、candidate 側の出力が正しくても同じである。`ref_compile.stderr` を読み、candidate が実装する superset 構文と判明したらこのバケットに入れる。
 
-現行ケース: `local_named_object.kt`（KUU-555）。JVM Kotlin では named local `object` 宣言は文法エラー（`error: named object 'Local' cannot be local. Try to use an anonymous object instead.`）だが、KUU-555 は local `class` と対称に kswiftc 側で受理する superset とした。同ファイルを kotlinc-legal な local `class` のみに縮小した `local_named_nominal.kt` は通常 diff で PASS（`5 7 9 4 7` を両側で一致）するため、そちらが oracle を担う。named object 側の回帰固定は `Tests/CompilerCoreTests/GoldenCases/{Parser,Sema}/local_named_nominal` と `LocalNamedNominalTypingTests` が担い、candidate の実行出力 `5 7 9 3 6` を `--force-run-skipped` で目視確認できる。
+2026-10-08 に解消。JVM Kotlin は named local `object` 宣言を文法エラー（`error: named object 'Local' cannot be local. Try to use an anonymous object instead.`）として拒否するため、`Scripts/diff_cases/local_named_object.kt` を diff 対象から削除した。KUU-555 の superset 構文は `Tests/CompilerCoreTests/GoldenCases/Parser/local_named_nominal.kt` が関数本体内の named local `object` を parse できることを固定し、`Tests/CompilerCoreTests/GoldenCases/Sema/local_named_nominal.kt` と `Tests/CompilerCoreTests/Sema/LocalNamedNominalTypingTests.swift` が関数本体内の宣言・singleton 型・メンバー解決、およびクラスメソッド内の宣言を固定する。JVM と比較できる local `class` の対照ケース `Scripts/diff_cases/local_named_nominal.kt` は引き続き通常の diff 対象とする。削除したケースの候補出力は従来 `--force-run-skipped` で `5 7 9 3 6` と確認していた。
 
 ## 解除手順
 
