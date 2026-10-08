@@ -435,7 +435,8 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
                 let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+                let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
+                return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
             }
         }
 
@@ -460,7 +461,8 @@ extension DataFlowSemaPhase {
                         interner: interner
                     )
                     let nominal = resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
-                    return ResolvedSupertype(symbol: nominal, typeArgs: resolvedArgs)
+                    let runtimeNominal = resolveActualNominalSupertype(nominal, symbols: symbols)
+                    return ResolvedSupertype(symbol: runtimeNominal, typeArgs: resolvedArgs)
                 }
             }
         }
@@ -486,6 +488,25 @@ extension DataFlowSemaPhase {
         }
         return resolveTypeAliasSupertype(classType.classSymbol, symbols: symbols, types: types)
             ?? classType.classSymbol
+    }
+
+    /// Inheritance needs the platform declaration's body-bearing layout when a
+    /// source expect class has a matching actual declaration in the same module.
+    /// Keep the expect symbol when no actual nominal is available, as with a
+    /// common-only declaration that will be linked by a later compilation.
+    private func resolveActualNominalSupertype(_ symbol: SymbolID, symbols: SymbolTable) -> SymbolID {
+        guard let expect = symbols.symbol(symbol),
+              expect.flags.contains(.expectDeclaration),
+              isNominalTypeSymbol(expect.kind)
+        else {
+            return symbol
+        }
+
+        return symbols.lookupAll(fqName: expect.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.flags.contains(.actualDeclaration) && $0.kind == expect.kind }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+            .first?.id ?? symbol
     }
 
     private func resolveTypeArgRefsForInheritance(

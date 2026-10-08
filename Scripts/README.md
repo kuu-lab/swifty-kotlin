@@ -327,6 +327,13 @@ The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.3.10
 lane. For local toolchains that are intentionally different, set
 `DIFF_REQUIRE_JDK21=0` and record that limitation with the result.
 
+Cases marked `// DIFF_CANDIDATE_ONLY` bypass kotlinc compilation and execution.
+Add one `// DIFF_EXPECT_OUTPUT: <line>` directive for each expected stdout line;
+repeated directives represent multiline output, and an empty directive represents
+an empty line. The candidate must compile, exit successfully, and match those
+lines exactly. This path is for cases where a JVM reference target cannot model
+the input, such as same-module `expect`/`actual` declarations.
+
 ## Precompiled stdlib artifact for diff runs
 
 `diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from

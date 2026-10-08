@@ -245,8 +245,9 @@ extension DataFlowSemaPhase {
             // Interfaces have no backing field storage; skip property fields.
             []
         } else {
-            symbols.children(ofFQName: nominalSymbol.fqName)
-                .compactMap { id -> SymbolID? in
+            Self.ownMembers(of: nominalSymbol, symbols: symbols)
+                .compactMap { member -> SymbolID? in
+                    let id = member.id
                     guard let kind = symbols.symbol(id)?.kind else { return nil }
                     switch kind {
                     case .field:
@@ -386,8 +387,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> [SemanticSymbol] {
-        let methods = symbols.children(ofFQName: nominalSymbol.fqName)
-            .compactMap { symbols.symbol($0) }
+        let methods = ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .function }
             // KUU-545: extension member aliases (KSP-443) are owner+name lookup
             // shims, not dispatchable members. Counting one here inflates
@@ -578,8 +578,7 @@ extension DataFlowSemaPhase {
         guard nominalSymbol.kind != .interface else {
             return []
         }
-        return symbols.children(ofFQName: nominalSymbol.fqName)
-            .compactMap { symbols.symbol($0) }
+        return ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .property }
             .filter {
                 $0.flags.contains(.openType)
@@ -608,15 +607,50 @@ extension DataFlowSemaPhase {
         var current = superclass(of: nominalID)
         while let ancestorID = current, visited.insert(ancestorID).inserted {
             guard let ancestorSym = symbols.symbol(ancestorID) else { return nil }
-            let match = symbols.children(ofFQName: ancestorSym.fqName).first { childID in
-                guard let child = symbols.symbol(childID) else { return false }
-                return child.kind == .property && child.name == name
+            let match = ownMembers(of: ancestorSym, symbols: symbols).first { child in
+                child.kind == .property && child.name == name
             }
             if let match {
-                return match
+                return match.id
             }
             current = superclass(of: ancestorID)
         }
         return nil
+    }
+
+    /// Members of same-module expect and actual declarations share an FQName.
+    /// Reconstruct each declaration's member set from source ranges so unmarked
+    /// members of an expect class and platform-only actual members stay attached
+    /// to the declaration that contains them.
+    private static func ownMembers(of nominalSymbol: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
+        let members = symbols.children(ofFQName: nominalSymbol.fqName).compactMap { symbols.symbol($0) }
+        let expectsActualCounterpart = nominalSymbol.flags.contains(.expectDeclaration)
+            ? SymbolFlags.actualDeclaration
+            : SymbolFlags.expectDeclaration
+        guard (nominalSymbol.flags.contains(.expectDeclaration)
+                || nominalSymbol.flags.contains(.actualDeclaration)),
+              let ownerRange = nominalSymbol.declSite,
+              symbols.lookupAll(fqName: nominalSymbol.fqName).contains(where: { candidateID in
+                  guard candidateID != nominalSymbol.id,
+                        let candidate = symbols.symbol(candidateID)
+                  else {
+                      return false
+                  }
+                  return candidate.kind == nominalSymbol.kind
+                      && candidate.flags.contains(expectsActualCounterpart)
+              })
+        else {
+            return members
+        }
+
+        return members.filter { member in
+            if let parent = symbols.parentSymbol(for: member.id) {
+                return parent == nominalSymbol.id
+            }
+            guard let memberRange = member.declSite else {
+                return false
+            }
+            return ownerRange.contains(memberRange)
+        }
     }
 }

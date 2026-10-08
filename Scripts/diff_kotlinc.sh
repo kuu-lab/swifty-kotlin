@@ -1071,6 +1071,125 @@ get_java_extra_flags() {
   grep -E '^[[:space:]]*//[[:space:]]*JAVA_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*JAVA_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
+is_candidate_only_case() {
+  local kt_file="$1"
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|$)' "$kt_file"
+}
+
+# Write one expected stdout line for each // DIFF_EXPECT_OUTPUT: directive.
+# Repeated directives represent multiple lines; an empty directive represents
+# an empty output line.
+write_candidate_expected_stdout() {
+  local kt_file="$1"
+  awk '
+    /^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_OUTPUT:/ {
+      line = $0
+      sub(/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_OUTPUT:/, "", line)
+      sub(/^ /, "", line)
+      print line
+      found = 1
+    }
+    END { if (!found) exit 1 }
+  ' "$kt_file"
+}
+
+run_candidate_only_case() {
+  local kt_file="$1"
+  local artifact_file="${2:-}"
+  local tmp_dir
+  tmp_dir="$(mktemp -d -t kswiftk-diff-XXXXXX)"
+  LAST_ARTIFACT_DIR="$tmp_dir"
+
+  local cand_bin="$tmp_dir/candidate.out"
+  local cand_compile_stdout="$tmp_dir/cand_compile.stdout"
+  local cand_compile_stderr="$tmp_dir/cand_compile.stderr"
+  local cand_run_stdout="$tmp_dir/cand_run.stdout"
+  local cand_run_stderr="$tmp_dir/cand_run.stderr"
+  local cand_compile_exit=0
+  local cand_run_exit=0
+  local ok=1
+
+  : >"$cand_compile_stdout"
+  : >"$cand_compile_stderr"
+  : >"$cand_run_stdout"
+  : >"$cand_run_stderr"
+
+  if ! write_candidate_expected_stdout "$kt_file" | normalize_text >"$tmp_dir/expected_run_stdout.norm"; then
+    echo "  missing // DIFF_EXPECT_OUTPUT: directive"
+    echo "FAIL $kt_file (candidate-only)"
+    rm -rf "$tmp_dir"
+    LAST_ARTIFACT_DIR=""
+    if [[ -n "$artifact_file" ]]; then
+      printf '\n' >"$artifact_file"
+    fi
+    return 1
+  fi
+
+  if [[ $ok -eq 1 ]]; then
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+    if [[ $cand_compile_exit -eq 124 ]]; then
+      echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
+      ok=0
+    elif [[ $cand_compile_exit -ne 0 ]]; then
+      echo "  candidate compile failed with exit=$cand_compile_exit"
+      ok=0
+    fi
+  fi
+
+  if [[ $ok -eq 1 ]]; then
+    if needs_stdin_eof "$kt_file"; then
+      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
+    else
+      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
+    fi
+    normalize_text <"$cand_run_stdout" >"$tmp_dir/cand_run_stdout.norm"
+    if [[ $cand_run_exit -eq 124 ]]; then
+      echo "  candidate run timed out after ${RUN_TIMEOUT}s"
+      ok=0
+    elif [[ $cand_run_exit -ne 0 ]]; then
+      echo "  candidate run failed with exit=$cand_run_exit"
+      ok=0
+    elif ! diff -u "$tmp_dir/expected_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" >"$tmp_dir/stdout.diff"; then
+      echo "  candidate-only stdout mismatch:"
+      cat "$tmp_dir/stdout.diff"
+      ok=0
+    fi
+  fi
+
+  normalize_text <"$cand_compile_stderr" >"$tmp_dir/cand_compile_stderr.norm"
+  normalize_text <"$cand_run_stderr" >"$tmp_dir/cand_run_stderr.norm"
+
+  if [[ $ok -eq 1 ]]; then
+    if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
+      echo "PASS $kt_file (candidate-only)"
+    fi
+  else
+    echo "FAIL $kt_file (candidate-only)"
+    if [[ -s "$tmp_dir/cand_compile_stderr.norm" ]]; then
+      echo "  candidate compile stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
+    fi
+    if [[ -s "$tmp_dir/cand_run_stderr.norm" ]]; then
+      echo "  candidate run stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_run_stderr.norm"
+    fi
+    persist_artifacts "$kt_file" "$tmp_dir" "FAIL (candidate-only)" "not-used" "$cand_compile_exit" "not-used" "$cand_run_exit"
+    diff -u "$LAST_ARTIFACT_DIR/expected_run_stdout.norm" "$LAST_ARTIFACT_DIR/cand_run_stdout.norm" >"$LAST_ARTIFACT_DIR/stdout.diff" 2>/dev/null || true
+    echo "  artifacts: $LAST_ARTIFACT_DIR"
+  fi
+
+  if [[ $ok -eq 1 && $KEEP_TEMP -eq 0 ]]; then
+    rm -rf "$tmp_dir"
+    LAST_ARTIFACT_DIR=""
+  fi
+
+  if [[ -n "$artifact_file" ]]; then
+    printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+  fi
+
+  return $((1 - ok))
+}
+
 # Normalize stdout: replace lines matching pattern with placeholder for diff.
 # The pattern is passed through the environment (not awk -v) so backslashes in
 # the regex are not mangled by awk's escape-sequence processing.
@@ -1114,6 +1233,12 @@ compare_run_stdout() {
 run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
+
+  if is_candidate_only_case "$kt_file"; then
+    run_candidate_only_case "$kt_file" "$artifact_file"
+    return $?
+  fi
+
   local tmp_dir
   tmp_dir="$(mktemp -d -t kswiftk-diff-XXXXXX)"
   LAST_ARTIFACT_DIR="$tmp_dir"

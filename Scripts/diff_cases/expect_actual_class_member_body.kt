@@ -1,4 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlinc rejects same-module expect/actual declarations because the single-file diff harness cannot model separate common and platform compilations. See docs/diff-skip-inventory.md.
+// DIFF_CANDIDATE_ONLY
+// DIFF_EXPECT_OUTPUT: 42
 expect abstract class Pool<T : Any>(capacity: Int) {
     protected abstract fun produce(): T
     protected open fun disposeInstance(instance: T)
