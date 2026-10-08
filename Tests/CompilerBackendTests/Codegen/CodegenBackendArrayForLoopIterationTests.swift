@@ -144,14 +144,14 @@ struct CodegenBackendArrayForLoopIterationTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_array_size"), "array for-loop should call __kk_array_size, got: \(callees)")
+        #expect(callees.contains(try runtimeABICallee("array_size")), "array for-loop should call __kk_array_size, got: \(callees)")
         #expect(
-            callees.contains("kk_array_get_inbounds"),
+            callees.contains(try runtimeABICallee("array_get_inbounds")),
             "array for-loop should call kk_array_get_inbounds, got: \(callees)"
         )
-        #expect(!callees.contains("kk_range_iterator"), "array for-loop must not use kk_range_iterator, got: \(callees)")
-        #expect(!callees.contains("kk_range_hasNext"), "array for-loop must not use kk_range_hasNext, got: \(callees)")
-        #expect(!callees.contains("kk_range_next"), "array for-loop must not use kk_range_next, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_iterator")), "array for-loop must not use kk_range_iterator, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_hasNext")), "array for-loop must not use kk_range_hasNext, got: \(callees)")
+        #expect(!callees.contains(try runtimeABICallee("range_next")), "array for-loop must not use kk_range_next, got: \(callees)")
     }
 }
 

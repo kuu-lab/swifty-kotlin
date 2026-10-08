@@ -50,13 +50,13 @@ struct LoweringFlowCodegenTests {
             #expect(containsKotlinCallee("first", in: allCallees))
             #expect(containsKotlinCallee("fold", in: allCallees))
             #expect(containsKotlinCallee("reduce", in: allCallees))
-            #expect(allCallees.contains("kk_flow_create"))
-            #expect(allCallees.contains("kk_flow_emit"))
-            #expect(!allCallees.contains("__kk_flow_to_list"))
-            #expect(!allCallees.contains("__kk_flow_first"))
-            #expect(!allCallees.contains("__kk_flow_single"))
-            #expect(!allCallees.contains("__kk_flow_fold"))
-            #expect(!allCallees.contains("__kk_flow_reduce"))
+            #expect(allCallees.contains(try runtimeABICallee("flow_create")))
+            #expect(allCallees.contains(try runtimeABICallee("flow_emit")))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_to_list")))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_first")))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_single")))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_fold")))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_reduce")))
 
             try assertFlowExecutableOutput(
                 source: source,
@@ -222,7 +222,7 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("kk_suspend_function_invoke_\(arity)"))
+            #expect(allCallees.contains(try runtimeABICallee("suspend_function_invoke_\(arity)")))
             #expect(!allCallees.contains("operation"))
         }
     }
@@ -245,7 +245,7 @@ struct LoweringFlowCodegenTests {
             let callees = findAllKIRFunctions(in: module).flatMap {
                 extractCallees(from: $0.body, interner: ctx.interner)
             }
-            #expect(callees.contains("kk_suspend_function_invoke_3"))
+            #expect(callees.contains(try runtimeABICallee("suspend_function_invoke_3")))
             #expect(!callees.contains("predicate"))
         }
     }
@@ -449,13 +449,13 @@ struct LoweringFlowCodegenTests {
                 .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
             let sema = try #require(ctx.sema)
 
-            #expect(allCallees.contains("kk_flow_create"))
-            #expect(allCallees.contains("kk_flow_emit"))
+            #expect(allCallees.contains(try runtimeABICallee("flow_create")))
+            #expect(allCallees.contains(try runtimeABICallee("flow_emit")))
             #expect(allCallees.contains("collect"))
             #expect(allCallees.contains("single"))
             #expect(allCallees.contains("transform"))
             #expect(!allCallees.contains("flow"))
-            #expect(!allCallees.contains("__kk_flow_single"))
+            #expect(!allCallees.contains(try runtimeABICallee("flow_single")))
 
             // Operators stay source-backed; only cold-flow primitives use runtime links.
             for function in findAllKIRFunctions(in: module) where !function.isInlineOnly {
@@ -548,13 +548,14 @@ struct LoweringFlowCodegenTests {
             let allCallees = functions.flatMap {
                 extractCallees(from: $0.body, interner: ctx.interner)
             }
-            #expect(allCallees.contains("kk_suspend_function_create"))
-            #expect(allCallees.contains("kk_suspend_function_invoke_\(arity + 1)"))
+            #expect(allCallees.contains(try runtimeABICallee("suspend_function_create")))
+            #expect(allCallees.contains(try runtimeABICallee("suspend_function_invoke_\(arity + 1)")))
             #expect(!allCallees.contains("transform"))
+            let invokeCallee = ctx.interner.intern(try runtimeABICallee("suspend_function_invoke_\(arity + 1)"))
             for function in functions {
                 for instruction in function.body {
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "kk_suspend_function_invoke_\(arity + 1)"
+                          callee == invokeCallee
                     else { continue }
                     #expect(arguments.count == arity + 3)
                 }
@@ -842,10 +843,10 @@ struct LoweringFlowCodegenTests {
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
 
-            #expect(allCallees.contains("kk_flow_create"))
-            #expect(allCallees.contains("kk_flow_emit"))
-            #expect(allCallees.contains("kk_flow_collect"))
-            #expect(allCallees.contains("__kk_flow_single"))
+            #expect(allCallees.contains(try runtimeABICallee("flow_create")))
+            #expect(allCallees.contains(try runtimeABICallee("flow_emit")))
+            #expect(allCallees.contains(try runtimeABICallee("flow_collect")))
+            #expect(allCallees.contains(try runtimeABICallee("flow_single")))
             #expect(!allCallees.contains("flow"))
             #expect(!allCallees.contains("transform"))
             #expect(!allCallees.contains("collect"))
@@ -881,11 +882,12 @@ struct LoweringFlowCodegenTests {
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allFunctions = findAllKIRFunctions(in: module)
+            let collectCallee = ctx.interner.intern(try runtimeABICallee("flow_collect"))
             let collectCallArgs = allFunctions
                 .flatMap { $0.body }
                 .compactMap { instruction -> [KIRExprID]? in
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "kk_flow_collect"
+                          callee == collectCallee
                     else {
                         return nil
                     }
@@ -906,22 +908,22 @@ struct LoweringFlowCodegenTests {
             guard let collectorExpr = module.arena.expr(callArgs[1]),
                   case let .symbolRef(collectorSymbol) = collectorExpr
             else {
-                throw FlowTestFailure(description: "kk_flow_collect collector argument must be a symbol reference.")
+                throw FlowTestFailure(description: "Flow collector argument must be a symbol reference.")
             }
 
-            let collectorFunction = allFunctions.first { function in
-                function.symbol == collectorSymbol
-            }
-            let collectorName = collectorFunction.map { ctx.interner.resolve($0.name) } ?? ""
+            let collectorFunction = try #require(allFunctions.first { $0.symbol == collectorSymbol })
+            #expect(!collectorFunction.isSuspend)
+            #expect(collectorFunction.params.last?.type == collectorFunction.returnType)
             #expect(
-                collectorName.hasPrefix("kk_suspend_"),
-                "Collector argument should be rewritten to suspend-lowered entry point."
+                extractCallees(from: collectorFunction.body, interner: ctx.interner)
+                    .contains(try runtimeABICallee("coroutine_state_enter")),
+                "Collector argument must refer to a lowered coroutine state machine."
             )
 
             guard let functionIDExpr = module.arena.expr(callArgs[3]),
                   case let .intLiteral(functionID) = functionIDExpr
             else {
-                throw FlowTestFailure(description: "kk_flow_collect fourth argument must be a function ID literal.")
+                throw FlowTestFailure(description: "Flow collector fourth argument must be a function ID literal.")
             }
             #expect(functionID != 0)
             #expect(functionID == Int64(collectorSymbol.rawValue))
@@ -992,7 +994,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runFlowCollectTwice)
+            runBlocking { runFlowCollectTwice() }
             return
         }
         """
@@ -1005,11 +1007,12 @@ struct LoweringFlowCodegenTests {
             try assertNoDiagnosticErrors(ctx)
 
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let collectCallee = includeStdlib ? "collect" : try runtimeABICallee("flow_collect")
             let collectCalls = findAllKIRFunctions(in: module).filter {
                 ctx.interner.resolve($0.name).contains("runFlowCollectTwice")
             }.compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                let collectCount = callees.filter { $0 == (includeStdlib ? "collect" : "kk_flow_collect") }.count
+                let collectCount = callees.filter { $0 == collectCallee }.count
                 return collectCount == 0 ? nil : collectCount
             }.reduce(0, +)
 
@@ -1036,7 +1039,7 @@ struct LoweringFlowCodegenTests {
         }
 
         fun main() {
-            runBlocking(::runFlowOwnership)
+            runBlocking { runFlowOwnership() }
             return
         }
         """
@@ -1052,7 +1055,7 @@ struct LoweringFlowCodegenTests {
             let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
 
-            #expect(allCallees.contains("__kk_flow_release"))
+            #expect(allCallees.contains(try runtimeABICallee("flow_release")))
         }
     }
 

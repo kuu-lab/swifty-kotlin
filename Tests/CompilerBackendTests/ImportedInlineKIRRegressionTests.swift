@@ -1,6 +1,7 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
 
 /// Regression coverage for imported inline KIR callback result types.
@@ -119,7 +120,7 @@ struct ImportedInlineKIRRegressionTests {
                     else { return nil }
                     return name
                 }
-            let moduleExternNames = Set(externLinkNames.filter { $0.hasPrefix("kk_fn_") })
+            let moduleExternNames = Set(externLinkNames.filter { $0.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix) })
             let definedObjectSymbols = try Self.definedObjectSymbols(in: libraryPath)
             #expect(moduleExternNames.isSubset(of: definedObjectSymbols))
             let source = """
