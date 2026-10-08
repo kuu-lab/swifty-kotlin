@@ -555,11 +555,8 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isCoroutineHandleSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner)
+            .isCoroutineHandleReceiverType(receiverType)
     }
 
     func isChannelReceiverType(
@@ -567,11 +564,8 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isChannelSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner)
+            .isChannelReceiverType(receiverType)
     }
 
     func isFlowReceiverType(
