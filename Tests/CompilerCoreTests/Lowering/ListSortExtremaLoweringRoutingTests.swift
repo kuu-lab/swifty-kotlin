@@ -30,18 +30,18 @@ struct ListSortExtremaLoweringRoutingTests {
     /// The legacy `kk_list_*` ABI surface for the List sorting/extrema APIs,
     /// as registered in `RuntimeABISpec+CollectionHOF.swift`.  Matched exactly
     /// so `kk_list_sorted` does not also match `kk_list_sortedWith`.
-    static let legacyListSortExtremaRuntimeCallees: Set<String> = [
-        "kk_list_sorted", "kk_list_sorted_primitive",
-        "kk_list_sortedBy", "kk_list_sortedBy_primitive",
-        "kk_list_sortedDescending", "kk_list_sortedDescending_primitive",
-        "kk_list_sortedByDescending", "kk_list_sortedByDescending_primitive",
-        "kk_list_sortedWith",
-        "kk_list_max", "kk_list_maxOrNull", "kk_list_maxBy",
-        "kk_list_maxByOrNull", "kk_list_maxOfOrNull",
-        "kk_list_min", "kk_list_minOrNull", "kk_list_minBy",
-        "kk_list_minByOrNull", "kk_list_minOfOrNull",
+    static let legacyListSortExtremaRuntimeOperations: Set<String> = [
+        "list_sorted", "list_sorted_primitive",
+        "list_sortedBy", "list_sortedBy_primitive",
+        "list_sortedDescending", "list_sortedDescending_primitive",
+        "list_sortedByDescending", "list_sortedByDescending_primitive",
+        "list_sortedWith",
+        "list_max", "list_maxOrNull", "list_maxBy",
+        "list_maxByOrNull", "list_maxOfOrNull",
+        "list_min", "list_minOrNull", "list_minBy",
+        "list_minByOrNull", "list_minOfOrNull",
         // KSP-1511
-        "kk_list_shuffled", "kk_list_shuffled_random",
+        "list_shuffled", "list_shuffled_random",
     ]
 
     /// Every callee name the removed KSP-426 block used to enumerate in the two
@@ -165,7 +165,7 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_list_* sorting/extrema rewrite may reach lowered KIR; got \(redirects.sorted())"
@@ -289,7 +289,7 @@ struct ListSortExtremaLoweringRoutingTests {
             }
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
@@ -358,7 +358,7 @@ struct ListSortExtremaLoweringRoutingTests {
             }
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
@@ -444,7 +444,7 @@ struct ListSortExtremaLoweringRoutingTests {
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
             #expect(
-                callees.intersection(Self.legacyListSortExtremaRuntimeCallees).isEmpty,
+                LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations).isEmpty,
                 "a user function may never be rewritten to a runtime sorter; callees: \(callees.sorted())"
             )
         }
@@ -489,7 +489,7 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(["kk_map_maxByOrNull", "kk_map_minByOrNull"])
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(["map_maxByOrNull", "map_minByOrNull"])
             #expect(
                 redirects.isEmpty,
                 "Map extrema must not reach the implementation-less kk_map_* exports; got \(redirects.sorted())"
@@ -535,7 +535,8 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let redirects = callees.filter {
-                $0.hasPrefix("kk_sequence_max") || $0.hasPrefix("kk_sequence_min")
+                LoweringTestRuntime.operation(of: $0)?.hasPrefix("sequence_max") == true
+                    || LoweringTestRuntime.operation(of: $0)?.hasPrefix("sequence_min") == true
             }
             #expect(
                 redirects.isEmpty,

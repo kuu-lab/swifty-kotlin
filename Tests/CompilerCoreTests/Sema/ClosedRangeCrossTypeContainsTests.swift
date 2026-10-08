@@ -87,7 +87,7 @@ struct ClosedRangeCrossTypeContainsTests {
                   ctx.sourceManager.origin(of: range.start.file) == .user,
                   let binding = sema.bindings.callBinding(for: id),
                   let symbol = sema.symbols.symbol(binding.chosenCallee),
-                  ctx.interner.resolve(symbol.name) == "contains"
+                  symbol.name == KnownCompilerNames(interner: ctx.interner).contains
             else { continue }
 
             let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))

@@ -27,7 +27,7 @@ struct CharSequenceRegexReplaceTransformTests {
             guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id) else {
                 return false
             }
-            return ctx.interner.resolve(callee) == "replace"
+            return callee == KnownCompilerNames(interner: ctx.interner).replace
         }.map { ExprID(rawValue: Int32($0)) })
         let binding = try #require(sema.bindings.callBinding(for: replaceCall))
         let sourceFile = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))

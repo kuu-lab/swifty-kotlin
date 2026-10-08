@@ -22,7 +22,7 @@ struct IntRangeDotStepTests {
             guard let range = ast.arena.exprRange(id),
                   ctx.sourceManager.origin(of: range.start.file) == .user,
                   case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
-                  ctx.interner.resolve(callee) == "step"
+                  callee == KnownCompilerNames(interner: ctx.interner).step
             else { continue }
             let type = try #require(sema.bindings.exprType(for: id))
             let (_, symbol) = try #require(resolveClassTypeSymbol(type, sema: sema))

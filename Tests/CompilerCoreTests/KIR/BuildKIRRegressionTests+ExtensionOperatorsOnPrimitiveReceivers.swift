@@ -45,7 +45,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "useMemberCall", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("__kk_string_concat_flat"))
+        #expect(callees.contains(runtimeCallee(.stringConcatFlat)))
         #expect(!callees.contains("plus"))
     }
 
@@ -78,7 +78,7 @@ extension BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "times")
+        #expect(chosenSemanticSymbol.name == ctx.interner.intern(BinaryOp.multiply.kotlinFunctionName))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         // The chosen callee must be the top-level `Int.times(Vec)` extension
         // (it has a receiver clause), not a hijacked primitive fast path.
@@ -92,7 +92,7 @@ extension BuildKIRRegressionTests {
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == chosenSymbol
         })
-        #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_op_mul"))
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.opMul)))
     }
 
     @Test func testBuildKIRUsesExtensionOperatorSymbolForPrimitiveReceiverMemberCallTimesExpression() throws {
@@ -123,7 +123,7 @@ extension BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[memberExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "times")
+        #expect(chosenSemanticSymbol.name == ctx.interner.intern(BinaryOp.multiply.kotlinFunctionName))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         #expect(signature.receiverType != nil)
 
@@ -135,7 +135,7 @@ extension BuildKIRRegressionTests {
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == chosenSymbol
         })
-        #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_op_mul"))
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.opMul)))
     }
 
     @Test func testBuildKIRUsesExtensionOperatorSymbolForPrimitiveReceiverBinaryPlusStringExpression() throws {
@@ -164,7 +164,7 @@ extension BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "plus")
+        #expect(chosenSemanticSymbol.name == KnownCompilerNames(interner: ctx.interner).plus)
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         #expect(signature.receiverType != nil)
 
@@ -176,7 +176,7 @@ extension BuildKIRRegressionTests {
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == chosenSymbol
         })
-        #expect(!extractCallees(from: body, interner: ctx.interner).contains("__kk_string_concat_flat"))
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.stringConcatFlat)))
     }
 }
 #endif

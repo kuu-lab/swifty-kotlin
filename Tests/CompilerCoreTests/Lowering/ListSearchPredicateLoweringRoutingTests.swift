@@ -179,15 +179,15 @@ struct ListSearchPredicateLoweringRoutingTests {
             // `count(): Int = size`, so this is equivalent — but it is a live
             // rewrite, not a dead one, and CALL-011 must not treat it as such.
             #expect(
-                callees.filter { $0 == "__kk_list_size" }.count == 1,
+                callees.filter { $0 == LoweringTestRuntime.name("list_size") }.count == 1,
                 "bare count() must still reach __kk_list_size exactly once; callees: \(Set(callees).sorted())"
             )
 
             // Every other List rewrite in this group is shadowed by the
             // preserve check and must not appear.
-            for forbidden in ["__kk_set_contains", "kk_map_count", "kk_list_count"] {
+            for forbidden in ["set_contains", "map_count", "list_count"] {
                 #expect(
-                    !callees.contains(forbidden),
+                    !LoweringTestRuntime.operations(in: callees).contains(forbidden),
                     "\(forbidden) must not replace a source-backed List search call; callees: \(Set(callees).sorted())"
                 )
             }
@@ -199,7 +199,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             let brokenCountRewrites = body.filter { instruction in
                 guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return false }
                 return symbol == nil
-                    && ctx.interner.resolve(callee) == "count"
+                    && callee == KnownCompilerNames(interner: ctx.interner).count
                     && arguments.count == 3
             }
             #expect(
@@ -355,13 +355,13 @@ struct ListSearchPredicateLoweringRoutingTests {
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
             #expect(
-                callees.contains("__kk_list_size"),
+                callees.contains(LoweringTestRuntime.name("list_size")),
                 "List.size must still reach __kk_list_size; callees: \(callees.sorted())"
             )
             // Set.contains is not source-backed, so the preserve check does
             // not fire and `+CallRewriteCollectionMember` still rewrites it.
             #expect(
-                callees.contains("__kk_set_contains"),
+                callees.contains(LoweringTestRuntime.name("set_contains")),
                 "Set.contains must still reach __kk_set_contains; callees: \(callees.sorted())"
             )
             // `IntRange.find` is source-backed in RangeHOF.kt, so the
@@ -371,7 +371,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             // re-enable that rewrite and change the emitted call — which is
             // precisely why `findName` had to stay.
             #expect(
-                !callees.contains("kk_range_find"),
+                !callees.contains(LoweringTestRuntime.name("range_find")),
                 "source-backed IntRange.find must not reach kk_range_find; callees: \(callees.sorted())"
             )
             #expect(
@@ -386,7 +386,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             // mechanism as a bare `List.count()`.  A source declaration alone
             // therefore does not tell you whether a rewrite is shadowed.
             #expect(
-                callees.contains("__kk_range_contains"),
+                callees.contains(LoweringTestRuntime.name("range_contains")),
                 "IntRange.contains must still reach __kk_range_contains; callees: \(callees.sorted())"
             )
             // Map.count(predicate) is source-backed in MapHOF.kt. A
@@ -397,7 +397,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             // there is no rewrite left to reach it. `MapCountLoweringRoutingTests`
             // pins the routing and symbol resolution directly.
             #expect(
-                !callees.contains("kk_map_count"),
+                !LoweringTestRuntime.operations(in: callees).contains("map_count"),
                 "source-backed Map.count(predicate) must not reach kk_map_count; callees: \(callees.sorted())"
             )
         }

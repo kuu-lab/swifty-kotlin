@@ -16,7 +16,7 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        let readIndex = try #require(callees.firstIndex(of: "kk_array_get"), "got: \(callees)")
+        let readIndex = try #require(callees.firstIndex(of: runtimeCallee(.arrayGet)), "got: \(callees)")
         return Array(callees[readIndex...])
     }
 
@@ -28,11 +28,11 @@ extension BuildKIRRegressionTests {
             a[0] += V(2)
         }
         """)
-        let getIndex = try #require(callees.firstIndex(of: "kk_array_get"), "got: \(callees)")
+        let getIndex = try #require(callees.firstIndex(of: runtimeCallee(.arrayGet)), "got: \(callees)")
         let plusIndex = try #require(callees.firstIndex(of: "plus"), "Expected V.plus, got: \(callees)")
-        let setIndex = try #require(callees.firstIndex(of: "kk_array_set"), "got: \(callees)")
+        let setIndex = try #require(callees.firstIndex(of: runtimeCallee(.arraySet)), "got: \(callees)")
         #expect(getIndex < plusIndex && plusIndex < setIndex, "got: \(callees)")
-        #expect(!callees.contains("kk_op_add"), "The builtin add must not be applied to a class element, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.opAdd)), "The builtin add must not be applied to a class element, got: \(callees)")
     }
 
     @Test func testIndexedPlusAssignElementOperatorSkipsWriteBack() throws {
@@ -44,7 +44,7 @@ extension BuildKIRRegressionTests {
         }
         """)
         #expect(callees.contains("plusAssign"), "Expected Acc.plusAssign, got: \(callees)")
-        #expect(!callees.contains("kk_array_set"), "An in-place plusAssign must not write the element back, got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.arraySet)), "An in-place plusAssign must not write the element back, got: \(callees)")
     }
 
     @Test func testIndexedIncrementCallsElementIncOperator() throws {
@@ -56,9 +56,9 @@ extension BuildKIRRegressionTests {
         }
         """)
         let incIndex = try #require(callees.firstIndex(of: "inc"), "Expected C.inc, got: \(callees)")
-        let setIndex = try #require(callees.firstIndex(of: "kk_array_set"), "got: \(callees)")
+        let setIndex = try #require(callees.firstIndex(of: runtimeCallee(.arraySet)), "got: \(callees)")
         #expect(incIndex < setIndex, "got: \(callees)")
-        #expect(!callees.contains("kk_op_add"), "got: \(callees)")
+        #expect(!callees.contains(runtimeCallee(.opAdd)), "got: \(callees)")
     }
 
     @Test func testIndexedCompoundAssignReadsElementBeforeRightHandSide() throws {
@@ -69,7 +69,7 @@ extension BuildKIRRegressionTests {
             a[0] += v()
         }
         """)
-        let getIndex = try #require(callees.firstIndex(of: "kk_array_get"), "got: \(callees)")
+        let getIndex = try #require(callees.firstIndex(of: runtimeCallee(.arrayGet)), "got: \(callees)")
         let valueIndex = try #require(callees.firstIndex(of: "v"), "got: \(callees)")
         #expect(getIndex < valueIndex, "Kotlin evaluates get() before the right-hand side, got: \(callees)")
     }
