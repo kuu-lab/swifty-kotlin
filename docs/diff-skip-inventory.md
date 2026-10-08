@@ -83,6 +83,10 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | Bundled coroutine API shape | `state_flow_kotlin.kt` | KSwiftK の bundled `stateIn(initialValue)` / `shareIn(replay)` は JVM `kotlinx.coroutines` の `CoroutineScope` / `SharingStarted` 引数と意図的に異なるため、kotlinc reference 側だけがコンパイル失敗する。KSwiftK 側の動作は candidate-only の直接実行と `StdlibArtifactRegressionTests` で検証する | API 形状が収束するまで `SKIP-DIFF` を維持し、KSwiftK 固有の bundled stdlib smoke/artifact test を owner とする |
 | SLF4J / logging | `logging_basic.kt`, `logging_advanced.kt` | kswiftc は `org.slf4j.*` を一切実装していない(`Sources/` 全体検索で0件、`Unresolved reference 'LoggerFactory'` で確認)。reference 側は実 slf4j-api + binding 注入で通す経路が既にある(2026-07-09 検証済み)が、candidate 側に synthetic stub が無い限り届かない。`logging_advanced.kt` はさらに `MDC` は実在するが import が無く、`AdvancedLogger`/`StructuredAppender` は実 SLF4J に存在しない架空 API であり、架空 API 部分を残す限り reference 側を通す余地自体が無い | kswiftc に `org.slf4j.*`(Logger/LoggerFactory/MDC 程度)の synthetic stub を追加する機能実装が前提。`logging_advanced.kt` は架空 API 部分を切り離すか削除しない限り、stub 追加後も keep skip のまま |
 
+KUU-1561 (2026-10-08): `stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt` は
+`DIFF_CANDIDATE_ONLY` と `DIFF_EXPECT_STDOUT` による実行時検証へ移行し、
+`DEBT-DIFF-001` の keep skip から除外した。
+
 ### 解除済みの周辺ケース(現行85件には含まれないが、過去の調査ノートに記載があったため参考として残す)
 
 - `path_basic.kt`(`kotlin.io.path`): 2026-07-09 解除済み。`import kotlin.io.path.Path` が `Path()` ファクトリしか import せず、`createDirectories` / `exists` / `writeText` 等の拡張関数・拡張プロパティが unresolved だったのが真因(`resolve` / `relativize` / `normalize` 等は `java.nio.file.Path` のネイティブメンバなので import 不要で解決していた)。`import kotlin.io.path.*` に変更し、`--force-run-skipped` で reference/candidate 一致を確認した上で通常 diff に復帰した。
