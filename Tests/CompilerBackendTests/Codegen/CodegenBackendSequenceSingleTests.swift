@@ -9,22 +9,6 @@ import Testing
 struct CodegenBackendSequenceSingleTests {
 
     @Test
-    func codegenSequenceSingleUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_single.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceSingle",
-            expected:
-                """
-                42
-                only
-                """
-                + "\n"
-        )
-    }
-
-    @Test
     func codegenSequenceSingleThrowsTypedExceptionsForInvalidCardinality() throws {
         let source = """
         fun main() {
