@@ -28,22 +28,18 @@ extension BuildKIRRegressionTests {
 
             #expect(sema.symbols.isSourceBackedSymbol(symbol))
             #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(body.filter { instruction in
+                if case .call = instruction { return true }
+                if case .virtualCall = instruction { return true }
+                return false
+            }.count == 1, "Each conversion must make only its source-backed API call")
+            try expectResolvedKIRCallTargets(in: body, context: ctx)
             #expect(declaration.fqName == [
                 ctx.interner.intern("kotlin"),
                 ctx.interner.intern("text"),
                 ctx.interner.intern(apiName),
             ])
         }
-
-        var allCallees: [String] = []
-        for functionName in ["iterable", "sequence"] {
-            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-            allCallees.append(contentsOf: extractCallees(from: body, interner: ctx.interner))
-        }
-        #expect(!allCallees.contains("kk_string_asIterable"))
-        #expect(!allCallees.contains("kk_string_asIterable_flat"))
-        #expect(!allCallees.contains("kk_string_asSequence"))
-        #expect(!allCallees.contains("kk_string_asSequence_flat"))
     }
 }
 #endif

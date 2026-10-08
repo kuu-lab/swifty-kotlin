@@ -28,17 +28,18 @@ struct MutableMapMemberSourceContractTests {
             let sema = try #require(ctx.sema)
             let ownerName = ["kotlin", "collections", "MutableMap"].map(ctx.interner.intern)
             let owner = try #require(sema.symbols.lookup(fqName: ownerName))
-            for name in ["entries", "keys", "values", "put", "putAll", "remove", "clear"] {
+            let membersToCheck: [(String, SemaRuntimeFunction)] = [
+                ("entries", .mapEntries), ("keys", .mapKeys), ("values", .mapValues),
+                ("put", .mutableMapPut), ("putAll", .mutableMapPutAll), ("remove", .mutableMapRemove), ("clear", .mutableMapClear),
+            ]
+            for (name, bridge) in membersToCheck {
                 let members = sema.symbols.lookupAll(fqName: ownerName + [ctx.interner.intern(name)]).filter {
                     sema.symbols.parentSymbol(for: $0) == owner
                 }
                 #expect(members.count == 1, "Duplicate MutableMap.\(name)")
                 let member = try #require(members.first)
                 #expect(sema.symbols.isSourceBackedSymbol(member))
-                let link = switch name {
-                case "entries", "keys", "values": "__kk_map_\(name)"
-                default: "__kk_mutable_map_\(name)"
-                }
+                let link = runtimeABIName(bridge)
                 #expect(sema.symbols.externalLinkName(for: member) == link)
                 #expect(sema.symbols.symbol(member)?.flags.contains(.importedLibrary) == useArtifact)
                 if !useArtifact {

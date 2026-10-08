@@ -48,7 +48,7 @@ struct ArrayListBuildOwnershipTests {
 
             let call = try #require(firstExprID(in: ast) { exprID, expr in
                 guard case let .memberCall(_, name, _, _, _) = expr,
-                      ctx.interner.resolve(name) == "build",
+                      name == symbol.name,
                       let range = ast.arena.exprRange(exprID)
                 else { return false }
                 return ctx.sourceManager.path(of: range.start.file) == path

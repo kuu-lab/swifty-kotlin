@@ -2,12 +2,15 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
 
 @Suite
 struct CodegenBackendImportedFunctionAddressTests {
-    @Test(arguments: ["__kk_pair_new", "__kk_mutable_map_put"])
-    func runtimeFunctionAddressUsesKnownArityAndThrownChannel(linkName: String) throws {
+    @Test(arguments: ["pair_new", "mutable_map_put"])
+    func runtimeFunctionAddressUsesKnownArityAndThrownChannel(operation: String) throws {
+        let runtime = try runtimeABIFunction(operation)
+        let linkName = runtime.name
         let interner = StringInterner()
         let types = TypeSystem()
         let arena = KIRArena()
@@ -40,11 +43,20 @@ struct CodegenBackendImportedFunctionAddressTests {
         let declaration = try #require(ir.split(separator: "\n").first {
             $0.hasPrefix("declare ") && $0.contains("@\(linkName)(")
         })
-        if linkName == "__kk_pair_new" {
-            #expect(declaration.contains("(i64, i64)"))
-        } else {
-            #expect(declaration.contains("(i64, i64, i64, i64*)")
-                || declaration.contains("(i64, i64, i64, ptr)"))
+        let start = try #require(declaration.firstIndex(of: "("))
+        let end = try #require(declaration[start...].firstIndex(of: ")"))
+        let parameters = declaration[declaration.index(after: start) ..< end]
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        #expect(parameters.count == runtime.parameters.count)
+        for (actual, expected) in zip(parameters, runtime.parameters) {
+            switch expected.type {
+            case .intptr:
+                #expect(actual == "i64")
+            case .nullableIntptrPointer:
+                #expect(actual == "i64*" || actual == "ptr")
+            default:
+                Issue.record("Unexpected address fixture parameter type: \(expected.type)")
+            }
         }
     }
 
@@ -54,7 +66,7 @@ struct CodegenBackendImportedFunctionAddressTests {
         let types = TypeSystem()
         let symbols = SymbolTable()
         let arena = KIRArena()
-        let linkName = "kk_fn_imported_string"
+        let linkName = RuntimeABISpec.compilerGeneratedLinkNamePrefix + "imported_string"
         let importedSymbol = symbols.define(
             kind: .function,
             name: interner.intern("importedString"),

@@ -447,7 +447,7 @@ struct KotlinContractsEffectModelTests {
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
                 let fnSymbol = sema.symbols.allSymbols().first {
-                    interner.resolve($0.name) == "nonNullResult"
+                    $0.name == interner.intern("nonNullResult")
                 }
                 #expect(fnSymbol != nil, "nonNullResult should be resolved")
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample2Diagnostics)
@@ -952,7 +952,7 @@ struct KotlinContractsEffectModelTests {
                     else {
                         return false
                     }
-                    return interner.resolve(name) == "assertNotNull"
+                    return name == interner.intern("assertNotNull")
                 }
                 let chosenAssertNotNullCandidates = assertNotNullCalls.compactMap {
                     sema.bindings.callBinding(for: $0)?.chosenCallee

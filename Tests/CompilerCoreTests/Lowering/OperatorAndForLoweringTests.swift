@@ -65,7 +65,7 @@ struct OperatorAndForLoweringTests {
             Issue.record("Expected first lowered instruction to be a call")
             return
         }
-        #expect(interner.resolve(loweredCallee) == "println")
+        #expect(loweredCallee == interner.intern("println"))
         #expect(loweredResult == result)
     }
 
@@ -99,7 +99,7 @@ struct OperatorAndForLoweringTests {
         #expect(!hasBinaryAdd, "Binary .add should be rewritten to runtime call")
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        let hasAddCall = callees.contains { $0 == "kk_op_add" }
+        let hasAddCall = callees.contains { $0 == LoweringTestRuntime.intrinsic("op_add") }
         #expect(hasAddCall, "Binary add should produce kk_op_add, got callees: \(callees)")
     }
 
@@ -129,7 +129,7 @@ struct OperatorAndForLoweringTests {
         }
         #expect(!hasNullAssert, "nullAssert should be rewritten to runtime call")
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        let hasNullCheckCall = callees.contains { $0 == "kk_op_notnull" }
+        let hasNullCheckCall = callees.contains { $0 == LoweringTestRuntime.name("op_notnull") }
         #expect(hasNullCheckCall, "nullAssert should produce kk_op_notnull, got callees: \(callees)")
     }
 
@@ -165,7 +165,7 @@ struct OperatorAndForLoweringTests {
         let body = bodyInDecl(declID, module: module)
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(
-            !callees.contains("kk_int_to_double_bits"),
+            !callees.contains(LoweringTestRuntime.name("int_to_double_bits")),
             "An Any-typed operand must not be reinterpreted as raw Int bits, got callees: \(callees)"
         )
         guard case let .call(_, callee, arguments, callResult, _, _, _, _) = body.first(
@@ -174,8 +174,8 @@ struct OperatorAndForLoweringTests {
             Issue.record("Expected exactly one call instruction, got: \(body)")
             return
         }
-        #expect(interner.resolve(callee) == "kk_structural_eq")
-        #expect(arguments == [lhs, rhs], "kk_structural_eq should receive the original, unconverted operands")
+        #expect(callee == LoweringTestRuntime.callee("structural_eq", interner: interner))
+        #expect(arguments == [lhs, rhs], "Structural equality should receive the original, unconverted operands")
         #expect(callResult == result)
     }
 
@@ -210,7 +210,7 @@ struct OperatorAndForLoweringTests {
 
         let body = bodyInDecl(declID, module: module)
         guard case let .call(_, _, conversionArgs, convertedResult, _, _, _, _) = body.first(
-            where: { if case let .call(_, callee, _, _, _, _, _, _) = $0 { interner.resolve(callee) == "kk_int_to_double_bits" } else { false } }
+            where: { if case let .call(_, callee, _, _, _, _, _, _) = $0 { callee == LoweringTestRuntime.callee("int_to_double_bits", interner: interner) } else { false } }
         ) else {
             Issue.record("Expected an kk_int_to_double_bits conversion call, got: \(body)")
             return
@@ -224,7 +224,7 @@ struct OperatorAndForLoweringTests {
         )
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(callees.contains("kk_op_dle"), "got callees: \(callees)")
+        #expect(callees.contains(LoweringTestRuntime.name("op_dle")), "got callees: \(callees)")
     }
 
     // MARK: - OperatorLoweringPass: shouldRun
@@ -283,8 +283,8 @@ struct OperatorAndForLoweringTests {
         let v2 = arena.appendExpr(.temporary(2))
         let (module, declID) = makeModule(
             body: [
-                .call(symbol: nil, callee: interner.intern("kk_range_iterator"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_for_lowered"), arguments: [v1], result: v2, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: LoweringTestRuntime.callee("range_iterator", interner: interner), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v1], result: v2, canThrow: false, thrownResult: nil),
 
                 .returnUnit
             ],
@@ -296,9 +296,9 @@ struct OperatorAndForLoweringTests {
         try ForLoweringPass().run(module: module, ctx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("kk_for_lowered"), "kk_for_lowered should be rewritten")
+        #expect(!callees.contains(LoweringTestRuntime.intrinsic("for_lowered")), "The for-loop marker should be rewritten")
         #expect(
-            callees.contains("kk_range_hasNext") || callees.contains("kk_list_iterator_hasNext"),
+            callees.contains(LoweringTestRuntime.name("range_hasNext")) || callees.contains(LoweringTestRuntime.name("list_iterator_hasNext")),
             "For loop should use hasNext pattern, got callees: \(callees)"
         )
     }
@@ -341,7 +341,7 @@ struct OperatorAndForLoweringTests {
             params: [],
             returnType: TypeSystem().unitType,
             body: [
-                .call(symbol: nil, callee: interner.intern("kk_for_lowered"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil)
+                .call(symbol: nil, callee: interner.intern(LoweringTestRuntime.intrinsic("for_lowered")), arguments: [v0], result: v1, canThrow: false, thrownResult: nil)
             ],
             isSuspend: false,
             isInline: false
