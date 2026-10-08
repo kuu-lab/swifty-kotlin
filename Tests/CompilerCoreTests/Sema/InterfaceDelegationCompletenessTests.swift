@@ -40,7 +40,7 @@ import Testing
         let sema = try #require(ctx.sema)
         let objectID = try #require(ast.sortedFiles.flatMap(\.topLevelDecls).first {
             guard case let .objectDecl(decl) = ast.arena.decl($0) else { return false }
-            return ctx.interner.resolve(decl.name) == "SharedArrayList"
+            return decl.name == ctx.interner.intern("SharedArrayList")
         })
         guard case let .objectDecl(decl) = ast.arena.decl(objectID) else {
             Issue.record("Expected SharedArrayList object")

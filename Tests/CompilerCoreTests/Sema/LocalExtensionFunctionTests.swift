@@ -4,6 +4,20 @@ import Testing
 
 @Suite
 struct LocalExtensionFunctionTests {
+    private func localFunctionSymbol(
+        named name: InternedString,
+        in ast: ASTModule,
+        sema: SemaModule
+    ) -> SymbolID? {
+        guard let index = ast.arena.exprs.indices.first(where: {
+            guard case let .localFunDecl(localName, _, _, _, _, _, _) = ast.arena.exprs[$0] else {
+                return false
+            }
+            return localName == name
+        }) else { return nil }
+        return sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(index)))
+    }
+
     @Test
     func localInterfaceExtensionsResolveInRegularAndSuspendFunctions() throws {
         let ctx = makeContextFromSource("""
@@ -32,14 +46,8 @@ struct LocalExtensionFunctionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
-        for name in ["helper", "suspHelper", "bufferHelper", "helper2"] {
-            let localID = try #require(ast.arena.exprs.indices.first {
-                if case let .localFunDecl(localName, _, _, _, _, _, _) = ast.arena.exprs[$0] {
-                    return ctx.interner.resolve(localName) == name
-                }
-                return false
-            })
-            let symbol = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
+        for (name, isSuspend) in [("helper", false), ("suspHelper", true), ("bufferHelper", true), ("helper2", false)] {
+            let symbol = try #require(localFunctionSymbol(named: ctx.interner.intern(name), in: ast, sema: sema))
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(signature.receiverType != nil)
             #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == symbol })
@@ -47,12 +55,11 @@ struct LocalExtensionFunctionTests {
             #expect(function.params.contains {
                 $0.symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
             })
-            #expect(signature.isSuspend == (name == "suspHelper" || name == "bufferHelper"))
+            #expect(signature.isSuspend == isSuspend)
             #expect(function.isSuspend == signature.isSuspend)
         }
-        let read = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "read"
-        })
+        let readSymbol = try #require(localFunctionSymbol(named: ctx.interner.intern("read"), in: ast, sema: sema))
+        let read = try #require(findAllKIRFunctions(in: module).first { $0.symbol == readSymbol })
         #expect(read.params.count == 1, "The nested function must capture the extension receiver")
     }
 
@@ -76,11 +83,14 @@ struct LocalExtensionFunctionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
         let functions = findAllKIRFunctions(in: module)
-        let independent = try #require(functions.first { ctx.interner.resolve($0.name) == "independent" })
+        let independentSymbol = try #require(localFunctionSymbol(named: ctx.interner.intern("independent"), in: ast, sema: sema))
+        let independent = try #require(functions.first { $0.symbol == independentSymbol })
         let signature = try #require(sema.symbols.functionSignature(for: independent.symbol))
         #expect(independent.params.map(\.symbol) == signature.valueParameterSymbols)
-        let read = try #require(functions.first { ctx.interner.resolve($0.name) == "read" })
+        let readSymbol = try #require(localFunctionSymbol(named: ctx.interner.intern("read"), in: ast, sema: sema))
+        let read = try #require(functions.first { $0.symbol == readSymbol })
         #expect(read.params.count == 1)
         #expect(read.params.first?.type == sema.types.longType)
     }
@@ -105,7 +115,7 @@ struct LocalExtensionFunctionTests {
             Issue.record("Expected local function")
             return
         }
-        #expect(ctx.interner.resolve(name) == "twice")
+        #expect(name == ctx.interner.intern("twice"))
         #expect(receiver != nil)
         #expect(params.isEmpty)
         let symbol = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
@@ -173,11 +183,12 @@ struct LocalExtensionFunctionTests {
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
-        let function = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "add"
-        })
-        #expect(function.params.count == 3)
         let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let names = KnownCompilerNames(interner: ctx.interner)
+        let symbol = try #require(localFunctionSymbol(named: names.add, in: ast, sema: sema))
+        let function = try #require(findAllKIRFunctions(in: module).first { $0.symbol == symbol })
+        #expect(function.params.count == 3)
         #expect(function.params[1].symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: function.symbol))
         #expect(function.params[2].symbol == sema.symbols.functionSignature(for: function.symbol)?.valueParameterSymbols.first)
         let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
@@ -229,13 +240,10 @@ struct LocalExtensionFunctionTests {
         })
         let local = try #require(sema.bindings.identifierSymbol(for: ExprID(rawValue: Int32(localID))))
         #expect(!sema.bindings.callBindings.values.contains { $0.chosenCallee == local })
-        #expect(sema.bindings.callBindings.values.contains {
-            guard let parent = sema.symbols.parentSymbol(for: $0.chosenCallee),
-                  let owner = sema.symbols.symbol(parent),
-                  let function = sema.symbols.symbol($0.chosenCallee)
-            else { return false }
-            return ctx.interner.resolve(owner.name) == "Choice" && ctx.interner.resolve(function.name) == "select"
-        })
+        let choice = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Choice")]))
+        let member = try #require(sema.symbols.lookup(fqName: ["Choice", "select"].map(ctx.interner.intern)))
+        #expect(sema.symbols.parentSymbol(for: member) == choice)
+        #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == member })
     }
 
     @Test

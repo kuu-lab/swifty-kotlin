@@ -32,7 +32,7 @@ struct ExtensionCallablePropertyTests {
         for name in ["f", "g"] {
             let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_function_invoke"))
+            #expect(callees.contains(runtimeABIName(.functionInvoke)))
             #expect(!callees.contains("convertTo"))
             #expect(!callees.contains("convert"))
         }
@@ -92,7 +92,7 @@ struct ExtensionCallablePropertyTests {
         #expect(!ctx.diagnostics.hasError)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "Owner", in: module, interner: ctx.interner)
-        #expect(extractCallees(from: body, interner: ctx.interner).contains("kk_function_create_2"))
+        #expect(extractCallees(from: body, interner: ctx.interner).contains(runtimeABIName(.functionCreate2)))
     }
 
     @Test(arguments: [
