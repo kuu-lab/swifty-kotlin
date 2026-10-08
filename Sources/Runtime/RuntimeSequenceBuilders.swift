@@ -33,6 +33,9 @@ private func runtimeSequenceBuilderYieldAllIterator(
     if let iterator = runtimeSourceIterableIterator(collectionRaw, outThrown: outThrown) {
         return iterator
     }
+    if (outThrown?.pointee ?? 0) != 0 {
+        return 0
+    }
 
     let sequenceIterator = kk_itable_lookup_dynamic(
         collectionRaw,
@@ -135,10 +138,12 @@ public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: I
         runtimePropagateThrownOrTrap(thrown, outThrown: nil, context: #function)
         return result
     }
-    if runtimeCoroutineBuilderProxy(from: builderRaw) != nil {
+    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         var thrown = 0
         let result = __kk_sequence_builder_yieldAll_checked(builderRaw, collectionRaw, &thrown)
-        runtimePropagateThrownOrTrap(thrown, outThrown: nil, context: #function)
+        // This retained ABI has no thrown slot. Preserve the delegated failure
+        // for the sequence consumer, as the legacy coroutine builder did.
+        proxy.coroutine.recordFailure(thrown)
         return result
     }
     // Legacy direct builder boxes retain their materialized representation.

@@ -2221,6 +2221,8 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
     /// Iterator currently delegated by yieldAll(sequence).
     private var delegatedIterator: Int = 0
+    /// The initial successful hasNext probe has already prepared the first value.
+    private var delegatedIteratorReady = false
     /// A legacy producer's thrown channel remains live while yieldAll blocks.
     private var delegatedThrownPointer: UnsafeMutablePointer<Int>?
 
@@ -2282,15 +2284,16 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         var thrown = 0
         let hasNext = kk_iterator_hasNext(iterator, &thrown)
         if thrown != 0 {
-            recordFailure(thrown)
+            // Before delegation begins, this probe still belongs to the
+            // producer's catch scope. The consumer owns later failures.
             outThrown?.pointee = thrown
-            consumerGate.signal()
             return 0
         }
         guard hasNext != 0 else { return 0 }
 
         stateLock.lock()
         delegatedIterator = iterator
+        delegatedIteratorReady = true
         delegatedThrownPointer = usesCPSProducer ? nil : outThrown
         stateLock.unlock()
 
@@ -2339,8 +2342,13 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         _ iterator: Int,
         outThrown: UnsafeMutablePointer<Int>?
     ) -> NextResult? {
+        stateLock.lock()
+        let alreadyReady = delegatedIterator == iterator && delegatedIteratorReady
+        if alreadyReady { delegatedIteratorReady = false }
+        stateLock.unlock()
+
         var thrown = 0
-        let hasNext = kk_iterator_hasNext(iterator, &thrown)
+        let hasNext = alreadyReady ? 1 : kk_iterator_hasNext(iterator, &thrown)
         let value = hasNext != 0 && thrown == 0
             ? kk_iterator_next(iterator, &thrown)
             : 0
