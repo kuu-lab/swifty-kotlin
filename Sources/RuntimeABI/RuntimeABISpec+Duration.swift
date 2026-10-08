@@ -2,6 +2,46 @@
 
 /// `RuntimeABISpec.durationFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let durationParseSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_duration_parse",
+        parameters: [
+            RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Duration"
+    )
+
+    static let durationParseOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_duration_parseOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "valueRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Duration",
+        isThrowing: false
+    )
+
+    static let durationParseIsoStringSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_duration_parseIsoString",
+        parameters: [
+            RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Duration"
+    )
+
+    static let durationParseIsoStringOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_duration_parseIsoStringOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "valueRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Duration",
+        isThrowing: false
+    )
+
     static let durationFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_duration_inWholeMilliseconds",
@@ -26,42 +66,10 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Duration"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_parse",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_parseOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_parseIsoString",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_parseIsoStringOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
+        durationParseSpec,
+        durationParseOrNullSpec,
+        durationParseIsoStringSpec,
+        durationParseIsoStringOrNullSpec,
         RuntimeABIFunctionSpec(
             name: "kk_duration_zero",
             parameters: [],

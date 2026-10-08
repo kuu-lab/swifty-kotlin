@@ -6,14 +6,14 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeRawBooleanPredicateTests {
-    private static let rawBooleanCalleeNames: Set<String> = [
-        "__kk_set_contains",
-        "__kk_set_is_empty",
-        "__kk_mutable_set_add",
-        "__kk_mutable_set_remove",
-        "__kk_mutable_set_removeAll",
-        "__kk_mutable_set_retainAll",
-        "__kk_map_is_empty",
+    private static let rawBooleanOperations = [
+        "_set_contains",
+        "_set_is_empty",
+        "_mutable_set_add",
+        "_mutable_set_remove",
+        "_mutable_set_removeAll",
+        "_mutable_set_retainAll",
+        "_map_is_empty",
     ]
 
     @Test
@@ -86,12 +86,13 @@ struct RuntimeRawBooleanPredicateTests {
     }
 
     @Test
-    func testRawBooleanCalleeNamesAreDeclaredInSpec() {
+    func testRawBooleanCalleeNamesAreDeclaredInSpec() throws {
         let names = RuntimeABISpec.rawBooleanReturnCalleeNames
-        for name in Self.rawBooleanCalleeNames {
-            #expect(names.contains(name), "Missing raw-Boolean callee in spec: \(name)")
-        }
-        for spec in RuntimeABISpec.allFunctions where Self.rawBooleanCalleeNames.contains(spec.name) {
+        for operation in Self.rawBooleanOperations {
+            let specs = RuntimeABISpec.collectionFunctions.filter { $0.name.hasSuffix(operation) }
+            try #require(specs.count == 1, "Expected one collection ABI declaration for \(operation)")
+            let spec = specs[0]
+            #expect(names.contains(spec.name), "Missing raw-Boolean callee in spec: \(spec.name)")
             #expect(spec.returnType == .intptr, "\(spec.name) must return intptr_t")
             #expect(spec.returnsRawBoolean)
         }

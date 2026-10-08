@@ -55,15 +55,12 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
-        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
-            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
-            return sym
-        }
-        #expect(callSymbols.contains(expectedGetterSymbol),
-                      "Expected synthetic getter symbol \(expectedGetterSymbol), got: \(callSymbols)")
-
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(!callees.contains("kk_property_access"))
+        let calls = loweringCalls(in: lowered.body)
+        #expect(calls.count == 1)
+        #expect(calls.first?.symbol == expectedGetterSymbol)
+        #expect(calls.first?.arguments == [receiver])
+        #expect(calls.first?.result == result)
+        #expect(calls.first?.callee == loweringCalls(in: callerFn.body).first?.callee)
     }
 
     @Test
@@ -116,15 +113,12 @@ extension LoweringABIAndPropertyRegressionTests {
         let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let expectedSetterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
-        let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
-            guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
-            return sym
-        }
-        #expect(callSymbols.contains(expectedSetterSymbol),
-                      "Expected synthetic setter symbol \(expectedSetterSymbol), got: \(callSymbols)")
-
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(!callees.contains("kk_property_access"))
+        let calls = loweringCalls(in: lowered.body)
+        #expect(calls.count == 1)
+        #expect(calls.first?.symbol == expectedSetterSymbol)
+        #expect(calls.first?.arguments == [receiver, value])
+        #expect(calls.first?.result == result)
+        #expect(calls.first?.callee == loweringCalls(in: callerFn.body).first?.callee)
     }
 
     @Test
@@ -164,9 +158,19 @@ extension LoweringABIAndPropertyRegressionTests {
 
         let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("get"))
-        #expect(!callees.contains("kk_property_access"))
+        // ABI lowering conservatively marks unresolved calls as throwing.
+        let expectedBody: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: KnownCompilerNames(interner: interner).get,
+                arguments: [receiver],
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ),
+            .returnUnit,
+        ]
+        #expect(lowered.body == expectedBody)
     }
 
     @Test
@@ -267,9 +271,11 @@ extension LoweringABIAndPropertyRegressionTests {
         #expect(setterCalls.first?.count == 2,
                       "Setter accessor takes (receiver, value); expected 2 arguments, got: \(String(describing: setterCalls.first))")
 
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(callees.contains("set"))
-        #expect(!callees.contains("kk_property_access"))
+        let calls = loweringCalls(in: lowered.body)
+        #expect(calls.count == 1)
+        #expect(calls.first?.symbol == expectedSetterSymbol)
+        #expect(calls.first?.callee == setterFn.name)
+        #expect(calls.first?.arguments.last == fromExpr)
 
         let hasCopy = lowered.body.contains { instruction in
             if case .copy = instruction { return true }
@@ -779,7 +785,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
                     let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: computedPropertySymbol.id)
                     let getterSymbols = allFunctions.compactMap { kirFunc -> SymbolID? in
-                        guard interner.resolve(kirFunc.name) == "get" else { return nil }
+                        guard kirFunc.name == KnownCompilerNames(interner: interner).get else { return nil }
                         return kirFunc.symbol
                     }
                     #expect(getterSymbols.contains(expectedGetterSymbol),

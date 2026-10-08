@@ -142,6 +142,26 @@ struct StarProjectedMemberSmartCastTests {
         })
     }
 
+    // KUU-1463: a stable member property remains smart-castable when the `is`
+    // check is inside a non-inline lambda, including a delegated `lazy` value.
+    @Test func typeParameterPropertyNarrowsInsideNonInlineLambda() throws {
+        let ctx = makeContextFromSource("""
+        class D<R>(val defaultValue: R?) {
+            val defaultValueSet by lazy {
+                defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            }
+            val explicitDefaultValueSet by lazy {
+                this.defaultValue != null && (this.defaultValue is List<*> && this.defaultValue.isNotEmpty() || this.defaultValue !is List<*>)
+            }
+            fun plain(): Boolean = defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            fun inRun(): Boolean = run { defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>) }
+        }
+        fun read(d: D<List<Int>>): Boolean = d.defaultValueSet && d.explicitDefaultValueSet
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "class Holder(var origin: Any?)",
         "class Holder { val origin: Any? get() = null }"

@@ -278,6 +278,51 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
+        if request.ctx.interner.resolve(request.calleeName) == "transform",
+           case let .classType(receiverClass) = request.ctx.sema.types.kind(
+               of: request.ctx.sema.types.makeNonNullable(receiverType)
+           ),
+           request.ctx.sema.symbols.symbol(receiverClass.classSymbol)?.fqName == [
+               request.ctx.interner.intern("kotlinx"),
+               request.ctx.interner.intern("coroutines"),
+               request.ctx.interner.intern("flow"),
+               request.ctx.interner.intern("Flow"),
+           ]
+        {
+            let candidates = request.ctx.sema.symbols.lookupAll(fqName: [
+                request.ctx.interner.intern("kotlinx"),
+                request.ctx.interner.intern("coroutines"),
+                request.ctx.interner.intern("flow"),
+                request.ctx.interner.intern("transform"),
+            ]).filter { candidate in
+                guard let symbol = request.ctx.sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      request.ctx.sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = request.ctx.sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType != nil,
+                      signature.typeParameterSymbols.count == 2,
+                      signature.parameterTypes.count == 1,
+                      case let .functionType(callback) = request.ctx.sema.types.kind(of: signature.parameterTypes[0]),
+                      callback.returnType == request.ctx.sema.types.unitType
+                else { return false }
+                return true
+            }
+            if let result = inferReceiverBuilderCall(
+                request.id,
+                calleeName: request.calleeName,
+                args: request.args,
+                range: request.range,
+                ctx: request.ctx,
+                locals: &locals,
+                expectedType: request.expectedType,
+                explicitTypeArgs: request.explicitTypeArgs,
+                receiverType: receiverType,
+                candidateOverride: request.ctx.filterByVisibility(candidates).visible
+            ) {
+                return result
+            }
+        }
+
         if let result = tryInferMemberCallEarlyReceiverSpecials(
             request,
             receiverType: receiverType,

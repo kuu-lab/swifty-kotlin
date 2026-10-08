@@ -47,7 +47,7 @@ struct ContextualKeywordParameterNameTests {
         let (ast, ctx) = try buildAST(from: source)
         let funDecl = try #require(firstFunDecl(named: "makeIt", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["inner", "tag"])
+        #expect(funDecl.valueParams.map(\.name) == ["inner", "tag"].map(ctx.interner.intern))
     }
 
     @Test
@@ -59,7 +59,7 @@ struct ContextualKeywordParameterNameTests {
         let (ast, ctx) = try buildAST(from: source)
         let funDecl = try #require(firstFunDecl(named: "read", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["out"])
+        #expect(funDecl.valueParams.map(\.name) == [ctx.interner.intern(SoftKeyword.out.rawValue)])
     }
 
     @Test
@@ -71,7 +71,7 @@ struct ContextualKeywordParameterNameTests {
         let (ast, ctx) = try buildAST(from: source)
         let funDecl = try #require(firstFunDecl(named: "makeIt", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["inner", "tag"])
+        #expect(funDecl.valueParams.map(\.name) == ["inner", "tag"].map(ctx.interner.intern))
     }
 
     @Test
@@ -83,7 +83,7 @@ struct ContextualKeywordParameterNameTests {
         let (ast, ctx) = try buildAST(from: source)
         let classDecl = try #require(firstClassDecl(named: "Holder", in: ast, interner: ctx.interner))
 
-        #expect(classDecl.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["inner", "tag"])
+        #expect(classDecl.primaryConstructorParams.map(\.name) == ["inner", "tag"].map(ctx.interner.intern))
         let allAreProperties = classDecl.primaryConstructorParams.allSatisfy { $0.isProperty }
         #expect(allAreProperties)
     }
@@ -101,7 +101,7 @@ struct ContextualKeywordParameterNameTests {
         let (ast, ctx) = try buildAST(from: source)
         let funDecl = try #require(firstFunDecl(named: "makeIt", in: ast, interner: ctx.interner))
 
-        #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == [keyword, "tag"])
+        #expect(funDecl.valueParams.map(\.name) == [keyword, "tag"].map(ctx.interner.intern))
     }
 
     @Test
@@ -114,7 +114,7 @@ struct ContextualKeywordParameterNameTests {
         let funDecl = try #require(firstFunDecl(named: "sum", in: ast, interner: ctx.interner))
         let param = try #require(funDecl.valueParams.first)
 
-        #expect(ctx.interner.resolve(param.name) == "nums")
+        #expect(param.name == ctx.interner.intern("nums"))
         #expect(param.isVararg)
     }
 
@@ -128,7 +128,7 @@ struct ContextualKeywordParameterNameTests {
         let classDecl = try #require(firstClassDecl(named: "Box", in: ast, interner: ctx.interner))
         let param = try #require(classDecl.primaryConstructorParams.first)
 
-        #expect(ctx.interner.resolve(param.name) == "override")
+        #expect(param.name == ctx.interner.intern(Keyword.override.rawValue))
         #expect(param.isProperty)
         #expect(!param.isOverrideProperty)
     }
@@ -144,7 +144,7 @@ struct ContextualKeywordParameterNameTests {
         let classDecl = try #require(firstClassDecl(named: "Person", in: ast, interner: ctx.interner))
         let param = try #require(classDecl.primaryConstructorParams.first)
 
-        #expect(ctx.interner.resolve(param.name) == "name")
+        #expect(param.name == ctx.interner.intern("name"))
         #expect(param.isOverrideProperty)
     }
 }

@@ -48,16 +48,16 @@ struct LibraryMetadataImportIntegrationTests {
                 #expect(errors.count == 3, "\(errors)")
                 #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-VARIANCE" })
                 let sema = try #require(appCtx.sema)
-                for (name, variance) in [
-                    ("varianceLib.Source", TypeVariance.out),
-                    ("varianceLib.Sink", .in),
-                    ("varianceLib.Cell", .invariant),
-                    ("kotlin.coroutines.Continuation", .in),
+                let names = KnownCompilerNames(interner: appCtx.interner)
+                for (fqName, variance) in [
+                    (["varianceLib", "Source"].map(appCtx.interner.intern), TypeVariance.out),
+                    (["varianceLib", "Sink"].map(appCtx.interner.intern), .in),
+                    (["varianceLib", "Cell"].map(appCtx.interner.intern), .invariant),
+                    (names.kotlinContinuationFQName, .in),
                 ] {
-                    let symbol = try #require(sema.symbols.allSymbols().first {
-                        $0.fqName.map(appCtx.interner.resolve).joined(separator: ".") == name
-                            && $0.flags.contains(.importedLibrary)
-                    })
+                    let symbol = try #require(sema.symbols.lookupAll(fqName: fqName)
+                        .compactMap { sema.symbols.symbol($0) }
+                        .first { $0.flags.contains(.importedLibrary) })
                     #expect(sema.types.nominalTypeParameterVariances(for: symbol.id) == [variance])
                 }
             }
@@ -85,11 +85,11 @@ struct LibraryMetadataImportIntegrationTests {
                 try runToKIR(appCtx)
 
                 let sema = try #require(appCtx.sema)
-                let importedPlus = sema.symbols.allSymbols().first { symbol in
-                    appCtx.interner.resolve(symbol.name) == "plus" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.synthetic)
-                }
+                let importedPlus = sema.symbols.lookupAll(fqName: ["extdemo", "plus"].map(appCtx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.synthetic)
+                    }
                 #expect(importedPlus != nil)
                 #expect(!appCtx.diagnostics.hasError, "Unexpected errors: \(appCtx.diagnostics.diagnostics.map(\.message).joined(separator: "\n"))")
                 let appFileDiagnostics = appCtx.diagnostics.diagnostics.filter { diag in
@@ -110,48 +110,60 @@ struct LibraryMetadataImportIntegrationTests {
         try withCompiledLibrary(source: librarySource, moduleName: "ExtDemo") { libraryPath in
             let appSource = """
             import extdemo.plus1
-            fun main() = plus1(41)
+            fun main() { println(plus1(41)) }
             """
             try withTemporaryFile(contents: appSource) { appPath in
+                let outputDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: outputDirectory) }
+                let outputPath = outputDirectory.appendingPathComponent("app").path
                 let appCtx = makeCompilationContext(
                     inputs: [appPath],
                     moduleName: "App",
-                    emit: .kirDump,
+                    emit: .executable,
+                    outputPath: outputPath,
                     searchPaths: [libraryPath]
                 )
                 try runToKIR(appCtx)
                 try LoweringPhase().run(appCtx)
 
                 let sema = try #require(appCtx.sema)
-                let importedInline = sema.symbols.allSymbols().first { symbol in
-                    appCtx.interner.resolve(symbol.name) == "plus1" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.inlineFunction)
-                }
-                #expect(importedInline != nil)
+                let importedInline = try #require(sema.symbols.lookupAll(fqName: ["extdemo", "plus1"].map(appCtx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.inlineFunction)
+                    })
                 #expect(!sema.importedInlineFunctions.isEmpty)
 
                 let kir = try #require(appCtx.kir)
+                let mainName = KnownCompilerNames(interner: appCtx.interner).main
                 let mainFunction = try #require(
                     findAllKIRFunctions(in: kir).first { function in
-                        appCtx.interner.resolve(function.name) == "main"
+                        function.name == mainName
                     },
                     "Expected lowered main function"
                 )
 
-                let calls = extractCallees(from: mainFunction.body, interner: appCtx.interner)
-                #expect(!calls.contains("plus1"))
-                #expect(calls.contains("kk_op_add"))
+                let calls = mainFunction.body.compactMap { instruction -> InternedString? in
+                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return nil }
+                    #expect(symbol != importedInline.id, "The imported inline function must be expanded")
+                    return callee
+                }
+                #expect(!calls.contains(importedInline.name))
+                if let linkName = sema.symbols.externalLinkName(for: importedInline.id) {
+                    #expect(!calls.contains(appCtx.interner.intern(linkName)))
+                }
+                try CodegenPhase().run(appCtx)
+                try LinkPhase().run(appCtx)
+                let result = try CommandRunner.run(executable: outputPath, arguments: [])
+                #expect(result.exitCode == 0)
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "42\n")
             }
         }
     }
 
-    // KSP-472: インライン展開された本体がライブラリ側のプロパティ getter を呼ぶ場合、
-    // 宣言名のままだとリンク時に undefined reference になりうる。KSP-803 以降、
-    // getter は consumer の symbol table に外部リンク名付きの accessor symbol として
-    // 復元されるため、KIR 上の callee 表記は宣言名のままでも良いが、その `symbol` が
-    // 指すシンボルの外部リンク名は必ず mangle 済みリンク名でなければならない
-    // (`symbol` が解決できない場合のみ、callee 自体が mangle 済み名にフォールバックする)。
+    // KSP-472 / KSP-803: an inlined property read must retain the producer's
+    // getter link name, either directly or through the consumer accessor symbol.
     @Test
     func testImportedInlineBodyCallsLibraryPropertyGetterByLinkName() throws {
         let librarySource = """
@@ -161,6 +173,12 @@ struct LibraryMetadataImportIntegrationTests {
         inline fun callDoubled(v: Int) = v.doubled
         """
         try withCompiledLibrary(source: librarySource, moduleName: "ExtDemo") { libraryPath in
+            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let propertyRecord = try #require(MetadataDecoder().decode(metadata).first {
+                $0.fqName == "extdemo.doubled" && $0.kind == .property
+            })
+            let getterLinkName = try #require(propertyRecord.propertyGetterExternalLinkName)
+            #expect(!getterLinkName.isEmpty)
             let appSource = """
             import extdemo.callDoubled
             fun main() = callDoubled(21)
@@ -177,17 +195,23 @@ struct LibraryMetadataImportIntegrationTests {
 
                 let sema = try #require(appCtx.sema)
                 let kir = try #require(appCtx.kir)
+                let mainName = KnownCompilerNames(interner: appCtx.interner).main
+                let propertySymbol = try #require(sema.symbols.lookup(
+                    fqName: ["extdemo", "doubled"].map(appCtx.interner.intern)
+                ))
+                let getterSymbol = try #require(sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol))
+                #expect(sema.symbols.accessorOwnerProperty(for: getterSymbol) == propertySymbol)
+                let getterLink = appCtx.interner.intern(getterLinkName)
                 let mainFunction = try #require(
                     findAllKIRFunctions(in: kir).first { function in
-                        appCtx.interner.resolve(function.name) == "main"
+                        function.name == mainName
                     },
                     "Expected lowered main function"
                 )
                 let getterCall = try #require(
                     mainFunction.body.first { instruction in
-                        guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-                        let name = appCtx.interner.resolve(callee)
-                        return name == "doubled" || name.hasPrefix("kk_fn_get_")
+                        guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
+                        return symbol == getterSymbol || callee == getterLink
                     },
                     "Expected the inlined body to call the imported getter"
                 )
@@ -195,14 +219,13 @@ struct LibraryMetadataImportIntegrationTests {
                     Issue.record("Expected a .call instruction")
                     return
                 }
-                let calleeName = appCtx.interner.resolve(callee)
-                if calleeName.hasPrefix("kk_fn_get_") {
+                if callee == getterLink {
                     return
                 }
                 let resolvedLinkName = callSymbol.flatMap { sema.symbols.externalLinkName(for: $0) }
                 #expect(
-                    resolvedLinkName?.hasPrefix("kk_fn_get_") == true,
-                    "Inlined body must call the getter either by its mangled link name, or through a consumer accessor symbol whose external link name is the mangled getter link; got callee=\(calleeName), resolved symbol link=\(resolvedLinkName ?? "nil")"
+                    resolvedLinkName == getterLinkName,
+                    "Inlined body must retain the getter link exported by the library; got symbol link=\(resolvedLinkName ?? "nil")"
                 )
             }
         }
@@ -221,12 +244,12 @@ struct LibraryMetadataImportIntegrationTests {
             try runToKIR(semaCtx)
 
             let sema = try #require(semaCtx.sema)
-            let base = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                semaCtx.interner.resolve(symbol.name) == "Base" && symbol.kind == .class
-            }))
-            let derived = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                semaCtx.interner.resolve(symbol.name) == "Derived" && symbol.kind == .class
-            }))
+            let base = try #require(sema.symbols.lookupAll(fqName: ["layoutdemo", "Base"].map(semaCtx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first(where: { symbol in symbol.kind == .class }))
+            let derived = try #require(sema.symbols.lookupAll(fqName: ["layoutdemo", "Derived"].map(semaCtx.interner.intern))
+                .compactMap { sema.symbols.symbol($0) }
+                .first(where: { symbol in symbol.kind == .class }))
 
             let baseLayout = sema.symbols.nominalLayout(for: base.id)
             let derivedLayout = sema.symbols.nominalLayout(for: derived.id)
@@ -284,9 +307,9 @@ struct LibraryMetadataImportIntegrationTests {
                 #expect(!appCtx.diagnostics.hasError, "Unexpected errors: \(appCtx.diagnostics.diagnostics.map(\.message).joined(separator: "\n"))")
 
                 let sema = try #require(appCtx.sema)
-                let enumSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                    appCtx.interner.resolve(symbol.name) == "ExternalOsFamily" && symbol.kind == .enumClass
-                }))
+                let enumSymbol = try #require(sema.symbols.lookupAll(fqName: ["extdemo", "ExternalOsFamily"].map(appCtx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first(where: { symbol in symbol.kind == .enumClass }))
                 let nominalLayout = try #require(sema.symbols.nominalLayout(for: enumSymbol.id))
 
                 let entrySymbols = sema.symbols.children(ofFQName: enumSymbol.fqName)
@@ -300,17 +323,21 @@ struct LibraryMetadataImportIntegrationTests {
                         }
                         return lhs.id.rawValue < rhs.id.rawValue
                     }
-                let orderedNames = entrySymbols.map { appCtx.interner.resolve($0.name) }
                 let expectedEntryNames = [
                     "UNKNOWN", "MACOSX", "IOS", "LINUX", "WINDOWS",
                     "ANDROID", "WASM", "TVOS", "WATCHOS",
                 ]
-                #expect(orderedNames == expectedEntryNames)
+                let expectedEntries = try expectedEntryNames.map { name in
+                    try #require(sema.symbols.lookupAll(fqName: enumSymbol.fqName + [appCtx.interner.intern(name)])
+                        .first { sema.symbols.symbol($0)?.kind == .field })
+                }
+                #expect(entrySymbols.map(\.id) == expectedEntries)
 
                 let kir = try #require(appCtx.kir)
+                let mainName = KnownCompilerNames(interner: appCtx.interner).main
                 let mainFunction = try #require(
                     findAllKIRFunctions(in: kir).first { function in
-                        appCtx.interner.resolve(function.name) == "main"
+                        function.name == mainName
                     },
                     "Expected lowered main function"
                 )
@@ -339,9 +366,9 @@ struct LibraryMetadataImportIntegrationTests {
                 try runToKIR(ctx)
 
                 let sema = try #require(ctx.sema)
-                let classSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                    ctx.interner.resolve(symbol.name) == "C" && symbol.kind == .class
-                }))
+                let classSymbol = try #require(sema.symbols.lookupAll(fqName: ["ext", "C"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first(where: { symbol in symbol.kind == .class }))
                 let layout = sema.symbols.nominalLayout(for: classSymbol.id)
                 #expect(layout != nil)
                 #expect(layout?.vtableSlots.count == 1)
@@ -500,9 +527,9 @@ struct LibraryMetadataImportIntegrationTests {
                 )
 
                 let sema = try #require(appCtx.sema)
-                let holder = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                    appCtx.interner.resolve(symbol.name) == "Holder" && symbol.kind == .class
-                }))
+                let holder = try #require(sema.symbols.lookupAll(fqName: ["genericlib", "Holder"].map(appCtx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first(where: { symbol in symbol.kind == .class }))
                 #expect(sema.types.nominalTypeParameterSymbols(for: holder.id).count == 1)
             }
         }
@@ -533,7 +560,7 @@ struct LibraryMetadataImportIntegrationTests {
                 )
                 #expect(
                     appCtx.sema?.symbols.allSymbols().allSatisfy { symbol in
-                        appCtx.interner.resolve(symbol.name) != "Box"
+                        symbol.fqName != ["ext", "Box"].map(appCtx.interner.intern)
                             || !symbol.flags.contains(.importedLibrary)
                     } == true
                 )
@@ -590,11 +617,11 @@ struct LibraryMetadataImportIntegrationTests {
                 try runSema(importCtx)
 
                 let sema = try #require(importCtx.sema)
-                let handlerProperty = try #require(sema.symbols.allSymbols().first(where: { symbol in
-                    importCtx.interner.resolve(symbol.name) == "handler" &&
-                        symbol.kind == .property &&
-                        symbol.flags.contains(.synthetic)
-                }))
+                let handlerProperty = try #require(sema.symbols.lookupAll(fqName: ["metaexport", "handler"].map(importCtx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first(where: { symbol in
+                        symbol.kind == .property && symbol.flags.contains(.synthetic)
+                    }))
                 let propertyType = try #require(sema.symbols.propertyType(for: handlerProperty.id))
                 let nonNullPropertyType = sema.types.makeNonNullable(propertyType)
                 switch sema.types.kind(of: nonNullPropertyType) {

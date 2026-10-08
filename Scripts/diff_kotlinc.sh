@@ -153,7 +153,7 @@ Examples:
 USAGE
 }
 
-is_candidate_only_case() {
+is_pr_candidate_only_case() {
   local kt_file="$1"
   grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|$)' "$kt_file"
 }
@@ -585,6 +585,28 @@ if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
 
+# Preserve the separate master runner's stdout/stderr sidecars alongside this
+# PR's candidate-only marker and expected-output format.
+is_master_candidate_only_case() {
+  local case_path="$1"
+  is_candidate_only_case "$case_path" || return 1
+  [[ -f "${case_path%.kt}.expected.stdout" || -f "${case_path%.kt}.expected.stderr" ]]
+}
+
+# A single candidate-only target has no JVM reference by design. Delegate
+# before kotlinc/JDK discovery, cache fingerprinting, and JVM warm-up so this
+# path remains usable without any reference toolchain installed.
+if [[ -f "$TARGET" ]] && is_master_candidate_only_case "$TARGET"; then
+  export KSWIFTC DIFF_KSWIFTC_FLAGS
+  export DIFF_COMPILE_TIMEOUT="$COMPILE_TIMEOUT"
+  export DIFF_RUN_TIMEOUT="$RUN_TIMEOUT"
+  export DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT"
+  export DIFF_STDLIB_LIBRARY
+  export DIFF_CANDIDATE_ONLY_KEEP_TEMP="$KEEP_TEMP"
+  export TIMEOUT="$TIMEOUT_CMD"
+  exec bash "$SCRIPT_DIR/run_candidate_only.sh" "$TARGET"
+fi
+
 # DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
 # Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
 # and treated as a DIFF_WORKERS fallback for backward compatibility.
@@ -661,7 +683,7 @@ while IFS= read -r test_case; do
   if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
     continue
   fi
-  if ! is_candidate_only_case "$test_case"; then
+  if ! is_pr_candidate_only_case "$test_case"; then
     REFERENCE_CASES_REQUIRED=1
     break
   fi
@@ -1035,7 +1057,7 @@ persist_artifacts() {
   local ref_run_exit="$6"
   local cand_run_exit="$7"
   local candidate_only=0
-  if is_candidate_only_case "$case_path"; then
+  if is_pr_candidate_only_case "$case_path"; then
     candidate_only=1
   fi
 
@@ -1201,7 +1223,7 @@ run_case() {
   local candidate_only=0
   local expected_stdout_valid=1
   local expected_stdout_path="$tmp_dir/expected_run.stdout"
-  if is_candidate_only_case "$kt_file"; then
+  if is_pr_candidate_only_case "$kt_file"; then
     candidate_only=1
     local expected_stdout_count
     expected_stdout_count="$(candidate_expected_stdout_directive_count "$kt_file")"
@@ -1537,6 +1559,14 @@ SKIPPED=0
 if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
+    if is_master_candidate_only_case "$test_case"; then
+      echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      SKIPPED=$((SKIPPED + 1))
+      if [[ -n "$REPORT_PATH" ]]; then
+        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+      fi
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       echo "SKIP $test_case (// SKIP-DIFF)"
       SKIPPED=$((SKIPPED + 1))
@@ -1571,6 +1601,11 @@ else
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
+    if is_master_candidate_only_case "$test_case"; then
+      CASE_KIND[$i]="CANDIDATE-ONLY"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
     if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       CASE_KIND[$i]="SKIP"
       SKIPPED=$((SKIPPED + 1))
@@ -1612,8 +1647,12 @@ else
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if [[ "${CASE_KIND[$i]:-}" == "SKIP" ]]; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+      if [[ "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+        echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      else
+        echo "SKIP $test_case (// SKIP-DIFF)"
+      fi
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
       fi
