@@ -599,6 +599,33 @@ elif [[ -n "$EXPECTED_OUTPUT" ]]; then
   exit 1
 fi
 
+# Resolve the expected-output sidecar named by a candidate-only case. Relative
+# paths are anchored to the Kotlin source file so the case is portable across
+# callers and CI working directories.
+candidate_only_expected_output_file() {
+  local case_path="$1"
+  local expected_path
+  expected_path="$(grep -E '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path" 2>/dev/null \
+    | head -1 \
+    | sed 's/.*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:[[:space:]]*//')"
+  [[ -n "$expected_path" ]] || return 1
+
+  case "$expected_path" in
+    /*|*/*|*\\*|.|..) return 2 ;;
+  esac
+
+  local case_dir
+  case_dir="$(cd "$(dirname "$case_path")" && pwd)"
+  printf '%s/%s\n' "$case_dir" "$expected_path"
+}
+
+# A single candidate-only target does not need any JVM reference tooling. Full
+# directory runs still initialize kotlinc for their ordinary reference cases.
+CANDIDATE_ONLY_TARGET=0
+if [[ -f "$TARGET" ]] && grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$TARGET"; then
+  CANDIDATE_ONLY_TARGET=1
+fi
+
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
@@ -628,21 +655,19 @@ fi
 # Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
 # warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
 # output, so this is deliberately absent from the reference-cache fingerprint.
-if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 && -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
   export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
 fi
 
-if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
   ensure_kotlinc_classpath
-fi
 
-# Runs after ensure_kotlinc_classpath (which may have just populated
-# KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
-# (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
-# --kotlinc-classpath), so it sees final values for both instead of racing
-# either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
-# is what keeps a user- or coroutines-supplied classpath intact.
-if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+  # Runs after ensure_kotlinc_classpath (which may have just populated
+  # KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
+  # (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
+  # --kotlinc-classpath), so it sees final values for both instead of racing
+  # either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
+  # is what keeps a user- or coroutines-supplied classpath intact.
   KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
   KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
   KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
@@ -722,7 +747,7 @@ if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
 
-if [[ "$CANDIDATE_ONLY" -eq 0 && -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 && -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   echo "unzip command not found: unzip" >&2
   exit 1
 fi
@@ -731,7 +756,7 @@ fi
 # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
 # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
 # which produces spurious FAILs against kswiftc. CI pins java-version 21.
-if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 1 || "$CANDIDATE_ONLY_TARGET" -eq 1 ]]; then
   if ! [[ -x "$KSWIFTC" ]]; then
     echo "kswiftc not found or not executable: $KSWIFTC" >&2
     exit 1
@@ -887,7 +912,7 @@ store_kotlinc_ref_cache() {
   fi
 }
 
-if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
   configure_kotlinc_ref_cache
 fi
 
@@ -968,14 +993,18 @@ echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
-echo "Candidate only: $CANDIDATE_ONLY"
+if [[ "$CANDIDATE_ONLY" -eq 1 || "$CANDIDATE_ONLY_TARGET" -eq 1 ]]; then
+  echo "Candidate only: 1"
+else
+  echo "Candidate only: 0"
+fi
 if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
   echo "Expected output: $EXPECTED_OUTPUT"
   echo "Kotlinc/Java reference: disabled"
 fi
 echo "kswiftc flags: ${DIFF_KSWIFTC_FLAGS:-<none>}"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
-if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
   if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
     echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
   else
@@ -983,6 +1012,9 @@ if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
   fi
   echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
   echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
+fi
+if [[ "$CANDIDATE_ONLY_TARGET" -eq 1 ]]; then
+  echo "Comparison mode: candidate-only expected output"
 fi
 if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
@@ -994,7 +1026,7 @@ echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
 # not the first kotlinc startup cost.
-if [[ "$CANDIDATE_ONLY" -eq 0 ]]; then
+if [[ "$CANDIDATE_ONLY" -eq 0 && "$CANDIDATE_ONLY_TARGET" -eq 0 ]]; then
   warm_kotlinc
 fi
 
@@ -1209,6 +1241,16 @@ persist_artifacts() {
   local escaped_kswiftc_flags
   printf -v escaped_kswiftc_flags '%q' "$DIFF_KSWIFTC_FLAGS"
 
+  local comparison_mode="kotlinc-reference"
+  local candidate_expected_output=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path"; then
+    comparison_mode="candidate-only-expected-output"
+    candidate_expected_output="$(candidate_only_expected_output_file "$case_path" 2>/dev/null || true)"
+    if [[ -n "$candidate_expected_output" && -f "$candidate_expected_output" && ! -L "$candidate_expected_output" ]]; then
+      cp "$candidate_expected_output" "$destination/expected.stdout"
+    fi
+  fi
+
   if [[ $cand_compile_exit -eq 0 ]]; then
     "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
@@ -1221,6 +1263,7 @@ persist_artifacts() {
   cat >"$destination/summary.txt" <<EOF
 case: $case_path
 result: $result_label
+comparison_mode: $comparison_mode
 artifact_dir: $destination
 compile_timeout_seconds: $COMPILE_TIMEOUT
 run_timeout_seconds: $RUN_TIMEOUT
@@ -1358,6 +1401,31 @@ run_case() {
   : >"$cand_run_stdout"
   : >"$cand_run_stderr"
 
+  local candidate_only=0
+  local candidate_expected_output=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+    candidate_only=1
+    if ! candidate_expected_output="$(candidate_only_expected_output_file "$kt_file")"; then
+      echo "  invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: use a sidecar filename in the case directory" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if [[ ! -f "$candidate_expected_output" || -L "$candidate_expected_output" ]]; then
+      echo "  candidate-only expected output must be a regular sidecar file: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if ! cp "$candidate_expected_output" "$ref_run_stdout"; then
+      echo "  failed to read candidate-only expected output: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    echo "  candidate-only expected-output comparison: $candidate_expected_output"
+  fi
+
   local ref_compile_exit=0
   local ref_run_exit=0
   local cand_compile_exit=0
@@ -1397,7 +1465,9 @@ run_case() {
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
-  if [[ $is_script -eq 1 ]]; then
+  if [[ "$candidate_only" -eq 1 ]]; then
+    : # The expected-output sidecar is the reference; no JVM compiler or runtime is used.
+  elif [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
     # kotlinc -script bundles compile+run into a single JVM process, so there
@@ -1593,7 +1663,11 @@ run_case() {
 
   if [[ $ok -eq 1 ]]; then
     if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
-      echo "PASS $kt_file"
+      if [[ "$candidate_only" -eq 1 ]]; then
+        echo "PASS $kt_file (candidate-only expected output)"
+      else
+        echo "PASS $kt_file"
+      fi
     fi
   else
     echo "FAIL $kt_file"
