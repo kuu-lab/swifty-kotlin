@@ -70,11 +70,17 @@ extension BuildKIRRegressionTests {
         let arguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
         let parameters = (0 ..< arity).map { "p\($0)" }.joined(separator: ", ")
         let arrow = arity == 0 ? "" : "\(parameters) -> "
+        let functionTypeParameters = Array(repeating: "Int", count: arity).joined(separator: ", ")
+        let functionType = arity == 0 ? "() -> Int" : "(\(functionTypeParameters)) -> Int"
         let values = Array(repeating: "1", count: arity).joined(separator: ", ")
         let ctx = makeContextFromSource("""
         fun main() {
             val f: Function\(arity)<\(arguments)> = { \(arrow)7 }
+            val arrowValue: \(functionType) = { \(arrow)8 }
             println(f(\(values)))
+            println(f.invoke(\(values)))
+            println(arrowValue(\(values)))
+            println(arrowValue.invoke(\(values)))
         }
         """)
         try runToKIR(ctx)
