@@ -618,21 +618,13 @@ public final class IncrementalCompilationCache {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = (try? encoder.encode(config)) ?? Data()
-        return stableFNV1a64Hex(String(decoding: data, as: UTF8.self))
+        return StableFNV1a64.hex(String(decoding: data, as: UTF8.self))
     }
 
     private static func isOutputAffectingFrontendFlag(_ flag: String) -> Bool {
         flag != "incremental" && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
-    private static func stableFNV1a64Hex(_ value: String) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01B3
-        }
-        return String(format: "%016llx", hash)
-    }
 }
 
 // MARK: - Cache manifest model
