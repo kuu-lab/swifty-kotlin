@@ -90,11 +90,11 @@ extension LoweringPassRegressionTests {
         let fn = try findKIRFunction(named: "entries$get", in: module, interner: interner)
         let callees = extractCallees(from: fn.body, interner: interner)
 
-        #expect(callees.contains("kk_array_new"),
+        #expect(callees.contains(RuntimeCall.arrayNew.name),
                 "entries$get should call kk_array_new; callees: \(callees)")
-        #expect(callees.contains("kk_array_set"),
+        #expect(callees.contains(RuntimeCall.arraySet.name),
                 "entries$get should call kk_array_set for each entry; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+        #expect(callees.contains(RuntimeCall.enumMakeEntriesListCached.name),
                 "entries$get should call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
@@ -198,9 +198,9 @@ extension LoweringPassRegressionTests {
         // entries$get must NOT call kk_array_set (no entries to populate).
         let entriesFn = try findKIRFunction(named: "entries$get", in: module, interner: interner)
         let callees = extractCallees(from: entriesFn.body, interner: interner)
-        #expect(!callees.contains("kk_array_set"),
+        #expect(!callees.contains(RuntimeCall.arraySet.name),
                 "Empty enum entries$get must not call kk_array_set; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+        #expect(callees.contains(RuntimeCall.enumMakeEntriesListCached.name),
                 "Empty enum entries$get must still call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
@@ -276,16 +276,16 @@ extension LoweringPassRegressionTests {
         // values() uses kk_enum_make_values_array; entries$get uses kk_enum_make_entries_list_cached.
         let valuesFn = try findKIRFunction(named: "values", in: module, interner: interner)
         let valuesCallees = extractCallees(from: valuesFn.body, interner: interner)
-        #expect(valuesCallees.contains("kk_enum_make_values_array"),
+        #expect(valuesCallees.contains(RuntimeCall.enumMakeValuesArray.name),
                 "values() should call kk_enum_make_values_array; callees: \(valuesCallees)")
-        #expect(!valuesCallees.contains("kk_enum_make_entries_list_cached"),
+        #expect(!valuesCallees.contains(RuntimeCall.enumMakeEntriesListCached.name),
                 "values() must NOT call kk_enum_make_entries_list_cached; callees: \(valuesCallees)")
 
         let entriesFn = try findKIRFunction(named: "entries$get", in: module, interner: interner)
         let entriesCallees = extractCallees(from: entriesFn.body, interner: interner)
-        #expect(entriesCallees.contains("kk_enum_make_entries_list_cached"),
+        #expect(entriesCallees.contains(RuntimeCall.enumMakeEntriesListCached.name),
                 "entries$get should call kk_enum_make_entries_list_cached; callees: \(entriesCallees)")
-        #expect(!entriesCallees.contains("kk_enum_make_values_array"),
+        #expect(!entriesCallees.contains(RuntimeCall.enumMakeValuesArray.name),
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
@@ -310,9 +310,9 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("__kk_string_equals_flat"),
+        #expect(callees.contains(RuntimeCall.stringEqualsFlat.name),
                 "valueOf should call __kk_string_equals_flat; callees: \(callees)")
-        #expect(callees.contains("kk_enum_valueOf_throw"),
+        #expect(callees.contains(RuntimeCall.enumValueOfThrow.name),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }
 
@@ -338,9 +338,9 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: valuesFn.body, interner: interner)
 
         // values() should always produce a fresh array via kk_enum_make_values_array.
-        #expect(callees.contains("kk_array_new"),
+        #expect(callees.contains(RuntimeCall.arrayNew.name),
                 "values() should allocate a new array via kk_array_new; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_values_array"),
+        #expect(callees.contains(RuntimeCall.enumMakeValuesArray.name),
                 "values() should wrap the array via kk_enum_make_values_array; callees: \(callees)")
     }
 
@@ -458,9 +458,9 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "useEntries", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_enum_make_entries_list_cached"),
+            #expect(callees.contains(RuntimeCall.enumMakeEntriesListCached.name),
                     "enumEntries<Color>() should call kk_enum_make_entries_list_cached; callees: \(callees)")
-            #expect(!callees.contains("kk_enum_make_values_array"),
+            #expect(!callees.contains(RuntimeCall.enumMakeValuesArray.name),
                     "enumEntries<Color>() must not call kk_enum_make_values_array; callees: \(callees)")
         }
     }
@@ -499,7 +499,7 @@ extension LoweringPassRegressionTests {
             var valuesCallSymbol: SymbolID?
             for instruction in mainBody {
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "values"
+                      callee == ctx.interner.intern("values")
                 else { continue }
                 foundValuesCall = true
                 valuesCallSymbol = symbol
@@ -556,9 +556,9 @@ extension LoweringPassRegressionTests {
             // not appear in main's own callee list.
             #expect(callees.contains("entries$get"),
                     "Direction.entries should call the entries$get accessor; callees: \(callees)")
-            #expect(callees.contains("kk_list_forEach"),
+            #expect(callees.contains(RuntimeCall.listForEach.name),
                     "Direction.entries.forEach should dispatch to the real List forEach runtime; callees: \(callees)")
-            #expect(callees.contains("__kk_list_size"),
+            #expect(callees.contains(RuntimeCall.listSize.name),
                     "Direction.entries.size should dispatch to the real List size runtime; callees: \(callees)")
         }
     }
@@ -592,9 +592,9 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("__kk_enum_entries_get"),
+            #expect(callees.contains(RuntimeCall.enumEntriesGet.name),
                     "EnumEntries indexing should dispatch to the List get runtime; callees: \(callees)")
-            #expect(!callees.contains("kk_array_get"),
+            #expect(!callees.contains(RuntimeCall.arrayGet.name),
                     "EnumEntries indexing must not fall back to the array bridge; callees: \(callees)")
         }
     }
@@ -641,7 +641,7 @@ extension LoweringPassRegressionTests {
             var valuesCallSymbol: SymbolID?
             for instruction in mainBody {
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "values"
+                      callee == ctx.interner.intern("values")
                 else { continue }
                 foundValuesCall = true
                 valuesCallSymbol = symbol
@@ -659,7 +659,7 @@ extension LoweringPassRegressionTests {
 
             let spuriousReceiverCalls = mainBody.filter { instruction in
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
-                return symbol == nil && ctx.interner.resolve(callee) == "Direction"
+                return symbol == nil && callee == ctx.interner.intern("Direction")
             }
             #expect(spuriousReceiverCalls.isEmpty,
                     "main() must not call the nested enum class's bare short name as if it were a 0-arg accessor; found: \(spuriousReceiverCalls)")
@@ -697,9 +697,9 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains("entries$get"),
                     "Outer.Direction.entries should call the entries$get accessor; callees: \(callees)")
-            #expect(callees.contains("kk_list_forEach"),
+            #expect(callees.contains(RuntimeCall.listForEach.name),
                     "Outer.Direction.entries.forEach should dispatch to the real List forEach runtime; callees: \(callees)")
-            #expect(callees.contains("__kk_list_size"),
+            #expect(callees.contains(RuntimeCall.listSize.name),
                     "Outer.Direction.entries.size should dispatch to the real List size runtime; callees: \(callees)")
         }
     }

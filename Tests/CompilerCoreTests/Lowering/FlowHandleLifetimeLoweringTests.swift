@@ -85,15 +85,15 @@ struct FlowHandleLifetimeLoweringTests {
             catchHandler: interner.intern("catch"),
             retry: interner.intern("retry"), retryWhen: interner.intern("retryWhen"),
             toList: interner.intern("toList"), first: interner.intern("first"),
-            kkFlowCreate: interner.intern("kk_flow_create"), kkFlowEmit: interner.intern("kk_flow_emit"),
-            kkFlowCollect: interner.intern("kk_flow_collect"), kkFlowCollectLatest: interner.intern("__kk_flow_collectLatest"),
-            kkFlowRetain: interner.intern("__kk_flow_retain"), kkFlowRelease: interner.intern("__kk_flow_release"),
-            kkFlowToList: interner.intern("__kk_flow_to_list"), kkFlowFirst: interner.intern("__kk_flow_first"),
-            kkFlowSingle: interner.intern("__kk_flow_single"), kkFlowZip: interner.intern("__kk_flow_zip"),
-            kkFlowCombine: interner.intern("__kk_flow_combine"), kkFlowMerge: interner.intern("__kk_flow_merge"),
-            kkFlowFlatMapConcat: interner.intern("__kk_flow_flat_map_concat"),
-            kkFlowFlatMapMerge: interner.intern("__kk_flow_flat_map_merge"),
-            kkFlowFlatMapLatest: interner.intern("__kk_flow_flat_map_latest")
+            kkFlowCreate: LoweringTestRuntime.callee("flow_create", interner: interner), kkFlowEmit: LoweringTestRuntime.callee("flow_emit", interner: interner),
+            kkFlowCollect: LoweringTestRuntime.callee("flow_collect", interner: interner), kkFlowCollectLatest: LoweringTestRuntime.callee("flow_collectLatest", interner: interner),
+            kkFlowRetain: LoweringTestRuntime.callee("flow_retain", interner: interner), kkFlowRelease: LoweringTestRuntime.callee("flow_release", interner: interner),
+            kkFlowToList: LoweringTestRuntime.callee("flow_to_list", interner: interner), kkFlowFirst: LoweringTestRuntime.callee("flow_first", interner: interner),
+            kkFlowSingle: LoweringTestRuntime.callee("flow_single", interner: interner), kkFlowZip: LoweringTestRuntime.callee("flow_zip", interner: interner),
+            kkFlowCombine: LoweringTestRuntime.callee("flow_combine", interner: interner), kkFlowMerge: LoweringTestRuntime.callee("flow_merge", interner: interner),
+            kkFlowFlatMapConcat: LoweringTestRuntime.callee("flow_flat_map_concat", interner: interner),
+            kkFlowFlatMapMerge: LoweringTestRuntime.callee("flow_flat_map_merge", interner: interner),
+            kkFlowFlatMapLatest: LoweringTestRuntime.callee("flow_flat_map_latest", interner: interner)
         )
         var flowExprIDs: Set<Int32> = [handle.rawValue]
         var remainingConsumes = [handle.rawValue: finalConsume ? 2 : 1]
@@ -112,7 +112,7 @@ struct FlowHandleLifetimeLoweringTests {
         return rewritten.instructions.compactMap { instruction in
             if case .label(40) = instruction { afterLoop = true }
             guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "__kk_flow_release"
+                  callee == names.kkFlowRelease
             else { return nil }
             return (afterLoop, arguments[0])
         }

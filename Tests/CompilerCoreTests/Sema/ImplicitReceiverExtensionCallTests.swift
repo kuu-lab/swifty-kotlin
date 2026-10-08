@@ -122,7 +122,7 @@ import Testing
             let sema = try #require(ctx.sema)
             let refs = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .nameRef(name, _) = expr else { return false }
-                return ctx.interner.resolve(name) == "m"
+                return name == ctx.interner.intern("m")
             }
             // `m` must not resolve as an implicit-receiver member call. It
             // may be entirely unresolved (kotlinc rejects this program), but

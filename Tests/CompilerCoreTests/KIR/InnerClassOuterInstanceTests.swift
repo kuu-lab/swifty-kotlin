@@ -40,13 +40,13 @@ struct InnerClassOuterInstanceTests {
             .compactMap { sema.symbols.symbol($0) }
             .filter { $0.kind == .field || $0.kind == .property }
             .sorted { $0.id.rawValue < $1.id.rawValue }
-        #expect(ownFields.map { interner.resolve($0.name) } == ["$outer", "y"],
+        let outerFieldSymbol = try #require(sema.symbols.outerInstanceFieldSymbol(for: innerSymbol))
+        let yFieldSymbol = try #require(sema.symbols.lookup(fqName: innerFQ + [interner.intern("y")]))
+        #expect(ownFields.map(\.id) == [outerFieldSymbol, yFieldSymbol],
                        "expected $outer to be reserved before Inner's own y, got: \(ownFields.map { interner.resolve($0.name) })")
 
-        let outerFieldSymbol = try #require(sema.symbols.outerInstanceFieldSymbol(for: innerSymbol))
-        #expect(outerFieldSymbol == ownFields[0].id)
         #expect(layout.fieldOffsets[outerFieldSymbol] == 2)
-        #expect(layout.fieldOffsets[ownFields[1].id] == 3)
+        #expect(layout.fieldOffsets[yFieldSymbol] == 3)
     }
 
     @Test func testConstructorStoresOuterInstanceLink() throws {
@@ -63,14 +63,14 @@ struct InnerClassOuterInstanceTests {
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
         #expect(
-            mainCallees.filter { $0 == "kk_object_new" }.count == 2,
+            kirCalls(to: .objectNew, in: mainBody, interner: ctx.interner).count == 2,
             "expected Outer(1) and Inner(2) to each allocate their own object, got callees: \(mainCallees)"
         )
 
         let ctorBody = try findKIRFunctionBody(named: "Inner", in: module, interner: ctx.interner)
         let ctorCallees = extractCallees(from: ctorBody, interner: ctx.interner)
         #expect(
-            ctorCallees.contains("kk_array_set"),
+            !kirCalls(to: .arraySet, in: ctorBody, interner: ctx.interner).isEmpty,
             "expected Inner's constructor to store $outer (and y) into the new instance, got: \(ctorCallees)"
         )
     }
@@ -90,7 +90,7 @@ struct InnerClassOuterInstanceTests {
         // slot Outer's layout assigned `x`.
         let body = try findKIRFunctionBody(named: "sum", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        let readCount = callees.filter { $0 == "kk_array_get_inbounds" }.count
+        let readCount = kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).count
         #expect(readCount == 3, "expected 3 kk_array_get_inbounds calls ($outer hop + x + y), got \(readCount): \(callees)")
     }
 
@@ -129,21 +129,14 @@ struct InnerClassOuterInstanceTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
-        let wrappedValues = body.compactMap { instruction -> KIRExprID? in
-            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_function_create_1"
-            else { return nil }
-            return result
-        }
+        let wrappedValues = kirCalls(to: .functionCreate(arity: 1), in: body, interner: ctx.interner).compactMap(\.result)
         try #require(!wrappedValues.isEmpty, "Expected a function value retaining the captured suffix")
         // Receiver-adapted materialization can wrap the same lambda more than
         // once (e.g. __kk_function_copy_description chains); the constructor
         // must receive one of those wrapped values, not the bare symbol.
-        #expect(body.contains { instruction in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "Inner"
-            else { return false }
-            return arguments.dropFirst().contains { wrappedValues.contains($0) }
+        let constructor = try findKIRFunction(named: "Inner", in: module, interner: ctx.interner)
+        #expect(kirCalls(to: constructor.symbol, in: body).contains {
+            $0.arguments.dropFirst().contains { wrappedValues.contains($0) }
         }, "The constructor must receive the wrapped function value")
     }
 

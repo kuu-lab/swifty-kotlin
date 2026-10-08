@@ -181,8 +181,8 @@ struct ListAccumulationSourcePreservationTests {
         let accumulationSuffixes = Self.unguardedAccumulationCallees
             .union(Self.guardedAccumulationCallees)
         let bridged = callees.filter { callee in
-            guard callee.hasPrefix("kk_") || callee.hasPrefix("__kk_") else { return false }
-            return accumulationSuffixes.contains { callee.hasSuffix("_\($0)") }
+            guard let operation = LoweringTestRuntime.operation(of: callee) else { return false }
+            return accumulationSuffixes.contains { operation.hasSuffix("_\($0)") }
         }
         #expect(bridged.isEmpty, "redirected to runtime bridges: \(bridged)")
     }

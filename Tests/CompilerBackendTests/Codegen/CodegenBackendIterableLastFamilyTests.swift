@@ -63,7 +63,7 @@ struct CodegenBackendIterableLastFamilyTests {
             #expect(containsKotlinCallee("last", in: callees))
             #expect(containsKotlinCallee("lastIndexOf", in: callees))
             #expect(containsKotlinCallee("lastOrNull", in: callees))
-            #expect(!callees.contains("__kk_iterable_last"))
+            #expect(!callees.contains(try runtimeABICallee("iterable_last")))
         }
     }
 }
