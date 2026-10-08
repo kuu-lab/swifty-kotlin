@@ -1279,6 +1279,27 @@ run_case() {
     is_script=1
   fi
 
+  local has_expected_script_exit=0
+  local expected_script_exit_directive=""
+  local expected_ref_script_exit=""
+  local expected_candidate_script_exit=""
+  local expected_script_exit_error=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_EXPECT_SCRIPT_EXIT:' "$kt_file" 2>/dev/null; then
+    has_expected_script_exit=1
+    expected_script_exit_directive="$(read_case_directive_flags "$kt_file" 'DIFF_EXPECT_SCRIPT_EXIT')"
+    if [[ $is_script -ne 1 ]]; then
+      expected_script_exit_error="DIFF_EXPECT_SCRIPT_EXIT is only supported for script_*.kt cases"
+    elif [[ ! "$expected_script_exit_directive" =~ ^ref=([0-9]{1,3})[[:space:]]+candidate=([0-9]{1,3})$ ]]; then
+      expected_script_exit_error="invalid DIFF_EXPECT_SCRIPT_EXIT directive (expected 'ref=N candidate=N')"
+    else
+      expected_ref_script_exit=$((10#${BASH_REMATCH[1]}))
+      expected_candidate_script_exit=$((10#${BASH_REMATCH[2]}))
+      if (( expected_ref_script_exit > 255 || expected_candidate_script_exit > 255 || expected_ref_script_exit == 124 || expected_candidate_script_exit == 124 )); then
+        expected_script_exit_error="DIFF_EXPECT_SCRIPT_EXIT values must be process exit codes from 0 to 255, excluding timeout code 124"
+      fi
+    fi
+  fi
+
   if [[ "$candidate_only" -eq 0 ]]; then
     local kotlinc_extra_flags
     kotlinc_extra_flags="$(read_case_directive_flags "$kt_file" 'KOTLINC_FLAGS')"
@@ -1412,7 +1433,18 @@ run_case() {
       cand_script_exit=$cand_run_exit
     fi
 
-    if [[ $ref_run_exit -ne $cand_script_exit ]]; then
+    if [[ $has_expected_script_exit -eq 1 ]]; then
+      if [[ -n "$expected_script_exit_error" ]]; then
+        ok=0
+        echo "  $expected_script_exit_error"
+      elif [[ $ref_run_exit -ne $expected_ref_script_exit || $cand_compile_exit -ne 0 || $cand_run_exit -ne $expected_candidate_script_exit ]]; then
+        ok=0
+        echo "  script exit expectation mismatch: expected ref=$expected_ref_script_exit candidate=$expected_candidate_script_exit, got ref=$ref_run_exit candidate=$cand_script_exit (candidate compile=$cand_compile_exit run=$cand_run_exit)"
+      fi
+      if [[ -z "$expected_script_exit_error" ]] && ! compare_run_stdout "$tmp_dir" "$kt_file"; then
+        ok=0
+      fi
+    elif [[ $ref_run_exit -ne $cand_script_exit ]]; then
       ok=0
       echo "  script exit mismatch: ref=$ref_run_exit candidate=$cand_script_exit"
     fi
@@ -1425,11 +1457,11 @@ run_case() {
       echo "  candidate run timed out after ${RUN_TIMEOUT}s"
     fi
 
-    if [[ $ref_run_exit -eq 0 && $cand_script_exit -eq 0 ]]; then
+    if [[ $has_expected_script_exit -eq 0 && $ref_run_exit -eq 0 && $cand_script_exit -eq 0 ]]; then
       if ! compare_run_stdout "$tmp_dir" "$kt_file"; then
         ok=0
       fi
-    elif [[ $ref_run_exit -ne 0 && $cand_script_exit -ne 0 && $ref_run_exit -eq $cand_script_exit && $ref_run_exit -ne 124 ]]; then
+    elif [[ $has_expected_script_exit -eq 0 && $ref_run_exit -ne 0 && $cand_script_exit -ne 0 && $ref_run_exit -eq $cand_script_exit && $ref_run_exit -ne 124 ]]; then
       # Matching non-zero exit codes do not imply the same failure reason —
       # ref's script may have failed to compile while the candidate's run
       # phase failed for an unrelated reason, or vice versa. Treat this as
@@ -1439,6 +1471,10 @@ run_case() {
       echo "  note: both ref script and candidate failed with exit=$ref_run_exit; matching exit codes do not verify parity — stderr is reported below; this case will FAIL"
     fi
   else
+    if [[ $has_expected_script_exit -eq 1 ]]; then
+      ok=0
+      echo "  $expected_script_exit_error"
+    fi
     if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
       ok=0
       echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
