@@ -50,12 +50,9 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, ctx: ctx
                 )
-                let entries = enumEntrySymbols(owner: nominalSymbol, symbols: sema.symbols)
-                if !entries.isEmpty {
-                    let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
-                    if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
-                        enumStaticInitCallees.append((initName, initSymbol))
-                    }
+                let initName = ctx.interner.intern("__enum_static_init_\(ctx.interner.resolve(nominalSymbol.name))")
+                if let initSymbol = sema.symbols.lookup(fqName: nominalSymbol.fqName + [initName]) {
+                    enumStaticInitCallees.append((initName, initSymbol))
                 }
             }
             if nominalSymbol.flags.contains(.sealedType) {

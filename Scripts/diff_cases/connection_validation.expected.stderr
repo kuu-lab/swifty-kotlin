@@ -1,0 +1,15 @@
+Scripts/diff_cases/connection_validation.kt:114:19: error KSWIFTK-SEMA-0025: Unresolved type 'Thread'.
+    val threads = mutableListOf<Thread>()
+                  ^
+Scripts/diff_cases/connection_validation.kt:117:22: error KSWIFTK-SEMA-0023: Unresolved function 'thread'.
+        val thread = thread {
+                     ^
+Scripts/diff_cases/connection_validation.kt:122:21: error KSWIFTK-SEMA-0022: Unresolved reference 'Thread'.
+                    Thread.sleep(100) // Simulate work
+                    ^
+Scripts/diff_cases/connection_validation.kt:130:9: error KSWIFTK-SEMA-0003: Ambiguous overload resolution.
+        thread.start()
+        ^
+Scripts/diff_cases/connection_validation.kt:134:23: error KSWIFTK-SEMA-0308: Suspend function 'join' can only be called from a coroutine or another suspend function.
+    threads.forEach { it.join() }
+                      ^

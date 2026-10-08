@@ -58,6 +58,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         var superTypes: [TypeRefID] = []
+        var superTypeEntries: [SuperTypeEntry] = []
         // Only the (at most one) class supertype can carry a constructor
         // call `(args)` — interfaces are listed bare. Kept as a single list
         // rather than per-supertype since that is all `ObjectDecl` needs.
@@ -71,14 +72,51 @@ extension BuildASTPhase.ExpressionParser {
                     break
                 }
                 superTypes.append(superType)
+                var constructorArgs: [CallArgument] = []
                 if matches(.symbol(.lParen)) {
                     _ = consume()
-                    let args = parseCallArguments()
+                    constructorArgs = parseCallArguments()
                     _ = consumeIf(.symbol(.rParen))
-                    if !args.isEmpty {
-                        superTypeConstructorArgs = args
+                    if !constructorArgs.isEmpty {
+                        superTypeConstructorArgs = constructorArgs
                     }
                 }
+                var delegateExpression: ExprID?
+                if consumeIf(.softKeyword(.by)) != nil {
+                    // The object's body is not a trailing lambda argument to
+                    // the delegate call. Parse the header expression separately,
+                    // retaining commas inside calls and generic argument lists.
+                    let delegateStart = index
+                    var depth = BuildASTPhase.BracketDepth()
+                    while let token = current() {
+                        if depth.isAtTopLevel,
+                           [.symbol(.lBrace), .symbol(.comma), .symbol(.semicolon),
+                            .symbol(.rParen), .symbol(.rBrace)].contains(token.kind)
+                        {
+                            break
+                        }
+                        // Parenthesized expressions may contain comparisons;
+                        // those angle tokens are not header type arguments.
+                        if depth.isBracketBraceParenTopLevel
+                            || (token.kind != .symbol(.lessThan) && token.kind != .symbol(.greaterThan))
+                        {
+                            depth.track(token.kind)
+                        }
+                        _ = consume()
+                    }
+                    let parser = BuildASTPhase.ExpressionParser(
+                        tokens: tokens[delegateStart ..< index],
+                        interner: interner,
+                        astArena: astArena,
+                        diagnostics: diagnostics
+                    )
+                    delegateExpression = parser.parse()
+                }
+                superTypeEntries.append(SuperTypeEntry(
+                    typeRef: superType,
+                    delegateExpression: delegateExpression,
+                    constructorArgs: constructorArgs
+                ))
                 if consumeIf(.symbol(.comma)) != nil {
                     continue
                 }
@@ -96,6 +134,7 @@ extension BuildASTPhase.ExpressionParser {
         let range = SourceRange(start: objectToken.range.start, end: end)
         let declID = parseObjectLiteralDecl(
             superTypes: superTypes,
+            superTypeEntries: superTypeEntries,
             superTypeConstructorArgs: superTypeConstructorArgs,
             bodyTokens: bodyTokens,
             range: range

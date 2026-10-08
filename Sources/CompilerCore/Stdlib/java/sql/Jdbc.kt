@@ -11,6 +11,8 @@ public class Connection internal constructor(private val rawHandle: Long) : Auto
     public val isClosed: Boolean
         get() = jdbcConnectionIsClosed(rawHandle)
 
+    public fun isClosed(): Boolean = jdbcConnectionIsClosed(rawHandle)
+
     public fun createStatement(): Statement = Statement(jdbcConnectionCreateStatement(rawHandle))
 
     public fun prepareStatement(sql: String): PreparedStatement =
@@ -24,6 +26,8 @@ public class Connection internal constructor(private val rawHandle: Long) : Auto
 public open class Statement internal constructor(protected val rawHandle: Long) : AutoCloseable {
     public val isClosed: Boolean
         get() = jdbcStatementIsClosed(rawHandle)
+
+    public fun isClosed(): Boolean = jdbcStatementIsClosed(rawHandle)
 
     public fun executeUpdate(sql: String): Int = jdbcStatementExecuteUpdate(rawHandle, sql)
 
@@ -51,6 +55,8 @@ public class PreparedStatement internal constructor(rawHandle: Long) : Statement
 public class ResultSet internal constructor(private val rawHandle: Long) : AutoCloseable {
     public val isClosed: Boolean
         get() = jdbcResultSetIsClosed(rawHandle)
+
+    public fun isClosed(): Boolean = jdbcResultSetIsClosed(rawHandle)
 
     public fun next(): Boolean = jdbcResultSetNext(rawHandle)
 

@@ -8,10 +8,12 @@ fun main() {
 
     // Connection should be open.
     println(conn.isClosed)  // false
+    check(!conn.isClosed())
 
     // Create a table and insert rows using Statement.
     val stmt = conn.createStatement()
     println(stmt.isClosed)  // false
+    check(!stmt.isClosed())
 
     stmt.executeUpdate("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL)")
     stmt.executeUpdate("INSERT INTO users VALUES (1, 'Alice', 9.5)")
@@ -20,6 +22,7 @@ fun main() {
 
     // Query via Statement.executeQuery.
     val rs = stmt.executeQuery("SELECT id, name, score FROM users ORDER BY id")
+    check(!rs.isClosed())
     while (rs.next()) {
         val id = rs.getInt(1)
         val name = rs.getString(2)
@@ -28,12 +31,15 @@ fun main() {
     }
     rs.close()
     println(rs.isClosed)  // true
+    check(rs.isClosed())
 
     stmt.close()
     println(stmt.isClosed)  // true
+    check(stmt.isClosed())
 
     // PreparedStatement with parameter binding.
     val ps = conn.prepareStatement("SELECT name FROM users WHERE score > ?")
+    check(!ps.isClosed())
     ps.setDouble(1, 8.0)
     val rs2 = ps.executeQuery()
     val names = mutableListOf<String>()
@@ -42,6 +48,7 @@ fun main() {
     }
     rs2.close()
     ps.close()
+    check(ps.isClosed())
     // Alice (9.5) and Carol (8.25) have score > 8.0
     println(names.sorted().joinToString(","))  // Alice,Carol
 
@@ -72,4 +79,5 @@ fun main() {
 
     conn.close()
     println(conn.isClosed)  // true
+    check(conn.isClosed())
 }
