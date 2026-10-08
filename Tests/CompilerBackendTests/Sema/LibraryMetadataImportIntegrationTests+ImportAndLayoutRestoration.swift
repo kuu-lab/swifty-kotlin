@@ -253,20 +253,18 @@ extension LibraryMetadataImportIntegrationTests {
                 try runToKIR(ctx)
 
                 let sema = try #require(ctx.sema)
-                let helperSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "helper" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["wc", "util", "helper"]
-                }
+                let helperSymbol = sema.symbols.lookupAll(fqName: ["wc", "util", "helper"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.synthetic)
+                    }
                 #expect(helperSymbol != nil, "Wildcard import should resolve library function 'helper'")
 
-                let widgetSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "Widget" &&
-                        symbol.kind == .class &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["wc", "util", "Widget"]
-                }
+                let widgetSymbol = sema.symbols.lookupAll(fqName: ["wc", "util", "Widget"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .class && symbol.flags.contains(.synthetic)
+                    }
                 #expect(widgetSymbol != nil, "Wildcard import should resolve library class 'Widget'")
                 #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
@@ -295,12 +293,11 @@ extension LibraryMetadataImportIntegrationTests {
                 try runToKIR(ctx)
 
                 let sema = try #require(ctx.sema)
-                let listOfSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "listOf" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "collections", "listOf"]
-                }
+                let listOfSymbol = sema.symbols.lookupAll(fqName: ["kotlin", "collections", "listOf"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.synthetic)
+                    }
                 #expect(listOfSymbol != nil, "Default import should resolve library function 'listOf' from kotlin.collections")
                 #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
@@ -331,28 +328,25 @@ extension LibraryMetadataImportIntegrationTests {
                 try runToKIR(ctx)
 
                 let sema = try #require(ctx.sema)
-                let alphaSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "alpha" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "alpha"]
-                }
+                let alphaSymbol = sema.symbols.lookupAll(fqName: ["mix", "api", "alpha"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.synthetic)
+                    }
                 #expect(alphaSymbol != nil, "Explicit import should resolve library function 'alpha'")
 
-                let betaSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "beta" &&
-                        symbol.kind == .function &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "beta"]
-                }
+                let betaSymbol = sema.symbols.lookupAll(fqName: ["mix", "api", "beta"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .function && symbol.flags.contains(.synthetic)
+                    }
                 #expect(betaSymbol != nil, "Wildcard import should resolve library function 'beta'")
 
-                let gammaSymbol = sema.symbols.allSymbols().first { symbol in
-                    ctx.interner.resolve(symbol.name) == "Gamma" &&
-                        symbol.kind == .class &&
-                        symbol.flags.contains(.synthetic) &&
-                        symbol.fqName.map { ctx.interner.resolve($0) } == ["mix", "api", "Gamma"]
-                }
+                let gammaSymbol = sema.symbols.lookupAll(fqName: ["mix", "api", "Gamma"].map(ctx.interner.intern))
+                    .compactMap { sema.symbols.symbol($0) }
+                    .first { symbol in
+                        symbol.kind == .class && symbol.flags.contains(.synthetic)
+                    }
                 #expect(gammaSymbol != nil, "Wildcard import should resolve library class 'Gamma'")
                 #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             }
