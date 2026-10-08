@@ -1,4 +1,3 @@
-
 struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
     private var bindings: [InternedString: Value]
@@ -40,6 +39,9 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 final class TypeCheckDriver {
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Properties whose types were inferred in a safe module pre-pass so earlier
+    /// files can use them without running the property checker a second time.
+    var precheckedPropertyDecls: Set<DeclID> = []
 
     let ast: ASTModule
     let sema: SemaModule
@@ -206,17 +208,34 @@ final class TypeCheckDriver {
             return symbol.kind == .class || symbol.kind == .enumClass
         }
 
+        func hasIndependentBooleanInitializer(_ property: PropertyDecl) -> Bool {
+            guard property.type == nil,
+                  property.initializer != nil,
+                  property.delegateExpression == nil,
+                  property.getter == nil,
+                  property.setter == nil,
+                  property.explicitBackingField == nil,
+                  property.receiverType == nil,
+                  let initializer = property.initializer,
+                  case .boolLiteral = ast.arena.expr(initializer)
+            else {
+                return false
+            }
+            return true
+        }
+
         // A direct constructor call has a type fixed by its collected header,
-        // so infer these properties before earlier class bodies can observe
-        // the nullable-Any placeholder. Leave other initializers in source
-        // order because their types may depend on inferred function returns.
-        var precheckedInferredTopLevelProperties: Set<DeclID> = []
+        // and a bare Boolean literal has no declaration dependencies. Infer
+        // those properties before earlier files can observe the nullable-Any
+        // placeholder. Keep all other initializers in source order because
+        // their types may depend on inferred function returns or other props.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       case let .propertyDecl(property) = decl,
-                      hasHeaderResolvedConstructorInitializer(property, in: file),
+                      hasHeaderResolvedConstructorInitializer(property, in: file)
+                      || hasIndependentBooleanInitializer(property),
                       let symbol = sema.bindings.declSymbols[declID]
                 else {
                     continue
@@ -229,7 +248,29 @@ final class TypeCheckDriver {
                     solver: solver,
                     diagnostics: diagnostics
                 )
-                precheckedInferredTopLevelProperties.insert(declID)
+                precheckedPropertyDecls.insert(declID)
+            }
+        }
+
+        // Resolve dependency-free inferred member properties in later classes
+        // before an earlier file's function body tries to use their header
+        // placeholders. The class helper deliberately leaves any initializer
+        // with unresolved property/function dependencies on the normal path.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declID in file.topLevelDecls {
+                guard case let .classDecl(classDecl)? = ast.arena.decl(declID),
+                      let symbol = sema.bindings.declSymbols[declID]
+                else {
+                    continue
+                }
+                declChecker.precheckIndependentClassMemberProperties(
+                    classDecl,
+                    symbol: symbol,
+                    ctx: inferCtx,
+                    solver: solver,
+                    diagnostics: diagnostics
+                )
             }
         }
 
@@ -241,7 +282,7 @@ final class TypeCheckDriver {
                 else {
                     continue
                 }
-                if precheckedInferredTopLevelProperties.contains(declID) {
+                if precheckedPropertyDecls.contains(declID) {
                     continue
                 }
                 switch decl {
