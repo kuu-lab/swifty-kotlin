@@ -73,7 +73,7 @@ extension LoweringPassRegressionTests {
 
             let unboxCalls = body.compactMap { instruction -> Int? in
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "kk_unbox_int"
+                      callee == ctx.interner.intern(RuntimeCall.unboxInt.name)
                 else { return nil }
                 return arguments.count
             }
@@ -132,7 +132,7 @@ extension LoweringPassRegressionTests {
 
             let sema = try #require(ctx.sema)
             let northSymbol = try #require(sema.symbols.allSymbols().first {
-                $0.kind == .field && ctx.interner.resolve($0.name) == "NORTH"
+                $0.kind == .field && $0.name == ctx.interner.intern("NORTH")
             })
             let northNameHelper = ctx.interner.resolve(
                 NameMangler.enumEntryNameHelperName(for: northSymbol, interner: ctx.interner)
@@ -204,7 +204,7 @@ extension LoweringPassRegressionTests {
 
             #expect(!callees.contains("ordinal"),
                     "the raw unresolved \"ordinal\" call must be rewritten away; callees: \(callees)")
-            #expect(callees.contains("kk_unbox_int"),
+            #expect(callees.contains(RuntimeCall.unboxInt.name),
                     "expected the implicit receiver to be unboxed; callees: \(callees)")
         }
     }

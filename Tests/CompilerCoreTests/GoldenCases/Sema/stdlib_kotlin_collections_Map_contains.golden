@@ -1,13 +1,26 @@
 symbol fq=CustomMap.<init>.$0.backing[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=CustomMap.<init>[kind=ctor;recv=CustomMap;params=kotlin.collections.Map<String,Int?>;ret=CustomMap;names=[backing];origin=fixture] kind=constructor vis=private flags=_ sig=recv=CustomMap params=[kotlin.collections.Map<String, Int?>] ret=CustomMap
 symbol fq=CustomMap[kind=class;origin=fixture] kind=class vis=private flags=_
 symbol fq=EqualKey.<init>.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture] kind=constructor vis=private flags=_ sig=recv=EqualKey params=[Int] ret=EqualKey
 symbol fq=EqualKey[kind=class;origin=fixture] kind=class vis=private flags=dataType
 symbol fq=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<String, Int?>
-symbol fq=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<String?, Int?>
-symbol fq=__local_2.nullableKey[kind=local;type=String?;origin=fixture] kind=local vis=private flags=_ type=String?
-symbol fq=__local_3.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<EqualKey, String?>
-symbol fq=__local_4.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<Int, String?>
+symbol fq=__local_1.present[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_2.missing[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_3.explicitPresent[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_4.nullValue[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_5.integerValue[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_6.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<String?, Int?>
+symbol fq=__local_7.nullableKey[kind=local;type=String?;origin=fixture] kind=local vis=private flags=_ type=String?
+symbol fq=__local_8.nullableMembership[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_9.explicitNullKey[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_10.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<EqualKey, String?>
+symbol fq=__local_11.equalKeyMembership[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_12.missingEqualKey[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_13.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map<Int, String?>
+symbol fq=__local_14.boxedMembership[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_15.missingBoxedKey[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_16.delegatedMembership[kind=local;type=Boolean;origin=fixture] kind=local vis=private flags=_ type=Boolean
 symbol fq=customMapContains.$2.custom[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=customMapContains[kind=fun;params=CustomMap;ret=Boolean;names=[custom];origin=fixture] kind=function vis=private flags=_ sig=recv=_ params=[CustomMap] ret=Boolean
 symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -16,42 +29,38 @@ file fstdlib_kotlin_collections_Map_contains package=_
   decl CustomMap[kind=class;origin=fixture] class CustomMap sym=CustomMap[kind=class;origin=fixture]
   decl customMapContains[kind=fun;params=CustomMap;ret=Boolean;names=[custom];origin=fixture] fun customMapContains sym=customMapContains[kind=fun;params=CustomMap;ret=Boolean;names=[custom];origin=fixture]
   decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@4:88 name(backing) type=kotlin.collections.Map<String, Int?> ref=CustomMap.<init>.$0.backing[kind=vparam;origin=fixture]
-expr e@6:61 name(custom) type=CustomMap ref=customMapContains.$2.custom[kind=vparam;origin=fixture]
-expr e@6:77 string(custom) type=String
-expr e@6:61#1 memberCall recv=e@6:61 callee=contains args=[_:e@6:77] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
-expr e@9:40 string(present) type=String
-expr e@9:53 name(null) type=Nothing?
-expr e@9:40#1 memberCall recv=e@9:40 callee=to args=[_:e@9:53] type=kotlin.Pair<String, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Nothing?]
-expr e@9:59 string(number) type=String
-expr e@9:71 int(1) type=Int
-expr e@9:59#1 memberCall recv=e@9:59 callee=to args=[_:e@9:71] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
-expr e@9:34 call callee=e@9:34#1 args=[_:e@9:40#1,_:e@9:59#1] type=kotlin.collections.Map<String, Int?> call=kotlin.collections.mapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String,Int?]
-expr e@9:5 localDecl map mutable=0 type=Map<String,Int?> init=e@9:34 type=Unit ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@10:13 string(present) type=String
-expr e@10:26 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@10:13#1 inExpr lhs=e@10:13 rhs=e@10:26 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@11:13 string(missing) type=String
-expr e@11:26 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@11:13#1 inExpr lhs=e@11:13 rhs=e@11:26 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@12:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@12:26 string(present) type=String
-expr e@12:13#1 memberCall recv=e@12:13 callee=contains args=[_:e@12:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
-expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@13:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@13:26 string(missing) type=String
-expr e@13:13#1 memberCall recv=e@13:13 callee=contains args=[_:e@13:26] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@14:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@14:31 name(null) type=Nothing?
-expr e@14:13#1 memberCall recv=e@14:13 callee=containsValue args=[_:e@14:31] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
-expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@15:13 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
-expr e@15:31 int(1) type=Int
-expr e@15:13#1 memberCall recv=e@15:13 callee=containsValue args=[_:e@15:31] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:88 name(backing) type=kotlin.collections.Map<String, Int?> ref=CustomMap.<init>.$0.backing[kind=vparam;origin=fixture]
+expr e@7:61 name(custom) type=CustomMap ref=customMapContains.$2.custom[kind=vparam;origin=fixture]
+expr e@7:77 string(custom) type=String
+expr e@7:61#1 memberCall recv=e@7:61 callee=contains args=[_:e@7:77] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
+expr e@10:40 string(present) type=String
+expr e@10:53 name(null) type=Nothing?
+expr e@10:40#1 memberCall recv=e@10:40 callee=to args=[_:e@10:53] type=kotlin.Pair<String, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Nothing?]
+expr e@10:59 string(number) type=String
+expr e@10:71 int(1) type=Int
+expr e@10:59#1 memberCall recv=e@10:59 callee=to args=[_:e@10:71] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
+expr e@10:34 call callee=e@10:34#1 args=[_:e@10:40#1,_:e@10:59#1] type=kotlin.collections.Map<String, Int?> call=kotlin.collections.mapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String,Int?]
+expr e@10:5 localDecl map mutable=0 type=Map<String,Int?> init=e@10:34 type=Unit ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@11:28 string(present) type=String
+expr e@11:41 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@11:28#1 inExpr lhs=e@11:28 rhs=e@11:41 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
+expr e@11:5 localDecl present mutable=0 type=Boolean init=e@11:28#1 type=Unit ref=__local_1.present[kind=local;type=Boolean;origin=fixture]
+expr e@12:28 string(missing) type=String
+expr e@12:41 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@12:28#1 inExpr lhs=e@12:28 rhs=e@12:41 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
+expr e@12:5 localDecl missing mutable=0 type=Boolean init=e@12:28#1 type=Unit ref=__local_2.missing[kind=local;type=Boolean;origin=fixture]
+expr e@13:36 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@13:49 string(present) type=String
+expr e@13:36#1 memberCall recv=e@13:36 callee=contains args=[_:e@13:49] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String,Int?]
+expr e@13:5 localDecl explicitPresent mutable=0 type=Boolean init=e@13:36#1 type=Unit ref=__local_3.explicitPresent[kind=local;type=Boolean;origin=fixture]
+expr e@14:30 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@14:48 name(null) type=Nothing?
+expr e@14:30#1 memberCall recv=e@14:30 callee=containsValue args=[_:e@14:48] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
+expr e@14:5 localDecl nullValue mutable=0 type=Boolean init=e@14:30#1 type=Unit ref=__local_4.nullValue[kind=local;type=Boolean;origin=fixture]
+expr e@15:33 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map[kind=local;type=kotlin.collections.Map<String,Int?>;origin=fixture]
+expr e@15:51 int(1) type=Int
+expr e@15:33#1 memberCall recv=e@15:33 callee=containsValue args=[_:e@15:51] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
+expr e@15:5 localDecl integerValue mutable=0 type=Boolean init=e@15:33#1 type=Unit ref=__local_5.integerValue[kind=local;type=Boolean;origin=fixture]
 expr e@17:49 name(null) type=Nothing?
 expr e@17:57 name(null) type=Nothing?
 expr e@17:49#1 memberCall recv=e@17:49 callee=to args=[_:e@17:57] type=kotlin.Pair<Nothing?, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[Nothing?,Nothing?]
@@ -59,47 +68,50 @@ expr e@17:63 string(value) type=String
 expr e@17:74 int(2) type=Int
 expr e@17:63#1 memberCall recv=e@17:63 callee=to args=[_:e@17:74] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
 expr e@17:43 call callee=e@17:43#1 args=[_:e@17:49#1,_:e@17:63#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String?,Int?]
-expr e@17:5 localDecl nullableMap mutable=0 type=Map<String?,Int?> init=e@17:43 type=Unit ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
+expr e@17:5 localDecl nullableMap mutable=0 type=Map<String?,Int?> init=e@17:43 type=Unit ref=__local_6.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
 expr e@18:32 name(null) type=Nothing?
-expr e@18:5 localDecl nullableKey mutable=0 type=String? init=e@18:32 type=Unit ref=__local_2.nullableKey[kind=local;type=String?;origin=fixture]
-expr e@19:13 name(nullableKey) type=String? ref=__local_2.nullableKey[kind=local;type=String?;origin=fixture]
-expr e@19:28 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
-expr e@19:13#1 inExpr lhs=e@19:13 rhs=e@19:28 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String?,Int?]
-expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@20:13 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
-expr e@20:34 name(null) type=Nothing?
-expr e@20:13#1 memberCall recv=e@20:13 callee=contains args=[_:e@20:34] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String?,Int?]
-expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@21:13 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_1.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
-expr e@21:39 name(null) type=Nothing?
-expr e@21:13#1 memberCall recv=e@21:13 callee=containsValue args=[_:e@21:39] type=Boolean call=kotlin.collections.containsValue[kind=fun;recv=kotlin.collections.Map<T0,T1>;params=T1;ret=Boolean;gen=2;names=[value]]
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@23:60 int(7) type=Int
-expr e@23:51 call callee=e@23:51#1 args=[_:e@23:60] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
-expr e@23:66 name(null) type=Nothing?
-expr e@23:51#2 memberCall recv=e@23:51 callee=to args=[_:e@23:66] type=kotlin.Pair<EqualKey, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[EqualKey,Nothing?]
-expr e@23:45 call callee=e@23:45#1 args=[_:e@23:51#2] type=kotlin.collections.Map<EqualKey, Nothing?> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[EqualKey,Nothing?]
-expr e@23:5 localDecl equalKeys mutable=0 type=Map<EqualKey,String?> init=e@23:45 type=Unit ref=__local_3.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
-expr e@24:22 int(7) type=Int
-expr e@24:13 call callee=e@24:13#1 args=[_:e@24:22] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
-expr e@24:28 name(equalKeys) type=kotlin.collections.Map<EqualKey, String?> ref=__local_3.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
-expr e@24:13#2 inExpr lhs=e@24:13 rhs=e@24:28 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[EqualKey,String?]
-expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@25:13 name(equalKeys) type=kotlin.collections.Map<EqualKey, String?> ref=__local_3.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
-expr e@25:41 int(8) type=Int
-expr e@25:32 call callee=e@25:32#1 args=[_:e@25:41] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
-expr e@25:13#1 memberCall recv=e@25:13 callee=contains args=[_:e@25:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[EqualKey,String?]
-expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@27:46 int(1) type=Int
-expr e@27:51 name(null) type=Nothing?
-expr e@27:46#1 memberCall recv=e@27:46 callee=to args=[_:e@27:51] type=kotlin.Pair<Int, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[Int,Nothing?]
-expr e@27:40 call callee=e@27:40#1 args=[_:e@27:46#1] type=kotlin.collections.Map<Int, Nothing?> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[Int,Nothing?]
-expr e@27:5 localDecl boxedKeys mutable=0 type=Map<Int,String?> init=e@27:40 type=Unit ref=__local_4.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
-expr e@28:13 int(1) type=Int
-expr e@28:18 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_4.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
-expr e@28:13#1 inExpr lhs=e@28:13 rhs=e@28:18 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[Int,String?]
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@29:13 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_4.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
-expr e@29:32 int(2) type=Int
-expr e@29:13#1 memberCall recv=e@29:13 callee=contains args=[_:e@29:32] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[Int,String?]
-expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:5 localDecl nullableKey mutable=0 type=String? init=e@18:32 type=Unit ref=__local_7.nullableKey[kind=local;type=String?;origin=fixture]
+expr e@19:39 name(nullableKey) type=String? ref=__local_7.nullableKey[kind=local;type=String?;origin=fixture]
+expr e@19:54 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_6.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
+expr e@19:39#1 inExpr lhs=e@19:39 rhs=e@19:54 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String?,Int?]
+expr e@19:5 localDecl nullableMembership mutable=0 type=Boolean init=e@19:39#1 type=Unit ref=__local_8.nullableMembership[kind=local;type=Boolean;origin=fixture]
+expr e@20:36 name(nullableMap) type=kotlin.collections.Map<String?, Int?> ref=__local_6.nullableMap[kind=local;type=kotlin.collections.Map<String?,Int?>;origin=fixture]
+expr e@20:57 name(null) type=Nothing?
+expr e@20:36#1 memberCall recv=e@20:36 callee=contains args=[_:e@20:57] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[String?,Int?]
+expr e@20:5 localDecl explicitNullKey mutable=0 type=Boolean init=e@20:36#1 type=Unit ref=__local_9.explicitNullKey[kind=local;type=Boolean;origin=fixture]
+expr e@22:60 int(7) type=Int
+expr e@22:51 call callee=e@22:51#1 args=[_:e@22:60] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
+expr e@22:66 name(null) type=Nothing?
+expr e@22:51#2 memberCall recv=e@22:51 callee=to args=[_:e@22:66] type=kotlin.Pair<EqualKey, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[EqualKey,Nothing?]
+expr e@22:45 call callee=e@22:45#1 args=[_:e@22:51#2] type=kotlin.collections.Map<EqualKey, Nothing?> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[EqualKey,Nothing?]
+expr e@22:5 localDecl equalKeys mutable=0 type=Map<EqualKey,String?> init=e@22:45 type=Unit ref=__local_10.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
+expr e@23:48 int(7) type=Int
+expr e@23:39 call callee=e@23:39#1 args=[_:e@23:48] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
+expr e@23:54 name(equalKeys) type=kotlin.collections.Map<EqualKey, String?> ref=__local_10.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
+expr e@23:39#2 inExpr lhs=e@23:39 rhs=e@23:54 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[EqualKey,String?]
+expr e@23:5 localDecl equalKeyMembership mutable=0 type=Boolean init=e@23:39#2 type=Unit ref=__local_11.equalKeyMembership[kind=local;type=Boolean;origin=fixture]
+expr e@24:36 name(equalKeys) type=kotlin.collections.Map<EqualKey, String?> ref=__local_10.equalKeys[kind=local;type=kotlin.collections.Map<EqualKey,String?>;origin=fixture]
+expr e@24:64 int(8) type=Int
+expr e@24:55 call callee=e@24:55#1 args=[_:e@24:64] type=EqualKey call=EqualKey.<init>[kind=ctor;recv=EqualKey;params=Int;ret=EqualKey;names=[value];origin=fixture]
+expr e@24:36#1 memberCall recv=e@24:36 callee=contains args=[_:e@24:55] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[EqualKey,String?]
+expr e@24:5 localDecl missingEqualKey mutable=0 type=Boolean init=e@24:36#1 type=Unit ref=__local_12.missingEqualKey[kind=local;type=Boolean;origin=fixture]
+expr e@26:46 int(1) type=Int
+expr e@26:51 name(null) type=Nothing?
+expr e@26:46#1 memberCall recv=e@26:46 callee=to args=[_:e@26:51] type=kotlin.Pair<Int, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[Int,Nothing?]
+expr e@26:40 call callee=e@26:40#1 args=[_:e@26:46#1] type=kotlin.collections.Map<Int, Nothing?> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[Int,Nothing?]
+expr e@26:5 localDecl boxedKeys mutable=0 type=Map<Int,String?> init=e@26:40 type=Unit ref=__local_13.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
+expr e@27:36 int(1) type=Int
+expr e@27:41 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_13.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
+expr e@27:36#1 inExpr lhs=e@27:36 rhs=e@27:41 type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[Int,String?]
+expr e@27:5 localDecl boxedMembership mutable=0 type=Boolean init=e@27:36#1 type=Unit ref=__local_14.boxedMembership[kind=local;type=Boolean;origin=fixture]
+expr e@28:36 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_13.boxedKeys[kind=local;type=kotlin.collections.Map<Int,String?>;origin=fixture]
+expr e@28:55 int(2) type=Int
+expr e@28:36#1 memberCall recv=e@28:36 callee=contains args=[_:e@28:55] type=Boolean call=kotlin.collections.contains[kind=fun;recv=kotlin.collections.Map<out T0,T1>;params=T0;ret=Boolean;gen=2;names=[key]] targs=[Int,String?]
+expr e@28:5 localDecl missingBoxedKey mutable=0 type=Boolean init=e@28:36#1 type=Unit ref=__local_15.missingBoxedKey[kind=local;type=Boolean;origin=fixture]
+expr e@29:74 string(custom) type=String
+expr e@29:86 int(1) type=Int
+expr e@29:74#1 memberCall recv=e@29:74 callee=to args=[_:e@29:86] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
+expr e@29:68 call callee=e@29:68#1 args=[_:e@29:74#1] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf[kind=fun;params=kotlin.Pair<T0,T1>;ret=kotlin.collections.Map<T0,T1>;gen=2;names=[pair]] targs=[String,Int]
+expr e@29:58 call callee=e@29:58#1 args=[_:e@29:68] type=CustomMap call=CustomMap.<init>[kind=ctor;recv=CustomMap;params=kotlin.collections.Map<String,Int?>;ret=CustomMap;names=[backing];origin=fixture]
+expr e@29:40 call callee=e@29:40#1 args=[_:e@29:58] type=Boolean call=customMapContains[kind=fun;params=CustomMap;ret=Boolean;names=[custom];origin=fixture]
+expr e@29:5 localDecl delegatedMembership mutable=0 type=Boolean init=e@29:40 type=Unit ref=__local_16.delegatedMembership[kind=local;type=Boolean;origin=fixture]

@@ -96,6 +96,19 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func functionValueInvokePropertySyntaxIsRejected() throws {
+        let diagnostics = try compileAndCollectDiagnostics("""
+        fun main() {
+            val f: Function0<Int> = { 7 }
+            println(f.invoke)
+        }
+        """)
+
+        let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0309" }
+        #expect(found, "Expected SEMA-0309 for function-value invoke property syntax, got: \(diagnostics.diagnostics.map(\.code))")
+    }
+
+    @Test
     func bundledPropertyFacadesAreAccepted() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
         fun main() {

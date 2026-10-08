@@ -60,7 +60,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
@@ -143,7 +143,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
@@ -167,7 +167,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)

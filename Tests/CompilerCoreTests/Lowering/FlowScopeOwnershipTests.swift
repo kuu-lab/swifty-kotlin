@@ -83,7 +83,7 @@ struct FlowScopeOwnershipTests {
         let callback = arena.appendExpr(.intLiteral(0))
         let symbol = SymbolID(rawValue: 1)
         var body: [KIRInstruction] = [
-            .call(symbol: nil, callee: interner.intern("kk_flow_create"), arguments: [callback],
+            .call(symbol: nil, callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [callback],
                   result: root, canThrow: false, thrownResult: nil),
             .copy(from: root, to: alias),
         ]
@@ -108,10 +108,10 @@ struct FlowScopeOwnershipTests {
         let value = arena.appendExpr(.intLiteral(7))
         var body = KIRLoweringEmitContext()
         if emitOwnedFlow {
-            body.append(.call(symbol: nil, callee: interner.intern("kk_flow_create"), arguments: [zero, zero],
+            body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("flow_create", interner: interner), arguments: [zero, zero],
                               result: root, canThrow: false, thrownResult: nil))
         }
-        body.append(.call(symbol: nil, callee: interner.intern("kk_flow_emit"), arguments: [zero, emitOwnedFlow ? root : value, zero],
+        body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("flow_emit", interner: interner), arguments: [zero, emitOwnedFlow ? root : value, zero],
                           result: emitted, canThrow: false, thrownResult: nil))
         body.append(.returnUnit)
         let module = KIRModule(files: [], arena: arena)
@@ -182,7 +182,7 @@ struct FlowScopeOwnershipTests {
         case .nonLocalReturned: body.append(.nonLocalReturn(use, target: .function(SymbolID(rawValue: 1))))
         case .global: body.append(.storeGlobal(value: use, symbol: SymbolID(rawValue: 100)))
         case .captured:
-            body.append(.call(symbol: nil, callee: interner.intern("kk_coroutine_launcher_arg_set"), arguments: [callback, zero, use], result: nil, canThrow: false, thrownResult: nil))
+            body.append(.call(symbol: nil, callee: LoweringTestRuntime.callee("coroutine_launcher_arg_set", interner: interner), arguments: [callback, zero, use], result: nil, canThrow: false, thrownResult: nil))
         case .unknownCall:
             body.append(.call(symbol: nil, callee: interner.intern("save"), arguments: [use], result: nil, canThrow: false, thrownResult: nil))
         case nil: break
@@ -238,30 +238,30 @@ struct FlowScopeOwnershipTests {
             case let .jumpIfNotNull(expr, target):
                 if try value(expr) != 0 { pc = try #require(labels[target]); continue }
             case let .call(_, callee, args, result, _, thrown, _, _):
-                switch interner.resolve(callee) {
-                case "kk_flow_create":
+                switch callee {
+                case LoweringTestRuntime.callee("flow_create", interner: interner):
                     nextHandle += 1
                     values[try #require(result)] = nextHandle
                     execution.owners[nextHandle] = 1
-                case "__kk_flow_retain":
+                case LoweringTestRuntime.callee("flow_retain", interner: interner):
                     let handle = try value(args[0])
                     #expect(execution.owners[handle] != nil)
                     execution.owners[handle, default: 0] += 1
                     values[try #require(result)] = handle
-                case "__kk_flow_release":
+                case LoweringTestRuntime.callee("flow_release", interner: interner):
                     let handle = try value(args[0])
                     let count = try #require(execution.owners[handle], "Release must target initialized, live ownership")
                     execution.releases += 1
                     if count == 1 { execution.owners.removeValue(forKey: handle) }
                     else { execution.owners[handle] = count - 1 }
-                case "kk_flow_collect":
+                case LoweringTestRuntime.callee("flow_collect", interner: interner):
                     #expect(execution.owners[try value(args[0])] != nil, "Collection must not use a released handle")
                     execution.collections += 1
                 default: break
                 }
                 if let thrown {
-                    let name = interner.resolve(callee)
-                    values[thrown] = name == "fail" || (collectorFailure && name == "kk_flow_collect") ? 1 : 0
+                    values[thrown] = callee == interner.intern("fail")
+                        || (collectorFailure && callee == LoweringTestRuntime.callee("flow_collect", interner: interner)) ? 1 : 0
                 }
             case .returnUnit, .returnValue, .rethrow, .nonLocalReturn: return execution
             default: break

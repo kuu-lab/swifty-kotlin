@@ -23,9 +23,7 @@ extension LoweringPassRegressionTests {
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError)
         let module = try requireTestValue(ctx.kir, "expected KIR module")
-        let lambdas = module.arena.declarations.compactMap { $0.function }.filter {
-            ctx.interner.resolve($0.name).hasPrefix("kk_lambda")
-        }
+        let lambdas = functionValueTargets(in: module)
         let nonLocalLambdas = lambdas.filter { function in
             function.body.contains { if case .nonLocalReturn = $0 { return true }; return false }
         }
@@ -87,7 +85,7 @@ extension LoweringPassRegressionTests {
         let valueSymbol = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
             if case let .function(function) = declaration { return function }
             return nil
-        }.first { context.interner.resolve($0.name) == "value" }?.symbol)
+        }.first { $0.name == context.interner.intern("value") }?.symbol)
         let targets = module.arena.declarations.compactMap { declaration -> KIRFunction? in
             if case let .function(function) = declaration { return function }
             return nil
@@ -101,7 +99,7 @@ extension LoweringPassRegressionTests {
         let main = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
             if case let .function(function) = declaration { return function }
             return nil
-        }.first { context.interner.resolve($0.name) == "main" })
+        }.first { $0.name == context.interner.intern("main") })
         #expect(!main.body.contains { if case .returnValue = $0 { return true }; return false })
         #expect(!main.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
     }
@@ -141,14 +139,7 @@ extension LoweringPassRegressionTests {
         let noSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("no")).first
         #expect(ctx.sema?.symbols.functionSignature(for: crossSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
         #expect(ctx.sema?.symbols.functionSignature(for: noSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
-        let lambdaFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda")
-            else {
-                return nil
-            }
-            return function
-        }
+        let lambdaFunctions = functionValueTargets(in: module)
         let lambdasWithNonLocalReturn = lambdaFunctions.filter { function in
             function.body.contains { instruction in
                 if case .nonLocalReturn = instruction { return true }
@@ -176,8 +167,8 @@ extension LoweringPassRegressionTests {
             guard case let .function(function) = declaration else { return nil }
             return function
         }
-        let unlabeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "unlabeled" }
-        let labeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "labeled" }
+        let unlabeledFunction = loweredFunctions.first { $0.name == ctx.interner.intern("unlabeled") }
+        let labeledFunction = loweredFunctions.first { $0.name == ctx.interner.intern("labeled") }
         #expect(unlabeledFunction != nil)
         #expect(labeledFunction != nil)
         #expect(unlabeledFunction?.body.contains { instruction in
@@ -462,7 +453,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: inlineArg, value: .symbolRef(inlineParamSym)),
                 .constValue(result: inlineOne, value: .intLiteral(1)),
-                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(CompilerCall.opAdd.name), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
                 .returnValue(inlineSum),
             ],
             isSuspend: false,
@@ -495,7 +486,7 @@ extension LoweringPassRegressionTests {
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("addOne"))
-        #expect(calleeNames.contains("kk_op_add"))
+        #expect(calleeNames.contains(CompilerCall.opAdd.name))
 
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }

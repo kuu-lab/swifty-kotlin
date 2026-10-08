@@ -744,10 +744,11 @@ extension ExprTypeChecker {
     /// Unions the captured-outer-symbol sets of a local nominal's accessor
     /// bodies (always lowered as standalone KIR functions) and any caller-
     /// supplied roots: `extraBodies` covers `init {}` blocks and
-    /// `extraExprRoots` covers superclass constructor arguments and property
-    /// initializers — all of which lower inside `<init>` for a local class,
-    /// unlike an object literal where they run inline in the enclosing
-    /// function. `includePropertyInitializers` handles the latter.
+    /// `extraExprRoots` covers superclass constructor arguments.
+    /// `includePropertyInitializers` also collects ordinary property
+    /// initializers and delegated-property expressions; all of these lower
+    /// inside `<init>` for a local class, unlike an object literal where they
+    /// run inline in the enclosing function.
     func collectLocalNominalCaptureSymbols(
         memberProperties: [DeclID],
         includePropertyInitializers: Bool,
@@ -776,13 +777,19 @@ extension ExprTypeChecker {
                     skipNestedClosures: false
                 ))
             }
-            if includePropertyInitializers, let initializer = propertyDecl.initializer {
-                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
-                    in: initializer,
-                    ast: ast,
-                    sema: sema,
-                    outerSymbols: captureOuterSymbols
-                ))
+            if includePropertyInitializers {
+                let initializerRoots = [
+                    propertyDecl.initializer,
+                    propertyDecl.delegateExpression,
+                ].compactMap { $0 }
+                for initializer in initializerRoots {
+                    capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                        in: initializer,
+                        ast: ast,
+                        sema: sema,
+                        outerSymbols: captureOuterSymbols
+                    ))
+                }
             }
         }
         for body in extraBodies {

@@ -25,12 +25,15 @@ struct CoroutineContextElementKeySourceTests {
             fqName: ["kotlin", "coroutines", "CoroutineContext"].map(ctx.interner.intern)
         ))
         let layout = try #require(sema.symbols.nominalLayout(for: context))
-        for (name, slot) in [("get", 0), ("plus", 2), ("minusKey", 3)] {
+        let members: [(String, Int, SemaRuntimeFunction)] = [
+            ("get", 0, .contextGetDispatch), ("plus", 2, .contextPlusDispatch), ("minusKey", 3, .contextMinusKeyDispatch),
+        ]
+        for (name, slot, bridge) in members {
             let member = try #require(sema.symbols.lookup(
                 fqName: ["kotlin", "coroutines", "CoroutineContext", name].map(ctx.interner.intern)
             ))
             #expect(layout.vtableSlots[member] == slot)
-            #expect(sema.symbols.externalLinkName(for: member) == "__kk_context_\(name)_dispatch")
+            #expect(sema.symbols.externalLinkName(for: member) == runtimeABIName(bridge))
             #expect(sema.symbols.functionSignature(for: member)?.receiverType != nil)
         }
     }

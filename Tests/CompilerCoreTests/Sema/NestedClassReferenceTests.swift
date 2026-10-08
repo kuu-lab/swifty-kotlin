@@ -28,7 +28,7 @@ struct NestedClassReferenceTests {
                 let id = ExprID(rawValue: Int32(index))
                 guard isUserSourceExpr(id, in: ctx),
                       case let .memberCall(_, name, _, _, _) = ast.arena.expr(id),
-                      ctx.interner.resolve(name) == "Slot" else { return nil }
+                      name == ctx.interner.intern("Slot") else { return nil }
                 return id
             }
             #expect(qualifiers.count == 1)
@@ -130,7 +130,7 @@ struct NestedClassReferenceTests {
                 let id = ExprID(rawValue: Int32(index))
                 guard isUserSourceExpr(id, in: ctx),
                       case let .callableRef(_, member, _) = ast.arena.expr(id),
-                      ctx.interner.resolve(member) == "class" else { return nil }
+                      member == KnownCompilerNames(interner: ctx.interner).className else { return nil }
                 return id
             }
             #expect(refs.count == 3)
@@ -140,7 +140,7 @@ struct NestedClassReferenceTests {
                     Issue.record("Expected a qualified class reference")
                     continue
                 }
-                let expectedPath = ctx.interner.resolve(name) == "Deep"
+                let expectedPath = name == ctx.interner.intern("Deep")
                     ? ["sample", "Outer", "Nested", "Deep"] : ["sample", "Outer", "Nested"]
                 let symbol = try #require(sema.symbols.lookup(fqName: expectedPath.map(ctx.interner.intern)))
                 let target = try #require(sema.bindings.classRefTargetType(for: ref))
