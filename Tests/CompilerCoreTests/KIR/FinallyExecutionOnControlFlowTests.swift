@@ -22,10 +22,8 @@ struct FinallyExecutionOnControlFlowTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
         let returnValueIndices = body.indices.filter { index in
             if case .returnValue = body[index] { return true }
             return false
@@ -68,10 +66,8 @@ struct FinallyExecutionOnControlFlowTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "doWork", in: module, interner: ctx.interner)
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
         let returnUnitIndices = body.indices.filter { index in
             if case .returnUnit = body[index] { return true }
             return false
@@ -170,10 +166,8 @@ struct FinallyExecutionOnControlFlowTests {
         }
 
         // cleanup() should appear in the lowered body before the break jump.
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
 
         // Find jump instructions whose target is NOT the continue (condition) label,
         // i.e. break jumps.  Match by specific target label to avoid false positives
@@ -238,10 +232,8 @@ struct FinallyExecutionOnControlFlowTests {
             }
         }
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
 
         // Find jump instructions whose target IS the continue (condition) label.
         // This specifically identifies continue transfers, excluding break jumps

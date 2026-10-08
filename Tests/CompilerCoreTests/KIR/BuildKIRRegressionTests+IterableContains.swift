@@ -23,8 +23,8 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
             #expect(callees.contains("contains"), "Expected \(functionName) to call bundled Iterable.contains")
-            #expect(!callees.contains("kk_op_contains"))
-            #expect(!callees.contains("kk_sequence_contains"))
+            #expect(!callees.contains(runtimeCallee(.opContains)))
+            #expect(!callees.contains(runtimeCallee(.sequenceContains)))
         }
     }
 
@@ -62,7 +62,7 @@ extension BuildKIRRegressionTests {
 
         let callerBody = try findKIRFunctionBody(named: "compareKeys", in: module, interner: ctx.interner)
         let callerCallees = extractCallees(from: callerBody, interner: ctx.interner)
-        #expect(callerCallees.filter { $0 == "kk_object_register_equals_override" }.count == 2)
+        #expect(callerCallees.filter { $0 == runtimeCallee(.objectRegisterEqualsOverride) }.count == 2)
     }
 }
 #endif

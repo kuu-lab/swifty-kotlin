@@ -50,8 +50,8 @@ extension CompilerCoreTests {
             Issue.record("Expected the original receiver")
             return
         }
-        #expect(ctx.interner.resolve(receiverName) == "receiver")
-        #expect(ctx.interner.resolve(callee) == "visit")
+        #expect(receiverName == ctx.interner.intern("receiver"))
+        #expect(callee == ctx.interner.intern("visit"))
         #expect(typeArgs.count == (expression.contains("<Int>") ? 1 : 0))
         #expect(args.count == (expression.contains("(7)") ? 2 : 1))
         let lambda = try #require(args.last)
@@ -62,7 +62,7 @@ extension CompilerCoreTests {
         let expectedLabel = expression.contains("`") ? "visit label"
             : expression.contains("inner@") ? "inner"
             : expression.contains("field@") ? "field" : "label"
-        #expect(ctx.interner.resolve(label) == expectedLabel)
+        #expect(label == ctx.interner.intern(expectedLabel))
         #expect(ast.arena.exprRange(callID)?.end == lambdaRange.end)
     }
 
@@ -87,7 +87,7 @@ extension CompilerCoreTests {
             Issue.record("Expected a top-level call")
             return
         }
-        #expect(ctx.interner.resolve(name) == "visit")
+        #expect(name == ctx.interner.intern("visit"))
         #expect(typeArgs.count == (expression.contains("<Int>") ? 1 : 0))
         #expect(args.count == (expression.contains("(7)") ? 2 : 1))
         let lambda = try #require(args.last)
@@ -97,7 +97,7 @@ extension CompilerCoreTests {
         }
         let expectedLabel = expression.contains("inner@") ? "inner"
             : expression.contains("field@") ? "field" : "label"
-        #expect(ctx.interner.resolve(label) == expectedLabel)
+        #expect(label == ctx.interner.intern(expectedLabel))
         #expect(ast.arena.exprRange(callID)?.end == lambdaRange.end)
     }
 
@@ -119,7 +119,7 @@ extension CompilerCoreTests {
             Issue.record("Expected a labeled local return with its value")
             return
         }
-        #expect(ctx.interner.resolve(label) == labelName.replacingOccurrences(of: "`", with: ""))
+        #expect(label == ctx.interner.intern(labelName.replacingOccurrences(of: "`", with: "")))
         #expect(target == label)
         #expect(number == 7)
     }
@@ -139,10 +139,12 @@ extension CompilerCoreTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let names = KnownCompilerNames(interner: ctx.interner)
+            let mapName = ctx.interner.intern("map")
             let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
                 switch expr {
                 case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
-                    ["forEach", "map"].contains(ctx.interner.resolve(name))
+                    [names.forEach, mapName].contains(name)
                 default:
                     false
                 }
@@ -151,7 +153,7 @@ extension CompilerCoreTests {
             for call in calls {
                 let binding = try #require(sema.bindings.callBinding(for: call))
                 let symbol = try #require(sema.symbols.symbol(binding.chosenCallee))
-                #expect(symbol.fqName.dropLast().map(ctx.interner.resolve) == ["kotlin", "collections"])
+                #expect(Array(symbol.fqName.dropLast()) == ["kotlin", "collections"].map(ctx.interner.intern))
                 #expect(sema.symbols.functionSignature(for: binding.chosenCallee)?.receiverType != nil)
             }
         }
@@ -282,7 +284,8 @@ extension CompilerCoreTests {
                     Issue.record("Expected call callee to be a name reference.")
                     return
                 }
-                #expect(interner.resolve(calleeName) == "apply")
+                let apply = try #require(topLevelFunction(named: "apply", in: ast, interner: interner))
+                #expect(calleeName == apply.name)
 
                 guard let lambdaExpr = ast.arena.expr(args[0].expr),
                       case .lambdaLiteral = lambdaExpr
@@ -350,7 +353,7 @@ extension CompilerCoreTests {
                       let callExprID = initializer,
                       let callExpr = ast.arena.expr(callExprID),
                       case let .memberCall(_, calleeName, _, args, _) = callExpr,
-                      interner.resolve(calleeName) == "fold",
+                      calleeName == KnownCompilerNames(interner: interner).fold,
                       args.count == 2,
                       let lambdaExpr = ast.arena.expr(args[1].expr),
                       case let .lambdaLiteral(params, bodyExprID, _, _) = lambdaExpr,
@@ -360,7 +363,7 @@ extension CompilerCoreTests {
                     return
                 }
 
-                #expect(params.map(interner.resolve) == ["acc", "value"])
+                #expect(params == ["acc", "value"].map(interner.intern))
                 guard case .binary = bodyExpr else {
                     Issue.record("Expected lambda body to parse as a binary expression.")
                     return
@@ -388,7 +391,8 @@ extension CompilerCoreTests {
                     Issue.record("Expected call callee to be a name reference.")
                     return
                 }
-                #expect(interner.resolve(calleeName) == "foo")
+                let foo = try #require(topLevelFunction(named: "foo", in: ast, interner: interner))
+                #expect(calleeName == foo.name)
 
                 guard let firstArgExpr = ast.arena.expr(args[0].expr),
                       case .lambdaLiteral = firstArgExpr
@@ -424,7 +428,8 @@ extension CompilerCoreTests {
                     Issue.record("Expected call callee to be a name reference.")
                     return
                 }
-                #expect(interner.resolve(calleeName) == "build")
+                let build = try #require(topLevelFunction(named: "build", in: ast, interner: interner))
+                #expect(calleeName == build.name)
                 guard let lambdaExpr = ast.arena.expr(args[0].expr),
                       case .lambdaLiteral = lambdaExpr
                 else {
