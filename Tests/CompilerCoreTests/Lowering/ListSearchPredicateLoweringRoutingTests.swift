@@ -85,19 +85,6 @@ struct ListSearchPredicateLoweringRoutingTests {
         "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "containsAll",
     ]
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     /// Direct or virtual calls whose callee is one of `names`, with the
     /// resolved symbol and argument count (receiver included).  A bound call
     /// is identified by its declaration's member name, not the emitted callee
@@ -153,7 +140,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let survivors = Set(
@@ -293,7 +280,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let sema = try #require(ctx.sema)
 
@@ -350,7 +337,7 @@ struct ListSearchPredicateLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
