@@ -27,7 +27,7 @@ FAKE_BIN_DIR="$TEMP_DIR/fake_bin"
 mkdir -p "$FAKE_BIN_DIR"
 
 # Fake kotlinc: only understands `-version` (warm-up) and `-script <file>`.
-# For scripts whose names contain "mismatch" or "expected", simulate scripts
+# For scripts whose names contain "mismatch", "expected", or "expectstdout", simulate scripts
 # that compile fine but throw an uncaught exception before printing anything:
 # empty stdout, exit 3 (mirroring kotlinc's real SCRIPT_EXECUTION_ERROR code,
 # confirmed empirically against kotlinc 2.4.10). For "okcase", prints
@@ -48,7 +48,7 @@ if [[ -z "$script_arg" ]]; then
   exit 0
 fi
 case "$(basename "$script_arg")" in
-  *mismatch*|*expected*)
+  *mismatch*|*expected*|*expectstdout*)
     echo "java.lang.ArithmeticException: / by zero" >&2
     exit 3
     ;;
@@ -174,8 +174,17 @@ fi
 if ! grep -qF "script exit expectation mismatch: expected ref=3 candidate=2, got ref=3 candidate=1" "$OUTPUT_LOG"; then
   fail "script_expectedbad.kt should FAIL when an observed script exit differs from its declared code"
 fi
-if ! grep -qF "stdout mismatch:" "$OUTPUT_LOG" || ! grep -qF "$CASES_DIR/script_expectstdout.kt" "$OUTPUT_LOG"; then
+stdout_case_log="$TEMP_DIR/expectstdout.log"
+awk '
+  /^CASE [0-9]+: .*script_expectstdout\.kt$/ { in_case=1; next }
+  /^CASE [0-9]+:|^Summary:/ { in_case=0 }
+  in_case { print }
+' "$OUTPUT_LOG" >"$stdout_case_log"
+if ! grep -qF "stdout mismatch:" "$stdout_case_log" || ! grep -qF "FAIL $CASES_DIR/script_expectstdout.kt" "$stdout_case_log"; then
   fail "script_expectstdout.kt should FAIL when matching declared exits still produce different stdout"
+fi
+if grep -qF 'script exit expectation mismatch:' "$stdout_case_log"; then
+  fail "script_expectstdout.kt must have matching declared exits; only stdout should differ"
 fi
 
 # script_candcompilefail.kt: the reference script succeeds, but the
