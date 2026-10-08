@@ -1203,7 +1203,7 @@ extension KIRLoweringDriver {
     // MARK: - STDLIB-REFLECT-ABI-002: Member Reflection Registration
 
     /// Emits `kk_kfunction_create` / `__kk_kproperty_stub_create` calls for each
-    /// declared non-synthetic member of a class, followed by
+    /// declared member and generated data-class component function, followed by
     /// `kk_kclass_register_member` to attach them to the KClass handle.
     /// Called from `synthesizeConstructorReflectionInitializer` so that
     /// `KClass.members` returns real handles rather than count-sized placeholders.
@@ -1219,9 +1219,14 @@ extension KIRLoweringDriver {
         let intType = sema.types.intType
         let childSymbols = sema.symbols.children(ofFQName: ownerInfo.fqName)
         for childID in childSymbols {
-            guard let childSym = sema.symbols.symbol(childID),
-                  !childSym.flags.contains(.synthetic)
-            else { continue }
+            guard let childSym = sema.symbols.symbol(childID) else { continue }
+            let isDataClassComponent = isSyntheticDataClassComponent(
+                childSym,
+                owner: ownerInfo,
+                sema: sema,
+                interner: interner
+            )
+            guard !childSym.flags.contains(.synthetic) || isDataClassComponent else { continue }
             switch childSym.kind {
             case .function:
                 guard let signature = sema.symbols.functionSignature(for: childID) else { continue }
@@ -1309,5 +1314,30 @@ extension KIRLoweringDriver {
                 break
             }
         }
+    }
+
+    private func isSyntheticDataClassComponent(
+        _ symbol: SemanticSymbol,
+        owner: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard owner.flags.contains(.dataType),
+              symbol.kind == .function,
+              symbol.flags.contains(.synthetic),
+              let signature = sema.symbols.functionSignature(for: symbol.id),
+              signature.parameterTypes.isEmpty
+        else {
+            return false
+        }
+
+        let name = interner.resolve(symbol.name)
+        guard name.hasPrefix("component"),
+              let index = Int(name.dropFirst("component".count)),
+              index > 0
+        else {
+            return false
+        }
+        return true
     }
 }
