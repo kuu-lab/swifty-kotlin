@@ -7,16 +7,16 @@ import Testing
 /// explicit `inc()` / `dec()` / `plus()` / `minus()` member calls on primitives must resolve.
 @Suite
 struct SmallIntegerIncrementWrapTests {
-    private func loweredCallees(_ source: String, function: String = "main") throws -> [String] {
+    private func loweredCalls(_ source: String, function: String = "main") throws -> (StringInterner, [KIRCallSite]) {
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: function, in: module, interner: ctx.interner)
-        return extractCallees(from: body, interner: ctx.interner)
+        return (ctx.interner, kirCalls(in: body))
     }
 
     @Test func testByteAndShortIncrementWrapToTheirWidth() throws {
-        let callees = try loweredCallees("""
+        let (interner, calls) = try loweredCalls("""
         fun main() {
             var b: Byte = 127
             b++
@@ -24,12 +24,12 @@ struct SmallIntegerIncrementWrapTests {
             s--
         }
         """)
-        #expect(callees.contains("kk_int_to_byte"))
-        #expect(callees.contains("kk_int_to_short"))
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.intToByte.name(in: interner) })
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.intToShort.name(in: interner) })
     }
 
     @Test func testUnsignedSmallIncrementWrapToTheirWidth() throws {
-        let callees = try loweredCallees("""
+        let (interner, calls) = try loweredCalls("""
         fun main() {
             var ub: UByte = 255u
             ub++
@@ -37,28 +37,28 @@ struct SmallIntegerIncrementWrapTests {
             us--
         }
         """)
-        #expect(callees.contains("kk_int_to_ubyte"))
-        #expect(callees.contains("kk_int_to_ushort"))
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.intToUByte.name(in: interner) })
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.intToUShort.name(in: interner) })
     }
 
     @Test func testIntIncrementStaysOnBuiltinPath() throws {
-        let callees = try loweredCallees("""
+        let (interner, calls) = try loweredCalls("""
         fun main() {
             var i = 1
             i++
             println(i)
         }
         """)
-        #expect(!callees.contains("inc"))
-        #expect(!callees.contains("kk_int_to_byte"))
+        #expect(!calls.contains { $0.callee == interner.intern("inc") })
+        #expect(!calls.contains { $0.callee == KIRRuntimeFunction.intToByte.name(in: interner) })
     }
 
     @Test func testCharPlusIntWrapsToSixteenBits() throws {
-        let callees = try loweredCallees("""
+        let (interner, calls) = try loweredCalls("""
         fun shift(c: Char, d: Int): Char = c + d
         fun main() { println(shift('a', 1)) }
         """, function: "shift")
-        #expect(callees.contains("kk_int_to_char"))
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.intToChar.name(in: interner) })
     }
 
     @Test func testExplicitIncDecMemberCallsResolveWithoutDiagnostics() throws {
@@ -86,10 +86,10 @@ struct SmallIntegerIncrementWrapTests {
         try runToLowering(ctx)
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(!callees.contains("plus"))
-        #expect(!callees.contains("minus"))
-        #expect(!callees.contains("times"))
+        let calls = kirCalls(in: body)
+        #expect(!calls.contains { $0.callee == ctx.interner.intern("plus") })
+        #expect(!calls.contains { $0.callee == ctx.interner.intern("minus") })
+        #expect(!calls.contains { $0.callee == ctx.interner.intern("times") })
     }
 }
 #endif

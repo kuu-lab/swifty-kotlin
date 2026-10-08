@@ -39,7 +39,7 @@ struct UnsignedPrimitiveMemberCallTests {
                 default:
                     continue
                 }
-                guard ctx.interner.resolve(name) == "ushr",
+                guard name == ctx.interner.intern(BinaryOp.ushr.kotlinFunctionName),
                       ctx.sourceManager.path(of: range.start.file) == path
                 else { continue }
                 #expect(sema.bindings.exprType(for: ExprID(rawValue: Int32(index))) == sema.types.errorType)
@@ -81,7 +81,7 @@ struct UnsignedPrimitiveMemberCallTests {
                 default:
                     continue
                 }
-                guard ctx.interner.resolve(name) == "ushr",
+                guard name == ctx.interner.intern(BinaryOp.ushr.kotlinFunctionName),
                       ctx.sourceManager.path(of: range.start.file) == path
                 else { continue }
                 let id = ExprID(rawValue: Int32(index))
@@ -482,7 +482,7 @@ struct UnsignedPrimitiveMemberCallTests {
                             guard case let .memberCall(receiver, callee, _, args, _) = expr else {
                                 return false
                             }
-                            return interner.resolve(callee) == "coerceIn"
+                            return callee == KnownCompilerNames(interner: interner).coerceIn
                                 && args.count == 1
                                 && sema.bindings.exprTypes[receiver] == check.receiverType
                         },

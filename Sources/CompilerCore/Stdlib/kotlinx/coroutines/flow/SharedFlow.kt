@@ -8,7 +8,7 @@
 package kotlinx.coroutines.flow
 
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.CompletableDeferred
 
 // MIGRATION-FLOW-002 (KSP-675)
 // SharedFlow / MutableSharedFlow migrated from the dedicated runtime handle
@@ -17,10 +17,10 @@ import kotlinx.coroutines.awaitCancellation
 // kk_shared_flow_replay_cache) to Kotlin source: the replay buffer and its
 // eviction are plain Kotlin state transitions over a MutableList.
 //
-// Divergence carried over from the previous runtime implementation: `collect`
-// replays the buffered snapshot but does not forward later emissions. It stays
-// suspended until cancellation so subscriptionCount reflects the collector's
-// lifetime. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
+// Collectors subscribe through per-collector queues. Replay is delivered before
+// each collector starts receiving live emissions, and collection remains
+// suspended until cancellation or a downstream terminal operator.
+// StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
 
 public interface SharedFlow<out T> : Flow<T> {
     public val replayCache: List<T>
@@ -38,6 +38,52 @@ public interface MutableSharedFlow<T> : SharedFlow<T>, FlowCollector<T> {
     public fun resetReplayCache()
 }
 
+// Each collector owns a FIFO of values and at most one suspended receiver.
+// Completing its deferred resumes collection in the collector's own coroutine,
+// so downstream aborts and cancellation still unwind through collect's finally.
+internal class HotFlowSubscription<T> {
+    private val pendingValues: MutableList<T> = mutableListOf()
+    private var waitingCollector: CompletableDeferred<T>? = null
+
+    fun emit(value: T) {
+        val waiting = waitingCollector
+        if (waiting == null) {
+            pendingValues.add(value)
+        } else {
+            waitingCollector = null
+            waiting.complete(value)
+        }
+    }
+
+    fun emitConflated(value: T) {
+        val waiting = waitingCollector
+        if (waiting == null) {
+            pendingValues.clear()
+            pendingValues.add(value)
+        } else {
+            waitingCollector = null
+            waiting.complete(value)
+        }
+    }
+
+    suspend fun receive(): T {
+        if (pendingValues.isNotEmpty()) return pendingValues.removeAt(0)
+
+        val waiting = CompletableDeferred<T>()
+        waitingCollector = waiting
+        if (pendingValues.isNotEmpty()) {
+            waitingCollector = null
+            waiting.complete(pendingValues.removeAt(0))
+        }
+        return waiting.await()
+    }
+
+    fun clear() {
+        pendingValues.clear()
+        waitingCollector = null
+    }
+}
+
 public fun <T> MutableSharedFlow(
     replay: Int = 0,
     extraBufferCapacity: Int = 0,
@@ -50,6 +96,7 @@ private class SnapshotMutableSharedFlow<T>(
     onBufferOverflow: BufferOverflow
 ) : MutableSharedFlow<T> {
     private val buffer: MutableList<T> = mutableListOf()
+    private val activeCollectors: MutableList<HotFlowSubscription<T>> = mutableListOf()
     private var subscribers: MutableStateFlow<Int>? = null
 
     init {
@@ -81,6 +128,9 @@ private class SnapshotMutableSharedFlow<T>(
                 buffer.removeAt(0)
             }
         }
+        for (collector in activeCollectors.toList()) {
+            collector.emit(value)
+        }
         return true
     }
 
@@ -93,15 +143,21 @@ private class SnapshotMutableSharedFlow<T>(
     }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
+        val subscription = HotFlowSubscription<T>()
         val snapshot = replayCache
         val counter = subscriptionCounter()
+        activeCollectors.add(subscription)
         counter.value = counter.value + 1
         try {
             for (value in snapshot) {
                 collector(value)
             }
-            awaitCancellation()
+            while (true) {
+                collector(subscription.receive())
+            }
         } finally {
+            activeCollectors.remove(subscription)
+            subscription.clear()
             counter.value = counter.value - 1
         }
     }

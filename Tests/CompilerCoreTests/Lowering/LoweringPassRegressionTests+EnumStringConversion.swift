@@ -36,7 +36,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "the interpolated enum must be converted via the name helper; callees: \(callees)")
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "the ordinal must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -63,7 +63,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "toString() on an enum receiver must use the name helper; callees: \(callees)")
-            #expect(!callees.contains("kk_any_member_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyMemberToString.name),
                     "the kotlin.Any binding must be rewritten away; callees: \(callees)")
         }
     }
@@ -123,7 +123,7 @@ extension LoweringPassRegressionTests {
 
             #expect(callees.contains(where: { $0.hasPrefix("$enumEntryDispatch$") }),
                     "toString() must route through the entry dispatch helper when an entry overrides it; callees: \(callees)")
-            #expect(!callees.contains("kk_any_member_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyMemberToString.name),
                     "the kotlin.Any binding must be rewritten away; callees: \(callees)")
         }
     }
@@ -153,7 +153,7 @@ extension LoweringPassRegressionTests {
 
             #expect(!callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "a class-level override must win over the default bare-name rendering; callees: \(callees)")
-            #expect(!callees.contains("kk_any_member_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyMemberToString.name),
                     "the kotlin.Any binding must be rewritten away; callees: \(callees)")
         }
     }

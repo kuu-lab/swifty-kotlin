@@ -95,6 +95,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testNestedReturnInTryCatchBranchPropagatesCorrectly() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun safeDivide(a: Int, b: Int): Int {
             try {
@@ -118,11 +119,11 @@ extension BuildKIRRegressionTests {
 
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_throwable_is_cancellation"),
+            callees.contains(runtime[.isCancellation]),
             "Try/catch lowering must guard CancellationException with runtime predicate"
         )
         let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-        #expect(throwFlags["kk_throwable_is_cancellation"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[runtime[.isCancellation]]?.allSatisfy { $0 == false } == true)
     }
 
     @Test func testIfExprLoweringUsesLabelBasedBranching() throws {
@@ -177,6 +178,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testVarargNonTrailingWithNamedTailPacksCorrectly() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun tagged(vararg nums: Int, tail: Int): Int = tail
         fun main() = tagged(10, 20, tail = 99)
@@ -186,12 +188,12 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "main" ? function : nil
+            return function.name == KnownCompilerNames(interner: ctx.interner).main ? function : nil
         }.first
         let body = try #require(mainFunction?.body)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for non-trailing vararg, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for non-trailing vararg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
     }
 
     // MARK: - if/when Control Flow (P5-51)

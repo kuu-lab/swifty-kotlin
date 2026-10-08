@@ -40,18 +40,16 @@ extension BuildKIRRegressionTests {
 
         for expected in ["normalize", "isNormalized", "codePointCount"] {
             #expect(callees.contains(expected), "main should call the bundled Kotlin function \(expected) by name")
+            try expectSourceBackedCalls(named: ctx.interner.intern(expected), in: body, context: ctx)
         }
+        try expectResolvedKIRCallTargets(in: body, context: ctx)
         #expect(
             callees.isDisjoint(with: [
-                "__kk_string_normalize_flat",
-                "__kk_string_isNormalized_flat",
-                "__kk_string_codePointCount",
-                "__kk_string_codePointCount_from",
-                "__kk_string_codePointCount_range",
-                "__kk_normalization_form_nfc",
-                "__kk_normalization_form_nfd",
-                "__kk_normalization_form_nfkc",
-                "__kk_normalization_form_nfkd",
+                runtimeCallee(.stringNormalizeFlat),
+                runtimeCallee(.stringIsNormalizedFlat),
+                runtimeCallee(.stringCodePointCount),
+                runtimeCallee(.stringCodePointCountFrom),
+                runtimeCallee(.stringCodePointCountRange),
             ]),
             "main should not inline a direct runtime-bridge callee for these anymore; got \(callees)"
         )
