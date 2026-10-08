@@ -28,7 +28,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-08（KUU-1567 と最新 master `eec2ff0e1` の統合後）の実測は **113 タグ / 113 ファイル**。DEBT-DIFF-001 は **108 件**。
+2026-10-08 の実測は **112 タグ / 112 ファイル**。DEBT-DIFF-001 は **108 件**。
 本 PR の対象ケースの解除・移設と、master 側の解除記録を保ち、アクティブなタグを再集計した。
 その他の skip ケースの `--force-run-skipped` 再実行を意味するものではない。
 以下の過去の実行結果は当時の検証範囲として保持する。
@@ -45,7 +45,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 2 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。2026-09-16 に `enum_basic.kt` の enum collection-HOF boxing を修正して解除し、現行10件へ更新。2026-09-23 に8件を追加解除し現行2件（`kclass_members.kt`・`platform_time_conversion.kt`）へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
-| DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
+| DEBT-DIFF-009 | 0 | script mode 失敗系 exit code 規約差異（解消済み、2026-10-08 / KUU-1472） | — |
 | DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
 | DEBT-DIFF-011 | 0 (2026-10-08 解消) | KSwiftK-superset 構文で JVM kotlinc がコンパイル自体を拒否するケース | `local_named_object.kt` を diff 対象から削除。superset 構文の検証は Parser / Sema golden と unit test が担う（詳細は下記節） |
 
@@ -375,7 +375,7 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 | `stdlib_kotlin_n_Number_primitive.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
 | `stdlib_kotlin_n_Number_primitive_generic.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
 
-## DEBT-DIFF-009: script mode 失敗系 exit code 規約差異
+## DEBT-DIFF-009: script mode 失敗系 exit code 規約差異（2026-10-08 解消）
 
 `Scripts/diff_kotlinc.sh` の `run_case()` は、`script_*.kt` ケースの reference 側を `kotlinc -script` 一発実行（compile+run が単一 JVM プロセス）にしていたため、そのプロセスの単一 exit code を `ref_compile_exit` / `ref_run_exit` のどちらに振るか「exit != 0 かつ stdout が空なら compile 失敗」というヒューリスティックで推測していた。しかし「出力前に例外を投げるスクリプト」（stdout 空 + exit != 0）は compile 失敗ではなく実行時失敗であり、この場合 candidate（kswiftc）側の compile は正しく成功する（`cand_compile_exit=0`）ため、`ref_compile_exit(推測値) != cand_compile_exit(0)` として「compile exit mismatch」という誤った診断になり、実際の失敗理由（reference 側の stderr にある実行時例外スタックトレース）が `ref_compile_exit -eq 0 && cand_compile_exit -eq 0` を前提にしたレポート出力条件から漏れて一切表示されなかった。
 
@@ -385,7 +385,7 @@ coroutines import 検出経路に入る。`onCompletion` は成功時の callbac
 
 | case | 結果 |
 | --- | --- |
-| `script_runtime_exception_before_output.kt` | `SKIP-DIFF` — 分類修正の診断に使った最小 repro として保持。`--force-run-skipped` で `script exit mismatch: ref=3 candidate=1` と正しく報告されることを確認済み（旧実装では `compile exit mismatch: ref=3 candidate=0` と誤診断し、stderr も両側空で表示されていた） |
+| `script_runtime_exception_before_output.kt` | KUU-1472 で `SKIP-DIFF` を解除し、`DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=1` を追加。script ケースでは指定された reference / candidate の exit code を個別に照合し、candidate compile 成功と stdout 一致も必須にする。値が一致しない場合は失敗する。`Scripts/test_diff_kotlinc_script_classification.sh` に期待値一致・不一致の回帰を追加 |
 
 ## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ
 
