@@ -2,6 +2,17 @@
 
 /// `RuntimeABISpec.operatorFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+    static let opIsSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_op_is",
+        parameters: [
+            RuntimeABIParameter(name: "value", type: .intptr),
+            RuntimeABIParameter(name: "typeToken", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "TypeCheck",
+        isThrowing: false
+    )
+
 
     static let operatorFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -586,16 +597,7 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_op_is",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "typeToken", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "TypeCheck",
-            isThrowing: false
-        ),
+        opIsSpec,
         RuntimeABIFunctionSpec(
             name: "kk_op_cast",
             parameters: [

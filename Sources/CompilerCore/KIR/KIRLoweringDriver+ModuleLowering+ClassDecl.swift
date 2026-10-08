@@ -821,9 +821,22 @@ extension KIRLoweringDriver {
                       isClassDelegationDispatchMember(methodSymbol, sema: sema),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType != nil,
-                      signature.parameterTypes == interfaceSignature.parameterTypes,
                       signature.isSuspend == interfaceSignature.isSuspend
                 else {
+                    continue
+                }
+                let interfaceParameterTypes = kirAlignedOverrideParameterTypes(
+                    interfaceSignature: interfaceSignature,
+                    candidateSignature: signature,
+                    interfaceOwner: sema.symbols.parentSymbol(for: interfaceMethodSymbol),
+                    candidateOwner: owner,
+                    types: sema.types
+                )
+                guard kirOverrideParameterTypesMatch(
+                    candidateParameterTypes: signature.parameterTypes,
+                    interfaceParameterTypes: interfaceParameterTypes,
+                    types: sema.types
+                ) else {
                     continue
                 }
 
@@ -845,8 +858,12 @@ extension KIRLoweringDriver {
     }
 
     private func isClassDelegationDispatchMember(_ member: SemanticSymbol, sema: SemaModule) -> Bool {
-        // Local nominal members are synthetic but still bind to source declarations.
-        !member.flags.contains(.synthetic) || sema.bindings.declSymbols.values.contains(member.id)
+        // Local source members and real delegation forwarders are executable
+        // implementations even though both carry the synthetic flag.
+        !member.flags.contains(.synthetic)
+            || sema.bindings.declSymbols.values.contains(member.id)
+            || sema.symbols.classDelegationForwardingMethodInfo(for: member.id) != nil
+            || sema.symbols.classDelegationForwardingPropertyInfo(for: member.id) != nil
     }
 
     private func classDelegationDefaultMethodSymbol(

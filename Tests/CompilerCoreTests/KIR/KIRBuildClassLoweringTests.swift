@@ -458,8 +458,9 @@ struct KIRBuildClassLoweringTests {
                     return false
                 }
                 return !signatureSymbol.flags.contains(.synthetic)
+                    || ctx.sema?.symbols.classDelegationForwardingMethodInfo(for: symbol) != nil
             },
-            "Expected delegation dispatch targets to exclude synthetic forwarding functions, got: \(delegateCallSymbols)"
+            "Expected delegation dispatch targets to be source implementations or registered forwarders, got: \(delegateCallSymbols)"
         )
     }
 
@@ -501,7 +502,7 @@ struct KIRBuildClassLoweringTests {
 
         #expect(targets.contains(override.id))
         #expect(!targets.contains(overload.id))
-        #expect(!targets.contains(forwardingSymbol))
+        try assertDelegationTargetsUseStoredDelegate(in: forwarder.body, interner: ctx.interner)
     }
 
     @Test func testClassDelegationDispatchIncludesAnonymousPropertyAccessors() throws {
@@ -562,7 +563,7 @@ struct KIRBuildClassLoweringTests {
                 })
                 let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
                 #expect(targets.contains(declaredAccessor))
-                #expect(!targets.contains(forwardingAccessor))
+                try assertDelegationTargetsUseStoredDelegate(in: forwarder.body, interner: ctx.interner)
             }
         }
     }
@@ -682,6 +683,28 @@ struct KIRBuildClassLoweringTests {
             ctx.interner.resolve(function.name) == "main"
         })
         #expect(extractCallees(from: main.body, interner: ctx.interner).contains("get"))
+    }
+
+    private func assertDelegationTargetsUseStoredDelegate(
+        in body: [KIRInstruction],
+        interner: StringInterner
+    ) throws {
+        let delegate = try #require(body.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  interner.resolve(callee) == "kk_array_get"
+            else { return nil }
+            return result
+        }.first)
+        let targets = Set(delegationTargetSymbols(in: body, interner: interner))
+        #expect(!targets.isEmpty)
+        // Wrappers may delegate to another instance of their own class. Such
+        // calls must receive the stored delegate rather than recurse on `this`.
+        for instruction in body {
+            guard case let .call(symbol?, _, arguments, _, _, _, _, _) = instruction,
+                  targets.contains(symbol)
+            else { continue }
+            #expect(arguments.first == delegate)
+        }
     }
 
     private func delegationTargetSymbols(
