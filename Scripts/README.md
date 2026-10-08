@@ -160,6 +160,14 @@ Run one case:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 ```
 
+For a case without a JVM reference target, add
+`// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar-filename>` to the `.kt` file
+and store its expected stdout in a regular sidecar file beside the source. The
+harness compiles and runs that case with `kswiftc` and compares stdout to the
+sidecar. A direct invocation of that case does not require or invoke kotlinc or
+Java; a directory run uses this
+mode only for marked cases and keeps the JVM comparison for other cases.
+
 Run all tracked regression cases:
 
 ```bash
