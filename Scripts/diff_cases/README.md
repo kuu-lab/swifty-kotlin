@@ -25,13 +25,13 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
-For a case with no usable JVM reference, add `// CANDIDATE-ONLY: <reason>` and
-one or more ordered `// EXPECT-STDOUT: <line>` directives. The behavioral
-runner compiles and runs `kswiftc` for that case, checks for a successful exit,
-and compares its normalized stdout with the expected lines without invoking
-`kotlinc` for the case. A directly selected candidate-only file skips JVM and
-precompiled-artifact setup and compiles against bundled Kotlin sources, which
-keeps internal stdlib declarations available to the fixture.
+Internal stdlib cases that require bundled Kotlin sources use
+`// DIFF_CANDIDATE_ONLY_FROM_SOURCE: <reason>` with a `<name>.expected` sidecar
+or ordered `// EXPECT-STDOUT: <line>` directives. `diff_kotlinc.sh` executes
+these cases automatically in both file and directory runs, including parallel
+shards, with `--stdlib-from-source`. Source-only selections skip JVM discovery,
+reference warm-up, and the precompiled artifact setup. Failure reports retain
+the stdout diff, KIR, crash diagnostics, and a reproduction script.
 
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)

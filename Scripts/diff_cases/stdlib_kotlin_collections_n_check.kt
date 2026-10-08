@@ -1,4 +1,4 @@
-// CANDIDATE-ONLY: JVM kotlinc cannot call these @PublishedApi internal functions
+// DIFF_CANDIDATE_ONLY_FROM_SOURCE: JVM kotlinc cannot call these @PublishedApi internal functions
 // from an ordinary consumer module. Compare candidate stdout to this oracle.
 // EXPECT-STDOUT: index:-2147483648 -> ArithmeticException:Index overflow has happened.
 // EXPECT-STDOUT: count:-2147483648 -> ArithmeticException:Count overflow has happened.
