@@ -78,13 +78,13 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let appFile = try #require(ast.files.first(where: { file in
-            file.packageFQName.map { ctx.interner.resolve($0) } == ["app"]
+            file.packageFQName == [ctx.interner.intern("app")]
         }))
         let aliasedImport = try #require(appFile.imports.first(where: { importDecl in
             importDecl.alias != nil
         }))
-        #expect(try ctx.interner.resolve(#require(aliasedImport.alias)) == "h")
-        #expect(aliasedImport.path.map { ctx.interner.resolve($0) } == ["lib", "helper"])
+        #expect(aliasedImport.alias == ctx.interner.intern("h"))
+        #expect(aliasedImport.path == ["lib", "helper"].map(ctx.interner.intern))
     }
 
     @Test func testImportAliasNonAliasedImportHasNilAlias() throws {
@@ -104,7 +104,7 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let appFile = try #require(ast.files.first(where: { file in
-            file.packageFQName.map { ctx.interner.resolve($0) } == ["app"]
+            file.packageFQName == [ctx.interner.intern("app")]
         }))
         let regularImport = try #require(appFile.imports.first)
         #expect(regularImport.alias == nil)
@@ -140,8 +140,9 @@ extension CompilerCoreTests {
         #expect(functionType.params == [intType])
         #expect(functionType.returnType == intType)
 
-        let offsetSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .local && ctx.interner.resolve(symbol.name) == "offset"
+        let offsetSymbol = try #require(sema.symbols.lookupByShortName(ctx.interner.intern("offset"))
+            .compactMap(sema.symbols.symbol).first(where: { symbol in
+            symbol.kind == .local
         })?.id)
         #expect(sema.bindings.captureSymbolsByExpr[lambdaExprID] == [offsetSymbol])
         #expect(sema.bindings.callableValueCalls[addCallExprID] != nil)
@@ -167,9 +168,8 @@ extension CompilerCoreTests {
         let refCallExprID = try #require(
             nameRefCallExprID(named: "ref", in: ast, interner: ctx.interner)
         )
-        let targetSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "target"
-        })?.id)
+        let targetSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("target")]))
+        #expect(sema.symbols.symbol(targetSymbol)?.kind == .function)
 
         #expect(sema.bindings.identifierSymbols[callableRefExprID] == targetSymbol)
         #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(targetSymbol))
@@ -203,25 +203,17 @@ extension CompilerCoreTests {
             if case .callableRef = expr { return true }
             return false
         })
-        let extensionSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && ctx.interner.resolve(symbol.name) == "incByOne"
-        })?.id)
+        let extensionSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("incByOne")]))
+        #expect(sema.symbols.symbol(extensionSymbol)?.kind == .function)
         let capturedSymbols = try #require(sema.bindings.captureSymbolsByExpr[callableRefExprID])
         #expect(capturedSymbols.count == 1)
-        let seedSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            guard symbol.kind == .valueParameter,
-                  ctx.interner.resolve(symbol.name) == "seed"
-            else {
-                return false
-            }
-            let fqName = symbol.fqName.map(ctx.interner.resolve)
-            return fqName.contains("host")
-        })?.id)
+        let hostSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("host")]))
+        let hostSignature = try #require(sema.symbols.functionSignature(for: hostSymbol))
+        let seedSymbol = try #require(hostSignature.valueParameterSymbols.first)
+        #expect(sema.symbols.symbol(seedSymbol)?.kind == .valueParameter)
         #expect(capturedSymbols == [seedSymbol])
 
         #expect(sema.bindings.callableTargets[callableRefExprID] == .symbol(extensionSymbol))
-        #expect(sema.bindings.captureSymbolsByExpr[callableRefExprID] == [seedSymbol])
-
         let callableType = try #require(sema.bindings.exprTypes[callableRefExprID])
         let intType = sema.types.make(.primitive(.int, .nonNull))
         guard case let .functionType(functionType) = sema.types.kind(of: callableType) else {
@@ -254,9 +246,9 @@ extension CompilerCoreTests {
             if case .callableRef = expr { return true }
             return false
         })
-        let intOverloadSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+        let intOverloadSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("target")])
+            .compactMap(sema.symbols.symbol).first(where: { symbol in
             guard symbol.kind == .function,
-                  ctx.interner.resolve(symbol.name) == "target",
                   let signature = sema.symbols.functionSignature(for: symbol.id),
                   signature.parameterTypes.count == 1,
                   signature.parameterTypes[0] == intType
@@ -286,9 +278,9 @@ extension CompilerCoreTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let intOverloadSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+        let intOverloadSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("target")])
+            .compactMap(sema.symbols.symbol).first(where: { symbol in
             guard symbol.kind == .function,
-                  ctx.interner.resolve(symbol.name) == "target",
                   let signature = sema.symbols.functionSignature(for: symbol.id),
                   signature.parameterTypes.count == 1,
                   signature.parameterTypes[0] == intType
@@ -337,7 +329,8 @@ extension CompilerCoreTests {
         }
         let fParam = try #require(sema.symbols.symbol(fParamSymbol))
         #expect(fParam.kind == .valueParameter)
-        #expect(ctx.interner.resolve(fParam.name) == "f")
+        let apply = try #require(topLevelFunction(named: "apply", in: ast, interner: ctx.interner))
+        #expect(fParam.name == apply.valueParams.first?.name)
         #expect(callableCallBinding.parameterMapping == [0: 0])
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -373,9 +366,8 @@ extension CompilerCoreTests {
             if case .callableRef = expr { return true }
             return false
         })
-        let answerSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .property && ctx.interner.resolve(symbol.name) == "answer"
-        })?.id)
+        let answerSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("answer")]))
+        #expect(sema.symbols.symbol(answerSymbol)?.kind == .property)
 
         #expect(sema.bindings.identifierSymbols[callableRefExprID] == answerSymbol)
 
@@ -384,10 +376,10 @@ extension CompilerCoreTests {
             Issue.record("Expected ::answer to infer a class type (KProperty0<Int>), got \(sema.types.kind(of: exprType))")
             return
         }
-        let classSymbol = try #require(sema.symbols.symbol(classType.classSymbol))
+        let propertyClass = try #require(sema.symbols.lookup(fqName: ["kotlin", "reflect", "KProperty0"].map(ctx.interner.intern)))
         #expect(
-            classSymbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty0"],
-            "::answer without an expected type should infer KProperty0<Int>, got fqName \(classSymbol.fqName.map { ctx.interner.resolve($0) })"
+            classType.classSymbol == propertyClass,
+            "::answer without an expected type should infer KProperty0<Int>"
         )
     }
 
@@ -415,10 +407,11 @@ extension CompilerCoreTests {
             if case .callableRef = expr { return true }
             return false
         })
-        let ctorSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
+        let classSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Foo")]))
+        let ctorSymbol = try #require(sema.symbols.children(ofFQName: [ctx.interner.intern("Foo")])
+            .compactMap(sema.symbols.symbol).first(where: { symbol in
             symbol.kind == .constructor
-                && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }
-                    .map { ctx.interner.resolve($0.name) } == "Foo"
+                && sema.symbols.parentSymbol(for: symbol.id) == classSymbol
         })?.id)
 
         #expect(sema.bindings.identifierSymbols[callableRefExprID] == ctorSymbol)
@@ -435,7 +428,7 @@ extension CompilerCoreTests {
             Issue.record("Constructor reference should return the class type.")
             return
         }
-        #expect(ctx.interner.resolve(sema.symbols.symbol(returnClassType.classSymbol)!.name) == "Foo")
+        #expect(returnClassType.classSymbol == classSymbol)
     }
 
     /// KUU-917: a class used as the receiver of a nested constructor reference
@@ -472,7 +465,9 @@ extension CompilerCoreTests {
             Issue.record("Expected nested constructor result type.")
             return
         }
-        #expect(sema.symbols.symbol(result.classSymbol)?.fqName.map { ctx.interner.resolve($0) } == ["Outer", "Nested"])
+        let nestedClass = try #require(sema.symbols.lookup(fqName: ["Outer", "Nested"].map(ctx.interner.intern)))
+        #expect(result.classSymbol == nestedClass)
+        #expect(sema.symbols.parentSymbol(for: ctor) == nestedClass)
     }
 
     /// KUU-917: a bare reference in an extension body binds its receiver,

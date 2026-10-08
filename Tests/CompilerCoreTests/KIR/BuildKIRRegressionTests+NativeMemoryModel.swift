@@ -82,18 +82,18 @@ extension BuildKIRRegressionTests {
         #expect(mainCallees.contains("entries$get"))
         #expect(mainCallees.contains("values"))
         #expect(mainCallees.contains("valueOf"))
-        #expect(!mainCallees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }))
+        #expect(!mainCallees.contains(where: { $0.hasPrefix(EnumPropertyHelperNames.getterPrefix) }))
 
         let valuesBody = try findKIRFunctionBody(named: "values", in: module, interner: interner)
-        #expect(extractCallees(from: valuesBody, interner: interner).contains("kk_enum_make_values_array"))
+        #expect(extractCallees(from: valuesBody, interner: interner).contains(runtimeCallee(.enumMakeValuesArray)))
 
         let entriesBody = try findKIRFunctionBody(named: "entries$get", in: module, interner: interner)
-        #expect(extractCallees(from: entriesBody, interner: interner).contains("kk_enum_make_entries_list_cached"))
+        #expect(extractCallees(from: entriesBody, interner: interner).contains(runtimeCallee(.enumMakeEntriesListCached)))
 
         let valueOfFunction = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         // The companion receiver is explicit in the lowered KIR signature.
         #expect(valueOfFunction.params.count == 2)
-        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains("__kk_string_equals_flat"))
+        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains(runtimeCallee(.stringEqualsFlat)))
     }
 }
 #endif

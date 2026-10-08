@@ -28,9 +28,9 @@ extension BuildKIRRegressionTests {
             "Expected System.processStartNanos bundled call"
         )
         for bridge in [
-            "__kk_system_currentTimeMillis",
-            "__kk_system_nanoTime",
-            "__kk_system_process_start_nanos",
+            runtimeCallee(.systemCurrentTimeMillis),
+            runtimeCallee(.systemNanoTime),
+            runtimeCallee(.systemProcessStartNanos),
         ] {
             #expect(!callees.contains(bridge), "User KIR must not call \(bridge) directly")
         }
@@ -62,7 +62,7 @@ extension BuildKIRRegressionTests {
             #expect(callees.contains(callee), "Expected a call to the bundled \(callee)")
         }
         for bridge in [
-            "__kk_system_currentTimeMillis", "__kk_system_getTimeMicros", "__kk_system_getTimeNanos",
+            runtimeCallee(.systemCurrentTimeMillis), runtimeCallee(.systemGetTimeMicros), runtimeCallee(.systemGetTimeNanos),
         ] {
             #expect(!callees.contains(bridge), "\(bridge) must not be inlined into user KIR")
         }
@@ -89,7 +89,7 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("measureTimeMillis"))
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            callees.contains(runtimeCallee(.callableRefTagKfunction)),
             "The callable reference must be materialised before the call"
         )
     }

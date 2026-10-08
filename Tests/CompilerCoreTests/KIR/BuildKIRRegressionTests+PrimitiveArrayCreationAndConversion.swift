@@ -155,7 +155,7 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_of"),
+            callNames.contains(runtimeCallee(.arrayOf)),
             "intArrayOf must lower to kk_array_of; got: \(callNames)"
         )
         #expect(
@@ -172,7 +172,7 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_of"),
+            callNames.contains(runtimeCallee(.arrayOf)),
             "byteArrayOf must lower to kk_array_of; got: \(callNames)"
         )
     }
@@ -185,15 +185,15 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new"),
+            callNames.contains(runtimeCallee(.arrayNew)),
             "source-backed charArrayOf must allocate a primitive array; got: \(callNames)"
         )
         #expect(
-            callNames.filter { $0 == "kk_array_set" }.count == 3,
+            callNames.filter { $0 == runtimeCallee(.arraySet) }.count == 3,
             "source-backed charArrayOf must store each Char element; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_of"),
+            !callNames.contains(runtimeCallee(.arrayOf)),
             "source-backed charArrayOf must not lower to kk_array_of; got: \(callNames)"
         )
         #expect(
@@ -201,13 +201,14 @@ extension BuildKIRRegressionTests {
             "inline charArrayOf should not remain as a call in KIR; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_box_char"),
+            !callNames.contains(runtimeCallee(.boxChar)),
             "primitive Char elements should not be boxed; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_toList") && !callNames.contains("__kk_array_toList"),
+            !callNames.contains(runtimeCallee(.arrayToList)),
             "inline charArrayOf should not route through List varargs; got: \(callNames)"
         )
+        try expectResolvedKIRCallTargets(in: makeBody, context: ctx)
     }
 
     @Test
@@ -218,18 +219,18 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "IntArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            callNames.contains("kk_array_set"),
+            callNames.contains(runtimeCallee(.arraySet)),
             "IntArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
         )
 
         let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
         #expect(
-            throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
-            "kk_array_new_checked inside constructor must be throwing (NegativeArraySizeException)"
+            throwFlags[runtimeCallee(.arrayNewChecked)]?.allSatisfy { $0 == true } == true,
+            "Checked allocation inside the constructor must propagate NegativeArraySizeException"
         )
     }
 
@@ -241,11 +242,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "ByteArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            callNames.contains("kk_array_set"),
+            callNames.contains(runtimeCallee(.arraySet)),
             "ByteArray(n) { init } must emit kk_array_set; got: \(callNames)"
         )
         #expect(
@@ -262,11 +263,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "ByteArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_set"),
+            !callNames.contains(runtimeCallee(.arraySet)),
             "ByteArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
         )
         #expect(
@@ -283,11 +284,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "IntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_set"),
+            !callNames.contains(runtimeCallee(.arraySet)),
             "IntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
         )
         #expect(
@@ -304,11 +305,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "UIntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_set"),
+            !callNames.contains(runtimeCallee(.arraySet)),
             "UIntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
         )
         #expect(
@@ -325,11 +326,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "ULongArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_set"),
+            !callNames.contains(runtimeCallee(.arraySet)),
             "ULongArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
         )
         #expect(
@@ -346,11 +347,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "BooleanArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            callNames.contains("kk_array_set"),
+            callNames.contains(runtimeCallee(.arraySet)),
             "BooleanArray(n) { init } must emit kk_array_set in the fill loop; got: \(callNames)"
         )
         #expect(
@@ -360,8 +361,8 @@ extension BuildKIRRegressionTests {
 
         let throwFlags = extractThrowFlags(from: makeBody, interner: ctx.interner)
         #expect(
-            throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true,
-            "kk_array_new_checked inside BooleanArray constructor must be throwing (NegativeArraySizeException)"
+            throwFlags[runtimeCallee(.arrayNewChecked)]?.allSatisfy { $0 == true } == true,
+            "Checked allocation inside BooleanArray must propagate NegativeArraySizeException"
         )
     }
 
@@ -373,11 +374,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "DoubleArray(n) { init } must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            callNames.contains("kk_array_set"),
+            callNames.contains(runtimeCallee(.arraySet)),
             "DoubleArray(n) { init } must emit kk_array_set; got: \(callNames)"
         )
         #expect(
@@ -394,11 +395,11 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_new_checked"),
+            callNames.contains(runtimeCallee(.arrayNewChecked)),
             "DoubleArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_set"),
+            !callNames.contains(runtimeCallee(.arraySet)),
             "DoubleArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
         )
         #expect(
@@ -414,14 +415,14 @@ extension BuildKIRRegressionTests {
         let makeBody = try findKIRFunctionBody(named: "make15", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
-        #expect(callNames.contains("kk_array_new"), "source-backed uintArrayOf must allocate a primitive array; got: \(callNames)")
+        #expect(callNames.contains(runtimeCallee(.arrayNew)), "source-backed uintArrayOf must allocate a primitive array; got: \(callNames)")
         #expect(
-            callNames.filter { $0 == "kk_array_set" }.count == 2,
+            callNames.filter { $0 == runtimeCallee(.arraySet) }.count == 2,
             "source-backed uintArrayOf must store each UInt element; got: \(callNames)"
         )
-        #expect(!callNames.contains("kk_array_of"), "source-backed uintArrayOf must not use the generic array bridge; got: \(callNames)")
+        #expect(!callNames.contains(runtimeCallee(.arrayOf)), "source-backed uintArrayOf must not use the generic array bridge; got: \(callNames)")
         #expect(!callNames.contains("uintArrayOf"), "inline uintArrayOf should not remain as a call in KIR; got: \(callNames)")
-        #expect(!callNames.contains("kk_box_int"), "primitive UInt elements should not be boxed; got: \(callNames)")
+        #expect(!callNames.contains(runtimeCallee(.boxInt)), "primitive UInt elements should not be boxed; got: \(callNames)")
     }
 
     @Test
@@ -432,10 +433,6 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
         #expect(
-            !callNames.contains("kk_list_toIntArray"),
-            "List<Int>.toIntArray() must no longer use the removed kk_list_toIntArray bridge; got: \(callNames)"
-        )
-        #expect(
             callNames == ["toIntArray"],
             "List<Int>.toIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
         )
@@ -444,7 +441,7 @@ extension BuildKIRRegressionTests {
         // not an unresolved name that would only be matched at link time.
         let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
             guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "toIntArray"
+                  callee == KnownCompilerNames(interner: ctx.interner).toIntArray
             else { return nil }
             return symbol
         }.first)
@@ -459,17 +456,13 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
         #expect(
-            !callNames.contains("kk_list_toUIntArray"),
-            "List<UInt>.toUIntArray() must no longer use the removed kk_list_toUIntArray bridge; got: \(callNames)"
-        )
-        #expect(
             callNames == ["toUIntArray"],
             "List<UInt>.toUIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
         )
 
         let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
             guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "toUIntArray"
+                  callee == KnownCompilerNames(interner: ctx.interner).toUIntArray
             else { return nil }
             return symbol
         }.first)
@@ -490,7 +483,7 @@ extension BuildKIRRegressionTests {
         #expect(
             convertBody.compactMap { instruction -> SymbolID? in
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "toList"
+                      callee == KnownCompilerNames(interner: ctx.interner).toList
                 else { return nil }
                 return symbol
             }.contains(where: { symbol in

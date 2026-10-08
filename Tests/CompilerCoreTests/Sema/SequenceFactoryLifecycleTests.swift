@@ -23,11 +23,12 @@ struct SequenceFactoryLifecycleTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let generateSequence = ctx.interner.intern("generateSequence")
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "generateSequence"
+                return name == generateSequence
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
             #expect(binding.substitutedTypeArguments == [sema.types.intType])
@@ -64,11 +65,12 @@ struct SequenceFactoryLifecycleTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let names = KnownCompilerNames(interner: ctx.interner)
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "Sequence"
+                return name == names.sequence
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
             let chosen = try #require(binding.chosenCallee)
@@ -82,11 +84,9 @@ struct SequenceFactoryLifecycleTests {
             #expect(sema.symbols.externalLinkName(for: chosen) == nil)
             #expect(signature.valueParameterAllowsNonLocalReturn == [false])
             #expect(signature.valueParameterSymbols.compactMap {
-                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) }
-            } == ["iterator"])
-            let declarations = sema.symbols.lookupAll(fqName: [
-                "kotlin", "sequences", "Sequence",
-            ].map(ctx.interner.intern))
+                sema.symbols.symbol($0)?.name
+            } == [names.iterator])
+            let declarations = sema.symbols.lookupAll(fqName: names.kotlinSequenceFQName)
             #expect(declarations.filter { sema.symbols.symbol($0)?.kind == .function } == [chosen])
         }
     }
@@ -104,11 +104,12 @@ struct SequenceFactoryLifecycleTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let generateSequence = ctx.interner.intern("generateSequence")
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "generateSequence"
+                return name == generateSequence
             })
             let binding = try #require(sema.bindings.callBinding(for: call))
             let chosen = try #require(binding.chosenCallee)
@@ -116,8 +117,8 @@ struct SequenceFactoryLifecycleTests {
             let signature = try #require(sema.symbols.functionSignature(for: chosen))
             #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/sequences/SequenceFactories.kt")
             #expect(signature.valueParameterSymbols.compactMap {
-                sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) }
-            } == parameters)
+                sema.symbols.symbol($0)?.name
+            } == parameters.map(ctx.interner.intern))
         }
     }
 
@@ -133,11 +134,12 @@ struct SequenceFactoryLifecycleTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let generateSequence = ctx.interner.intern("generateSequence")
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "generateSequence"
+                return name == generateSequence
             })
             let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
             let file = try #require(sema.symbols.sourceFileID(for: chosen))
@@ -160,18 +162,19 @@ struct SequenceFactoryLifecycleTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let names = KnownCompilerNames(interner: ctx.interner)
             let call = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(name) == "yieldAll"
+                return name == names.yieldAll
             })
             let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
             let info = try #require(sema.symbols.symbol(chosen))
-            #expect(info.fqName.map(ctx.interner.resolve) == ["kotlin", "sequences", "SequenceScope", "yieldAll"])
+            #expect(info.fqName == names.kotlinSequencesPackage + [names.sequenceScope, names.yieldAll])
             #expect(!info.flags.contains(.synthetic))
             let file = try #require(sema.symbols.sourceFileID(for: chosen))
             #expect(ctx.sourceManager.path(of: file) == "__bundled_kotlin/sequences/SequenceScope/SequenceScope.kt")
             let signature = try #require(sema.symbols.functionSignature(for: chosen))
-            #expect(signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } } == [parameter])
+            #expect(signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0)?.name } == [ctx.interner.intern(parameter)])
         }
     }
 }

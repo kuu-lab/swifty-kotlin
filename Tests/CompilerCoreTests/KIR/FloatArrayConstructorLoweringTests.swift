@@ -18,19 +18,19 @@ struct FloatArrayConstructorLoweringTests {
 
         let module = try #require(ctx.kir)
         let initializedBody = try findKIRFunctionBody(named: "initialize", in: module, interner: ctx.interner)
-        let initializedCallees = extractCallees(from: initializedBody, interner: ctx.interner)
-        #expect(initializedCallees.contains("kk_array_new_checked"))
-        #expect(initializedCallees.contains("kk_array_set"))
-        #expect(!initializedCallees.contains("FloatArray"))
+        let initializedCalls = kirCalls(in: initializedBody)
+        let allocations = kirCalls(to: .arrayNewChecked, in: initializedBody, interner: ctx.interner)
+        #expect(!allocations.isEmpty)
+        #expect(!kirCalls(to: .arraySet, in: initializedBody, interner: ctx.interner).isEmpty)
+        #expect(!initializedCalls.contains { $0.callee == KnownCompilerNames(interner: ctx.interner).floatArray })
 
-        let initializedThrows = extractThrowFlags(from: initializedBody, interner: ctx.interner)
-        #expect(initializedThrows["kk_array_new_checked"]?.allSatisfy { $0 } == true)
+        #expect(allocations.allSatisfy { $0.canThrow })
 
         let sizeOnlyBody = try findKIRFunctionBody(named: "allocate", in: module, interner: ctx.interner)
-        let sizeOnlyCallees = extractCallees(from: sizeOnlyBody, interner: ctx.interner)
-        #expect(sizeOnlyCallees.contains("kk_array_new_checked"))
-        #expect(!sizeOnlyCallees.contains("kk_array_set"))
-        #expect(!sizeOnlyCallees.contains("FloatArray"))
+        let sizeOnlyCalls = kirCalls(in: sizeOnlyBody)
+        #expect(!kirCalls(to: .arrayNewChecked, in: sizeOnlyBody, interner: ctx.interner).isEmpty)
+        #expect(kirCalls(to: .arraySet, in: sizeOnlyBody, interner: ctx.interner).isEmpty)
+        #expect(!sizeOnlyCalls.contains { $0.callee == KnownCompilerNames(interner: ctx.interner).floatArray })
     }
 }
 #endif

@@ -107,7 +107,7 @@ struct CodegenBackendSequenceMapIndexedTests {
             // direct mapIndexed callee is not stable in consumer KIR.  The
             // imported sequence factory and retired-bridge absence are stable.
             #expect(containsKotlinCallee("sequenceOf", in: callees))
-            #expect(!callees.contains("kk_sequence_mapIndexed"), "Sequence.mapIndexed should no longer route through the retired native bridge, got: \(callees)")
+            #expect(!callees.contains(try runtimeABICallee("sequence_mapIndexed")), "Sequence.mapIndexed should no longer route through the retired native bridge, got: \(callees)")
         }
     }
 }

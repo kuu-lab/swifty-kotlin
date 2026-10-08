@@ -44,7 +44,7 @@ struct RangeUserExtensionResolutionTests {
                   ["onRange", "genExt", "scalarOrRange"].contains(ctx.interner.resolve(symbol.name))
             else { continue }
             #expect(!symbol.flags.contains(.synthetic))
-            if ctx.interner.resolve(symbol.name) == "genExt" {
+            if symbol.name == ctx.interner.intern("genExt") {
                 #expect(binding.substitutedTypeArguments.count == 1)
                 let elementType = try #require(binding.substitutedTypeArguments.first)
                 #expect([sema.types.intType, sema.types.longType, sema.types.charType].contains(elementType))
