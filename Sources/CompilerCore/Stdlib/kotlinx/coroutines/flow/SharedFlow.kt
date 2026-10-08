@@ -8,6 +8,7 @@
 package kotlinx.coroutines.flow
 
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.awaitCancellation
 
 // MIGRATION-FLOW-002 (KSP-675)
 // SharedFlow / MutableSharedFlow migrated from the dedicated runtime handle
@@ -17,8 +18,9 @@ import kotlinx.coroutines.channels.BufferOverflow
 // eviction are plain Kotlin state transitions over a MutableList.
 //
 // Divergence carried over from the previous runtime implementation: `collect`
-// replays the buffered snapshot and returns instead of suspending forever on a
-// live subscription. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
+// replays the buffered snapshot but does not forward later emissions. It stays
+// suspended until cancellation so subscriptionCount reflects the collector's
+// lifetime. StateFlow is now Kotlin source as well (StateFlow.kt, KSP-676).
 
 public interface SharedFlow<out T> : Flow<T> {
     public val replayCache: List<T>
@@ -98,6 +100,7 @@ private class SnapshotMutableSharedFlow<T>(
             for (value in snapshot) {
                 collector(value)
             }
+            awaitCancellation()
         } finally {
             counter.value = counter.value - 1
         }

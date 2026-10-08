@@ -175,73 +175,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_flatmap_indexed.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFlatMapIndexed",
-            expected:
-                """
-                [0, 10, 1, 20]
-                [1, 100, 3, 200]
-                [0, 1, 1]
-                []
-                """
-                    + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_firstnotnullof.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFirstNotNullOf",
-            expected:
-                """
-                three
-                missing
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_firstnotnullofornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFirstNotNullOfOrNull",
-            expected:
-                """
-                three
-                missing
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_minuselement.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceMinusElement",
-            expected:
-                """
-                [1, 3, 2]
-                [1, 2, 3, 2]
-                []
-                """
-                + "\n"
-        )
-    }
-
-    @Test
     func testCodegenSequenceMinusRemovesSingleElement() throws {
         let source = """
         fun main() {
@@ -251,38 +184,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceMinus", expected: "[1, 3, 2]\n[1, 2, 3]\n")
-    }
-
-    @Test
-    func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_sumby.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceSumBy",
-            expected:
-                """
-                14
-                0
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_sumbydouble.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceSumByDouble",
-            expected:
-                """
-                2.0
-                0.0
-                """
-                + "\n"
-        )
     }
 
     @Test
@@ -323,26 +224,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceRunningReduceIndexed", expected: "[1, 3, 9, 21]\n[]\n")
-    }
-
-    @Test
-    func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_shuffled.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceShuffled",
-            expected:
-                """
-                4
-                [1, 2, 3, 4]
-                4
-                [1, 2, 3, 4]
-                []
-                [42]
-                """
-                    + "\n"
-        )
     }
 
     @Test
@@ -745,23 +626,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
                 10;20;
                 """
                 + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_require_no_nulls.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceRequireNoNulls",
-            expected:
-                """
-                [1, 2, 3]
-                [1]
-                caught
-                """
-                    + "\n"
         )
     }
 

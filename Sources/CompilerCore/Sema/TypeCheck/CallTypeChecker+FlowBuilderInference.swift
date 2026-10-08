@@ -12,6 +12,16 @@ final class FlowBuilderInferenceSession {
 }
 
 extension CallTypeChecker {
+    func isFlowCollectorType(_ type: TypeID, ctx: TypeInferenceContext) -> Bool {
+        guard let classType = resolveClassType(type, sema: ctx.sema),
+              let symbol = ctx.sema.symbols.symbol(classType.classSymbol)
+        else { return false }
+        return symbol.fqName == [
+            ctx.interner.intern("kotlinx"), ctx.interner.intern("coroutines"),
+            ctx.interner.intern("flow"), ctx.interner.intern("FlowCollector"),
+        ]
+    }
+
     func flowBuilderEmitHasReceiverMember(ctx: TypeInferenceContext) -> Bool {
         guard let receiverType = ctx.implicitReceiverType else { return false }
         return !driver.helpers.collectMemberFunctionCandidates(
