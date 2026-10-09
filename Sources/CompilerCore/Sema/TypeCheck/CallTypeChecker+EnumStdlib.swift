@@ -13,9 +13,20 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         interner: StringInterner,
+        knownNames: KnownCompilerNames,
         sema: SemaModule,
         range: SourceRange
     ) -> EnumStdlibSpecialCallResult? {
+        // Cheap interned-ID bail: only the four enum intrinsic names can
+        // resolve to a well-known enum intrinsic, so every other unqualified
+        // call exits before the scope lookup below.
+        guard calleeName == knownNames.enumValues
+            || calleeName == knownNames.enumValueOf
+            || calleeName == knownNames.enumEntries
+            || calleeName == knownNames.enumEntriesIntrinsic
+        else {
+            return nil
+        }
         let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
         guard let intrinsic = visibleCandidates.compactMap({
             sema.wellKnownSymbols.enumIntrinsic(for: $0)

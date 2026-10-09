@@ -323,6 +323,10 @@ package struct KnownCompilerNames {
     let atomicIntArray: InternedString
     let atomicLongArray: InternedString
     let collections: InternedString
+    let enumValues: InternedString
+    let enumValueOf: InternedString
+    let enumEntries: InternedString
+    let enumEntriesIntrinsic: InternedString
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
@@ -741,6 +745,10 @@ package struct KnownCompilerNames {
         atomicIntArray = interner.intern("AtomicIntArray")
         atomicLongArray = interner.intern("AtomicLongArray")
         collections = interner.intern("collections")
+        enumValues = interner.intern("enumValues")
+        enumValueOf = interner.intern("enumValueOf")
+        enumEntries = interner.intern("enumEntries")
+        enumEntriesIntrinsic = interner.intern("enumEntriesIntrinsic")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
