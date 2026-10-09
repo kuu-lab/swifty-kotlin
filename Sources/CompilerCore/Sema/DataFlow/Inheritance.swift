@@ -115,6 +115,13 @@ extension DataFlowSemaPhase {
                         continue
                     }
                 }
+                TypeCheckHelpers().checkDeprecation(
+                    for: resolved.symbol,
+                    symbols: symbols,
+                    interner: interner,
+                    range: symbols.symbol(symbol)?.declSite,
+                    diagnostics: diagnostics
+                )
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
