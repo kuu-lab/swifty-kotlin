@@ -187,7 +187,7 @@ extension LLVMCAPIBindings {
         guard let diBuilderCreateParameterVariableFn else { return nil }
         return name.withCString { n in
             diBuilderCreateParameterVariableFn(
-                builder, scope, n, name.utf8.count, argNo, file, lineNo, type, 0, 0 // AlwaysPreserve=0, Flags=0
+                builder, scope, n, name.utf8.count, argNo, file, lineNo, type, 0, 0
             )
         }
     }
