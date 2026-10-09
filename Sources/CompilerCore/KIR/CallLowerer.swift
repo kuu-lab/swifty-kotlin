@@ -1003,16 +1003,29 @@ final class CallLowerer {
                // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
                // elements and finalArgIDs.count is params.count + 2 -- there
                // is no missing receiver slot to fill from the ambient scope.
-               finalArgIDs.count == functionType.params.count + 1,
-               let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+               finalArgIDs.count == functionType.params.count + 1
             {
                 // A receiver-function value invoked as `block()` inside a
                 // receiver scope uses the active implicit receiver as its
                 // dispatch receiver (e.g. the bodies of T.run and T.apply).
-                finalArgIDs.insert(implicitReceiver, at: 1)
+                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+                    .flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 1) }
             }
         }
         if callableInvokeCallee == nil, let loweredCallable {
+            if let callableValueCallBinding,
+               case let .functionType(functionType) = sema.types.kind(
+                   of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+               ),
+               functionType.receiver != nil,
+               finalArgIDs.count == functionType.params.count {
+                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+                    .flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 0) }
+            }
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
