@@ -531,26 +531,9 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    private static let abstractCollectionSource = """
-    import kotlin.collections.AbstractCollection
-    import kotlin.collections.Iterator
-
-    class EmptyIntIterator : Iterator<Int> {
-        override fun hasNext(): Boolean = false
-        override fun next(): Int = 0
+    private static func abstractCollectionSource() throws -> String {
+        try diffCaseSource("bug_200_precompiled_abstract_collection.kt", file: #filePath)
     }
-
-    class EvenNumbers : AbstractCollection<Int>() {
-        override val size: Int
-            get() = 0
-
-        override fun iterator(): Iterator<Int> = EmptyIntIterator()
-    }
-
-    fun main() {
-        println(EvenNumbers().size)
-    }
-    """
 
     @Test(arguments: [false, true])
     func testContinuationContextOverrides(useArtifact: Bool) throws {
@@ -1315,7 +1298,8 @@ struct StdlibArtifactRegressionTests {
     /// abstract member modality and on the owner's type argument in overrides.
     @Test
     func testAbstractCollectionOverrideThroughBundledSource() throws {
-        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+        let source = try Self.abstractCollectionSource()
+        try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
@@ -1341,7 +1325,8 @@ struct StdlibArtifactRegressionTests {
     @Test
     func testAbstractCollectionOverrideThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
-        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+        let source = try Self.abstractCollectionSource()
+        try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
@@ -1617,19 +1602,7 @@ struct StdlibArtifactRegressionTests {
     func testSyntheticSingletonObjectSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun main() {
-            val millis = System.currentTimeMillis()
-            println(millis > 0)
-
-            val t1 = System.nanoTime()
-            val t2 = System.nanoTime()
-            println(t2 >= t1)
-
-            val millis2 = System.currentTimeMillis()
-            println(millis2 >= millis)
-        }
-        """
+        let source = try diffCaseSource("system_current_time_millis.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -1839,18 +1812,7 @@ struct StdlibArtifactRegressionTests {
     func testEmptySequenceWithIndexSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun main() {
-            val indexed = sequenceOf(10, 20, 30).withIndex().toList()
-            println(indexed)
-
-            val first = sequenceOf(10, 20, 30).withIndex().take(1).toList()
-            println(first)
-
-            val empty = emptySequence<Int>().withIndex().toList()
-            println(empty)
-        }
-        """
+        let source = try diffCaseSource("sequence_withindex.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -2523,57 +2485,7 @@ struct StdlibArtifactRegressionTests {
     func testVarianceGenericsStringItableBridgeSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        interface Producer<out T> {
-            fun produce(): T
-        }
-
-        interface Consumer<in T> {
-            fun consume(value: T)
-        }
-
-        interface Container<T> {
-            fun fetch(): T
-            fun store(value: T)
-        }
-
-        class StringProducer(val value: String) : Producer<String> {
-            override fun produce(): String = value
-        }
-
-        class AnyPrinter : Consumer<Any> {
-            override fun consume(value: Any) {
-                println("consumed: $value")
-            }
-        }
-
-        class StringContainer(val initial: String) : Container<String> {
-            override fun fetch(): String = initial
-            override fun store(value: String) = println("stored: $value")
-        }
-
-        fun printAnyProduced(producer: Producer<Any>) {
-            println(producer.produce())
-        }
-
-        fun feedStringConsumer(consumer: Consumer<String>) {
-            consumer.consume("hello from feeder")
-        }
-
-        fun main() {
-            val stringProducer: Producer<String> = StringProducer("variance test")
-            val anyProducer: Producer<Any> = stringProducer
-            printAnyProduced(anyProducer)
-
-            val anyConsumer: Consumer<Any> = AnyPrinter()
-            val stringConsumer: Consumer<String> = anyConsumer
-            feedStringConsumer(stringConsumer)
-
-            val container: Container<String> = StringContainer("invariant value")
-            container.store("new value")
-            println(container.fetch())
-        }
-        """
+        let source = try diffCaseSource("variance_generics.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -2611,24 +2523,7 @@ struct StdlibArtifactRegressionTests {
     func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun printLength(cs: CharSequence) {
-            println(cs.length)
-        }
-
-        fun main() {
-            printLength("hello")
-            val cs: CharSequence = "world!"
-            println(cs.length)
-            println(cs.get(1))
-            println(cs[2])
-            println(cs.subSequence(1, 3))
-            val sb: CharSequence = StringBuilder("abc")
-            println(sb.length)
-            println(sb.get(1))
-            println(sb[2])
-        }
-        """
+        let source = try diffCaseSource("char_sequence_member_access.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory

@@ -39,3 +39,11 @@ func withTemporaryFiles(
 ) throws {
     try CompilerTestSupport.withTemporaryFiles(contents: contents, fileExtension: fileExtension, body: body)
 }
+
+func repositoryFileSource(_ relativePath: String, file: StaticString = #filePath) throws -> String {
+    try CompilerTestSupport.repositoryFileSource(relativePath, file: file)
+}
+
+func diffCaseSource(_ name: String, file: StaticString = #filePath) throws -> String {
+    try CompilerTestSupport.diffCaseSource(name, file: file)
+}
