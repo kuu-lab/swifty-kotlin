@@ -4,6 +4,45 @@ import Testing
 
 struct InlineNestedCaptureTests {
     @Test(arguments: [false, true])
+    func multipleCapturesRespectTheCallbackParameterABI(hasClosureParam: Bool) {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(symbols: SymbolTable(), types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(moduleName: "CaptureABI", interner: interner, sema: sema, diagnostics: diagnostics)
+        let symbol = SymbolID(rawValue: 1)
+        let callable = arena.appendExpr(.symbolRef(symbol), type: types.anyType)
+        let captures = [arena.appendTemporary(type: types.intType), arena.appendTemporary(type: types.stringType)]
+        let values = [arena.appendExpr(.intLiteral(7), type: types.intType), arena.appendExpr(.stringLiteral(interner.intern("message")), type: types.stringType)]
+        arena.registerLambdaCaptureArgs(symbol, captureArgs: captures)
+        arena.callableValueInfoByExprID[callable] = KIRCallableValueInfo(
+            symbol: symbol, callee: interner.intern("callback"), captureArguments: captures,
+            hasClosureParam: hasClosureParam
+        )
+        var emitted = KIRLoweringEmitContext()
+        let arguments = InlineLoweringPass().lambdaCaptureArguments(
+            for: callable, symbol: symbol, aliases: Dictionary(uniqueKeysWithValues: zip(captures, values)),
+            arena: arena, ctx: ctx, into: &emitted
+        )
+        if hasClosureParam {
+            #expect(arguments.count == 1)
+            let storedValues = emitted.instructions.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      interner.resolve(callee) == "kk_array_set" else { return nil }
+                return arguments.last
+            }
+            #expect(storedValues == values)
+        } else {
+            // Ordinary inline lambdas have separate capture parameters and
+            // must never receive an environment object in their place.
+            #expect(arguments == values)
+            #expect(emitted.instructions.isEmpty)
+        }
+        #expect(arena.lambdaCaptureArgsBySymbol[symbol] == captures)
+    }
+
+    @Test(arguments: [false, true])
     func clonedCapturesRemainAvailableToCoroutineLowering(hasCallableInfo: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()

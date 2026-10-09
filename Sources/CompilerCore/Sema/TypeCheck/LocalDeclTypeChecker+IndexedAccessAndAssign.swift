@@ -165,6 +165,30 @@ extension LocalDeclTypeChecker {
             indexTypes.append(valueType)
         }
 
+        // The canonical array member accepts exactly one Int. Other index
+        // shapes may have a user-defined operator extension, which remains
+        // available when that member is inapplicable.
+        if let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+           receiverSymbol.fqName == [interner.intern("kotlin"), receiverSymbol.name],
+           KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name),
+           indexTypes.count != 1 || !sema.types.isSubtype(indexTypes[0], intType)
+        {
+            getCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(getName)).visible.filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType,
+                      driver.helpers.declaresExtensionReceiver(candidate, sema: sema, interner: interner)
+                else { return false }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+        }
+
         if !getCandidates.isEmpty {
             // Resolve via operator fun get
             let callArgs = indexTypes.map { CallArg(type: $0) }

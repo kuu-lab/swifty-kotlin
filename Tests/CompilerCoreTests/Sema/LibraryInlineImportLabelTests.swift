@@ -6,6 +6,65 @@ import Testing
 
 @Suite
 struct LibraryInlineImportLabelTests {
+    @Test
+    func testParameterCallUsesTheSameLocalIdentityAsItsReference() throws {
+        let types = TypeSystem()
+        let callback = types.make(.functionType(FunctionType(params: [], returnType: types.booleanType)))
+        let name = "kotlin.helper.predicate"
+        let encodedName = Data(name.utf8).base64EncodedString()
+        var imported: KIRFunction?
+        try withTemporaryFile(contents: """
+        params=1
+        paramSymbols=10
+        body:
+        const result=20 value=symbol:10
+        call symbol=10 calleeB64=a2tfZnVuY3Rpb25faW52b2tlXzA= args=[20] result=21 symbolFQNameB64=\(encodedName)
+        returnValue value=21
+        """, fileExtension: "kir") { path in
+            imported = DataFlowSemaPhase.parseImportedInlineFunction(
+                path: path, importedSymbol: SymbolID(rawValue: 100),
+                signature: FunctionSignature(parameterTypes: [callback], returnType: types.booleanType),
+                types: types, interner: StringInterner(), diagnostics: DiagnosticEngine(),
+                externalLinkNameToSymbol: [:], importedSymbolByFQName: [name: SymbolID(rawValue: 900)]
+            )
+        }
+        let function = try #require(imported)
+        guard case let .constValue(_, .symbolRef(reference)) = function.body[0],
+              case let .call(callee, _, _, _, _, _, _, _) = function.body[1]
+        else {
+            Issue.record("Expected a parameter reference followed by its invocation")
+            return
+        }
+        #expect(reference == function.params[0].symbol)
+        #expect(callee == reference)
+        #expect(callee != SymbolID(rawValue: 900))
+    }
+
+    @Test
+    func testImportedReifiedHigherOrderFunctionKeepsRawTokenParameter() throws {
+        let types = TypeSystem()
+        let callback = types.make(.functionType(FunctionType(params: [], returnType: types.stringType)))
+        let signature = FunctionSignature(
+            parameterTypes: [types.nullableAnyType, callback], returnType: types.anyType,
+            typeParameterSymbols: [SymbolID(rawValue: 77)], reifiedTypeParameterIndices: [0]
+        )
+        var imported: KIRFunction?
+        try withTemporaryFile(contents: """
+        params=3
+        paramSymbols=10,11,12
+        body:
+        returnUnit
+        """, fileExtension: "kir") { path in
+            imported = DataFlowSemaPhase.parseImportedInlineFunction(
+                path: path, importedSymbol: SymbolID(rawValue: 100), signature: signature,
+                types: types, interner: StringInterner(), diagnostics: DiagnosticEngine(),
+                externalLinkNameToSymbol: [:], importedSymbolByFQName: [:]
+            )
+        }
+        let function = try #require(imported)
+        #expect(function.params.map(\.type) == [types.nullableAnyType, callback, types.intType])
+    }
+
     private func parseInlineArtifact(
         content: String,
         diagnostics: DiagnosticEngine = DiagnosticEngine()

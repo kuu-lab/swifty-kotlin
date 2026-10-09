@@ -20,12 +20,39 @@ extension InlineLoweringPass {
         for callableExpr: KIRExprID,
         symbol: SymbolID,
         aliases: [KIRExprID: KIRExprID],
-        arena: KIRArena
+        arena: KIRArena,
+        ctx: KIRContext,
+        into body: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         let callable = InlineExprAliasing.resolveAlias(of: callableExpr, aliases: aliases)
         let captures = lambdaCaptureArgsByExpr[callable]
             ?? arena.lambdaCaptureArgsBySymbol[symbol] ?? []
-        return captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+        let resolved = captures.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
+        guard resolved.count >= 2,
+              arena.callableValueInfo(for: callable)?.hasClosureParam == true,
+              let types = ctx.sema?.types else { return resolved }
+        // A runtime HOF lambda receives one packed environment parameter,
+        // although its callable metadata lists the individual captured values.
+        // Splicing those values as separate parameters would bind the final
+        // capture (often a String message) as the environment object.
+        let count = arena.appendExpr(.intLiteral(Int64(resolved.count + 2)), type: types.intType)
+        let classID = arena.appendExpr(.intLiteral(0), type: types.intType)
+        body.append(.constValue(result: count, value: .intLiteral(Int64(resolved.count + 2))))
+        body.append(.constValue(result: classID, value: .intLiteral(0)))
+        let environment = arena.appendTemporary(type: types.anyType)
+        body.append(.call(
+            symbol: nil, callee: ctx.interner.intern("kk_object_new"), arguments: [count, classID],
+            result: environment, canThrow: false, thrownResult: nil
+        ))
+        for (index, capture) in resolved.enumerated() {
+            let offset = arena.appendExpr(.intLiteral(Int64(index + 2)), type: types.intType)
+            body.append(.constValue(result: offset, value: .intLiteral(Int64(index + 2))))
+            body.append(.call(
+                symbol: nil, callee: ctx.interner.intern("kk_array_set"), arguments: [environment, offset, capture],
+                result: nil, canThrow: false, thrownResult: nil
+            ))
+        }
+        return [environment]
     }
 
     func recordClonedLambdaCaptures(
@@ -352,7 +379,7 @@ extension InlineLoweringPass {
                 {
                     let captureArgs = lambdaCaptureArguments(
                         for: callableExpr, symbol: nestedLambdaFunction.symbol,
-                        aliases: localExprMap, arena: module.arena
+                        aliases: localExprMap, arena: module.arena, ctx: ctx, into: &lowered
                     )
                     let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
                     if let lambdaExpansion = expandLambdaBody(

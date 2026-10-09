@@ -255,10 +255,41 @@ extension TypeSystem {
                 arity: leftClass.args.count
             )
             for index in 0 ..< leftClass.args.count {
-                let lhsProjection = composedProjection(
-                    declarationVariance: declarationVariances[index],
-                    useSite: leftClass.args[index]
-                )
+                let lhsProjection: Projection
+                if case .star = leftClass.args[index] {
+                    let parameters = nominalTypeParameterSymbols(for: leftClass.classSymbol)
+                    let bounds = parameters.indices.contains(index)
+                        ? symbolTable?.typeParameterUpperBounds(for: parameters[index]) ?? [] : []
+                    let variables = makeTypeVarBySymbol(parameters)
+                    var substitution: [TypeVarID: TypeID] = [:]
+                    var unresolvedStars: [SymbolID: TypeVarID] = [:]
+                    for (parameter, argument) in zip(parameters, leftClass.args) {
+                        guard let variable = variables[parameter] else { continue }
+                        switch argument {
+                        case let .invariant(type), let .out(type): substitution[variable] = type
+                        case .in, .star: unresolvedStars[parameter] = variable
+                        }
+                    }
+                    let upperBound = substituteTypeParameters(
+                        in: bounds.isEmpty ? nullableAnyType : make(.intersection(bounds)),
+                        substitution: substitution, typeVarBySymbol: variables
+                    )
+                    // Recursive stars and in-projected dependencies need a
+                    // captured type; an in projection supplies only a lower
+                    // bound. Keep the conservative path for these cases.
+                    if declarationVariances[index] == .in
+                        || OverloadResolver().containsTypeVariable(upperBound, typeVarBySymbol: unresolvedStars, typeSystem: self)
+                    {
+                        lhsProjection = .star
+                    } else {
+                        lhsProjection = .out(upperBound)
+                    }
+                } else {
+                    lhsProjection = composedProjection(
+                        declarationVariance: declarationVariances[index],
+                        useSite: leftClass.args[index]
+                    )
+                }
                 let rhsProjection = composedProjection(
                     declarationVariance: declarationVariances[index],
                     useSite: rightClass.args[index]

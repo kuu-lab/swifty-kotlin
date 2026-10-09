@@ -1006,6 +1006,16 @@ extension DeclTypeChecker {
         }
     }
 
+    func precollectContractEffects(function: FunDecl, symbol: SymbolID, ctx: TypeInferenceContext) {
+        guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else { return }
+        let scope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
+        for parameter in signature.typeParameterSymbols { scope.insert(parameter) }
+        recordContractEffects(
+            function: function, symbol: symbol, signature: signature, ast: ctx.ast,
+            interner: ctx.interner, sema: ctx.sema, scope: scope
+        )
+    }
+
     private func recordContractEffects(
         function: FunDecl,
         symbol: SymbolID,
@@ -1248,6 +1258,19 @@ extension DeclTypeChecker {
         scope: Scope
     ) {
         guard let conditionExpr = ast.arena.expr(impliesArgs[0].expr) else {
+            return
+        }
+
+        // Every conjunct is guaranteed by the same return condition. An OR
+        // does not guarantee either operand independently.
+        if case let .binary(.logicalAnd, lhs, rhs, _) = conditionExpr {
+            for operand in [lhs, rhs] {
+                recordReturnsImpliesEffect(
+                    impliesArgs: [CallArgument(expr: operand)], returnsValue: returnsValue,
+                    returnCondition: returnCondition, function: function, symbol: symbol,
+                    signature: signature, ast: ast, interner: interner, sema: sema, scope: scope
+                )
+            }
             return
         }
 
