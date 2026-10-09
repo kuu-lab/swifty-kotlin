@@ -849,7 +849,9 @@ extension CallLowerer {
                     ) {
                         callSymbol = localSym
                         var prefix = [functionValue]
-                        if fnType.receiver != nil {
+                        if fnType.receiver != nil,
+                           sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
+                        {
                             prefix.append(loweredReceiverID)
                         }
                         callPrefix = prefix

@@ -52,7 +52,8 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
         preferredSourcePackage: [InternedString]? = nil,
-        bindCall: Bool = true
+        bindCall: Bool = true,
+        requireInScope: Bool = false
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -92,11 +93,29 @@ extension CallTypeChecker {
             }
             return receiverTypes.contains { sema.types.isSubtype($0, ownerType) }
         }
+        func isInInvocationScope(_ candidate: SymbolID) -> Bool {
+            guard requireInScope else { return true }
+            if visible.contains(candidate) { return true }
+            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            if let owner = sema.symbols.parentSymbol(for: candidate),
+               let ownerInfo = sema.symbols.symbol(owner),
+               ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object {
+                return hasDispatchReceiverOrImport(for: candidate)
+            }
+            guard let file = ctx.currentASTFile else { return false }
+            let package = Array(symbol.fqName.dropLast())
+            if file.packageFQName == package { return true }
+            return file.imports.contains { item in
+                if item.isWildcard { return item.path == package }
+                return item.path == symbol.fqName && (item.alias == nil || item.alias == calleeName)
+            }
+        }
         func collectGetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
                   hasDispatchReceiverOrImport(for: candidate),
+                  isInInvocationScope(candidate),
                   preferredSourcePackage == nil || isUserSourceDeclaration(candidate)
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
@@ -280,7 +299,7 @@ extension CallTypeChecker {
         // Plain reads keep the accessor-owner-only behaviour so lowering still
         // dispatches through the getter call binding.
         let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
-            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+            ?? (bindCall ? nil : propertyForGetter[chosen] ?? sema.symbols.parentSymbol(for: chosen))
         if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
@@ -311,9 +330,27 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return sema.types.anyType
         }
+        // Source getters may retain an erased header return type. Callable
+        // property invocation needs the declared property function type, with
+        // the same inferred type arguments as its selected getter.
+        var returnType = requireInScope
+            ? propertyForGetter[chosen].flatMap { sema.symbols.propertyType(for: $0) } ?? signature.returnType
+            : signature.returnType
+        if requireInScope, let property = propertyForGetter[chosen],
+           let owner = sema.symbols.parentSymbol(for: property),
+           let info = sema.symbols.symbol(owner),
+           info.kind == .class || info.kind == .interface || info.kind == .object {
+            let ownerType = sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            let dispatchTypes = ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            if let dispatchType = dispatchTypes.first(where: { sema.types.isSubtype($0, ownerType) }) {
+                returnType = driver.helpers.resolveMemberPropertyType(
+                    returnType, receiverType: dispatchType, ownerSymbol: owner, sema: sema
+                )
+            }
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         return sema.types.substituteTypeParameters(
-            in: signature.returnType,
+            in: returnType,
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
