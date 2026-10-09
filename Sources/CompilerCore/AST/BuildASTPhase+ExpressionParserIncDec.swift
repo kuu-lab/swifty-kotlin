@@ -209,9 +209,14 @@ extension BuildASTPhase.ExpressionParser {
         )) }
         let operatorName = interner.intern(op == .plusAssign ? "inc" : "dec")
         let applyOperator = { (operand: ExprID) in
-            self.astArena.appendExpr(.memberCall(
+            // The synthesized `inc()` / `dec()` call is an explicit invocation:
+            // without the marker, zero-argument member syntax is checked as a
+            // property access and rejected with SEMA-0309 ("inc() expected").
+            let call = self.astArena.appendExpr(.memberCall(
                 receiver: operand, callee: operatorName, typeArgs: [], args: [], range: range
             ))
+            self.astArena.markExplicitCall(call)
+            return call
         }
 
         if isPrefix {
