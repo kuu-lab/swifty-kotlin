@@ -2,6 +2,237 @@
 
 /// Shared helpers for collection higher-order function ABI specs.
 public extension RuntimeABISpec {
+    private static let listZipTransformParams = [
+        RuntimeABIParameter(name: "listRaw", type: .intptr),
+        RuntimeABIParameter(name: "otherRaw", type: .intptr),
+        RuntimeABIParameter(name: "fnPtr", type: .intptr),
+        RuntimeABIParameter(name: "closureRaw", type: .intptr),
+        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+    ]
+
+    static let listSortedBySpec = hofSpec("kk_list_sortedBy")
+
+    static let listZipTransformSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_zip_transform",
+        parameters: listZipTransformParams,
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listTakeWhileSpec: RuntimeABIFunctionSpec = hofSpec("kk_list_takeWhile")
+
+    static let listTakeLastWhileSpec: RuntimeABIFunctionSpec = hofSpec("kk_list_takeLastWhile")
+
+    static let listDropWhileSpec: RuntimeABIFunctionSpec = hofSpec("kk_list_dropWhile")
+
+    static let listDropLastWhileSpec: RuntimeABIFunctionSpec = hofSpec("kk_list_dropLastWhile")
+
+    static let listMaxOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_maxOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMinOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_minOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMaxSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_max",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMinSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_min",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listSortedSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sorted",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection",
+        isThrowing: false
+    )
+
+    static let listSortedPrimitiveSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sorted_primitive",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "kindRaw", type: .int32),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listShuffledSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_shuffled",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection",
+        isThrowing: false
+    )
+
+    static let listShuffledRandomSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_shuffled_random",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "randomRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection",
+        isThrowing: false
+    )
+
+    static let listSortedByPrimitiveSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sortedBy_primitive",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "kindRaw", type: .int32),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listSortedDescendingSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sortedDescending",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Collection",
+isThrowing: false
+    )
+
+    static let listSortedDescendingPrimitiveSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sortedDescending_primitive",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "kindRaw", type: .int32),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listSortedByDescendingSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sortedByDescending",
+        parameters: hofLambdaParams,
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listSortedByDescendingPrimitiveSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_sortedByDescending_primitive",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "kindRaw", type: .int32),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listSortedWithSpec: RuntimeABIFunctionSpec = hofSpec("kk_list_sortedWith")
+
+    static let listMaxBySpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_maxBy",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMaxByOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_maxByOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMinByOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_minByOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMinBySpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_minBy",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMaxOfOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_maxOfOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
+    static let listMinOfOrNullSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "kk_list_minOfOrNull",
+        parameters: [
+            RuntimeABIParameter(name: "listRaw", type: .intptr),
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ],
+        returnType: .intptr,
+        section: "Collection"
+    )
+
     static let hofLambdaParams: [RuntimeABIParameter] = [
         RuntimeABIParameter(name: "listRaw", type: .intptr),
         RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -136,19 +367,7 @@ public extension RuntimeABISpec {
             RuntimeABIParameter(name: "listRaw", type: .intptr),
             RuntimeABIParameter(name: "otherRaw", type: .intptr),
         ]
-        let listZipTransformParams = [
-            RuntimeABIParameter(name: "listRaw", type: .intptr),
-            RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            RuntimeABIParameter(name: "fnPtr", type: .intptr),
-            RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-        ]
-        let legacyListZipTransformSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_zip_transform",
-            parameters: listZipTransformParams,
-            returnType: .intptr,
-            section: "Collection"
-        )
+        let legacyListZipTransformSpec = listZipTransformSpec
         let listWindowChunkBridgeSpecs = [
             RuntimeABIFunctionSpec(
                 name: "__kk_list_chunked",
@@ -267,82 +486,19 @@ public extension RuntimeABISpec {
                 section: "Collection",
                 isThrowing: false
             ),
-            hofSpec("kk_list_takeWhile"),
-            hofSpec("kk_list_takeLastWhile"),
-            hofSpec("kk_list_dropWhile"),
-            hofSpec("kk_list_dropLastWhile"),
+            listTakeWhileSpec,
+            listTakeLastWhileSpec,
+            listDropWhileSpec,
+            listDropLastWhileSpec,
         ]
-        let maxOrNullSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_maxOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let minOrNullSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_minOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let maxSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_max",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let minSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_min",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let sortedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sorted",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let sortedPrimitiveSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sorted_primitive",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "kindRaw", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let shuffledSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_shuffled",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
-        let shuffledRandomSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_shuffled_random",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        )
+        let maxOrNullSpec = listMaxOrNullSpec
+        let minOrNullSpec = listMinOrNullSpec
+        let maxSpec = listMaxSpec
+        let minSpec = listMinSpec
+        let sortedSpec = listSortedSpec
+        let sortedPrimitiveSpec = listSortedPrimitiveSpec
+        let shuffledSpec = listShuffledSpec
+        let shuffledRandomSpec = listShuffledRandomSpec
         let randomSpec = RuntimeABIFunctionSpec(
             name: "kk_list_random",
             parameters: [
@@ -361,21 +517,7 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         )
-        let sortedByPrimitiveSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_sortedBy_primitive",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "kindRaw", type: .int32),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        )
-        let genericAfter = [
-            "kk_list_sortedBy",
-        ]
+        let genericAfter = [listSortedBySpec, listSortedByPrimitiveSpec]
         var functions: [RuntimeABIFunctionSpec] = []
         functions.append(contentsOf: before.map { hofSpec($0) })
         functions.append(contentsOf: [requireNoNullsSpec])
@@ -383,14 +525,7 @@ public extension RuntimeABISpec {
                 firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec,
             ])
-        functions.append(
-            contentsOf: genericAfter.flatMap { name in
-                if name == "kk_list_sortedBy" {
-                    return [hofSpec(name), sortedByPrimitiveSpec]
-                }
-                return [hofSpec(name)]
-            }
-        )
+        functions.append(contentsOf: genericAfter)
 
         functions.append(contentsOf: [legacyListZipTransformSpec]
             + listWindowChunkBridgeSpecs
@@ -405,109 +540,17 @@ public extension RuntimeABISpec {
             + listSliceTakeDropSpecs
             + [
 
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_sortedDescending",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_sortedDescending_primitive",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "kindRaw", type: .int32),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_sortedByDescending",
-                    parameters: hofLambdaParams,
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_sortedByDescending_primitive",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "kindRaw", type: .int32),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                hofSpec("kk_list_sortedWith"),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_maxBy",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_maxByOrNull",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minByOrNull",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minBy",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_maxOfOrNull",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minOfOrNull",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                        RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                        RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
+                listSortedDescendingSpec,
+                listSortedDescendingPrimitiveSpec,
+                listSortedByDescendingSpec,
+                listSortedByDescendingPrimitiveSpec,
+                listSortedWithSpec,
+                listMaxBySpec,
+                listMaxByOrNullSpec,
+                listMinByOrNullSpec,
+                listMinBySpec,
+                listMaxOfOrNullSpec,
+                listMinOfOrNullSpec,
                 // ArrayDeque (STDLIB-240 / KSP-625 ring-buffer bridges)
                 RuntimeABIFunctionSpec(
                     name: "__kk_arraydeque_new",

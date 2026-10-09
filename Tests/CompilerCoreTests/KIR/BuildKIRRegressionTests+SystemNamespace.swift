@@ -3,26 +3,6 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    /// KSP-617: getTimeMicros is a bundled Kotlin function, so user code lowers to a
-    /// plain Kotlin call — the __kk_system_* bridge is only reached from the
-    /// stdlib layer, never inlined into user KIR.
-    @Test func testGetTimeMicrosLowersToBundledKotlinCallee() throws {
-        let source = """
-        import kotlin.system.getTimeMicros
-
-        fun main(): Long = getTimeMicros()
-        """
-        let ctx = makeContextFromSource(source)
-        try runToKIR(ctx)
-
-        let module = try #require(ctx.kir)
-        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-
-        #expect(callees.contains("getTimeMicros"), "Expected a call to the bundled getTimeMicros")
-        #expect(!callees.contains("__kk_system_getTimeMicros"), "Bridge must not be called from user KIR")
-    }
-
     @Test func testSystemObjectMembersLowerToBundledKotlinCallees() throws {
         let source = """
         import kotlin.system.System
@@ -48,9 +28,9 @@ extension BuildKIRRegressionTests {
             "Expected System.processStartNanos bundled call"
         )
         for bridge in [
-            "__kk_system_currentTimeMillis",
-            "__kk_system_nanoTime",
-            "__kk_system_process_start_nanos",
+            runtimeCallee(.systemCurrentTimeMillis),
+            runtimeCallee(.systemNanoTime),
+            runtimeCallee(.systemProcessStartNanos),
         ] {
             #expect(!callees.contains(bridge), "User KIR must not call \(bridge) directly")
         }
@@ -82,7 +62,7 @@ extension BuildKIRRegressionTests {
             #expect(callees.contains(callee), "Expected a call to the bundled \(callee)")
         }
         for bridge in [
-            "__kk_system_currentTimeMillis", "__kk_system_getTimeMicros", "__kk_system_getTimeNanos",
+            runtimeCallee(.systemCurrentTimeMillis), runtimeCallee(.systemGetTimeMicros), runtimeCallee(.systemGetTimeNanos),
         ] {
             #expect(!callees.contains(bridge), "\(bridge) must not be inlined into user KIR")
         }
@@ -109,7 +89,7 @@ extension BuildKIRRegressionTests {
 
         #expect(callees.contains("measureTimeMillis"))
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            callees.contains(runtimeCallee(.callableRefTagKfunction)),
             "The callable reference must be materialised before the call"
         )
     }

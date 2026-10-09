@@ -71,9 +71,8 @@ struct ExtensionPropertyCompoundAssignTests {
         }
         #expect(accessorCalls == Array(repeating: [getter, setter], count: 6).flatMap { $0 }
             + [getter, setter, getter, getter, setter, getter, setter, getter])
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(!callees.contains("kk_array_get_inbounds"))
-        #expect(!callees.contains("kk_array_set"))
+        #expect(kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).isEmpty)
+        #expect(kirCalls(to: .arraySet, in: body, interner: ctx.interner).isEmpty)
     }
 
     @Test(arguments: ["b.y += 1", "b.y++", "++b.y", "b.y--", "--b.y"])

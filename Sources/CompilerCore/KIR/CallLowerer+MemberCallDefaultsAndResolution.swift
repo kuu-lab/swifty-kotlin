@@ -595,19 +595,6 @@ extension CallLowerer {
             && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
     }
 
-    func isKotlinResultType(
-        _ type: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let nonNullType = sema.types.makeNonNullable(type)
-        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
-              let symbol = sema.symbols.symbol(classType.classSymbol)
-        else {
-            return false
-        }
-        return symbol.fqName.map(interner.resolve) == ["kotlin", "Result"]
-    }
 
     func closedRangeInterfaceRuntimeName(
         memberName: String,

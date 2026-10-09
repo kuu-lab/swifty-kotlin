@@ -136,14 +136,30 @@ extension CallTypeChecker {
 
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
-        let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
-        if case let .functionType(functionType) = sema.types.kind(of: lookupReceiverType),
-           functionType.isCallableReference,
-           let result = inferCallableReferenceMember(
-               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
-               args: args, safeCall: safeCall, ctx: ctx, locals: &locals
-           ) {
-            return result
+        let baseLookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let lookupReceiverType: TypeID
+        if case let .functionType(functionType) = sema.types.kind(of: baseLookupReceiverType),
+           functionType.isCallableReference
+        {
+            if let result = inferCallableReferenceMember(
+                id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+                args: args, safeCall: safeCall, ctx: ctx, locals: &locals
+            ) {
+                return result
+            }
+            // Extensions on `KCallable<R>` / `KFunction<R>` (kotlin.reflect.full:
+            // `callSuspend`, ...) must see a callable reference as its reflective type.
+            if let kFunctionSymbol = sema.types.kFunctionInterfaceSymbol {
+                lookupReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: kFunctionSymbol,
+                    args: [.out(functionType.returnType)],
+                    nullability: functionType.nullability
+                )))
+            } else {
+                lookupReceiverType = baseLookupReceiverType
+            }
+        } else {
+            lookupReceiverType = baseLookupReceiverType
         }
         // `f.invoke(...)` where `f`'s own type is a function type
         // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at
@@ -1474,7 +1490,10 @@ extension CallTypeChecker {
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
-            case ("receive", 0):
+            // KUU-1453: `ch.receive` without parentheses is property-access
+            // syntax on a function — fall through so the invocation-syntax
+            // check rejects it like any other bound function.
+            case ("receive", 0) where ast.arena.isExplicitCall(id):
                 let resultType = sema.types.nullableAnyType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -1638,6 +1657,7 @@ extension CallTypeChecker {
            !safeCall,
            args.isEmpty,
            explicitTypeArgs.isEmpty,
+           ast.arena.isExplicitCall(id),
            invisible.isEmpty,
            sema.types.nullability(of: receiverType) == .nullable,
            memberName == "toString" || memberName == "hashCode",

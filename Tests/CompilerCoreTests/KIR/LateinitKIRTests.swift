@@ -19,10 +19,10 @@ struct LateinitKIRTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "read", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
+        let calls = kirCalls(in: body)
 
-        #expect(callees.contains("kk_lateinit_get_or_throw"),
-                      "Expected kk_lateinit_get_or_throw in read body, got: \(callees)")
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.lateinitGetOrThrow.name(in: ctx.interner) },
+                      "Expected kk_lateinit_get_or_throw in read body, got: \(calls)")
     }
 
     @Test func testLateinitIsInitializedEmitsRuntimeCheck() throws {
@@ -40,10 +40,10 @@ struct LateinitKIRTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "ready", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
+        let calls = kirCalls(in: body)
 
-        #expect(callees.contains("kk_lateinit_is_initialized"),
-                      "Expected kk_lateinit_is_initialized in ready body, got: \(callees)")
+        #expect(calls.contains { $0.callee == KIRRuntimeFunction.lateinitIsInitialized.name(in: ctx.interner) },
+                      "Expected kk_lateinit_is_initialized in ready body, got: \(calls)")
     }
 
     /// `c::name.isInitialized` on a bound receiver inside the declaring class
@@ -69,18 +69,16 @@ struct LateinitKIRTests {
                        "bound lateinit isInitialized should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
 
         let module = try #require(ctx.kir)
-        let probeCallees = extractCallees(
-            from: try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner),
-            interner: ctx.interner
+        let probeCalls = kirCalls(
+            in: try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
         )
-        #expect(probeCallees.contains("kk_lateinit_is_initialized"),
-                "Expected kk_lateinit_is_initialized in probe body, got: \(probeCallees)")
-        let mainCallees = extractCallees(
-            from: try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner),
-            interner: ctx.interner
+        #expect(probeCalls.contains { $0.callee == KIRRuntimeFunction.lateinitIsInitialized.name(in: ctx.interner) },
+                "Expected kk_lateinit_is_initialized in probe body, got: \(probeCalls)")
+        let mainCalls = kirCalls(
+            in: try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         )
-        #expect(mainCallees.contains("kk_lateinit_is_initialized"),
-                "Expected kk_lateinit_is_initialized in main body, got: \(mainCallees)")
+        #expect(mainCalls.contains { $0.callee == KIRRuntimeFunction.lateinitIsInitialized.name(in: ctx.interner) },
+                "Expected kk_lateinit_is_initialized in main body, got: \(mainCalls)")
     }
 
     /// `c::name.isInitialized` outside the declaring class has no access to
@@ -155,16 +153,10 @@ struct LateinitKIRTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "read", in: module, interner: ctx.interner)
-        let getOrThrow = body.compactMap { instruction -> KIRExprID?? in
-            guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_lateinit_get_or_throw",
-                  canThrow
-            else { return nil }
-            return .some(thrownResult)
-        }
+        let getOrThrow = kirCalls(to: .lateinitGetOrThrow, in: body, interner: ctx.interner)
         #expect(getOrThrow.count == 1, "Expected one kk_lateinit_get_or_throw call: \(body)")
-        #expect(getOrThrow.allSatisfy { $0 == nil },
-                "kk_lateinit_get_or_throw must not capture its exception in a thrownResult slot")
+        #expect(getOrThrow.allSatisfy { $0.canThrow && $0.thrownResult == nil },
+                "Lateinit reads must propagate exceptions without a private thrownResult slot")
     }
 
     /// The null sentinel is seeded at constructor entry, before the superclass
@@ -187,12 +179,18 @@ struct LateinitKIRTests {
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "Derived", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        let superCallIndex = try #require(callees.firstIndex(of: "<init>"), "No super call in \(callees)")
-        let fieldStoreIndices = callees.indices.filter { callees[$0] == "kk_array_set" }
-        #expect(fieldStoreIndices.count == 1, "Expected exactly one sentinel store: \(callees)")
+        let calls = kirCalls(in: body)
+        let sema = try #require(ctx.sema)
+        let base = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Base")]))
+        let superCallIndex = try #require(calls.first {
+            guard let symbol = $0.symbol else { return false }
+            return sema.symbols.symbol(symbol)?.kind == .constructor
+                && sema.symbols.parentSymbol(for: symbol) == base
+        }?.index, "No super constructor call in \(calls)")
+        let fieldStoreIndices = kirCalls(to: .arraySet, in: body, interner: ctx.interner).map(\.index)
+        #expect(fieldStoreIndices.count == 1, "Expected exactly one sentinel store: \(calls)")
         #expect(fieldStoreIndices.allSatisfy { $0 < superCallIndex },
-                "Sentinel store must precede the super constructor call: \(callees)")
+                "Sentinel store must precede the super constructor call: \(calls)")
     }
 
     /// Singleton storage is a zero-initialized global, so the lazy initializer
@@ -247,15 +245,14 @@ struct LateinitKIRTests {
 
         let module = try #require(ctx.kir)
         // `Probe.read` is also a (bodiless) KIR function; pick the override.
-        let readCallees = findAllKIRFunctions(in: module)
-            .filter { ctx.interner.resolve($0.name) == "read" }
-            .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
-        #expect(readCallees.contains("kk_lateinit_get_or_throw"), "\(readCallees)")
-        let makeCallees = extractCallees(
-            from: try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner),
-            interner: ctx.interner
+        let readCalls = findAllKIRFunctions(in: module)
+            .filter { $0.name == ctx.interner.intern("read") }
+            .flatMap { kirCalls(in: $0.body) }
+        #expect(readCalls.contains { $0.callee == KIRRuntimeFunction.lateinitGetOrThrow.name(in: ctx.interner) }, "\(readCalls)")
+        let makeCalls = kirCalls(
+            in: try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
         )
-        #expect(makeCallees.contains("kk_array_set"), "Object literal must seed the sentinel: \(makeCallees)")
+        #expect(makeCalls.contains { $0.callee == KIRRuntimeFunction.arraySet.name(in: ctx.interner) }, "Object literal must seed the sentinel: \(makeCalls)")
     }
 }
 #endif

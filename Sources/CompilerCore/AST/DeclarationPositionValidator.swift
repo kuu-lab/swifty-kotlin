@@ -103,26 +103,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// Validate only the members of a nominal declaration. Used by the local
-    /// nominal parser: the head modifiers are checked separately because the
-    /// declaration itself is a local expression.
-    func validateMembers(of declID: DeclID, site: OwnerSite) {
-        guard let decl = astArena.decl(declID),
-              case .nominal(let nominalSite) = site
-        else {
-            return
-        }
-        switch decl {
-        case .classDecl(let classDecl):
-            validateClassMembers(classDecl, site: nominalSite)
-        case .objectDecl(let objectDecl):
-            validateObjectMembers(objectDecl, site: nominalSite)
-        case .interfaceDecl(let interfaceDecl):
-            validateInterfaceMembers(interfaceDecl, site: nominalSite)
-        case .funDecl, .propertyDecl, .typeAliasDecl, .enumEntryDecl:
-            break
-        }
-    }
 
     // MARK: - Functions
 
@@ -203,6 +183,9 @@ struct DeclarationPositionValidator {
         let target = propertyTargetName(site: site)
 
         for (modifier, name) in Self.propertyImpossibleModifiers where modifiers.contains(modifier) {
+            if modifier == .inline, isTopLevelInlineGetterOnlyProperty(decl, site: site) {
+                continue
+            }
             emitNotApplicable(name, to: target, range: decl.range)
         }
 
@@ -277,6 +260,18 @@ struct DeclarationPositionValidator {
         decl.initializer == nil && decl.getter == nil && decl.setter == nil
     }
 
+    /// KUU-1459 covers top-level read-only properties with a custom getter and
+    /// no declared storage. Keep this exception matched to that syntax.
+    private func isTopLevelInlineGetterOnlyProperty(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
+        site == .file
+            && !decl.isVar
+            && decl.initializer == nil
+            && decl.getter.map { $0.body != .unit } == true
+            && decl.setter == nil
+            && decl.delegateExpression == nil
+            && decl.explicitBackingField == nil
+    }
+
     private func validatePropertyInitialization(_ decl: PropertyDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
         if modifiers.contains(.abstract)
@@ -318,13 +313,17 @@ struct DeclarationPositionValidator {
             )
             return
         }
+        let usesBackingField = accessorUsesBackingField(decl.getter)
+            || accessorUsesBackingField(decl.setter)
         let initialized = if decl.isVar {
-            // A `var` is fieldless only when it has both a custom getter and
-            // a non-empty custom setter; an empty setter acts as the default
-            // (field-assigning) accessor and still needs an initializer.
-            decl.getter != nil && decl.setter != nil && setterHasBody(decl.setter)
+            // An explicit empty body is still a custom accessor. The property
+            // is fieldless only when both accessors have bodies and neither
+            // uses `field`; a bodiless/default accessor still needs storage.
+            accessorHasBody(decl.getter)
+                && accessorHasBody(decl.setter)
+                && !usesBackingField
         } else {
-            decl.getter != nil
+            accessorHasBody(decl.getter) && !usesBackingField
         }
         if !initialized {
             let message = site == .file
@@ -334,17 +333,138 @@ struct DeclarationPositionValidator {
         }
     }
 
-    private func setterHasBody(_ setter: PropertyAccessorDecl?) -> Bool {
-        guard let setter else {
+    private func accessorHasBody(_ accessor: PropertyAccessorDecl?) -> Bool {
+        guard let accessor else {
             return false
         }
-        switch setter.body {
+        switch accessor.body {
         case .unit:
             return false
-        case .expr:
+        case .expr, .block:
             return true
-        case .block(let exprs, _):
-            return !exprs.isEmpty
+        }
+    }
+
+    private func accessorUsesBackingField(_ accessor: PropertyAccessorDecl?) -> Bool {
+        guard let accessor else { return false }
+        let roots: [ExprID] = switch accessor.body {
+        case .unit:
+            []
+        case .expr(let exprID, _):
+            [exprID]
+        case .block(let exprIDs, _):
+            exprIDs
+        }
+        var visited: Set<ExprID> = []
+        let fieldName = interner.intern("field")
+        for root in roots {
+            if expressionUsesBackingField(root, fieldName: fieldName, visited: &visited) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func expressionUsesBackingField(
+        _ exprID: ExprID,
+        fieldName: InternedString,
+        visited: inout Set<ExprID>
+    ) -> Bool {
+        guard visited.insert(exprID).inserted,
+              let expr = astArena.expr(exprID)
+        else {
+            return false
+        }
+        switch expr {
+        case .nameRef(let name, _) where name == fieldName,
+             .localAssign(let name, _, _) where name == fieldName,
+             .compoundAssign(_, let name, _, _) where name == fieldName:
+            return true
+        default:
+            break
+        }
+        for child in expressionChildren(of: expr) {
+            if expressionUsesBackingField(child, fieldName: fieldName, visited: &visited) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func expressionChildren(of expr: Expr) -> [ExprID] {
+        switch expr {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .nullLiteral,
+             .boolLiteral, .stringLiteral, .nameRef, .breakExpr, .continueExpr,
+             .superRef, .thisRef, .localNominalDecl, .objectLiteral:
+            []
+        case .stringTemplate(let parts, _):
+            parts.compactMap { part in
+                if case .expression(let exprID) = part { return exprID }
+                return nil
+            }
+        case .forExpr(_, let iterable, let body, _, _),
+             .forDestructuringExpr(_, let iterable, let body, _):
+            [iterable, body]
+        case .whileExpr(let condition, let body, _, _):
+            [condition, body]
+        case .doWhileExpr(let body, let condition, _, _):
+            [body, condition]
+        case .localDecl(_, _, _, let initializer, _, _):
+            initializer.map { [$0] } ?? []
+        case .localAssign(_, let value, _), .compoundAssign(_, _, let value, _),
+             .throwExpr(let value, _):
+            [value]
+        case .memberAssign(let receiver, _, let value, _),
+             .memberCompoundAssign(_, let receiver, _, let value, _):
+            [receiver, value]
+        case .indexedAssign(let receiver, let indices, let value, _),
+             .indexedCompoundAssign(_, let receiver, let indices, let value, _):
+            [receiver] + indices + [value]
+        case .call(let callee, _, let args, _):
+            [callee] + args.map(\.expr)
+        case .memberCall(let receiver, _, _, let args, _),
+             .safeMemberCall(let receiver, _, _, let args, _):
+            [receiver] + args.map(\.expr)
+        case .indexedAccess(let receiver, let indices, _):
+            [receiver] + indices
+        case .binary(_, let lhs, let rhs, _),
+             .inExpr(let lhs, let rhs, _), .notInExpr(let lhs, let rhs, _):
+            [lhs, rhs]
+        case .whenExpr(let subject, let branches, let elseExpr, _):
+            (subject.map { [$0] } ?? [])
+                + branches.flatMap { $0.conditions + ($0.guard_.map { [$0] } ?? []) + [$0.body] }
+                + (elseExpr.map { [$0] } ?? [])
+        case .returnExpr(let value, _, _):
+            value.map { [$0] } ?? []
+        case .ifExpr(let condition, let thenExpr, let elseExpr, _):
+            [condition, thenExpr] + (elseExpr.map { [$0] } ?? [])
+        case .tryExpr(let body, let catchClauses, let finallyExpr, _):
+            [body] + catchClauses.map(\.body) + (finallyExpr.map { [$0] } ?? [])
+        case .unaryExpr(_, let operand, _), .isCheck(let operand, _, _, _),
+             .asCast(let operand, _, _, _), .nullAssert(let operand, _):
+            [operand]
+        case .lambdaLiteral(_, let body, _, _):
+            [body]
+        case .callableRef(let receiver, _, _):
+            receiver.map { [$0] } ?? []
+        case .localFunDecl(_, _, _, _, let body, _, _):
+            expressionIDs(in: body)
+        case .blockExpr(let statements, let trailingExpr, _):
+            statements + (trailingExpr.map { [$0] } ?? [])
+        case .destructuringDecl(_, _, let initializer, _):
+            [initializer]
+        }
+    }
+
+    private func expressionIDs(in body: FunctionBody) -> [ExprID] {
+        switch body {
+        case .unit:
+            []
+        case .expr(let exprID, _):
+            [exprID]
+        case .block(let exprIDs, _):
+            exprIDs
         }
     }
 

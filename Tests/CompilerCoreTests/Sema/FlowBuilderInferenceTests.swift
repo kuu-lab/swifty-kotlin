@@ -4,6 +4,21 @@ import Testing
 
 @Suite
 struct FlowBuilderInferenceTests {
+    @Test
+    func transformInfersOutputTypeFromCollectorEmit() throws {
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.flow.*
+
+        fun demo() {
+            val result = flowOf(1, 2).transform { emit(it) }
+            val checked: Flow<Int> = result
+        }
+        """)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: "\n")
+        #expect(!ctx.diagnostics.hasError, "Diagnostics: \(diagnostics)")
+    }
+
     @Test(arguments: [
         "flow { emit(1) }.collect { value -> accept(value) }",
         "val result = flow { val value = identity(1); emit(value); emit(2) }; result.collect { accept(it) }",
@@ -45,7 +60,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
@@ -128,7 +143,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)
@@ -152,7 +167,7 @@ struct FlowBuilderInferenceTests {
                 guard case let .call(callee, _, _, _) = expr,
                       case let .nameRef(name, _) = ast.arena.expr(callee)
                 else { return false }
-                return ctx.interner.resolve(name) == "flow"
+                return name == KnownCompilerNames(interner: ctx.interner).flow
             }
             let call = try #require(calls.first)
             #expect(sema.bindings.flowElementType(forExpr: call) == sema.types.intType)

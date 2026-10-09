@@ -46,19 +46,6 @@ struct MapCountLoweringRoutingTests {
     }
     """
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     /// `.call` instructions whose callee resolves to `"count"`, with the
     /// resolved symbol and argument count (receiver + lambda [+ closure word]).
     private static func countCalls(
@@ -67,7 +54,7 @@ struct MapCountLoweringRoutingTests {
     ) -> [(argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
             guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == "count"
+                  callee == KnownCompilerNames(interner: interner).count
             else { return nil }
             return (arguments.count, symbol)
         }
@@ -88,7 +75,7 @@ struct MapCountLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let countCalls = Self.countCalls(in: body, interner: ctx.interner)
@@ -99,8 +86,8 @@ struct MapCountLoweringRoutingTests {
 
             let callees = Set(extractCallees(from: body, interner: ctx.interner))
             #expect(
-                !callees.contains("kk_map_count"),
-                "kk_map_count has no @_cdecl in Sources/Runtime and must never be emitted; callees: \(callees.sorted())"
+                !LoweringTestRuntime.operations(in: callees).contains("map_count"),
+                "The retired Map count bridge must never be emitted; callees: \(callees.sorted())"
             )
 
             // The exact shape the deleted rewrite branch produced: a
@@ -110,7 +97,7 @@ struct MapCountLoweringRoutingTests {
             let brokenCountRewrites = body.filter { instruction in
                 guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return false }
                 return symbol == nil
-                    && ctx.interner.resolve(callee) == "count"
+                    && callee == KnownCompilerNames(interner: ctx.interner).count
                     && arguments.count == 3
             }
             #expect(

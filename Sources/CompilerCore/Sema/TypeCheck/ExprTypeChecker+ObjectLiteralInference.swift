@@ -225,6 +225,51 @@ extension ExprTypeChecker {
             sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
         }
 
+        let inheritance = DataFlowSemaPhase()
+        inheritance.validateSupertypesAreOpen(
+            directSupertypes: directSuperSymbols,
+            declRange: objectDecl.range,
+            symbols: sema.symbols,
+            diagnostics: ctx.semaCtx.diagnostics,
+            interner: interner
+        )
+
+        // Delegate expressions run in the enclosing scope, before the anonymous
+        // object's receiver and members become available.
+        for entry in objectDecl.superTypeEntries {
+            guard let delegateExpr = entry.delegateExpression else { continue }
+            let interfaceType = driver.helpers.resolveTypeRef(
+                entry.typeRef,
+                ast: ast,
+                sema: sema,
+                interner: interner,
+                scope: ctx.scope,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            let field = inheritance.registerClassDelegation(
+                delegateExpression: delegateExpr,
+                interfaceType: interfaceType,
+                classSymbol: objectSymbol,
+                range: objectDecl.range,
+                symbols: sema.symbols,
+                types: sema.types,
+                diagnostics: ctx.semaCtx.diagnostics,
+                interner: interner
+            )
+            let expectedType = field.flatMap { sema.symbols.propertyType(for: $0) }
+            let delegateType = driver.inferExpr(delegateExpr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            if let expectedType {
+                driver.emitSubtypeConstraint(
+                    left: delegateType,
+                    right: expectedType,
+                    range: ast.arena.exprRange(delegateExpr),
+                    solver: driver.solver,
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
+        }
+
         // KSP-CAP-018: the superclass constructor call's arguments
         // (`object : Base(x) { ... }`) are evaluated in the *enclosing*
         // scope — same as a class header's `: Base(x)` — so they are
@@ -265,6 +310,22 @@ extension ExprTypeChecker {
             objectScope: objectScope,
             ctx: ctx
         )
+        inheritance.synthesizeDelegationForwardingForClass(
+            range: objectDecl.range,
+            memberFunctions: objectDecl.memberFunctions,
+            memberProperties: objectDecl.memberProperties,
+            classSymbol: objectSymbol,
+            classFQName: objectSymbolFQName,
+            symbols: sema.symbols,
+            bindings: sema.bindings,
+            types: sema.types,
+            interner: interner
+        )
+        for symbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: objectSymbol)
+            + sema.symbols.classDelegationForwardingPropertySymbols(forClass: objectSymbol)
+        {
+            objectScope.insert(symbol)
+        }
         // An unqualified member call (or `this@Outer`) inside the object
         // literal's member bodies can target the enclosing receiver — the
         // innermost `outerReceiverTypes` entry. Its runtime value is the
@@ -691,10 +752,11 @@ extension ExprTypeChecker {
     /// Unions the captured-outer-symbol sets of a local nominal's accessor
     /// bodies (always lowered as standalone KIR functions) and any caller-
     /// supplied roots: `extraBodies` covers `init {}` blocks and
-    /// `extraExprRoots` covers superclass constructor arguments and property
-    /// initializers — all of which lower inside `<init>` for a local class,
-    /// unlike an object literal where they run inline in the enclosing
-    /// function. `includePropertyInitializers` handles the latter.
+    /// `extraExprRoots` covers superclass constructor arguments.
+    /// `includePropertyInitializers` also collects ordinary property
+    /// initializers and delegated-property expressions; all of these lower
+    /// inside `<init>` for a local class, unlike an object literal where they
+    /// run inline in the enclosing function.
     func collectLocalNominalCaptureSymbols(
         memberProperties: [DeclID],
         includePropertyInitializers: Bool,
@@ -723,13 +785,19 @@ extension ExprTypeChecker {
                     skipNestedClosures: false
                 ))
             }
-            if includePropertyInitializers, let initializer = propertyDecl.initializer {
-                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
-                    in: initializer,
-                    ast: ast,
-                    sema: sema,
-                    outerSymbols: captureOuterSymbols
-                ))
+            if includePropertyInitializers {
+                let initializerRoots = [
+                    propertyDecl.initializer,
+                    propertyDecl.delegateExpression,
+                ].compactMap { $0 }
+                for initializer in initializerRoots {
+                    capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                        in: initializer,
+                        ast: ast,
+                        sema: sema,
+                        outerSymbols: captureOuterSymbols
+                    ))
+                }
             }
         }
         for body in extraBodies {
@@ -842,6 +910,13 @@ extension ExprTypeChecker {
             fieldOffsets[storageSymbol] = nextFieldOffset
             nextFieldOffset += 1
         }
+        let delegationFields = sema.symbols.delegatedInterfaces(forClass: ownerSymbol).compactMap {
+            sema.symbols.classDelegationField(forClass: ownerSymbol, interface: $0)
+        }
+        for fieldSymbol in delegationFields where fieldOffsets[fieldSymbol] == nil {
+            fieldOffsets[fieldSymbol] = nextFieldOffset
+            nextFieldOffset += 1
+        }
         // KSP-CAP-001: give each captured outer local/parameter its own
         // instance field so member functions (lowered as independent KIR
         // functions, unlike inlined property initializers) can read the
@@ -856,7 +931,8 @@ extension ExprTypeChecker {
         }
 
         let inheritedFieldCount = inheritedLayout?.instanceFieldCount ?? 0
-        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count + capturedSymbols.count
+        let instanceFieldCount = inheritedFieldCount + propertySymbolsByDecl.count
+            + delegationFields.count + capturedSymbols.count
         let inheritedInstanceSizeWords = inheritedLayout?.instanceSizeWords ?? 0
         let instanceSizeWords = max(objectHeaderWords + instanceFieldCount, inheritedInstanceSizeWords)
         let inheritedVtableSlots = inheritedLayout?.vtableSlots ?? [:]
@@ -878,7 +954,9 @@ extension ExprTypeChecker {
         // call through a base-typed reference finds no slot and is lowered as
         // a direct call to the base implementation.
         var nextVtableSlot = max(inheritedVtableSize ?? 0, (inheritedVtableSlots.values.max() ?? -1) + 1)
-        for memberSymbolID in memberFunctionSymbolsByDecl.values.sorted(by: { $0.rawValue < $1.rawValue }) {
+        let memberFunctionSymbols = Array(memberFunctionSymbolsByDecl.values)
+            + sema.symbols.classDelegationForwardingMethodSymbols(forClass: ownerSymbol)
+        for memberSymbolID in memberFunctionSymbols.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let method = sema.symbols.symbol(memberSymbolID) else { continue }
             if method.flags.contains(.overrideMember),
                let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]

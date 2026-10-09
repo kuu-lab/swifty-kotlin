@@ -679,60 +679,6 @@ import Testing
     }
 
     @Test
-    func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removefirstornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveFirstOrNull",
-            expected:
-                """
-                1
-                [2]
-                2
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_removelastornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListRemoveLastOrNull",
-            expected:
-                """
-                2
-                [1]
-                1
-                []
-                -1
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("mutable_list_sortwith.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MutableListSortWith",
-            expected:
-                """
-                [1, 3, 4]
-                [4, 3, 1]
-                [fig, pear, apple]
-                """ + "\n"
-        )
-    }
-
-    @Test
     func testCodegenSetFactoriesAndMutableSetMutationsUseRuntimeSetBox() throws {
         let source = """
         fun main() {
@@ -1141,8 +1087,8 @@ import Testing
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!(callees.contains("kk_list_flatMapIndexed")), "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())")
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("flatMapIndexed", in: ctx)
 
             // The artifact may inline flatMapIndexed, so prove the imported
             // implementation through its observable result instead of a

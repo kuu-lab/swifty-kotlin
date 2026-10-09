@@ -53,14 +53,14 @@ struct UseSiteVarianceFlowTests {
             let outPath = paths[0]
             let outGetCall = try #require(firstExprID(in: ast, path: outPath, ctx: ctx) { exprID, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "get"
+                return callee == KnownCompilerNames(interner: ctx.interner).get
             })
             #expect(sema.bindings.exprType(for: outGetCall) == sema.types.anyType)
 
             let starPath = paths[1]
             let starGetCall = try #require(firstExprID(in: ast, path: starPath, ctx: ctx) { exprID, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "get"
+                return callee == KnownCompilerNames(interner: ctx.interner).get
             })
             #expect(sema.bindings.exprType(for: starGetCall) == sema.types.nullableAnyType)
 
@@ -141,7 +141,7 @@ struct UseSiteVarianceFlowTests {
             let interner = ctx.interner
             let setValueCall = try #require(firstExprID(in: ast, path: path, ctx: ctx) { exprID, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return interner.resolve(callee) == "setValue"
+                return callee == interner.intern("setValue")
             })
             let binding = try #require(sema.bindings.callBinding(for: setValueCall))
             let calleeSymbol = try #require(sema.symbols.symbol(binding.chosenCallee))

@@ -857,69 +857,6 @@ extension DataFlowSemaPhase {
 
     // MARK: - freeze / isFrozen
 
-    func registerNativeConcurrentFreezeAndIsFrozen(
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let freezeName = interner.intern("freeze")
-        let freezeFQName = packageFQName + [freezeName]
-        let typeParameterName = interner.intern("T")
-        let typeParameterFQName = freezeFQName + [typeParameterName]
-        let typeParameterSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: typeParameterFQName) {
-            typeParameterSymbol = existing
-        } else {
-            typeParameterSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParameterName,
-                fqName: typeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: typeParameterSymbol)
-        let typeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: typeParameterSymbol,
-            nullability: .nonNull
-        )))
-
-        registerNativeConcurrentPackageFunction(
-            named: "freeze",
-            packageFQName: packageFQName,
-            receiverType: typeParameterType,
-            returnType: typeParameterType,
-            parameters: [],
-            typeParameterSymbols: [typeParameterSymbol],
-            annotations: [
-                nativeConcurrentDeprecatedErrorAnnotation(
-                    message: "Support for the legacy memory manager has been completely removed. Usages of this function can be safely dropped.",
-                    replaceWith: "this"
-                ),
-            ],
-            externalLinkName: "kk_freeze_object",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerNativeConcurrentPackageExtensionProperty(
-            named: "isFrozen",
-            packageFQName: packageFQName,
-            receiverType: types.nullableAnyType,
-            returnType: types.booleanType,
-            annotations: [
-                nativeConcurrentDeprecatedErrorAnnotation(
-                    message: "Support for the legacy memory manager has been completely removed. Consequently, this property is always `false`.",
-                    replaceWith: "false"
-                ),
-            ],
-            externalLinkName: "kk_is_frozen",
-            symbols: symbols,
-            interner: interner
-        )
-    }
 
     private func registerNativeConcurrentPackageExtensionProperty(
         named name: String,

@@ -216,4 +216,66 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: artifact
         )
     }
+
+    @Test(arguments: [true, false])
+    func testFlowFlatMapOperators(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.flow.*
+
+            fun makePipeline(source: Flow<Int>): Flow<String> {
+                return source
+                    .flatMapConcat { v ->
+                        flow {
+                            emit("a-$v")
+                            emit("b-$v")
+                        }
+                    }
+                    .map { "mapped-$it" }
+            }
+
+            fun main() = runBlocking {
+                // 1. Cold semantics verification (KUU-1350):
+                // Transform must not run at construction time (touched == 0).
+                var touched = 0
+                val coldFlow = flowOf(1, 2).flatMapConcat {
+                    touched++
+                    flowOf(it * 10)
+                }
+                println("touched before: $touched")
+                println(coldFlow.toList())
+                println("touched after: $touched")
+
+                // 2. Non-suspend pipeline composition
+                val pipeline = makePipeline(flowOf(1, 2))
+                println(pipeline.toList())
+
+                // 3. flatMapMerge with default concurrency and custom concurrency
+                println(flowOf(1, 2).flatMapMerge { flowOf(it, it * 100) }.toList())
+                println(flowOf(1, 2).flatMapMerge(2) { flowOf(it, it * 100) }.toList())
+                try {
+                    flowOf(1).flatMapMerge(0) { flowOf(it) }.toList()
+                } catch (e: IllegalArgumentException) {
+                    println("invalid concurrency")
+                }
+
+                // 4. flatMapLatest
+                println(flowOf(1, 2).flatMapLatest { flowOf(it * 5) }.toList())
+            }
+            """,
+            expectedOutput: """
+            touched before: 0
+            [10, 20]
+            touched after: 2
+            [mapped-a-1, mapped-b-1, mapped-a-2, mapped-b-2]
+            [1, 100, 2, 200]
+            [1, 100, 2, 200]
+            invalid concurrency
+            [5, 10]
+
+            """,
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
 }

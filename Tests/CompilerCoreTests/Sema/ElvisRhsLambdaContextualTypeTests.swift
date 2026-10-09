@@ -85,15 +85,15 @@ struct ElvisRhsLambdaContextualTypeTests {
         #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 
-    /// The LHS seed is not lambda-specific: `x ?: 0` on `x: Byte?` narrows
-    /// the literal to Byte, so the whole Elvis types as Byte and satisfies a
-    /// declared `Byte` target — kotlinc infers `Byte` here as well.
+    /// The LHS hint also narrows integer literals: `x ?: 0` on `x: Byte?`
+    /// types the Elvis expression as Byte, matching kotlinc.
     @Test func elvisRhsIntegerLiteralNarrowsToLhsElementType() throws {
         let ctx = makeContextFromSources([
             """
             package elvisIt4
             fun narrow(b: Byte?): Byte {
                 val z: Byte = b ?: 0
+                val negative: Byte = b ?: -1
                 return z
             }
             """
@@ -143,6 +143,47 @@ struct ElvisRhsLambdaContextualTypeTests {
         ])
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0022", in: ctx)
+    }
+
+    /// A non-lambda RHS keeps its natural result type instead of being forced
+    /// to the LHS type. This covers both the Boolean?/Unit and String?/Unit
+    /// forms that appeared in kotlinx-cli after KUU-1368.
+    @Test func elvisRhsRunBlockIsNotConstrainedByNonNullLhsType() throws {
+        let ctx = makeContextFromSources([
+            """
+            package elvisIt8
+            fun booleanFallback(value: Boolean?) = value ?: run { println("x") }
+            var fullName: String? = null
+            fun assignName(name: String) {
+                fullName ?: run { fullName = name }
+            }
+            class S(val m: MutableList<String>)
+            var sub: S? = null
+            fun addArg(arg: String) {
+                sub?.let { it.m.add(arg) } ?: run {
+                    if (arg.length > 3) println("unknown $arg")
+                }
+            }
+            """
+        ])
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// The LHS function type supplies the lambda's input types without forcing
+    /// its result to match the LHS function's return type. kotlinc accepts this
+    /// and infers the Elvis result from both function types.
+    @Test func elvisLambdaLhsHintDoesNotConstrainLambdaReturnType() throws {
+        let ctx = makeContextFromSources([
+            """
+            package elvisIt9
+            fun widen(g: ((String) -> Int)?) = g ?: { it.length.toLong() }
+            """
+        ])
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 }
 #endif

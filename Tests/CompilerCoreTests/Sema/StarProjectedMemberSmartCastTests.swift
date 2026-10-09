@@ -28,7 +28,7 @@ struct StarProjectedMemberSmartCastTests {
         let calls = ast.arena.exprs.indices.map { ExprID(rawValue: Int32($0)) }.filter { id in
             guard let expr = ast.arena.expr(id) else { return false }
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         }
         #expect(calls.count == 4)
         let throwableType = try #require(TypeCheckHelpers().throwableType(sema: sema, interner: ctx.interner))
@@ -68,7 +68,7 @@ struct StarProjectedMemberSmartCastTests {
         let sema = try #require(ctx.sema)
         let call = try #require(firstExprID(in: ast) { _, expr in
             guard case let .memberCall(_, name, _, _, _) = expr else { return false }
-            return ctx.interner.resolve(name) == "createCopy"
+            return name == ctx.interner.intern("createCopy")
         })
         #expect(sema.bindings.exprType(for: call) == sema.types.nullableAnyType)
     }
@@ -140,6 +140,26 @@ struct StarProjectedMemberSmartCastTests {
             else { return false }
             return symbol.fqName.last == ctx.interner.intern("List")
         })
+    }
+
+    // KUU-1463: a stable member property remains smart-castable when the `is`
+    // check is inside a non-inline lambda, including a delegated `lazy` value.
+    @Test func typeParameterPropertyNarrowsInsideNonInlineLambda() throws {
+        let ctx = makeContextFromSource("""
+        class D<R>(val defaultValue: R?) {
+            val defaultValueSet by lazy {
+                defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            }
+            val explicitDefaultValueSet by lazy {
+                this.defaultValue != null && (this.defaultValue is List<*> && this.defaultValue.isNotEmpty() || this.defaultValue !is List<*>)
+            }
+            fun plain(): Boolean = defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>)
+            fun inRun(): Boolean = run { defaultValue != null && (defaultValue is List<*> && defaultValue.isNotEmpty() || defaultValue !is List<*>) }
+        }
+        fun read(d: D<List<Int>>): Boolean = d.defaultValueSet && d.explicitDefaultValueSet
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test(arguments: [

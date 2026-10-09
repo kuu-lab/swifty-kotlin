@@ -121,19 +121,37 @@ extension ExprTypeChecker {
             lhsID, ctx: ctx, locals: &locals,
             expectedType: isSafeLetElvisFailure ? (expectedType ?? earlyElvisRhs) : nil
         )
-        // Elvis can narrow an integer literal on the right side to the overall
-        // expected type, e.g. `val b: Byte = parsed ?: 0`. When no contextual
-        // type is provided, the RHS is instead checked against the LHS's
-        // non-null type, matching kotlinc: `g ?: { it.length }` binds the
-        // implicit `it` parameter from `g`'s `(String) -> Int`, and `x ?: 0`
-        // narrows the literal to `x`'s element type. An `error`/`Nothing`
-        // LHS carries no usable contextual type, so it seeds nothing.
+        // Elvis uses an enclosing expected type for its RHS, but the LHS's
+        // non-null type is only a contextual hint when no enclosing type exists.
+        // Apply that hint to lambda inputs (so implicit `it` can be inferred)
+        // and integer literals (which adopt the expected primitive type). Other
+        // expressions must keep their natural result type: constraining e.g.
+        // `run { ... }` to the LHS type rejects valid `Boolean? ?: Unit` code.
+        let nonNullLhs = sema.types.makeNonNullable(lhs)
+        let rhsIsIntegerLiteral: Bool = {
+            guard let rhsExpr = ast.arena.expr(rhsID) else { return false }
+            switch rhsExpr {
+            case .intLiteral, .uintLiteral:
+                return true
+            case let .unaryExpr(op, operandID, _)
+                where op == .unaryPlus || op == .unaryMinus:
+                guard let operandExpr = ast.arena.expr(operandID) else { return false }
+                switch operandExpr {
+                case .intLiteral, .uintLiteral:
+                    return true
+                default:
+                    return false
+                }
+            default:
+                return false
+            }
+        }()
         let rhsExpectedType: TypeID? = if op == .elvis {
             if let expectedType {
                 expectedType
-            } else if case let nonNullLhs = sema.types.makeNonNullable(lhs),
-                      nonNullLhs != sema.types.errorType,
-                      nonNullLhs != sema.types.nothingType
+            } else if nonNullLhs != sema.types.errorType,
+                      nonNullLhs != sema.types.nothingType,
+                      rhsIsIntegerLiteral
             {
                 nonNullLhs
             } else {
@@ -142,7 +160,26 @@ extension ExprTypeChecker {
         } else {
             nil
         }
-        let rhs = earlyElvisRhs ?? driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        let rhs: TypeID
+        if let earlyElvisRhs {
+            rhs = earlyElvisRhs
+        } else if op == .elvis,
+                  expectedType == nil,
+                  case let .lambdaLiteral(params, body, _, _) = ast.arena.expr(rhsID),
+                  case .functionType = sema.types.kind(of: nonNullLhs)
+        {
+            rhs = inferLambdaLiteralExpr(
+                rhsID,
+                params: params,
+                body: body,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: nonNullLhs,
+                expectedTypeIsHintOnly: true
+            )
+        } else {
+            rhs = driver.inferExpr(rhsID, ctx: ctx, locals: &locals, expectedType: rhsExpectedType)
+        }
         // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
         // dispatch through a user-defined (or inherited Any) `equals()` override,
         // so they must bypass the operator-candidate resolution below entirely.

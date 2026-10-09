@@ -2,6 +2,22 @@ import Testing
 
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
+    func testFlowTransformSuspendReceiverAndElementArguments(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.flow.*
+            import kotlinx.coroutines.runBlocking
+
+            fun main() = runBlocking {
+                flowOf(1, 2).transform<Int, Int> { emit(it) }.collect { println(it) }
+            }
+            """,
+            expectedOutput: "1\n2\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
     func testLoopCarriedFlowScopeOwnership(artifact: Bool) throws {
         try compileAndRunKotlin(
             """
@@ -166,6 +182,37 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "[10, 20, 30]\n[10, 20, 30]\n[1, 10, 3, 30]\n[1, 10, 3, 30]\n[1]\n[1, 10, 2, 20]\n",
+            allowDefaultStdlibLibrary: artifact
+        )
+    }
+
+    @Test(arguments: [true, false])
+    func testFlowLatestCancelsPreviousSuspendingWork(artifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.delay
+            import kotlinx.coroutines.runBlocking
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val collected = mutableListOf<Int>()
+                flowOf(1, 2, 3).collectLatest { value ->
+                    if (value < 3) delay(50)
+                    collected.add(value)
+                }
+                println(collected)
+
+                val mappedSideEffects = mutableListOf<Int>()
+                val mapped = flowOf(1, 2, 3).mapLatest { value ->
+                    if (value < 3) delay(50)
+                    mappedSideEffects.add(value)
+                    value
+                }
+                println(mapped.toList())
+                println(mappedSideEffects)
+            }
+            """,
+            expectedOutput: "[3]\n[3]\n[3]\n",
             allowDefaultStdlibLibrary: artifact
         )
     }

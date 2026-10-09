@@ -688,6 +688,83 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// Builds the same source-argument to parameter mapping that final overload
+    /// resolution uses. The older index-only helpers cannot distinguish a
+    /// positional vararg element from a later defaulted parameter once the
+    /// argument list crosses the vararg slot.
+    func parameterMappingForCallArguments(
+        _ args: [CallArgument],
+        in signature: FunctionSignature,
+        ctx: TypeInferenceContext
+    ) -> [Int: Int]? {
+        let sema = ctx.sema
+        let callArgs = args.map { argument in
+            CallArg(
+                label: argument.label,
+                isSpread: argument.isSpread,
+                type: sema.bindings.exprTypes[argument.expr] ?? sema.types.anyType
+            )
+        }
+        return ctx.resolver.buildParameterMapping(
+            signature: signature,
+            callArgs: callArgs,
+            symbols: sema.symbols,
+            typeSystem: sema.types,
+            isCallableArgument: { index in
+                guard args.indices.contains(index) else { return false }
+                if case .lambdaLiteral = ctx.ast.arena.expr(args[index].expr) {
+                    return true
+                }
+                if case .callableRef = ctx.ast.arena.expr(args[index].expr) {
+                    return true
+                }
+                guard let type = sema.bindings.exprTypes[args[index].expr] else {
+                    return false
+                }
+                if case .functionType = sema.types.kind(of: type) {
+                    return true
+                }
+                return false
+            }
+        )
+    }
+
+    /// The expected source type of one nested call argument. A spread argument
+    /// and a named vararg argument carry the complete array at the call site;
+    /// their contextual type is therefore the vararg array, not its element.
+    func contextualCallArgumentType(
+        _ argument: CallArgument,
+        parameterIndex: Int,
+        in signature: FunctionSignature,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard signature.parameterTypes.indices.contains(parameterIndex) else {
+            return nil
+        }
+        let parameterType = signature.parameterTypes[parameterIndex]
+        let isVararg = signature.valueParameterIsVararg.indices.contains(parameterIndex)
+            && signature.valueParameterIsVararg[parameterIndex]
+        guard isVararg, argument.isSpread || argument.label != nil else {
+            return parameterType
+        }
+        if let primitiveArrayType = primitiveVarargArrayType(
+            elementType: parameterType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        ) {
+            return primitiveArrayType
+        }
+        let arrayName = ctx.interner.intern("Array")
+        guard let arraySymbol = ctx.sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), arrayName]) else {
+            return nil
+        }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: arraySymbol,
+            args: [.out(parameterType)],
+            nullability: .nonNull
+        )))
+    }
+
     /// Returns the single unsigned parameter type shared by all candidates for a
     /// suffixed unsigned literal. Unlike unsuffixed integer literals, Kotlin
     /// allows a constant UInt literal to narrow to UByte/UShort or widen to
@@ -759,18 +836,32 @@ extension CallTypeChecker {
 
         var narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
-                  isCallableArityCompatible(signature: signature, argCount: args.count)
+                  isCallableArityCompatible(signature: signature, argCount: args.count),
+                  let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
             else {
                 return false
             }
             for (otherIndex, inferredType) in inferredNonLambdaArgTypes {
-                guard let parameterType = parameterTypeForArgument(
-                    at: otherIndex,
-                    argumentLabel: args[otherIndex].label,
-                    in: signature,
-                    sema: sema
-                ) else {
+                guard args.indices.contains(otherIndex),
+                      let parameterIndex = parameterMapping[otherIndex],
+                      let parameterType = contextualCallArgumentType(
+                          args[otherIndex],
+                          parameterIndex: parameterIndex,
+                          in: signature,
+                          ctx: ctx
+                      )
+                else {
                     return false
+                }
+                let isNamedVarargArray = args[otherIndex].label != nil
+                    && signature.valueParameterIsVararg.indices.contains(parameterIndex)
+                    && signature.valueParameterIsVararg[parameterIndex]
+                if args[otherIndex].isSpread || isNamedVarargArray {
+                    // The final resolver checks the array shape and, for
+                    // generic arrays, constrains the vararg element type.
+                    // Comparing this array with the element parameter here
+                    // prematurely prunes every viable candidate.
+                    continue
                 }
                 if sema.types.isSubtype(inferredType, parameterType) {
                     continue
@@ -1107,7 +1198,7 @@ extension CallTypeChecker {
         )
     }
 
-    private func applyDispatchReceiverClassTypeArgs(
+    func applyDispatchReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
         candidate: SymbolID,
@@ -1117,7 +1208,8 @@ extension CallTypeChecker {
         guard signature.classTypeParameterCount > 0,
               let owner = sema.symbols.parentSymbol(for: candidate)
         else { return parameterType }
-        let receivers = [ctx.implicitReceiverType].compactMap { $0 }
+        let receivers = ctx.implicitReceiverStack.reversed().map(\.type)
+            + [ctx.implicitReceiverType].compactMap { $0 }
             + ctx.outerReceiverTypes.reversed().map(\.type)
         for receiver in receivers {
             guard let receiverClass = resolveClassType(receiver, sema: sema),

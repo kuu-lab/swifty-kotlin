@@ -1102,31 +1102,6 @@ public final class SymbolTable {
         enumEntryDispatchBaseSymbols[dispatchSymbol]
     }
 
-    /// Returns the enum's `$enumEntryDispatch$` helper for `toString`, when an
-    /// enum entry body overrides it. Dispatches are keyed by the base member a
-    /// call resolved to (e.g. `kotlin.Enum.toString` or `kotlin.Any.toString`),
-    /// so the helper is identified through its recorded base symbol.
-    public func enumEntryToStringDispatchSymbol(
-        for ownerSymbol: SymbolID,
-        interner: StringInterner
-    ) -> SymbolID? {
-        guard let owner = symbol(ownerSymbol) else {
-            return nil
-        }
-        let toStringName = interner.intern("toString")
-        return children(ofFQName: owner.fqName).first { childID in
-            guard let child = symbol(childID),
-                  child.kind == .function,
-                  interner.resolve(child.name).hasPrefix("$enumEntryDispatch$"),
-                  let baseSymbol = enumEntryDispatchBaseSymbol(for: childID),
-                  symbol(baseSymbol)?.name == toStringName,
-                  functionSignature(for: baseSymbol)?.parameterTypes.isEmpty ?? false
-            else {
-                return false
-            }
-            return true
-        }
-    }
 
     public func setPropertyType(_ type: TypeID, for symbol: SymbolID) {
         propertyTypes[symbol] = type
@@ -1994,9 +1969,6 @@ public final class BindingTable {
         callableTargets[expr] = target
     }
 
-    public func bindConstructorDelegationTarget(_ ctorSymbol: SymbolID, target: SymbolID) {
-        constructorDelegationTargets[ctorSymbol] = target
-    }
 
     public func bindConstructorDelegationCall(_ ctorSymbol: SymbolID, binding: CallBinding) {
         constructorDelegationTargets[ctorSymbol] = binding.chosenCallee

@@ -214,6 +214,31 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-1462: a reified enum token remains available inside a noinline lambda.
+    @Test(arguments: [false, true])
+    func testReifiedEnumValuesInsideNoinlineLambda(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/enum_values_reified_noinline_lambda.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ReifiedEnumValuesNoinlineLambda", emit: .executable,
+                outputPath: outputBase, stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\nB\n")
+        }
+    }
+
     @Test
     func testReifiedEnumValuesThroughInlineLibrary() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -1069,34 +1094,34 @@ struct StdlibArtifactRegressionTests {
                 from: try findKIRFunctionBody(named: "sumList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(listCallees.contains("kk_list_iterator"), "artifact List loop must use kk_list_iterator: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_hasNext"), "artifact List loop must use list hasNext: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_next"), "artifact List loop must use list next: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterable_iterator"), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_hasNext"), "artifact List loop must not use generic hasNext: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_next"), "artifact List loop must not use generic next: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator")), "artifact List loop must use kk_list_iterator: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact List loop must use list hasNext: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact List loop must use list next: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact List loop must not use generic hasNext: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_next")), "artifact List loop must not use generic next: \(listCallees)")
 
             let iterableCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumIterable", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(iterableCallees.contains("kk_iterable_iterator"), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_hasNext"), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_next"), "artifact Iterable loop must use generic next: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_hasNext"), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_next"), "artifact Iterable loop must not use list next: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_next")), "artifact Iterable loop must use generic next: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact Iterable loop must not use list next: \(iterableCallees)")
 
             let mutableListCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(mutableListCallees.contains("kk_list_iterator"), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must use list next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterable_iterator"), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator")), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact MutableList loop must use list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_next")), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("range_iterator")), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
 
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
@@ -2171,7 +2196,7 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// Imported runtime-backed interface getters retain a direct external link
+    /// Imported runtime-backed interface getters retain a direct runtime target
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.
     @Test
@@ -2208,14 +2233,15 @@ struct StdlibArtifactRegressionTests {
                 interner: ctx.interner
             )
             let directGetterLinks = body.compactMap { instruction -> String? in
-                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                      let symbol
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction
                 else {
                     return nil
                 }
-                return sema.symbols.externalLinkName(for: symbol)
+                // Runtime intrinsics may use a direct KIR callee without a Sema symbol.
+                return symbol.flatMap { sema.symbols.externalLinkName(for: $0) }
+                    ?? ctx.interner.resolve(callee)
             }
-            #expect(directGetterLinks.contains("__kk_collection_size"))
+            #expect(directGetterLinks.contains(try runtimeABICallee("collection_size")))
             #expect(!body.contains { instruction in
                 guard case .virtualCall = instruction else { return false }
                 return true
@@ -2786,11 +2812,11 @@ struct StdlibArtifactRegressionTests {
             shared.emit(2)
             shared.emit(3)
             println(shared.replayCache)
-            shared.collect { value -> println("class=$value") }
+            shared.take(2).collect { value -> println("class=$value") }
 
             val view: SharedFlow<Int> = shared
             println(view.replayCache)
-            view.collect { value -> println("iface=$value") }
+            view.take(2).collect { value -> println("iface=$value") }
 
             println(flowOf(4, 5, 6).shareIn(2).replayCache)
         }
@@ -2883,19 +2909,19 @@ struct StdlibArtifactRegressionTests {
                 listOf(SharingCommand.START, SharingCommand.STOP_AND_RESET_REPLAY_CACHE))
             val state = flowOf(2, 3).stateIn(scope, SharingStarted.Lazily, -1)
             println(state.value)
-            state.collect { println("state=$it") }
+            state.take(1).collect { println("state=$it") }
             println(state.value)
             val shared = flowOf(4, 5).shareIn(scope, SharingStarted.Lazily, 2)
             println(shared.replayCache)
-            shared.collect { println("shared=$it") }
+            shared.take(2).collect { println("shared=$it") }
             println(shared.replayCache)
             val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
-            reset.collect { println("reset=$it") }
+            reset.take(1).collect { println("reset=$it") }
             println(reset.value)
-            reset.collect { println("restart=$it") }
+            reset.take(1).collect { println("restart=$it") }
             println(reset.value)
             val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
-            eager.collect { println("eager=$it") }
+            eager.take(1).collect { println("eager=$it") }
             println(eager.replayCache)
             val mutable = MutableStateFlow(0)
             val collector: FlowCollector<Int> = mutable
@@ -2939,7 +2965,7 @@ struct StdlibArtifactRegressionTests {
 
             fun main() = runBlocking {
                 val shared = flowOf(1, 2).shareIn(this, SharingStarted.Lazily, 2)
-                println(shared.toList())
+                println(shared.take(2).toList())
             }
             """, artifactPath: artifactPath, expected: "[1, 2]\n")
     }
@@ -3338,6 +3364,227 @@ struct StdlibArtifactRegressionTests {
     }
 
     @Test(arguments: [false, true])
+    func testMutableSharedFlowSubscriptionCountTracksLaunchedCollectors(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1465_mutable_shared_flow_subscription_count.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "MutableSharedFlowSubscriptionCount",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                1
+                0
+
+                """)
+        }
+    }
+
+    /// KUU-1599: hot flows must keep their collectors registered while they
+    /// wait for updates, deliver emissions to every subscriber, and release
+    /// each subscription on completion or cancellation.
+    @Test(arguments: [false, true])
+    func testHotFlowEmissionsReachLiveCollectors(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            suspend fun awaitCondition(label: String, condition: () -> Boolean) {
+                var remaining = 1000
+                while (remaining > 0 && !condition()) {
+                    delay(1)
+                    remaining -= 1
+                }
+                check(condition()) { "Timed out waiting for $label" }
+            }
+
+            suspend fun awaitJob(label: String, job: Job) {
+                awaitCondition(label) { job.isCompleted }
+                job.join()
+            }
+
+            val shared = MutableSharedFlow<Int>()
+            val sharedCount = shared.subscriptionCount
+            val sharedValues = mutableListOf<Int>()
+            val sharedJob = launch {
+                shared.take(3).collect { sharedValues.add(it) }
+            }
+            awaitCondition("shared subscription") { sharedCount.value == 1 }
+            println("sharedCount=${sharedCount.value}")
+            shared.emit(1)
+            delay(5)
+            shared.emit(2)
+            delay(5)
+            shared.emit(3)
+            awaitJob("shared take completion", sharedJob)
+            println("shared=${sharedValues}")
+            println("sharedCountAfter=${sharedCount.value}")
+
+            val state = MutableStateFlow(0)
+            val stateCount = state.subscriptionCount
+            val stateValues = mutableListOf<Int>()
+            val stateJob = launch {
+                state.take(3).collect { stateValues.add(it) }
+            }
+            awaitCondition("state subscription") { stateCount.value == 1 }
+            println("stateCount=${stateCount.value}")
+            state.value = 1
+            delay(5)
+            state.value = 1
+            delay(5)
+            state.value = 2
+            awaitJob("state take completion", stateJob)
+            println("state=${stateValues}")
+            println("stateCountAfter=${stateCount.value}")
+
+            val multiple = MutableSharedFlow<Int>()
+            val multipleCount = multiple.subscriptionCount
+            val firstValues = mutableListOf<Int>()
+            val secondValues = mutableListOf<Int>()
+            val firstJob = launch {
+                multiple.collect { firstValues.add(it) }
+            }
+            val secondJob = launch {
+                multiple.collect { secondValues.add(it) }
+            }
+            awaitCondition("both shared subscriptions") { multipleCount.value == 2 }
+            println("multipleCount=${multipleCount.value}")
+            multiple.emit(10)
+            delay(5)
+            multiple.emit(20)
+            awaitCondition("both shared collectors receive both values") {
+                firstValues.size == 2 && secondValues.size == 2
+            }
+            firstJob.cancelAndJoin()
+            secondJob.cancelAndJoin()
+            println("multipleFirst=${firstValues}")
+            println("multipleSecond=${secondValues}")
+            println("multipleCountAfter=${multipleCount.value}")
+
+            val operators = MutableSharedFlow<Int>()
+            val operatorValues = mutableListOf<Int>()
+            val operatorJob = launch {
+                operators.drop(1).take(2).collect { operatorValues.add(it) }
+            }
+            awaitCondition("operator subscription") { operators.subscriptionCount.value == 1 }
+            operators.emit(4)
+            delay(5)
+            operators.emit(5)
+            delay(5)
+            operators.emit(6)
+            awaitJob("drop/take completion", operatorJob)
+            println("dropTake=${operatorValues}")
+
+            val latest = MutableSharedFlow<Int>()
+            val latestCount = latest.subscriptionCount
+            val latestValues = mutableListOf<Int>()
+            val latestFinished = CompletableDeferred<Int>()
+            val latestJob = launch {
+                latest.collectLatest { value ->
+                    if (value == 1) delay(80)
+                    latestValues.add(value)
+                    if (value == 3) latestFinished.complete(value)
+                }
+            }
+            awaitCondition("collectLatest subscription") { latestCount.value == 1 }
+            println("latestCount=${latestCount.value}")
+            latest.emit(1)
+            delay(10)
+            latest.emit(2)
+            delay(100)
+            latest.emit(3)
+            awaitCondition("collectLatest third value") { latestFinished.isCompleted }
+            println("latestFinished=${latestFinished.await()}")
+            latestJob.cancelAndJoin()
+            println("latest=${latestValues}")
+            println("latestCountAfter=${latestCount.value}")
+
+            val lazySubscriptionCount = MutableStateFlow(0)
+            val lazyCommands = mutableListOf<SharingCommand>()
+            val lazyCommandJob = launch {
+                SharingStarted.Lazily.command(lazySubscriptionCount).take(1)
+                    .collect { lazyCommands.add(it) }
+            }
+            awaitCondition("lazy command subscription") {
+                lazySubscriptionCount.subscriptionCount.value == 1
+            }
+            lazySubscriptionCount.value = 1
+            awaitJob("lazy command start", lazyCommandJob)
+            println("lazyCommands=${lazyCommands}")
+            println("lazyCommandCountAfter=${lazySubscriptionCount.subscriptionCount.value}")
+
+            val whileSubscribedCount = MutableStateFlow(0)
+            val whileSubscribedCommands = mutableListOf<SharingCommand>()
+            val whileSubscribedJob = launch {
+                SharingStarted.WhileSubscribed().command(whileSubscribedCount).take(2)
+                    .collect { whileSubscribedCommands.add(it) }
+            }
+            awaitCondition("while-subscribed command subscription") {
+                whileSubscribedCount.subscriptionCount.value == 1
+            }
+            whileSubscribedCount.value = 1
+            awaitCondition("while-subscribed start command") {
+                whileSubscribedCommands.size == 1
+            }
+            whileSubscribedCount.value = 0
+            awaitJob("while-subscribed stop command", whileSubscribedJob)
+            println("whileSubscribedCommands=${whileSubscribedCommands}")
+            println("whileSubscribedCommandCountAfter=${whileSubscribedCount.subscriptionCount.value}")
+
+            val sharingScope = CoroutineScope(Job())
+            val defaultReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly)
+            val explicitReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly, replay = 3)
+            awaitCondition("explicit replay cache") { explicitReplay.replayCache.size == 3 }
+            println("defaultReplay=${defaultReplay.replayCache}")
+            println("explicitReplay=${explicitReplay.replayCache}")
+            sharingScope.cancel()
+        }
+        """
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            sharedCount=1
+            shared=[1, 2, 3]
+            sharedCountAfter=0
+            stateCount=1
+            state=[0, 1, 2]
+            stateCountAfter=0
+            multipleCount=2
+            multipleFirst=[10, 20]
+            multipleSecond=[10, 20]
+            multipleCountAfter=0
+            dropTake=[5, 6]
+            latestCount=1
+            latestFinished=3
+            latest=[2, 3]
+            latestCountAfter=0
+            lazyCommands=[START]
+            lazyCommandCountAfter=0
+            whileSubscribedCommands=[START, STOP]
+            whileSubscribedCommandCountAfter=0
+            defaultReplay=[]
+            explicitReplay=[1, 2, 3]\n
+            """)
+    }
+
+    @Test(arguments: [false, true])
     func testSnapshotFlowAPIs(fromSource: Bool) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
         let source = """
@@ -3352,7 +3599,7 @@ struct StdlibArtifactRegressionTests {
             val count = shared.subscriptionCount
             val view = shared.asSharedFlow()
             println(count.value)
-            view.collect { value ->
+            view.take(2).collect { value ->
                 println("shared=$value/count=${count.value}")
                 if (value == 1) {
                     shared.resetReplayCache()
@@ -3366,8 +3613,8 @@ struct StdlibArtifactRegressionTests {
             } catch (e: IllegalStateException) {
                 println("exception/count=${count.value}")
             }
-            shared.collect {
-                shared.collect { println("nested=${count.value}") }
+            shared.take(1).collect {
+                shared.take(1).collect { println("nested=${count.value}") }
                 println("outer=${count.value}")
             }
             println(count.value)
@@ -3599,27 +3846,63 @@ struct StdlibArtifactRegressionTests {
         @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 
         import kotlin.native.concurrent.FutureState
+        import kotlin.native.concurrent.TransferMode
 
-        fun futureStateEntries(): kotlin.enums.EnumEntries<FutureState> = FutureState.entries
-        fun futureStateValue(): Int = FutureState.COMPUTED.value
-        fun futureStateValueOf(): FutureState = FutureState.valueOf("THROWN")
-        fun futureStateValues(): Array<FutureState> = FutureState.values()
-        fun futureStateOrdinal(): Int = FutureState.CANCELLED.ordinal
-        fun futureStateName(): String = FutureState.INVALID.name
+        fun main() {
+            println(FutureState.entries.size)
+            println(FutureState.INVALID.value)
+            println(FutureState.SCHEDULED.value)
+            println(FutureState.COMPUTED.value)
+            println(FutureState.CANCELLED.value)
+            println(FutureState.THROWN.value)
+            println(FutureState.valueOf(name = "THROWN").value)
+            println(FutureState.values().size)
+
+            println(TransferMode.entries.size)
+            println(TransferMode.SAFE.value)
+            println(TransferMode.valueOf("UNSAFE").value)
+            println(TransferMode.values().size)
+        }
         """
         try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
             let ctx = makeCompilationContext(
                 inputs: [userPath],
                 moduleName: "ImportedEnumMembersArtifact",
-                emit: .kirDump,
+                emit: .executable,
+                outputPath: outputBase,
                 includeStdlib: false,
                 stdlibLibraryPath: artifactPath
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
             #expect(
                 !ctx.diagnostics.hasError,
                 "Imported enum implicit members should resolve: \(ctx.diagnostics.diagnostics)"
             )
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                5
+                0
+                1
+                2
+                3
+                4
+                4
+                5
+                2
+                0
+                1
+                2
+
+                """)
         }
     }
 

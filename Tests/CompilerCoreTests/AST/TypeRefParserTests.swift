@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite("TypeRefParser")
@@ -52,7 +53,7 @@ struct TypeRefParserTests {
                 Issue.record("Expected makeIt as the callee")
                 continue
             }
-            #expect(lexed.interner.resolve(name) == "makeIt")
+            #expect(name == lexed.interner.intern("makeIt"))
             #expect(typeArgs.count == 1)
             #expect(args.count == 1)
             #expect(parser.current() == nil)
@@ -85,13 +86,10 @@ struct TypeRefParserTests {
 
     @Test
     func classPropertyInitializerRetainsExplicitReceiverFunctionType() throws {
-        let (ast, ctx) = try buildASTModule(from: """
-        fun <X> makeIt(x: X): X = x
-        class P<T : Any> {
-            private val instance = makeIt<T?.() -> Int>({ 1 })
-            fun read(value: T?): Int = instance(value)
-        }
-        """, includeStdlib: false)
+        let (ast, ctx) = try buildASTModule(
+            from: KotlinSourceFixtures.genericClassPropertyInitializerTypeArgument,
+            includeStdlib: false
+        )
         let property = try #require(memberProperty(named: "instance", ofClass: "P", in: ast, interner: ctx.interner))
         let initializer = try #require(property.initializer)
         guard case let .call(_, typeArgs, _, _) = ast.arena.expr(initializer) else {

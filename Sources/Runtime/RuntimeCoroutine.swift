@@ -526,6 +526,13 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 
     func scheduleDelay(milliseconds: Int) {
+        if let scheduler = scope?.testSchedulerIfPresent() {
+            scheduler.schedule(after: Int64(max(0, milliseconds))) { [weak self] in
+                self?.signalResume()
+            }
+            return
+        }
+
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
         let timerID = ObjectIdentifier(timer as AnyObject)
         stateLock.lock()
@@ -1317,6 +1324,14 @@ enum RuntimePendingLaunchQueue {
     /// the caller yields. Only pool-bound work needs staging until `flush()` to
     /// keep synchronous cancellation from racing with dispatch.
     static func enqueue(job: RuntimeJobHandle, workItem: DispatchWorkItem) {
+        if let scheduler = job.continuationState?.scope?.testSchedulerIfPresent() {
+            let boxedWorkItem = RuntimeWorkItemBox(workItem)
+            scheduler.schedule(after: 0) {
+                boxedWorkItem.performUnlessCancelled()
+            }
+            return
+        }
+
         guard RuntimeEventLoop.current == nil, RuntimeCoroutineBurstDepth.isActive else {
             KxMiniRuntime.launch(workItem: workItem)
             return
@@ -2122,6 +2137,21 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
             testSchedulerHandle = runtimeRegisterObject(RuntimeTestScheduler())
         }
         return testSchedulerHandle
+    }
+
+    /// Returns the test scheduler only when the scope already represents a
+    /// test scope. Ordinary coroutine scopes keep using wall-clock delays.
+    func testSchedulerIfPresent() -> RuntimeTestScheduler? {
+        lock.lock()
+        let handle = testSchedulerHandle
+        let parentScope = parent
+        lock.unlock()
+        if handle != 0,
+           let scheduler = resolveLiveRuntimeHandle(handle, as: RuntimeTestScheduler.self)
+        {
+            return scheduler
+        }
+        return parentScope?.testSchedulerIfPresent()
     }
 
     // CORO-003: Task-local scope registry (replaces TLS).
@@ -3787,6 +3817,20 @@ private func runtimeBindProducerScope(
     context: RuntimeCoroutineContext
 ) {
     guard let channel = runtimeChannelHandleObject(from: channelHandle) else { return }
+    let producerScopeTypeID = runtimeStableNominalTypeID(
+        fqName: "kotlinx.coroutines.channels.ProducerScope"
+    )
+    runtimeRegisterObjectType(rawValue: channelHandle, classID: producerScopeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: producerScopeTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CoroutineScope")
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: producerScopeTypeID,
+        parentTypeID: runtimeStableNominalTypeID(
+            fqName: "kotlinx.coroutines.channels.SendChannel"
+        )
+    )
     let scope = RuntimeCoroutineScope(context: context)
     scope.adoptJob(job)
     channel.bindProducerScope(scope)
@@ -4608,6 +4652,7 @@ public func kk_coroutine_scope_async_with_cont(
     // DeferredCoroutine contract), so `this` and any nested builder observe a
     // child scope whose Job is the task's — not the receiver scope's.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
     state.scope = childScope
@@ -4675,6 +4720,7 @@ public func kk_coroutine_scope_async(
     // Same DeferredCoroutine contract as the continuation path: the block runs
     // on a child scope whose context Job is this task's job.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     return runtimeScopeAsync(
         scope: scope, context: context, start: start,
@@ -4767,6 +4813,7 @@ private func runtimeScopeLaunch(
         ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob ?? scope.job
     let parent = contextParent === runtimeNonCancellableJob ? nil : contextParent
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     // Whether the child is additionally registered into `scope` for
     // waitForChildren tracking — a scope that observes the failure can absorb
@@ -4864,6 +4911,8 @@ private func runtimeScopeAsync(
     let schedule: @Sendable () -> Void = {
         if context.dispatcher != 0 {
             runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
+        } else if let scheduler = scope.testSchedulerIfPresent() {
+            scheduler.schedule(after: 0, action: work)
         } else {
             KxMiniRuntime.launch(work)
         }
@@ -4985,14 +5034,19 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
 
 // MARK: - KSP-1583: kotlinx.coroutines.test
 
-/// Minimal virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
-/// The scheduler is only a virtual `currentTime` counter (milliseconds); no
-/// task queue exists yet, so `advanceUntilIdle`/`runCurrent` are degraded
-/// no-ops — matching the KSP-1583 phase-1 contract that rounds virtual time
-/// to real time (the runTest event loop runs children in real time).
+/// Virtual-clock backing for `kotlinx.coroutines.test.TestCoroutineScheduler`.
 final class RuntimeTestScheduler: @unchecked Sendable {
+    private struct ScheduledTask {
+        let timeMillis: Int64
+        let order: UInt64
+        let action: @Sendable () -> Void
+    }
+
     private let lock = NSLock()
     private var _currentTimeMillis: Int64 = 0
+    private var nextTaskOrder: UInt64 = 0
+    private var scheduledTasks: [ScheduledTask] = []
+    private weak var boundEventLoop: RuntimeEventLoop?
 
     init() {
         RuntimeLiveHandles.register(self)
@@ -5010,9 +5064,111 @@ final class RuntimeTestScheduler: @unchecked Sendable {
 
     func advanceTimeBy(_ millis: Int64) {
         guard millis > 0 else { return }
+        drainReadyCoroutines()
         lock.lock()
-        _currentTimeMillis += millis
+        let target = _currentTimeMillis.addingReportingOverflow(millis)
+        let targetTime = target.overflow ? Int64.max : target.partialValue
         lock.unlock()
+
+        runScheduledTasks(before: targetTime, includingEndpoint: false)
+        lock.lock()
+        _currentTimeMillis = max(_currentTimeMillis, targetTime)
+        lock.unlock()
+    }
+
+    func schedule(after millis: Int64, action: @escaping @Sendable () -> Void) {
+        lock.lock()
+        let delay = max(0, millis)
+        let dueTime = _currentTimeMillis.addingReportingOverflow(delay)
+        scheduledTasks.append(ScheduledTask(
+            timeMillis: dueTime.overflow ? Int64.max : dueTime.partialValue,
+            order: nextTaskOrder,
+            action: action
+        ))
+        nextTaskOrder &+= 1
+        lock.unlock()
+    }
+
+    func bind(eventLoop: RuntimeEventLoop) {
+        lock.lock()
+        boundEventLoop = eventLoop
+        lock.unlock()
+    }
+
+    func advanceUntilIdle() {
+        drainReadyCoroutines()
+        while let task = takeNextTask(through: Int64.max, includingEndpoint: true) {
+            run(task.action)
+            drainReadyCoroutines()
+        }
+    }
+
+    func runCurrent() {
+        drainReadyCoroutines()
+        runScheduledTasks(before: currentTimeMillis, includingEndpoint: true)
+    }
+
+    private func runScheduledTasks(before limit: Int64, includingEndpoint: Bool) {
+        while let task = takeNextTask(through: limit, includingEndpoint: includingEndpoint) {
+            run(task.action)
+            drainReadyCoroutines()
+        }
+    }
+
+    private func run(_ action: @Sendable () -> Void) {
+        let previous = RuntimeEventLoop.current
+        let loop: RuntimeEventLoop?
+        if let previous {
+            loop = previous
+        } else {
+            lock.lock()
+            loop = boundEventLoop
+            lock.unlock()
+        }
+        if previous == nil, let loop {
+            RuntimeEventLoop.current = loop
+        }
+        defer {
+            if previous == nil, loop != nil {
+                RuntimeEventLoop.current = nil
+            }
+        }
+        action()
+    }
+
+    private func takeNextTask(through limit: Int64, includingEndpoint: Bool) -> ScheduledTask? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let nextIndex = scheduledTasks.indices.min(by: { lhs, rhs in
+            let left = scheduledTasks[lhs]
+            let right = scheduledTasks[rhs]
+            if left.timeMillis != right.timeMillis {
+                return left.timeMillis < right.timeMillis
+            }
+            return left.order < right.order
+        }) else {
+            return nil
+        }
+        let next = scheduledTasks[nextIndex]
+        guard includingEndpoint ? next.timeMillis <= limit : next.timeMillis < limit else {
+            return nil
+        }
+        scheduledTasks.remove(at: nextIndex)
+        _currentTimeMillis = max(_currentTimeMillis, next.timeMillis)
+        return next
+    }
+
+    private func drainReadyCoroutines() {
+        RuntimePendingLaunchQueue.flush()
+        let loop: RuntimeEventLoop?
+        if let current = RuntimeEventLoop.current {
+            loop = current
+        } else {
+            lock.lock()
+            loop = boundEventLoop
+            lock.unlock()
+        }
+        loop?.runReadyTasks()
     }
 }
 
@@ -5053,9 +5209,7 @@ public func kk_test_scheduler_current_time(_ schedulerHandle: Int) -> Int {
     return Int(scheduler.currentTimeMillis)
 }
 
-/// `advanceTimeBy(delayTimeMillis)`: bumps the virtual clock. With no
-/// virtual-time task queue there is nothing to schedule, so the call is a
-/// pure counter advance.
+/// Advances virtual time and resumes tasks scheduled before the target time.
 @_cdecl("kk_test_scheduler_advance_time_by")
 public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTimeMillis: Int) -> Int {
     guard let scheduler = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self) else {
@@ -5065,17 +5219,15 @@ public func kk_test_scheduler_advance_time_by(_ schedulerHandle: Int, _ delayTim
     return 0
 }
 
-/// Degraded `advanceUntilIdle`: no scheduled task queue exists yet.
 @_cdecl("kk_test_scheduler_advance_until_idle")
 public func kk_test_scheduler_advance_until_idle(_ schedulerHandle: Int) -> Int {
-    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)?.advanceUntilIdle()
     return 0
 }
 
-/// Degraded `runCurrent`: no scheduled task queue exists yet.
 @_cdecl("kk_test_scheduler_run_current")
 public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
-    _ = resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)
+    resolveLiveRuntimeHandle(schedulerHandle, as: RuntimeTestScheduler.self)?.runCurrent()
     return 0
 }
 
@@ -5113,6 +5265,7 @@ public func kk_test_run_blocking(
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
     }
+    _ = scope.schedulerForTest()
 
     // Children launched inside the test body discover the test scope as
     // their parent (upstream runTest semantics), so install it as ambient
@@ -5126,6 +5279,7 @@ public func kk_test_run_blocking(
     let previousLoop = RuntimeEventLoop.current
     let loop = previousLoop ?? RuntimeEventLoop()
     RuntimeEventLoop.current = loop
+    scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
     defer { RuntimeEventLoop.current = previousLoop }
 
     // Expand the env slot into the thunk's positional captures, the same
@@ -5159,8 +5313,10 @@ public func kk_test_run_blocking(
         return 0
     }
     // Children launched inside the body parent to the test scope — join
-    // them the way a blocking runBlocking scope would, and surface the
-    // first child failure to the runTest caller.
+    // them the way a blocking runBlocking scope would. First advance the
+    // test scheduler so delayed children can complete without wall-clock
+    // waits, then surface the first child failure to the runTest caller.
+    scope.testSchedulerIfPresent()?.advanceUntilIdle()
     let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
     if childThrown != 0 {
         outThrown?.pointee = childThrown
@@ -5194,6 +5350,7 @@ public func kk_test_run_blocking_with_cont(
         outThrown?.pointee = 0
         return 0
     }
+    _ = scope.schedulerForTest()
     contState.launcherArgs[Int64(scopeSlotRaw)] = Int64(scopeHandle)
     contState.scope = scope
 
@@ -5206,6 +5363,7 @@ public func kk_test_run_blocking_with_cont(
     let previousLoop = RuntimeEventLoop.current
     let loop = previousLoop ?? RuntimeEventLoop()
     RuntimeEventLoop.current = loop
+    scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
     defer { RuntimeEventLoop.current = previousLoop }
 
     let result = runtimeRunBlockingOnEventLoop(
@@ -5220,6 +5378,8 @@ public func kk_test_run_blocking_with_cont(
     let bodyFailed = (outThrown?.pointee ?? 0) != 0
     if bodyFailed {
         scope.cancel()
+    } else {
+        scope.testSchedulerIfPresent()?.advanceUntilIdle()
     }
     let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
     if !bodyFailed, childThrown != 0 {

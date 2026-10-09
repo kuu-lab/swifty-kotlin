@@ -41,6 +41,23 @@ struct PropertyAccessorParsingTests {
     }
 
     @Test
+    func explicitEmptySetterRetainsAnEmptyBlockBody() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class C {
+            var value: Int
+                get() = 42
+                set(value) {}
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "value", ofClass: "C", in: ast, interner: ctx.interner))
+        guard case let .block(statements, _) = property.setter?.body else {
+            Issue.record("An explicit empty setter body must remain a block rather than `.unit`")
+            return
+        }
+        #expect(statements.isEmpty)
+    }
+
+    @Test
     func sameLineBlockGetterAndSetterKeepTypeAndBodies() throws {
         let (ast, ctx) = try buildASTModule(from: """
         class C {
@@ -55,7 +72,7 @@ struct PropertyAccessorParsingTests {
             Issue.record("Expected a plain named type, got \(typeRef)")
             return
         }
-        #expect(path.map { ctx.interner.resolve($0) } == ["Int"])
+        #expect(path == [KnownCompilerNames(interner: ctx.interner).int])
         #expect(args.isEmpty)
         #expect(!nullable)
         guard case let .block(getterStatements, _) = property.getter?.body,
@@ -79,7 +96,7 @@ struct PropertyAccessorParsingTests {
         let property = try #require(memberProperty(named: "q", ofClass: "C", in: ast, interner: ctx.interner))
         #expect(property.getter != nil)
         #expect(property.setter != nil)
-        #expect(property.setter?.parameterName.map { ctx.interner.resolve($0) } == "v")
+        #expect(property.setter?.parameterName == ctx.interner.intern("v"))
     }
 
     @Test
@@ -111,6 +128,7 @@ struct PropertyAccessorParsingTests {
         val Box.nested: String get() = this.v.get(0).toString()
         """, includeStdlib: false)
 
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         for (property, label) in [
             (try #require(memberProperty(named: "direct", ofClass: "Box", in: ast, interner: ctx.interner)), "direct"),
             (try #require(topLevelProperty(named: "ext", in: ast, interner: ctx.interner)), "ext"),
@@ -122,7 +140,7 @@ struct PropertyAccessorParsingTests {
                 Issue.record("\(label) getter body must be the full this.get() member call")
                 continue
             }
-            #expect(ctx.interner.resolve(callee) == "get")
+            #expect(callee == knownNames.get)
             #expect(args.isEmpty)
         }
 
@@ -134,7 +152,7 @@ struct PropertyAccessorParsingTests {
             Issue.record("nested getter body must keep the outermost member call")
             return
         }
-        #expect(ctx.interner.resolve(nestedCallee) == "toString")
+        #expect(nestedCallee == knownNames.toString)
     }
 
     @Test
@@ -147,7 +165,7 @@ struct PropertyAccessorParsingTests {
         """, includeStdlib: false)
         let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
         #expect(property.setter != nil)
-        #expect(property.setter?.parameterName.map { ctx.interner.resolve($0) } == "v")
+        #expect(property.setter?.parameterName == ctx.interner.intern("v"))
     }
 
     @Test
@@ -166,7 +184,7 @@ struct PropertyAccessorParsingTests {
             Issue.record("Setter body must keep the sink.set(v) member call")
             return
         }
-        #expect(ctx.interner.resolve(callee) == "set")
+        #expect(callee == KnownCompilerNames(interner: ctx.interner).sbSet)
     }
 
     @Test(arguments: ["\n", " ", "; "])
@@ -188,8 +206,8 @@ struct PropertyAccessorParsingTests {
             Issue.record("Expected a safe let call followed by an Elvis run call")
             return
         }
-        #expect(ctx.interner.resolve(member) == "let")
-        #expect(ctx.interner.resolve(runName) == "run")
+        #expect(member == ctx.interner.intern("let"))
+        #expect(runName == KnownCompilerNames(interner: ctx.interner).run)
         #expect(letArgs.count == 1)
         #expect(runArgs.count == 1)
         let letArg = try #require(letArgs.first)

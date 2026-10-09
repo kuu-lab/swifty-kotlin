@@ -976,16 +976,20 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        if let receiverType = ctx.implicitReceiverType {
-            candidates.removeAll { candidate in
-                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
-                    return false
-                }
-                return !sema.types.isSubtype(
-                    sema.types.makeNonNullable(receiverType),
-                    sema.types.makeNonNullable(declaredReceiver)
-                )
+        candidates.removeAll { candidate in
+            guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                return false
             }
+            guard let receiverType = ctx.implicitReceiverType else {
+                // Package-scope extension properties remain in import scopes
+                // so `receiver.property` can resolve them, but a bare name in
+                // a receiver-free context must not bind as a global property.
+                return implicitReceiverLookupTypes.isEmpty
+            }
+            return !sema.types.isSubtype(
+                sema.types.makeNonNullable(receiverType),
+                sema.types.makeNonNullable(declaredReceiver)
+            )
         }
         if candidates.isEmpty {
             var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
@@ -1441,7 +1445,8 @@ extension ExprTypeChecker {
         body: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        expectedTypeIsHintOnly: Bool = false
     ) -> TypeID {
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = nil
@@ -1655,6 +1660,9 @@ extension ExprTypeChecker {
         // Leaving it out lets the body infer its natural type so the caller can solve
         // the type variable from it.
         let bodyExpectedType: TypeID? = {
+            guard !expectedTypeIsHintOnly else {
+                return nil
+            }
             guard let expectedReturnType = expectedFunctionType?.returnType,
                   expectedReturnType != sema.types.unitType else {
                 return nil
@@ -1667,11 +1675,17 @@ extension ExprTypeChecker {
             }
             return expectedReturnType
         }()
+        let expectedLambdaReturnType: TypeID? = if expectedTypeIsHintOnly {
+            nil
+        } else if expectedFunctionType?.returnType == sema.types.unitType {
+            sema.types.unitType
+        } else {
+            bodyExpectedType
+        }
         let returnScope = LambdaReturnInferenceScope(
             exprID: id,
             label: label,
-            expectedReturnType: expectedFunctionType?.returnType == sema.types.unitType
-                ? sema.types.unitType : bodyExpectedType
+            expectedReturnType: expectedLambdaReturnType
         )
         bodyCtx.lambdaReturnScopes.append(returnScope)
         let fallthroughType = driver.inferExpr(
@@ -1734,7 +1748,8 @@ extension ExprTypeChecker {
         }
 
         if let expectedFunctionType {
-            if let session = ctx.builderInference,
+            if !expectedTypeIsHintOnly,
+               let session = ctx.builderInference,
                expectedFunctionType.returnType != sema.types.unitType,
                session.mentionsVariable(expectedFunctionType.returnType, types: sema.types)
             {
@@ -1750,11 +1765,13 @@ extension ExprTypeChecker {
                 return functionType
             }
             // Enhanced return type inference with Unit optimization
-            let optimizedReturnType = inferOptimizedReturnType(
-                inferredBodyType: inferredBodyType,
-                expectedReturnType: expectedFunctionType.returnType,
-                sema: sema
-            )
+            let optimizedReturnType = expectedTypeIsHintOnly
+                ? inferredBodyType
+                : inferOptimizedReturnType(
+                    inferredBodyType: inferredBodyType,
+                    expectedReturnType: expectedFunctionType.returnType,
+                    sema: sema
+                )
 
             // Skip the local subtype constraint when the expected return is Unit
             // (Kotlin allows any body type) or when it is a generic type variable.
@@ -1772,7 +1789,8 @@ extension ExprTypeChecker {
             // `R` is still a placeholder, and the upper bound is verified by the
             // overload resolver once `R` is inferred (`checkTypeParameterBounds`).
             let shouldSkipSubtypeConstraint =
-                expectedFunctionType.returnType == sema.types.unitType
+                expectedTypeIsHintOnly
+                || expectedFunctionType.returnType == sema.types.unitType
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
             if !shouldSkipSubtypeConstraint {
@@ -1814,7 +1832,8 @@ extension ExprTypeChecker {
                 (expectedFunctionType.returnType == sema.types.anyType
                     || expectedFunctionType.returnType == sema.types.nullableAnyType)
                 && !sema.bindings.isCollectionHOFLambdaExpr(id)
-            let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
+            let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
+                || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
                 || expectedReturnIsErasedNonHOFPlaceholder
                 || sema.bindings.isDirectlyInvokedLambdaExpr(id)
@@ -2238,9 +2257,22 @@ extension ExprTypeChecker {
                         )
                     }
                 }
-                candidates = ctx.cachedScopeLookup(member).filter { symbolID in
+                // A same-named non-extension function in a nearer scope must
+                // not hide a legal receiver extension. Filter for applicable
+                // extensions during scope lookup so only matching candidates
+                // participate in shadowing. Keep member candidates above as
+                // the higher-priority tier.
+                candidates = ctx.scope.lookup(member, matching: { symbolID in
                     guard let symbol = ctx.cachedSymbol(symbolID),
                           symbol.kind == .function,
+                          !(symbol.flags.contains(.expectDeclaration)
+                              && sema.symbols.actualSymbol(for: symbolID) != nil),
+                          sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+                          driver.helpers.declaresExtensionReceiver(
+                              symbolID,
+                              sema: sema,
+                              interner: interner
+                          ),
                           let signature = sema.symbols.functionSignature(for: symbolID),
                           let declaredReceiver = signature.receiverType
                     else {
@@ -2251,7 +2283,7 @@ extension ExprTypeChecker {
                         declaredReceiver: declaredReceiver,
                         sema: sema
                     )
-                }
+                })
                 // `Outer::Nested` where `Nested` is a nested (non-inner) class
                 // is a constructor reference `(Args...) -> Outer.Nested`. It
                 // has no receiver parameter, so it is folded into the bound
@@ -2321,7 +2353,7 @@ extension ExprTypeChecker {
                 // itself — but this could not be verified: referencing an
                 // entry with a body at all (`EnumClass.ENTRY`) hits a
                 // separate, pre-existing, unrelated bug (see
-                // docs/diff-skip-inventory.md's `enum_edge_cases.kt` entry).
+                // the `enum_edge_cases.kt` entry).
                 // `.interface` stays excluded here too: interface-owned
                 // properties have no storage of their own (always dispatched
                 // through whichever class implements them), which this

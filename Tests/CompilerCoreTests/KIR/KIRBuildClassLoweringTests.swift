@@ -60,47 +60,37 @@ struct KIRBuildClassLoweringTests {
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
-        let main = try #require(findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "main"
+        let main = try findKIRFunction(named: "main", in: module, interner: ctx.interner)
+        let forwardingProperties = sema.symbols.allSymbols().filter {
+            sema.symbols.classDelegationForwardingPropertyInfo(for: $0.id) != nil
+        }
+        let getterSymbols = Set(forwardingProperties.map {
+            SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: $0.id)
         })
-        let getters = main.body.compactMap { instruction -> SymbolID? in
-            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "get"
-            else { return nil }
-            return symbol
-        }
+        let setterSymbols = Set(forwardingProperties.map {
+            SyntheticSymbolScheme.propertySetterAccessorSymbol(for: $0.id)
+        })
+        let getters = kirCalls(in: main.body).compactMap(\.symbol).filter { getterSymbols.contains($0) }
         #expect(getters.count == 3, "Body: \(main.body)")
-        let setters = main.body.compactMap { instruction -> SymbolID? in
-            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "set"
-            else { return nil }
-            return symbol
-        }
+        let setters = kirCalls(in: main.body).compactMap(\.symbol).filter { setterSymbols.contains($0) }
         #expect(setters.count == 3)
         #expect(main.body.allSatisfy { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return true }
-            return ctx.interner.resolve(callee) != "value"
+            return !forwardingProperties.contains { $0.name == callee }
         }, "Body: \(main.body)")
         #expect((getters + setters).allSatisfy { accessor in
             findAllKIRFunctions(in: module).contains { $0.symbol == accessor }
         })
-        #expect(sema.symbols.allSymbols().contains { symbol in
-            sema.symbols.classDelegationForwardingPropertyInfo(for: symbol.id) != nil
-        })
+        #expect(!forwardingProperties.isEmpty)
         let companionInitializer = try #require(findAllKIRFunctions(in: module).first {
             ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
         })
-        #expect(companionInitializer.body.contains { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_object_register_itable_method"
-        })
+        #expect(!kirCalls(to: .registerITableMethod, in: companionInitializer.body, interner: ctx.interner).isEmpty)
         for (functionName, accessorName) in [("localRead", "get"), ("localWrite", "set")] {
-            let function = try #require(findAllKIRFunctions(in: module).first {
-                ctx.interner.resolve($0.name) == functionName
-            })
-            #expect(function.body.contains { instruction in
-                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
-                return ctx.interner.resolve(callee) == accessorName && symbol != nil
+            let function = try findKIRFunction(named: functionName, in: module, interner: ctx.interner)
+            let accessors = accessorName == "get" ? getterSymbols : setterSymbols
+            #expect(kirCalls(in: function.body).contains {
+                $0.symbol.map { accessors.contains($0) } == true
             })
         }
     }
@@ -204,12 +194,8 @@ struct KIRBuildClassLoweringTests {
         let initializer = try #require(findAllKIRFunctions(in: module).first {
             ctx.interner.resolve($0.name).hasPrefix("__companion_init_")
         })
-        let callees = initializer.body.compactMap { instruction -> String? in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-            return ctx.interner.resolve(callee)
-        }
-        #expect(callees.contains("kk_object_register_itable_iface"))
-        #expect(callees.contains("kk_object_register_itable_method"))
+        #expect(!kirCalls(to: .registerITableInterface, in: initializer.body, interner: ctx.interner).isEmpty)
+        #expect(!kirCalls(to: .registerITableMethod, in: initializer.body, interner: ctx.interner).isEmpty)
         #expect(!ctx.diagnostics.hasError)
     }
 
@@ -235,9 +221,9 @@ struct KIRBuildClassLoweringTests {
 
         let hasSyntheticAnyConstructorCall = companionInitializers.contains { function in
             function.body.contains { instruction in
-                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
                       let symbol,
-                      ctx.interner.resolve(callee) == "<init>",
+                      sema.symbols.symbol(symbol)?.kind == .constructor,
                       let symbolInfo = sema.symbols.symbol(symbol)
                 else {
                     return false
@@ -281,12 +267,7 @@ struct KIRBuildClassLoweringTests {
         }
         #expect(initializers.count == 1)
         let initializer = try #require(initializers.first)
-        #expect(initializer.body.contains { instruction in
-            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return ctx.interner.resolve(callee) == "kk_object_new"
-            }
-            return false
-        })
+        #expect(!kirCalls(to: .objectNew, in: initializer.body, interner: ctx.interner).isEmpty)
     }
 
     @Test func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
@@ -326,7 +307,7 @@ struct KIRBuildClassLoweringTests {
 
         let module = try #require(ctx.kir)
         let childConstructors = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "Child" ? function : nil
+            return function.name == ctx.interner.intern("Child") ? function : nil
         }
 
         #expect(!childConstructors.isEmpty)
@@ -355,7 +336,7 @@ struct KIRBuildClassLoweringTests {
 
         let module = try #require(ctx.kir)
         let ownerConstructor = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "Owner" ? function : nil
+            return function.name == ctx.interner.intern("Owner") ? function : nil
         }.first
 
         let body = try #require(ownerConstructor?.body)
@@ -380,25 +361,14 @@ struct KIRBuildClassLoweringTests {
         let module = try #require(ctx.kir)
 
         let forwardingFunctions = findAllKIRFunctions(in: module).filter {
-            extractCallees(from: $0.body, interner: ctx.interner).contains("kk_array_get")
+            !kirCalls(to: .arrayGet, in: $0.body, interner: ctx.interner).isEmpty
         }
 
         #expect(forwardingFunctions.count == 1, "Expected one delegation forwarder with no dispatch target match")
 
         let forwardingBody = forwardingFunctions[0].body
-        let callees = extractCallees(from: forwardingBody, interner: ctx.interner)
-        #expect(
-            callees.contains("kk_abort_unreachable"),
-            "Expected explicit abort fallback in delegation forwarder, got: \(callees)"
-        )
-        let abortCallArgumentCounts = forwardingBody.compactMap { instruction -> Int? in
-            guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                  ctx.interner.resolve(callee) == "kk_abort_unreachable"
-            else {
-                return nil
-            }
-            return arguments.count
-        }
+        let abortCallArgumentCounts = kirCalls(to: .abortUnreachable, in: forwardingBody, interner: ctx.interner)
+            .map { $0.arguments.count }
         #expect(abortCallArgumentCounts == [0], "The backend supplies kk_abort_unreachable's outThrown channel.")
     }
 
@@ -423,15 +393,16 @@ struct KIRBuildClassLoweringTests {
 
         let module = try #require(ctx.kir)
 
-        let forwarderFunction = findAllKIRFunctions(in: module).first {
-            ctx.interner.resolve($0.name) == "evaluate"
-                && extractCallees(from: $0.body, interner: ctx.interner).contains("kk_object_type_id")
-        }
+        let sema = try #require(ctx.sema)
+        let box = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Box")]))
+        let forwarderSymbol = try #require(sema.symbols.classDelegationForwardingMethodSymbols(forClass: box).first)
+        let forwarderFunction = findAllKIRFunctions(in: module).first { $0.symbol == forwarderSymbol }
 
         let forwardingBody = try #require(
             forwarderFunction,
             "Expected delegation forwarder for ComparableInput.evaluate()"
         ).body
+        #expect(!kirCalls(to: .objectTypeID, in: forwardingBody, interner: ctx.interner).isEmpty)
 
         let delegateCallSymbols = delegationTargetSymbols(
             in: forwardingBody,
@@ -458,8 +429,9 @@ struct KIRBuildClassLoweringTests {
                     return false
                 }
                 return !signatureSymbol.flags.contains(.synthetic)
+                    || ctx.sema?.symbols.classDelegationForwardingMethodInfo(for: symbol) != nil
             },
-            "Expected delegation dispatch targets to exclude synthetic forwarding functions, got: \(delegateCallSymbols)"
+            "Expected delegation dispatch targets to be source implementations or registered forwarders, got: \(delegateCallSymbols)"
         )
     }
 
@@ -493,7 +465,7 @@ struct KIRBuildClassLoweringTests {
         let forwarder = try #require(findAllKIRFunctions(in: module).first { $0.symbol == forwardingSymbol })
         let declaredMembers = sema.bindings.declSymbols.values.compactMap { sema.symbols.symbol($0) }.filter {
             $0.kind == .function && $0.flags.contains(.synthetic)
-                && ctx.interner.resolve($0.name) == "evaluate"
+                && $0.name == ctx.interner.intern("evaluate")
         }
         let override = try #require(declaredMembers.first { $0.flags.contains(.overrideMember) })
         let overload = try #require(declaredMembers.first { !$0.flags.contains(.overrideMember) })
@@ -501,7 +473,7 @@ struct KIRBuildClassLoweringTests {
 
         #expect(targets.contains(override.id))
         #expect(!targets.contains(overload.id))
-        #expect(!targets.contains(forwardingSymbol))
+        try assertDelegationTargetsUseStoredDelegate(in: forwarder.body, interner: ctx.interner)
     }
 
     @Test func testClassDelegationDispatchIncludesAnonymousPropertyAccessors() throws {
@@ -562,7 +534,7 @@ struct KIRBuildClassLoweringTests {
                 })
                 let targets = delegationTargetSymbols(in: forwarder.body, interner: ctx.interner)
                 #expect(targets.contains(declaredAccessor))
-                #expect(!targets.contains(forwardingAccessor))
+                try assertDelegationTargetsUseStoredDelegate(in: forwarder.body, interner: ctx.interner)
             }
         }
     }
@@ -670,38 +642,41 @@ struct KIRBuildClassLoweringTests {
             #expect(forwardingPropertyNames.contains(propertyName))
         }
 
-        let readMap = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "readMap"
-        })
-        let readMapCallees = extractCallees(from: readMap.body, interner: ctx.interner)
-        #expect(readMapCallees.contains("__kk_map_is_empty"))
-        #expect(readMapCallees.contains("__kk_map_get"))
-        #expect(readMapCallees.contains("__kk_map_keys"))
+        let readMap = try findKIRFunction(named: "readMap", in: module, interner: ctx.interner)
+        #expect(!kirCalls(to: .mapIsEmpty, in: readMap.body, interner: ctx.interner).isEmpty)
+        #expect(!kirCalls(to: .mapGet, in: readMap.body, interner: ctx.interner).isEmpty)
+        #expect(!kirCalls(to: .mapKeys, in: readMap.body, interner: ctx.interner).isEmpty)
 
-        let main = try #require(findAllKIRFunctions(in: module).first { function in
-            ctx.interner.resolve(function.name) == "main"
-        })
+        let main = try findKIRFunction(named: "main", in: module, interner: ctx.interner)
         #expect(extractCallees(from: main.body, interner: ctx.interner).contains("get"))
+    }
+
+    private func assertDelegationTargetsUseStoredDelegate(
+        in body: [KIRInstruction],
+        interner: StringInterner
+    ) throws {
+        let delegate = try #require(
+            kirCalls(to: .arrayGet, in: body, interner: interner).compactMap(\.result).first
+        )
+        let targets = Set(delegationTargetSymbols(in: body, interner: interner))
+        #expect(!targets.isEmpty)
+        // Wrappers may delegate to another instance of their own class. Such
+        // calls must receive the stored delegate rather than recurse on `this`.
+        for call in kirCalls(in: body) {
+            guard let symbol = call.symbol, targets.contains(symbol)
+            else { continue }
+            #expect(call.arguments.first == delegate)
+        }
     }
 
     private func delegationTargetSymbols(
         in body: [KIRInstruction],
         interner: StringInterner
     ) -> [SymbolID] {
-        body.compactMap { instruction -> SymbolID? in
-            guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
-                  let symbol
-            else {
-                return nil
-            }
-
-            switch interner.resolve(callee) {
-            case "kk_array_get", "kk_object_type_id", "kk_abort_unreachable":
-                return nil
-            default:
-                return symbol
-            }
-        }
+        let runtimeTargets = Set([KIRRuntimeFunction.arrayGet, .objectTypeID, .abortUnreachable].map {
+            $0.name(in: interner)
+        })
+        return kirCalls(in: body).filter { !runtimeTargets.contains($0.callee) }.compactMap(\.symbol)
     }
 }
 #endif

@@ -747,6 +747,38 @@ final class CallTypeChecker {
         // kotlinx.coroutines.
 
         // --- Flow builder lambda calls (CORO-003) ---
+        // During generic receiver-builder inference, postpone an unqualified
+        // FlowCollector.emit argument as a constraint on the enclosing type
+        // variables. The regular member-call path cannot resolve `R` until
+        // these emissions have contributed evidence for it.
+        if let builderInference = ctx.builderInference,
+           let calleeName,
+           calleeName == knownNames.emit,
+           args.count == 1,
+           locals[calleeName] == nil,
+           let receiverType = ctx.implicitReceiverType,
+           isFlowCollectorType(receiverType, ctx: ctx),
+           let collectorType = resolveClassType(receiverType, sema: sema),
+           let elementProjection = collectorType.args.first
+        {
+            let elementType: TypeID? = switch elementProjection {
+            case let .invariant(type), let .in(type), let .out(type): type
+            case .star: nil
+            }
+            if let elementType {
+                let emittedType = driver.inferExpr(
+                    args[0].expr, ctx: ctx, locals: &locals, expectedType: elementType
+                )
+                builderInference.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+                    subtype: emittedType, supertype: elementType,
+                    typeVarBySymbol: builderInference.typeVarBySymbol,
+                    typeSystem: sema.types, blameRange: ast.arena.exprRange(args[0].expr)
+                ))
+                sema.bindings.bindExprType(id, type: sema.types.unitType)
+                return sema.types.unitType
+            }
+        }
+
         // Inside `flow { ... }`, unqualified `emit` resolves as a builtin
         // effect call and returns Unit.
         if ctx.isFlowBuilderLambdaScope,
@@ -1804,6 +1836,20 @@ final class CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
+            if let receiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                allCallCandidates.contains { candidate in
+                    guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                        return false
+                    }
+                    return extensionSyntheticFallbackReceiverMatches(
+                        callSiteReceiver: entry.type,
+                        declaredReceiver: declaredReceiver,
+                        sema: sema
+                    )
+                }
+            }) {
+                callImplicitReceiverType = receiverEntry.type
+            }
             // @DslMarker restriction: filter out candidates that belong to an
             // outer receiver class that shares a DslMarker annotation with the
             // current implicit receiver.
@@ -2020,9 +2066,21 @@ final class CallTypeChecker {
             // overloaded functions of the same name. Skipped when a local
             // variable already shadows the name (resolvedFromLocalShadow).
             if !resolvedFromLocalShadow {
-                let classSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
+                // Ordinary scope lookup stops at the first scope containing
+                // any binding of this name. A companion function can therefore
+                // hide its enclosing class's nested classifier even though
+                // Kotlin keeps callable and classifier lookup in separate
+                // namespaces. Recover only the nearest lexical classifier;
+                // constructors still go through the normal visibility and
+                // hidden-deprecation handling below.
+                let classSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                     return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass || symbol.kind == .object
+                }).filter { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.flags.contains(.expectDeclaration)
+                    else { return true }
+                    return sema.symbols.actualSymbol(for: candidate) == nil
                 }
                 if let classSym = classSymbols.first, let classSymbol = ctx.cachedSymbol(classSym) {
                     if classSymbol.flags.contains(.abstractType) {
@@ -2437,15 +2495,29 @@ final class CallTypeChecker {
            let signature = sema.symbols.functionSignature(for: candidate),
            case let .typeParam(returnTypeParam) = sema.types.kind(of: signature.returnType)
         {
-            for (index, parameterType) in signature.parameterTypes.enumerated()
-                where index < args.count
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            if let returnTypeVariable = typeVarBySymbol[returnTypeParam.symbol],
+               let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
             {
-                guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
-                      parameterTypeParam.symbol == returnTypeParam.symbol
-                else {
-                    continue
+                for (argumentIndex, parameterIndex) in parameterMapping {
+                    guard signature.parameterTypes.indices.contains(parameterIndex),
+                          let parameterType = contextualCallArgumentType(
+                              args[argumentIndex], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
+                    else {
+                        continue
+                    }
+                    guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                          parameterTypeParam.symbol == returnTypeParam.symbol
+                    else {
+                        continue
+                    }
+                    expectedTypeOverrides[argumentIndex] = sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: [returnTypeVariable: expectedType],
+                        typeVarBySymbol: typeVarBySymbol
+                    )
                 }
-                expectedTypeOverrides[index] = expectedType
             }
         }
         // A generic factory whose return type is a class parameterized by its
@@ -2495,6 +2567,9 @@ final class CallTypeChecker {
                         ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                    continue
+                }
                 for index in args.indices {
                     let isLambda: Bool = if case .lambdaLiteral = ast.arena.expr(args[index].expr) {
                         true
@@ -2502,7 +2577,10 @@ final class CallTypeChecker {
                         false
                     }
                     guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast),
-                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                          let parameterIndex = parameterMapping[index],
+                          let parameterType = contextualCallArgumentType(
+                              args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
                     else {
                         continue
                     }
@@ -2549,6 +2627,9 @@ final class CallTypeChecker {
                 else {
                     continue
                 }
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                    continue
+                }
                 let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
                 let typeArgOffset = isConstructor ? 0 : signature.classTypeParameterCount
                 guard signature.typeParameterSymbols.count >= typeArgOffset + explicitTypeArgs.count
@@ -2564,7 +2645,10 @@ final class CallTypeChecker {
                 }
                 for index in args.indices {
                     guard isInferableNestedCallExpr(args[index].expr, ast: ast),
-                          let parameterType = parameterTypeForArgument(at: index, in: signature)
+                          let parameterIndex = parameterMapping[index],
+                          let parameterType = contextualCallArgumentType(
+                              args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                          )
                     else {
                         continue
                     }
@@ -2611,19 +2695,19 @@ final class CallTypeChecker {
            let signature = sema.symbols.functionSignature(for: candidate)
         {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
             for index in args.indices {
                 guard isInferableNestedCallExpr(args[index].expr, ast: ast),
-                      let parameterIndex = parameterIndexForCallArgument(
-                          at: index,
-                          label: args[index].label,
-                          in: signature,
-                          sema: sema
-                      ),
+                      let parameterIndex = parameterMapping?[index],
                       parameterIndex < signature.parameterTypes.count
                 else {
                     continue
                 }
-                let parameterType = signature.parameterTypes[parameterIndex]
+                guard let parameterType = contextualCallArgumentType(
+                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                ) else {
+                    continue
+                }
                 guard !ctx.resolver.containsTypeVariable(
                     parameterType,
                     typeVarBySymbol: typeVarBySymbol,
@@ -2659,7 +2743,7 @@ final class CallTypeChecker {
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
-            receiverType: ctx.implicitReceiverType,
+            receiverType: callImplicitReceiverType,
             lambdaContextOverrides: lambdaContextOverrides,
             ctx: ctx,
             locals: &locals

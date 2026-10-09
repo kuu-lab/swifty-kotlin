@@ -644,10 +644,16 @@ extension CallTypeChecker {
         case "map", "filter", "collect", "collectLatest", "transform", "takeWhile", "dropWhile",
              "flatMapConcat", "flatMapMerge", "flatMapLatest",
              "catch", "retryWhen":
-            guard args.count == 1 else {
+            let lambdaArgIndex: Int
+            if memberName == "flatMapMerge" && args.count == 2 {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                lambdaArgIndex = 1
+            } else if args.count == 1 {
+                lambdaArgIndex = 0
+            } else {
                 return nil
             }
-            let expectsLambdaTypeConstraint = switch ast.arena.expr(args[0].expr) {
+            let expectsLambdaTypeConstraint = switch ast.arena.expr(args[lambdaArgIndex].expr) {
             case .callableRef:
                 false
             default:
@@ -686,15 +692,15 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             if expectsLambdaTypeConstraint {
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             } else {
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals)
             }
 
             if memberName != "collect" && memberName != "collectLatest" {
                 sema.bindings.markFlowExpr(id)
                 let resultElementType: TypeID = if memberName == "map",
-                                                   case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
+                                                   case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[lambdaArgIndex].expr),
                                                    let mappedType = sema.bindings.exprType(for: bodyExpr)
                 {
                     mappedType
@@ -704,8 +710,34 @@ extension CallTypeChecker {
                     // bridge and remain type-erased until a richer collector
                     // receiver model is available.
                     sema.types.anyType
-                } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest" {
-                    sema.types.anyType
+                } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest",
+                          case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[lambdaArgIndex].expr)
+                {
+                    if let elem = sema.bindings.flowElementType(forExpr: bodyExpr) {
+                        elem
+                    } else if case .nameRef = ast.arena.expr(bodyExpr),
+                              let sym = sema.bindings.identifierSymbol(for: bodyExpr),
+                              let elem = sema.bindings.flowElementType(forSymbol: sym)
+                    {
+                        elem
+                    } else if let bodyType = sema.bindings.exprType(for: bodyExpr),
+                              let flowClassSymbol = sema.symbols.lookup(fqName: [
+                                  ctx.interner.intern("kotlinx"), ctx.interner.intern("coroutines"),
+                                  ctx.interner.intern("flow"), ctx.interner.intern("Flow"),
+                              ]),
+                              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(bodyType)),
+                              classType.classSymbol == flowClassSymbol,
+                              let firstArg = classType.args.first
+                    {
+                        switch firstArg {
+                        case let .invariant(t), let .out(t), let .in(t):
+                            t
+                        case .star:
+                            sema.types.anyType
+                        }
+                    } else {
+                        sema.types.anyType
+                    }
                 } else {
                     receiverElementType
                 }
@@ -823,11 +855,8 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isCoroutineHandleSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner)
+            .isCoroutineHandleReceiverType(receiverType)
     }
 
     /// Returns true when the receiver type is java.io.File.
@@ -869,11 +898,8 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isChannelSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner)
+            .isChannelReceiverType(receiverType)
     }
 
     func kClassReceiverArgumentType(

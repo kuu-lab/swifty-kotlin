@@ -54,35 +54,13 @@ struct ListTransformFilterPreservationTests {
         "filter", "filterNot", "filterNotNull", "filterIndexed",
     ]
 
-    /// The two `kk_*` prefixes below are the only hardcoded runtime-name
-    /// literals this file needs, and they are deliberate: the metric they move
-    /// (`loc_report.sh kk_literal_count`) tracks hardcoded bridge names, but a
-    /// test whose whole point is "no such bridge is emitted" cannot derive them
-    /// from a surface spec that no longer has the entries.
-    private static let listRuntimePrefix = "kk_list_"
-    private static let mapRuntimePrefix = "kk_map_"
-    private static let rangeRuntimePrefix = "kk_range_"
-
-    /// Runtime callees the deleted branches used to substitute. `kk_list_of`
-    /// (the literal factory) is deliberately excluded: it must keep firing.
+    /// Match runtime operation families, including retired bridges without an ABI
+    /// declaration. The literal List factory is outside this member-name family.
     private static func isListTransformRuntimeCallee(_ name: String) -> Bool {
-        let stripped = name.hasPrefix("__") ? String(name.dropFirst(2)) : name
-        guard stripped.hasPrefix(listRuntimePrefix) else { return false }
-        let member = String(stripped.dropFirst(listRuntimePrefix.count))
+        guard let operation = LoweringTestRuntime.operation(of: name),
+              operation.hasPrefix("list_") else { return false }
+        let member = String(operation.dropFirst("list_".count))
         return listTransformFilterNames.contains { member == $0 || member.hasPrefix($0) }
-    }
-
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
     }
 
     /// Every `.call` in `body` named `name`, with its resolved symbol.
@@ -93,7 +71,7 @@ struct ListTransformFilterPreservationTests {
     ) -> [(argumentCount: Int, symbol: SymbolID?)] {
         body.compactMap { instruction in
             guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction,
-                  interner.resolve(callee) == name
+                  callee == interner.intern(name)
             else { return nil }
             return (arguments.count, symbol)
         }
@@ -241,7 +219,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.label) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
@@ -313,7 +291,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.callee) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
@@ -322,7 +300,7 @@ struct ListTransformFilterPreservationTests {
                 "Map.\(shape.callee) must stay a source call; callees: \(callees)"
             )
             #expect(
-                !callees.contains(Self.mapRuntimePrefix + shape.callee),
+                !LoweringTestRuntime.operations(in: callees).contains("map_" + shape.callee),
                 "Map.\(shape.callee) must not be handed to the runtime bridge; callees: \(callees)"
             )
         }
@@ -354,7 +332,7 @@ struct ListTransformFilterPreservationTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(shape.callee) diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
@@ -362,7 +340,10 @@ struct ListTransformFilterPreservationTests {
                 !Self.calls(named: shape.callee, in: body, interner: ctx.interner).isEmpty,
                 "IntRange.\(shape.callee) must stay a source call; callees: \(callees)"
             )
-            let rangeBridged = callees.filter { $0.hasPrefix(Self.rangeRuntimePrefix) && $0.hasSuffix(shape.callee) }
+            let rangeBridged = callees.filter {
+                guard let operation = LoweringTestRuntime.operation(of: $0) else { return false }
+                return operation.hasPrefix("range_") && operation.hasSuffix(shape.callee)
+            }
             #expect(
                 rangeBridged.isEmpty,
                 "IntRange.\(shape.callee) must not be handed to the runtime bridge; got \(rangeBridged)"

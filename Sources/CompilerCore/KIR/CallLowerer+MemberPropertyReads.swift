@@ -234,6 +234,7 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
+            isFQNQualifiedValue: sema.bindings.isFQNQualifiedValueExpr(exprID),
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
@@ -255,6 +256,7 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        isFQNQualifiedValue: Bool = false,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
@@ -280,12 +282,21 @@ extension CallLowerer {
             || sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil
         {
             let receiverID: KIRExprID
+            let receiverIsUnboundNameRef: Bool
+            if case .nameRef = ast.arena.expr(receiverExpr) {
+                receiverIsUnboundNameRef = sema.bindings.identifierSymbol(for: receiverExpr) == nil
+            } else {
+                receiverIsUnboundNameRef = false
+            }
             if let loweredReceiverID {
                 receiverID = loweredReceiverID
-            } else if case .nameRef = ast.arena.expr(receiverExpr),
-                      sema.bindings.identifierSymbol(for: receiverExpr) == nil,
+            } else if isFQNQualifiedValue || receiverIsUnboundNameRef,
                       let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
             {
+                // An imported FQN object property is resolved against its
+                // owner before receiver inference. The receiver AST is only
+                // its package/object path, so emit the resolved object symbol
+                // directly instead of lowering namespace segments as values.
                 let ownerType = sema.types.make(.classType(ClassType(
                     classSymbol: ownerSymbol, args: [], nullability: .nonNull
                 )))
@@ -1429,6 +1440,7 @@ extension CallLowerer {
                   ?? bareNameRefClassLikeSymbol(receiverExpr, ast: ast, sema: sema),
               let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
               receiverSymbol.kind == .class || receiverSymbol.kind == .interface
+                  || receiverSymbol.kind == .object
                   || receiverSymbol.kind == .enumClass || receiverSymbol.kind == .annotationClass
         else {
             return nil

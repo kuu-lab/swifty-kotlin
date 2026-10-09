@@ -142,7 +142,7 @@ struct RuntimeNativeABIEdgeCaseTests {
         let pinHandle = kk_pin_object(objRaw)
 
         let returned = kk_unpin_object(pinHandle)
-        #expect(returned == objRaw, "kk_unpin_object must return the pinned object's raw handle")
+        #expect(returned == objRaw, "Unpinning must return the pinned object's raw handle")
     }
 
     /// kk_unpin_object on a zero handle must return 0 and not crash.

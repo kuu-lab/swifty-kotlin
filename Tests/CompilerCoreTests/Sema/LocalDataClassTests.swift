@@ -19,7 +19,7 @@ struct LocalDataClassTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let sema = try #require(ctx.sema)
             let owner = try #require(sema.symbols.allSymbols().first {
-                $0.kind == .class && ctx.interner.resolve($0.name) == "Local"
+                $0.kind == .class && $0.name == ctx.interner.intern("Local")
             })
             #expect(owner.flags.contains(.dataType))
             for name in ["equals", "hashCode", "toString", "copy", "component1"] {

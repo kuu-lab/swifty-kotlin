@@ -9,14 +9,16 @@ struct CodegenBackendWeakReferenceTests {
     private func runExecutablePipeline(
         inputPath: String,
         moduleName: String,
-        outputPath: String
+        outputPath: String,
+        allowDefaultStdlibLibrary: Bool = true
     ) throws -> CompilationContext {
         let options = CompilerOptions(
             moduleName: moduleName,
             inputs: [inputPath],
             outputPath: outputPath,
             emit: .executable,
-            target: defaultTargetTriple()
+            target: defaultTargetTriple(),
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         let ctx = CompilationContext(
             options: options,
@@ -33,7 +35,8 @@ struct CodegenBackendWeakReferenceTests {
     private func assertKotlinOutput(
         _ source: String,
         moduleName: String,
-        expected: String
+        expected: String,
+        allowDefaultStdlibLibrary: Bool = true
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
@@ -41,7 +44,8 @@ struct CodegenBackendWeakReferenceTests {
             let ctx = try runExecutablePipeline(
                 inputPath: path,
                 moduleName: moduleName,
-                outputPath: outputBase
+                outputPath: outputBase,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
             )
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
@@ -122,6 +126,122 @@ struct CodegenBackendWeakReferenceTests {
             source,
             moduleName: "WeakReferenceValueReturnsReferent",
             expected: "x\nx\ny\nnull\nnull\ny\ny\nnull\n"
+        )
+    }
+
+    // KUU-1467: A runtime-materialized String must round-trip through both
+    // WeakReference accessors, and clear() must drop that same referent.
+    @Test
+    func testCodegenWeakReferencePreservesRuntimeStringReferent() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.ref.WeakReference
+        import kotlin.native.ref.value
+
+        fun main() {
+            val s = "hello".toString()
+            val w = WeakReference(s)
+            println(w.value == s)
+            println(w.value is String)
+            println(w.value)
+            println(w.get() == s)
+            println(w.get() is String)
+            println(w.get())
+            w.clear()
+            println(w.value == null)
+            println(w.get() == null)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WeakReferenceRuntimeStringReferent",
+            expected: "true\ntrue\nhello\ntrue\ntrue\nhello\ntrue\ntrue\n"
+        )
+    }
+
+    // KUU-1666: immediate primitive words are live values, and the class
+    // member keeps `.value` typed as T? while the legacy extension import
+    // remains available. Exercise both source injection and a freshly built
+    // precompiled stdlib artifact.
+    @Test(arguments: [false, true])
+    func testCodegenWeakReferenceImmediateAndTypedReferents(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.ref.WeakReference
+        import kotlin.native.ref.value
+
+        class Box(val n: Int)
+
+        fun main() {
+            println(WeakReference(0).value)
+            println(WeakReference(42).value)
+            println(WeakReference(-1).value)
+            println(WeakReference(Int.MIN_VALUE).value)
+            println(WeakReference(Int.MAX_VALUE).value)
+            println(WeakReference(42L).value)
+            println(WeakReference(-7L).value)
+            println(WeakReference(Long.MAX_VALUE).value)
+            println(WeakReference(false).value)
+            println(WeakReference(true).value)
+            println(WeakReference('z').value)
+            println(WeakReference(1.5f).value)
+            println(WeakReference(1.5).value)
+            println(WeakReference("hello").value)
+
+            val boxRef = WeakReference(Box(7))
+            println(boxRef.value?.n)
+            println(boxRef.get()?.n)
+
+            val arrayRef = WeakReference(arrayOf(5, 9))
+            println(arrayRef.value?.get(0))
+            println(arrayRef.get()?.get(1))
+
+            val first = WeakReference("first")
+            val second = WeakReference("second")
+            val star: WeakReference<*> = second
+            println(star.value is String)
+            println(star.value)
+            first.clear()
+            println(first.value)
+            println(first.get())
+            println(second.value)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "WeakReferenceImmediateAndTypedReferents",
+            expected: """
+            0
+            42
+            -1
+            -2147483648
+            2147483647
+            42
+            -7
+            9223372036854775807
+            false
+            true
+            z
+            1.5
+            1.5
+            hello
+            7
+            7
+            5
+            9
+            true
+            second
+            null
+            null
+            second
+            """ + "\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 }

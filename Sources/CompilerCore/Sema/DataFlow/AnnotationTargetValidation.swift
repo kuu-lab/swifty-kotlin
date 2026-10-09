@@ -507,8 +507,28 @@ extension DataFlowSemaPhase {
             allowedTargets.formUnion(parseAnnotationTargets(from: meta.arguments))
         }
 
-        return sawTargetMeta ? allowedTargets : nil
+        // Kotlin's default annotation target set includes every declaration
+        // target except FILE. In particular, opt-in marker annotations without
+        // an explicit @Target must not become file annotations.
+        return sawTargetMeta ? allowedTargets : Self.defaultDeclarationAnnotationTargets
     }
+
+    private static let defaultDeclarationAnnotationTargets: Set<String> = [
+        "CLASS",
+        "ANNOTATION_CLASS",
+        "TYPE_PARAMETER",
+        "PROPERTY",
+        "FIELD",
+        "LOCAL_VARIABLE",
+        "VALUE_PARAMETER",
+        "CONSTRUCTOR",
+        "FUNCTION",
+        "PROPERTY_GETTER",
+        "PROPERTY_SETTER",
+        "TYPE",
+        "EXPRESSION",
+        "TYPEALIAS",
+    ]
 
     private func isTargetMetaAnnotation(
         _ annotation: MetadataAnnotationRecord,
