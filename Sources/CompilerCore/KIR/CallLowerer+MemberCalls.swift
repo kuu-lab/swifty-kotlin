@@ -19,7 +19,7 @@ extension CallLowerer {
     //   `declaredMember`-prefixed variants exist upstream); diff cases rely
     //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses",
+        "findAnnotation", "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses", "constructors",
     ]
 
     func lowerMemberCallExpr(

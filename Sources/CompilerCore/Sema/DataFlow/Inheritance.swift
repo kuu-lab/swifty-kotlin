@@ -1389,18 +1389,43 @@ extension DataFlowSemaPhase {
         return overriddenNames
     }
 
-    // P5-78: Validate that direct subclasses of sealed types are in the same package.
+    // P5-78: Validate the package and module boundary of sealed hierarchies.
     func validateSealedHierarchy(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager
     ) {
+        func package(of symbol: SemanticSymbol) -> [InternedString] {
+            var root = symbol
+            while let parent = symbols.parentSymbol(for: root.id),
+                  let owner = symbols.symbol(parent), owner.kind != .package {
+                root = owner
+            }
+            return Array(root.fqName.dropLast())
+        }
         for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
+            var declarations = file.topLevelDecls
+            var index = 0
+            while index < declarations.count {
+                let declID = declarations[index]
+                index += 1
+                guard let decl = ast.arena.decl(declID) else { continue }
+                switch decl {
+                case let .classDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                    if let companion = value.companionObject { declarations.append(companion) }
+                case let .interfaceDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                    if let companion = value.companionObject { declarations.append(companion) }
+                case let .objectDecl(value):
+                    declarations += value.nestedClasses + value.nestedObjects
+                default:
+                    break
+                }
                 guard let symbol = bindings.declSymbols[declID],
-                      let decl = ast.arena.decl(declID),
                       let symbolInfo = symbols.symbol(symbol)
                 else {
                     continue
@@ -1426,15 +1451,26 @@ extension DataFlowSemaPhase {
                     else {
                         continue
                     }
-                    // Check same-package: compare package prefixes
-                    let subtypePackage = Array(symbolInfo.fqName.dropLast())
-                    let supertypePackage = Array(supertypeSymbol.fqName.dropLast())
-                    if subtypePackage != supertypePackage {
+                    let subclassIsBundled = symbolInfo.declSite.map {
+                        sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+                    } ?? false
+                    let superclassIsBundled = supertypeSymbol.declSite.map {
+                        sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+                    } ?? false
+                    let boundary: String?
+                    if supertypeSymbol.flags.contains(.importedLibrary) || (superclassIsBundled && !subclassIsBundled) {
+                        boundary = "module"
+                    } else if package(of: symbolInfo) != package(of: supertypeSymbol) {
+                        boundary = "package"
+                    } else {
+                        boundary = nil
+                    }
+                    if let boundary {
                         let subtypeName = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
                         let supertypeName = supertypeSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                         diagnostics.error(
                             "KSWIFTK-SEMA-0070",
-                            "'\(subtypeName)' cannot inherit from sealed type '\(supertypeName)': sealed subclasses must be in the same package.",
+                            "'\(subtypeName)' cannot inherit from sealed type '\(supertypeName)': sealed subclasses must be in the same \(boundary).",
                             range: ast.arena.decl(declID).flatMap { d -> SourceRange? in
                                 switch d {
                                 case let .classDecl(cd): return cd.range
