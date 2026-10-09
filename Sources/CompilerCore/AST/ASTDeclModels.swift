@@ -622,6 +622,8 @@ public struct ValueParamDecl: Equatable, Codable {
     public let isMutableProperty: Bool
     public let isOverrideProperty: Bool
     public let isOpenProperty: Bool
+    /// `true` when a primary constructor property parameter carries `actual`.
+    public let isActualProperty: Bool
     /// Optional so AST
     /// payloads written before this field was introduced retain default visibility.
     public let propertyVisibilityModifiers: Modifiers?
@@ -639,6 +641,7 @@ public struct ValueParamDecl: Equatable, Codable {
         isMutableProperty: Bool = false,
         isOverrideProperty: Bool = false,
         isOpenProperty: Bool = false,
+        isActualProperty: Bool = false,
         propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
@@ -653,6 +656,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isMutableProperty = isMutableProperty
         self.isOverrideProperty = isOverrideProperty
         self.isOpenProperty = isOpenProperty
+        self.isActualProperty = isActualProperty
         self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
@@ -660,5 +664,29 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isNoinline = isNoinline
         self.defaultValue = defaultValue
         self.annotations = annotations
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, type, isProperty, isMutableProperty, isOverrideProperty, isOpenProperty
+        case isActualProperty, propertyVisibilityModifiers, hasDefaultValue, isVararg
+        case isCrossinline, isNoinline, defaultValue, annotations
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(InternedString.self, forKey: .name)
+        type = try container.decodeIfPresent(TypeRefID.self, forKey: .type)
+        isProperty = try container.decode(Bool.self, forKey: .isProperty)
+        isMutableProperty = try container.decode(Bool.self, forKey: .isMutableProperty)
+        isOverrideProperty = try container.decode(Bool.self, forKey: .isOverrideProperty)
+        isOpenProperty = try container.decode(Bool.self, forKey: .isOpenProperty)
+        isActualProperty = try container.decodeIfPresent(Bool.self, forKey: .isActualProperty) ?? false
+        propertyVisibilityModifiers = try container.decodeIfPresent(Modifiers.self, forKey: .propertyVisibilityModifiers)
+        hasDefaultValue = try container.decode(Bool.self, forKey: .hasDefaultValue)
+        isVararg = try container.decode(Bool.self, forKey: .isVararg)
+        isCrossinline = try container.decode(Bool.self, forKey: .isCrossinline)
+        isNoinline = try container.decode(Bool.self, forKey: .isNoinline)
+        defaultValue = try container.decodeIfPresent(ExprID.self, forKey: .defaultValue)
+        annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
     }
 }

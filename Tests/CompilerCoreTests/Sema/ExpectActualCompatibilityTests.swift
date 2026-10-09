@@ -140,6 +140,48 @@ struct ExpectActualCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for memberName in ["newEncoder", "equals"] {
+            let fqName = [ctx.interner.intern("Charset"), ctx.interner.intern(memberName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.expectDeclaration) })
+            let actualMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectMember.id) == actualMember.id)
+        }
+    }
+
+    @Test func testExpectClassMemberPropertiesLinkToActualProperties() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            interface IP { val cap: Int }
+            expect class F1 { val p: Int }
+            expect class F2 : IP { override val cap: Int }
+            expect class F3(override val cap: Int) : IP
+            expect abstract class F4 { abstract val p: Int }
+            """,
+            """
+            package x
+            actual class F1 { actual val p: Int = 0 }
+            actual class F2 : IP { actual override val cap: Int = 0 }
+            actual class F3 actual constructor(actual override val cap: Int) : IP
+            actual abstract class F4 { actual val p: Int get() = 0 }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected expect/actual member properties to pair, got: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for (className, propertyName) in [("F1", "p"), ("F2", "cap"), ("F3", "cap"), ("F4", "p")] {
+            let fqName = [ctx.interner.intern("x"), ctx.interner.intern(className), ctx.interner.intern(propertyName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.expectDeclaration) })
+            let actualProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectProperty.id) == actualProperty.id)
+        }
     }
 
     @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
