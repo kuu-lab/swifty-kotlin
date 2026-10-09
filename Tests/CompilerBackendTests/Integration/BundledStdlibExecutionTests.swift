@@ -1,5 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -1347,17 +1348,7 @@ struct BundledStdlibExecutionTests {
     @Test
     func testCallableRefPassedToFunInterfaceParameterRuns() throws {
         try compileAndRunKotlin(
-            """
-            fun interface IntOp { fun apply(a: Int, b: Int): Int }
-
-            fun useOp(o: IntOp): Int = o.apply(10, 4)
-
-            fun myCompare(a: Int, b: Int): Int = a - b
-
-            fun main() {
-                println(useOp(::myCompare))
-            }
-            """,
+            KotlinSourceFixtures.callableReferenceSamConversion,
             expectedOutput: "6\n"
         )
     }

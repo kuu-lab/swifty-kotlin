@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -58,41 +59,6 @@ struct ListSortExtremaLoweringRoutingTests {
         "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
     ]
 
-    static let listSortExtremaSource = """
-    import kotlin.random.Random
-
-    fun main() {
-        val nums = listOf(3, 1, 4, 1, 5)
-        println(nums.sorted())
-        println(nums.sortedDescending())
-        println(nums.sortedBy { it })
-        println(nums.sortedByDescending { it })
-        println(nums.sortedWith { a, b -> a - b })
-        println(nums.shuffled())
-        println(nums.shuffled(Random))
-        println(nums.max())
-        println(nums.min())
-        println(nums.maxOrNull())
-        println(nums.minOrNull())
-        println(nums.maxBy { it })
-        println(nums.minBy { it })
-        println(nums.maxByOrNull { it })
-        println(nums.minByOrNull { it })
-        println(nums.maxOf { it })
-        println(nums.minOf { it })
-        println(nums.maxOfOrNull { it })
-        println(nums.minOfOrNull { it })
-        println(nums.maxWith { a, b -> a - b })
-        println(nums.minWith { a, b -> a - b })
-        println(nums.maxWithOrNull(naturalOrder()))
-        println(nums.minWithOrNull(naturalOrder()))
-        println(nums.maxOfWith(naturalOrder()) { it })
-        println(nums.minOfWith(naturalOrder()) { it })
-        println(nums.maxOfWithOrNull(naturalOrder()) { it })
-        println(nums.minOfWithOrNull(naturalOrder()) { it })
-    }
-    """
-
     /// `.call` / `.virtualCall` callees across *every* function in the module,
     /// not just `main`: a rewrite that fired inside an injected stdlib body
     /// would otherwise go unnoticed.
@@ -131,7 +97,7 @@ struct ListSortExtremaLoweringRoutingTests {
     /// calls, and no legacy `kk_list_*` name reaches the lowered module.
     @Test
     func sourceBackedListSortAndExtremaCallsSurviveCollectionLiteralLowering() throws {
-        try withTemporaryFile(contents: Self.listSortExtremaSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "ListSortExtremaRouting",
@@ -163,7 +129,7 @@ struct ListSortExtremaLoweringRoutingTests {
     /// `externalLinkName` to bridge through.
     @Test
     func listSortAndExtremaCalleesResolveToBundledKotlinSource() throws {
-        try withTemporaryFile(contents: Self.listSortExtremaSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "ListSortExtremaSymbols",
