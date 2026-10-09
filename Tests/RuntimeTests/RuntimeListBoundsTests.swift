@@ -14,17 +14,6 @@ struct RuntimeListBoundsTests {
         return kk_list_of(arrayRaw, elements.count)
     }
 
-    private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
-        let ptr = try #require(
-            UnsafeMutableRawPointer(bitPattern: thrown),
-            "thrown channel value is not a valid pointer"
-        )
-        return try #require(
-            tryCast(ptr, to: RuntimeThrowableBox.self),
-            "thrown value must be a RuntimeThrowableBox"
-        )
-    }
-
     @Test
     func listGetOutOfBoundsSetsIndexException() throws {
         let list = makeList([1])

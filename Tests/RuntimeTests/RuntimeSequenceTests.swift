@@ -328,15 +328,15 @@ struct RuntimeSequenceTests {
     }
 
     @Test func takeLastReturnsTrailingElementsAsList() {
-        #expect(listElements(kk_sequence_takeLast(makeSequence([1, 2, 3, 4]), 2, nil)) == [3, 4])
-        #expect(listElements(kk_sequence_takeLast(makeSequence([1, 2]), 5, nil)) == [1, 2])
-        #expect(listElements(kk_sequence_takeLast(makeSequence([1, 2]), 0, nil)) == [])
+        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2, 3, 4]), 2, nil)) == [3, 4])
+        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2]), 5, nil)) == [1, 2])
+        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2]), 0, nil)) == [])
     }
 
     @Test func takeLastNegativeCountSetsThrowable() {
         var thrown = 0
         let result = kk_sequence_takeLast(makeSequence([1, 2]), -1, &thrown)
-        #expect(listElements(result) == [])
+        #expect(runtimeTestListElements(result) == [])
         #expect(thrown != 0)
     }
 
@@ -350,7 +350,7 @@ struct RuntimeSequenceTests {
         )
 
         #expect(thrown == 0)
-        #expect(listElements(result) == [5, 6])
+        #expect(runtimeTestListElements(result) == [5, 6])
     }
 
     @Test func takeLastWhilePropagatesPredicateThrowable() {
@@ -395,7 +395,7 @@ struct RuntimeSequenceTests {
             nil
         )
 
-        #expect(listElements(kk_sequence_to_list(sorted, nil)) == [2, 1, 3])
+        #expect(runtimeTestListElements(kk_sequence_to_list(sorted, nil)) == [2, 1, 3])
     }
 
     @Test func sortedByPropagatesSelectorThrowables() {
@@ -409,7 +409,7 @@ struct RuntimeSequenceTests {
         )
 
         #expect(thrown != 0)
-        #expect(listElements(kk_sequence_to_list(sorted, nil)) == [])
+        #expect(runtimeTestListElements(kk_sequence_to_list(sorted, nil)) == [])
     }
 
     @Test func sortedByDescendingUsesRuntimeValueComparisonForSelectorKeys() {
@@ -421,7 +421,7 @@ struct RuntimeSequenceTests {
             nil
         )
 
-        #expect(listElements(kk_sequence_to_list(sorted, nil)) == [3, 1, 2])
+        #expect(runtimeTestListElements(kk_sequence_to_list(sorted, nil)) == [3, 1, 2])
     }
 
     @Test func sortedByDescendingPropagatesSelectorThrowables() {
@@ -435,7 +435,7 @@ struct RuntimeSequenceTests {
         )
 
         #expect(thrown != 0)
-        #expect(listElements(kk_sequence_to_list(sorted, nil)) == [])
+        #expect(runtimeTestListElements(kk_sequence_to_list(sorted, nil)) == [])
     }
 
     @Test func takeWhileKeepsMatchingPrefixLazily() {
@@ -446,7 +446,7 @@ struct RuntimeSequenceTests {
             0
         )
 
-        #expect(listElements(kk_sequence_to_list(taken, nil)) == [1, 2, 3])
+        #expect(runtimeTestListElements(kk_sequence_to_list(taken, nil)) == [1, 2, 3])
     }
 
     @Test func takeWhilePropagatesPredicateThrowableOnMaterialization() {
@@ -545,8 +545,8 @@ struct RuntimeSequenceTests {
         )
 
         #expect(mapKeys(result) == [1, 0])
-        #expect(listElements(kk_map_get(result, 1)) == [1, 3, 5])
-        #expect(listElements(kk_map_get(result, 0)) == [2, 4])
+        #expect(runtimeTestListElements(kk_map_get(result, 1)) == [1, 3, 5])
+        #expect(runtimeTestListElements(kk_map_get(result, 0)) == [2, 4])
     }
 
     @Test func indexOfReturnsFirstMatchingIndexOrMinusOne() {
@@ -737,7 +737,7 @@ struct RuntimeSequenceTests {
     // Backwards-compatibility: older lowering paths may pass a RuntimeListIteratorBox
     // to __kk_iterator_builder_hasNext / __kk_iterator_builder_next.
     @Test func iteratorBuilderBackwardsCompatWithListIterator() {
-        let listHandle = makeList([10, 20, 30])
+        let listHandle = runtimeTestMakeList([10, 20, 30])
         let iterHandle = kk_list_iterator(listHandle)
 
         #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
@@ -1051,7 +1051,7 @@ struct RuntimeSequenceTests {
         )
 
         #expect(thrown == 0)
-        #expect(listElements(result) == [1, 2, 4])
+        #expect(runtimeTestListElements(result) == [1, 2, 4])
     }
 
     @Test func zipWithNextTransformReturnsEmptyListForShortSequences() {
@@ -1075,8 +1075,8 @@ struct RuntimeSequenceTests {
 
         #expect(emptyThrown == 0)
         #expect(singleThrown == 0)
-        #expect(listElements(emptyResult) == [])
-        #expect(listElements(singleResult) == [])
+        #expect(runtimeTestListElements(emptyResult) == [])
+        #expect(runtimeTestListElements(singleResult) == [])
     }
 
     @Test func zipWithNextTransformReturnsZeroWhenLambdaThrows() {
@@ -1154,23 +1154,8 @@ struct RuntimeSequenceTests {
         #expect(multipleResult == runtimeNullSentinelInt)
     }
 
-    private func makeArray(_ elements: [Int]) -> Int {
-        let arrayRaw = kk_array_new(elements.count)
-        var thrown = 0
-        for (index, element) in elements.enumerated() {
-            _ = kk_array_set(arrayRaw, index, element, &thrown)
-            #expect(thrown == 0)
-        }
-        return arrayRaw
-    }
-
-    private func makeList(_ elements: [Int]) -> Int {
-        let arrayRaw = makeArray(elements)
-        return kk_list_of(arrayRaw, elements.count)
-    }
-
     func makeSequence(_ elements: [Int]) -> Int {
-        kk_sequence_from_list(makeList(elements))
+        kk_sequence_from_list(runtimeTestMakeList(elements))
     }
 
     @Test func constrainOnceReportsIllegalStateOnSecondToList() {
@@ -1178,7 +1163,7 @@ struct RuntimeSequenceTests {
         var firstThrown = 0
         let firstList = kk_sequence_to_list(seq, &firstThrown)
         #expect(firstThrown == 0)
-        #expect(listElements(firstList) == [1, 2, 3])
+        #expect(runtimeTestListElements(firstList) == [1, 2, 3])
 
         var secondThrown = 0
         let secondList = kk_sequence_to_list(seq, &secondThrown)
@@ -1196,13 +1181,13 @@ struct RuntimeSequenceTests {
     @Test func distinctPreservesFirstOccurrenceOrder() {
         let result = kk_sequence_distinct(makeSequence([3, 1, 2, 1, 3, 4]))
 
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [3, 1, 2, 4])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [3, 1, 2, 4])
     }
 
     @Test func dropSkipsRequestedPrefix() {
         let result = kk_sequence_drop(makeSequence([1, 2, 3, 4, 5]), 2)
 
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [3, 4, 5])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [3, 4, 5])
     }
 
     @Test func dropWhileSkipsLeadingMatchesOnly() {
@@ -1212,7 +1197,7 @@ struct RuntimeSequenceTests {
             0
         )
 
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [3, 1, 4])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [3, 1, 4])
     }
 
     @Test func countReturnsElementCount() {
@@ -1260,7 +1245,7 @@ struct RuntimeSequenceTests {
         )
 
         #expect(thrown == 0)
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [3, 2])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [3, 2])
     }
 
     @Test func distinctByEmptySequenceReturnsEmpty() {
@@ -1272,7 +1257,7 @@ struct RuntimeSequenceTests {
             &thrown
         )
         #expect(thrown == 0)
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [])
     }
 
     @Test func distinctByAllSameKeyPreservesFirstElement() {
@@ -1284,7 +1269,7 @@ struct RuntimeSequenceTests {
             &thrown
         )
         #expect(thrown == 0)
-        #expect(listElements(kk_sequence_to_list(result, nil)) == [2])
+        #expect(runtimeTestListElements(kk_sequence_to_list(result, nil)) == [2])
     }
 
     @Test func distinctByKeySelectorExceptionPropagatesOnMaterialization() {
@@ -1392,7 +1377,7 @@ struct RuntimeSequenceTests {
         let list = kk_sequence_to_list(checked, &thrown)
 
         #expect(thrown == 0)
-        #expect(listElements(list) == [1, 2, 3])
+        #expect(runtimeTestListElements(list) == [1, 2, 3])
     }
 
     @Test func sequenceRequireNoNullsThrowsOnNullDuringTraversal() throws {
@@ -1402,7 +1387,7 @@ struct RuntimeSequenceTests {
         let list = kk_sequence_to_list(checked, &thrown)
 
         #expect(thrown != 0)
-        #expect(listElements(list) == [])
+        #expect(runtimeTestListElements(list) == [])
         let box = try #require(throwableBox(from: thrown))
         #expect(box.exceptionFQName == "kotlin.IllegalArgumentException")
     }
@@ -1415,7 +1400,7 @@ struct RuntimeSequenceTests {
         let list = kk_sequence_to_list(firstOnly, &thrown)
 
         #expect(thrown == 0)
-        #expect(listElements(list) == [1])
+        #expect(runtimeTestListElements(list) == [1])
     }
 
     @Test func sequenceRequireNoNullsPropagatesThroughEagerConsumers() throws {
@@ -1445,7 +1430,7 @@ struct RuntimeSequenceTests {
         let list = kk_sequence_to_list(reversed, &thrown)
 
         #expect(thrown == 0)
-        #expect(listElements(list) == [4, 3, 2, 1])
+        #expect(runtimeTestListElements(list) == [4, 3, 2, 1])
     }
 
     @Test func sequenceReversedEmptySequenceReturnsEmptySequence() {
@@ -1454,7 +1439,7 @@ struct RuntimeSequenceTests {
         let list = kk_sequence_to_list(reversed, &thrown)
 
         #expect(thrown == 0)
-        #expect(listElements(list) == [])
+        #expect(runtimeTestListElements(list) == [])
     }
 
     // MARK: - Sequence mutable conversions (STDLIB-SEQ-025)
@@ -1463,7 +1448,7 @@ struct RuntimeSequenceTests {
         let seq = makeSequence([3, 1, 2, 1, 3])
         let copied = kk_sequence_toMutableList(seq)
 
-        #expect(listElements(copied) == [3, 1, 2, 1, 3])
+        #expect(runtimeTestListElements(copied) == [3, 1, 2, 1, 3])
         #expect(sequenceElements(seq) == [3, 1, 2, 1, 3])
     }
 
@@ -1490,11 +1475,11 @@ struct RuntimeSequenceTests {
 
     @Test func toCollectionAppendsIntoMutableListDestination() {
         let seq = makeSequence([1, 2, 3])
-        let destination = makeList([0])
+        let destination = runtimeTestMakeList([0])
         let result = kk_sequence_toCollection(seq, destination)
 
         #expect(result == destination)
-        #expect(listElements(destination) == [0, 1, 2, 3])
+        #expect(runtimeTestListElements(destination) == [0, 1, 2, 3])
     }
 
     @Test func toCollectionAppendsIntoMutableSetDestination() {
@@ -1531,14 +1516,14 @@ struct RuntimeSequenceTests {
 
     @Test func plusWithListAsOther() {
         let seq = makeSequence([1, 2])
-        let list = makeList([3, 4])
+        let list = runtimeTestMakeList([3, 4])
         let combined = kk_sequence_plus(seq, list)
         #expect(sequenceElements(combined) == [1, 2, 3, 4])
     }
 
     @Test func unionCombinesSequenceAndIterableIntoSet() {
         let seq = makeSequence([1, 2, 3, 2])
-        let other = makeList([3, 4, 1])
+        let other = runtimeTestMakeList([3, 4, 1])
         let unioned = kk_sequence_union(seq, other)
 
         #expect(setElements(unioned) == [1, 2, 3, 4])
@@ -1570,7 +1555,7 @@ struct RuntimeSequenceTests {
         let seq2 = makeSequence([3, 4])
         let combined = kk_sequence_plus(seq1, seq2)
         let asList = kk_sequence_to_list(combined, nil)
-        #expect(listElements(asList) == [1, 2, 3, 4])
+        #expect(runtimeTestListElements(asList) == [1, 2, 3, 4])
     }
 
     @Test func minusResultIsSequence() {
@@ -1578,14 +1563,14 @@ struct RuntimeSequenceTests {
         let seq = makeSequence([1, 2, 3])
         let reduced = kk_sequence_minus(seq, 2)
         let asList = kk_sequence_to_list(reduced, nil)
-        #expect(listElements(asList) == [1, 3])
+        #expect(runtimeTestListElements(asList) == [1, 3])
     }
 
     // MARK: - Sequence.subtract (STDLIB-SEQ-FN-115)
 
     @Test func subtractReturnsSetRemovingIterableElements() {
         let seq = makeSequence([1, 2, 2, 3, 4])
-        let other = makeList([2, 4, 2])
+        let other = runtimeTestMakeList([2, 4, 2])
         let result = kk_sequence_subtract(seq, other)
         #expect(setElements(result) == [1, 3])
     }
@@ -1615,7 +1600,7 @@ struct RuntimeSequenceTests {
 
     @Test func plusWithArrayAsOther() {
         let seq = makeSequence([1, 2])
-        let array = makeArray([3, 4])
+        let array = runtimeTestMakeArray([3, 4])
         let combined = kk_sequence_plus(seq, array)
         #expect(sequenceElements(combined) == [1, 2, 3, 4])
     }
@@ -1671,18 +1656,8 @@ struct RuntimeSequenceTests {
 
     // MARK: - Lazy Sequence Builder Tests (STDLIB-563)
 
-    private func listElements(_ listRaw: Int) -> [Int] {
-        let size = kk_list_size(listRaw)
-        if size <= 0 {
-            return []
-        }
-        return (0 ..< size).map { index in
-            kk_list_get(listRaw, index)
-        }
-    }
-
     private func sequenceElements(_ seqRaw: Int) -> [Int] {
-        listElements(kk_sequence_to_list(seqRaw, nil))
+        runtimeTestListElements(kk_sequence_to_list(seqRaw, nil))
     }
 
     private func setElements(_ setRaw: Int) -> [Int] {
@@ -1693,13 +1668,6 @@ struct RuntimeSequenceTests {
             return []
         }
         return box.elements
-    }
-
-    private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-            return nil
-        }
-        return tryCast(ptr, to: RuntimeThrowableBox.self)
     }
 
     private func mapKeys(_ mapRaw: Int) -> [Int] {
