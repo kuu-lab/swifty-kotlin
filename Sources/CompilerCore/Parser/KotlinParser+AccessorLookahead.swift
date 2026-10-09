@@ -4,6 +4,7 @@ extension KotlinParser {
     /// newline-separated accessor lines into the property declaration CST node.
     func isPropertyAccessorStart(_ token: Token) -> Bool {
         var offset = 0
+        var hasVisibilityModifier = false
         // Skip annotations without consuming them: an annotation on the next
         // declaration must not be absorbed into the preceding property.
         while stream.peek(offset).kind == .symbol(.at) {
@@ -22,9 +23,31 @@ extension KotlinParser {
                 offset = offsetPastBalancedGroup(from: offset, open: .symbol(.lParen), close: .symbol(.rParen))
             }
         }
+        visibilityPrefix: while true {
+            guard case let .keyword(keyword) = stream.peek(offset).kind else { break }
+            switch keyword {
+            case .public, .private, .internal, .protected:
+                hasVisibilityModifier = true
+                offset += 1
+            default:
+                break visibilityPrefix
+            }
+        }
         switch stream.peek(offset).kind {
         case .softKeyword(.get), .softKeyword(.set):
-            return isAccessorHeaderFollowedByBody(at: offset)
+            if isAccessorHeaderFollowedByBody(at: offset) {
+                return true
+            }
+            guard hasVisibilityModifier,
+                  stream.peek(offset).kind == .softKeyword(.set)
+            else {
+                return false
+            }
+            let afterSetter = stream.peek(offset + 1)
+            return afterSetter.kind == .eof
+                || afterSetter.kind == .symbol(.semicolon)
+                || afterSetter.kind == .symbol(.rBrace)
+                || hasLeadingNewline(afterSetter)
         default:
             return false
         }
