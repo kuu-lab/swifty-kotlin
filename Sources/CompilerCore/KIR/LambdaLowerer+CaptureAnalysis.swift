@@ -148,6 +148,11 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+           seen.insert(receiverSymbol).inserted
+        {
+            referenced.append(receiverSymbol)
+        }
         if let binding = sema.bindings.callBindings[exprID],
            let signature = sema.symbols.functionSignature(for: binding.chosenCallee) {
             for index in signature.reifiedTypeParameterIndices.sorted()
