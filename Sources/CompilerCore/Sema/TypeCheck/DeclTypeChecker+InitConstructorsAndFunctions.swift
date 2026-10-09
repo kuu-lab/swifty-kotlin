@@ -6,7 +6,8 @@ extension DeclTypeChecker {
         at index: Int,
         signature: FunctionSignature,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        referenceVarargAsArray: Bool = false
     ) -> TypeID {
         let parameterType = index < signature.parameterTypes.count
             ? signature.parameterTypes[index]
@@ -22,6 +23,20 @@ extension DeclTypeChecker {
             interner: interner
         ) {
             return arrayType
+        }
+        // Local functions use the source-visible generic array directly so
+        // their call boundary and body agree on the vararg representation.
+        if referenceVarargAsArray,
+           let arraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("Array"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.out(parameterType)],
+                nullability: .nonNull
+            )))
         }
         let listFQName: [InternedString] = [
             interner.intern("kotlin"),
