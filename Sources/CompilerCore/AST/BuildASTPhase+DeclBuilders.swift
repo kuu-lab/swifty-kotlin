@@ -626,7 +626,7 @@ extension BuildASTPhase {
         case .classDecl:
             classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner)
         case .constructorDecl:
-            constructorParameterOpenParenIndex(in: tokens)
+            constructorParameterOpenParenIndex(in: tokens, interner: interner)
         default:
             tokens.firstIndex(where: { token in
                 token.kind == .symbol(.lParen)
@@ -680,10 +680,26 @@ extension BuildASTPhase {
         return nil
     }
 
-    private func constructorParameterOpenParenIndex(in tokens: [Token]) -> Int? {
-        guard let ctorIndex = tokens.firstIndex(where: { token in
-            token.kind == .keyword(.constructor) || token.kind == .softKeyword(.constructor)
-        }) else {
+    func constructorParameterOpenParenIndex(in tokens: [Token], interner: StringInterner) -> Int? {
+        var scanIndex = 0
+        var constructorIndex: Int?
+        while scanIndex < tokens.count {
+            let kind = tokens[scanIndex].kind
+            if kind == .symbol(.at), let annotation = AnnotationParsingSupport.parseAnnotation(
+                from: tokens, start: scanIndex, interner: interner, allowUseSiteTarget: true
+            ) {
+                // Skip the whole annotation, including comparison expressions
+                // and an annotation whose alias itself is named `constructor`.
+                scanIndex = annotation.nextIndex
+                continue
+            }
+            if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+                constructorIndex = scanIndex
+                break
+            }
+            scanIndex += 1
+        }
+        guard let ctorIndex = constructorIndex else {
             return tokens.firstIndex(where: { token in
                 token.kind == .symbol(.lParen)
             })

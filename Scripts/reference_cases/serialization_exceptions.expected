@@ -1,0 +1,13 @@
+empty:true:true:true
+message:message:true
+both:both:true
+cause:true:true
+null-cause:true:true
+single:[first]:Example:true
+Field 'first' is required for type with serial name 'Example', but it was missing
+multiple:[first, second]:Example:true
+Fields [first, second] are required for type with serial name 'Example', but they were missing
+aliased:[first, second, third]
+empty-fields:[]
+Fields [] are required for type with serial name 'Example', but they were missing
+caught:true:true:true
