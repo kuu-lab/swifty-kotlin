@@ -2128,7 +2128,11 @@ extension CallTypeChecker {
         // a viable member (including range/lambda arguments whose provisional
         // types are unreliable before resolution) always keeps precedence.
         if resolved.diagnostic != nil,
-           !isClassNameReceiver,
+           // Class-name receivers resolve through the companion object, so an
+           // extension on a companion supertype (e.g. `Base64.encode` via
+           // `Default`) must still be retried when an inherited member exists
+           // but cannot accept the call.
+           (!isClassNameReceiver || companionReceiverType != nil),
            !isSuperCall,
            !args.contains(where: { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
            !candidates.isEmpty

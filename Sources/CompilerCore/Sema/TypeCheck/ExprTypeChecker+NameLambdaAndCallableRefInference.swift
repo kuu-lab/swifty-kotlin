@@ -1560,8 +1560,14 @@ extension ExprTypeChecker {
             )
             return declared
         }
+        // Lowered receiver lambdas place the receiver in parameter slot 0
+        // (`syntheticLambdaParamSymbol(exprID, 0)`), so a value parameter's
+        // synthetic symbol index is shifted by one when the expected type
+        // carries an extension receiver.
+        let loweredReceiverSlot = expectedFunctionType?.receiver != nil
+            && sema.bindings.coroutineScopeLambdaReceiverTypes[id] == nil ? 1 : 0
         for (offset, param) in effectiveParams.enumerated() {
-            let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset)))
+            let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset + loweredReceiverSlot)))
             let parameterType = parameterTypes[offset]
             // Preserve the declaration type for checks that must ignore smart casts,
             // just as for local function parameters.
@@ -1807,17 +1813,30 @@ extension ExprTypeChecker {
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
             // `Any`/`Any?` expected returns are placeholders the same way:
-            // `inferCallExpr` synthesizes `(args) -> Any` as the contextual
-            // type when a lambda literal is invoked directly (`{ ... }()`)
-            // with no caller-supplied expected type. Adopting it verbatim
-            // would type the call result as `Any` (e.g. `true && { 1; true }()`
-            // then fails `&&`'s Boolean constraint), so the concrete body
-            // return must flow through here too.
+            // `inferCallExpr` synthesizes `() -> Any` as the contextual type
+            // when a lambda literal is invoked directly (`{ ... }()`) with no
+            // caller-supplied expected type. Adopting it verbatim would type
+            // the call result as `Any` (e.g. `true && { 1; true }()` then
+            // fails `&&`'s Boolean constraint), so the concrete body return
+            // must flow through here too. Coroutine builders likewise declare
+            // their `block` result as `Any?` and recover the real `T` from the
+            // body; leaving the placeholder bound to `Any?` costs overload
+            // specificity against the synthetic stubs. A real parameter type
+            // like `(T, T) -> Any` (the erased-R placeholder used by the
+            // synthetic collection-HOF paths) must keep the expected `Any`
+            // return, though: the emitted thunk's declared return drives
+            // boxing at the erased ABI boundary, and a concrete
+            // `Boolean`/`Char` would be stored raw into `List<R>` and print
+            // as `1`/`97`.
+            let expectedReturnIsErasedNonHOFPlaceholder =
+                (expectedFunctionType.returnType == sema.types.anyType
+                    || expectedFunctionType.returnType == sema.types.nullableAnyType)
+                && !sema.bindings.isCollectionHOFLambdaExpr(id)
             let shouldReturnResolvedFunctionType = expectedTypeIsHintOnly
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
-                || expectedFunctionType.returnType == sema.types.anyType
-                || expectedFunctionType.returnType == sema.types.nullableAnyType
+                || expectedReturnIsErasedNonHOFPlaceholder
+                || sema.bindings.isDirectlyInvokedLambdaExpr(id)
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,
@@ -2894,13 +2913,22 @@ extension ExprTypeChecker {
             // (`supply(Box::value)` for a `() -> Int` parameter, receiver or
             // return-type mismatches) whose binaries then crashed at runtime
             // on invoke. On a mismatch keep the real inferred type so the
-            // caller's own subtype check reports the failure. Expected types
-            // still mentioning type parameters keep the trusted behavior —
-            // they belong to a generic signature whose type arguments are
-            // bound from this very argument. A non-`KPropertyN` inferred type
-            // means `kotlin.reflect` was unavailable; keep trusting then too.
-            if !sema.types.typeContainsAnyTypeParam(expectedType),
-               isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
+            // caller's own subtype check reports the failure. When the
+            // expected type still mentions type parameters (a generic call
+            // signature whose arguments are being inferred), returning the
+            // concrete `KMutablePropertyN`/`KPropertyN` type instead lets the
+            // argument constraint `KMutableProperty1<Box,Int> <: (T) -> R`
+            // actually bind `T`/`R` through the `FunctionN` supertype — the
+            // adopted `(T) -> R` would decompose to a vacuous self-constraint
+            // and leave `R` unbound. A non-`KPropertyN` inferred type means
+            // `kotlin.reflect` was unavailable; keep trusting then too.
+            if sema.types.typeContainsAnyTypeParam(expectedType) {
+                if isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner) {
+                    return inferredType
+                }
+                return expectedType
+            }
+            if isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
                !sema.types.isSubtype(inferredType, expectedType)
             {
                 return inferredType

@@ -567,7 +567,7 @@ extension OverloadResolver {
             guard added else { break }
             solveResult = solveConstraints(constraints, solver: solver, typeSystem: ctx.types)
         }
-        let substitution: [TypeVarID: TypeID]
+        var substitution: [TypeVarID: TypeID]
         switch solveResult {
         case let .success(value):
             substitution = value
@@ -575,6 +575,28 @@ extension OverloadResolver {
             return .constraintFailure(diagnostic)
         case .rejected:
             return .rejected
+        }
+
+        // A variable constrained only by itself — e.g. `FlowCollector<R>` in
+        // `transform`'s signature matched against a receiver lambda whose
+        // receiver type argument is that same type parameter — yields a
+        // `V <: V` tautology and stays unbound. Anchor it to its own type
+        // parameter so the caller's parameter flows through to the result,
+        // instead of reporting the variable as uninferrable.
+        for constraint in constraints {
+            guard constraint.kind == .subtype,
+                  case let .variable(left) = constraint.left,
+                  case let .variable(right) = constraint.right,
+                  left == right,
+                  substitution[left] == nil || substitution[left] == ctx.types.errorType,
+                  let symbol = typeVarBySymbol.first(where: { $0.value == left })?.key
+            else {
+                continue
+            }
+            substitution[left] = ctx.types.make(.typeParam(TypeParamType(
+                symbol: symbol,
+                nullability: .nonNull
+            )))
         }
 
         guard satisfiesOnlyInputTypes(

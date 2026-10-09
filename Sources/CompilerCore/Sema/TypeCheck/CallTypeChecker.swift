@@ -1823,6 +1823,13 @@ final class CallTypeChecker {
         /// (through capture when the call sits inside a nested lambda)
         /// instead of blindly using the innermost implicit receiver.
         var memberExtensionReceiverMarks: [SymbolID: SymbolID] = [:]
+        /// Members merged from the innermost implicit receiver while the
+        /// scope lookup produced no candidates (e.g. `FlowCollector.emit`
+        /// inside a `transform` lambda). Their resolver pass can fail on an
+        /// opaque builder-inference type parameter in the receiver
+        /// signature, so the member path's lenient single-candidate bind
+        /// must still apply to them.
+        var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
         if let calleeName {
             let allCallCandidates = scopeCallCandidatesConsideringImplicitReceivers(named: calleeName, ctx: ctx).filter { candidate in
@@ -1866,6 +1873,7 @@ final class CallTypeChecker {
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
+                    let scopeProvidedNoCandidates = candidates.isEmpty
                     // Member-extension members surface under the dispatch
                     // receiver type but must resolve against the implicit
                     // receiver tower entry picked for the extension receiver.
@@ -1892,6 +1900,9 @@ final class CallTypeChecker {
                     }
                     if !regularMembers.isEmpty {
                         candidates = regularMembers
+                        if scopeProvidedNoCandidates {
+                            mergedImplicitReceiverMembers = regularMembers
+                        }
                     } else if let extensionReceiverType = memberExtensionCandidates.first?.receiverType {
                         candidates = memberExtensionCandidates
                             .filter { $0.receiverType == extensionReceiverType }
@@ -3225,6 +3236,34 @@ final class CallTypeChecker {
                 {
                     return recovered
                 }
+                if resolved.diagnostic != nil,
+                   mergedImplicitReceiverMembers.count == 1,
+                   let bestCandidate = mergedImplicitReceiverMembers.first,
+                   let signature = sema.symbols.functionSignature(for: bestCandidate),
+                   let calleeName
+                {
+                    // The merged implicit-receiver member failed constraint
+                    // solving — e.g. `FlowCollector<R>.emit` inside
+                    // `transform`, where `R` is an outer call's type parameter
+                    // opaque to this resolver. The general member path below
+                    // would still bind such a lone member leniently; mirror
+                    // that fallback here so the call is not hard-errored.
+                    var mapping: [Int: Int] = [:]
+                    for i in args.indices { mapping[i] = i }
+                    sema.bindings.bindCall(
+                        id,
+                        binding: CallBinding(
+                            chosenCallee: bestCandidate,
+                            substitutedTypeArguments: [],
+                            parameterMapping: mapping
+                        )
+                    )
+                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    let resultType = signature.returnType
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
+                }
                 if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
                    let calleeName,
                    let recovered = resolveOuterImplicitReceiverExtensionCall(
@@ -3499,6 +3538,7 @@ final class CallTypeChecker {
                     // explicit annotation there (`{ x -> ... }(4)` is rejected,
                     // `{ x: Int -> ... }(4)` is accepted) — so only the optional
                     // caller expected *return* type is propagated here.
+                    sema.bindings.markDirectlyInvokedLambdaExpr(calleeID)
                     contextualCalleeType = sema.types.make(.functionType(FunctionType(
                         params: [],
                         returnType: expectedType ?? sema.types.anyType,

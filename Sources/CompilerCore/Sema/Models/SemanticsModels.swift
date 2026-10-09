@@ -1809,6 +1809,11 @@ public final class BindingTable {
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Tracks lambda literals that are the callee of a direct invocation
+    /// (`{ ... }()`). `inferCallExpr` synthesizes `() -> Any` for them, which
+    /// must not leak into the lambda's own type — the call's result is the
+    /// body's concrete return type.
+    public private(set) var directlyInvokedLambdaExprIDs: Set<ExprID> = []
     /// Tracks `.memberCall` expressions resolved by
     /// `CallTypeChecker.tryInferFQNPackageTopLevelCall` (e.g.
     /// `kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`): the receiver
@@ -2423,6 +2428,16 @@ public final class BindingTable {
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a lambda literal as the callee of a direct invocation (`{ ... }()`).
+    public func markDirectlyInvokedLambdaExpr(_ expr: ExprID) {
+        directlyInvokedLambdaExprIDs.insert(expr)
+    }
+
+    /// Whether the lambda literal is the callee of a direct invocation.
+    public func isDirectlyInvokedLambdaExpr(_ expr: ExprID) -> Bool {
+        directlyInvokedLambdaExprIDs.contains(expr)
     }
 
     /// Mark a `.memberCall` expression as resolved via the FQN-package-qualified
