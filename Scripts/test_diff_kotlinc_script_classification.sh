@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression test for Scripts/diff_kotlinc.sh's run_case() script-mode exit
-# classification (see docs/diff-skip-inventory.md DEBT-DIFF-009).
+# script-mode classification regression for DEBT-DIFF-009.
 #
 # kotlinc -script bundles compile+run into one JVM process, so there is no
 # independently observable compile-phase exit on the reference side. This
