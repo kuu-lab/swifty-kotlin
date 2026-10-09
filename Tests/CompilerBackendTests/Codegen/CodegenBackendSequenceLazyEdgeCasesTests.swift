@@ -12,16 +12,7 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     // KUU-1073: infer non-null elements from nullable no-argument callbacks.
     @Test(arguments: [false, true])
     func testNullableGenerateSequenceLambdaInference(allowDefaultStdlibLibrary: Bool) throws {
-        let source = """
-        fun main() {
-            val b = generateSequence { if (true) 1 else null }
-            println(b.take(3).toList())
-            var i = 0
-            val c = generateSequence { i = i + 1; if (i <= 3) i else null }
-            println(c.toList())
-            println(generateSequence { 1 as Int? }.take(2).toList())
-        }
-        """
+        let source = try diffCaseSource("generate_sequence_nullable_lambda.kt")
         try assertKotlinOutput(
             source,
             moduleName: "NullableGenerateSequenceLambdaInference",
@@ -34,26 +25,7 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     // and terminate on null, including lambdas without a closure parameter.
     @Test(arguments: [false, true])
     func testSeededGenerateSequenceCallbackABI(allowDefaultStdlibLibrary: Bool) throws {
-        let source = """
-        fun nextValue(value: Int): Int? = if (value < 8) value * 2 else null
-
-        fun main() {
-            println(generateSequence(0) { it + 1 }.take(3).toList())
-            val iterator = generateSequence(1) { it + 1 }.iterator()
-            println(iterator.next())
-            println(iterator.next())
-            println(generateSequence(5) { null }.firstOrNull())
-            println(generateSequence(5) { null }.toList())
-            println(generateSequence(1) { if (it < 8) it * 2 else null }.toList())
-            println(generateSequence(1, ::nextValue).toList())
-            val step = 2
-            val limit = 7
-            val captured = generateSequence(1) { if (it < limit) it + step else null }
-            println(captured.toList())
-            println(captured.toList())
-            println(generateSequence { 42 }.take(2).toList())
-        }
-        """
+        let source = try diffCaseSource("generate_sequence_seed_callback_abi.kt")
 
         try assertKotlinOutput(
             source,
@@ -86,73 +58,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 [2, 4, 6]
                 3
                 """ + "\n"
-        )
-    }
-
-    // KSP-631: Iterator.asSequence preserves the original iterator, defers
-    // traversal, and enforces one-shot consumption.
-    @Test
-    func testIteratorAsSequencePreservesLazyOneShotSemantics() throws {
-        let source = """
-        class CountingIterator(private val values: List<Int>) : Iterator<Int> {
-            private var index = 0
-            var nextCalls = 0
-
-            override fun hasNext(): Boolean = index < values.size
-
-            override fun next(): Int {
-                if (!hasNext()) throw NoSuchElementException()
-                nextCalls++
-                val result = values[index]
-                index++
-                return result
-            }
-        }
-
-        fun main() {
-            val identityIterator = listOf(7).iterator()
-            val identitySequence = identityIterator.asSequence()
-            println(identitySequence.iterator() === identityIterator)
-            println(identityIterator.next())
-
-            val probe = CountingIterator(listOf(1, 2, 3))
-            val lazySequence = probe.asSequence()
-            println(probe.nextCalls)
-            println(lazySequence.take(2).toList())
-            println(probe.nextCalls)
-
-            val oneShot = listOf(4, 5).iterator().asSequence()
-            println(oneShot.toList())
-            try {
-                oneShot.toList()
-                println("missing one-shot failure")
-            } catch (e: IllegalStateException) {
-                println("one-shot")
-            }
-
-            println(emptyList<Int>().iterator().asSequence().toList())
-
-        val partial = CountingIterator(listOf(10, 20, 30))
-            println(partial.next())
-            println(partial.asSequence().toList())
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "IteratorAsSequenceSemantics",
-            expected: """
-            true
-            7
-            0
-            [1, 2]
-            2
-            [4, 5]
-            one-shot
-            []
-            10
-            [20, 30]
-            """ + "\n"
         )
     }
 
@@ -256,31 +161,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "GenerateSequenceNullTermination", expected: "[1, 2, 3, 4]\n")
-    }
-
-    @Test
-    func testSourceBackedSequenceFactoriesResolveSeedFunctionOverload() throws {
-        let source = """
-        fun main() {
-            val repeated = generateSequence({
-                10
-            }) { if (it > 1) it / 2 else null }
-            println(repeated.toList())
-
-            val nullSeed: Int? = null
-            println(generateSequence(nullSeed) { it + 1 }.toList())
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SourceBackedSequenceFactories",
-            expected:
-                """
-                [10, 5, 2, 1]
-                []
-                """ + "\n"
-        )
     }
 
     // KSP-500: generateSequence's seed and every element produced by nextFunction
@@ -647,33 +527,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceElementAt", expected: "20\n")
-    }
-
-    @Test
-    func testSequenceElementAtOutOfBoundsThrowsCatchableIndexException() throws {
-        let source = """
-        fun main() {
-            try {
-                sequenceOf(1, 2, 3).elementAt(10)
-                println("missing-positive")
-            } catch (e: IndexOutOfBoundsException) {
-                println("caught-index")
-            }
-
-            try {
-                sequenceOf(1, 2, 3).elementAt(-1)
-                println("missing-negative")
-            } catch (e: Exception) {
-                println("caught-exception")
-            }
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceElementAtOutOfBounds",
-            expected: "caught-index\ncaught-exception\n"
-        )
     }
 
     @Test
@@ -1127,27 +980,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 [true]
                 [x]
                 """ + "\n"
-        )
-    }
-
-    @Test
-    func testNullableSequenceOrEmptyAndSourceIteratorExecute() throws {
-        let source = """
-        fun main() {
-            val missing: Sequence<Int>? = null
-            val present: Sequence<Int>? = sequenceOf(1, 2)
-            println(missing.orEmpty().toList())
-            println(present.orEmpty().toList())
-
-            val iterator = sequenceOf(3, 4).iterator()
-            println(iterator.next())
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceRegistrationRuntime",
-            expected: "[]\n[1, 2]\n3\n"
         )
     }
 

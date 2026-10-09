@@ -37,6 +37,7 @@ final class LLVMCAPIBindings {
     typealias LLVMSetTargetFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
     typealias LLVMSetDataLayoutFn = @convention(c) (LLVMModuleRef?, UnsafePointer<CChar>?) -> Void
     typealias LLVMSetLinkageFn = @convention(c) (LLVMValueRef?, UInt32) -> Void
+    typealias LLVMSetThreadLocalFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
     typealias LLVMInt8TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
     typealias LLVMInt64TypeInContextFn = @convention(c) (LLVMContextRef?) -> LLVMTypeRef?
     typealias LLVMStructTypeInContextFn = @convention(c) (
@@ -255,6 +256,7 @@ final class LLVMCAPIBindings {
     let setTargetFn: LLVMSetTargetFn
     let setDataLayoutFn: LLVMSetDataLayoutFn
     let setLinkageFn: LLVMSetLinkageFn
+    let setThreadLocalFn: LLVMSetThreadLocalFn
     let int8TypeInContextFn: LLVMInt8TypeInContextFn
     let int64TypeFn: LLVMInt64TypeInContextFn
     let structTypeInContextFn: LLVMStructTypeInContextFn?
@@ -366,6 +368,7 @@ final class LLVMCAPIBindings {
         setTargetFn: @escaping LLVMSetTargetFn,
         setDataLayoutFn: @escaping LLVMSetDataLayoutFn,
         setLinkageFn: @escaping LLVMSetLinkageFn,
+        setThreadLocalFn: @escaping LLVMSetThreadLocalFn,
         int8TypeInContextFn: @escaping LLVMInt8TypeInContextFn,
         int64TypeFn: @escaping LLVMInt64TypeInContextFn,
         structTypeInContextFn: LLVMStructTypeInContextFn? = nil,
@@ -477,6 +480,7 @@ final class LLVMCAPIBindings {
         self.setTargetFn = setTargetFn
         self.setDataLayoutFn = setDataLayoutFn
         self.setLinkageFn = setLinkageFn
+        self.setThreadLocalFn = setThreadLocalFn
         self.int8TypeInContextFn = int8TypeInContextFn
         self.int64TypeFn = int64TypeFn
         self.structTypeInContextFn = structTypeInContextFn

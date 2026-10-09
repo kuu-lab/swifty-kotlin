@@ -53,6 +53,10 @@ extension LLVMCAPIBindings {
         setLinkageFn(value, 3)
     }
 
+    func setThreadLocal(_ value: LLVMValueRef?, isThreadLocal: Bool = true) {
+        setThreadLocalFn(value, isThreadLocal ? 1 : 0)
+    }
+
     func int8Type(context: LLVMContextRef?) -> LLVMTypeRef? {
         int8TypeInContextFn(context)
     }

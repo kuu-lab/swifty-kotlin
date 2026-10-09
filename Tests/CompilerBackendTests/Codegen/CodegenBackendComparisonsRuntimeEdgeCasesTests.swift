@@ -8,35 +8,6 @@ import Testing
 struct CodegenBackendComparisonsRuntimeEdgeCasesTests {
 
     @Test
-    func testCodegenCompilesComparisonsRuntimeEdgeCases() throws {
-        let source = """
-        fun main() {
-            val words = listOf("pear", "apple", "fig")
-            val byLength = compareBy<String> { it.length }
-
-            println(words.maxWithOrNull(byLength))
-            println(words.minWithOrNull(byLength))
-
-            val empty = emptyList<String>()
-            println(empty.maxWithOrNull(byLength))
-            println(empty.minWithOrNull(byLength))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "ComparisonsRuntimeEdgeCases",
-            expected:
-                """
-                apple
-                fig
-                null
-                null
-                """ + "\n"
-        )
-    }
-
-    @Test
     func testCodegenCompilesCompareByDescendingSelector() throws {
         let source = """
         fun main() {

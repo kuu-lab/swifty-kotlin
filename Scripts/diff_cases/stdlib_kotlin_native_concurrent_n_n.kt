@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.concurrent APIs require a Kotlin/Native reference target.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_concurrent_n_n.expected.stdout
 @file:Suppress("DEPRECATION_ERROR")
 @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 

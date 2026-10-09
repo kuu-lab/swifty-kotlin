@@ -54,10 +54,19 @@ extension CollectionLiteralConstructionLoweringPass {
             let closureRawID: KIRExprID
             if arguments.count == 4 { closureRawID = arguments[3] } else { let z = module.arena.appendExpr(.intLiteral(0), type: nil); loweredBody.append(.constValue(result: z, value: .intLiteral(0))); closureRawID = z }
             let kkName = (callee == lookup.scanIndexedName || callee == lookup.kkSequenceScanIndexedName) ? lookup.kkSequenceScanIndexedName : lookup.kkSequenceRunningFoldIndexedName
-            let hofResult = module.arena.appendTemporary(type: nil)
-            loweredBody.append(.call(symbol: nil, callee: kkName, arguments: [receiverID, initialID, lambdaID, closureRawID], result: hofResult, canThrow: canThrow, thrownResult: thrownResult))
-            if let result { loweredBody.append(.copy(from: hofResult, to: result)); state.sequenceExprIDs.insert(result.rawValue) }
-            state.sequenceExprIDs.insert(hofResult.rawValue); return true
+            appendCallWithTrackedResult(
+                callee: kkName,
+                arguments: [receiverID, initialID, lambdaID, closureRawID],
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult,
+                trackedAs: .sequence,
+                trackTemporaryWithoutDestination: true,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
+            return true
         }
     }
 
@@ -78,21 +87,18 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             let kkName = callee == lookup.scanName
                 ? lookup.kkSequenceScanName : lookup.kkSequenceRunningFoldName
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: kkName,
                 arguments: [receiverID, initialID, lambdaID, closureRawID],
-                result: hofResult,
+                result: result,
                 canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            state.listExprIDs.insert(hofResult.rawValue)
-            if let result { state.listExprIDs.insert(result.rawValue) }
+                thrownResult: thrownResult,
+                trackedAs: .list,
+                trackTemporaryWithoutDestination: true,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
     }
@@ -109,21 +115,18 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkSequenceRunningReduceName,
                 arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
+                result: result,
                 canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            state.listExprIDs.insert(hofResult.rawValue)
-            if let result { state.listExprIDs.insert(result.rawValue) }
+                thrownResult: thrownResult,
+                trackedAs: .list,
+                trackTemporaryWithoutDestination: true,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
     }
@@ -140,21 +143,18 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 closureRawID = zeroExpr
             }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkSequenceRunningReduceIndexedName,
                 arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
+                result: result,
                 canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            state.listExprIDs.insert(hofResult.rawValue)
-            if let result { state.listExprIDs.insert(result.rawValue) }
+                thrownResult: thrownResult,
+                trackedAs: .list,
+                trackTemporaryWithoutDestination: true,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
     }
