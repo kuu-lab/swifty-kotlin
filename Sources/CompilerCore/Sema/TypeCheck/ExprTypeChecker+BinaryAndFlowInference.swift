@@ -197,6 +197,15 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
+            if identityEqualityHasDistinctSingletonTypes(lhsType, rhsType, sema: sema) {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "Operator '\(op == .identityEqual ? "===" : "!==")' cannot be applied to unrelated singleton types.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
@@ -888,6 +897,19 @@ extension ExprTypeChecker {
         return [lhs, rhs].contains { type in
             resolveClassTypeSymbol(type, sema: sema)?.symbol.flags.contains(.valueType) == true
         }
+    }
+
+    private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
+        // Both nullable types can contain the same null value. Widened operands
+        // and type parameters retain their declared types on the caller's path.
+        if sema.types.nullability(of: lhs) == .nullable,
+           sema.types.nullability(of: rhs) == .nullable {
+            return false
+        }
+        guard let left = resolveClassTypeSymbol(lhs, sema: sema)?.symbol,
+              let right = resolveClassTypeSymbol(rhs, sema: sema)?.symbol
+        else { return false }
+        return left.kind == .object && right.kind == .object && left.id != right.id
     }
 
     // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or

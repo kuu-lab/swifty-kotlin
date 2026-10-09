@@ -1104,7 +1104,12 @@ extension KIRLoweringDriver {
                         visibility: .private,
                         flags: [.synthetic]
                     )
-                    return KIRParameter(symbol: paramSymbol, type: type)
+                    let isVararg = signature.valueParameterIsVararg.indices.contains(index)
+                        && signature.valueParameterIsVararg[index]
+                    let parameterType = callableReflectionParameterType(
+                        type, isVararg: isVararg, sema: sema, interner: interner
+                    )
+                    return KIRParameter(symbol: paramSymbol, type: parameterType)
                 }
                 let callableBody: [KIRInstruction] = ctx.withNewScope {
                     ctx.resetScopeForFunction()

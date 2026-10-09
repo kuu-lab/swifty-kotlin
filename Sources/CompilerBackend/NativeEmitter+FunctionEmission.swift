@@ -2742,9 +2742,12 @@ extension NativeEmitter {
                 {
                     let valueParameters = spec.parameters.filter { $0.name != "outThrown" }
                     if argumentValues.count + 1 == valueParameters.count,
-                       let callbackIndex = valueParameters.firstIndex(where: { $0.name == "fnPtr" }),
+                       let callbackIndex = valueParameters.firstIndex(where: {
+                           $0.name == "fnPtr" || $0.name.hasSuffix("FnPtr")
+                       }),
                        callbackIndex + 1 < valueParameters.count,
-                       valueParameters[callbackIndex + 1].name == "closureRaw",
+                       valueParameters[callbackIndex + 1].name == (valueParameters[callbackIndex].name == "fnPtr"
+                           ? "closureRaw" : String(valueParameters[callbackIndex].name.dropLast(5)) + "ClosureRaw"),
                        argumentTypes.indices.contains(callbackIndex),
                        let callbackType = argumentTypes[callbackIndex],
                        let typeSystem,

@@ -1,0 +1,17 @@
+ENUM|2133249|serial|true
+CONTEXTUAL|758900561|serial|true
+BOOLEAN|782694408|primitive|true
+BYTE|2054408|primitive|true
+CHAR|2067286|primitive|true
+SHORT|78875740|primitive|true
+INT|72655|primitive|true
+LONG|2342524|primitive|true
+FLOAT|66988604|primitive|true
+DOUBLE|2022338513|primitive|true
+STRING|-1838656495|primitive|true
+CLASS|64205144|structure|true
+LIST|2336926|structure|true
+MAP|76092|structure|true
+OBJECT|-1970038977|structure|true
+SEALED|-1853013156|polymorphic|true
+OPEN|2432586|polymorphic|true

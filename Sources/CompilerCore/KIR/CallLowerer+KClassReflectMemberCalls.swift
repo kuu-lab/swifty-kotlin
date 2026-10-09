@@ -2,12 +2,12 @@
 /// compiler special cases after KSP-496.
 ///
 /// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
-/// class-kind flags/`members`/`constructors`/etc. now resolve as ordinary
+/// class-kind flags/`members`/etc. now resolve as ordinary
 /// Kotlin extension declarations
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
 /// through the normal member-call path.
 ///
-/// `objectInstance` / `sealedSubclasses` are source-declared interface properties,
+/// `objectInstance` / `sealedSubclasses` / `constructors` are source-declared interface properties,
 /// implemented by the native singleton and subclass registries.
 ///
 /// `findAnnotation<T>()` / `findAssociatedObject<T>()` take a reified type
@@ -172,6 +172,11 @@ extension CallLowerer {
         case "sealedSubclasses":
             return emitRuntimeCall(
                 callee: "__kk_kclass_sealed_subclasses", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "constructors":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_constructors", arguments: [kclassExpr],
                 fallbackType: sema.types.anyType
             )
         case "findAnnotation":
