@@ -113,9 +113,9 @@ public func __kk_char_is_lowercase(_ code: Int) -> Int {
 public func __kk_char_uppercase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(String(scalar).uppercased())
+    return runtimeMakeUTF8StringRaw(String(scalar).uppercased())
 }
 
 /// Full Unicode lowercase mapping.
@@ -123,9 +123,9 @@ public func __kk_char_uppercase_string(_ code: Int) -> Int {
 public func __kk_char_lowercase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(String(scalar).lowercased())
+    return runtimeMakeUTF8StringRaw(String(scalar).lowercased())
 }
 
 /// Full Unicode titlecase mapping.
@@ -133,9 +133,9 @@ public func __kk_char_lowercase_string(_ code: Int) -> Int {
 public func __kk_char_titlecase_string(_ code: Int) -> Int {
     if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(scalar.properties.titlecaseMapping)
+    return runtimeMakeUTF8StringRaw(scalar.properties.titlecaseMapping)
 }
 
 /// One-to-one (simple) uppercase mapping; returns -1 when there is none (surrogates, ß).
@@ -168,23 +168,23 @@ public func __kk_char_titlecase_code(_ code: Int) -> Int {
 @_cdecl("__kk_char_uppercase_locale")
 public func __kk_char_uppercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return charRuntimeMakeStringRaw(String(scalar).uppercased())
+        return runtimeMakeUTF8StringRaw(String(scalar).uppercased())
     }
-    return charRuntimeMakeStringRaw(String(scalar).uppercased(with: box.locale))
+    return runtimeMakeUTF8StringRaw(String(scalar).uppercased(with: box.locale))
 }
 
 @_cdecl("__kk_char_lowercase_locale")
 public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return charRuntimeMakeStringRaw(String(scalar).lowercased())
+        return runtimeMakeUTF8StringRaw(String(scalar).lowercased())
     }
-    return charRuntimeMakeStringRaw(String(scalar).lowercased(with: box.locale))
+    return runtimeMakeUTF8StringRaw(String(scalar).lowercased(with: box.locale))
 }
 
 /// Equivalent to `kotlin.text.digitOf` before applying the radix bound; returns -1 for non-digits.
@@ -497,12 +497,4 @@ private func charDirectionalityToInt(_ scalar: UnicodeScalar) -> Int {
     default:
         return scalar.properties.isWhitespace ? 13 : 1
     }
-}
-
-private func charRuntimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
 }

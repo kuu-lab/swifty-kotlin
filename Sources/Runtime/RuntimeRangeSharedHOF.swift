@@ -702,6 +702,90 @@ func runtimeRangeEntry<Kind: RuntimeRangeHOFKind>(
     return body(range)
 }
 
+func runtimeRangeChunkedEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    size: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size \(size) must be greater than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.chunked(range, size)
+    }
+}
+
+func runtimeRangeWindowedEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    size: Int,
+    step: Int,
+    partialWindows: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    guard size > 0, step > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Both size \(size) and step \(step) must be greater than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.windowed(range, size, step, partialWindows)
+    }
+}
+
+private func runtimeRangeCountEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    operation: (RuntimeRangeBox, Int) -> Int
+) -> Int {
+    outThrown?.pointee = 0
+    guard count >= 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(count) is less than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        operation(range, count)
+    }
+}
+
+func runtimeRangeTakeEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    runtimeRangeCountEntry(kind, rangeRaw, count: count, outThrown, functionName: functionName) {
+        Kind.take($0, $1)
+    }
+}
+
+func runtimeRangeDropEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    runtimeRangeCountEntry(kind, rangeRaw, count: count, outThrown, functionName: functionName) {
+        Kind.drop($0, $1)
+    }
+}
+
 @inline(__always)
 func runtimeRangeFirstOrLastOrThrow<Kind: RuntimeRangeHOFKind>(
     _: Kind.Type,

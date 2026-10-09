@@ -154,8 +154,11 @@ public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ c
 /// Creates a non-cached entries view over the supplied Array backing store.
 @_cdecl("__kk_enum_entries_from_array")
 public func kk_enum_entries_from_array(_ valuesRaw: Int) -> Int {
-    guard let values = runtimeArrayBox(from: valuesRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
-    }
-    return registerRuntimeObject(RuntimeListBox(arrayViewOf: values), typeID: listRuntimeTypeID)
+    runtimeRegisterViewOrEmpty(
+        from: valuesRaw,
+        resolve: runtimeArrayBox,
+        makeEmpty: { RuntimeListBox(elements: []) },
+        makeView: { RuntimeListBox(arrayViewOf: $0) },
+        typeID: listRuntimeTypeID
+    )
 }

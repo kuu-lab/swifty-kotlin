@@ -2,19 +2,7 @@ import Foundation
 import RuntimeABI
 
 func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
-    guard raw != runtimeNullSentinelInt,
-          raw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
-    else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeThrowableBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeThrowableBox.self)
 }
 
 private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =

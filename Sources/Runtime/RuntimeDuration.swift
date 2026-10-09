@@ -14,12 +14,7 @@ final class RuntimeDurationBox {
 }
 
 private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    let isRegisteredObject = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isRegisteredObject else { return nil }
-    return tryCast(ptr, to: RuntimeDurationBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeDurationBox.self)
 }
 
 private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
@@ -154,14 +149,6 @@ private func runtimeDurationFormatFractional(
     let keepDigits = significantDigits < 3 ? significantDigits : ((significantDigits + 2) / 3) * 3
     let trimmed = String(digits.prefix(keepDigits))
     return "\(whole).\(trimmed)\(suffix)"
-}
-
-private func runtimeDurationMakeString(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
 }
 
 private func runtimeDurationComponents(
@@ -629,13 +616,13 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
     let ns = rawValue >> 1
 
     if ns == 0 {
-        return runtimeDurationMakeString("0s")
+        return runtimeMakeUTF8StringRaw("0s")
     }
     if rawValue == Int64.max {
-        return runtimeDurationMakeString("Infinity")
+        return runtimeMakeUTF8StringRaw("Infinity")
     }
     if rawValue == runtimeDurationNegativeInfinity {
-        return runtimeDurationMakeString("-Infinity")
+        return runtimeMakeUTF8StringRaw("-Infinity")
     }
 
     let isNegative = ns < 0
@@ -712,7 +699,7 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
     } else {
         str = out
     }
-    return runtimeDurationMakeString(str)
+    return runtimeMakeUTF8StringRaw(str)
 }
 
 @_cdecl("kk_duration_parse")
