@@ -1,0 +1,22 @@
+{
+  "version": "1.10.0",
+  "commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "sources": [
+    {
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/ApiLevels.kt",
+      "git_blob": "728ddd12ce82c87e54e3568d9b2e47d4fa877f7d",
+      "upstream_sha256": "b53262729010e764312e3a9e09aa24b74a750a3f8596f156b973dca4c56bb6f8",
+      "local_path": "Sources/CompilerCore/Stdlib/kotlinx/serialization/ApiLevels.kt",
+      "local_sha256": "b979ef106ca0733628f6e882a13348505e6838d73e1f2cbdc651227b5793cc66",
+      "adaptation": "Trim final empty line; SerialKinds drops imports used only in documentation."
+    },
+    {
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialKinds.kt",
+      "git_blob": "93ce9270a9d7ce457c43124db3b8ead269dcb7ab",
+      "upstream_sha256": "046daedfbe697ba04b1229201738c908d0e691649392e8e4d45b63beb0ef7257",
+      "local_path": "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/SerialKinds.kt",
+      "local_sha256": "fc8488e1b83e958dc36e984b800bd1e8c196efbe17b38e89688841d95ace19ae",
+      "adaptation": "Trim final empty line; SerialKinds drops imports used only in documentation."
+    }
+  ]
+}
