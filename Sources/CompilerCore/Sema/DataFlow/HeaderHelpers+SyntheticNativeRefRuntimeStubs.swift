@@ -143,20 +143,12 @@ extension DataFlowSemaPhase {
 
         // Set up the single type-parameter T (inline, as the NativeInterop
         // helper is private).
-        let parameterInternedName = interner.intern("T")
-        let typeParameterFQName = classFQName + [parameterInternedName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: parameterInternedName,
-                fqName: typeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: classFQName,
+            symbols: symbols,
+            interner: interner
+        )
         symbols.setParentSymbol(classSymbol, for: typeParamSymbol)
 
         let tType = types.make(.typeParam(TypeParamType(
