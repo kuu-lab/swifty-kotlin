@@ -3184,6 +3184,7 @@ extension NativeEmitter {
                     guard !isInternalCall,
                           let effectiveSymbol,
                           let symbols,
+                          let typeSystem,
                           let signature = symbols.functionSignature(for: effectiveSymbol),
                           let linkName = symbols.externalLinkName(for: effectiveSymbol),
                           linkName.hasPrefix("kk_fn_"),
@@ -3195,7 +3196,15 @@ extension NativeEmitter {
                     else {
                         return nil
                     }
-                    let parameters = sourceReceiverTypes(for: effectiveSymbol, signature: signature) + signature.parameterTypes
+                    let receivers = sourceReceiverTypes(for: effectiveSymbol, signature: signature)
+                    let valueParameters = signature.parameterTypes.enumerated().map { index, parameter in
+                        // Metadata records a vararg's element type, but its ABI
+                        // passes one erased array handle, including for String.
+                        signature.valueParameterIsVararg.indices.contains(index)
+                            && signature.valueParameterIsVararg[index]
+                            ? typeSystem.anyType : parameter
+                    }
+                    let parameters = receivers + valueParameters
                     guard parameters.count == argumentValues.count else {
                         return nil
                     }
@@ -3368,6 +3377,20 @@ extension NativeEmitter {
                             from: argumentType,
                             to: paramType,
                             suffix: "\(instructionIndex)_virtual_internal_arg\(index)"
+                        )
+                    }
+                } else if let sourceCallSignature = virtualSourceCallSignature ?? sourceExternalCallSignature {
+                    // Imported interface members use their declared source ABI.
+                    // In particular, a null argument must become a String?
+                    // aggregate before calling a generated Kotlin method.
+                    virtualCallArguments = zip(argumentValues, sourceCallSignature.parameters).enumerated().map { index, pair in
+                        let (argumentValue, parameterType) = pair
+                        let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
+                        return coerceStringValueForType(
+                            argumentValue,
+                            from: argumentType,
+                            to: parameterType,
+                            suffix: "\(instructionIndex)_virtual_source_arg\(index)"
                         )
                     }
                 }
