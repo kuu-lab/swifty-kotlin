@@ -30,6 +30,7 @@ struct CLIParserTests {
             "-l", "runtime",
             "--target", "x86_64-apple-macos",
             "-Xfrontend", "time-phases",
+            "-Xfrontend", "common-module",
             "-Xir", "trace-lowering",
             "-Xruntime", "trace=true",
             "-g",
@@ -43,7 +44,8 @@ struct CLIParserTests {
         #expect(options.searchPaths == ["include"])
         #expect(options.libraryPaths == ["lib"])
         #expect(options.linkLibraries == ["runtime"])
-        #expect(options.frontendFlags == ["time-phases"])
+        #expect(options.frontendFlags == ["time-phases", "common-module"])
+        #expect(options.isCommonModule)
         #expect(options.irFlags == ["trace-lowering"])
         #expect(options.runtimeFlags == ["trace=true"])
         #expect(options.debugInfo)

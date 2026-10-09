@@ -8,6 +8,43 @@ import Testing
 @Suite
 struct LibraryMetadataImportIntegrationTests {
     @Test
+    func testCommonModuleKklibPreservesUnmatchedExpectMetadata() throws {
+        let commonSource = """
+        package common.api
+        expect fun platformAnswer(): Int
+        """
+
+        try withCompiledLibrary(
+            source: commonSource,
+            moduleName: "CommonApi",
+            includeStdlib: false,
+            frontendFlags: ["common-module"]
+        ) { libraryPath in
+            let appSource = """
+            package common.api
+            actual fun platformAnswer(): Int = 42
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "PlatformApp",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false
+                )
+                try runSema(appCtx)
+
+                let importedExpect = try #require(appCtx.sema?.symbols.lookupAll(
+                    fqName: ["common", "api", "platformAnswer"].map(appCtx.interner.intern)
+                ).compactMap { appCtx.sema?.symbols.symbol($0) }
+                    .first { $0.flags.contains(.expectDeclaration) })
+                #expect(importedExpect.flags.contains(.importedLibrary))
+                #expect(!appCtx.diagnostics.hasError, "Unexpected errors: \(appCtx.diagnostics.diagnostics)")
+            }
+        }
+    }
+
+    @Test
     func testCommonLibraryPreservesUnresolvedExpectMetadata() throws {
         let librarySource = """
         package common

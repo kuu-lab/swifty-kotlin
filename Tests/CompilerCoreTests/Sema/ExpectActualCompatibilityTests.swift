@@ -83,6 +83,23 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.symbols.actualSymbol(for: expectSymbol) == nil)
     }
 
+    @Test func testOptionalExpectationMembersDoNotSuppressUnrelatedExpectRequirement() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            @OptIn(ExperimentalMultiplatform::class)
+            @OptionalExpectation
+            expect annotation class OptionalTag(val name: String)
+            expect fun requiredPlatformValue(): Int
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.map(\.code) == ["KSWIFTK-MPP-UNRESOLVED"], "Unexpected diagnostics: \(errors)")
+        #expect(errors.first?.message.contains("sample.kmp.requiredPlatformValue") == true)
+    }
+
     @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
         let ctx = makeContextFromSource(
             """
