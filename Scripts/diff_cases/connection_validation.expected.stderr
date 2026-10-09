@@ -1,12 +1,3 @@
-Scripts/diff_cases/connection_validation.kt:10:22: error KSWIFTK-SEMA-0022: Unresolved reference 'DriverManager'.
-    val connection = DriverManager.getConnection("jdbc:kswiftk:memory")
-                     ^
-Scripts/diff_cases/connection_validation.kt:14:5: error KSWIFTK-SEMA-0003: Ambiguous overload resolution.
-    connection.close()
-    ^
-Scripts/diff_cases/connection_validation.kt:21:7: error KSWIFTK-SEMA-0085: Unresolved exception type 'SQLException' in catch clause.
-    } catch (_: SQLException) {
-      ^
 Scripts/diff_cases/connection_validation.kt:114:19: error KSWIFTK-SEMA-0025: Unresolved type 'Thread'.
     val threads = mutableListOf<Thread>()
                   ^

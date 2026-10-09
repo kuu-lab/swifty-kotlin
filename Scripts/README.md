@@ -245,6 +245,12 @@ Override individual cached paths with `KOTLINC_COROUTINES_JAR`,
 Run `bash Scripts/test_diff_kotlinc_dependencies.sh` to check dependency
 selection without downloading jars or building the compiler.
 
+A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
+usable oracle. The runner compiles and runs only kswiftc, then compares stdout
+to that fixture. When the target is this single case, JVM tooling is not
+required; directory runs still configure JVM tooling for their ordinary diff
+cases.
+
 Successful non-script reference compilations are reused across runs via
 `KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a
 second full run skips the per-case kotlinc compile entirely). Set it to

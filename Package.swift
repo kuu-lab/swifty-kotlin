@@ -48,6 +48,12 @@ let package = Package(
         .target(
             name: "RuntimeCAtomics"
         ),
+        .systemLibrary(
+            name: "CSQLite",
+            providers: [
+                .apt(["libsqlite3-dev"]),
+            ]
+        ),
         .target(
             name: "CompilerCore",
             dependencies: ["RuntimeABI"],
@@ -109,7 +115,7 @@ let package = Package(
         ),
         .target(
             name: "Runtime",
-            dependencies: ["RuntimeABI", "RuntimeCAtomics"]
+            dependencies: ["RuntimeABI", "RuntimeCAtomics", "CSQLite"]
         ),
         .testTarget(
             name: "CompilerCoreTests",

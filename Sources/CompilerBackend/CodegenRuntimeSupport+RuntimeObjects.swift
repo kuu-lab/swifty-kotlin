@@ -561,7 +561,7 @@ extension CodegenRuntimeSupport {
             return "Package.swift is not the KSwiftK package manifest"
         }
 
-        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics"] {
+        for component in ["Sources/Runtime", "Sources/RuntimeABI", "Sources/RuntimeCAtomics", "Sources/CSQLite"] {
             let directoryURL = root.appendingPathComponent(component, isDirectory: true)
             var directoryFlag: ObjCBool = false
             guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &directoryFlag),
