@@ -3468,17 +3468,19 @@ extension NativeEmitter {
                     fptrRaw = method
                 }
 
-                // RuntimeMapBox values have no MutableMap itable. Preserve
-                // overrides on Kotlin map implementations, but use the
-                // source-backed default when a native map box has no entry.
+                // RuntimeMapBox and RuntimeSetBox values have no mutable
+                // collection itable. Preserve overrides on Kotlin collection
+                // implementations, but use the source-backed default when a
+                // native collection box has no entry.
                 if let effectiveSymbol,
                    let symbols,
                    let member = symbols.symbol(effectiveSymbol),
-                   interner.resolve(member.name) == "asJsMapView",
                    let owner = symbols.parentSymbol(for: effectiveSymbol),
-                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "MutableMap"],
+                   let ownerName = symbols.symbol(owner)?.fqName.map(interner.resolve),
                    !member.flags.contains(.abstractType),
-                   symbols.isSourceBackedSymbol(effectiveSymbol)
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   (ownerName == ["kotlin", "collections", "MutableMap"] && interner.resolve(member.name) == "asJsMapView"
+                    || ownerName == ["kotlin", "collections", "MutableSet"] && interner.resolve(member.name) == "asJsSetView")
                 {
                     let defaultFunction: LLVMFunction? = if let internalFunction = internalFunctions[effectiveSymbol] {
                         internalFunction
@@ -3494,18 +3496,18 @@ extension NativeEmitter {
                     if let defaultFunction,
                        let defaultPointer = bindings.buildPtrToInt(
                            builder, value: defaultFunction.value, type: int64Type,
-                           name: "map_view_default_\(instructionIndex)"
+                           name: "collection_view_default_\(instructionIndex)"
                        ),
                        let hasOverride = bindings.buildICmpNotEqual(
                            builder, lhs: fptrRaw, rhs: zeroValue,
-                           name: "map_view_override_\(instructionIndex)"
+                           name: "collection_view_override_\(instructionIndex)"
                        ),
-                       let mapViewPointer = bindings.buildSelect(
+                       let collectionViewPointer = bindings.buildSelect(
                            builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
-                           name: "map_view_dispatch_\(instructionIndex)"
+                           name: "collection_view_dispatch_\(instructionIndex)"
                        )
                     {
-                        fptrRaw = mapViewPointer
+                        fptrRaw = collectionViewPointer
                     }
                 }
 
