@@ -132,6 +132,30 @@
       "upstream_path": "LICENSE.txt",
       "sha256": "c5accbbd8546e94c34aed24afe689a617627d18eed5a6c48277e48db57c23851",
       "git_blob": "9c8f3ea0871e0bfe81da0fa6e7c1d7d156dc380e"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+      "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+      "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/Primitives.kt",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/Primitives.kt",
+      "sha256": "eebc88f52b180b03922b741be5b499c84a3236ed92dc98c827e8fdbfdbe9ef18",
+      "git_blob": "95108de827241545c12fe38a70c4bc8f998d3599"
+    },
+    {
+      "module": "core",
+      "platform": "native",
+      "path": "upstream/core/nativeMain/src/kotlinx/serialization/internal/Platform.kt",
+      "upstream_path": "core/nativeMain/src/kotlinx/serialization/internal/Platform.kt",
+      "sha256": "043b055e64a063ec257ab5a7f0716258ac19d7a6417eccf5829e06574bfc66c9",
+      "git_blob": "7e2423a76ed8534df572b639aa220bdf3e9fed48"
     }
   ],
   "artifacts": [
