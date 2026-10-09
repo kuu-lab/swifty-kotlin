@@ -510,7 +510,14 @@ extension BuildASTPhase {
                 if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) || token.kind == .symbol(.semicolon) {
                     break
                 }
-                if case .softKeyword(.by) = token.kind { break }
+                if token.kind == .softKeyword(.by) { break }
+                if token.kind == .keyword(.inline), !typeTokens.isEmpty,
+                   typeTokens.last?.kind != .symbol(.dot),
+                   typeTokens.last?.kind != .symbol(.arrow) { break }
+                if token.kind == .softKeyword(.where), !typeTokens.isEmpty,
+                   typeTokens.last?.kind != .symbol(.dot), index + 2 < tokens.count,
+                   TypeRefParserCore.isTypeLikeNameToken(tokens[index + 1].kind),
+                   tokens[index + 2].kind == .symbol(.colon) { break }
             }
             depth.track(token.kind)
             typeTokens.append(token)

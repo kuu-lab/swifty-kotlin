@@ -153,8 +153,8 @@ extension LambdaLowerer {
         {
             referenced.append(receiverSymbol)
         }
-        if let binding = sema.bindings.callBindings[exprID],
-           let signature = sema.symbols.functionSignature(for: binding.chosenCallee) {
+        for binding in [sema.bindings.callBindings[exprID], sema.bindings.extensionPropertyGetterCalls[exprID]].compactMap({ $0 }) {
+            guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { continue }
             for index in signature.reifiedTypeParameterIndices.sorted()
                 where index < binding.substitutedTypeArguments.count
             {
@@ -166,19 +166,22 @@ extension LambdaLowerer {
                 )
             }
         }
-        let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
-            ?? sema.bindings.identifierSymbols[exprID]
+        let memberSymbols = [
+            sema.bindings.callBinding(for: exprID)?.chosenCallee ?? sema.bindings.identifierSymbols[exprID],
+            sema.bindings.extensionPropertyGetterCalls[exprID]?.chosenCallee,
+        ].compactMap { $0 }
         // An inherited member's declared owner (e.g. `Base`) has no captured
         // receiver of its own inside a member extension; the dispatch receiver
         // is registered under the enclosing class (`Derived`), so record the
         // owner that actually reaches it or the lambda loses the receiver.
-        if let memberSymbol,
-           let owner = sema.symbols.memberExtensionOwnerSymbol(for: memberSymbol)
+        for memberSymbol in memberSymbols {
+            if let owner = sema.symbols.memberExtensionOwnerSymbol(for: memberSymbol)
                ?? sema.symbols.parentSymbol(for: memberSymbol),
-           let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
-           seen.insert(receiverOwner).inserted
-        {
-            referenced.append(receiverOwner)
+               let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+               seen.insert(receiverOwner).inserted
+            {
+                referenced.append(receiverOwner)
+            }
         }
         if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
            seen.insert(symbol).inserted

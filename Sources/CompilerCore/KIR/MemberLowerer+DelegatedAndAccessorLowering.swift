@@ -410,6 +410,10 @@ extension MemberLowerer {
         driver.ctx.resetScopeForFunction()
         driver.ctx.beginCallableLoweringScope()
 
+        let semanticAccessor = accessorKind == .getter
+            ? sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            : sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
+        let semanticSignature = semanticAccessor.flatMap { sema.symbols.functionSignature(for: $0) }
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
         var params: [KIRParameter] = []
@@ -482,7 +486,18 @@ extension MemberLowerer {
             // resolve it through the active receiver's instance layout.
         }
 
+        var typeTokenBindings: [(SymbolID, KIRExprID)] = []
+        if let signature = semanticSignature {
+            for index in signature.reifiedTypeParameterIndices.sorted() where index < signature.typeParameterSymbols.count {
+                let token = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: signature.typeParameterSymbols[index])
+                params.append(KIRParameter(symbol: token, type: sema.types.intType))
+                let value = arena.appendExpr(.symbolRef(token), type: sema.types.intType)
+                driver.ctx.setLocalValue(value, for: token)
+                typeTokenBindings.append((token, value))
+            }
+        }
         var body: KIRLoweringEmitContext = [.beginBlock]
+        for (token, value) in typeTokenBindings { body.append(.constValue(result: value, value: .symbolRef(token))) }
         if let dispatchReceiverBinding {
             body.append(.constValue(result: dispatchReceiverBinding.exprID, value: .symbolRef(dispatchReceiverBinding.symbol)))
         }
@@ -568,6 +583,7 @@ extension MemberLowerer {
         // the same compilation. Imported library metadata already restores this
         // signature, but source-backed properties otherwise leave their accessor
         // symbol unregistered even though the KIR call carries it.
+        let previousSignature = sema.symbols.functionSignature(for: syntheticAccessorSymbol)
         sema.symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: extensionReceiverType ?? ownerSymbol.flatMap { owner in
@@ -581,7 +597,11 @@ extension MemberLowerer {
                 },
                 parameterTypes: accessorKind == .setter ? [propertyType] : [],
                 returnType: returnType,
-                canThrow: true
+                canThrow: true,
+                typeParameterSymbols: previousSignature?.typeParameterSymbols ?? [],
+                reifiedTypeParameterIndices: previousSignature?.reifiedTypeParameterIndices ?? [],
+                typeParameterUpperBoundsList: previousSignature?.typeParameterUpperBoundsList ?? [],
+                classTypeParameterCount: previousSignature?.classTypeParameterCount ?? 0
             ),
             for: syntheticAccessorSymbol
         )
@@ -595,7 +615,7 @@ extension MemberLowerer {
                     returnType: returnType,
                     body: body,
                     isSuspend: false,
-                    isInline: false
+                    isInline: !(semanticSignature?.reifiedTypeParameterIndices.isEmpty ?? true)
                 )
             )
         )

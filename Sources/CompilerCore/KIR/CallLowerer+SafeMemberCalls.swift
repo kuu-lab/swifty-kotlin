@@ -845,7 +845,7 @@ extension CallLowerer {
             case .localValue(let localSym):
                 if sema.symbols.symbol(localSym)?.kind == .property {
                     if let functionValue = lowerStoredMemberPropertyReadValue(
-                        propertySymbol: localSym,
+                        propertySymbol: localSym, callExprID: exprID,
                         receiverExpr: receiverExpr,
                         loweredReceiverID: loweredReceiverID,
                         resultType: callableBinding.functionType,
