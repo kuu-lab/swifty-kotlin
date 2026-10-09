@@ -587,7 +587,8 @@ public final class IncrementalCompilationCache {
             runtimeFlags: options.runtimeFlags,
             stdlibOnly: options.stdlibOnly,
             stdlibLibraryPath: options.stdlibLibraryPath,
-            stdlibManifestHash: stdlibManifestHash
+            stdlibManifestHash: stdlibManifestHash,
+            entryPointFQName: options.entryPointFQName
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -649,6 +650,7 @@ private struct IncrementalBuildConfiguration: Encodable {
     let stdlibOnly: Bool
     let stdlibLibraryPath: String?
     let stdlibManifestHash: String
+    let entryPointFQName: String?
 }
 
 private struct IncrementalTargetTriple: Encodable {

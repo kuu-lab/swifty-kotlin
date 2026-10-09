@@ -180,10 +180,6 @@ extension CallTypeChecker {
                 return false
             }
         }
-        if receiverIsClassifier {
-            return nil
-        }
-
         guard let classifier = sema.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             switch symbol.kind {
@@ -198,6 +194,36 @@ extension CallTypeChecker {
             let classifierSymbol = ctx.cachedSymbol(classifier)
         else {
             return nil
+        }
+        if receiverIsClassifier {
+            // A nested object reached through a package-qualified classifier
+            // is a singleton value, even when the owner has no companion.
+            // Preserve ordinary receiver inference for other classifier paths.
+            guard classifierSymbol.kind == .object,
+                  !ctx.cachedScopeLookup(receiverPath[0]).contains(where: {
+                      guard let root = sema.symbols.symbol($0) else { return false }
+                      switch root.kind {
+                      case .property, .object, .local, .valueParameter, .typeAlias, .enumClass:
+                          return true
+                      case .class, .interface, .annotationClass:
+                          return sema.symbols.companionObjectSymbol(for: root.id) != nil
+                      default:
+                          return false
+                      }
+                  }),
+                  sema.symbols.lookupAll(fqName: [receiverPath[0]]).contains(where: {
+                      sema.symbols.symbol($0)?.kind == .package
+                  }) else { return nil }
+            var owner = sema.symbols.parentSymbol(for: classifier)
+            while let current = owner, let info = sema.symbols.symbol(current), info.kind != .package {
+                guard ctx.visibilityChecker.isAccessible(info, fromFile: ctx.currentFileID,
+                                                          enclosingClass: ctx.enclosingClassSymbol) else {
+                    driver.helpers.emitVisibilityError(for: info, name: interner.resolve(info.name),
+                                                       range: request.range, diagnostics: ctx.semaCtx.diagnostics)
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                owner = sema.symbols.parentSymbol(for: current)
+            }
         }
         guard ctx.visibilityChecker.isAccessible(
             classifierSymbol,

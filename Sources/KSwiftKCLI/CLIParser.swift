@@ -39,6 +39,7 @@ enum CLIParser {
       --stdlib-only          Compile bundled stdlib only as a .kklib (implies --emit library)
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
       --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
+      --test                 Generate an executable runner for kotlin.test annotations
       -g                     Emit debug info
     """
 
@@ -151,6 +152,8 @@ enum CLIParser {
                 explicitIncludeStdlib = true
             case "-g":
                 debugInfo = true
+            case "--test", "-generate-test-runner":
+                frontendFlags.append("generate-test-runner")
             default:
                 if arg.hasPrefix("-") {
                     throw CLIParseError.unknownOption(arg)

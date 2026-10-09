@@ -47,10 +47,36 @@ public final class CompilerDriver {
 
     private func runInternal(
         options: CompilerOptions,
-        printDiagnostics: Bool
+        printDiagnostics: Bool,
+        inMemorySources: [String: Data] = [:],
+        generatedTestRun: Bool = false
     ) -> (exitCode: Int, diagnostics: [Diagnostic]) {
+        if options.frontendFlags.contains("generate-test-runner"), !generatedTestRun {
+            var preflightOptions = options
+            preflightOptions.incrementalCachePath = nil
+            preflightOptions.frontendFlags.removeAll { $0 == "incremental" }
+            let preflight = runFrontend(options: preflightOptions).context
+            if options.emit != .executable || options.stdlibOnly {
+                preflight.diagnostics.error("KSWIFTK-TEST-0001", "Test runner generation requires executable emission.", range: nil)
+            }
+            if !preflight.diagnostics.hasError,
+               let generated = TestRunnerGenerator(context: preflight).generate() {
+                var generatedOptions = preflightOptions
+                generatedOptions.inputs.append(generated.runnerPath)
+                generatedOptions.entryPointFQName = TestRunnerGenerator.entryPoint
+                return runInternal(options: generatedOptions, printDiagnostics: printDiagnostics,
+                                   inMemorySources: generated.sources, generatedTestRun: true)
+            }
+            return finalizeRun(ctx: preflight, printDiagnostics: printDiagnostics, timePhasesEnabled: false)
+        }
         let prepared = prepareContext(options: options)
         let ctx = prepared.context
+        // Preserve CLI input order; dictionary iteration must not assign file IDs.
+        for path in options.inputs {
+            if let data = inMemorySources[path] {
+                _ = ctx.sourceManager.addFile(path: path, contents: data)
+            }
+        }
 
         let phases: [CompilerPhase] = [
             LoadSourcesPhase(),
