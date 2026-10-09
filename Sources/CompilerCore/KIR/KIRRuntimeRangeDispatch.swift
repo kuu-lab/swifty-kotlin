@@ -23,8 +23,7 @@ extension CallLowerer {
             return
         }
         let package = [interner.intern("kotlin"), interner.intern("ranges")]
-        guard let nominalSymbol = sema.symbols.lookup(fqName: package + [interner.intern(className)]),
-            let closedRangeSymbol = sema.symbols.lookup(fqName: package + [interner.intern("ClosedRange")])
+        guard let nominalSymbol = sema.symbols.lookup(fqName: package + [interner.intern(className)])
         else { return }
         // Range factories return object handles, even when Sema keeps a scalar
         // element type for operator and loop inference. Do not box the handle
@@ -32,15 +31,18 @@ extension CallLowerer {
         arena.setExprType(sema.types.make(.classType(ClassType(
             classSymbol: nominalSymbol, args: [], nullability: .nonNull
         ))), for: objectValue)
-        appendObjectItableMethodRegistrations(
-            objectValue: objectValue,
-            nominalSymbol: nominalSymbol,
-            driver: driver,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            interfaceFilter: closedRangeSymbol,
-            instructions: &instructions
-        )
+        for interfaceName in ["ClosedRange", "OpenEndRange"] {
+            guard let interface = sema.symbols.lookup(fqName: package + [interner.intern(interfaceName)]) else { continue }
+            appendObjectItableMethodRegistrations(
+                objectValue: objectValue,
+                nominalSymbol: nominalSymbol,
+                driver: driver,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                interfaceFilter: interface,
+                instructions: &instructions
+            )
+        }
     }
 }

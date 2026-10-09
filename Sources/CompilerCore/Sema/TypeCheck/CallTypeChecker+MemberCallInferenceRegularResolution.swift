@@ -186,11 +186,11 @@ extension CallTypeChecker {
         // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: baseLookupReceiverType),
            invokeFunctionType.nullability != .nullable,
            let result = inferCallableValueInvocation(
                id,
-               calleeType: lookupReceiverType,
+               calleeType: baseLookupReceiverType,
                callableTarget: driver.helpers.callableTargetForCalleeExpr(receiverID, sema: sema),
                args: args,
                argTypes: argTypes,
@@ -1636,16 +1636,28 @@ extension CallTypeChecker {
             }
         }
 
+        // A lexical extension function value outranks package extensions,
+        // while actual receiver members retain their usual priority.
+        let hasReceiverMember = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName, receiverType: memberLookupType, sema: sema, interner: interner
+        ).contains {
+            ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
+                && !driver.helpers.declaresExtensionReceiver($0, sema: sema, interner: interner)
+        }
+        if !isSuperCall, ast.arena.isExplicitCall(id),
+           !hasReceiverMember,
+           let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, locals: &locals)
+        {
+            return result
+        }
+
         if !isSuperCall,
            let local = locals[calleeName],
            let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(
                callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
            ),
-           !allCandidates.contains(where: {
-               ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
-                   && !driver.helpers.declaresExtensionReceiver($0, sema: sema, interner: interner)
-           })
+           !hasReceiverMember
         {
             allCandidates = [local.symbol]
         }

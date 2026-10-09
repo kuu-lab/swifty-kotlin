@@ -135,7 +135,7 @@ enum InlineErasedLambdaABI {
         // Multi-callback HOFs can return different types from each callback.
         // Restore the invoked parameter's type, never the first selector's.
         let parameter = functionParameters.first { $0.symbol == invokedParameter }
-            ?? (functionParameters.count == 1 ? functionParameters.first : nil)
+            ?? (invokedParameter == nil && functionParameters.count == 1 ? functionParameters.first : nil)
         if let parameter {
             guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
                 return nil

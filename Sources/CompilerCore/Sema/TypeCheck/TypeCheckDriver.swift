@@ -208,6 +208,18 @@ final class TypeCheckDriver {
             return symbol.kind == .class || symbol.kind == .enumClass
         }
 
+        // Explicit contracts are declaration metadata. Earlier callers must
+        // see them before a later function body happens to be type checked.
+        for file in files {
+            guard let inferCtx = inferenceContext(for: file) else { continue }
+            for declaration in file.topLevelDecls {
+                guard case let .funDecl(function)? = ast.arena.decl(declaration),
+                      let symbol = sema.bindings.declSymbols[declaration]
+                else { continue }
+                declChecker.precollectContractEffects(function: function, symbol: symbol, ctx: inferCtx)
+            }
+        }
+
         // A direct constructor call has a type fixed by its collected header.
         // Infer those properties before earlier files can observe the
         // nullable-Any placeholder; pure inferred expressions are resolved in

@@ -272,9 +272,31 @@ extension CallTypeChecker {
         }
         guard let candidateType,
               case let .functionType(candidateFunction) = sema.types.kind(of: candidateType),
-              candidateFunction.receiver != nil
+              let declaredReceiver = candidateFunction.receiver,
+              sema.types.isSubtype(request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType, declaredReceiver),
+              candidateFunction.params.count == request.args.count,
+              !request.args.contains(where: { $0.label != nil || $0.isSpread })
         else {
             return nil
+        }
+        for (index, argument) in request.args.enumerated() {
+            let parameter = candidateFunction.params[index]
+            if case let .lambdaLiteral(parameters, _, _, _) = ctx.ast.arena.expr(argument.expr) {
+                if case let .functionType(function) = sema.types.kind(of: sema.types.makeNonNullable(parameter)) {
+                    if parameters.isEmpty ? function.params.count > 1 : function.params.count != parameters.count {
+                        return nil
+                    }
+                } else if !parameters.isEmpty {
+                    return nil
+                }
+            }
+            if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) { continue }
+            if let argumentType = sema.bindings.exprType(for: argument.expr),
+               ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
+               !sema.types.isSubtype(argumentType, parameter)
+            {
+                return nil
+            }
         }
 
         let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))

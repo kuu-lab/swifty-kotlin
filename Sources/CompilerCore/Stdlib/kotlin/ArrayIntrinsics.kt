@@ -4,14 +4,15 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1517: `Array<T>` and the primitive array types are nominal shells only
-// -- construction (`IntArray(size)`), indexing (`array[i]`), `.size`, and the
+// KSP-1517: `Array<T>` and the primitive array types use intrinsic construction
+// (`IntArray(size)`), indexing (`array[i]`), `.size`, and the
 // HOF surface are all resolved by compiler name matching (see
 // `CompilerKnownNames.isArrayLikeName`/`isPrimitiveArrayConstructorTypeName`
-// and `PrimitiveArrayFactoryPredicates.swift`), never by members declared on
-// this class body. Runtime storage is the single untyped `RuntimeArrayBox`
+// and `PrimitiveArrayFactoryPredicates.swift`). Source-backed get declarations
+// also expose indexing to callable references; their index expressions still
+// use the compiler intrinsic. Runtime storage is the single untyped `RuntimeArrayBox`
 // (`RuntimeArrayBasics.swift`) for every primitive kind, so these shells stay
-// bodyless with a private constructor, matching the `Nothing`/
+// with a private constructor, matching the `Nothing`/
 // `DeepRecursiveScope` pattern for compiler-intrinsic-backed types that are
 // never constructed through their own declared constructor. Predeclared early
 // via `predeclareBundledArrayHeaders` (`HeaderCollection.swift`) because
@@ -22,24 +23,50 @@ import kotlin.internal.KsSymbolName
 // `Array<T>`/primitive-array class-shell registration formerly in
 // `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`
 // (deleted).
-public class Array<T> private constructor()
+public class Array<T> private constructor() {
+    public operator fun get(index: Int): T = this[index]
+}
 
-public class BooleanArray private constructor()
-public class ByteArray private constructor()
-public class CharArray private constructor()
-public class DoubleArray private constructor()
-public class FloatArray private constructor()
-public class IntArray private constructor()
-public class LongArray private constructor()
-public class ShortArray private constructor()
+public class BooleanArray private constructor() {
+    public operator fun get(index: Int): Boolean = this[index]
+}
+public class ByteArray private constructor() {
+    public operator fun get(index: Int): Byte = this[index]
+}
+public class CharArray private constructor() {
+    public operator fun get(index: Int): Char = this[index]
+}
+public class DoubleArray private constructor() {
+    public operator fun get(index: Int): Double = this[index]
+}
+public class FloatArray private constructor() {
+    public operator fun get(index: Int): Float = this[index]
+}
+public class IntArray private constructor() {
+    public operator fun get(index: Int): Int = this[index]
+}
+public class LongArray private constructor() {
+    public operator fun get(index: Int): Long = this[index]
+}
+public class ShortArray private constructor() {
+    public operator fun get(index: Int): Short = this[index]
+}
 @ExperimentalUnsignedTypes
-public class UByteArray private constructor()
+public class UByteArray private constructor() {
+    public operator fun get(index: Int): UByte = this[index]
+}
 @ExperimentalUnsignedTypes
-public class UShortArray private constructor()
+public class UShortArray private constructor() {
+    public operator fun get(index: Int): UShort = this[index]
+}
 @ExperimentalUnsignedTypes
-public class UIntArray private constructor()
+public class UIntArray private constructor() {
+    public operator fun get(index: Int): UInt = this[index]
+}
 @ExperimentalUnsignedTypes
-public class ULongArray private constructor()
+public class ULongArray private constructor() {
+    public operator fun get(index: Int): ULong = this[index]
+}
 
 // KSP-657: Array factory intrinsics migrated (b-reclass batch 1) from the
 // synthetic stubs in

@@ -21,6 +21,7 @@ extension LambdaLowerer {
               targetInfo.kind == .function,
               let signature = sema.symbols.functionSignature(for: targetSymbol),
               !signature.isSuspend,
+              !TypeCheckHelpers().declaresExtensionReceiver(targetSymbol, sema: sema, interner: interner),
               let ownerType = signature.receiverType,
               let owner = sema.symbols.parentSymbol(for: targetSymbol),
               let ownerInfo = sema.symbols.symbol(owner),
@@ -81,6 +82,16 @@ extension LambdaLowerer {
             argExprs.append(argExpr)
         }
         let result = arena.appendTemporary(type: signature.returnType)
+        let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
+            chosenCallee: targetSymbol,
+            receiverID: receiverExpr,
+            arguments: argExprs,
+            result: result,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body
+        )
         body.append(.virtualCall(
             symbol: targetSymbol,
             callee: name,
@@ -91,6 +102,9 @@ extension LambdaLowerer {
             thrownResult: nil,
             dispatch: dispatch
         ))
+        if let probeEndLabel {
+            body.append(.label(probeEndLabel))
+        }
         switch sema.types.kind(of: signature.returnType) {
         case .unit, .nothing(.nonNull), .nothing(.nullable):
             body.append(.returnUnit)

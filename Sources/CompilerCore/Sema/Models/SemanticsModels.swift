@@ -1647,7 +1647,9 @@ public final class SymbolTable {
 
     /// STDLIB-592: Record a `callsInPlace` effect for a function's lambda parameter.
     public func addContractCallsInPlaceEffect(_ effect: ContractCallsInPlaceEffect, for function: SymbolID) {
-        contractCallsInPlaceEffects[function, default: []].append(effect)
+        var effects = contractCallsInPlaceEffects[function] ?? []
+        if !effects.contains(effect) { effects.append(effect) }
+        contractCallsInPlaceEffects[function] = effects
     }
 
     /// STDLIB-592: Returns the `callsInPlace` effects recorded for a function, if any.
