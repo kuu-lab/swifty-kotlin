@@ -20,7 +20,9 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         declRange: SourceRange?,
         sourceFileID: FileID?,
+        sourceFile: ASTFile?,
         sourceManager: SourceManager?,
+        interner: StringInterner,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -29,7 +31,9 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             declRange: declRange,
             sourceFileID: sourceFileID,
+            sourceFile: sourceFile,
             sourceManager: sourceManager,
+            interner: interner,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -69,7 +73,9 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         declRange: SourceRange?,
         sourceFileID: FileID?,
+        sourceFile: ASTFile?,
         sourceManager: SourceManager?,
+        interner: StringInterner,
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine
     ) {
@@ -78,8 +84,20 @@ extension DataFlowSemaPhase {
         }
 
         let records = astAnnotations.map { ann in
-            MetadataAnnotationRecord(
-                annotationFQName: ann.name,
+            // Persist producer-side resolution so imported metadata does not
+            // depend on the consumer having the producer's imports or AST.
+            let resolvedFQName: String?
+            if ann.name.contains(".") {
+                resolvedFQName = ann.name
+            } else {
+                resolvedFQName = sourceFile
+                    .flatMap {
+                        resolveAnnotationSymbol(named: ann.name, in: $0, symbols: symbols, interner: interner)
+                    }
+                    .flatMap { symbols.symbol($0)?.fqName.map(interner.resolve).joined(separator: ".") }
+            }
+            return MetadataAnnotationRecord(
+                annotationFQName: resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? ann.name,
                 arguments: ann.arguments,
                 useSiteTarget: ann.useSiteTarget
             )

@@ -93,10 +93,6 @@ private func makeRuntimeString(_ value: String) -> Int {
     registerRuntimeObject(RuntimeStringBox(value))
 }
 
-private func runtimeStringValue(_ raw: Int) -> String {
-    extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-}
-
 private func listElements(_ listRaw: Int) -> [Int] {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw) else { return [] }
     guard let box = tryCast(ptr, to: RuntimeListBox.self) else { return [] }
@@ -275,7 +271,7 @@ struct RuntimeComparatorTests {
         let comparatorRaw = __kk_string_case_insensitive_order()
 
         let sorted = kk_list_sortedWith(source, comparatorRaw, 0, nil)
-        #expect(listElements(sorted).map(runtimeStringValue) == ["A", "a", "b", "c"])
+        #expect(listElements(sorted).map(runtimeTestStringValue) == ["A", "a", "b", "c"])
     }
 
     // MARK: - sortedWith E2E
@@ -315,8 +311,8 @@ struct RuntimeComparatorTests {
         ])
         let sorted = kk_list_sortedDescending(source)
 
-        #expect(listElements(sorted).map(runtimeStringValue) == ["c", "b", "a"])
-        #expect(listElements(source).map(runtimeStringValue) == ["b", "a", "c"])
+        #expect(listElements(sorted).map(runtimeTestStringValue) == ["c", "b", "a"])
+        #expect(listElements(source).map(runtimeTestStringValue) == ["b", "a", "c"])
     }
 
     @Test
@@ -348,8 +344,8 @@ struct RuntimeComparatorTests {
             makeRuntimeString("c"),
         ])
         let sorted = kk_list_sorted(source)
-        #expect(listElements(sorted).map(runtimeStringValue) == ["a", "b", "c"])
-        #expect(listElements(source).map(runtimeStringValue) == ["b", "a", "c"])
+        #expect(listElements(sorted).map(runtimeTestStringValue) == ["a", "b", "c"])
+        #expect(listElements(source).map(runtimeTestStringValue) == ["b", "a", "c"])
     }
 
     @Test
@@ -418,7 +414,7 @@ struct RuntimeComparatorTests {
             makeRuntimeString("c"),
         ])
         #expect(kk_mutable_list_sort(source) == 0)
-        #expect(listElements(source).map(runtimeStringValue) == ["a", "b", "c"])
+        #expect(listElements(source).map(runtimeTestStringValue) == ["a", "b", "c"])
     }
 
     @Test

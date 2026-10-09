@@ -4,21 +4,7 @@ extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
     func testMonotonicTimeSourceToString(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
-            """
-            import kotlin.time.*
-
-            fun main() {
-                println(TimeSource.Monotonic)
-                println(TimeSource.Monotonic.toString())
-                val source: TimeSource = TimeSource.Monotonic
-                println(source)
-                println(source.toString())
-                val erased: Any = TimeSource.Monotonic
-                println(erased)
-                println(erased.toString())
-                println("$erased")
-            }
-            """,
+            try diffCaseSource("time_source_monotonic_to_string.kt", file: #filePath),
             expectedOutput: String(repeating: "TimeSource(System.nanoTime())\n", count: 7),
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )

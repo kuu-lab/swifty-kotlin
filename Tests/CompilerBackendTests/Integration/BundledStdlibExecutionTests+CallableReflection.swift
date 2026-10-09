@@ -4,15 +4,7 @@ extension BundledStdlibExecutionTests {
     @Test(arguments: [false, true])
     func inheritedListPropertyReferenceReadsSize(fromArtifact: Bool) throws {
         try compileAndRunKotlin(
-            """
-            fun main() {
-                val size = List<Int>::size
-                println(size.get(listOf(1, 2)))
-                println(size.get(emptyList<Int>()))
-                val mutableSize = MutableList<Int>::size
-                println(mutableSize.get(mutableListOf(1, 2, 3)))
-            }
-            """,
+            try diffCaseSource("list_unbound_property_reference.kt", file: #filePath),
             expectedOutput: "2\n0\n3\n",
             moduleName: "InheritedListPropertyReference",
             allowDefaultStdlibLibrary: fromArtifact
@@ -37,16 +29,7 @@ extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
     func functionReferenceNameAndCall(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
-            """
-            fun topFn(a: Int) = a + 1
-            fun main() {
-                val f = ::topFn
-                println(f.name)
-                println(f.call(3))
-                println(f(3))
-                println(f.invoke(3))
-            }
-            """,
+            try diffCaseSource("function_reference_name_call.kt", file: #filePath),
             expectedOutput: "topFn\n4\n4\n4\n",
             moduleName: "KUU1231FunctionReference",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary

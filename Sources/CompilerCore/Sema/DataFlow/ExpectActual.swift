@@ -10,12 +10,15 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        commonModuleMode: Bool
     ) {
-        // Only validate source declarations; imported library symbols may contain
-        // expect/actual markers without requiring local counterparts.
+        // Common libraries preserve expect markers so a platform compilation can
+        // pair them with local actual declarations. Other imported declarations
+        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
-            sym.flags.contains(.expectDeclaration) && sym.declSite != nil
+            sym.flags.contains(.expectDeclaration)
+                && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
         let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
             symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
@@ -35,6 +38,11 @@ extension DataFlowSemaPhase {
                     guard actual.flags.contains(.actualDeclaration) else {
                         return false
                     }
+                    if expectSym.flags.contains(.importedLibrary),
+                       actual.flags.contains(.importedLibrary)
+                    {
+                        return false
+                    }
                     return actual.kind == expectSym.kind
                         || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
                 }
@@ -49,6 +57,10 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                if commonModuleMode && candidates.isEmpty {
+                    continue
+                }
+
                 guard !isOptionalExpectation else {
                     continue
                 }

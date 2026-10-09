@@ -533,7 +533,12 @@ final class KlibBodyLowerer {
         let type = typeIndex.flatMap { decodeType($0) }
             ?? symbols.propertyType(for: globalSymbol)
             ?? types.anyType
-        _ = arena.appendDecl(.global(KIRGlobal(symbol: globalSymbol, type: type)))
+        let isThreadLocal = symbols.annotations(for: globalSymbol).contains {
+            KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
+        }
+        _ = arena.appendDecl(.global(KIRGlobal(
+            symbol: globalSymbol, type: type, isThreadLocal: isThreadLocal
+        )))
         // `.importedLibrary`-flagged globals normally resolve to extern
         // storage owned by a precompiled `.kklib` object. `.klib` modules
         // carry no precompiled object, so this compilation owns the slot.

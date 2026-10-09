@@ -405,24 +405,17 @@ extension CoroutineLoweringPass {
             var symbolByExprRaw: [Int32: SymbolID] = [:]
             var ambiguousSymbolExprRaws: Set<Int32> = []
 
-            func markAmbiguousSymbolExpr(_ raw: Int32) -> Bool {
-                var changed = false
-                if symbolByExprRaw.removeValue(forKey: raw) != nil {
-                    changed = true
-                }
-                if ambiguousSymbolExprRaws.insert(raw).inserted {
-                    changed = true
-                }
-                return changed
-            }
-
             for instruction in function.body {
                 guard case let .constValue(result, .symbolRef(symbol)) = instruction else {
                     continue
                 }
                 let raw = result.rawValue
                 if let existing = symbolByExprRaw[raw], existing != symbol {
-                    _ = markAmbiguousSymbolExpr(raw)
+                    _ = markAmbiguousSymbolExpr(
+                        raw,
+                        symbolByExprRaw: &symbolByExprRaw,
+                        ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                    )
                 } else if !ambiguousSymbolExprRaws.contains(raw) {
                     symbolByExprRaw[raw] = symbol
                 }
@@ -439,7 +432,11 @@ extension CoroutineLoweringPass {
                     let fromRaw = from.rawValue
                     let toRaw = to.rawValue
                     if ambiguousSymbolExprRaws.contains(fromRaw) {
-                        if markAmbiguousSymbolExpr(toRaw) {
+                        if markAmbiguousSymbolExpr(
+                            toRaw,
+                            symbolByExprRaw: &symbolByExprRaw,
+                            ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                        ) {
                             propagatedSymbols = true
                         }
                         continue
@@ -450,7 +447,13 @@ extension CoroutineLoweringPass {
                         continue
                     }
                     if let existing = symbolByExprRaw[toRaw] {
-                        if existing != symbol, markAmbiguousSymbolExpr(toRaw) {
+                        if existing != symbol,
+                           markAmbiguousSymbolExpr(
+                               toRaw,
+                               symbolByExprRaw: &symbolByExprRaw,
+                               ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                           )
+                        {
                             propagatedSymbols = true
                         }
                     } else {

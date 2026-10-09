@@ -2,10 +2,14 @@ package kotlin.js.collections
 
 import kotlin.collections.Map
 import kotlin.collections.MutableMap
+import kotlin.collections.List
+import kotlin.collections.MutableList
 import kotlin.collections.MutableSet
 import kotlin.collections.Set
 import kotlin.collections.toMap
+import kotlin.collections.toList
 import kotlin.collections.toMutableMap
+import kotlin.collections.toMutableList
 import kotlin.collections.toMutableSet
 import kotlin.collections.toSet
 import kotlin.js.ExperimentalJsCollectionsApi
@@ -20,6 +24,12 @@ internal class JsCollectionViewBacking<out T>(
 @SinceKotlin("2.0")
 public open class JsReadonlyMap<K, out V> internal constructor(
     @PublishedApi internal val view: JsCollectionViewBacking<Map<K, @UnsafeVariance V>>
+)
+
+/** Opaque native compatibility wrapper for a JavaScript readonly array view. */
+@SinceKotlin("2.0")
+public open class JsReadonlyArray<out E> internal constructor(
+    @PublishedApi internal val view: JsCollectionViewBacking<List<E>>
 )
 
 /** Opaque native compatibility wrapper for a JavaScript mutable map view. */
@@ -51,6 +61,16 @@ public inline fun <K, V> JsReadonlyMap<K, V>.toMap(): Map<K, V> = view.value.toM
 public inline fun <K, V> JsReadonlyMap<K, V>.toMutableMap(): MutableMap<K, V> =
     view.value.toMutableMap()
 
+/** Copies the elements from this view into a Kotlin list. */
+@ExperimentalJsCollectionsApi
+@SinceKotlin("2.0")
+public inline fun <E> JsReadonlyArray<E>.toList(): List<E> = view.value.toList()
+
+/** Copies the elements from this view into a mutable Kotlin list. */
+@ExperimentalJsCollectionsApi
+@SinceKotlin("2.0")
+public inline fun <E> JsReadonlyArray<E>.toMutableList(): MutableList<E> = view.value.toMutableList()
+
 /** Copies the elements from this view into a Kotlin set. */
 @ExperimentalJsCollectionsApi
 @SinceKotlin("2.0")
@@ -65,6 +85,10 @@ public inline fun <E> JsReadonlySet<E>.toMutableSet(): MutableSet<E> =
 @PublishedApi
 internal fun <K, V> createJsMapViewFrom(map: MutableMap<K, V>): JsMap<K, V> =
     JsMap(JsCollectionViewBacking(map))
+
+@PublishedApi
+internal fun <E> createJsReadonlyArrayViewFrom(list: List<E>): JsReadonlyArray<E> =
+    JsReadonlyArray(JsCollectionViewBacking(list))
 
 @PublishedApi
 internal fun <E> createJsSetViewFrom(set: MutableSet<E>): JsSet<E> =

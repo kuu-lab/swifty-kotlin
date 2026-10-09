@@ -112,7 +112,9 @@ extension DataFlowSemaPhase {
             symbol: companionSymbol,
             declRange: companionObject.range,
             sourceFileID: sourceFileID,
+            sourceFile: ast.file(for: sourceFileID),
             sourceManager: sourceManager,
+            interner: interner,
             symbols: symbols,
             diagnostics: diagnostics
         )

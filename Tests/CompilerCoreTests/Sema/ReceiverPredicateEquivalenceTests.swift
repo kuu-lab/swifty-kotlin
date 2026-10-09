@@ -280,24 +280,8 @@ struct ReceiverPredicateEquivalenceTests {
             #expect(classifier.isMutableSetType(sample.type) == expected.contains(.strictMutableSet), Comment(rawValue: sample.name))
             #expect(classifier.isArrayLikeType(sample.type) == expected.contains(.arrayLike), Comment(rawValue: sample.name))
             #expect(fixture.callLowerer.isConcreteArrayLikeType(sample.type, sema: fixture.sema, interner: fixture.interner) == expected.contains(.concreteArrayLike), Comment(rawValue: sample.name))
-            #expect(
-                fixture.callLowerer.isCoroutineHandleReceiverType(
-                    sample.type,
-                    sema: fixture.sema,
-                    interner: fixture.interner
-                ) == expected.contains(.coroutineHandle),
-                Comment(rawValue: sample.name)
-            )
-            #expect(
-                fixture.callChecker.isCoroutineHandleReceiverType(
-                    sample.type,
-                    sema: fixture.sema,
-                    interner: fixture.interner
-                ) == expected.contains(.coroutineHandle),
-                Comment(rawValue: sample.name)
-            )
-            #expect(fixture.callLowerer.isChannelReceiverType(sample.type, sema: fixture.sema, interner: fixture.interner) == expected.contains(.channel), Comment(rawValue: sample.name))
-            #expect(fixture.callChecker.isChannelReceiverType(sample.type, sema: fixture.sema, interner: fixture.interner) == expected.contains(.channel), Comment(rawValue: sample.name))
+            #expect(classifier.isCoroutineHandleReceiverType(sample.type) == expected.contains(.coroutineHandle), Comment(rawValue: sample.name))
+            #expect(classifier.isChannelReceiverType(sample.type) == expected.contains(.channel), Comment(rawValue: sample.name))
         }
 
         // `isCollectionLikeType` deliberately also checks intersections and type

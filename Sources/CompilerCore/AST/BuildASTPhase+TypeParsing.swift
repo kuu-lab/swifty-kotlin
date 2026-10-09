@@ -193,29 +193,6 @@ extension BuildASTPhase {
         return (name, ref)
     }
 
-    private func contextReceiverDecl(
-        from tokens: [Token],
-        interner: StringInterner,
-        astArena: ASTArena
-    ) -> ContextReceiverDecl? {
-        var depth = BracketDepth()
-        for (index, token) in tokens.enumerated() {
-            if depth.isAtTopLevel, token.kind == .symbol(.colon), index > 0, index + 1 < tokens.count {
-                let name = internedIdentifier(from: tokens[index - 1], interner: interner)
-                let typeTokens = Array(tokens[(index + 1)...])
-                guard let type = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
-                    return nil
-                }
-                return ContextReceiverDecl(name: name, type: type)
-            }
-            depth.track(token.kind)
-        }
-        guard let type = parseTypeRef(from: tokens, interner: interner, astArena: astArena) else {
-            return nil
-        }
-        return ContextReceiverDecl(type: type)
-    }
-
     func declarationReturnType(
         from nodeID: NodeID,
         in arena: SyntaxArena,

@@ -266,6 +266,71 @@ struct StdlibArtifactRegressionTests {
             #expect(result.stdout == "0\ntrue\ntrue\ntrue\ntrue\n13\ntrue\ntrue\ninherited plus\n16\ntrue\ntrue\ntrue\ntrue\nstart:item:item\nfold override\nplus override\nplus override\nplus override\ntrue\n")
         }
     }
+
+    @Test
+    func testThreadLocalTopLevelPropertyFromKlibIsIsolatedAcrossWorkers() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let stdlib = try testStdlibArtifactPath()
+        let librarySource = directory.appendingPathComponent("ThreadLocal.kt").path
+        let libraryOutput = directory.appendingPathComponent("ThreadLocalLibrary").path
+        try """
+        @file:Suppress("DEPRECATION_ERROR")
+        package fixture
+
+        import kotlin.native.concurrent.ThreadLocal
+
+        @ThreadLocal
+        var value = 0
+        """.write(toFile: librarySource, atomically: true, encoding: .utf8)
+
+        let library = makeCompilationContext(
+            inputs: [librarySource], moduleName: "ThreadLocalLibrary", emit: .library,
+            outputPath: libraryOutput, stdlibLibraryPath: stdlib
+        )
+        try runToLowering(library)
+        try assertNoDiagnosticErrors(library)
+        try CodegenPhase().run(library)
+
+        let consumerSource = """
+        @file:Suppress("DEPRECATION_ERROR")
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
+        import fixture.value
+        import kotlin.native.concurrent.TransferMode
+        import kotlin.native.concurrent.Worker
+
+        fun main() {
+            value = 7
+            val worker = Worker.start()
+            val future = worker.execute(TransferMode.SAFE, { Unit }) {
+                val previous = value
+                value = 9
+                previous
+            }
+            println(future.result)
+            println(value)
+            worker.requestTermination(true)
+        }
+        """
+        try withTemporaryFile(contents: consumerSource) { consumerPath in
+            let output = directory.appendingPathComponent("consumer").path
+            let consumer = makeCompilationContext(
+                inputs: [consumerPath], moduleName: "ThreadLocalConsumer", emit: .executable,
+                outputPath: output, searchPaths: [libraryOutput + ".kklib"], stdlibLibraryPath: stdlib
+            )
+            try runToLowering(consumer)
+            try assertNoDiagnosticErrors(consumer)
+            try CodegenPhase().run(consumer)
+            try LinkPhase().run(consumer)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "0\n7\n")
+        }
+    }
+
     nonisolated(unsafe) private static var sharedArtifactPath: String?
 
     private static func buildStdlibArtifact() throws -> String {
@@ -753,26 +818,9 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    private static let abstractCollectionSource = """
-    import kotlin.collections.AbstractCollection
-    import kotlin.collections.Iterator
-
-    class EmptyIntIterator : Iterator<Int> {
-        override fun hasNext(): Boolean = false
-        override fun next(): Int = 0
+    private static func abstractCollectionSource() throws -> String {
+        try diffCaseSource("bug_200_precompiled_abstract_collection.kt", file: #filePath)
     }
-
-    class EvenNumbers : AbstractCollection<Int>() {
-        override val size: Int
-            get() = 0
-
-        override fun iterator(): Iterator<Int> = EmptyIntIterator()
-    }
-
-    fun main() {
-        println(EvenNumbers().size)
-    }
-    """
 
     @Test(arguments: [false, true])
     func testContinuationContextOverrides(useArtifact: Bool) throws {
@@ -1537,7 +1585,8 @@ struct StdlibArtifactRegressionTests {
     /// abstract member modality and on the owner's type argument in overrides.
     @Test
     func testAbstractCollectionOverrideThroughBundledSource() throws {
-        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+        let source = try Self.abstractCollectionSource()
+        try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
@@ -1563,7 +1612,8 @@ struct StdlibArtifactRegressionTests {
     @Test
     func testAbstractCollectionOverrideThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
-        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+        let source = try Self.abstractCollectionSource()
+        try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
@@ -1839,19 +1889,7 @@ struct StdlibArtifactRegressionTests {
     func testSyntheticSingletonObjectSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun main() {
-            val millis = System.currentTimeMillis()
-            println(millis > 0)
-
-            val t1 = System.nanoTime()
-            val t2 = System.nanoTime()
-            println(t2 >= t1)
-
-            val millis2 = System.currentTimeMillis()
-            println(millis2 >= millis)
-        }
-        """
+        let source = try diffCaseSource("system_current_time_millis.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -2061,18 +2099,7 @@ struct StdlibArtifactRegressionTests {
     func testEmptySequenceWithIndexSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun main() {
-            val indexed = sequenceOf(10, 20, 30).withIndex().toList()
-            println(indexed)
-
-            val first = sequenceOf(10, 20, 30).withIndex().take(1).toList()
-            println(first)
-
-            val empty = emptySequence<Int>().withIndex().toList()
-            println(empty)
-        }
-        """
+        let source = try diffCaseSource("sequence_withindex.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -2745,57 +2772,7 @@ struct StdlibArtifactRegressionTests {
     func testVarianceGenericsStringItableBridgeSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        interface Producer<out T> {
-            fun produce(): T
-        }
-
-        interface Consumer<in T> {
-            fun consume(value: T)
-        }
-
-        interface Container<T> {
-            fun fetch(): T
-            fun store(value: T)
-        }
-
-        class StringProducer(val value: String) : Producer<String> {
-            override fun produce(): String = value
-        }
-
-        class AnyPrinter : Consumer<Any> {
-            override fun consume(value: Any) {
-                println("consumed: $value")
-            }
-        }
-
-        class StringContainer(val initial: String) : Container<String> {
-            override fun fetch(): String = initial
-            override fun store(value: String) = println("stored: $value")
-        }
-
-        fun printAnyProduced(producer: Producer<Any>) {
-            println(producer.produce())
-        }
-
-        fun feedStringConsumer(consumer: Consumer<String>) {
-            consumer.consume("hello from feeder")
-        }
-
-        fun main() {
-            val stringProducer: Producer<String> = StringProducer("variance test")
-            val anyProducer: Producer<Any> = stringProducer
-            printAnyProduced(anyProducer)
-
-            val anyConsumer: Consumer<Any> = AnyPrinter()
-            val stringConsumer: Consumer<String> = anyConsumer
-            feedStringConsumer(stringConsumer)
-
-            val container: Container<String> = StringContainer("invariant value")
-            container.store("new value")
-            println(container.fetch())
-        }
-        """
+        let source = try diffCaseSource("variance_generics.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory
@@ -2833,24 +2810,7 @@ struct StdlibArtifactRegressionTests {
     func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
-        let source = """
-        fun printLength(cs: CharSequence) {
-            println(cs.length)
-        }
-
-        fun main() {
-            printLength("hello")
-            val cs: CharSequence = "world!"
-            println(cs.length)
-            println(cs.get(1))
-            println(cs[2])
-            println(cs.subSequence(1, 3))
-            val sb: CharSequence = StringBuilder("abc")
-            println(sb.length)
-            println(sb.get(1))
-            println(sb[2])
-        }
-        """
+        let source = try diffCaseSource("char_sequence_member_access.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory

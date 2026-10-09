@@ -1237,7 +1237,9 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             declRange: declaration.range,
             sourceFileID: file.fileID,
+            sourceFile: file,
             sourceManager: sourceManager,
+            interner: interner,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -1377,7 +1379,9 @@ extension DataFlowSemaPhase {
                         symbol: primaryCtorSymbol,
                         declRange: classDecl.range,
                         sourceFileID: file.fileID,
+                        sourceFile: file,
                         sourceManager: sourceManager,
+                        interner: interner,
                         symbols: symbols,
                         diagnostics: diagnostics
                     )
@@ -1434,7 +1438,9 @@ extension DataFlowSemaPhase {
                     symbol: secCtorSymbol,
                     declRange: secondaryCtor.range,
                     sourceFileID: file.fileID,
+                    sourceFile: file,
                     sourceManager: sourceManager,
+                    interner: interner,
                     symbols: symbols,
                     diagnostics: diagnostics
                 )

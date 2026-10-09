@@ -447,9 +447,6 @@ public extension RuntimeABISpec {
             p("cvaluesHandle", .intptr),
             p("scope", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_native_ptr_of", parameters: [
-            p("value", .intptr),
-        ], isThrowing: false),
         abiParitySpec("kk_native_ptr_toLong", parameters: [
             p("handle", .intptr),
         ], isThrowing: false),

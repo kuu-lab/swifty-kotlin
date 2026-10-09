@@ -36,8 +36,5 @@ func makeCompilationContext(
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try runFrontendSyntaxPhases(ctx)
 }
