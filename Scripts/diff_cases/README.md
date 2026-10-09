@@ -83,7 +83,7 @@ can also be run with `bash Scripts/diff_kotlinc.sh --candidate-only path/to/case
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
 - `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
-- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
+- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`Scripts/run_candidate_only.sh` で `.expected.stdout` と照合）
 - `connection_validation.kt`: `java.sql` / JVM `Thread` API が未実装のため、kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
