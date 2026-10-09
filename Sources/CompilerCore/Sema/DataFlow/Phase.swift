@@ -635,7 +635,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            commonModuleMode: ctx.options.isCommonModule
         )
         validateAnnotationTargets(
             ast: ast,

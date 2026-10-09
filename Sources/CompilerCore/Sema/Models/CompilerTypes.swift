@@ -79,6 +79,12 @@ public struct CompilerOptions: Equatable {
     public var runtimeFlags: [String]
     public var diagnosticsFormat: DiagnosticsFormat
 
+    /// Whether this compilation produces common-module metadata that may
+    /// retain expect declarations without local actual declarations.
+    public var isCommonModule: Bool {
+        emit == .library || frontendFlags.contains("common-module")
+    }
+
     /// Additional search paths for Kotlin stdlib sources.
     public var stdlibSearchPaths: [String]
     /// Whether to include stdlib search paths during compilation.

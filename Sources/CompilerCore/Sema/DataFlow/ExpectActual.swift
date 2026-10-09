@@ -10,7 +10,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        commonModuleMode: Bool
     ) {
         // Only validate source declarations; imported library symbols may contain
         // expect/actual markers without requiring local counterparts.
@@ -39,6 +40,10 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                if commonModuleMode && candidates.isEmpty {
+                    continue
+                }
+
                 // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
