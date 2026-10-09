@@ -840,7 +840,6 @@ public func kk_mutable_collection_add_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_remove")
 public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> Int {
     kk_mutable_collection_remove_throwing(collectionRaw, elem, nil)
 }
@@ -876,7 +875,6 @@ public func kk_mutable_collection_remove_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_clear")
 public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
     kk_mutable_collection_clear_throwing(collectionRaw, nil)
 }
@@ -907,7 +905,6 @@ public func kk_mutable_collection_clear_throwing(
     return 0
 }
 
-@_cdecl("__kk_mutable_collection_removeAll")
 public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     kk_mutable_collection_removeAll_throwing(collectionRaw, elementsRaw, nil)
 }
@@ -936,7 +933,6 @@ public func kk_mutable_collection_removeAll_throwing(
     return kk_box_bool(0)
 }
 
-@_cdecl("__kk_mutable_collection_retainAll")
 public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
     kk_mutable_collection_retainAll_throwing(collectionRaw, elementsRaw, nil)
 }

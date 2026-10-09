@@ -264,34 +264,28 @@ public func kk_int_to_char(_ value: Int) -> Int {
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
 
-@_cdecl("kk_byte_to_uint")
 public func kk_byte_to_uint(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_uint")
 public func kk_short_to_uint(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_byte_to_ulong")
 public func kk_byte_to_ulong(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_ulong")
 public func kk_short_to_ulong(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
 // MARK: - Additional Char Conversions (STDLIB-PRIM-002)
 
-@_cdecl("kk_byte_to_char")
 public func kk_byte_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int8(truncatingIfNeeded: value)))
 }
 
-@_cdecl("kk_short_to_char")
 public func kk_short_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
 }

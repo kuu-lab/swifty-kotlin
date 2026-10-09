@@ -538,22 +538,18 @@ private func networkHeaderFirstValue(_ headers: [(String, [String])], name: Stri
     headers.first(where: { $0.0.caseInsensitiveCompare(name) == .orderedSame })?.1.first
 }
 
-@_cdecl("kk_http_client_newHttpClient")
 public func kk_http_client_newHttpClient() -> Int {
     registerRuntimeObject(RuntimeHTTPClientBox())
 }
 
-@_cdecl("kk_http_request_newBuilder")
 public func kk_http_request_newBuilder() -> Int {
     registerRuntimeObject(RuntimeHttpRequestBuilderBox())
 }
 
-@_cdecl("kk_http_request_newBuilder_uri")
 public func kk_http_request_newBuilder_uri(_ uriRaw: Int) -> Int {
     registerRuntimeObject(RuntimeHttpRequestBuilderBox(url: networkURL(from: uriRaw)))
 }
 
-@_cdecl("kk_http_request_builder_uri")
 public func kk_http_request_builder_uri(_ builderRaw: Int, _ uriRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_uri received invalid builder handle")
@@ -562,7 +558,6 @@ public func kk_http_request_builder_uri(_ builderRaw: Int, _ uriRaw: Int) -> Int
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_header")
 public func kk_http_request_builder_header(_ builderRaw: Int, _ nameRaw: Int, _ valueRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_header received invalid builder handle")
@@ -571,7 +566,6 @@ public func kk_http_request_builder_header(_ builderRaw: Int, _ nameRaw: Int, _ 
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_GET")
 public func kk_http_request_builder_GET(_ builderRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_GET received invalid builder handle")
@@ -581,7 +575,6 @@ public func kk_http_request_builder_GET(_ builderRaw: Int) -> Int {
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_POST")
 public func kk_http_request_builder_POST(_ builderRaw: Int, _ publisherRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_POST received invalid builder handle")
@@ -594,7 +587,6 @@ public func kk_http_request_builder_POST(_ builderRaw: Int, _ publisherRaw: Int)
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_build")
 public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
@@ -613,20 +605,17 @@ public func kk_http_body_publishers_noBody(_ bodyPublishersRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: nil))
 }
 
-@_cdecl("kk_http_body_publishers_ofString")
 public func kk_http_body_publishers_ofString(_ bodyPublishersRaw: Int, _ bodyRaw: Int) -> Int {
     _ = bodyPublishersRaw
     let text = networkString(from: bodyRaw, caller: #function)
     return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: text.data(using: .utf8) ?? Data()))
 }
 
-@_cdecl("kk_http_body_handlers_ofString")
 public func kk_http_body_handlers_ofString(_ bodyHandlersRaw: Int) -> Int {
     _ = bodyHandlersRaw
     return registerRuntimeObject(RuntimeHttpBodyHandlerBox(kind: "string"))
 }
 
-@_cdecl("kk_http_client_send")
 public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandlerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
@@ -710,7 +699,6 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
     return registerRuntimeObject(responseBox)
 }
 
-@_cdecl("kk_http_response_statusCode")
 public func kk_http_response_statusCode(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_statusCode received invalid response handle")
@@ -718,7 +706,6 @@ public func kk_http_response_statusCode(_ responseRaw: Int) -> Int {
     return response.statusCode
 }
 
-@_cdecl("kk_http_response_body")
 public func kk_http_response_body(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_body received invalid response handle")
@@ -726,7 +713,6 @@ public func kk_http_response_body(_ responseRaw: Int) -> Int {
     return networkStringRaw(response.body)
 }
 
-@_cdecl("kk_http_response_headers")
 public func kk_http_response_headers(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_headers received invalid response handle")
@@ -734,7 +720,6 @@ public func kk_http_response_headers(_ responseRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeHttpHeadersBox(headers: response.headers))
 }
 
-@_cdecl("kk_http_headers_map")
 public func kk_http_headers_map(_ headersRaw: Int) -> Int {
     guard let headers = runtimeHttpHeadersBox(from: headersRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_headers_map received invalid headers handle")
@@ -742,7 +727,6 @@ public func kk_http_headers_map(_ headersRaw: Int) -> Int {
     return networkHeaderMapRaw(headers.headers)
 }
 
-@_cdecl("kk_http_headers_firstValue")
 public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int {
     guard let headers = runtimeHttpHeadersBox(from: headersRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_headers_firstValue received invalid headers handle")
@@ -772,7 +756,6 @@ public func kk_http_client_setReadTimeoutMillis(_ clientRaw: Int, _ timeoutMilli
     return 0
 }
 
-@_cdecl("kk_http_client_setFollowRedirects")
 public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setFollowRedirects received invalid client handle")
@@ -781,7 +764,6 @@ public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) 
     return 0
 }
 
-@_cdecl("kk_http_client_setBearerToken")
 public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setBearerToken received invalid client handle")
@@ -790,7 +772,6 @@ public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> 
     return 0
 }
 
-@_cdecl("kk_http_client_addTrustedRedirectOrigin")
 public func kk_http_client_addTrustedRedirectOrigin(_ clientRaw: Int, _ originRaw: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_addTrustedRedirectOrigin received invalid client handle")
@@ -802,7 +783,6 @@ public func kk_http_client_addTrustedRedirectOrigin(_ clientRaw: Int, _ originRa
     return 0
 }
 
-@_cdecl("kk_http_client_setMaxResponseBodyBytes")
 public func kk_http_client_setMaxResponseBodyBytes(_ clientRaw: Int, _ limit: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setMaxResponseBodyBytes received invalid client handle")
