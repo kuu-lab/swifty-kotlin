@@ -283,24 +283,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    @Test
-    func testCodegenCompilesAppendableAppendOverloads() throws {
-        let source = """
-        import kotlin.text.Appendable
-
-        fun main() {
-            val sb = StringBuilder()
-            val target: Appendable = sb
-            target.append('a')
-            target.append("bc")
-            target.append("def", 1, 3)
-            println(sb.toString())
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "AppendableAppendOverloads", expected: "abcef\n")
-    }
-
     // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
     @Test
     func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {

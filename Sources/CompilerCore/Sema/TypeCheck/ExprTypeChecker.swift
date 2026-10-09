@@ -450,6 +450,13 @@ final class ExprTypeChecker {
                 let nullEscape = sema.types.nullability(of: subjectType) == .nullable
                     && sema.types.nullability(of: targetType) == .nullable
                 if !nullEscape,
+                   !isRangeRepresentationCompatible(
+                       subjectExpr: exprID,
+                       subjectType: subjectNonNull,
+                       targetType: targetNonNull,
+                       sema: sema,
+                       interner: interner
+                   ),
                    isDefinitelyDisjoint(subject: subjectNonNull, target: targetNonNull, sema: sema)
                 {
                     ctx.semaCtx.diagnostics.error(
@@ -1823,6 +1830,48 @@ final class ExprTypeChecker {
             return false
         }
         return isFinalForIsCheck(subject, sema: sema) || isFinalForIsCheck(target, sema: sema)
+    }
+
+    /// Range expressions use their element primitive as the Sema type and carry
+    /// a marker for the runtime range object. Do not treat that representation
+    /// as disjoint from its corresponding range class or progression.
+    private func isRangeRepresentationCompatible(
+        subjectExpr: ExprID,
+        subjectType: TypeID,
+        targetType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.bindings.isRangeExpr(subjectExpr),
+              case .primitive = sema.types.kind(of: subjectType),
+              case let .classType(targetClass) = sema.types.kind(of: targetType),
+              let targetSymbol = sema.symbols.symbol(targetClass.classSymbol)
+        else {
+            return false
+        }
+
+        let rangeTypeNames: [String]
+        if sema.bindings.isCharRangeExpr(subjectExpr) {
+            rangeTypeNames = ["CharRange", "CharProgression"]
+        } else if sema.bindings.isUIntRangeExpr(subjectExpr) {
+            rangeTypeNames = ["UIntRange", "UIntProgression"]
+        } else if sema.bindings.isULongRangeExpr(subjectExpr) {
+            rangeTypeNames = ["ULongRange", "ULongProgression"]
+        } else if subjectType == sema.types.longType {
+            rangeTypeNames = ["LongRange", "LongProgression"]
+        } else if subjectType == sema.types.intType {
+            rangeTypeNames = ["IntRange", "IntProgression"]
+        } else {
+            return false
+        }
+
+        let kotlinRangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        return rangeTypeNames.contains { name in
+            targetSymbol.fqName == kotlinRangesFQName + [interner.intern(name)]
+        }
     }
 
     /// Types whose nominal disjointness cannot be decided reliably: type

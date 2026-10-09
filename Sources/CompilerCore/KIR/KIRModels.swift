@@ -176,10 +176,12 @@ public struct KIRFunction: Sendable {
 public struct KIRGlobal: Sendable {
     public let symbol: SymbolID
     public let type: TypeID
+    public let isThreadLocal: Bool
 
-    public init(symbol: SymbolID, type: TypeID) {
+    public init(symbol: SymbolID, type: TypeID, isThreadLocal: Bool = false) {
         self.symbol = symbol
         self.type = type
+        self.isThreadLocal = isThreadLocal
     }
 }
 

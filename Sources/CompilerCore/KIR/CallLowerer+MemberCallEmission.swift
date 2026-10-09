@@ -270,22 +270,15 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isCoroutineHandleReceiver = receiverClassifier.isCoroutineHandleReceiverType(receiverType)
         if isCoroutineHandleReceiver,
            Self.unresolvedCoroutineHandleMemberNames.contains(calleeText)
         {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isChannelReceiver = isChannelReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(receiverType)
         if isChannelReceiver,
            Self.unresolvedChannelMemberNames.contains(calleeText)
         {
@@ -589,6 +582,21 @@ extension CallLowerer {
             interner: interner
         )
         let loweredCalleeText = interner.resolve(loweredCallee)
+        if loweredCalleeText == "kk_range_windowed",
+           chosenCallee == nil,
+           (1...2).contains(sourceArgExprs.count),
+           finalArguments.count == sourceArgExprs.count + 1
+        {
+            // The legacy range fallback lowers directly to the C bridge, so
+            // it must materialize Kotlin's default step and partialWindows
+            // values instead of relying on a source function's $default stub.
+            let defaults: [Int64] = sourceArgExprs.count == 1 ? [1, 0] : [0]
+            for value in defaults {
+                let argument = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
+                instructions.append(.constValue(result: argument, value: .intLiteral(value)))
+                finalArguments.append(argument)
+            }
+        }
         if loweredCalleeText == "__kk_double_range_contains",
            sourceArgExprs.count == 1,
            finalArguments.count >= 2,

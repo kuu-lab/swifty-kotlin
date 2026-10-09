@@ -79,10 +79,10 @@
             let sema = try #require(ctx.sema)
             let jsFileName = try #require(sema.symbols.lookup(fqName: ["kotlin", "js", "JsFileName"].map(ctx.interner.intern)))
             #expect(sema.symbols.annotations(for: jsFileName).contains {
-                $0.annotationFQName == "Target" && $0.arguments.contains { $0.contains("FILE") }
+                $0.annotationFQName == "kotlin.annotation.Target" && $0.arguments.contains { $0.contains("FILE") }
             })
             #expect(sema.symbols.annotations(for: jsFileName).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("SOURCE") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("SOURCE") }
             })
             #expect(!sema.symbols.annotations(for: jsFileName).contains {
                 $0.annotationFQName == "kotlin.js.ExperimentalJsFileName"
@@ -99,10 +99,10 @@
 
             let marker = try #require(sema.symbols.lookup(fqName: ["kotlin", "js", "ExperimentalJsFileName"].map(ctx.interner.intern)))
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
+                $0.annotationFQName == "kotlin.RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
             })
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
         }
 
@@ -134,7 +134,7 @@
             let fileName = try #require(sema.symbols.lookup(
                 fqName: ["kotlin", "js", "JsFileName"].map(ctx.interner.intern)
             ))
-            #expect(sema.symbols.annotations(for: marker).contains { $0.annotationFQName == "RequiresOptIn" })
+            #expect(sema.symbols.annotations(for: marker).contains { $0.annotationFQName == "kotlin.RequiresOptIn" })
             #expect(!sema.symbols.annotations(for: marker).contains { $0.annotationFQName == "kotlin.js.JsFileName" })
             #expect(!sema.symbols.annotations(for: fileName).contains { $0.annotationFQName == "kotlin.js.ExperimentalJsFileName" })
         }

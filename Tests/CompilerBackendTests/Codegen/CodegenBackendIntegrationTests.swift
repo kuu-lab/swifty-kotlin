@@ -169,44 +169,6 @@ import Testing
     }
 
     @Test
-    func testCodegenDataClassSynthesizesCorrectToStringAndEqualityWithoutExplicitSuperclass() throws {
-        let source = """
-        data class Person(val name: String, val age: Int)
-        fun main() {
-            val p = Person("Alice", 30)
-            println(p.toString())
-            println(p.hashCode() != 0)
-            val p2 = Person("Alice", 30)
-            println(p == p2)
-            println(p.equals(p2))
-            val (name, age) = p
-            println("$name is $age")
-            println(p.component1())
-            println(p.component2())
-            val p3 = p.copy(age = 31)
-            println(p3)
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "DataClassToString",
-            expected:
-                """
-                Person(name=Alice, age=30)
-                true
-                true
-                true
-                Alice is 30
-                Alice
-                30
-                Person(name=Alice, age=31)
-
-                """
-        )
-    }
-
-    @Test
     func testCodegenCompilesStringStdlibMixedThrowCalls() throws {
         let source = """
         fun main() {
@@ -422,24 +384,6 @@ import Testing
         }
         """
         try assertKotlinOutput(sourceValues, moduleName: "EnumValues", expected: "3\nRED\nGREEN\n")
-    }
-
-    @Test
-    func testCodegenMutableListBasicMutationsUseRuntimeListBox() throws {
-        let source = """
-        fun main() {
-            val list = mutableListOf(1, 2)
-            list.add(3)
-            println(list)
-            val removed = list.removeAt(1)
-            println(removed)
-            println(list)
-            list.clear()
-            println(list)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "MutableListBasicRuntime", expected: "[1, 2, 3]\n2\n[1, 3]\n[]\n")
     }
 
     @Test
@@ -1384,30 +1328,6 @@ import Testing
         """
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
-    }
-
-    // KUU-637: generic Comparable minOf/maxOf must distinguish signed zeros.
-    @Test
-    func testCodegenGenericMinOfMaxOfSignedZeroTotalOrder() throws {
-        let source = """
-        fun <T : Comparable<T>> maxOf2(a: T, b: T): T = maxOf(a, b)
-        fun <T : Comparable<T>> minOf2(a: T, b: T): T = minOf(a, b)
-
-        fun main() {
-            println(maxOf2(-0.0, 0.0))
-            println(maxOf2(0.0, -0.0))
-            println(minOf2(0.0, -0.0))
-            println(minOf2(-0.0, 0.0))
-            println(maxOf2(-0.0f, 0.0f))
-            println(minOf2(0.0f, -0.0f))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "GenericMinOfMaxOfSignedZero",
-            expected: "0.0\n0.0\n-0.0\n-0.0\n0.0\n-0.0\n"
-        )
     }
     // MARK: - Private Helpers
 

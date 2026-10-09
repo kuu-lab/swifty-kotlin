@@ -130,7 +130,7 @@ struct AtomicLongSourceMigrationTests {
             "Expected ExperimentalAtomicApi annotation, got: \(annotations.map(\.annotationFQName))"
         )
         #expect(annotations.contains {
-            $0.annotationFQName == "SinceKotlin"
+            $0.annotationFQName == "kotlin.SinceKotlin"
                 && $0.arguments.contains(where: { $0.contains("2.1") })
         })
 

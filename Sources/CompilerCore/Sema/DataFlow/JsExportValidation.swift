@@ -103,7 +103,7 @@ extension DataFlowSemaPhase {
             return
         }
 
-        for annotation in declarationAnnotations(for: decl) {
+        for annotation in decl.annotations {
             if let annotationSymbol = resolveAnnotationSymbol(
                 named: annotation.name,
                 in: file,

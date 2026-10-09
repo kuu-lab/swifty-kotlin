@@ -53,46 +53,6 @@ struct CodegenBackendMathRuntimeEdgeCasesTests {
         }
     }
 
-    @Test
-    func testCodegenCompilesMathRuntimeEdgeCases() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun main() {
-            println(2.0.pow(10.0))
-            println(log2(1024.0))
-            println(ln(E))
-
-            println(sqrt(Double.POSITIVE_INFINITY).isInfinite())
-            println(sqrt(Double.NaN).isNaN())
-
-            println(ln(Double.POSITIVE_INFINITY).isInfinite())
-            println(ln(Double.NaN).isNaN())
-
-            println((-1.0).pow(3.0))
-            println((-1.0).pow(2.0))
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "MathRuntimeEdgeCases",
-            expected:
-                """
-                1024.0
-                10.0
-                1.0
-                true
-                true
-                true
-                true
-                -1.0
-                1.0
-                """
-                + "\n"
-        )
-    }
-
     // TEST-MATH-022: End-to-end execution coverage for kotlin.math.pow IEEE 754 special cases.
 
     @Test

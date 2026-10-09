@@ -33,7 +33,7 @@ fun collectionSummary(): String {
 
 @OptIn(kotlin.js.ExperimentalJsReflectionCreateInstance::class)
 fun reflectionApiToken(): String {
-    val symbolName = (::createInstance).name
+    val symbolName = ExportedBox::class::createInstance.name
     val instance = ExportedBox::class.createInstance()
     return "${ExportedBox::class.simpleName}:${symbolName}:${instance.value}"
 }

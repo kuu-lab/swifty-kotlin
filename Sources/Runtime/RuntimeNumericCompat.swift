@@ -113,7 +113,6 @@ func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
 /// value is never boxed even when in range, so callers must only use this
 /// for genuinely nullable-typed values.) Other tags have no such ambiguity,
 /// so this just forwards to `kk_any_to_string`.
-@_cdecl("kk_any_to_string_nullable")
 public func kk_any_to_string_nullable(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag32 = Int32(truncatingIfNeeded: tag)
     guard tag32 == 5 || tag32 == 6 || tag32 == 7 else {
