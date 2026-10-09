@@ -490,6 +490,28 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.lateinit) { value.insert(.lateinitProperty) }
     }
 
+    func inheritedExpectActualFlags(
+        _ flags: SymbolFlags,
+        from ownerSymbol: SymbolID,
+        symbols: SymbolTable,
+        includingActual: Bool = false
+    ) -> SymbolFlags {
+        guard !flags.contains(.expectDeclaration),
+              !flags.contains(.actualDeclaration),
+              let ownerFlags = symbols.symbol(ownerSymbol)?.flags
+        else {
+            return flags
+        }
+
+        var inheritedFlags = flags
+        if ownerFlags.contains(.expectDeclaration) {
+            inheritedFlags.insert(.expectDeclaration)
+        } else if includingActual, ownerFlags.contains(.actualDeclaration) {
+            inheritedFlags.insert(.actualDeclaration)
+        }
+        return inheritedFlags
+    }
+
     func hasDeclarationConflict(
         newKind: SymbolKind,
         existing: [SemanticSymbol],

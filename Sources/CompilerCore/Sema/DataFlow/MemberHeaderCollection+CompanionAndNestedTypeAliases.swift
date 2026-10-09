@@ -33,6 +33,11 @@ extension DataFlowSemaPhase {
         }
 
         let companionFQName = ownerFQName + [companionName]
+        let companionFlags = inheritedExpectActualFlags(
+            flags(from: companionObject.modifiers),
+            from: ownerSymbol,
+            symbols: symbols
+        )
         let companionSymbol: SymbolID
         if let predeclaredSymbol = bindings.declSymbol(for: companionDeclID) {
             companionSymbol = predeclaredSymbol
@@ -97,9 +102,10 @@ extension DataFlowSemaPhase {
                 fqName: companionFQName,
                 declSite: companionObject.range,
                 visibility: visibility(from: companionObject.modifiers),
-                flags: flags(from: companionObject.modifiers)
+                flags: companionFlags
             )
         }
+        symbols.insertFlags(companionFlags, for: companionSymbol)
         symbols.setSourceFileID(sourceFileID, for: companionSymbol)
         registerAnnotations(
             for: decl,

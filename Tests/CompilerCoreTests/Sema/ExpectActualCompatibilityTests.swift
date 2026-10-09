@@ -41,6 +41,54 @@ struct ExpectActualCompatibilityTests {
         #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
     }
 
+    @Test func testExpectActualEnumEntriesAndCompanionMembersPair() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            expect enum class ByteOrder {
+                BIG_ENDIAN, LITTLE_ENDIAN;
+                companion object { fun nativeOrder(): ByteOrder }
+            }
+            """,
+            """
+            package x
+            actual enum class ByteOrder {
+                BIG_ENDIAN, LITTLE_ENDIAN;
+                actual companion object { actual fun nativeOrder(): ByteOrder = LITTLE_ENDIAN }
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let enumFQName = [ctx.interner.intern("x"), ctx.interner.intern("ByteOrder")]
+        let enumSymbols = sema.symbols.lookupAll(fqName: enumFQName).compactMap { sema.symbols.symbol($0) }
+        let expectEnum = try #require(enumSymbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualEnum = try #require(enumSymbols.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectEnum.id) == actualEnum.id)
+
+        let expectCompanion = try #require(sema.symbols.companionObjectSymbol(for: expectEnum.id))
+        let actualCompanion = try #require(sema.symbols.companionObjectSymbol(for: actualEnum.id))
+        let nativeOrderFQName = enumFQName + [ctx.interner.intern("Companion"), ctx.interner.intern("nativeOrder")]
+        let nativeOrderSymbols = sema.symbols.lookupAll(fqName: nativeOrderFQName).compactMap { sema.symbols.symbol($0) }
+        let expectNativeOrder = try #require(nativeOrderSymbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualNativeOrder = try #require(nativeOrderSymbols.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.parentSymbol(for: expectNativeOrder.id) == expectCompanion)
+        #expect(sema.symbols.parentSymbol(for: actualNativeOrder.id) == actualCompanion)
+        #expect(sema.symbols.actualSymbol(for: expectNativeOrder.id) == actualNativeOrder.id)
+
+        for entryName in ["BIG_ENDIAN", "LITTLE_ENDIAN"] {
+            let entrySymbols = sema.symbols.lookupAll(fqName: enumFQName + [ctx.interner.intern(entryName)])
+                .compactMap { sema.symbols.symbol($0) }
+            let expectEntry = try #require(entrySymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualEntry = try #require(entrySymbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectEntry.id) == actualEntry.id)
+        }
+    }
+
     @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
         let ctx = makeContextFromSource(
             """

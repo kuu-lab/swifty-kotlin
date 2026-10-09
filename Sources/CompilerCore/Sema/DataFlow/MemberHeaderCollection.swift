@@ -165,7 +165,11 @@ extension DataFlowSemaPhase {
                 continue
             }
             let memberFQName = ownerFQName + [funDecl.name]
-            var memberFlags = flags(from: funDecl.modifiers)
+            var memberFlags = inheritedExpectActualFlags(
+                flags(from: funDecl.modifiers),
+                from: ownerSymbol,
+                symbols: symbols
+            )
             if funDecl.receiverType != nil {
                 memberFlags.insert(.memberExtension)
             }
@@ -417,7 +421,11 @@ extension DataFlowSemaPhase {
                 continue
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
-            var propertyFlags = flags(from: propertyDecl.modifiers)
+            var propertyFlags = inheritedExpectActualFlags(
+                flags(from: propertyDecl.modifiers),
+                from: ownerSymbol,
+                symbols: symbols
+            )
             let isExtensionProperty = propertyDecl.receiverType != nil
             let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
@@ -770,6 +778,12 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         interner: StringInterner
     ) -> SymbolID {
+        let inheritedFlags = inheritedExpectActualFlags(flags, from: ownerSymbol, symbols: symbols)
+        let inheritedDuplicateCheckFlags = inheritedExpectActualFlags(
+            duplicateCheckFlags,
+            from: ownerSymbol,
+            symbols: symbols
+        )
         if let predeclaredSymbol = bindings.declSymbol(for: declID) {
             scope.insert(predeclaredSymbol)
             return predeclaredSymbol
@@ -781,7 +795,7 @@ extension DataFlowSemaPhase {
             return reusableSyntheticDeclarationSymbol(
                 kind: kind,
                 fqName: fqName,
-                declarationFlags: duplicateCheckFlags,
+                declarationFlags: inheritedDuplicateCheckFlags,
                 file: file,
                 sourceManager: sourceManager,
                 symbols: symbols
@@ -794,14 +808,14 @@ extension DataFlowSemaPhase {
                 range: declSite,
                 symbols: symbols,
                 diagnostics: diagnostics,
-                newFlags: duplicateCheckFlags
+                newFlags: inheritedDuplicateCheckFlags
             )
         }
         let nestedSymbol: SymbolID
         if let reusableSyntheticSymbol {
             nestedSymbol = reusableSyntheticSymbol
             symbols.removeFlags(.synthetic, for: nestedSymbol)
-            symbols.insertFlags(flags, for: nestedSymbol)
+            symbols.insertFlags(inheritedFlags, for: nestedSymbol)
             if shouldRestoreDeclSiteForReusableSyntheticSymbol(fqName: fqName, interner: interner) {
                 symbols.setDeclSite(declSite, for: nestedSymbol)
             }
@@ -812,7 +826,7 @@ extension DataFlowSemaPhase {
                 fqName: fqName,
                 declSite: declSite,
                 visibility: visibility,
-                flags: flags
+                flags: inheritedFlags
             )
         }
         symbols.setSourceFileID(sourceFileID, for: nestedSymbol)
@@ -1111,12 +1125,19 @@ extension DataFlowSemaPhase {
             if classSymbolKind(for: nestedClass) == .enumClass {
                 for entry in nestedClass.enumEntries {
                     let entryFQName = nestedFQName + [entry.name]
+                    let entryFlags = inheritedExpectActualFlags(
+                        [],
+                        from: nestedSymbol,
+                        symbols: symbols,
+                        includingActual: true
+                    )
                     checkAndReportDuplicateDeclaration(
                         newKind: .field,
                         fqName: entryFQName,
                         range: entry.range,
                         symbols: symbols,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        newFlags: entryFlags
                     )
                     let entrySymbol = symbols.define(
                         kind: .field,
@@ -1124,7 +1145,7 @@ extension DataFlowSemaPhase {
                         fqName: entryFQName,
                         declSite: entry.range,
                         visibility: .public,
-                        flags: []
+                        flags: entryFlags
                     )
                     symbols.setParentSymbol(nestedSymbol, for: entrySymbol)
                     symbols.setPropertyType(nestedType, for: entrySymbol)
