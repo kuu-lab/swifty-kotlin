@@ -59,6 +59,8 @@ DIFF_STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
 STDLIB_ARTIFACT=""
 FORCE_RUN_SKIPPED=0
 CANDIDATE_ONLY=0
+EXPECTED_OUTPUT=""
+CANDIDATE_ONLY_EXPECTED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
@@ -107,8 +109,11 @@ Options:
                      Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
-  --candidate-only   Run one // DIFF_CANDIDATE_ONLY_FROM_SOURCE case without kotlinc
-                     and compare stdout with .expected or EXPECT-STDOUT
+  --candidate-only   Run one candidate-only case without a kotlinc reference
+                     (source-only marker or expected-output sidecar)
+  --expected-output <path>
+                     Expected stdout for candidate-only mode
+                     (default: <source-base>.expected)
   --clean-runtime-cache
                      Remove .runtime-build before running diff cases
   -h, --help         Show this help
@@ -287,6 +292,17 @@ while [[ $# -gt 0 ]]; do
       ;;
     --candidate-only)
       CANDIDATE_ONLY=1
+      ;;
+    --expected-output)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--expected-output requires an argument" >&2
+        exit 1
+      fi
+      EXPECTED_OUTPUT="$1"
+      ;;
+    --expected-output=*)
+      EXPECTED_OUTPUT="${1#*=}"
       ;;
     --clean-runtime-cache)
       CLEAN_RUNTIME_CACHE=1
@@ -580,19 +596,68 @@ is_candidate_only_from_source_case() {
   grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE([[:space:]:]|$)' "$1"
 }
 
+is_pr_candidate_only_case() {
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|:|$)' "$1"
+}
+
+# Resolve the expected-output sidecar named by a candidate-only case. Relative
+# paths are anchored to the Kotlin source file so the case is portable across
+# callers and CI working directories.
+candidate_only_expected_output_file() {
+  local case_path="$1"
+  local expected_path
+  expected_path="$(grep -E '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path" 2>/dev/null \
+    | head -1 \
+    | sed 's/.*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:[[:space:]]*//')"
+  [[ -n "$expected_path" ]] || return 1
+
+  case "$expected_path" in
+    /*|*/*|*\\*|.|..) return 2 ;;
+  esac
+
+  local case_dir
+  case_dir="$(cd "$(dirname "$case_path")" && pwd)"
+  printf '%s/%s\n' "$case_dir" "$expected_path"
+}
+
+if [[ "$CANDIDATE_ONLY" -eq 0 && -f "$TARGET" ]] && is_pr_candidate_only_case "$TARGET"; then
+  CANDIDATE_ONLY=1
+fi
+
 if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
-  if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
-    echo "--candidate-only compiles bundled stdlib sources and cannot use --stdlib-library." >&2
-    exit 1
-  fi
   if [[ ! -f "$TARGET" || "$TARGET" != *.kt ]]; then
-    echo "--candidate-only requires one .kt case file." >&2
+    echo "--candidate-only requires one .kt case file: $TARGET" >&2
     exit 1
   fi
-  if ! is_candidate_only_from_source_case "$TARGET"; then
-    echo "Case is not marked with // DIFF_CANDIDATE_ONLY_FROM_SOURCE: $TARGET" >&2
-    exit 1
+  if is_candidate_only_from_source_case "$TARGET"; then
+    if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+      echo "--candidate-only source cases compile bundled stdlib sources and cannot use --stdlib-library." >&2
+      exit 1
+    fi
+    if [[ -n "$EXPECTED_OUTPUT" ]]; then
+      echo "--expected-output cannot be used with // DIFF_CANDIDATE_ONLY_FROM_SOURCE." >&2
+      exit 1
+    fi
+  else
+    CANDIDATE_ONLY_EXPECTED=1
+    if [[ -z "$EXPECTED_OUTPUT" ]]; then
+      if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$TARGET"; then
+        EXPECTED_OUTPUT="$(candidate_only_expected_output_file "$TARGET")" || {
+          echo "Invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT in $TARGET" >&2
+          exit 1
+        }
+      else
+        EXPECTED_OUTPUT="${TARGET%.kt}.expected"
+      fi
+    fi
+    if [[ ! -f "$EXPECTED_OUTPUT" ]]; then
+      echo "--candidate-only requires an existing expected-output file: $EXPECTED_OUTPUT" >&2
+      exit 1
+    fi
   fi
+elif [[ -n "$EXPECTED_OUTPUT" ]]; then
+  echo "--expected-output can only be used with --candidate-only" >&2
+  exit 1
 fi
 
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
@@ -691,16 +756,29 @@ if [[ ! -f "$TARGET" && ! -d "$TARGET" ]]; then
   exit 1
 fi
 
-# Discover only reference cases in this shard before touching kotlinc or Java.
-# Source-only cases are executed by this runner; canonical sidecar cases belong
-# to run_candidate_only.sh and are skipped in the regular diff lane.
+# Discover which toolchains and artifacts this shard needs before touching
+# kotlinc or Java. Source-only and expected-output candidate cases have no JVM
+# reference; canonical sidecar cases belong to run_candidate_only.sh.
 REFERENCE_CASES_REQUIRED=0
+STDLIB_ARTIFACT_REQUIRED=0
+CANDIDATE_EXPECTED_OUTPUT_REQUIRED=0
 while IFS= read -r test_case; do
   [[ -z "$test_case" ]] && continue
   if is_master_candidate_only_case "$test_case" || should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED" || is_candidate_only_from_source_case "$test_case"; then
     continue
   fi
+  if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] || is_pr_candidate_only_case "$test_case"; then
+    CANDIDATE_EXPECTED_OUTPUT_REQUIRED=1
+    STDLIB_ARTIFACT_REQUIRED=1
+    continue
+  fi
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$test_case"; then
+    CANDIDATE_EXPECTED_OUTPUT_REQUIRED=1
+    STDLIB_ARTIFACT_REQUIRED=1
+    continue
+  fi
   REFERENCE_CASES_REQUIRED=1
+  STDLIB_ARTIFACT_REQUIRED=1
   break
 done < <(collect_cases "$TARGET")
 
@@ -990,12 +1068,15 @@ else
 fi
 echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
 echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
-if [[ "$REFERENCE_CASES_REQUIRED" -eq 0 ]]; then
-  echo "Stdlib artifact: not used (bundled sources are compiled with the case)"
-elif [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+if [[ "$CANDIDATE_EXPECTED_OUTPUT_REQUIRED" -eq 1 ]]; then
+  echo "Comparison mode: candidate-only expected output"
+fi
+if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
-else
+elif [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
+else
+  echo "Stdlib artifact: not needed for skipped candidate-only cases"
 fi
 echo "Target: $TARGET"
 echo "=================================="
@@ -1004,7 +1085,9 @@ echo "=================================="
 # not the first kotlinc startup cost.
 if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
   warm_kotlinc
+fi
 
+if [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
   # compile below will reference it with --stdlib-library instead of recompiling
   # bundled stdlib sources.
@@ -1091,6 +1174,16 @@ persist_artifacts() {
   local escaped_kswiftc_flags
   printf -v escaped_kswiftc_flags '%q' "$DIFF_KSWIFTC_FLAGS"
 
+  local comparison_mode="kotlinc-reference"
+  local candidate_expected_output=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path"; then
+    comparison_mode="candidate-only-expected-output"
+    candidate_expected_output="$(candidate_only_expected_output_file "$case_path" 2>/dev/null || true)"
+    if [[ -n "$candidate_expected_output" && -f "$candidate_expected_output" && ! -L "$candidate_expected_output" ]]; then
+      cp "$candidate_expected_output" "$destination/expected.stdout"
+    fi
+  fi
+
   if [[ $cand_compile_exit -eq 0 ]]; then
     "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
@@ -1103,6 +1196,7 @@ persist_artifacts() {
   cat >"$destination/summary.txt" <<EOF
 case: $case_path
 result: $result_label
+comparison_mode: $comparison_mode
 artifact_dir: $destination
 compile_timeout_seconds: $COMPILE_TIMEOUT
 run_timeout_seconds: $RUN_TIMEOUT
@@ -1339,12 +1433,135 @@ run_candidate_only_from_source_case() {
   return $((1 - ok))
 }
 
+run_candidate_only_case() {
+  local kt_file="$1"
+  local expected_output="$2"
+  local tmp_dir
+  tmp_dir="$(mktemp -d -t kswiftk-candidate-only-XXXXXX)"
+
+  local candidate_bin="$tmp_dir/candidate.out"
+  local compile_stdout="$tmp_dir/candidate_compile.stdout"
+  local compile_stderr="$tmp_dir/candidate_compile.stderr"
+  local run_stdout="$tmp_dir/candidate_run.stdout"
+  local run_stderr="$tmp_dir/candidate_run.stderr"
+  local candidate_output_norm="$tmp_dir/candidate_output.norm"
+  local expected_output_norm="$tmp_dir/expected_output.norm"
+  local compile_exit=0
+  local run_exit=not-run
+  local ok=1
+  local artifact=""
+  local expected_output_exists=0
+
+  : >"$compile_stdout"
+  : >"$compile_stderr"
+  : >"$run_stdout"
+  : >"$run_stderr"
+
+  if [[ -f "$expected_output" ]]; then
+    expected_output_exists=1
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+      >"$compile_stdout" 2>"$compile_stderr" || compile_exit=$?
+
+    if [[ "$compile_exit" -eq 0 ]]; then
+      run_exit=0
+      if needs_stdin_eof "$kt_file"; then
+        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" < /dev/null >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+      else
+        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+      fi
+    fi
+  else
+    compile_exit=not-run
+    run_exit=not-run
+  fi
+
+  normalize_text <"$run_stdout" >"$candidate_output_norm"
+  if [[ "$expected_output_exists" -eq 1 ]]; then
+    normalize_text <"$expected_output" >"$expected_output_norm"
+  else
+    ok=0
+    echo "Candidate-only case is missing its expected output file: $expected_output" >&2
+    : >"$expected_output_norm"
+  fi
+
+  if [[ "$expected_output_exists" -eq 0 ]]; then
+    : # Missing oracles fail without executing the case.
+  elif [[ "$compile_exit" -ne 0 ]]; then
+    ok=0
+    echo "  candidate compile failed with exit=$compile_exit"
+    sed -n '1,120p' "$compile_stderr"
+  elif [[ "$run_exit" -ne 0 ]]; then
+    ok=0
+    echo "  candidate run failed with exit=$run_exit"
+    sed -n '1,120p' "$run_stderr"
+  elif ! diff -u "$expected_output_norm" "$candidate_output_norm"; then
+    ok=0
+    echo "  candidate stdout did not match expected output"
+  fi
+
+  if [[ "$ok" -eq 1 ]]; then
+    echo "PASS CANDIDATE-ONLY $kt_file"
+    if [[ "$KEEP_TEMP" -eq 0 ]]; then
+      rm -rf "$tmp_dir"
+    else
+      artifact="$tmp_dir"
+      echo "  artifacts: $artifact"
+    fi
+  else
+    mkdir -p "$ARTIFACT_ROOT"
+    artifact="$(unique_artifact_destination "$ARTIFACT_ROOT" "candidate_only_$(sanitize_case_name "$kt_file")")"
+    mv "$tmp_dir" "$artifact"
+    cp "$kt_file" "$artifact/input.kt"
+    if [[ -f "$expected_output" ]]; then
+      cp "$expected_output" "$artifact/expected_output"
+    fi
+    safe_diff_to_file "$artifact/expected_output.norm" "$artifact/candidate_output.norm" "$artifact/stdout.diff"
+    cat >"$artifact/summary.txt" <<EOF
+case: $kt_file
+result: FAIL
+artifact_dir: $artifact
+compile_timeout_seconds: $COMPILE_TIMEOUT
+run_timeout_seconds: $RUN_TIMEOUT
+candidate_compile_exit: $compile_exit
+candidate_run_exit: $run_exit
+expected_output: $expected_output
+stdlib_artifact: $STDLIB_ARTIFACT
+stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
+kswiftc: $KSWIFTC
+kswiftc_flags: $DIFF_KSWIFTC_FLAGS
+EOF
+    echo "  artifacts: $artifact"
+  fi
+
+  LAST_ARTIFACT_DIR="$artifact"
+  return $((1 - ok))
+}
+
 run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
-  if [[ "$CANDIDATE_ONLY" -eq 1 ]] || is_candidate_only_from_source_case "$kt_file"; then
+  if is_candidate_only_from_source_case "$kt_file"; then
     run_candidate_only_from_source_case "$kt_file" "$artifact_file"
     return $?
+  fi
+  if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] || is_pr_candidate_only_case "$kt_file"; then
+    local expected_output="$EXPECTED_OUTPUT"
+    if [[ -z "$expected_output" ]]; then
+      if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+        if ! expected_output="$(candidate_only_expected_output_file "$kt_file")"; then
+          echo "  invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: use a sidecar filename in the case directory" >&2
+          return 1
+        fi
+      else
+        expected_output="${kt_file%.kt}.expected"
+      fi
+    fi
+    local candidate_exit=0
+    run_candidate_only_case "$kt_file" "$expected_output" || candidate_exit=$?
+    if [[ -n "$artifact_file" ]]; then
+      printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+    fi
+    return "$candidate_exit"
   fi
 
   local tmp_dir
@@ -1369,6 +1586,31 @@ run_case() {
   : >"$ref_run_stderr"
   : >"$cand_run_stdout"
   : >"$cand_run_stderr"
+
+  local candidate_only=0
+  local candidate_expected_output=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+    candidate_only=1
+    if ! candidate_expected_output="$(candidate_only_expected_output_file "$kt_file")"; then
+      echo "  invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: use a sidecar filename in the case directory" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if [[ ! -f "$candidate_expected_output" || -L "$candidate_expected_output" ]]; then
+      echo "  candidate-only expected output must be a regular sidecar file: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if ! cp "$candidate_expected_output" "$ref_run_stdout"; then
+      echo "  failed to read candidate-only expected output: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    echo "  candidate-only expected-output comparison: $candidate_expected_output"
+  fi
 
   local ref_compile_exit=0
   local ref_run_exit=0
@@ -1409,7 +1651,9 @@ run_case() {
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
-  if [[ $is_script -eq 1 ]]; then
+  if [[ "$candidate_only" -eq 1 ]]; then
+    : # The expected-output sidecar is the reference; no JVM compiler or runtime is used.
+  elif [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
     # kotlinc -script bundles compile+run into a single JVM process, so there
@@ -1605,7 +1849,11 @@ run_case() {
 
   if [[ $ok -eq 1 ]]; then
     if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
-      echo "PASS $kt_file"
+      if [[ "$candidate_only" -eq 1 ]]; then
+        echo "PASS $kt_file (candidate-only expected output)"
+      else
+        echo "PASS $kt_file"
+      fi
     fi
   else
     echo "FAIL $kt_file"

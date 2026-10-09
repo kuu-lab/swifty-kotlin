@@ -103,26 +103,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// Validate only the members of a nominal declaration. Used by the local
-    /// nominal parser: the head modifiers are checked separately because the
-    /// declaration itself is a local expression.
-    func validateMembers(of declID: DeclID, site: OwnerSite) {
-        guard let decl = astArena.decl(declID),
-              case .nominal(let nominalSite) = site
-        else {
-            return
-        }
-        switch decl {
-        case .classDecl(let classDecl):
-            validateClassMembers(classDecl, site: nominalSite)
-        case .objectDecl(let objectDecl):
-            validateObjectMembers(objectDecl, site: nominalSite)
-        case .interfaceDecl(let interfaceDecl):
-            validateInterfaceMembers(interfaceDecl, site: nominalSite)
-        case .funDecl, .propertyDecl, .typeAliasDecl, .enumEntryDecl:
-            break
-        }
-    }
 
     // MARK: - Functions
 

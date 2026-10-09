@@ -2971,16 +2971,5 @@ extension DataFlowSemaPhase {
         symbols.setAnnotations(annotations, for: symbol)
     }
 
-    func attachCoroutineExperimentalStdlibApiAnnotation(
-        to symbol: SymbolID,
-        symbols: SymbolTable
-    ) {
-        let record = MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalStdlibApi")
-        var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(record) {
-            annotations.append(record)
-        }
-        symbols.setAnnotations(annotations, for: symbol)
-    }
 }
 // jscpd:ignore-end

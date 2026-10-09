@@ -200,32 +200,5 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(randomAccessType, for: randomAccessSymbol)
     }
 
-    /// Register `kotlin.collections.List<E>` interface stub with `operator fun get(index: Int): E`.
-    func makeComparableTypeParam(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        memberFQName: [InternedString]
-    ) -> (symbol: SymbolID, type: TypeID, upperBounds: [TypeID])? {
-        guard let comparableSymbol = types.comparableInterfaceSymbol else {
-            return nil
-        }
-        let rName = interner.intern("R")
-        let rSymbol = symbols.define(
-            kind: .typeParameter,
-            name: rName,
-            fqName: memberFQName + [rName],
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-        let comparableRBounds: [TypeID] = [types.make(.classType(ClassType(
-            classSymbol: comparableSymbol,
-            args: [.in(rType)],
-            nullability: .nonNull
-        )))]
-        return (rSymbol, rType, comparableRBounds)
-    }
 
 }

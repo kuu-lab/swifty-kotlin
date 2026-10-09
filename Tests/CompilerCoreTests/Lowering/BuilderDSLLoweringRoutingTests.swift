@@ -57,14 +57,6 @@ struct BuilderDSLLoweringRoutingTests {
         }
     }
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = makeKIRContext(from: ctx)
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     // MARK: - source-backed routing (the production path)
 
     /// All six overloads survive `CollectionLiteralLoweringPass` untouched, so
@@ -80,7 +72,7 @@ struct BuilderDSLLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             let builderCalls = Self.builderCalls(in: body, interner: ctx.interner)
@@ -190,7 +182,7 @@ struct BuilderDSLLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 

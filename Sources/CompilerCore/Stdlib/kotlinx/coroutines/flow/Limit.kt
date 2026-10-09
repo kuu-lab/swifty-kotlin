@@ -12,6 +12,7 @@ import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 import kotlin.time.inWholeMilliseconds
 import kotlin.time.toDuration
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.TimeoutCancellationException
 
 public fun <T> Flow<T>.drop(count: Int): Flow<T> {
@@ -31,6 +32,7 @@ public fun <T> Flow<T>.drop(count: Int): Flow<T> {
 
 // KSP-1581: no ticker in the sequential cold-flow model; sample emits only
 // the last upstream value on completion, including a null value.
+@FlowPreview
 @Suppress("UNCHECKED_CAST")
 public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
     require(periodMillis > 0L) { "Sample period should be positive" }
@@ -46,6 +48,8 @@ public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
     }
 }
 
+@FlowPreview
+@OptIn(FlowPreview::class)
 public fun <T> Flow<T>.sample(period: Duration): Flow<T> {
     require(period > 0L.toDuration(DurationUnit.MILLISECONDS)) { "Sample period should be positive" }
     val millis = period.inWholeMilliseconds

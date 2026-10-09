@@ -860,10 +860,15 @@ public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
 /// no longer present in either domain.
 final class RuntimeWeakReferenceBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var objectRaw: Int
+    private var objectRaw: Int?
+    private let hasManagedReferent: Bool
 
     init(objectRaw: Int) {
         self.objectRaw = objectRaw
+        // Primitive values may arrive here as immediate words rather than
+        // registered object handles. Classify only by runtime registries; do
+        // not dereference an ABI word to decide whether it is a pointer.
+        self.hasManagedReferent = runtimeWeakReferentIsManaged(objectRaw)
     }
 
     func get() -> Int {
@@ -871,9 +876,9 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
         let current = objectRaw
         lock.unlock()
 
-        guard current != 0,
+        guard let current,
               current != runtimeNullSentinelInt,
-              runtimeWeakReferentIsLive(current)
+              !hasManagedReferent || runtimeWeakReferentIsLive(current)
         else {
             clear()
             // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
@@ -888,8 +893,23 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
 
     func clear() {
         lock.lock()
-        objectRaw = 0
+        // `nil` marks a cleared weak reference; zero is a live immediate value
+        // (Int(0), Boolean(false), or Char(0)).
+        objectRaw = nil
         lock.unlock()
+    }
+}
+
+private func runtimeWeakReferentIsManaged(_ objectRaw: Int) -> Bool {
+    guard objectRaw != 0,
+          objectRaw != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return false
+    }
+    let key = UInt(bitPattern: ptr)
+    return runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(key) || state.heapObjects[key] != nil
     }
 }
 

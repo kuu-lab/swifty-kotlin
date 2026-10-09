@@ -91,7 +91,7 @@ struct RuntimeMutexTests {
 
     // KUU-1356: owner-token overloads (__kk_mutex_lock_owner /
     // __kk_mutex_unlock_owner) back `Mutex.lock(owner)`/`Mutex.unlock(owner)`.
-    // The runtime treats the owner as an opaque token compared by value;
+    // The runtime treats each owner token as an opaque object identity;
     // `0` stands in for Kotlin `null` (no owner).
     @Test func mutexOwnerLockUnlock() throws {
         let handle = __kk_mutex_create()
@@ -116,6 +116,33 @@ struct RuntimeMutexTests {
         #expect(__kk_mutex_unlock_owner(handle, owner, &thrown) == 0)
         #expect(thrown == 0)
         #expect(__kk_mutex_isLocked(handle) == 0)
+    }
+
+    @Test func mutexHoldsLockChecksIdentityWithoutChangingState() {
+        let handle = __kk_mutex_create()
+        #expect(handle != 0)
+
+        let owner: Int = 0x5157
+        let otherOwner: Int = 0x4F48
+
+        #expect(__kk_mutex_holdsLock(handle, owner) == 0)
+        #expect(__kk_mutex_lock_owner(handle, owner, 0, nil) == 0)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 1)
+        #expect(__kk_mutex_holdsLock(handle, otherOwner) == 0)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 1)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+
+        #expect(__kk_mutex_unlock_owner(handle, owner, nil) == 0)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 0)
+
+        // A plain lock has no owner identity, even if the supplied token is
+        // numerically zero in this low-level ABI test.
+        #expect(kk_mutex_lock(handle, 0) == 0)
+        #expect(__kk_mutex_holdsLock(handle, owner) == 0)
+        #expect(__kk_mutex_holdsLock(handle, 0) == 0)
+        #expect(__kk_mutex_isLocked(handle) == 1)
+        #expect(kk_mutex_unlock(handle) == 0)
     }
 
     @Test func mutexUnlockWithoutOwnerBypassesOwnerCheck() throws {
@@ -181,15 +208,18 @@ struct RuntimeMutexTests {
         let waiterOwner: Int = 0x4F48
         var thrown = 0
         #expect(__kk_mutex_lock_owner(handle, firstOwner, 0, &thrown) == 0)
+        #expect(__kk_mutex_holdsLock(handle, firstOwner) == 1)
 
         let waiterDone = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             // Blocks until the first owner releases; the waiter's owner token
             // must become the mutex's recorded owner.
             #expect(__kk_mutex_lock_owner(handle, waiterOwner, 0, nil) == 0)
+            #expect(__kk_mutex_holdsLock(handle, waiterOwner) == 1)
             waiterDone.signal()
         }
         Thread.sleep(forTimeInterval: 0.05)
+        #expect(__kk_mutex_holdsLock(handle, waiterOwner) == 0)
 
         // Releasing with the first owner hands the mutex to the waiter,
         // carrying the waiter's owner token with it.
@@ -198,6 +228,8 @@ struct RuntimeMutexTests {
 
         // The mutex is now held under waiterOwner: firstOwner no longer
         // satisfies the token check and the release must fail.
+        #expect(__kk_mutex_holdsLock(handle, firstOwner) == 0)
+        #expect(__kk_mutex_holdsLock(handle, waiterOwner) == 1)
         thrown = 0
         #expect(__kk_mutex_unlock_owner(handle, firstOwner, &thrown) == 0)
         _ = try? requireThrownBox(thrown)
@@ -207,6 +239,7 @@ struct RuntimeMutexTests {
         thrown = 0
         #expect(__kk_mutex_unlock_owner(handle, waiterOwner, &thrown) == 0)
         #expect(thrown == 0)
+        #expect(__kk_mutex_holdsLock(handle, waiterOwner) == 0)
         #expect(__kk_mutex_isLocked(handle) == 0)
     }
 

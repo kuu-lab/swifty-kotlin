@@ -13,8 +13,11 @@ public interface CancellableContinuation<in T> : Continuation<T> {
     public fun invokeOnCancellation(handler: (cause: Throwable?) -> Unit)
     public fun resume(value: T, onCancellation: ((cause: Throwable) -> Unit)? = null)
     public fun <R : T> resume(value: R, onCancellation: (cause: Throwable, value: R, context: CoroutineContext) -> Unit)
+    @InternalCoroutinesApi
     public fun tryResume(value: T, idempotent: Any? = null): Any?
+    @InternalCoroutinesApi
     public fun tryResumeWithException(exception: Throwable): Any?
+    @InternalCoroutinesApi
     public fun completeResume(token: Any)
 }
 

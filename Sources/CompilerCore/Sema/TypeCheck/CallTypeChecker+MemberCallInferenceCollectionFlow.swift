@@ -6303,6 +6303,12 @@ extension CallTypeChecker {
                     parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                 ))
                 sema.bindings.bindCallableTarget(id, target: .symbol(bundledCallee))
+                driver.helpers.checkOptIn(
+                    for: bundledCallee,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
             }
             return bundledFlowType
         }

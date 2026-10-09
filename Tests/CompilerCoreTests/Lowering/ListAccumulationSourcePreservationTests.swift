@@ -86,21 +86,6 @@ struct ListAccumulationSourcePreservationTests {
     }
     """
 
-    /// Run the lowering pass under test, and nothing after it, so a redirect
-    /// cannot be masked by a later pass.
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     /// `.call` instructions in `body` whose callee is an accumulation name,
     /// with the resolved symbol so a dropped symbol is caught too.
     private static func accumulationCalls(

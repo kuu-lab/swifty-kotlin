@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// Regression tests for parser declaration boundaries: where one top-level or
@@ -330,13 +331,7 @@ struct DeclarationBoundaryTests {
 
     @Test
     func valueKeywordExpressionBodyDoesNotConsumeFollowingDeclaration() throws {
-        let source = """
-        class Holder(var value: Int)
-
-        fun Holder.read(): Int = value
-
-        fun Holder.other(): Int = 0
-        """
+        let source = KotlinSourceFixtures.valueKeywordExpressionBody
         let parsed = parse(source)
         let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
         #expect(functions.count == 2)
@@ -357,12 +352,7 @@ struct DeclarationBoundaryTests {
 
     @Test
     func valueKeywordAfterAssignmentNewlineStaysInExpressionBody() throws {
-        let source = """
-        class Holder(var value: Int)
-        fun Holder.read(): Int =
-            value
-        fun Holder.other(): Int = 0
-        """
+        let source = KotlinSourceFixtures.valueKeywordExpressionBodyAfterAssignmentNewline
         let parsed = parse(source)
         let functions = parsed.arena.nodes.enumerated().filter { $0.element.kind == .funDecl }
         #expect(functions.count == 2)

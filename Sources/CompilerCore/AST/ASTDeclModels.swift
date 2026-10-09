@@ -400,6 +400,8 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
     public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
+    /// Explicit accessor visibility, or nil when it inherits the property's visibility.
+    public let visibility: Visibility?
     public let parameterName: InternedString?
     public let body: FunctionBody
 
@@ -407,12 +409,14 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         range: SourceRange,
         kind: PropertyAccessorKind,
         annotations: [AnnotationNode] = [],
+        visibility: Visibility? = nil,
         parameterName: InternedString? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
         self.kind = kind
         self.annotations = annotations
+        self.visibility = visibility
         self.parameterName = parameterName
         self.body = body
     }

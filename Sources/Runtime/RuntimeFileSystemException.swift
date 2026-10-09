@@ -106,29 +106,8 @@ func runtimeAllocateFileSystemException(file: String, other: String? = nil, reas
     ))
 }
 
-func runtimeAllocateFileAlreadyExistsException(file: String, other: String? = nil, reason: String? = nil) -> Int {
-    registerRuntimeObject(RuntimeFileAlreadyExistsExceptionBox(
-        fileRaw: runtimeFileHandle(path: file),
-        otherRaw: other.map { runtimeFileHandle(path: $0) } ?? 0,
-        reason: reason
-    ))
-}
 
-func runtimeAllocateNoSuchFileException(file: String, other: String? = nil, reason: String? = nil) -> Int {
-    registerRuntimeObject(RuntimeNoSuchFileExceptionBox(
-        fileRaw: runtimeFileHandle(path: file),
-        otherRaw: other.map { runtimeFileHandle(path: $0) } ?? 0,
-        reason: reason
-    ))
-}
 
-func runtimeAllocateAccessDeniedException(file: String, other: String? = nil, reason: String? = nil) -> Int {
-    registerRuntimeObject(RuntimeAccessDeniedExceptionBox(
-        fileRaw: runtimeFileHandle(path: file),
-        otherRaw: other.map { runtimeFileHandle(path: $0) } ?? 0,
-        reason: reason
-    ))
-}
 
 // MARK: - Kotlin-facing bridges
 //
