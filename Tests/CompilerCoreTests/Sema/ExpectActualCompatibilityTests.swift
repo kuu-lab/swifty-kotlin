@@ -106,6 +106,55 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
     }
 
+    @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {
+        let ctx = makeContextFromSource(
+            """
+            expect abstract class Pool<T : Any>(capacity: Int) {
+                protected abstract fun produce(): T
+                protected open fun disposeInstance(instance: T)
+                fun borrow(): T
+            }
+
+            actual abstract class Pool<T : Any> actual constructor(capacity: Int) {
+                protected actual abstract fun produce(): T
+                protected actual open fun disposeInstance(instance: T) {}
+                actual fun borrow(): T = produce()
+            }
+
+            class IntPool : Pool<Int>(1) {
+                override fun produce(): Int = 42
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let fqName = [ctx.interner.intern("Pool")]
+        let poolSymbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+        let expectSymbol = try #require(poolSymbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualSymbol = try #require(poolSymbols.first { $0.flags.contains(.actualDeclaration) })
+        let intPoolSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("IntPool")]).first)
+        let produceFQName = fqName + [ctx.interner.intern("produce")]
+        let actualProduce = try #require(sema.symbols.lookupAll(fqName: produceFQName).first {
+            sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+        })
+        let intPoolProduce = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("IntPool"), ctx.interner.intern("produce"),
+        ]).first)
+        let expectLayout = try #require(sema.symbols.nominalLayout(for: expectSymbol.id))
+        let actualLayout = try #require(sema.symbols.nominalLayout(for: actualSymbol.id))
+        let intPoolLayout = try #require(sema.symbols.nominalLayout(for: intPoolSymbol))
+
+        #expect(sema.symbols.directSupertypes(for: intPoolSymbol).contains(actualSymbol.id))
+        #expect(!sema.symbols.directSupertypes(for: intPoolSymbol).contains(expectSymbol.id))
+        #expect(expectLayout.vtableSize == 3)
+        #expect(actualLayout.vtableSize == 3)
+        #expect(actualLayout.vtableSlots[actualProduce] == intPoolLayout.vtableSlots[intPoolProduce])
+    }
+
     private struct TestCase {
         let name: String
         let sources: [String]
