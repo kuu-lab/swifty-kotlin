@@ -3108,17 +3108,32 @@ extension NativeEmitter {
                     guard case let .vtable(slot) = dispatch,
                           calleeName == "get",
                           argumentValues.count == 1,
-                          let symbols,
-                          let typeSystem,
-                          let receiverType = module.arena.exprType(receiver),
-                          case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                          let symbols
                     else {
                         return false
                     }
-                    return symbols.throwableMessageGetterSlot(
-                        for: receiverClass.classSymbol,
-                        interner: interner
-                    ) == slot
+                    if let typeSystem,
+                       let receiverType = module.arena.exprType(receiver),
+                       case let .classType(receiverClass) = typeSystem.kind(of: receiverType),
+                       symbols.throwableMessageGetterSlot(
+                           for: receiverClass.classSymbol, interner: interner
+                       ) == slot
+                    {
+                        return true
+                    }
+                    // Imported inline bodies retain the accessor symbol even
+                    // when a catch variable's temporary has no receiver type.
+                    // Recover this particular slot from its declaration rather
+                    // than treating an unrelated String getter as raw-return.
+                    guard let symbol,
+                          let property = symbols.propertySymbol(forAccessor: symbol)
+                              ?? symbols.accessorOwnerProperty(for: symbol),
+                          symbols.symbol(property)?.name == interner.intern("message"),
+                          let owner = symbols.parentSymbol(for: property)
+                    else {
+                        return false
+                    }
+                    return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
                 }()
                 let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
                     && calleeName == "get"
