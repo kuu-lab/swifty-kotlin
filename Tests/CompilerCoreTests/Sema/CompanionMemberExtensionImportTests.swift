@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
@@ -163,15 +164,7 @@ struct CompanionMemberExtensionImportTests {
             }
         }
         """
-        let atomicfu = """
-        package kotlinx.atomicfu
-
-        class AtomicRef<T>(var value: T) {
-            fun compareAndSet(expect: T, update: T): Boolean = true
-        }
-
-        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
-        """
+        let atomicfu = KotlinSourceFixtures.atomicfuAtomicRefStub
         let byteChannel = """
         package io.ktor.utils.io
         import io.ktor.utils.io.CloseToken.Companion.throwOrNull
