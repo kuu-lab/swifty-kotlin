@@ -225,6 +225,11 @@ public struct CompilerOptions: Equatable {
         Self.optInMarkerNames(from: frontendFlags)
     }
 
+    /// Whether the current compilation is building a common source-set module.
+    public var isCommonModule: Bool {
+        frontendFlags.contains("common-module")
+    }
+
     public static func optInMarkerNames(from frontendFlags: [String]) -> [String] {
         var names: [String] = []
         for flag in frontendFlags {

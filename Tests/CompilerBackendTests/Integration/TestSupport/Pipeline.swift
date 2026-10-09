@@ -127,6 +127,7 @@ func withCompiledLibrary(
     moduleName: String,
     includeStdlib: Bool = true,
     allowDefaultStdlibLibrary: Bool = true,
+    frontendFlags: [String] = [],
     body: (String) throws -> Void
 ) throws {
     let libraryBase = FileManager.default.temporaryDirectory
@@ -139,6 +140,7 @@ func withCompiledLibrary(
             moduleName: moduleName,
             emit: .library,
             outputPath: libraryBase,
+            frontendFlags: frontendFlags,
             includeStdlib: includeStdlib,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )

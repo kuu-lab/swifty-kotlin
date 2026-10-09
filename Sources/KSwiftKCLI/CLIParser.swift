@@ -24,7 +24,7 @@ enum CLIParser {
       -L <path>              Library path
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
-      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases)
+      -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, common-module)
       -opt-in=<fqname>       Opt in to an experimental API marker
       -Xnew-inference        Enable the new type inference pipeline
       -Xunrestricted-builder-inference

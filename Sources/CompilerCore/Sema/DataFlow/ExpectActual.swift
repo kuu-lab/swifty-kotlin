@@ -1,8 +1,8 @@
 import Foundation
 
 // MPP-001: Validate expect/actual declarations.
-// In Kotlin MPP, an `expect` declaration in common code must be implemented by a
-// corresponding `actual` declaration for the current compilation target.
+// Platform compilations require matching `actual` declarations. Common modules
+// can retain unmatched `expect` declarations for platform modules to implement.
 
 extension DataFlowSemaPhase {
     func validateExpectActualMatching(
@@ -10,7 +10,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        isCommonModule: Bool
     ) {
         // Only validate source declarations; imported library symbols may contain
         // expect/actual markers without requiring local counterparts.
@@ -19,15 +20,16 @@ extension DataFlowSemaPhase {
         }
 
         for expectSym in expects {
-            let candidates = symbols.lookupAll(fqName: expectSym.fqName)
+            let actuals = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
-                    guard actual.flags.contains(.actualDeclaration) else {
-                        return false
-                    }
-                    return actual.kind == expectSym.kind
-                        || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
+                    actual.flags.contains(.actualDeclaration)
                 }
+
+            let candidates = actuals.filter { actual in
+                actual.kind == expectSym.kind
+                    || (expectSym.kind == .annotationClass && actual.kind == .typeAlias)
+            }
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
             let compatibleCandidates = candidates.filter { actual in
@@ -39,6 +41,12 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                // Common source-set artifacts intentionally preserve expect
+                // declarations for a platform compilation to match later.
+                if isCommonModule, actuals.isEmpty {
+                    continue
+                }
+
                 // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
