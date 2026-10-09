@@ -12,10 +12,12 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        // Only validate source declarations; imported library symbols may contain
-        // expect/actual markers without requiring local counterparts.
+        // Common libraries preserve expect markers so a platform compilation can
+        // pair them with local actual declarations. Other imported declarations
+        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
-            sym.flags.contains(.expectDeclaration) && sym.declSite != nil
+            sym.flags.contains(.expectDeclaration)
+                && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
 
         for expectSym in expects {
@@ -23,6 +25,11 @@ extension DataFlowSemaPhase {
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
                     guard actual.flags.contains(.actualDeclaration) else {
+                        return false
+                    }
+                    if expectSym.flags.contains(.importedLibrary),
+                       actual.flags.contains(.importedLibrary)
+                    {
                         return false
                     }
                     return actual.kind == expectSym.kind
