@@ -44,6 +44,71 @@ struct StdlibArtifactRegressionTests {
             #expect(result.stdout == "0\ntrue\ntrue\ntrue\ntrue\n13\ntrue\ntrue\ninherited plus\n16\ntrue\ntrue\ntrue\ntrue\nstart:item:item\nfold override\nplus override\nplus override\nplus override\ntrue\n")
         }
     }
+
+    @Test
+    func testThreadLocalTopLevelPropertyFromKlibIsIsolatedAcrossWorkers() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let stdlib = try testStdlibArtifactPath()
+        let librarySource = directory.appendingPathComponent("ThreadLocal.kt").path
+        let libraryOutput = directory.appendingPathComponent("ThreadLocalLibrary").path
+        try """
+        @file:Suppress("DEPRECATION_ERROR")
+        package fixture
+
+        import kotlin.native.concurrent.ThreadLocal
+
+        @ThreadLocal
+        var value = 0
+        """.write(toFile: librarySource, atomically: true, encoding: .utf8)
+
+        let library = makeCompilationContext(
+            inputs: [librarySource], moduleName: "ThreadLocalLibrary", emit: .library,
+            outputPath: libraryOutput, stdlibLibraryPath: stdlib
+        )
+        try runToLowering(library)
+        try assertNoDiagnosticErrors(library)
+        try CodegenPhase().run(library)
+
+        let consumerSource = """
+        @file:Suppress("DEPRECATION_ERROR")
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
+        import fixture.value
+        import kotlin.native.concurrent.TransferMode
+        import kotlin.native.concurrent.Worker
+
+        fun main() {
+            value = 7
+            val worker = Worker.start()
+            val future = worker.execute(TransferMode.SAFE, { Unit }) {
+                val previous = value
+                value = 9
+                previous
+            }
+            println(future.result)
+            println(value)
+            worker.requestTermination(true)
+        }
+        """
+        try withTemporaryFile(contents: consumerSource) { consumerPath in
+            let output = directory.appendingPathComponent("consumer").path
+            let consumer = makeCompilationContext(
+                inputs: [consumerPath], moduleName: "ThreadLocalConsumer", emit: .executable,
+                outputPath: output, searchPaths: [libraryOutput + ".kklib"], stdlibLibraryPath: stdlib
+            )
+            try runToLowering(consumer)
+            try assertNoDiagnosticErrors(consumer)
+            try CodegenPhase().run(consumer)
+            try LinkPhase().run(consumer)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "0\n7\n")
+        }
+    }
+
     nonisolated(unsafe) private static var sharedArtifactPath: String?
 
     private static func buildStdlibArtifact() throws -> String {
