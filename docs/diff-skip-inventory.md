@@ -28,7 +28,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 ## 現在値
 
-2026-10-08 の実測は **111 タグ / 111 ファイル**。DEBT-DIFF-001 は **109 件**。
+2026-10-08 の最新 master と本 PR を反映した実測は **81 タグ / 81 ファイル**。DEBT-DIFF-001 は **81 件**。
 本 PR の対象ケースの解除・移設と、master 側の解除記録を保ち、アクティブなタグを再集計した。
 その他の skip ケースの `--force-run-skipped` 再実行を意味するものではない。
 以下の過去の実行結果は当時の検証範囲として保持する。
@@ -37,7 +37,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 109 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期。**2026-10-08 件数再計測**: active skip tag は111件（個別の再実行・理由再監査を意味しない） |
+| DEBT-DIFF-001 | 81 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、当時20件。**2026-09-13 追記**: 2026-08-25以降の別の stdlib 移行 PR 群が同カテゴリで `stdlib_kotlin_native_*`/`stdlib_kotlin_concurrent_*` ケースを多数追加していたが本棚卸しの件数表に反映されていなかったため実測値を60件へ更新。全件が既存の確定理由（Kotlin/Native-only、JDBC 未実装、`@PublishedApi internal` 等）に当てはまり、新規の恒久対応は不要（詳細は下記節）。**2026-09-20 追記**: その後 master に追加された同カテゴリを含めて再計測し、`expect_actual_class_member_body.kt` を単一ファイル KMP 制約として追加した当時85件へ同期。**2026-10-08 件数再計測**: active skip tag は81件（全81ファイル。個別の再実行・理由再監査を意味しない） |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 0 | advanced coroutine / channel / Flow / structured concurrency | 2026-10-08 に KUU-1469 で `transformLatest` の前の child transform を cancel/join する実装を追加し、forced diff と通常 diff の PASS を確認 |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
@@ -59,7 +59,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 `Scripts/diff_kotlinc.sh` の `--kotlinc-classpath` / coroutines jar 自動取得は **reference(kotlinc)側にしか作用しない**。kswiftc は jar/classpath を一切消費しない設計で、`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` に手書き登録した合成シンボルだけを認識し、対応する Runtime 実装を呼ぶ。したがって candidate 側が特定の Java/Kotlin API を新たに認識するには synthetic stub の実装が要り、jar 注入は原理的に届かない。「dependency injection で実行可能化」できるのは reference 側だけが理由で落ちているケースに限られるが、以下のケースはいずれも candidate 側の未実装、またはテスト内容自体が実 API 呼び出し規約と非互換という、jar 注入では解決しない理由だった。
 
-### keep skip インベントリ（現行109件、2026-10-08 実測）
+### keep skip インベントリ（現行81件、2026-10-08 実測）
 
 下表は理由別の代表例と過去の検証記録。現在の全ファイルは
 `rg -l '^// SKIP-DIFF \(DEBT-DIFF-001\)' Scripts/diff_cases` で再列挙できる。

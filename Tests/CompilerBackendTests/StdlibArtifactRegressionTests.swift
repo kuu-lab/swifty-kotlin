@@ -3846,27 +3846,63 @@ struct StdlibArtifactRegressionTests {
         @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 
         import kotlin.native.concurrent.FutureState
+        import kotlin.native.concurrent.TransferMode
 
-        fun futureStateEntries(): kotlin.enums.EnumEntries<FutureState> = FutureState.entries
-        fun futureStateValue(): Int = FutureState.COMPUTED.value
-        fun futureStateValueOf(): FutureState = FutureState.valueOf("THROWN")
-        fun futureStateValues(): Array<FutureState> = FutureState.values()
-        fun futureStateOrdinal(): Int = FutureState.CANCELLED.ordinal
-        fun futureStateName(): String = FutureState.INVALID.name
+        fun main() {
+            println(FutureState.entries.size)
+            println(FutureState.INVALID.value)
+            println(FutureState.SCHEDULED.value)
+            println(FutureState.COMPUTED.value)
+            println(FutureState.CANCELLED.value)
+            println(FutureState.THROWN.value)
+            println(FutureState.valueOf(name = "THROWN").value)
+            println(FutureState.values().size)
+
+            println(TransferMode.entries.size)
+            println(TransferMode.SAFE.value)
+            println(TransferMode.valueOf("UNSAFE").value)
+            println(TransferMode.values().size)
+        }
         """
         try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
             let ctx = makeCompilationContext(
                 inputs: [userPath],
                 moduleName: "ImportedEnumMembersArtifact",
-                emit: .kirDump,
+                emit: .executable,
+                outputPath: outputBase,
                 includeStdlib: false,
                 stdlibLibraryPath: artifactPath
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
             #expect(
                 !ctx.diagnostics.hasError,
                 "Imported enum implicit members should resolve: \(ctx.diagnostics.diagnostics)"
             )
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                5
+                0
+                1
+                2
+                3
+                4
+                4
+                5
+                2
+                0
+                1
+                2
+
+                """)
         }
     }
 
