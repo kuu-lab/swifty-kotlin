@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-09",
+  "platform": "Linux x86_64",
+  "upstream_commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "serialization_version": "1.10.0",
+  "kotlin_version_output": "info: kotlinc-jvm 2.3.10 (JRE 21.0.12.1+1-1-deb13u1-Debian)\n",
+  "java_version_output": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)\n",
+  "source_sha256": "e1e7ab61545955da5dea6942558dae4717f6a1d9277b00cfd9ad52f5925c4e3e",
+  "compiler_plugin_sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6",
+  "compile_exit_code": 0,
+  "run_exit_code": 0,
+  "stdout_sha256": "ee9f52ff0514359c83224450d60d6c2bc1c7b622025e837faa72c0080918e116",
+  "expected_stdout": "expected.stdout",
+  "scope": "Eight-module JVM availability/representative contracts only; KSwiftK and Native compatibility unverified."
+}
