@@ -10,15 +10,6 @@ import Testing
 /// already does for String.
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeIsCheckPrimitiveNumberComparableTests {
-    // Mirrors RuntimeTypeCheckToken's encoding (CompilerCore/KIR/RuntimeTypeCheckToken.swift).
-    private static let nominalBase: Int64 = 6
-    private static let payloadShift: Int64 = 9
-
-    private func nominalTypeToken(for fqName: String) -> Int {
-        let typeID = runtimeStableNominalTypeID(fqName: fqName)
-        return Int(Self.nominalBase | (typeID << Self.payloadShift))
-    }
-
     private var numberToken: Int { nominalTypeToken(for: "kotlin.Number") }
     private var comparableToken: Int { nominalTypeToken(for: "kotlin.Comparable") }
 

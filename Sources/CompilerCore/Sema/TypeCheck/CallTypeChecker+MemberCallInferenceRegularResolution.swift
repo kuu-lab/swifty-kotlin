@@ -137,6 +137,14 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let baseLookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let callableReferenceFunctionType: TypeID? = {
+            guard case let .functionType(functionType) = sema.types.kind(of: baseLookupReceiverType),
+                  functionType.isCallableReference
+            else {
+                return nil
+            }
+            return baseLookupReceiverType
+        }()
         let lookupReceiverType: TypeID
         if case let .functionType(functionType) = sema.types.kind(of: baseLookupReceiverType),
            functionType.isCallableReference
@@ -1387,6 +1395,22 @@ extension CallTypeChecker {
                         sema: sema,
                         interner: interner
                     )
+                    if allCandidates.isEmpty, let callableReferenceFunctionType {
+                        // Callable references are also function values. Keep KFunction as the
+                        // primary lookup type for reflection extensions, then retry extensions
+                        // declared on the underlying function type when no reflective candidate
+                        // applies to this member name.
+                        allCandidates = collectExtensionCallCandidates(
+                            named: calleeName,
+                            memberLookupType: callableReferenceFunctionType,
+                            isSuperCall: isSuperCall,
+                            supertypeSymbols: supertypeSymbols,
+                            ctx: ctx,
+                            locals: locals,
+                            sema: sema,
+                            interner: interner
+                        )
+                    }
                 }
             }
         }
@@ -1473,11 +1497,8 @@ extension CallTypeChecker {
             false
         }
 
-        let isChannelReceiver = isChannelReceiverType(
-            lookupReceiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isChannelReceiver = ReceiverClassifier(sema: sema, interner: interner)
+            .isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
             // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
@@ -1944,7 +1965,28 @@ extension CallTypeChecker {
             else { return nil }
             return sema.types.make(.classType(ClassType(classSymbol: superclass.classSymbol, args: arguments)))
         }()
-        let effectiveReceiverType = companionReceiverType ?? mutableMapSuperReceiverType ?? rangeSourceMemberLookupType ?? rangeExtensionLookupType ?? lookupReceiverType
+        let callableReferenceExtensionReceiverType: TypeID? = {
+            guard let callableReferenceFunctionType,
+                  candidates.contains(where: { candidate in
+                      guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                          return false
+                      }
+                      if case .functionType = sema.types.kind(of: receiver) {
+                          return true
+                      }
+                      return false
+                  })
+            else {
+                return nil
+            }
+            return callableReferenceFunctionType
+        }()
+        let effectiveReceiverType = companionReceiverType
+            ?? mutableMapSuperReceiverType
+            ?? rangeSourceMemberLookupType
+            ?? rangeExtensionLookupType
+            ?? callableReferenceExtensionReceiverType
+            ?? lookupReceiverType
         // STDLIB-pipeline §5: take/drop/chunked/windowed have real require()
         // validation in SequenceWindowChunk.kt as of MIGRATION-SEQ-005. When
         // normal candidate lookup already resolved one of these names to that
@@ -2439,87 +2481,11 @@ extension CallTypeChecker {
                 ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
-            if let fallbackType = tryCollectionMemberFallback(
-                id,
-                calleeName: calleeName,
+            if let fallbackType = tryCommonMemberCallFallbacks(
+                request,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                expectedType: expectedType,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryRegexMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryKFunctionMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryFileMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryArrayMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryRangeMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                collectionFallbackFirst: true,
+                admitNominalIterableReceiver: false,
                 locals: &locals
             ) {
                 return fallbackType

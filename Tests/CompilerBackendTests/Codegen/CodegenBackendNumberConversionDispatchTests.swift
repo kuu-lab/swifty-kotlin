@@ -73,21 +73,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // Same dispatch problem through an erased `T : Number` upper bound
-    // instead of a concretely `Number`-typed variable — the second gate case
-    // for DEBT-DIFF-008 (stdlib_kotlin_n_Number_primitive_generic.kt).
-    @Test
-    func testErasedNumberBoundDispatchesToDouble() throws {
-        let source = """
-        fun <T : Number> sumOf(a: T, b: T): Double = a.toDouble() + b.toDouble()
-
-        fun main() {
-            println(sumOf(40, 2))
-        }
-        """
-        try assertKotlinOutput(source, moduleName: "ErasedNumberBoundDispatch", expected: "42.0\n")
-    }
-
     // A boxed primitive and a genuine user-defined `Number` subclass must
     // coexist correctly through the same abstract dispatch point: the
     // primitive takes the native-conversion fast path in

@@ -106,13 +106,6 @@ private typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
 
-private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeThrowableBox.self)
-}
-
 private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, strRaw, _ in
     runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
 }
@@ -123,19 +116,6 @@ private let runtimeReturnValueTransform: RuntimeStringUnaryEntry = { _, valueRaw
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeStringArrayTests {
-    private func capturePrintln(_ block: () -> Void) -> String {
-        let pipe = Pipe()
-        let savedFD = dup(STDOUT_FILENO)
-        fflush(nil)
-        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
-        block()
-        fflush(nil)
-        dup2(savedFD, STDOUT_FILENO)
-        close(savedFD)
-        pipe.fileHandleForWriting.closeFile()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
 
     private func captureStandardError(_ block: () -> Void) -> String {
         let pipe = Pipe()
@@ -202,23 +182,6 @@ struct RuntimeStringArrayTests {
                     length: outLength,
                     byteCount: outByteCount,
                     hash: outHash
-                )
-            }
-        }
-    }
-
-    private func makeLocale(language: String, country: String) -> Int {
-        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
-            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                __kk_locale_new_language_country_flat(
-                    languageData,
-                    languageLength,
-                    languageByteCount,
-                    languageHash,
-                    countryData,
-                    countryLength,
-                    countryByteCount,
-                    countryHash
                 )
             }
         }
@@ -969,7 +932,7 @@ struct RuntimeStringArrayTests {
         }
         let list = runtimeListBox(from: splitRaw)
         #expect(list?.elements.count == 3)
-        #expect(list?.elements.map(runtimeStringValue) == ["1", "2", "3"])
+        #expect(list?.elements.map(runtimeTestStringValue) == ["1", "2", "3"])
     }
 
     @Test
@@ -2129,7 +2092,7 @@ struct RuntimeStringArrayTests {
         let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("root cause")))
         let throwable = Int(bitPattern: __kk_throwable_new_cause(cause))
 
-        #expect(runtimeStringValue(__kk_throwable_message(throwable)) == "java.lang.Throwable: root cause")
+        #expect(runtimeTestStringValue(__kk_throwable_message(throwable)) == "java.lang.Throwable: root cause")
         #expect(__kk_throwable_cause(throwable) == cause)
     }
 
@@ -2157,7 +2120,7 @@ struct RuntimeStringArrayTests {
             to: Getter.self
         )
         var thrown = -1
-        #expect(runtimeStringValue(messageGetter(throwable, &thrown)) == "outer")
+        #expect(runtimeTestStringValue(messageGetter(throwable, &thrown)) == "outer")
         #expect(thrown == 0)
 
         let causeGetter = unsafeBitCast(
@@ -2554,10 +2517,6 @@ struct RuntimeStringArrayTests {
             byteCount: byteCount,
             hash: hash
         )
-    }
-
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 }
 #endif

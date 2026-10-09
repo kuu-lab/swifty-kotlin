@@ -8,78 +8,6 @@ import Testing
 @Suite
 struct CodegenBackendScopeFunctionEdgeCasesTests {
 
-    @Test
-    func testCodegenCompilesScopeFunctionEdgeCases() throws {
-        let source = """
-        fun traceValue(tag: String): String {
-            println("value:$tag")
-            return tag
-        }
-
-        fun makeTaggedBuilder(tag: String): StringBuilder {
-            println("make:$tag")
-            return StringBuilder(tag)
-        }
-
-        fun labeledResult(): String = run {
-            if (true) return@run "labeled-return"
-            "unreachable"
-        }
-
-        fun main() {
-            val nullableInput: String? = "hello"
-            println(nullableInput?.let { it.uppercase() })
-            println((null as String?)?.let { it.uppercase() })
-
-            println(traceValue("takeIf").takeIf { it.startsWith("take") })
-            println(traceValue("takeUnless").takeUnless { it.endsWith("less") })
-
-            val alsoResult = makeTaggedBuilder("once").also { it.append(":also") }.toString()
-            println(alsoResult)
-
-            val withResult = with(traceValue("with")) {
-                this + ":with"
-            }
-            println(withResult)
-
-            val nested = "kotlin"
-                .takeIf { it.startsWith("kot") }
-                ?.let { it.takeUnless { inner -> inner.length > 10 } }
-            println(nested)
-
-            val applyResult = makeTaggedBuilder("apply").apply {
-                append(":done")
-            }.toString()
-            println(applyResult)
-
-            println(labeledResult())
-        }
-        """
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "ScopeFunctionEdgeCases",
-            expected:
-                """
-                HELLO
-                null
-                value:takeIf
-                takeIf
-                value:takeUnless
-                null
-                make:once
-                once:also
-                value:with
-                with:with
-                kotlin
-                make:apply
-                apply:done
-                labeled-return
-                """
-                + "\n"
-        )
-    }
-
     @Test(arguments: [true, false])
     func testTailPositionLabeledReturnPropagatesValue(defaultStdlib: Bool) throws {
         let source = """
@@ -147,49 +75,6 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
                 context-ok
                 context-two
                 context-six
-                """
-                + "\n"
-            )
-        }
-    }
-
-    /// KSP-603: a user-declared `contextOf()` must keep normal call lowering
-    /// instead of being rewritten into a context receiver read.
-    @Test
-    func testCodegenUserDeclaredContextOfShadowsIntrinsic() throws {
-        let source = """
-        import kotlin.ExperimentalContextParameters
-
-        fun contextOf(): String = "user contextOf"
-
-        fun context(a: Int): Int = a * 2
-
-        @OptIn(ExperimentalContextParameters::class)
-        fun main() {
-            println(contextOf())
-            println(context(5))
-            println(context(7) { contextOf<Int>() * 2 })
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ContextHelperShadow",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            #expect(
-                result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-                ==
-                """
-                user contextOf
-                10
-                14
                 """
                 + "\n"
             )

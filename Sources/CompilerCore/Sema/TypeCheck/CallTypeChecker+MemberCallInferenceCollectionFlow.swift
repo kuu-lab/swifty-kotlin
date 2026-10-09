@@ -1,5 +1,22 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
+private func typeArgumentsMatch(
+    _ lhs: TypeArg,
+    _ rhs: TypeArg,
+    using typeMatches: (TypeID, TypeID) -> Bool
+) -> Bool {
+    switch (lhs, rhs) {
+    case let (.invariant(left), .invariant(right)),
+         let (.out(left), .out(right)),
+         let (.in(left), .in(right)):
+        return typeMatches(left, right)
+    case (.star, .star):
+        return true
+    default:
+        return false
+    }
+}
+
 extension CallTypeChecker {
     /// Collection/Flow higher-order-function names deferred for contextual
     /// lambda typing in `tryInferMemberCallCollectionFlowSpecials`.
@@ -400,18 +417,6 @@ extension CallTypeChecker {
             receiverElementType: TypeID? = nil,
             requireMutableListReceiver: Bool = false
         ) -> Bool {
-            func typeArgMatches(_ lhs: TypeArg, _ rhs: TypeArg) -> Bool {
-                switch (lhs, rhs) {
-                case let (.invariant(l), .invariant(r)),
-                     let (.out(l), .out(r)),
-                     let (.in(l), .in(r)):
-                    return typeMatches(l, r)
-                case (.star, .star):
-                    return true
-                default:
-                    return false
-                }
-            }
             func typeMatches(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
                 let lk = sema.types.kind(of: lhs)
                 let rk = sema.types.kind(of: rhs)
@@ -420,7 +425,9 @@ extension CallTypeChecker {
                     return l.classSymbol == r.classSymbol
                         && l.nullability == r.nullability
                         && l.args.count == r.args.count
-                        && zip(l.args, r.args).allSatisfy(typeArgMatches)
+                        && zip(l.args, r.args).allSatisfy {
+                            typeArgumentsMatch($0.0, $0.1, using: typeMatches)
+                        }
                 case let (.functionType(l), .functionType(r)):
                     return l.nullability == r.nullability
                         && l.isSuspend == r.isSuspend
@@ -595,18 +602,6 @@ extension CallTypeChecker {
                 return false
             }
 
-            func typeArgMatches(_ lhs: TypeArg, _ rhs: TypeArg) -> Bool {
-                switch (lhs, rhs) {
-                case let (.invariant(l), .invariant(r)),
-                     let (.out(l), .out(r)),
-                     let (.in(l), .in(r)):
-                    return typeMatches(l, r)
-                case (.star, .star):
-                    return true
-                default:
-                    return false
-                }
-            }
             func typeMatches(_ lhs: TypeID, _ rhs: TypeID) -> Bool {
                 let lhsKind = sema.types.kind(of: lhs)
                 let rhsKind = sema.types.kind(of: rhs)
@@ -615,7 +610,9 @@ extension CallTypeChecker {
                     return l.classSymbol == r.classSymbol
                         && l.nullability == r.nullability
                         && l.args.count == r.args.count
-                        && zip(l.args, r.args).allSatisfy(typeArgMatches)
+                        && zip(l.args, r.args).allSatisfy {
+                            typeArgumentsMatch($0.0, $0.1, using: typeMatches)
+                        }
                 case let (.functionType(l), .functionType(r)):
                     return l.nullability == r.nullability
                         && l.isSuspend == r.isSuspend

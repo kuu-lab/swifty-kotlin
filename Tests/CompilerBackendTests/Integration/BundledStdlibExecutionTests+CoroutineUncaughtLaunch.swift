@@ -200,8 +200,8 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: the absorbed-propagation path must stay silent — a caught
-    /// `runBlocking { launch { throw } }` produces no stderr report on JVM.
+    /// KUU-1600: a child handler must not intercept a failure that propagates
+    /// to an ordinary `runBlocking` parent.
     @Test
     func testCaughtRunBlockingLaunchDoesNotReport() throws {
         let result = try compileAndRunCapturingAll(
@@ -209,21 +209,24 @@ extension BundledStdlibExecutionTests {
             import kotlinx.coroutines.*
 
             fun main() {
+                var handled = false
+                val handler = CoroutineExceptionHandler { _, _ -> handled = true }
                 try {
                     runBlocking {
                         launch { delay(10); println("sib") }
-                        launch { delay(1); throw IllegalStateException("y") }
+                        launch(handler) { delay(1); throw IllegalStateException("y") }
                         println("after")
                     }
                 } catch (t: Throwable) {
                     println("caught")
                 }
+                println("handled:$handled")
                 println("done")
             }
             """
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout == "after\ncaught\ndone\n")
+        #expect(result.stdout == "after\ncaught\nhandled:false\ndone\n")
         #expect(
             !result.stderr.contains("Exception in thread"),
             "caught propagation must not report, got stderr: \(result.stderr)"

@@ -25,16 +25,16 @@
             let jsExport = try #require(sema.symbols.lookupAll(fqName: ["kotlin", "js", "JsExport"].map(ctx.interner.intern)).first {
                 sema.symbols.symbol($0)?.kind == .annotationClass
             })
-            #expect(sema.symbols.annotations(for: jsExport).contains { $0.annotationFQName == "ExperimentalJsExport" })
+            #expect(sema.symbols.annotations(for: jsExport).contains { $0.annotationFQName == "kotlin.js.ExperimentalJsExport" })
 
             let marker = try #require(sema.symbols.lookupAll(fqName: ["kotlin", "js", "ExperimentalJsExport"].map(ctx.interner.intern)).first {
                 sema.symbols.symbol($0)?.kind == .annotationClass
             })
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
+                $0.annotationFQName == "kotlin.RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
             })
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
         }
 

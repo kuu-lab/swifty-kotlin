@@ -25,10 +25,24 @@ extension CallTypeChecker {
         guard candidates.allSatisfy({ ctx.sema.symbols.functionSignature(for: $0)?.receiverType != nil }) else {
             return candidates
         }
+        let scopeExtensionsOnly = candidates.allSatisfy { isScopeExtensionCandidate($0, ctx: ctx) }
         for entry in ctx.implicitReceiverMemberLookupEntries() {
             let applicable = candidates.filter { matchesReceiver($0, receiverType: entry.type) }
             if !applicable.isEmpty {
                 return applicable
+            }
+            // Ordinary name lookup stops at the first scope that declares this
+            // name, even when its extensions have unrelated receivers. Retry
+            // through the scope chain with the receiver predicate so a nearer
+            // same-name extension cannot hide an applicable imported overload.
+            if scopeExtensionsOnly {
+                let matchingScopeCandidates = ctx.scope.lookup(name, matching: { candidate in
+                    isScopeExtensionCandidate(candidate, ctx: ctx)
+                        && matchesReceiver(candidate, receiverType: entry.type)
+                })
+                if !matchingScopeCandidates.isEmpty {
+                    return matchingScopeCandidates
+                }
             }
         }
         return candidates
@@ -101,6 +115,7 @@ extension CallTypeChecker {
     /// overload leaves a bare `it` without a unique function type.
     func preferImplicitReceiverPredicateCandidates(
         _ candidates: [SymbolID],
+        fallbackCandidates: [SymbolID] = [],
         args: [CallArgument],
         receiverType: TypeID,
         ctx: TypeInferenceContext
@@ -112,17 +127,50 @@ extension CallTypeChecker {
         }
         guard !lambdaIndices.isEmpty else { return candidates }
 
-        let receiverCandidates = candidates.filter { candidate in
-            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
-                return false
+        func preferredCandidates(in candidates: [SymbolID]) -> [SymbolID]? {
+            let receiverCandidates = candidates.filter { candidate in
+                guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                    return false
+                }
+                return extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: nonNullReceiver,
+                    declaredReceiver: receiver,
+                    sema: sema
+                )
             }
-            return extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver,
-                declaredReceiver: receiver,
-                sema: sema
+            let predicateCandidates = receiverCandidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return false
+                }
+                return lambdaIndices.allSatisfy { index in
+                    guard let parameterType = parameterTypeForArgument(at: index, in: signature) else {
+                        return false
+                    }
+                    return if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            guard !predicateCandidates.isEmpty else { return nil }
+            return preferMostSpecificMemberReceiverCandidates(
+                predicateCandidates,
+                receiverType: nonNullReceiver,
+                sema: sema,
+                interner: ctx.interner
             )
         }
-        let predicateCandidates = receiverCandidates.filter { candidate in
+
+        if let preferred = preferredCandidates(in: candidates) {
+            return preferred
+        }
+
+        // An applicable member callback overload has Kotlin member precedence.
+        // Revisit the original scope extensions only when the selected member
+        // set cannot accept the predicate lambda at all, such as
+        // MutableList.removeAll(Collection) inside `apply`.
+        let hasFunctionTypedLambdaParameter = candidates.contains { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }
@@ -137,13 +185,12 @@ extension CallTypeChecker {
                 }
             }
         }
-        guard !predicateCandidates.isEmpty else { return candidates }
-        return preferMostSpecificMemberReceiverCandidates(
-            predicateCandidates,
-            receiverType: nonNullReceiver,
-            sema: sema,
-            interner: ctx.interner
-        )
+        guard !hasFunctionTypedLambdaParameter,
+              let preferred = preferredCandidates(in: fallbackCandidates)
+        else {
+            return candidates
+        }
+        return preferred
     }
 
     /// Resolve collection members before package-scope extensions for an

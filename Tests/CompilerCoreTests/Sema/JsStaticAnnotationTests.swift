@@ -68,21 +68,21 @@
                 fqName: ["kotlin", "js", "ExperimentalJsStatic"].map(ctx.interner.intern)
             ))
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
+                $0.annotationFQName == "kotlin.RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
             })
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
 
             let jsStatic = try #require(sema.symbols.lookup(fqName: ["kotlin", "js", "JsStatic"].map(ctx.interner.intern)))
             #expect(sema.symbols.annotations(for: jsStatic).contains {
-                $0.annotationFQName == "ExperimentalJsStatic"
+                $0.annotationFQName == "kotlin.js.ExperimentalJsStatic"
             })
             #expect(sema.symbols.annotations(for: jsStatic).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
             #expect(sema.symbols.annotations(for: jsStatic).contains { annotation in
-                annotation.annotationFQName == "Target"
+                annotation.annotationFQName == "kotlin.annotation.Target"
                     && ["FUNCTION", "PROPERTY", "PROPERTY_GETTER", "PROPERTY_SETTER"].allSatisfy { target in
                         annotation.arguments.contains { $0.contains(target) }
                     }

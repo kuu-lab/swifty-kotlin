@@ -8,6 +8,10 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
+import kotlin.js.ExperimentalJsCollectionsApi
+import kotlin.js.ExperimentalJsExport
+import kotlin.js.collections.JsReadonlyArray
+import kotlin.js.collections.createJsReadonlyArrayViewFrom
 
 // KSP-700: List's covariant nominal shell and directly bridged members are
 // source-backed here. The link names stay stable for the built-in list boxes;
@@ -58,4 +62,10 @@ public interface List<out E> : Collection<E> {
 
     @KsSymbolName("kk_list_subList")
     public fun subList(fromIndex: Int, toIndex: Int): List<E>
+
+    /** Returns a readonly array view backed by this list. */
+    @ExperimentalJsExport
+    @ExperimentalJsCollectionsApi
+    @SinceKotlin("2.0")
+    public fun asJsReadonlyArrayView(): JsReadonlyArray<E> = createJsReadonlyArrayViewFrom(this)
 }

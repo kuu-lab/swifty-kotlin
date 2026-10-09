@@ -240,41 +240,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test(arguments: [0, 2])
     func nestedClassRuntimeSemanticsRemainValidAtEachOptimizationLevel(optimization: Int) throws {
-        let source = """
-        open class P {
-            class Q : P()
-            object O : P()
-        }
-
-        class Wrapper {
-            class Item(val v: Int) {
-                fun twice() = v * 2
-            }
-        }
-
-        sealed class S {
-            data class A(val n: Int) : S()
-            object B : S()
-        }
-
-        fun main() {
-            val q = P.Q()
-            println(q is P.Q)
-            println(q is P)
-            val p: P = q
-            println(p == P.O)
-            val erased: Any = P.Q()
-            println(erased is P.Q)
-            val s: S = S.A(5)
-            println(s is S.A)
-            println(when (s) {
-                is S.A -> "A${s.n}"
-                S.B -> "B"
-            })
-            println(Wrapper.Item(5).twice())
-            println(S.A(5))
-        }
-        """
+        let source = try diffCaseSource("kuu_593_nested_class_runtime.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationNestedClassRuntime",
@@ -301,29 +267,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test(arguments: [0, 2])
     func virtualPropertyGetterArityDoesNotCollideWithSameNamedMethodAtEachOptimizationLevel(optimization: Int) throws {
-        let source = """
-        abstract class Base {
-            abstract val size: Int
-            abstract fun get(index: Int): Int
-        }
-
-        class Impl : Base() {
-            override val size: Int = 3
-            override fun get(index: Int): Int = index * 10
-        }
-
-        fun probe(b: Base): Int {
-            var sum = 0
-            for (i in 0 until b.size) {
-                sum += b.get(i)
-            }
-            return sum
-        }
-
-        fun main() {
-            println(probe(Impl()))
-        }
-        """
+        let source = try diffCaseSource("llvm_virtual_property_getter_arity.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationVirtualGetterArity",
@@ -385,21 +329,7 @@ struct LLVMOptimizationRegressionTests {
 
     @Test
     func singleAssignmentAcrossControlFlowMergeRemainsValidAtO2() throws {
-        let source = """
-        fun main() {
-            val values: Iterable<Int> = listOf(1, 2, 3)
-            println(values.firstNotNullOf { value ->
-                if (value == 2) "two" else null
-            })
-            try {
-                println(values.firstNotNullOf { value ->
-                    if (value == 9) "nine" else null
-                })
-            } catch (e: NoSuchElementException) {
-                println("missing")
-            }
-        }
-        """
+        let source = try diffCaseSource("collection_firstnotnullof.kt")
         try assertOutput(
             source,
             moduleName: "LLVMOptimizationControlFlowMerge",

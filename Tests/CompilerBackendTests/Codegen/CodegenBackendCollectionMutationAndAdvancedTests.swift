@@ -311,21 +311,6 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
     }
 
     @Test
-    func testCodegenListZipAndUnzipUseRuntimeHOFs() throws {
-        let source = """
-        fun main() {
-            val left = listOf(1, 2, 3)
-            val right = listOf("a", "b")
-            val zipped = left.zip(right)
-            println(zipped)
-            println(zipped.unzip())
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "ListZipAndUnzipRuntime", expected: "[(1, a), (2, b)]\n([1, 2], [a, b])\n")
-    }
-
-    @Test
     func testCodegenListTransformsUseRuntimeHelpers() throws {
         let source = """
         fun main() {

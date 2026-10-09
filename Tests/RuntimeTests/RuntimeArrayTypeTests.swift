@@ -3,14 +3,6 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeArrayTypeTests {
-    private static let nominalBase: Int64 = 6
-    private static let payloadShift: Int64 = 9
-
-    private func nominalTypeToken(for fqName: String) -> Int {
-        let typeID = runtimeStableNominalTypeID(fqName: fqName)
-        return Int(Self.nominalBase | (typeID << Self.payloadShift))
-    }
-
     @Test
     func taggedArrayMatchesItsNominalTypeAndSurvivesCopy() throws {
         let array = kk_array_new(2)

@@ -406,16 +406,7 @@ final class AtomicRefBox {
 }
 
 private func atomicRefBox(from raw: Int) -> AtomicRefBox? {
-    guard raw != 0, raw != runtimeNullSentinelInt, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: AtomicRefBox.self)
+    resolveRuntimeHandle(raw, as: AtomicRefBox.self)
 }
 
 @_cdecl("kk_atomic_ref_create")
@@ -796,16 +787,7 @@ final class AtomicRefArrayBox {
 }
 
 private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
-    guard raw != 0, raw != runtimeNullSentinelInt, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: AtomicRefArrayBox.self)
+    resolveRuntimeHandle(raw, as: AtomicRefArrayBox.self)
 }
 
 private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {

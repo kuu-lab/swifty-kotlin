@@ -230,6 +230,40 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
+    func testMemberLocalMainDoesNotReplaceTopLevelEntryPoint() throws {
+        let source = """
+        class T {
+            fun f() {
+                fun main(x: Int) = x + 1
+                fun mainArgs(vararg args: String) { println(args.size) }
+                println(main(1))
+                mainArgs("unused")
+            }
+        }
+        fun main() { println("REAL MAIN") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "MemberLocalMain",
+                emit: .executable,
+                outputPath: outputPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "REAL MAIN\n")
+        }
+    }
+
+    @Test
     func testLinkPhaseWrapperReportsTopLevelThrownException() throws {
         let source = """
         fun main(): Any? {

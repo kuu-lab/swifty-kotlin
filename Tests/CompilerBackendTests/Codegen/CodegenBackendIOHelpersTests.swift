@@ -271,16 +271,7 @@ struct CodegenBackendIOHelpersTests {
 
     @Test
     func testCodegenReadlnEOFThrows() throws {
-        let source = """
-        fun main() {
-            try {
-                val line = readln()
-                println(line)
-            } catch (e: RuntimeException) {
-                println(e.message)
-            }
-        }
-        """
+        let source = try diffCaseSource("readln_basic.kt")
 
         let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnEOF", shellInvocation: "\"$1\" </dev/null")
         #expect(

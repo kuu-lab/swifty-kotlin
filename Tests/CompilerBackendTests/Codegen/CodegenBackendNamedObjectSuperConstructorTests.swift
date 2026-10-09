@@ -176,5 +176,34 @@ struct CodegenBackendNamedObjectSuperConstructorTests {
             source, moduleName: "NestedObjectIfaceSuperCtor", expected: "5\nM\ntrue\n"
         )
     }
+
+    @Test
+    func testNestedObjectFirstAccessFromEnclosingMemberRunsInitializer() throws {
+        let source = """
+        open class Base3(val flag: Boolean, val num: Int)
+        class Holder {
+            object O : Base3(true, 42)
+            fun check() { println("${O.flag} ${O.num}") }
+        }
+        class Holder2 {
+            object O2 : Base3(true, 43) { val own = "mine" }
+            fun check2() { println("${O2.flag} ${O2.num} ${O2.own}") }
+        }
+        object Outer {
+            object O3 : Base3(true, 44)
+            fun check3() { println("${O3.flag} ${O3.num}") }
+        }
+        fun main() {
+            Holder().check()
+            Holder2().check2()
+            Outer.check3()
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedObjectFirstMemberAccess",
+            expected: "true 42\ntrue 43 mine\ntrue 44\n"
+        )
+    }
 }
 #endif

@@ -230,9 +230,5 @@ struct RuntimeStringHOFTests {
     // reduceRightIndexedOrNull are bundled Kotlin source (StringHOF.kt);
     // their flat runtime bridges and direct tests were removed. Coverage now
     // lives in Scripts/diff_cases/string_reduce.kt via diff_kotlinc.sh.
-
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
 }
 #endif

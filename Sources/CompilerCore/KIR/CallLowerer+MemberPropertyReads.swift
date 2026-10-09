@@ -3,6 +3,67 @@
 /// members, class-name member values, const-folding) split out of
 /// `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
+    func appendPropertyGetterCall(
+        getterSymbol: SymbolID,
+        receiver: KIRExprID,
+        callExprID: ExprID?,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let getterArguments = propertyAccessorArguments(
+            for: getterSymbol,
+            arguments: [receiver],
+            callExprID: callExprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        instructions.append(.call(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            arguments: getterArguments,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
+
+    func appendVirtualPropertyGetterCall(
+        getterSymbol: SymbolID,
+        getterSlot: Int,
+        receiver: KIRExprID,
+        callExprID: ExprID?,
+        result: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let getterArguments = propertyAccessorArguments(
+            for: getterSymbol,
+            arguments: [receiver],
+            callExprID: callExprID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        instructions.append(.virtualCall(
+            symbol: getterSymbol,
+            callee: interner.intern("get"),
+            receiver: getterArguments[0],
+            arguments: Array(getterArguments.dropFirst()),
+            result: result,
+            canThrow: false,
+            thrownResult: nil,
+            dispatch: .vtable(slot: getterSlot)
+        ))
+    }
+
     /// Read native Element keys without looking up a Kotlin object slot. The
     /// source fallback in the helper keeps user-defined overrides dynamic.
     func tryLowerCoroutineElementKeyRead(
@@ -313,18 +374,16 @@ extension CallLowerer {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)
-            let getterArguments = propertyAccessorArguments(
-                for: getterSymbol, arguments: [receiverID], callExprID: nil,
-                sema: sema, arena: arena, interner: interner, instructions: &instructions
-            )
-            instructions.append(.call(
-                symbol: getterSymbol,
-                callee: interner.intern("get"),
-                arguments: getterArguments,
+            appendPropertyGetterCall(
+                getterSymbol: getterSymbol,
+                receiver: receiverID,
+                callExprID: nil,
                 result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             return result
         }
         let id = arena.appendExpr(.symbolRef(propertySymbol), type: resultType)
@@ -658,20 +717,17 @@ extension CallLowerer {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)
-            let virtualAccessorArguments = propertyAccessorArguments(
-                for: getterSymbol, arguments: [loweredReceiverID], callExprID: nil,
-                sema: sema, arena: arena, interner: interner, instructions: &instructions
-            )
-            instructions.append(.virtualCall(
-                symbol: getterSymbol,
-                callee: interner.intern("get"),
-                receiver: virtualAccessorArguments[0],
-                arguments: Array(virtualAccessorArguments.dropFirst()),
+            appendVirtualPropertyGetterCall(
+                getterSymbol: getterSymbol,
+                getterSlot: getterSlot,
+                receiver: loweredReceiverID,
+                callExprID: nil,
                 result: result,
-                canThrow: false,
-                thrownResult: nil,
-                dispatch: .vtable(slot: getterSlot)
-            ))
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
             return result
         }
 
@@ -715,18 +771,16 @@ extension CallLowerer {
             let getterUsesRuntimeBridge = kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
             if isSuperQualifiedReceiver || ownerInfo.kind != .interface || getterUsesRuntimeBridge {
                 let result = arena.appendTemporary(type: resultType)
-                let getterArguments = propertyAccessorArguments(
-                    for: getterSymbol, arguments: [loweredReceiverID], callExprID: nil,
-                    sema: sema, arena: arena, interner: interner, instructions: &instructions
-                )
-                instructions.append(.call(
-                    symbol: getterSymbol,
-                    callee: interner.intern("get"),
-                    arguments: getterArguments,
+                appendPropertyGetterCall(
+                    getterSymbol: getterSymbol,
+                    receiver: loweredReceiverID,
+                    callExprID: nil,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 return result
             }
         }
@@ -1124,18 +1178,16 @@ extension CallLowerer {
             return nil
         }
 
-        let getterArguments = propertyAccessorArguments(
-            for: getterSymbol, arguments: [loweredReceiverID], callExprID: exprID,
-            sema: sema, arena: arena, interner: interner, instructions: &instructions
-        )
-        instructions.append(.call(
-            symbol: getterSymbol,
-            callee: interner.intern("get"),
-            arguments: getterArguments,
+        appendPropertyGetterCall(
+            getterSymbol: getterSymbol,
+            receiver: loweredReceiverID,
+            callExprID: exprID,
             result: result,
-            canThrow: false,
-            thrownResult: nil
-        ))
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         return result
     }
 

@@ -1,7 +1,5 @@
 
 extension BuildASTPhase {
-    /// Returns the index of the `class` keyword that introduces a class declaration,
-    /// skipping `Foo::class` class-literal expressions that appear before the declaration.
     private func classDeclarationKeywordIndex(in tokens: [Token]) -> Int? {
         firstTopLevelKeywordIndex(in: tokens, matching: [.class]) { previousToken in
             previousToken.kind == .symbol(.doubleColon)
@@ -12,13 +10,11 @@ extension BuildASTPhase {
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
     ]
 
-    /// Scans `tokens` from the start, tracking balanced bracket depth, and
-    /// returns the index of the first top-level keyword that matches one of
-    /// `keywords`. This avoids treating keywords inside annotation arguments
+    /// Tracking bracket depth avoids treating keywords inside annotation arguments
     /// (e.g. `::class` in `@file:OptIn(...::class)`) as declaration introducers.
-    /// `skippingIfPrecededBy`, when provided, rejects a match whose immediately
-    /// preceding token satisfies it (e.g. `::` before `class`, to skip class-literal
-    /// expressions like `Foo::class`) and keeps scanning for the next candidate.
+    /// `skippingIfPrecededBy` rejects a match whose immediately preceding token
+    /// satisfies it (e.g. `::` before `class`, to skip class-literal
+    /// expressions like `Foo::class`).
     func firstTopLevelKeywordIndex(
         in tokens: [Token],
         matching keywords: Set<Keyword>,
@@ -40,7 +36,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Returns the index of the next top-level keyword after `startIndex`.
     func firstTopLevelKeywordIndex(
         in tokens: [Token],
         after startIndex: Int
@@ -113,10 +108,8 @@ extension BuildASTPhase {
         )
     }
 
-    /// Scans the primary-constructor header of a class — from the class name up
-    /// to `constructor`/`(`/`:`/`{` — collecting annotations and candidate modifier
-    /// tokens along the way, so the two extractors below share one walk instead of
-    /// each re-scanning the header independently.
+    /// The two extractors below share one walk instead of each re-scanning the
+    /// header independently.
     private struct PrimaryConstructorHeaderScan {
         var annotations: [AnnotationNode] = []
         var modifiers: Modifiers = []
@@ -171,8 +164,6 @@ extension BuildASTPhase {
         return scan
     }
 
-    /// Extracts annotations placed on the primary constructor in a class header,
-    /// e.g. `class Foo @Inject constructor()`.
     private func declarationPrimaryConstructorAnnotations(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
@@ -183,8 +174,6 @@ extension BuildASTPhase {
         return scanPrimaryConstructorHeader(classIndex: classIndex, in: tokens, interner: interner).annotations
     }
 
-    /// Extracts modifiers attached to the primary constructor declaration in a
-    /// class header, e.g. `class Foo private constructor()`.
     private func declarationPrimaryConstructorModifiers(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> Modifiers {
@@ -196,8 +185,6 @@ extension BuildASTPhase {
         return scan.sawConstructorKeyword ? scan.modifiers : []
     }
 
-    /// Detects whether the class header contains explicit constructor parentheses,
-    /// distinguishing `class Foo()` from `class Foo`.
     private func declarationHasPrimaryConstructorSyntax(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> Bool {
@@ -213,7 +200,6 @@ extension BuildASTPhase {
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
-        // KUU-1407: interfaces cannot declare init blocks or constructors.
         for initBody in declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0408",
@@ -256,8 +242,6 @@ extension BuildASTPhase {
             astArena: astArena
         )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        // KUU-1407: objects cannot declare secondary constructors or a
-        // companion object of their own.
         for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0417",
@@ -354,9 +338,6 @@ extension BuildASTPhase {
         let accessors = declarationPropertyAccessors(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let delegateExpr = declarationDelegateExpression(from: nodeID, in: arena, interner: interner, astArena: astArena)
 
-        // When a delegate expression contains a trailing lambda, reuse its
-        // parsed body here so KIR lowering can create the lambda function from
-        // the same AST nodes as ordinary call-argument checking.
         var delegateBody: FunctionBody?
         var delegateBodyParams: [InternedString] = []
         if let delegateExpr {
@@ -401,7 +382,6 @@ extension BuildASTPhase {
             declarationPropertyName(from: nodeID, in: arena, interner: interner)
         }
 
-        // Kotlin 2.0 explicit backing field: `field = expr` or `field: Type = expr`
         let explicitField = declarationExplicitBackingField(
             from: nodeID, in: arena, interner: interner, astArena: astArena
         )
@@ -424,7 +404,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Extracts the trailing lambda already parsed into a delegate call.
     /// Delegate lowering consumes `delegateBody`, so it must point at the same
     /// AST body that Sema checks as the call argument rather than a separately
     /// parsed copy.
@@ -572,8 +551,6 @@ extension BuildASTPhase {
         return firstDeclarationName(in: searchTokens, interner: interner) ?? interner.intern("")
     }
 
-    /// Terminators that end the name slot of a declaration header, e.g. the
-    /// parameter list, class body, or delegate assignment that follows the name.
     private func isDeclarationNameBoundaryToken(_ token: Token) -> Bool {
         token.kind == .symbol(.lParen)
             || token.kind == .symbol(.lBrace)
@@ -582,7 +559,6 @@ extension BuildASTPhase {
             || token.kind == .symbol(.semicolon)
     }
 
-    /// Returns the first identifier-like token in the declaration name slot.
     /// Modifier keywords are valid names once the declaration introducer has
     /// established that this is a name position.
     private func firstDeclarationName(
@@ -829,6 +805,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             isOverrideProperty: isOverrideProperty,
             isOpenProperty: isOpenProperty,
+            isActualProperty: candidateModifiers.contains(.actual),
             propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
@@ -866,6 +843,9 @@ extension BuildASTPhase {
             }
             if param.isOpenProperty {
                 propertyModifiers.insert(.open)
+            }
+            if param.isActualProperty {
+                propertyModifiers.insert(.actual)
             }
             let property = PropertyDecl(
                 range: classRange,

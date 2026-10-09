@@ -111,27 +111,30 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     ) -> PrintKind? {
         guard arguments.count <= 1 else { return nil }
 
+        // A member function can share `print` or `println`; prefer its resolved
+        // symbol over the source-name fallback used for unresolved console calls.
+        if let symbol, symbol != .invalid {
+            guard let sym = sema.symbols.symbol(symbol) else {
+                return nil
+            }
+
+            let isConsoleName = sym.name == printlnName || sym.name == printName
+            let isConsolePackage = sym.fqName.count == 3
+                && sym.fqName[0] == kotlinName
+                && sym.fqName[1] == ioName
+            guard isConsoleName && isConsolePackage else {
+                return nil
+            }
+            return sym.name == printlnName ? .println : .print
+        }
+
         if callee == printlnName {
             return .println
         }
         if callee == printName {
             return .print
         }
-
-        guard let symbol,
-              let sym = sema.symbols.symbol(symbol)
-        else {
-            return nil
-        }
-
-        let isConsoleName = sym.name == printlnName || sym.name == printName
-        let isConsolePackage = sym.fqName.count == 3
-            && sym.fqName[0] == kotlinName
-            && sym.fqName[1] == ioName
-        guard isConsoleName && isConsolePackage else {
-            return nil
-        }
-        return sym.name == printlnName ? .println : .print
+        return nil
     }
 
     private func rewritePrintCall(

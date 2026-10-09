@@ -163,7 +163,7 @@ extension BuildASTPhase {
 
     /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
     /// `context(_: Context)`). Split the leading `name :` off so the receiver type still
-    /// parses, returning the name (nil for unnamed or `_`) alongside the type ref.
+    /// parses.
     private func parseContextReceiverItem(
         from tokens: [Token],
         interner: StringInterner,
@@ -191,29 +191,6 @@ extension BuildASTPhase {
             return nil
         }
         return (name, ref)
-    }
-
-    private func contextReceiverDecl(
-        from tokens: [Token],
-        interner: StringInterner,
-        astArena: ASTArena
-    ) -> ContextReceiverDecl? {
-        var depth = BracketDepth()
-        for (index, token) in tokens.enumerated() {
-            if depth.isAtTopLevel, token.kind == .symbol(.colon), index > 0, index + 1 < tokens.count {
-                let name = internedIdentifier(from: tokens[index - 1], interner: interner)
-                let typeTokens = Array(tokens[(index + 1)...])
-                guard let type = parseTypeRef(from: typeTokens, interner: interner, astArena: astArena) else {
-                    return nil
-                }
-                return ContextReceiverDecl(name: name, type: type)
-            }
-            depth.track(token.kind)
-        }
-        guard let type = parseTypeRef(from: tokens, interner: interner, astArena: astArena) else {
-            return nil
-        }
-        return ContextReceiverDecl(type: type)
     }
 
     func declarationReturnType(
@@ -267,8 +244,6 @@ extension BuildASTPhase {
         return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
     }
 
-    /// Extracts the receiver type for extension properties (e.g. `val String.firstChar: Char`).
-    /// Returns the TypeRefID for `String`, or `nil` for regular properties.
     func declarationPropertyReceiverType(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -277,7 +252,6 @@ extension BuildASTPhase {
     ) -> TypeRefID? {
         let tokens = propertyHeadTokens(from: nodeID, in: arena)
 
-        // Find the val/var keyword index.
         guard let valVarIndex = tokens.firstIndex(where: {
             $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
         }) else {
@@ -307,7 +281,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // The receiver type tokens are between val/var and the dot.
         let receiverTokens = Array(tokens[(valVarIndex + 1) ..< dotIndex])
         guard !receiverTokens.isEmpty else {
             return nil
@@ -315,8 +288,6 @@ extension BuildASTPhase {
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
     }
 
-    /// Extracts the property name after the dot for extension properties
-    /// (e.g. returns "firstChar" for `val String.firstChar: Char`).
     func declarationPropertyNameAfterDot(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -324,7 +295,6 @@ extension BuildASTPhase {
     ) -> InternedString {
         let tokens = propertyHeadTokens(from: nodeID, in: arena)
 
-        // Find the val/var keyword index.
         guard let valVarIndex = tokens.firstIndex(where: {
             $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
         }) else {
@@ -353,7 +323,6 @@ extension BuildASTPhase {
             return declarationName(from: nodeID, in: arena, interner: interner)
         }
 
-        // The property name is the identifier right after the dot.
         let nameToken = tokens[dotIndex + 1]
         if let name = internedIdentifier(from: nameToken, interner: interner) {
             return name
@@ -403,9 +372,6 @@ extension BuildASTPhase {
         return parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
     }
 
-    /// True when the `get`/`set` token at `index` is followed by a `( ... )`
-    /// parameter list (and an optional `: Type`) whose body is the next
-    /// sibling `.block` node, i.e. a same-line `get() { ... }` accessor.
     private func isSiblingBlockAccessorHeader(
         at index: Int,
         in children: [SyntaxChild],
@@ -433,7 +399,6 @@ extension BuildASTPhase {
                 let afterClose = skipBalancedBracket(
                     in: following, from: 0, open: .symbol(.lParen), close: .symbol(.rParen)
                 )
-                // `get()` alone, or `get(): Type`, directly before the block.
                 return afterClose == following.count
                     || (afterClose < following.count && following[afterClose].kind == .symbol(.colon))
             }
@@ -562,7 +527,6 @@ extension BuildASTPhase {
         firstTopLevelKeywordIndex(in: tokens, matching: [.fun])
     }
 
-    /// Returns the opening parenthesis index of the function parameter list.
     /// The scan is anchored at the `fun` keyword to avoid picking annotation
     /// argument lists that appear before the declaration keyword.
     func functionParameterOpenParenIndex(in tokens: [Token]) -> Int? {
@@ -596,9 +560,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// When `tokens[index]` opens a parenthesized receiver type that is followed
-    /// by `.` / `?.` (optionally after `?`), returns the index just past that
-    /// separator; otherwise nil.
     func indexAfterParenthesizedReceiver(in tokens: [Token], from index: Int) -> Int? {
         guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
             return nil
