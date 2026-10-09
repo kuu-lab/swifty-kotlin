@@ -467,14 +467,6 @@ private func networkString(from raw: Int, caller: StaticString) -> String {
     return KotlinStringSurrogateEncoding.unicodeString(str)
 }
 
-private func networkStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
-
 private func runtimeHTTPClientBox(from raw: Int) -> RuntimeHTTPClientBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeHTTPClientBox.self)
@@ -527,9 +519,9 @@ private func networkHeaderPairs(from response: HTTPURLResponse?) -> [(String, [S
 }
 
 private func networkHeaderMapRaw(_ headers: [(String, [String])]) -> Int {
-    let keys = headers.map { networkStringRaw($0.0) }
+    let keys = headers.map { runtimeMakeUTF8StringRaw($0.0) }
     let values = headers.map { header in
-        registerRuntimeObject(RuntimeListBox(elements: header.1.map(networkStringRaw)))
+        registerRuntimeObject(RuntimeListBox(elements: header.1.map(runtimeMakeUTF8StringRaw)))
     }
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
@@ -723,7 +715,7 @@ public func kk_http_response_body(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_body received invalid response handle")
     }
-    return networkStringRaw(response.body)
+    return runtimeMakeUTF8StringRaw(response.body)
 }
 
 @_cdecl("kk_http_response_headers")
@@ -751,7 +743,7 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
     guard let value = networkHeaderFirstValue(headers.headers, name: name) else {
         return runtimeNullSentinelInt
     }
-    return networkStringRaw(value)
+    return runtimeMakeUTF8StringRaw(value)
 }
 
 @_cdecl("kk_http_client_setConnectTimeoutMillis")
@@ -816,7 +808,7 @@ public func kk_http_response_url(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_url received invalid response handle")
     }
-    return networkStringRaw(response.url)
+    return runtimeMakeUTF8StringRaw(response.url)
 }
 
 @_cdecl("kk_http_response_errorMessage")
@@ -825,7 +817,7 @@ public func kk_http_response_errorMessage(_ responseRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_errorMessage received invalid response handle")
     }
     guard let errorMessage = response.errorMessage else { return runtimeNullSentinelInt }
-    return networkStringRaw(errorMessage)
+    return runtimeMakeUTF8StringRaw(errorMessage)
 }
 
 @_cdecl("kk_http_response_timedOut")
@@ -853,5 +845,5 @@ public func kk_http_response_header(_ responseRaw: Int, _ nameRaw: Int) -> Int {
     guard let value = networkHeaderFirstValue(response.headers, name: name) else {
         return runtimeNullSentinelInt
     }
-    return networkStringRaw(value)
+    return runtimeMakeUTF8StringRaw(value)
 }
