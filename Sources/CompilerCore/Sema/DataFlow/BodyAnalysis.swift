@@ -170,6 +170,15 @@ extension DataFlowSemaPhase {
                         return types.errorType
                     }
                 }
+                if let diagnostics {
+                    TypeCheckHelpers().checkDeprecation(
+                        for: resolved.id,
+                        symbols: symbols,
+                        interner: interner,
+                        range: usageRange,
+                        diagnostics: diagnostics
+                    )
+                }
                 let resolvedArgs = resolveTypeArgRefs(
                     argRefs,
                     ast: ast,
