@@ -162,15 +162,6 @@ private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBi
     return raw
 }
 
-/// Helper to create a runtime string from a Swift String, returning Int.
-private func uuidMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
-
 // MARK: - Uuid.random()
 
 @_cdecl("__kk_uuid_random")

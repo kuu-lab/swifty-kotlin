@@ -81,10 +81,6 @@ final class DataFlowAnalyzer {
     var localDeclarations: [SymbolID: ExprID] = [:]
     init() {}
 
-    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        BuiltinTypeNames(interner: interner)
-    }
-
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
