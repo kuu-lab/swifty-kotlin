@@ -51,21 +51,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func suspendLambdaFunctionValueRetainsTypeAndDelayBridge() throws {
-        let source = """
-        import kotlinx.coroutines.*
-        private suspend fun invokeBlock(block: suspend () -> Int): Int = block()
-        fun main() = runBlocking {
-            val block = suspend { delay(10); 42 }
-            println(block())
-            println(invokeBlock(block))
-            val immediate = suspend { 43 }
-            println(invokeBlock(immediate))
-            val seed = 41
-            val captured = suspend { delay(10); seed + 1 }
-            println(captured())
-            println(invokeBlock(captured))
-        }
-        """
+        let source = try diffCaseSource("suspend_lambda_delay_function_value.kt", file: #filePath)
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToLowering(ctx)

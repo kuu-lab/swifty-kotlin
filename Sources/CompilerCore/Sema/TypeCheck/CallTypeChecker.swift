@@ -1816,6 +1816,7 @@ final class CallTypeChecker {
         }
 
         var candidates: [SymbolID]
+        var implicitReceiverScopeCandidates: [SymbolID] = []
         var callImplicitReceiverType = ctx.implicitReceiverType
         /// Member-extension candidates -> the receiver-tower symbol Sema
         /// picked to supply their declared extension receiver. Recorded into
@@ -1858,6 +1859,7 @@ final class CallTypeChecker {
             let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
+            implicitReceiverScopeCandidates = vis
             callInvisible = invis
             if locals[calleeName] == nil,
                let receiverType = ctx.implicitReceiverType
@@ -2358,6 +2360,7 @@ final class CallTypeChecker {
         {
             let preferredCandidates = preferImplicitReceiverPredicateCandidates(
                 candidates,
+                fallbackCandidates: implicitReceiverScopeCandidates,
                 args: args,
                 receiverType: implicitReceiverType,
                 ctx: ctx

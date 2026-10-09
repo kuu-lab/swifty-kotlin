@@ -1,6 +1,73 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
+    func appendRuntimeArrayStorage(
+        arguments: [KIRExprID],
+        boxPrimitiveElements: Bool,
+        module: KIRModule,
+        ctx: KIRContext,
+        lookup: CollectionLiteralLookupTables,
+        loweredBody: inout KIRLoweringEmitContext
+    ) -> (array: KIRExprID, count: KIRExprID) {
+        let countExpr = module.arena.appendExpr(.intLiteral(Int64(arguments.count)), type: nil)
+        loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(arguments.count))))
+        let arrayExpr = module.arena.appendTemporary(type: nil)
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: lookup.kkArrayNewName,
+            arguments: [countExpr],
+            result: arrayExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        for (index, argument) in arguments.enumerated() {
+            let indexExpr = module.arena.appendExpr(.intLiteral(Int64(index)), type: nil)
+            loweredBody.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
+            let storedArgument: KIRExprID
+            if boxPrimitiveElements,
+               let types = ctx.sema?.types,
+               let argumentType = module.arena.exprType(argument),
+               let boxCallee = primitiveBoxCalleeName(
+                   for: argumentType,
+                   types: types,
+                   symbols: ctx.sema?.symbols,
+                   interner: ctx.interner
+               )
+            {
+                let boxedResult = module.arena.appendTemporary(type: types.anyType)
+                emitBoxCallWithValueClassTag(
+                    boxCallee: boxCallee,
+                    value: argument,
+                    rawSourceKind: types.kind(of: argumentType),
+                    result: boxedResult,
+                    resultType: types.anyType,
+                    types: types,
+                    symbols: ctx.sema?.symbols,
+                    interner: ctx.interner,
+                    arena: module.arena,
+                    sema: ctx.sema,
+                    cache: ctx.nominalDispatchCache,
+                    into: &loweredBody
+                )
+                storedArgument = boxedResult
+            } else {
+                storedArgument = argument
+            }
+
+            let setResult = module.arena.appendTemporary(type: nil)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArraySetName,
+                arguments: [arrayExpr, indexExpr, storedArgument],
+                result: setResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+        return (arrayExpr, countExpr)
+    }
+
     /// Registers the rewritten result's nominal vtable implementations when the
     /// factory produced a concrete-class collection box. See the call-site
     /// comment in `lowerCallInstruction` for why the box needs them.
@@ -106,61 +173,14 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
             } else {
                 // listOf(a, b, c), mutableListOf(a, b, c), arrayListOf(a, b, c) -> kk_list_of
-                let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
-                loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let arrayExpr = module.arena.appendTemporary(type: nil
+                let (arrayExpr, countExpr) = appendRuntimeArrayStorage(
+                    arguments: arguments,
+                    boxPrimitiveElements: true,
+                    module: module,
+                    ctx: ctx,
+                    lookup: lookup,
+                    loweredBody: &loweredBody
                 )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkArrayNewName,
-                    arguments: [countExpr],
-                    result: arrayExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                for (i, arg) in arguments.enumerated() {
-                    let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
-                    loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                    let storedArg: KIRExprID
-                    if let types = ctx.sema?.types,
-                       let argType = module.arena.exprType(arg),
-                       let boxCallee = primitiveBoxCalleeName(
-                           for: argType,
-                           types: types,
-                           symbols: ctx.sema?.symbols,
-                           interner: ctx.interner
-                       )
-                    {
-                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
-                        emitBoxCallWithValueClassTag(
-                            boxCallee: boxCallee,
-                            value: arg,
-                            rawSourceKind: types.kind(of: argType),
-                            result: boxedResult,
-                            resultType: types.anyType,
-                            types: types,
-                            symbols: ctx.sema?.symbols,
-                            interner: ctx.interner,
-                            arena: module.arena,
-                            sema: ctx.sema,
-                            cache: ctx.nominalDispatchCache,
-                            into: &loweredBody
-                        )
-                        storedArg = boxedResult
-                    } else {
-                        storedArg = arg
-                    }
-                    let setResult = module.arena.appendTemporary(type: nil
-                    )
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkArraySetName,
-                        arguments: [arrayExpr, idxExpr, storedArg],
-                        result: setResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
                 let runtimeCallee = callee == lookup.arrayListOfName
                     || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
@@ -487,61 +507,14 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else {
-                let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
-                loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-                let arrayExpr = module.arena.appendTemporary(type: nil
+                let (arrayExpr, countExpr) = appendRuntimeArrayStorage(
+                    arguments: arguments,
+                    boxPrimitiveElements: true,
+                    module: module,
+                    ctx: ctx,
+                    lookup: lookup,
+                    loweredBody: &loweredBody
                 )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkArrayNewName,
-                    arguments: [countExpr],
-                    result: arrayExpr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                for (i, arg) in arguments.enumerated() {
-                    let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
-                    loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
-                    let storedArg: KIRExprID
-                    if let types = ctx.sema?.types,
-                       let argType = module.arena.exprType(arg),
-                       let boxCallee = primitiveBoxCalleeName(
-                           for: argType,
-                           types: types,
-                           symbols: ctx.sema?.symbols,
-                           interner: ctx.interner
-                       )
-                    {
-                        let boxedResult = module.arena.appendTemporary(type: types.anyType)
-                        emitBoxCallWithValueClassTag(
-                            boxCallee: boxCallee,
-                            value: arg,
-                            rawSourceKind: types.kind(of: argType),
-                            result: boxedResult,
-                            resultType: types.anyType,
-                            types: types,
-                            symbols: ctx.sema?.symbols,
-                            interner: ctx.interner,
-                            arena: module.arena,
-                            sema: ctx.sema,
-                            cache: ctx.nominalDispatchCache,
-                            into: &loweredBody
-                        )
-                        storedArg = boxedResult
-                    } else {
-                        storedArg = arg
-                    }
-                    let setResult = module.arena.appendTemporary(type: nil
-                    )
-                    loweredBody.append(.call(
-                        symbol: nil,
-                        callee: lookup.kkArraySetName,
-                        arguments: [arrayExpr, idxExpr, storedArg],
-                        result: setResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
                 let runtimeCallee = callee == lookup.hashSetOfName
                     ? lookup.kkHashSetOfName
                     : callee == lookup.setOfNotNullName

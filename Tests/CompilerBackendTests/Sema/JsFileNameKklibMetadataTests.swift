@@ -37,18 +37,18 @@
 
             let sourceMarker = try #require(sourceSema.symbols.lookup(fqName: ["kotlin", "js", "ExperimentalJsFileName"].map(sourceInjected.interner.intern)))
             #expect(sourceSema.symbols.annotations(for: sourceMarker).contains {
-                $0.annotationFQName == "RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
+                $0.annotationFQName == "kotlin.RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
             })
             #expect(sourceSema.symbols.annotations(for: sourceMarker).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
 
             let sourceFileName = try #require(sourceSema.symbols.lookup(fqName: ["kotlin", "js", "JsFileName"].map(sourceInjected.interner.intern)))
             #expect(sourceSema.symbols.annotations(for: sourceFileName).contains {
-                $0.annotationFQName == "Target" && $0.arguments.contains { $0.contains("FILE") }
+                $0.annotationFQName == "kotlin.annotation.Target" && $0.arguments.contains { $0.contains("FILE") }
             })
             #expect(sourceSema.symbols.annotations(for: sourceFileName).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("SOURCE") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("SOURCE") }
             })
 
             try withCompiledLibrary(source: librarySource, moduleName: "JsFileNameMetadata") { libraryPath in

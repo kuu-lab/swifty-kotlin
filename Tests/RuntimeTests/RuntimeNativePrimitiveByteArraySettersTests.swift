@@ -4,9 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeNativePrimitiveByteArraySettersTests {
-    private func makeByteArray(length: Int) -> Int {
-        kk_array_new(length)
-    }
 
     @Test
     func testPrimitiveByteArrayStoresUseLittleEndianLayout() {

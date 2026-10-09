@@ -62,11 +62,6 @@ private let mapIndexedEvenIndexToValuePlusIndex: @convention(c) (Int, Int, Int, 
     index.isMultiple(of: 2) ? value + index : runtimeNullSentinelInt
 }
 
-// Helper function to extract string value from runtime handle
-private func runtimeStringValue(_ raw: Int) -> String {
-    extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-}
-
 private func runtimeStringRaw(_ value: String) -> Int {
     value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, value.utf8.count)) { ptr in
@@ -306,7 +301,7 @@ private let firstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePo
 struct RuntimeCollectionHOFTests {
     @Test
     func testListWindowedRejectsNonPositiveSizeAndStep() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
 
         var thrown = 0
         _ = kk_list_bridge_windowed(source, 0, 1, 0, &thrown)
@@ -333,23 +328,23 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapIndexedNotNullFiltersNullResults() {
-        let source = makeList([10, 20, 30, 40])
+        let source = runtimeTestMakeList([10, 20, 30, 40])
         let mapped = kk_list_mapIndexedNotNull(
             source,
             unsafeBitCast(mapIndexedEvenIndexToValuePlusIndex, to: Int.self),
             0,
             nil as UnsafeMutablePointer<Int>?
         )
-        #expect(listElements(mapped) == [10, 32])
+        #expect(runtimeTestListElements(mapped) == [10, 32])
     }
 
     @Test
     func testCaptureLambdaForMapAndForEach() {
-        let source = makeList([1, 2, 3])
-        let closure = makeArray([5])
+        let source = runtimeTestMakeList([1, 2, 3])
+        let closure = runtimeTestMakeArray([5])
 
         let mapped = kk_list_map(source, unsafeBitCast(addCapture, to: Int.self), closure, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(mapped) == [6, 7, 8])
+        #expect(runtimeTestListElements(mapped) == [6, 7, 8])
 
         _ = kk_list_forEach(source, unsafeBitCast(forEachCapture, to: Int.self), closure, nil as UnsafeMutablePointer<Int>?)
         #expect(gHOFState.sumSnapshot() == 21)
@@ -357,25 +352,25 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testFlatMapFoldReduceAndSortedBy() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let flatMapped = kk_list_flatMap(source, unsafeBitCast(flatMapPair, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(flatMapped) == [1, 10, 2, 20, 3, 30])
-        #expect(listElements(kk_list_flatten(makeList([makeList([1, 2]), makeList([3])]))) == [1, 2, 3])
-        let nestedCollections = makeList([makeList([1]), kk_set_of(makeArray([2, 3]), 2)])
-        #expect(listElements(kk_list_flatten(nestedCollections)) == [1, 2, 3])
+        #expect(runtimeTestListElements(flatMapped) == [1, 10, 2, 20, 3, 30])
+        #expect(runtimeTestListElements(kk_list_flatten(runtimeTestMakeList([runtimeTestMakeList([1, 2]), runtimeTestMakeList([3])]))) == [1, 2, 3])
+        let nestedCollections = runtimeTestMakeList([runtimeTestMakeList([1]), kk_set_of(runtimeTestMakeArray([2, 3]), 2)])
+        #expect(runtimeTestListElements(kk_list_flatten(nestedCollections)) == [1, 2, 3])
 
         let flatMappedIndexed = kk_list_flatMapIndexed(source, unsafeBitCast(flatMapIndexedPair, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(flatMappedIndexed) == [0, 10, 1, 20, 2, 30])
+        #expect(runtimeTestListElements(flatMappedIndexed) == [0, 10, 1, 20, 2, 30])
 
-        let sorted = kk_list_sortedBy(makeList([22, 12, 21, 11]), unsafeBitCast(sortedByTens, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(sorted) == [12, 11, 22, 21])
+        let sorted = kk_list_sortedBy(runtimeTestMakeList([22, 12, 21, 11]), unsafeBitCast(sortedByTens, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
+        #expect(runtimeTestListElements(sorted) == [12, 11, 22, 21])
     }
 
     @Test
     func testMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() {
         var thrown = 0
         let result = kk_list_minOf(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(valueTimesTen, to: Int.self),
             0,
             &thrown
@@ -385,7 +380,7 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         let emptyResult = kk_list_minOf(
-            makeList([]),
+            runtimeTestMakeList([]),
             unsafeBitCast(valueTimesTen, to: Int.self),
             0,
             &thrown
@@ -397,21 +392,21 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testMaxByReturnsElementWithLargestSelectorAndThrowsOnEmpty() {
         var thrown = 0
-        let source = makeList([3, 1, 4, 2])
+        let source = runtimeTestMakeList([3, 1, 4, 2])
         let result = kk_list_maxBy(source, unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown)
 
         #expect(result == 1)
         #expect(thrown == 0)
 
         thrown = 0
-        #expect(kk_list_maxBy(makeList([]), unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
+        #expect(kk_list_maxBy(runtimeTestMakeList([]), unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
     }
 
     @Test
     func testMinOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() {
         let result = kk_list_minOfOrNull(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(valueTimesTen, to: Int.self),
             0,
             nil as UnsafeMutablePointer<Int>?
@@ -419,7 +414,7 @@ struct RuntimeCollectionHOFTests {
         #expect(result == 20)
 
         let emptyResult = kk_list_minOfOrNull(
-            makeList([]),
+            runtimeTestMakeList([]),
             unsafeBitCast(valueTimesTen, to: Int.self),
             0,
             nil as UnsafeMutablePointer<Int>?
@@ -429,15 +424,15 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMinOrNullReturnsSmallestElementAndNullOnEmpty() {
-        #expect(kk_list_minOrNull(makeList([5, 2, 3])) == 2)
-        #expect(kk_list_minOrNull(makeList([])) == runtimeNullSentinelInt)
+        #expect(kk_list_minOrNull(runtimeTestMakeList([5, 2, 3])) == 2)
+        #expect(kk_list_minOrNull(runtimeTestMakeList([])) == runtimeNullSentinelInt)
     }
 
     @Test
     func testMinWithReturnsComparatorMinimumAndThrowsOnEmpty() {
         var thrown = 0
         let result = kk_list_minWith(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(reverseIntComparator, to: Int.self),
             0,
             &thrown
@@ -446,45 +441,45 @@ struct RuntimeCollectionHOFTests {
         #expect(thrown == 0)
 
         thrown = 0
-        #expect(kk_list_minWith(makeList([]), unsafeBitCast(reverseIntComparator, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
+        #expect(kk_list_minWith(runtimeTestMakeList([]), unsafeBitCast(reverseIntComparator, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
     }
 
     @Test
     func testMaxByOrNullReturnsElementWithLargestSelectorAndNullForEmpty() {
         var thrown = 0
-        let source = makeList([3, 1, 4, 2])
+        let source = runtimeTestMakeList([3, 1, 4, 2])
         let result = kk_list_maxByOrNull(source, unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown)
 
         #expect(result == 1)
         #expect(thrown == 0)
 
         thrown = 0
-        #expect(kk_list_maxByOrNull(makeList([]), unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
+        #expect(kk_list_maxByOrNull(runtimeTestMakeList([]), unsafeBitCast(maxByNegativeValue, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
     }
 
     @Test
     func testMaxWithOrNullReturnsLargestElementAndNullForEmpty() {
         var thrown = 0
-        #expect(kk_list_maxWithOrNull(makeList([3, 1, 4, 2]), unsafeBitCast(maxWithOrNullNaturalComparator, to: Int.self), 0, &thrown) == 4)
+        #expect(kk_list_maxWithOrNull(runtimeTestMakeList([3, 1, 4, 2]), unsafeBitCast(maxWithOrNullNaturalComparator, to: Int.self), 0, &thrown) == 4)
         #expect(thrown == 0)
 
         thrown = 0
-        #expect(kk_list_maxWithOrNull(makeList([]), unsafeBitCast(maxWithOrNullNaturalComparator, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
+        #expect(kk_list_maxWithOrNull(runtimeTestMakeList([]), unsafeBitCast(maxWithOrNullNaturalComparator, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
     }
 
     @Test
     func testMaxOrNullReturnsLargestElementAndNullForEmpty() {
-        #expect(kk_list_maxOrNull(makeList([3, 1, 4, 2])) == 4)
-        #expect(kk_list_maxOrNull(makeList([])) == runtimeNullSentinelInt)
+        #expect(kk_list_maxOrNull(runtimeTestMakeList([3, 1, 4, 2])) == 4)
+        #expect(kk_list_maxOrNull(runtimeTestMakeList([])) == runtimeNullSentinelInt)
     }
 
     @Test
     func testMinByOrNullReturnsElementWithSmallestSelectorAndNullOnEmpty() {
         let result = kk_list_minByOrNull(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(countEven, to: Int.self),
             0,
             nil as UnsafeMutablePointer<Int>?
@@ -492,7 +487,7 @@ struct RuntimeCollectionHOFTests {
         #expect(result == 5)
 
         let emptyResult = kk_list_minByOrNull(
-            makeList([]),
+            runtimeTestMakeList([]),
             unsafeBitCast(countEven, to: Int.self),
             0,
             nil as UnsafeMutablePointer<Int>?
@@ -504,7 +499,7 @@ struct RuntimeCollectionHOFTests {
     func testMaxOfWithOrNullReturnsLargestTransformedValueAndNullForEmpty() {
         var thrown = 0
         let result = kk_list_maxOfWithOrNull(
-            makeList([-3, 1, 2]),
+            runtimeTestMakeList([-3, 1, 2]),
             unsafeBitCast(maxOfWithOrNullNaturalComparator, to: Int.self),
             0,
             unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -517,7 +512,7 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         #expect(kk_list_maxOfWithOrNull(
-                makeList([]),
+                runtimeTestMakeList([]),
                 unsafeBitCast(maxOfWithOrNullNaturalComparator, to: Int.self),
                 0,
                 unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -531,7 +526,7 @@ struct RuntimeCollectionHOFTests {
     func testMinOfWithReturnsSmallestTransformedValueAndThrowsOnEmpty() {
         var thrown = 0
         let result = kk_list_minOfWith(
-            makeList([-3, 1, 2]),
+            runtimeTestMakeList([-3, 1, 2]),
             unsafeBitCast(maxOfWithNaturalComparator, to: Int.self),
             0,
             unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -544,7 +539,7 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         #expect(kk_list_minOfWith(
-                makeList([]),
+                runtimeTestMakeList([]),
                 unsafeBitCast(maxOfWithNaturalComparator, to: Int.self),
                 0,
                 unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -558,7 +553,7 @@ struct RuntimeCollectionHOFTests {
     func testMinOfWithOrNullReturnsSmallestTransformedValueAndNullForEmpty() {
         var thrown = 0
         let result = kk_list_minOfWithOrNull(
-            makeList([-3, 1, 2]),
+            runtimeTestMakeList([-3, 1, 2]),
             unsafeBitCast(maxOfWithOrNullNaturalComparator, to: Int.self),
             0,
             unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -571,7 +566,7 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         #expect(kk_list_minOfWithOrNull(
-                makeList([]),
+                runtimeTestMakeList([]),
                 unsafeBitCast(maxOfWithOrNullNaturalComparator, to: Int.self),
                 0,
                 unsafeBitCast(maxOfWithOrNullSquareValue, to: Int.self),
@@ -584,11 +579,11 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testMaxWithReturnsLargestElementAndThrowsOnEmpty() {
         var thrown = 0
-        #expect(kk_list_maxWith(makeList([3, 1, 4, 2]), unsafeBitCast(maxWithNaturalComparator, to: Int.self), 0, &thrown) == 4)
+        #expect(kk_list_maxWith(runtimeTestMakeList([3, 1, 4, 2]), unsafeBitCast(maxWithNaturalComparator, to: Int.self), 0, &thrown) == 4)
         #expect(thrown == 0)
 
         thrown = 0
-        #expect(kk_list_maxWith(makeList([]), unsafeBitCast(maxWithNaturalComparator, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
+        #expect(kk_list_maxWith(runtimeTestMakeList([]), unsafeBitCast(maxWithNaturalComparator, to: Int.self), 0, &thrown) == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
     }
 
@@ -596,7 +591,7 @@ struct RuntimeCollectionHOFTests {
     func testMinOfWithReturnsComparatorSelectedValueAndThrowsOnEmpty() {
         var thrown = 0
         let result = kk_list_minOfWith(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(reverseIntComparator, to: Int.self),
             0,
             unsafeBitCast(valueTimesTen, to: Int.self),
@@ -608,7 +603,7 @@ struct RuntimeCollectionHOFTests {
 
         thrown = 0
         let emptyResult = kk_list_minOfWith(
-            makeList([]),
+            runtimeTestMakeList([]),
             unsafeBitCast(reverseIntComparator, to: Int.self),
             0,
             unsafeBitCast(valueTimesTen, to: Int.self),
@@ -621,7 +616,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListElementAtReturnsElementAndThrowsWhenOutOfBounds() {
-        let source = makeList([10, 20, 30])
+        let source = runtimeTestMakeList([10, 20, 30])
 
         var thrown = -1
         #expect(kk_list_elementAt(source, 1, &thrown) == 20)
@@ -634,7 +629,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListElementAtOrNullReturnsElementOrNullSentinel() {
-        let source = makeList([10, 20, 30])
+        let source = runtimeTestMakeList([10, 20, 30])
 
         #expect(kk_list_elementAtOrNull(source, 1) == 20)
         #expect(kk_list_elementAtOrNull(source, 5) == runtimeNullSentinelInt)
@@ -642,17 +637,17 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testCollectionMapNotNullPassesSentinelInputsToTransform() {
-        let source = makeList([1, runtimeNullSentinelInt, 3])
+        let source = runtimeTestMakeList([1, runtimeNullSentinelInt, 3])
 
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(mapSentinelToValue, to: Int.self), 0, nil)
-        #expect(listElements(listMapped) == [2, 99, 6])
+        #expect(runtimeTestListElements(listMapped) == [2, 99, 6])
 
     }
 
     @Test
     func testIterableFirstNotNullOfReturnsFirstNonNullTransformResult() {
         var thrown = 0
-        let listSource = makeList([1, 2, 4])
+        let listSource = runtimeTestMakeList([1, 2, 4])
         let listResult = kk_iterable_firstNotNullOf(
             listSource,
             unsafeBitCast(firstNonNullEvenTimesTen, to: Int.self),
@@ -663,7 +658,7 @@ struct RuntimeCollectionHOFTests {
         #expect(listResult == 20)
         #expect(thrown == 0)
 
-        let setSource = kk_set_of(makeArray([1, 3, 4]), 3)
+        let setSource = kk_set_of(runtimeTestMakeArray([1, 3, 4]), 3)
         let setResult = kk_iterable_firstNotNullOf(
             setSource,
             unsafeBitCast(firstNonNullEvenTimesTen, to: Int.self),
@@ -678,7 +673,7 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testIterableFirstNotNullOfThrowsWhenEveryTransformResultIsNull() {
         var thrown = 0
-        let source = makeList([1, 3, 5])
+        let source = runtimeTestMakeList([1, 3, 5])
 
         let result = kk_iterable_firstNotNullOf(
             source,
@@ -693,16 +688,16 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testCollectionMapNotNullPreservesZeroResults() {
-        let source = makeList([0, 1, 2])
+        let source = runtimeTestMakeList([0, 1, 2])
 
         let listMapped = kk_list_mapNotNull(source, unsafeBitCast(identityMapValue, to: Int.self), 0, nil)
-        #expect(listElements(listMapped) == [0, 1, 2])
+        #expect(runtimeTestListElements(listMapped) == [0, 1, 2])
 
     }
 
     @Test
     func testIterableFirstNotNullOfOrNullReturnsFirstNonNullTransformResult() {
-        let source = makeList([1, 2, 4])
+        let source = runtimeTestMakeList([1, 2, 4])
         let result = kk_iterable_firstNotNullOfOrNull(
             source,
             unsafeBitCast(firstNullableEvenTimesTen, to: Int.self),
@@ -711,7 +706,7 @@ struct RuntimeCollectionHOFTests {
         )
         #expect(result == 20)
 
-        let setSource = kk_set_of(makeArray([4]), 1)
+        let setSource = kk_set_of(runtimeTestMakeArray([4]), 1)
         let setResult = kk_iterable_firstNotNullOfOrNull(
             setSource,
             unsafeBitCast(firstNullableEvenTimesTen, to: Int.self),
@@ -723,7 +718,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testIterableFirstNotNullOfOrNullReturnsNullWhenEveryTransformResultIsNull() {
-        let source = makeList([1, 3, 5])
+        let source = runtimeTestMakeList([1, 3, 5])
         let result = kk_iterable_firstNotNullOfOrNull(
             source,
             unsafeBitCast(alwaysNullTransform, to: Int.self),
@@ -735,7 +730,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testIterableFirstNotNullOfOrNullPropagatesThrowingLambda() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         var thrown = 0
 
         let result = kk_iterable_firstNotNullOfOrNull(
@@ -751,7 +746,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testIterableFirstNotNullOfOrNullAcceptsArrayReceiver() {
-        let arraySource = makeArray([1, 2, 4])
+        let arraySource = runtimeTestMakeArray([1, 2, 4])
         let result = kk_iterable_firstNotNullOfOrNull(
             arraySource,
             unsafeBitCast(firstNullableEvenTimesTen, to: Int.self),
@@ -760,7 +755,7 @@ struct RuntimeCollectionHOFTests {
         )
         #expect(result == 20)
 
-        let emptyArray = makeArray([1, 3, 5])
+        let emptyArray = runtimeTestMakeArray([1, 3, 5])
         let nullResult = kk_iterable_firstNotNullOfOrNull(
             emptyArray,
             unsafeBitCast(alwaysNullTransform, to: Int.self),
@@ -772,7 +767,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testSortedByWithStringKeyHandlesNonIntegerComparison() {
-        let source = makeList([makeRuntimeStringRaw("b"), makeRuntimeStringRaw("a"), makeRuntimeStringRaw("c")])
+        let source = runtimeTestMakeList([makeRuntimeStringRaw("b"), makeRuntimeStringRaw("a"), makeRuntimeStringRaw("c")])
 
         let sorted = kk_list_sortedBy(
             source,
@@ -780,7 +775,7 @@ struct RuntimeCollectionHOFTests {
             0,
             nil as UnsafeMutablePointer<Int>?
         )
-        #expect(listElements(sorted).map(runtimeStringValue) == ["a", "b", "c"])
+        #expect(runtimeTestListElements(sorted).map(runtimeTestStringValue) == ["a", "b", "c"])
 
         let sortedDesc = kk_list_sortedByDescending(
             source,
@@ -788,7 +783,7 @@ struct RuntimeCollectionHOFTests {
             0,
             nil as UnsafeMutablePointer<Int>?
         )
-        #expect(listElements(sortedDesc).map(runtimeStringValue) == ["c", "b", "a"])
+        #expect(runtimeTestListElements(sortedDesc).map(runtimeTestStringValue) == ["c", "b", "a"])
     }
 
     @Test
@@ -797,34 +792,34 @@ struct RuntimeCollectionHOFTests {
         let strA = makeRuntimeStringRaw("a")
         let strB = makeRuntimeStringRaw("b")
         let strC = makeRuntimeStringRaw("c")
-        let source = makeList([strB, strA, strC])
+        let source = runtimeTestMakeList([strB, strA, strC])
         _ = kk_mutable_list_sortBy(source, unsafeBitCast(sortBySelfStringValue, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(source).map(runtimeStringValue) == ["a", "b", "c"])
+        #expect(runtimeTestListElements(source).map(runtimeTestStringValue) == ["a", "b", "c"])
 
         _ = kk_mutable_list_sortByDescending(source, unsafeBitCast(sortBySelfStringValue, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
-        #expect(listElements(source).map(runtimeStringValue) == ["c", "b", "a"])
+        #expect(runtimeTestListElements(source).map(runtimeTestStringValue) == ["c", "b", "a"])
     }
 
     @Test
     func testIterableAnyShortCircuitsAcrossCollectionKindsAndNoArgOverload() {
-        let listSource = makeList([1, 2, 3, 4])
+        let listSource = runtimeTestMakeList([1, 2, 3, 4])
 
         gHOFState.reset()
         #expect(kk_iterable_any(listSource, unsafeBitCast(anyGtTwoCounting, to: Int.self), 0, nil) == 1)
         #expect(gHOFState.callsSnapshot() == 3)
 
-        let setSource = kk_set_of(makeArray([1, 2]), 2)
+        let setSource = kk_set_of(runtimeTestMakeArray([1, 2]), 2)
         gHOFState.reset()
         #expect(kk_iterable_any(setSource, unsafeBitCast(anyGtTwoCounting, to: Int.self), 0, nil) == 0)
         #expect(gHOFState.callsSnapshot() == 2)
 
         #expect(kk_iterable_any(listSource, 0, 0, nil) == 1)
-        #expect(kk_iterable_any(makeList([]), 0, 0, nil) == 0)
+        #expect(kk_iterable_any(runtimeTestMakeList([]), 0, 0, nil) == 0)
     }
 
     @Test
     func testIterableAnyPropagatesThrowingLambda() {
-        let source = makeList([1])
+        let source = runtimeTestMakeList([1])
         var thrown = 0
 
         let result = kk_iterable_any(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
@@ -835,25 +830,25 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testIterableAllShortCircuitsAcrossCollectionKinds() {
-        let listSource = makeList([1, 2, 3, 4])
+        let listSource = runtimeTestMakeList([1, 2, 3, 4])
 
         gHOFState.reset()
         #expect(kk_iterable_all(listSource, unsafeBitCast(allLtThreeCounting, to: Int.self), 0, nil) == 0)
         #expect(gHOFState.callsSnapshot() == 3)
 
-        let setSource = kk_set_of(makeArray([1, 2]), 2)
+        let setSource = kk_set_of(runtimeTestMakeArray([1, 2]), 2)
         gHOFState.reset()
         #expect(kk_iterable_all(setSource, unsafeBitCast(allLtThreeCounting, to: Int.self), 0, nil) == 1)
         #expect(gHOFState.callsSnapshot() == 2)
 
         gHOFState.reset()
-        #expect(kk_iterable_all(makeList([]), unsafeBitCast(allLtThreeCounting, to: Int.self), 0, nil) == 1)
+        #expect(kk_iterable_all(runtimeTestMakeList([]), unsafeBitCast(allLtThreeCounting, to: Int.self), 0, nil) == 1)
         #expect(gHOFState.callsSnapshot() == 0)
     }
 
     @Test
     func testIterableAllPropagatesThrowingLambda() {
-        let source = makeList([1])
+        let source = runtimeTestMakeList([1])
         var thrown = 0
 
         let result = kk_iterable_all(source, unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown)
@@ -864,7 +859,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testCountFirstLastFindAndEmptyFailures() {
-        let source = makeList([1, 2, 3, 4])
+        let source = runtimeTestMakeList([1, 2, 3, 4])
 
         #expect(kk_list_first(source, 0, 0, nil) == 1)
         #expect(kk_list_last(source, 0, 0, nil) == 4)
@@ -872,36 +867,36 @@ struct RuntimeCollectionHOFTests {
         #expect(kk_list_last(source, unsafeBitCast(lastLessThanThree, to: Int.self), 0, nil) == 2)
 
         var thrown = 0
-        #expect(kk_list_first(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
+        #expect(kk_list_first(runtimeTestMakeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
 
         thrown = 0
-        #expect(kk_list_last(makeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
+        #expect(kk_list_last(runtimeTestMakeList([]), 0, 0, &thrown) == runtimeExceptionCaughtSentinel)
     }
 
     @Test
     func testGroupByPreservesKeyAndBucketOrder() {
-        let source = makeList([3, 1, 4, 2, 5])
+        let source = runtimeTestMakeList([3, 1, 4, 2, 5])
         let grouped = kk_list_groupBy(source, unsafeBitCast(groupByParity, to: Int.self), 0, nil)
 
         #expect(mapKeys(grouped) == [1, 0])
-        #expect(listElements(kk_map_get(grouped, 1)) == [3, 1, 5])
-        #expect(listElements(kk_map_get(grouped, 0)) == [4, 2])
+        #expect(runtimeTestListElements(kk_map_get(grouped, 1)) == [3, 1, 5])
+        #expect(runtimeTestListElements(kk_map_get(grouped, 0)) == [4, 2])
     }
 
     @Test
     func testGroupByUsesValueEqualityForStringKeys() {
-        let source = makeList([1, 2, 3, 4])
+        let source = runtimeTestMakeList([1, 2, 3, 4])
         let grouped = kk_list_groupBy(source, unsafeBitCast(groupingByStringKey, to: Int.self), 0, nil)
 
-        #expect(mapKeys(grouped).map(runtimeStringValue) == ["odd", "even"])
-        #expect(listElements(kk_map_get(grouped, runtimeStringRaw("odd"))) == [1, 3])
-        #expect(listElements(kk_map_get(grouped, runtimeStringRaw("even"))) == [2, 4])
+        #expect(mapKeys(grouped).map(runtimeTestStringValue) == ["odd", "even"])
+        #expect(runtimeTestListElements(kk_map_get(grouped, runtimeStringRaw("odd"))) == [1, 3])
+        #expect(runtimeTestListElements(kk_map_get(grouped, runtimeStringRaw("even"))) == [2, 4])
     }
 
     @Test
     func testGroupByTransformUsesValueEqualityForStringKeys() {
-        let source = makeList([1, 2, 3, 4])
+        let source = runtimeTestMakeList([1, 2, 3, 4])
         let grouped = kk_list_groupByTransform(
             source,
             unsafeBitCast(groupingByStringKey, to: Int.self), 0,
@@ -909,15 +904,15 @@ struct RuntimeCollectionHOFTests {
             nil
         )
 
-        #expect(mapKeys(grouped).map(runtimeStringValue) == ["odd", "even"])
-        #expect(listElements(kk_map_get(grouped, runtimeStringRaw("odd"))) == [2, 6])
-        #expect(listElements(kk_map_get(grouped, runtimeStringRaw("even"))) == [4, 8])
+        #expect(mapKeys(grouped).map(runtimeTestStringValue) == ["odd", "even"])
+        #expect(runtimeTestListElements(kk_map_get(grouped, runtimeStringRaw("odd"))) == [2, 6])
+        #expect(runtimeTestListElements(kk_map_get(grouped, runtimeStringRaw("even"))) == [4, 8])
     }
 
     @Test
     func testMapForEachFilterAndMapUsePairEntries() {
-        let keys = makeArray([1, 2, 3])
-        let values = makeArray([10, 21, 32])
+        let keys = runtimeTestMakeArray([1, 2, 3])
+        let values = runtimeTestMakeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
         _ = kk_map_forEach(map, unsafeBitCast(accumulateEntryScore, to: Int.self), 0, nil)
@@ -932,7 +927,7 @@ struct RuntimeCollectionHOFTests {
         #expect(thrown == 0)
 
         let mapped = kk_map_map(map, unsafeBitCast(mapEntrySum, to: Int.self), 0, nil)
-        #expect(listElements(mapped) == [11, 23, 35])
+        #expect(runtimeTestListElements(mapped) == [11, 23, 35])
 
         let filtered = kk_map_filter(map, unsafeBitCast(keepEvenValueEntries, to: Int.self), 0, nil)
         #expect(mapKeys(filtered) == [1, 3])
@@ -947,8 +942,8 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapFilterKeysPassesOnlyKeysToPredicate() {
-        let keys = makeArray([1, 2, 3])
-        let values = makeArray([10, 21, 32])
+        let keys = runtimeTestMakeArray([1, 2, 3])
+        let values = runtimeTestMakeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
         let filtered = kk_map_filterKeys(map, unsafeBitCast(keepOddMapKeys, to: Int.self), 0, nil)
@@ -960,8 +955,8 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapValuesAndMapKeysUsePairEntries() {
-        let keys = makeArray([1, 2, 1])
-        let values = makeArray([10, 21, 32])
+        let keys = runtimeTestMakeArray([1, 2, 1])
+        let values = runtimeTestMakeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
         let mappedValues = kk_map_mapValues(map, unsafeBitCast(mapEntryValueTimesTen, to: Int.self), 0, nil)
@@ -977,19 +972,19 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testCollectionToListCopiesListAndSetElements() {
-        let listSource = makeList([1, 2, 3])
+        let listSource = runtimeTestMakeList([1, 2, 3])
         let listCopy = kk_collection_toList(listSource)
-        #expect(listElements(listCopy) == [1, 2, 3])
-        #expect(listElements(listSource) == [1, 2, 3])
+        #expect(runtimeTestListElements(listCopy) == [1, 2, 3])
+        #expect(runtimeTestListElements(listSource) == [1, 2, 3])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
-        #expect(listElements(kk_collection_toList(setSource)) == [3, 1, 2])
+        #expect(runtimeTestListElements(kk_collection_toList(setSource)) == [3, 1, 2])
     }
 
     @Test
     func testMapKeysToMutatesDestinationAndReturnsIt() {
-        let keys = makeArray([1, 2])
-        let values = makeArray([10, 21])
+        let keys = runtimeTestMakeArray([1, 2])
+        let values = runtimeTestMakeArray([10, 21])
         let map = kk_map_of(keys, values, 2)
         let dest = makeMutableMap(keys: [10, 0], values: [900, 1])
 
@@ -1012,8 +1007,8 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapValuesToMutatesDestinationAndReturnsIt() {
-        let keys = makeArray([1, 2])
-        let values = makeArray([10, 21])
+        let keys = runtimeTestMakeArray([1, 2])
+        let values = runtimeTestMakeArray([10, 21])
         let map = kk_map_of(keys, values, 2)
         let dest = makeMutableMap(keys: [0], values: [5])
 
@@ -1036,8 +1031,8 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapEntriesMaterializesKeyValuePairs() {
-        let keys = makeArray([1, 2, 1])
-        let values = makeArray([10, 21, 32])
+        let keys = runtimeTestMakeArray([1, 2, 1])
+        let values = runtimeTestMakeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
         let entries = setElements(kk_map_entries(map))
@@ -1048,12 +1043,12 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMapKeysAndValuesMaterializeCollections() {
-        let keys = makeArray([1, 2, 1])
-        let values = makeArray([10, 21, 32])
+        let keys = runtimeTestMakeArray([1, 2, 1])
+        let values = runtimeTestMakeArray([10, 21, 32])
         let map = kk_map_of(keys, values, 3)
 
         #expect(setElements(kk_map_keys(map)) == [1, 2])
-        #expect(listElements(kk_map_values(map)) == [32, 21])
+        #expect(runtimeTestListElements(kk_map_values(map)) == [32, 21])
     }
 
     @Test
@@ -1071,7 +1066,7 @@ struct RuntimeCollectionHOFTests {
         // KSP-954 / KUU-646: linkedMapOf(*pairs) lowers to
         // __kk_linked_hash_map_of_pairs with the spread varargs packed into a
         // single Pair array.
-        let pairs = makeArray([
+        let pairs = runtimeTestMakeArray([
             kk_pair_new(1, 10),
             kk_pair_new(2, 20),
             kk_pair_new(1, 30),
@@ -1138,10 +1133,10 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMutableCollectionAddHandlesListAndSetTargets() {
-        let listTarget = makeList([1, 2])
+        let listTarget = runtimeTestMakeList([1, 2])
 
         #expect(kk_unbox_bool(kk_mutable_collection_add(listTarget, 3)) == 1)
-        #expect(listElements(listTarget) == [1, 2, 3])
+        #expect(runtimeTestListElements(listTarget) == [1, 2, 3])
 
         let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
 
@@ -1152,7 +1147,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test(arguments: [true, false])
     func testThrowingMutableCollectionBridgesPreserveBoxMutations(isSet: Bool) {
-        let target = isSet ? registerRuntimeObject(RuntimeSetBox(elements: [1, 2])) : makeList([1, 2])
+        let target = isSet ? registerRuntimeObject(RuntimeSetBox(elements: [1, 2])) : runtimeTestMakeList([1, 2])
         var thrown = 99
         #expect(kk_unbox_bool(kk_mutable_collection_add_throwing(target, 3, &thrown)) == 1)
         #expect(thrown == 0)
@@ -1161,32 +1156,32 @@ struct RuntimeCollectionHOFTests {
         #expect(thrown == 0)
         #expect(kk_unbox_bool(kk_mutable_collection_remove_throwing(target, 99, &thrown)) == 0)
         thrown = 99
-        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([4, 5]), &thrown)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, runtimeTestMakeList([4, 5]), &thrown)) == 1)
         #expect(thrown == 0)
-        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, makeList([]), &thrown)) == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_addAll_throwing(target, runtimeTestMakeList([]), &thrown)) == 0)
         thrown = 99
-        #expect(kk_unbox_bool(kk_mutable_collection_removeAll_throwing(target, makeList([1]), &thrown)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll_throwing(target, runtimeTestMakeList([1]), &thrown)) == 1)
         #expect(thrown == 0)
         thrown = 99
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, runtimeTestMakeList([3, 4]), &thrown)) == 1)
         #expect(thrown == 0)
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, makeList([3, 4]), &thrown)) == 0)
-        #expect(isSet ? setElements(target) == [3, 4] : listElements(target) == [3, 4])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll_throwing(target, runtimeTestMakeList([3, 4]), &thrown)) == 0)
+        #expect(isSet ? setElements(target) == [3, 4] : runtimeTestListElements(target) == [3, 4])
         thrown = 99
         #expect(kk_mutable_collection_clear_throwing(target, &thrown) == 0)
         #expect(thrown == 0)
-        #expect(isSet ? setElements(target).isEmpty : listElements(target).isEmpty)
+        #expect(isSet ? setElements(target).isEmpty : runtimeTestListElements(target).isEmpty)
     }
 
     @Test
     func testMutableCollectionRemoveAndClearHandleListAndSetTargets() {
-        let listTarget = makeList([1, 2, 3])
+        let listTarget = runtimeTestMakeList([1, 2, 3])
 
         #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 2)) == 1)
         #expect(kk_unbox_bool(kk_mutable_collection_remove(listTarget, 9)) == 0)
-        #expect(listElements(listTarget) == [1, 3])
+        #expect(runtimeTestListElements(listTarget) == [1, 3])
         #expect(kk_mutable_collection_clear(listTarget) == 0)
-        #expect(listElements(listTarget) == [])
+        #expect(runtimeTestListElements(listTarget) == [])
 
         let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2]))
 
@@ -1199,50 +1194,50 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testMutableCollectionBulkRemovalHandlesListAndSetTargets() {
-        let listTarget = makeList([1, 2, 3, 2])
+        let listTarget = runtimeTestMakeList([1, 2, 3, 2])
 
-        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(listTarget, makeList([2]))) == 1)
-        #expect(listElements(listTarget) == [1, 3])
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 1)
-        #expect(listElements(listTarget) == [3])
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, makeList([3, 4]))) == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(listTarget, runtimeTestMakeList([2]))) == 1)
+        #expect(runtimeTestListElements(listTarget) == [1, 3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, runtimeTestMakeList([3, 4]))) == 1)
+        #expect(runtimeTestListElements(listTarget) == [3])
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(listTarget, runtimeTestMakeList([3, 4]))) == 0)
 
         let setTarget = registerRuntimeObject(RuntimeSetBox(elements: [1, 2, 3]))
 
-        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(setTarget, makeList([1]))) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_removeAll(setTarget, runtimeTestMakeList([1]))) == 1)
         #expect(setElements(setTarget) == [2, 3])
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 1)
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, runtimeTestMakeList([3]))) == 1)
         #expect(setElements(setTarget) == [3])
-        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, makeList([3]))) == 0)
+        #expect(kk_unbox_bool(kk_mutable_collection_retainAll(setTarget, runtimeTestMakeList([3]))) == 0)
     }
 
     @Test
     func testCollectionAndIterableToMutableListCopyElements() {
-        let listSource = makeList([1, 2, 3])
+        let listSource = runtimeTestMakeList([1, 2, 3])
         let collectionCopy = kk_collection_toMutableList(listSource)
 
-        #expect(listElements(collectionCopy) == [1, 2, 3])
+        #expect(runtimeTestListElements(collectionCopy) == [1, 2, 3])
         #expect(kk_unbox_bool(kk_mutable_list_add(collectionCopy, 4, nil)) == 1)
-        #expect(listElements(listSource) == [1, 2, 3])
-        #expect(listElements(collectionCopy) == [1, 2, 3, 4])
+        #expect(runtimeTestListElements(listSource) == [1, 2, 3])
+        #expect(runtimeTestListElements(collectionCopy) == [1, 2, 3, 4])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
         let iterableCopy = kk_collection_toMutableList(setSource)
 
-        #expect(listElements(iterableCopy) == [3, 1, 2])
+        #expect(runtimeTestListElements(iterableCopy) == [3, 1, 2])
         #expect(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9, nil)) == 1)
         #expect(setElements(setSource) == [3, 1, 2])
-        #expect(listElements(iterableCopy) == [3, 1, 2, 9])
+        #expect(runtimeTestListElements(iterableCopy) == [3, 1, 2, 9])
     }
 
     @Test
     func testIterableToMutableSetDeduplicatesAndCopiesElements() {
-        let listSource = makeList([3, 1, 2, 1])
+        let listSource = runtimeTestMakeList([3, 1, 2, 1])
         let listCopy = kk_iterable_toMutableSet(listSource)
 
         #expect(setElements(listCopy) == [3, 1, 2])
         #expect(kk_unbox_bool(kk_mutable_set_add(listCopy, 9, nil)) == 1)
-        #expect(listElements(listSource) == [3, 1, 2, 1])
+        #expect(runtimeTestListElements(listSource) == [3, 1, 2, 1])
         #expect(setElements(listCopy) == [3, 1, 2, 9])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [2, 3, 2, 1]))
@@ -1256,12 +1251,12 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testCollectionToTypedArrayCopiesListAndSetElements() {
-        let listSource = makeList([1, 2, 3])
+        let listSource = runtimeTestMakeList([1, 2, 3])
         let listArray = kk_collection_toTypedArray(listSource)
 
         #expect(arrayElements(listArray) == [1, 2, 3])
         runtimeArrayBox(from: listArray)?.elements[0] = 9
-        #expect(listElements(listSource) == [1, 2, 3])
+        #expect(runtimeTestListElements(listSource) == [1, 2, 3])
         #expect(arrayElements(listArray) == [9, 2, 3])
 
         let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
@@ -1271,16 +1266,16 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testBoolAbiForCollectionHelpersReturnsRaw() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         #expect(kk_unbox_bool(kk_list_is_empty(source)) == 0)
-        #expect(kk_unbox_bool(kk_list_is_empty(makeList([]))) == 1)
+        #expect(kk_unbox_bool(kk_list_is_empty(runtimeTestMakeList([]))) == 1)
 
-        let set = kk_set_of(makeArray([1, 2, 3]), 3)
+        let set = kk_set_of(runtimeTestMakeArray([1, 2, 3]), 3)
         #expect(kk_unbox_bool(kk_set_contains(set, 2)) == 1)
         #expect(kk_unbox_bool(kk_set_contains(set, 9)) == 0)
 
-        let keys = makeArray([1, 2])
-        let values = makeArray([10, 20])
+        let keys = runtimeTestMakeArray([1, 2])
+        let values = runtimeTestMakeArray([10, 20])
         let map = kk_map_of(keys, values, 2)
         #expect(kk_unbox_bool(kk_map_is_empty(map)) == 0)
         #expect(kk_unbox_bool(kk_map_is_empty(kk_map_of(0, 0, 0))) == 1)
@@ -1288,7 +1283,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListUnzipSplitsPairElementsIntoLists() {
-        let source = makeList([
+        let source = runtimeTestMakeList([
             kk_pair_new(1, 10),
             kk_pair_new(2, 20),
             kk_pair_new(3, 30),
@@ -1298,37 +1293,12 @@ struct RuntimeCollectionHOFTests {
         let first = kk_pair_first(result)
         let second = kk_pair_second(result)
 
-        #expect(listElements(first) == [1, 2, 3])
-        #expect(listElements(second) == [10, 20, 30])
-    }
-
-    private func makeArray(_ elements: [Int]) -> Int {
-        let arrayRaw = kk_array_new(elements.count)
-        var thrown = 0
-        for (index, element) in elements.enumerated() {
-            _ = kk_array_set(arrayRaw, index, element, &thrown)
-            #expect(thrown == 0)
-        }
-        return arrayRaw
-    }
-
-    private func makeList(_ elements: [Int]) -> Int {
-        let arrayRaw = makeArray(elements)
-        return kk_list_of(arrayRaw, elements.count)
+        #expect(runtimeTestListElements(first) == [1, 2, 3])
+        #expect(runtimeTestListElements(second) == [10, 20, 30])
     }
 
     private func makeMutableMap(keys: [Int], values: [Int]) -> Int {
         registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
-    }
-
-    private func listElements(_ listRaw: Int) -> [Int] {
-        let size = kk_list_size(listRaw)
-        if size <= 0 {
-            return []
-        }
-        return (0 ..< size).map { index in
-            kk_list_get(listRaw, index)
-        }
     }
 
     private func arrayElements(_ arrayRaw: Int) -> [Int] {
@@ -1368,7 +1338,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateBuildsMapAndOverwritesDuplicateKeys() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
 
         let result = kk_list_associate(
             source,
@@ -1382,7 +1352,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociatePropagatesThrowingLambda() {
-        let source = makeList([1])
+        let source = runtimeTestMakeList([1])
         var thrown = 0
 
         let result = kk_list_associate(
@@ -1396,7 +1366,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testAssociateByToBasic() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 
         let result = kk_list_associateByTo(
@@ -1412,7 +1382,7 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testAssociateByToDuplicateKeysLastWriteWins() {
         // Elements 1 and 3 both have key = parity 1; 2 has key = parity 0
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 
         let result = kk_list_associateByTo(
@@ -1427,7 +1397,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateByBuildsMapAndOverwritesDuplicateKeys() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
 
         let result = kk_list_associateBy(
             source,
@@ -1441,7 +1411,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateByTransformBuildsMapAndOverwritesDuplicateKeys() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
 
         let result = kk_list_associateByTransform(
             source,
@@ -1457,7 +1427,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateByPropagatesThrowingLambda() {
-        let source = makeList([1])
+        let source = runtimeTestMakeList([1])
         var thrown = 0
 
         let result = kk_list_associateBy(
@@ -1473,7 +1443,7 @@ struct RuntimeCollectionHOFTests {
     func testAssociateByToPrePopulatedDestination() {
         // Pre-populate destination with key=100 -> value=999
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [100], values: [999]))
-        let source = makeList([5, 10])
+        let source = runtimeTestMakeList([5, 10])
 
         let result = kk_list_associateByTo(
             source, dest,
@@ -1488,7 +1458,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateWithBuildsMapValues() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
 
         let result = kk_list_associateWith(
             source,
@@ -1503,7 +1473,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testListAssociateWithPropagatesThrowingLambda() {
-        let source = makeList([1])
+        let source = runtimeTestMakeList([1])
         var thrown = 0
 
         let result = kk_list_associateWith(
@@ -1517,7 +1487,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testAssociateWithToBasic() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 
         let result = kk_list_associateWithTo(
@@ -1533,7 +1503,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testAssociateWithToDuplicateKeysLastWriteWins() {
-        let source = makeList([1, 1, 2])
+        let source = runtimeTestMakeList([1, 1, 2])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 
         let result = kk_list_associateWithTo(
@@ -1549,7 +1519,7 @@ struct RuntimeCollectionHOFTests {
     @Test
     func testAssociateWithToPrePopulatedDestination() {
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [100], values: [999]))
-        let source = makeList([5])
+        let source = runtimeTestMakeList([5])
 
         let result = kk_list_associateWithTo(
             source, dest,
@@ -1562,7 +1532,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testGroupByToBasic() {
-        let source = makeList([3, 1, 4, 2, 5])
+        let source = runtimeTestMakeList([3, 1, 4, 2, 5])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 
         let result = kk_list_groupByTo(
@@ -1573,8 +1543,8 @@ struct RuntimeCollectionHOFTests {
         #expect(result == dest)
         // Odd elements (parity 1) grouped, even elements (parity 0) grouped
         #expect(mapKeys(result) == [1, 0])
-        #expect(listElements(kk_map_get(result, 1)) == [3, 1, 5])
-        #expect(listElements(kk_map_get(result, 0)) == [4, 2])
+        #expect(runtimeTestListElements(kk_map_get(result, 1)) == [3, 1, 5])
+        #expect(runtimeTestListElements(kk_map_get(result, 0)) == [4, 2])
     }
 
     @Test
@@ -1582,7 +1552,7 @@ struct RuntimeCollectionHOFTests {
         // Pre-populate with key=1 already containing [100]
         let existingList = registerRuntimeObject(RuntimeListBox(elements: [100]))
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [existingList]))
-        let source = makeList([3, 5])  // both have parity 1
+        let source = runtimeTestMakeList([3, 5])  // both have parity 1
 
         let result = kk_list_groupByTo(
             source, dest,
@@ -1590,7 +1560,7 @@ struct RuntimeCollectionHOFTests {
         )
         // Existing list should have new elements appended
         #expect(result == dest)
-        #expect(listElements(kk_map_get(result, 1)) == [100, 3, 5])
+        #expect(runtimeTestListElements(kk_map_get(result, 1)) == [100, 3, 5])
     }
 
     @Test
@@ -1598,15 +1568,15 @@ struct RuntimeCollectionHOFTests {
         // Pre-populate with key=0 containing [10]
         let existingList = registerRuntimeObject(RuntimeListBox(elements: [10]))
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [0], values: [existingList]))
-        let source = makeList([1, 2])  // 1->parity 1 (new key), 2->parity 0 (existing)
+        let source = runtimeTestMakeList([1, 2])  // 1->parity 1 (new key), 2->parity 0 (existing)
 
         let result = kk_list_groupByTo(
             source, dest,
             unsafeBitCast(groupByParity, to: Int.self), 0, nil
         )
         // Existing key 0 gets 2 appended; new key 1 gets [1]
-        #expect(listElements(kk_map_get(result, 0)) == [10, 2])
-        #expect(listElements(kk_map_get(result, 1)) == [1])
+        #expect(runtimeTestListElements(kk_map_get(result, 0)) == [10, 2])
+        #expect(runtimeTestListElements(kk_map_get(result, 1)) == [1])
     }
 
     @Test
@@ -1614,7 +1584,7 @@ struct RuntimeCollectionHOFTests {
         var thrown = 0
 
         let minResult = kk_list_minBy(
-            makeList([5, 2, 3]),
+            runtimeTestMakeList([5, 2, 3]),
             unsafeBitCast(countEven, to: Int.self),
             0,
             &thrown
@@ -1623,7 +1593,7 @@ struct RuntimeCollectionHOFTests {
         #expect(thrown == 0)
 
         let emptyResult = kk_list_minBy(
-            makeList([]),
+            runtimeTestMakeList([]),
             unsafeBitCast(countEven, to: Int.self),
             0,
             &thrown
@@ -1636,11 +1606,11 @@ struct RuntimeCollectionHOFTests {
     func testMinReturnsSmallestElementAndThrowsOnEmpty() {
         var thrown = 0
 
-        let minResult = kk_list_min(makeList([3, 1, 4, 2]), &thrown)
+        let minResult = kk_list_min(runtimeTestMakeList([3, 1, 4, 2]), &thrown)
         #expect(minResult == 1)
         #expect(thrown == 0)
 
-        let emptyResult = kk_list_min(makeList([]), &thrown)
+        let emptyResult = kk_list_min(runtimeTestMakeList([]), &thrown)
         #expect(emptyResult == runtimeExceptionCaughtSentinel)
         #expect(thrown != 0)
     }
@@ -1649,7 +1619,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testAssociateByToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
         var thrown = 0
 
@@ -1663,7 +1633,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testAssociateWithToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
         var thrown = 0
 
@@ -1677,7 +1647,7 @@ struct RuntimeCollectionHOFTests {
 
     @Test
     func testGroupByToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
-        let source = makeList([1, 2, 3])
+        let source = runtimeTestMakeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
         var thrown = 0
 

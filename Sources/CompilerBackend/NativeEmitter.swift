@@ -629,6 +629,11 @@ struct NativeEmitter {
                 continue
             }
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                if symbols?.annotations(for: symbol).contains(where: {
+                    KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
+                }) == true {
+                    bindings.setThreadLocal(llvmGlobal)
+                }
                 if shouldUseWeakImportedGlobalReference(for: symbol) {
                     bindings.setWeakAnyLinkage(llvmGlobal)
                     if let zero = bindings.constInt(int64Type, value: 0) {
@@ -694,6 +699,9 @@ struct NativeEmitter {
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
                 && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+                if global.isThreadLocal {
+                    bindings.setThreadLocal(llvmGlobal)
+                }
                 if isImported {
                     // Imported globals are defined in another object file.
                     if shouldUseWeakImportedGlobalReference(for: global.symbol) {

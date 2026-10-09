@@ -13,10 +13,12 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         isCommonModule: Bool
     ) {
-        // Only validate source declarations; imported library symbols may contain
-        // expect/actual markers without requiring local counterparts.
+        // Common libraries preserve expect markers so a platform compilation can
+        // pair them with local actual declarations. Other imported declarations
+        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
-            sym.flags.contains(.expectDeclaration) && sym.declSite != nil
+            sym.flags.contains(.expectDeclaration)
+                && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
         let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
             symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
@@ -27,13 +29,30 @@ extension DataFlowSemaPhase {
         }, by: \.range)
 
         for expectSym in expects {
-            let isOptionalExpectation = symbols.annotations(for: expectSym.id).contains {
-                KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+            // Optional expectation applies to the annotation class and its members.
+            var expectationOwner: SymbolID? = expectSym.id
+            var isOptionalExpectation = false
+            while let owner = expectationOwner {
+                if symbols.annotations(for: owner).contains(where: {
+                    KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+                }) {
+                    isOptionalExpectation = true
+                    break
+                }
+                expectationOwner = symbols.parentSymbol(for: owner)
             }
             let actuals = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
-                    actual.flags.contains(.actualDeclaration)
+                    guard actual.flags.contains(.actualDeclaration) else {
+                        return false
+                    }
+                    if expectSym.flags.contains(.importedLibrary),
+                       actual.flags.contains(.importedLibrary)
+                    {
+                        return false
+                    }
+                    return true
                 }
 
             let candidates = actuals.filter { actual in

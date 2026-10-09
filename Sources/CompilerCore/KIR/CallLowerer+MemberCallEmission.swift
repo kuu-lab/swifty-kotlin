@@ -270,22 +270,15 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isCoroutineHandleReceiver = receiverClassifier.isCoroutineHandleReceiverType(receiverType)
         if isCoroutineHandleReceiver,
            Self.unresolvedCoroutineHandleMemberNames.contains(calleeText)
         {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        let isChannelReceiver = isChannelReceiverType(
-            receiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isChannelReceiver = receiverClassifier.isChannelReceiverType(receiverType)
         if isChannelReceiver,
            Self.unresolvedChannelMemberNames.contains(calleeText)
         {

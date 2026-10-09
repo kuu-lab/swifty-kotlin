@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// DIFF_CANDIDATE_ONLY
 @file:Suppress("DEPRECATION")
 
 import kotlin.native.runtime.GC
@@ -32,13 +32,11 @@ fun main() {
     val lastInfo: GCInfo? = GC.lastGCInfo
     val cycle: Array<Any>? = GC.findCycle(Any())
 
-    // Printed individually (not folded into one `&&` chain) so every getter
-    // above actually runs -- a short-circuiting `&&` would stop at the first
-    // false operand and silently skip the rest, hiding a regression in any
-    // later property. threshold/collectCyclesThreshold/thresholdAllocations
-    // and (pending BUG-266) targetHeapBytes/minHeapBytes/maxHeapBytes are
-    // documented no-ops, so their lines are expected to print the type's
-    // zero value, not the value assigned above.
+    // Print each result separately so a short-circuiting expression cannot
+    // hide a regression in a later getter. The three threshold properties
+    // return zero. The target and minimum heap properties retain their fixed
+    // defaults after their no-op setters. The maximum heap default also
+    // depends on host physical memory, so check its guaranteed lower bound.
     println(GC.threshold)
     println(GC.collectCyclesThreshold)
     println(GC.thresholdAllocations)
@@ -46,7 +44,7 @@ fun main() {
     println(GC.targetHeapBytes)
     println(GC.targetHeapUtilization)
     println(GC.minHeapBytes)
-    println(GC.maxHeapBytes)
+    println(GC.maxHeapBytes >= 100L * 1024 * 1024)
     println(GC.heapTriggerCoefficient)
     println(GC.pauseOnTargetHeapOverflow)
     println(detected == null)

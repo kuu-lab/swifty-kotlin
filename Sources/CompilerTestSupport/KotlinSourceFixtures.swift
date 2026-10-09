@@ -1,16 +1,4 @@
 enum KotlinSourceFixtures {
-    static let callableReferenceSamConversion = """
-    fun interface IntOp { fun apply(a: Int, b: Int): Int }
-
-    fun useOp(o: IntOp): Int = o.apply(10, 4)
-
-    fun myCompare(a: Int, b: Int): Int = a - b
-
-    fun main() {
-        println(useOp(::myCompare))
-    }
-    """
-
     static let genericClassPropertyInitializerTypeArgument = """
     fun <X> makeIt(x: X): X = x
     class P<T : Any> {
