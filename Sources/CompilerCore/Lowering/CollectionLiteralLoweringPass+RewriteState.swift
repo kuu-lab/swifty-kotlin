@@ -460,4 +460,69 @@ extension CollectionLiteralLoweringSupport {
             return .unknown
         }
     }
+
+    enum CollectionRewriteTrackedResult {
+        case list
+        case set
+        case map
+        case array
+        case sequence
+        case range
+        case listIterator
+
+        func insert(_ expression: KIRExprID, into state: inout CollectionRewriteState) {
+            switch self {
+            case .list:
+                state.listExprIDs.insert(expression.rawValue)
+            case .set:
+                state.setExprIDs.insert(expression.rawValue)
+            case .map:
+                state.mapExprIDs.insert(expression.rawValue)
+            case .array:
+                state.arrayExprIDs.insert(expression.rawValue)
+            case .sequence:
+                state.sequenceExprIDs.insert(expression.rawValue)
+            case .range:
+                state.rangeExprIDs.insert(expression.rawValue)
+            case .listIterator:
+                state.listIteratorExprIDs.insert(expression.rawValue)
+            }
+        }
+    }
+
+    @discardableResult
+    func appendCallWithTrackedResult(
+        callee: InternedString,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        canThrow: Bool,
+        thrownResult: KIRExprID?,
+        trackedAs: CollectionRewriteTrackedResult?,
+        trackTemporaryWithoutDestination: Bool = false,
+        module: KIRModule,
+        state: inout CollectionRewriteState,
+        loweredBody: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let callResult = module.arena.appendTemporary(type: nil)
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: callee,
+            arguments: arguments,
+            result: callResult,
+            canThrow: canThrow,
+            thrownResult: thrownResult
+        ))
+
+        if trackTemporaryWithoutDestination {
+            trackedAs?.insert(callResult, into: &state)
+        }
+        if let result {
+            trackedAs?.insert(result, into: &state)
+            if !trackTemporaryWithoutDestination {
+                trackedAs?.insert(callResult, into: &state)
+            }
+            loweredBody.append(.copy(from: callResult, to: result))
+        }
+        return callResult
+    }
 }
