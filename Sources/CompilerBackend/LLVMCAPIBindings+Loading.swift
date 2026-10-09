@@ -19,9 +19,9 @@ extension LLVMCAPIBindings {
         return bindings
     }
 
-    /// Default LLVM discovery candidates. Every entry is a canonical absolute
-    /// path inside a well-known install location; generic library-search
-    /// variables (`LIBRARY_PATH`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) are
+    /// Every entry is a canonical absolute path inside a well-known install
+    /// location; generic library-search variables (`LIBRARY_PATH`,
+    /// `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) are
     /// deliberately ignored because relative or group/other-writable entries
     /// in them would let another local user substitute a malicious library.
     /// The only environment-driven override is `KSWIFTK_LLVM_DYLIB`, which
@@ -221,7 +221,6 @@ extension LLVMCAPIBindings {
                 buildSDivFn: buildSDiv,
                 buildUDivFn: buildUDiv,
                 buildURemFn: buildURem,
-                // Bitwise/shift builder symbols (P5-103)
                 buildAndFn: loadSymbol(handle: handle, name: "LLVMBuildAnd", as: LLVMBuildAndFn.self),
                 buildOrFn: loadSymbol(handle: handle, name: "LLVMBuildOr", as: LLVMBuildOrFn.self),
                 buildXorFn: loadSymbol(handle: handle, name: "LLVMBuildXor", as: LLVMBuildXorFn.self),
