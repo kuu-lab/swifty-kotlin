@@ -1,9 +1,4 @@
 extension BuildASTPhase {
-    /// Parses `class`/`object` declarations that appear as block statements
-    /// (`{ class L { ... } }`). Kotlin treats them as local nominal
-    /// declarations: named exactly like file-scope ones but visible only to
-    /// the statements that follow inside the same block.
-    ///
     /// The CST path already tags these nodes `.classDecl`/`.objectDecl`, but
     /// statement parsing is token-driven everywhere (the CST statement group
     /// in `blockExpressions`, local-function bodies via `parseBraceBody`,
@@ -87,8 +82,6 @@ extension BuildASTPhase {
             default:
                 continue
             }
-            // KUU-1407: validate the local declaration's own modifiers (e.g.
-            // `sealed class` / `enum class` / visibility) and its members.
             DeclarationPositionValidator(
                 astArena: astArena, interner: interner, diagnostics: diagnostics
             ).validate(declID: declID, site: .function)
@@ -100,7 +93,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Emits the JVM-parity diagnostic for a local `interface` declaration.
     private static func diagnoseLocalInterface(
         at index: Int,
         in tokens: [Token],
@@ -127,10 +119,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Scans the leading annotation / modifier prefix of a statement token
-    /// group and returns the index of its first real token — the candidate
-    /// `class`/`object` keyword position — or `nil` when some other token
-    /// comes first (so `if (c) ...`, `foo.bar()` etc. bail out early).
     private static func localNominalDeclHeadIndex(
         in tokens: [Token],
         interner: StringInterner
@@ -158,10 +146,9 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// `class`/`object` at `index` starts a named declaration only when a
-    /// declaration name follows. `object` in particular also starts an
-    /// *expression* (`object : Base {}`, `object {}`), which stays on the
-    /// object-literal path — the name check is what keeps those apart.
+    /// `object` in particular also starts an *expression* (`object : Base {}`,
+    /// `object {}`), which stays on the object-literal path — the name check is
+    /// what keeps those apart.
     private static func localNominalDeclExpectsName(
         at index: Int,
         in tokens: [Token]
