@@ -19,6 +19,9 @@ extension DataFlowSemaPhase {
         }
 
         for expectSym in expects {
+            let isOptionalExpectation = symbols.annotations(for: expectSym.id).contains {
+                KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+            }
             let candidates = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
@@ -39,6 +42,10 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                guard !isOptionalExpectation else {
+                    continue
+                }
+
                 // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count

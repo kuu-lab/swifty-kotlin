@@ -4,6 +4,32 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testOptionalExpectationDoesNotRequireActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            @OptIn(ExperimentalMultiplatform::class)
+            @OptionalExpectation
+            expect annotation class JsName(val name: String)
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" },
+            "Optional expect annotation classes may omit an actual declaration: \(errors)"
+        )
+
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("kmp"),
+            ctx.interner.intern("JsName"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol) == nil)
+    }
+
     @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
         let ctx = makeContextFromSource(
             """
