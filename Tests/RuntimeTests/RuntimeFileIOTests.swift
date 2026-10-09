@@ -72,14 +72,6 @@ struct RuntimeFileIOTests {
         #expect(thrown != 0)
     }
 
-    private func makeByteArray(_ bytes: [Int]) -> Int {
-        let array = kk_array_new(bytes.count)
-        for (index, byte) in bytes.enumerated() {
-            _ = kk_array_set(array, index, byte, nil)
-        }
-        return array
-    }
-
     private func makeTempFile(contents: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try contents.write(to: url, atomically: true, encoding: .utf8)

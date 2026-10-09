@@ -941,7 +941,7 @@ extension RuntimeSequenceTests {
         let list = kk_sequence_to_list(required, &thrown)
 
         #expect(thrown == 0)
-        #expect(listElements(list) == [1, 3, 5])
+        #expect(runtimeTestListElements(list) == [1, 3, 5])
     }
 
     @Test
@@ -1135,7 +1135,7 @@ extension RuntimeSequenceTests {
     func testSequenceWindowedProducesPartialWindows() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let windows = kk_sequence_windowed(seq, 3, 2, 1)
-        let nested = sequenceElements(windows).map { listElements($0) }
+        let nested = sequenceElements(windows).map { runtimeTestListElements($0) }
 
         #expect(nested == [[1, 2, 3], [3, 4, 5], [5]])
     }
@@ -1163,7 +1163,7 @@ extension RuntimeSequenceTests {
         let chunked = kk_sequence_chunked(makeSequence([1, 2, 3, 4, 5]), 2)
         let chunkHandles = sequenceElements(chunked)
 
-        #expect(chunkHandles.map { listElements($0) } == [[1, 2], [3, 4], [5]])
+        #expect(chunkHandles.map { runtimeTestListElements($0) } == [[1, 2], [3, 4], [5]])
     }
 
     @Test
@@ -1237,33 +1237,8 @@ extension RuntimeSequenceTests {
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {
-        listElements(kk_sequence_to_list(seqRaw, nil))
+        runtimeTestListElements(kk_sequence_to_list(seqRaw, nil))
     }
 
-    private func listElements(_ listRaw: Int) -> [Int] {
-        let size = kk_list_size(listRaw)
-        if size <= 0 {
-            return []
-        }
-        return (0 ..< size).map { index in
-            kk_list_get(listRaw, index)
-        }
-    }
-
-
-    private func makeArray(_ elements: [Int]) -> Int {
-        let arrayRaw = kk_array_new(elements.count)
-        var thrown = 0
-        for (index, element) in elements.enumerated() {
-            _ = kk_array_set(arrayRaw, index, element, &thrown)
-            #expect(thrown == 0)
-        }
-        return arrayRaw
-    }
-
-    private func makeList(_ elements: [Int]) -> Int {
-        let arrayRaw = makeArray(elements)
-        return kk_list_of(arrayRaw, elements.count)
-    }
 }
 #endif

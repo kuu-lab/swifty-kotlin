@@ -10,19 +10,6 @@ import Testing
 
 @Suite(.serialized, .runtimeIsolation(.gcAndMetadata))
 struct RuntimeKTypeReflectionTests {
-    private func capturePrintln(_ block: () -> Void) -> String {
-        let pipe = Pipe()
-        let savedFD = dup(STDOUT_FILENO)
-        fflush(nil)
-        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
-        block()
-        fflush(nil)
-        dup2(savedFD, STDOUT_FILENO)
-        close(savedFD)
-        pipe.fileHandleForWriting.closeFile()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
 
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cstr in

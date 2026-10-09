@@ -15,15 +15,6 @@ import Testing
 /// them would turn `is IntIterator` into a reachable dispatch trap.
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeIsCheckRangeBoxTests {
-    // Mirrors RuntimeTypeCheckToken's encoding (CompilerCore/KIR/RuntimeTypeCheckToken.swift).
-    private static let nominalBase: Int64 = 6
-    private static let payloadShift: Int64 = 9
-
-    private func nominalTypeToken(for fqName: String) -> Int {
-        let typeID = runtimeStableNominalTypeID(fqName: fqName)
-        return Int(Self.nominalBase | (typeID << Self.payloadShift))
-    }
-
     private var intRangeToken: Int { nominalTypeToken(for: "kotlin.ranges.IntRange") }
     private var intProgressionToken: Int { nominalTypeToken(for: "kotlin.ranges.IntProgression") }
     private var longRangeToken: Int { nominalTypeToken(for: "kotlin.ranges.LongRange") }
