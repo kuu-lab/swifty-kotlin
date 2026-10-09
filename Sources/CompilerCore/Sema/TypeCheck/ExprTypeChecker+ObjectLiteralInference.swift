@@ -149,6 +149,7 @@ extension ExprTypeChecker {
         var captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+            .union(ctx.implicitReceiverStack.map(\.symbol))
         // An unqualified call to an enclosing class member still needs that
         // receiver after the object literal's own receiver becomes active.
         // Capture the enclosing receiver symbol as a value just like a local.
@@ -474,6 +475,7 @@ extension ExprTypeChecker {
             ownerSymbol: objectSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
             outerReceiverTypes: ctx.outerReceiverTypes,
+            receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )
 
@@ -829,6 +831,7 @@ extension ExprTypeChecker {
         ownerSymbol: SymbolID,
         outerLocalsSnapshot: LocalBindings,
         outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)],
+        receiverStack: [(type: TypeID, symbol: SymbolID)] = [],
         sema: SemaModule
     ) {
         guard !capturedSymbols.isEmpty else {
@@ -842,6 +845,9 @@ extension ExprTypeChecker {
             if let symbol = outerReceiver.symbol {
                 typesBySymbol[symbol] = outerReceiver.type
             }
+        }
+        for receiver in receiverStack {
+            typesBySymbol[receiver.symbol] = receiver.type
         }
         for capturedSymbol in capturedSymbols {
             if let type = typesBySymbol[capturedSymbol]
