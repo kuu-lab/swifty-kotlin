@@ -781,14 +781,6 @@ public func kk_duration_isNegative(_ durationRaw: Int) -> Int {
     return nanoseconds < 0 ? 1 : 0
 }
 
-@_cdecl("kk_duration_isPositive")
-public func kk_duration_isPositive(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isPositive received invalid Duration handle")
-    }
-    return nanoseconds > 0 ? 1 : 0
-}
-
 @_cdecl("kk_duration_isInfinite")
 public func kk_duration_isInfinite(_ durationRaw: Int) -> Int {
     runtimeDurationIsInfinite(runtimeDurationRawValue(from: durationRaw)) ? 1 : 0

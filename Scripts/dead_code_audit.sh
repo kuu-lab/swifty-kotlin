@@ -134,6 +134,14 @@ log "[2] Static refs (CompilerCore+Backend+kt): $(count "$WORK/kk_compilercore.t
 } | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
 log "[3] Dynamic prefixes (inline + two-stage): $(count "$WORK/kk_dyn_prefixes.txt")"
 
+# Synthetic property assignment derives a matching `_store` link from a
+# `getterLinkName` that ends in `_load`. Keep those exact sibling exports
+# reachable without widening the match to unrelated longer symbols.
+grep -rhoE 'getterLinkName:[[:space:]]*"_*kk_[a-zA-Z0-9_]+_load"' \
+    Sources/CompilerCore --include="*.swift" \
+    | sed -E 's/^.*"(.*)_load"$/\1_store/' \
+    | LC_ALL=C sort -u > "$WORK/kk_derived_store_names.txt"
+
 # ── Step 4: StdlibSurfaceSpec 表駆動 HOF リンク名 ─────────────────────────
 # list / set / map / sequence の HOF（array は RuntimeOnlyBridge で別管理のため対象外）
 grep -rhoE '"kk_[a-zA-Z0-9_]+"' Sources/RuntimeABI \
@@ -230,9 +238,14 @@ else
 fi
 log "[7] Dynamic-prefix matched cdecl names: $(count "$WORK/kk_dyn_matched.txt")"
 
+grep -Fxf "$WORK/kk_derived_store_names.txt" "$WORK/runtime_cdecl.txt" \
+    | LC_ALL=C sort -u > "$WORK/kk_derived_store_matched.txt" || true
+log "[7b] Derived synthetic-property store links: $(count "$WORK/kk_derived_store_matched.txt")"
+
 # ── Step 8: コンパイラ到達可能集合（静的 + 動的 + 表駆動） ───────────────
 LC_ALL=C sort -u "$WORK/kk_compilercore.txt" \
                  "$WORK/kk_dyn_matched.txt" \
+                 "$WORK/kk_derived_store_matched.txt" \
                  "$WORK/kk_stdlib_surface.txt" > "$WORK/kk_reachable.txt"
 log "[8] Compiler-reachable total: $(count "$WORK/kk_reachable.txt")"
 
@@ -280,6 +293,9 @@ fi
 FIXTURES=(
   "kk_print_string_flat|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
   "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
+  "kk_cvar_int_load|dead_A.txt|absent|Synthetic CVariable getter uses a tuple linkPrefix"
+  "kk_cvar_int_store|dead_A.txt|absent|Synthetic CVariable prefix covers generated load and store links"
+  "kk_cvar_bool_store|dead_A.txt|absent|Synthetic property assignment derives _store from getterLinkName"
   "kk_http_response_errorMessage|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
   "__kk_mutable_map_iterator_hasNext|dead_A.txt|absent|Runtime calls its unique Swift-name alias"
   "kk_exception_handler_invoke|dead_B.txt|present|A comment-only Runtime mention is not an internal call"

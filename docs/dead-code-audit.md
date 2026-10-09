@@ -181,6 +181,76 @@ StringBuilder / Job completion の Runtime 19 件が PASS。
 で追跡する。失敗ケースは無効化しておらず、Job の diff 比較は未通過。
 全 Swift test / Golden / diff corpus はローカルでは未実行。
 
+## 継続監査（KUU-1657、2026-10-09）
+
+現行 HEAD（`2eb589e33`）で `Scripts/dead_code_audit.sh --self-test` を実行し、
+Category A の39候補を全件照合した。監査スクリプトの動的リンク認識を補正し、
+source-backed 化済み ABI 3 件と、現行 consumer がない ABI 1 件を実装と `RuntimeABISpec` から削除した。
+
+| 指標 | 修正前 | 修正後 |
+|---|---:|---:|
+| Runtime `@_cdecl` export | 2,014 | 2,010 |
+| compiler-unreachable | 192 | 167 |
+| A: 完全到達不能候補 | 39 | 14 |
+| B: テストのみ | 107 | 107 |
+| runtime-internal のみ | 46 | 46 |
+
+**CVariable の誤検知 21 件** — 以下の全シンボルはコンパイラ到達可能で、Runtime ABI からは削除しない。
+
+```
+kk_cvar_bool_store kk_cvar_byte_store kk_cvar_cpointer_store
+kk_cvar_double_load kk_cvar_double_store kk_cvar_float_load kk_cvar_float_store
+kk_cvar_int_load kk_cvar_int_store kk_cvar_long_load kk_cvar_long_store
+kk_cvar_short_load kk_cvar_short_store kk_cvar_ubyte_load kk_cvar_ubyte_store
+kk_cvar_uint_load kk_cvar_uint_store kk_cvar_ulong_load kk_cvar_ulong_store
+kk_cvar_ushort_load kk_cvar_ushort_store
+```
+
+`HeaderHelpers+SyntheticCInteropStubs.swift` の `primitiveVarKinds` が link prefix を
+タプル値として保持し、`registerAtomicValueProperty` が prefix + `_load` を getter link
+として登録する。`CallLowerer+MemberPropertyReads.swift` はその getter を呼び出し、
+`CallLowerer+MemberAssignment.swift` は同じ synthetic property の代入を `_load` から
+`_store` へ導出する。旧監査はタプル内の prefix 値とこの導出規則を関連付けず、これらを
+A に誤分類していた。prefix を明示したタプルラベルと、導出 store link の監査・self-test
+を追加した。実行時の self-test は 8/8 PASS。
+
+**実装と spec を削除した ABI 4 件（source-backed 3 件、現行 consumer のない ABI 1 件）**:
+
+- `__kk_comparable_time_mark_from_reading_nanos` — 現行 `TimeSource.kt` / `TimeSources.kt`
+  は `ValueTimeMark` / `AbstractLongTimeMark` / `AbstractDoubleTimeMark` を Kotlin 側で
+  構築する。専用 Runtime factory と、その factory だけが使っていた itable 登録 helper を削除。
+- `__kk_string_format_locale` — 旧 boxed-string ABI。bundled `StringFormat.kt` は
+  `__kk_string_format_locale_flat` を指定しており、Runtime の flat-return 実装だけを保持。
+- `kk_duration_isPositive` — bundled `Duration.isPositive()` は `rawValue > 0L` を
+  Kotlin ソースで評価する。Runtime bridge と BridgeCoverage spec を削除。
+- `kk_native_ptr_of` — 現行 Kotlin source / Sema / KIR に宣言・emit 経路も consumer もない。
+  他の NativePtr 操作には別々の経路があるため、この孤立 factory だけを Runtime bridge と
+  ABI parity spec から削除。
+
+**理由コードを付けて保持する14件**:
+
+| 理由コード | シンボル | 根拠 |
+|---|---|---|
+| `MIGRATION-PROP-001` | `__kk_kproperty_stub_create_full`, `__kk_kproperty_stub_visibility` | KProperty 完全メタデータの Kotlin consumer はまだない。 |
+| `STDLIB-CINTEROP-FN-046` | `kk_cinterop_writeBits` | writeBits の Runtime 実装はあるが bundled Kotlin consumer が未実装。 |
+| `HTTP-SURFACE-PENDING-001` | `kk_http_body_publishers_noBody`, `kk_http_client_setConnectTimeoutMillis`, `kk_http_client_setReadTimeoutMillis`, `kk_http_response_errorMessage`, `kk_http_response_header`, `kk_http_response_isSuccessful`, `kk_http_response_timedOut`, `kk_http_response_url` | Kotlin HTTP facade がなく未配線。KUU-805 / KUU-817 は Done・archived で現 owner ではないため、HTTP surface の後続 owner は未割当として明記する。 |
+| `CORO-004-PHASE-2` | `__kk_iterator_builder_hasNext_coro`, `__kk_iterator_builder_next_coro`, `kk_sequence_completed_sentinel` | suspension-aware sequence consumer が未配線。Runtime のコメントと ABI spec が Phase 2 用途を明記。 |
+
+最終 A=14 は前回ベースライン16以下。監査結果の再現は
+`bash Scripts/dead_code_audit.sh --self-test --output-dir <audit-dir>`。
+
+検証: `swift build` PASS、`bash Scripts/validate_runtime_abi_links.sh --no-parallel`
+8/8 PASS、`RuntimeExperimentalTimeTests` PASS、`RuntimeStringArrayTests` PASS。
+`RuntimeDurationTests` は `testNullableParsersReturnTaggedLongPayloads` の16 assertion
+が失敗した。このテストは nullable `Long` を返す parse bridge の直値に
+`kotlin.time.Duration` type ID を期待するが、bundled `Duration.kt` はその `Long?` を
+`Duration(it)` で包む。今回削除した `kk_duration_isPositive` とは別経路。
+
+完了条件の `RuntimeTests` 全体は未通過。直列実行は
+`RuntimeCoroutineStateTests.testCoroutineScopeLaunchWithContForwardsCaptureArgs` の
+`kk_job_join` semaphore wait から進まず、スタックサンプルで停止を確認して中断した。
+並列実行でも Runtime isolation timeout と関連のない失敗が出たため、green とは扱わない。
+
 ## 検出手法
 
 識別子トークン頻度解析（`Sources` / `Tests` / `Scripts` / `Package.swift` / `*.kt` 横断）で「宣言されているが参照ゼロ」のシンボルを抽出し、以下の到達経路を順に除外して確定した。

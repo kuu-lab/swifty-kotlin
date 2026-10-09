@@ -34,50 +34,6 @@ private func runtimeTimeMarkBox(from raw: Int) -> RuntimeTimeMarkBox? {
     return tryCast(ptr, to: RuntimeTimeMarkBox.self)
 }
 
-private let runtimeComparableTimeMarkInterfaceTypeID = runtimeStableNominalTypeID(
-    fqName: "kotlin.time.ComparableTimeMark"
-)
-
-private let runtimeComparableTimeMarkEqualsThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    receiver, other, outThrown in
-    outThrown?.pointee = 0
-    return kk_any_member_equals(receiver, other)
-}
-
-private let runtimeComparableTimeMarkHashCodeThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
-    receiver, outThrown in
-    outThrown?.pointee = 0
-    return kk_any_member_hashCode(receiver)
-}
-
-private func runtimeRegisterComparableTimeMarkItable(_ raw: Int) {
-    // Runtime-created shifted marks have no compiler-generated class metadata,
-    // so register the two source-backed interface members explicitly.
-    _ = kk_object_register_itable_iface(
-        raw,
-        Int(runtimeComparableTimeMarkInterfaceTypeID),
-        1
-    )
-    _ = kk_object_register_itable_method(
-        raw,
-        1,
-        0,
-        unsafeBitCast(runtimeComparableTimeMarkEqualsThunk, to: Int.self)
-    )
-    _ = kk_object_register_itable_method(
-        raw,
-        1,
-        1,
-        unsafeBitCast(runtimeComparableTimeMarkHashCodeThunk, to: Int.self)
-    )
-}
-
-private func registerRuntimeComparableTimeMark(_ box: RuntimeTimeMarkBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    runtimeRegisterComparableTimeMarkItable(raw)
-    return raw
-}
-
 
 private func runtimeEpochMilliseconds(
     epochSeconds: Int64,
@@ -288,16 +244,6 @@ public func __kk_time_mark_now_reading_nanos() -> Int {
 public func __kk_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
     registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos)))
 }
-
-/// ComparableTimeMark shares RuntimeTimeMarkBox with TimeMark; the two factories exist only
-/// because the Kotlin declarations differ in return type and cannot be overloads.
-@_cdecl("__kk_comparable_time_mark_from_reading_nanos")
-public func __kk_comparable_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
-    registerRuntimeComparableTimeMark(
-        RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos))
-    )
-}
-
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
 
