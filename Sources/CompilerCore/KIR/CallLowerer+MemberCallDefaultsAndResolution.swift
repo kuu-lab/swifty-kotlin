@@ -302,7 +302,8 @@ extension CallLowerer {
         sourceArgumentCount: Int? = nil,
         hasHOFLambdaArg: Bool = false,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        receiverTypeOverride: TypeID? = nil
     ) -> InternedString {
         if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
             chosenCallee: chosenCallee,
@@ -314,7 +315,7 @@ extension CallLowerer {
         }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let rangeDispatchKey = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
