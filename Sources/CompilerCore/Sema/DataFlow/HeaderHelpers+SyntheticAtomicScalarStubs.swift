@@ -249,20 +249,12 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(ownerPackageSymbol, for: atomicRefSymbol)
         }
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = ownerPackage + [interner.intern("AtomicReference"), typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: ownerPackage + [interner.intern("AtomicReference")],
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
             nullability: .nonNull

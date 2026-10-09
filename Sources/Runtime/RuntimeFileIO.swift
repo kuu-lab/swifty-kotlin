@@ -113,14 +113,6 @@ private func existingResourceURL(named name: String) -> URL? {
     return opened.url
 }
 
-private func fileMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
-
 // MARK: - kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR), see
 // AnnotationSemanticTests.testAnnotationSemanticSema and
 // Scripts/diff_cases/deprecated_apis.kt). These are real, still-present
@@ -320,13 +312,13 @@ public func __kk_file_readText(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer
     }
     do {
         let content = try String(contentsOfFile: file.path, encoding: .utf8)
-        return fileMakeStringRaw(content)
+        return runtimeMakeUTF8StringRaw(content)
     } catch {
         outThrown?.pointee = runtimeAllocateFileSystemException(
             file: file.path,
             reason: error.localizedDescription
         )
-        return fileMakeStringRaw("")
+        return runtimeMakeUTF8StringRaw("")
     }
 }
 
@@ -346,7 +338,7 @@ public func __kk_classloader_getResource(_ loaderRaw: Int, _ nameRaw: Int) -> In
     else {
         return runtimeNullSentinelInt
     }
-    return fileMakeStringRaw(url.path)
+    return runtimeMakeUTF8StringRaw(url.path)
 }
 
 @_cdecl("__kk_classloader_getResourceAsStream")
@@ -387,7 +379,7 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
     }
     guard let opened = openResourceFileDescriptor(named: name) else {
         outThrown?.pointee = runtimeAllocateIOException(message: "Resource not found: \(name)")
-        return fileMakeStringRaw("")
+        return runtimeMakeUTF8StringRaw("")
     }
     defer { close(opened.descriptor) }
     do {
@@ -396,10 +388,10 @@ public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePo
         else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
-        return fileMakeStringRaw(text)
+        return runtimeMakeUTF8StringRaw(text)
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-        return fileMakeStringRaw("")
+        return runtimeMakeUTF8StringRaw("")
     }
 }
 
@@ -410,7 +402,7 @@ public func __kk_file_path(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_path received invalid File handle")
     }
-    return fileMakeStringRaw(file.path)
+    return runtimeMakeUTF8StringRaw(file.path)
 }
 
 // MARK: - STDLIB-567: File.bufferedReader()
@@ -448,7 +440,7 @@ public func __kk_buffered_reader_readLine(_ readerRaw: Int) -> Int {
     guard let line = reader.readLine() else {
         return runtimeNullSentinelInt
     }
-    return fileMakeStringRaw(line)
+    return runtimeMakeUTF8StringRaw(line)
 }
 
 @_cdecl("__kk_buffered_reader_readLines")
@@ -457,7 +449,7 @@ public func __kk_buffered_reader_readLines(_ readerRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_readLines received invalid BufferedReader handle")
     }
     let lines = reader.readLines()
-    return registerRuntimeObject(RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) }))
+    return registerRuntimeObject(RuntimeListBox(elements: lines.map { runtimeMakeUTF8StringRaw($0) }))
 }
 
 @_cdecl("__kk_buffered_reader_close")
@@ -550,7 +542,7 @@ func runtimeBufferedLineIteratorNext(
         )
         return 0
     }
-    return fileMakeStringRaw(line)
+    return runtimeMakeUTF8StringRaw(line)
 }
 
 @_cdecl("__kk_buffered_reader_iterator")
@@ -582,7 +574,7 @@ public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ clos
     let linesSequence = RuntimeSequenceBox(
         steps: [
             .pullSource {
-                reader.readLine().map(fileMakeStringRaw)
+                reader.readLine().map(runtimeMakeUTF8StringRaw)
             },
         ],
         constrainOnceState: RuntimeSequenceConstrainOnceState()
@@ -622,7 +614,7 @@ public func __kk_buffered_reader_forEachLine(
     // Stream one line at a time: `forEachLine` exists to bound memory while
     // walking large files, so the reader is never drained into a [String].
     while let line = reader.readLine() {
-        let lineRaw = fileMakeStringRaw(line)
+        let lineRaw = runtimeMakeUTF8StringRaw(line)
         var thrown = 0
         _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: lineRaw, outThrown: &thrown)
         if thrown != 0 {
@@ -649,7 +641,7 @@ public func __kk_reader_readText(_ readerRaw: Int) -> Int {
     guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_readText received invalid Reader handle")
     }
-    return fileMakeStringRaw(reader.readText())
+    return runtimeMakeUTF8StringRaw(reader.readText())
 }
 
 // MARK: - STDLIB-IO-FN-007: InputStream.bufferedReader(charset)

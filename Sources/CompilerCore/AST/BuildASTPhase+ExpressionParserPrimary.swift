@@ -54,7 +54,6 @@ extension BuildASTPhase.ExpressionParser {
         case .keyword(.object):
             return parseObjectLiteral()
         case .keyword(.fun) where peek(1)?.kind == .symbol(.lParen):
-            // Anonymous function expression: `fun(params): RetType { body }`.
             // Distinct from `fun` as a declaration modifier/keyword, which is
             // never followed directly by `(` (a name always comes first).
             return parseAnonymousFunctionLiteral()
@@ -133,11 +132,8 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// Parses unsigned literal text (e.g. "42u", "0xFFuL") to UInt64.
-    /// Returns nil on parse failure (diagnostic is emitted).
     private func parseUnsignedLiteral(_ text: String, range: SourceRange) -> UInt64? {
         var numPart = text.replacingOccurrences(of: "_", with: "")
-        // Strip trailing u/U and uL/UL
         if numPart.uppercased().hasSuffix("UL") {
             numPart = String(numPart.dropLast(2))
         } else if numPart.last == "u" || numPart.last == "U" {
@@ -162,7 +158,6 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
-    /// Parses signed literal text (e.g. "42", "0xFF", "0b1010", "42L") to Int64.
     /// Hex/bin literals are parsed by radix instead of stripping to decimal digits.
     private func parseSignedLiteral(_ text: String, range: SourceRange) -> Int64? {
         var numPart = text.replacingOccurrences(of: "_", with: "")
@@ -285,15 +280,14 @@ extension BuildASTPhase.ExpressionParser {
 
     private func parsePrimarySuper(_ token: Token) -> ExprID {
         _ = consume()
-        // Parse optional interface qualifier: super<InterfaceName>
         var qualifier: InternedString?
         if let ltToken = current(), ltToken.kind == .symbol(.lessThan) {
             let savedIdx = index
-            _ = consume() // consume '<'
+            _ = consume()
             if let nameToken = current(), let name = identifierFromToken(nameToken) {
-                _ = consume() // consume identifier
+                _ = consume()
                 if let gtToken = current(), gtToken.kind == .symbol(.greaterThan) {
-                    _ = consume() // consume '>'
+                    _ = consume()
                     qualifier = name
                 } else {
                     index = savedIdx

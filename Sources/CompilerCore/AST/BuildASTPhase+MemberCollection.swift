@@ -239,9 +239,6 @@ extension BuildASTPhase {
         return aliases
     }
 
-    /// Parses supertype entries for class declarations, including optional
-    /// `by expr` delegation (e.g. `class Foo(impl: Printer) : Printer by impl`).
-    /// Returns `[SuperTypeEntry]`; use `declarationSuperTypes` for interface/object.
     func declarationSuperTypeEntries(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -349,7 +346,6 @@ extension BuildASTPhase {
         return entries
     }
 
-    /// Parses a single supertype chunk, optionally with `by expr` (class delegation).
     private func parseSuperTypeEntry(
         from tokens: [Token],
         interner: StringInterner,
@@ -408,16 +404,11 @@ extension BuildASTPhase {
         return entries.map(\.typeRef)
     }
 
-    /// A supertype reference together with the arguments of its optional
-    /// trailing constructor invocation.
     private struct ParsedSuperType {
         let ref: TypeRefID
         let constructorArgs: [CallArgument]
     }
 
-    /// Parses a supertype type reference plus an optional trailing constructor
-    /// invocation `(args)`, while still allowing function type literals such as
-    /// `() -> V` and receiver function types such as `String.() -> Unit`.
     private func parseSuperTypeTypeRef(
         from tokens: [Token],
         interner: StringInterner,
@@ -441,7 +432,6 @@ extension BuildASTPhase {
             return ParsedSuperType(ref: parsed.ref, constructorArgs: [])
         }
 
-        // A named supertype may be followed by a constructor invocation `(...)`.
         guard tokens[remainingStart].kind == .symbol(.lParen) else {
             return nil
         }
@@ -474,8 +464,6 @@ extension BuildASTPhase {
         return ParsedSuperType(ref: parsed.ref, constructorArgs: args)
     }
 
-    /// Splits the token run between the parentheses of a superclass constructor
-    /// invocation on top-level commas and parses each chunk as a call argument.
     private func parseSuperTypeConstructorArgs(
         _ tokens: [Token],
         interner: StringInterner,
@@ -639,12 +627,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Walks the class body block and records the declaration-order sequence
-    /// of property initializers and `init { }` blocks.  The returned array
-    /// contains `.property(i)` / `.initBlock(j)` entries whose indices
-    /// correspond to the positions in `ClassDecl.memberProperties` and
-    /// `ClassDecl.initBlocks` respectively.
-    ///
     /// `ClassDecl.memberProperties` is `constructorProperties + members.properties`
     /// (primary-constructor `val`/`var` params first, then body-declared
     /// properties — see `makeClassDecl`), so `propertyIndex` must start at
@@ -740,9 +722,7 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        // The trailing lambda is included in these tokens so that it
-        // participates in ordinary call parsing, overload resolution, and
-        // type inference. Remove only declaration-level semicolons; semicolons
+        // Remove only declaration-level semicolons; semicolons
         // in the lambda body must remain available to the block parser.
         let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {

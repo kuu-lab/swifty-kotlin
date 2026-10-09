@@ -539,8 +539,8 @@ extension CodegenRuntimeSupport {
     // can be tampered with by an unrelated local user: every checked path
     // must be owned by the current user or root and must not be writable by
     // others. Group-write stays allowed — shared checkouts are a normal dev
-    // layout and ownership still bounds who can modify the tree. Returns the
-    // rejection reason, or nil when the root is trusted. Exposed for testing.
+    // layout and ownership still bounds who can modify the tree. Exposed for
+    // testing.
     static func runtimePackageRootRejection(_ root: URL) -> String? {
         let fileManager = FileManager.default
         if let reason = untrustedPathRejection(root.path, fileManager: fileManager) {

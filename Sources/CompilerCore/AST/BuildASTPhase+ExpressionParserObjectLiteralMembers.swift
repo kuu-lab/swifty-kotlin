@@ -62,8 +62,7 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendDecl(.objectDecl(objectDecl))
     }
 
-    /// Parses an `init { ... }` member. The group is re-parsed wrapped in a
-    /// synthetic `object` body so the regular class-body init-block builder
+    /// The group is re-parsed wrapped in a synthetic `object` body so the regular class-body init-block builder
     /// (`declarationInitBlocks`) produces the `FunctionBody`, rather than
     /// hand-rolling block-statement parsing here.
     private func parseObjectLiteralInitBlock(from tokens: ArraySlice<Token>) -> FunctionBody? {
@@ -341,7 +340,6 @@ extension BuildASTPhase.ExpressionParser {
         from tokens: [Token]
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?)? {
         var sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
-        // Skip leading modifiers (`override`, `private`, ...) before `val`/`var`.
         if let declIndex = sanitized.firstIndex(where: { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }) {
             sanitized.removeFirst(declIndex)
         }

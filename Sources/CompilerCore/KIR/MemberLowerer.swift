@@ -42,6 +42,72 @@ final class MemberLowerer {
         return initializers
     }
 
+    /// Synthesize runtime-backed nested-object initializers before lowering
+    /// enclosing member bodies. Those bodies may read a nested object's
+    /// properties or call its members, which need its lazy-init guard to
+    /// already be registered.
+    private func synthesizeNestedObjectInitializers(
+        _ declIDs: [DeclID],
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        var initializers: [KIRDeclID] = []
+        for declID in declIDs {
+            guard let decl = shared.ast.arena.decl(declID) else { continue }
+
+            var nestedDecls: [DeclID]
+            switch decl {
+            case let .classDecl(nested):
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+                if let companionDeclID = nested.companionObject {
+                    nestedDecls.append(companionDeclID)
+                }
+            case let .interfaceDecl(nested):
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+                if let companionDeclID = nested.companionObject {
+                    nestedDecls.append(companionDeclID)
+                }
+            case let .objectDecl(nested):
+                nestedDecls = nested.nestedClasses + nested.nestedObjects
+            default:
+                continue
+            }
+            initializers.append(contentsOf: synthesizeNestedObjectInitializers(
+                nestedDecls, shared: shared
+            ))
+
+            guard case let .objectDecl(objectDecl) = decl,
+                  !objectDecl.modifiers.contains(.companion),
+                  let objectSymbol = shared.sema.bindings.declSymbols[declID],
+                  !driver.ctx.hasObjectInitializer(for: objectSymbol)
+            else {
+                continue
+            }
+
+            let needsRuntimeInitialization = shared.sema.symbols.directSupertypes(for: objectSymbol).contains { superSymbol in
+                let kind = shared.sema.symbols.symbol(superSymbol)?.kind
+                if kind == .interface {
+                    return true
+                }
+                return (kind == .class || kind == .enumClass)
+                    && superSymbol != shared.sema.types.anyClassSymbol
+            }
+            guard needsRuntimeInitialization else { continue }
+
+            let objectType = shared.sema.types.make(.classType(ClassType(
+                classSymbol: objectSymbol, args: [], nullability: .nonNull
+            )))
+            initializers.append(shared.arena.appendDecl(.global(KIRGlobal(
+                symbol: objectSymbol, type: objectType
+            ))))
+            initializers.append(contentsOf: driver.synthesizeObjectInitializer(
+                objectDecl,
+                objectSymbol: objectSymbol,
+                shared: shared
+            ))
+        }
+        return initializers
+    }
+
     func lowerMemberDecls(
         memberFunctions: [DeclID],
         memberProperties: [DeclID],
@@ -58,14 +124,18 @@ final class MemberLowerer {
         var directMembers: [KIRDeclID] = []
         var allDecls: [KIRDeclID] = []
 
-        // Enclosing function bodies can access nested types' companions. Register
-        // their lazy initializers before lowering those accesses, as for top-level types.
+        // Enclosing function bodies can access nested objects and companions.
+        // Register their lazy initializers before lowering those accesses.
+        let shared = KIRLoweringSharedContext(
+            ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers
+        )
+        let nestedDecls = nestedClasses + nestedObjects
         allDecls.append(contentsOf: synthesizeNestedCompanionInitializers(
-            nestedClasses + nestedObjects,
-            shared: KIRLoweringSharedContext(
-                ast: ast, sema: sema, arena: arena, interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers
-            )
+            nestedDecls, shared: shared
+        ))
+        allDecls.append(contentsOf: synthesizeNestedObjectInitializers(
+            nestedDecls, shared: shared
         ))
 
         for declID in memberFunctions {
@@ -447,42 +517,6 @@ final class MemberLowerer {
             allDecls.append(contentsOf: nestedAll)
             allDecls.append(contentsOf: forwardingDecls)
 
-            // Nested objects that implement interfaces need a heap-backed global
-            // and initializer so interface-typed receivers can use dynamic
-            // itable dispatch. Without this, a source-backed extension such as
-            // TimeSource.measureTime reaches TimeSource.markNow() with an object
-            // that has no registered interface entry.
-            // A non-Any class superclass needs it too: the implicit `super(...)`
-            // call and the superclass's field storage only exist once the
-            // singleton is actually allocated (BUG-264). Companions are
-            // excluded — `synthesizeCompanionInitializerIfNeeded` already owns
-            // their allocation and super delegation.
-            let isCompanion = nested.modifiers.contains(.companion)
-            let needsRuntimeInitialization = !isCompanion && sema.symbols.directSupertypes(for: symbol).contains { superSymbol in
-                let kind = sema.symbols.symbol(superSymbol)?.kind
-                if kind == .interface {
-                    return true
-                }
-                return (kind == .class || kind == .enumClass)
-                    && superSymbol != sema.types.anyClassSymbol
-            }
-            if needsRuntimeInitialization {
-                let objectType = sema.types.make(.classType(ClassType(
-                    classSymbol: symbol, args: [], nullability: .nonNull
-                )))
-                allDecls.append(arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType))))
-                allDecls.append(contentsOf: driver.synthesizeObjectInitializer(
-                    nested,
-                    objectSymbol: symbol,
-                    shared: KIRLoweringSharedContext(
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers
-                    )
-                ))
-            }
         }
 
         return (directMembers, allDecls)

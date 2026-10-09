@@ -1465,6 +1465,26 @@ extension AnnotationSemanticTests {
         #expect(optInDiagnostics.first?.message.contains("ExperimentalStdlibApi") == true)
     }
 
+    @Test func testUnboundJsCreateInstanceCallableReferenceRequiresReceiver() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            @file:OptIn(kotlin.js.ExperimentalJsReflectionCreateInstance::class)
+            import kotlin.reflect.createInstance
+
+            fun invalidReferenceName() = (::createInstance).name
+            """
+        )
+        let errors = ctx.diagnostics.diagnostics.filter {
+            if case .error = $0.severity { return true }
+            return false
+        }
+
+        #expect(
+            errors.contains { $0.message.contains("createInstance") },
+            "An unbound reference to the generic extension should be rejected; bind a KClass receiver to inspect its name"
+        )
+    }
+
     @Test func testCompilerOptInFlagAllowsExperimentalStdlibApiUsage() {
         let source = """
         @ExperimentalStdlibApi

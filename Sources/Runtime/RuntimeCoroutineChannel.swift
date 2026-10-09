@@ -135,21 +135,11 @@ final class RuntimeClosedSendChannelExceptionBox: RuntimeThrowableBox {
 }
 
 func runtimeAllocateClosedReceiveChannelException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeClosedReceiveChannelExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeClosedReceiveChannelExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateClosedSendChannelException(message: String? = "Channel was closed", cause: Int = 0) -> Int {
-    let throwable = RuntimeClosedSendChannelExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeClosedSendChannelExceptionBox(message: message, cause: cause))
 }
 
 /// Channel with proper Kotlin suspend semantics:
@@ -1182,7 +1172,6 @@ public func kk_channel_is_empty(_ handle: Int) -> Int {
 /// `close(cause:)` / `cancel(cause:)`, or 0 when the channel was closed
 /// without a cause (or is still open).  Consumed by Kotlin-side
 /// `ChannelResult` / `consume` helpers to surface `exceptionOrNull()`.
-@_cdecl("kk_channel_close_cause")
 public func kk_channel_close_cause(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_close_cause received invalid channel handle")
@@ -1240,16 +1229,7 @@ final class RuntimeChannelResultBox {
 }
 
 private func channelResultBoxFromRaw(_ raw: Int) -> RuntimeChannelResultBox? {
-    guard let pointer = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeChannelResultBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeChannelResultBox.self)
 }
 
 private func runtimeChannelResultBox(status: ChannelOperationStatus, value: Int, cause: Int) -> Int {

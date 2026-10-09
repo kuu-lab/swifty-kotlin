@@ -511,7 +511,6 @@ public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
 }
 
 /// Invoke a CoroutineExceptionHandler with a context and exception.
-@_cdecl("kk_exception_handler_invoke")
 public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ exceptionRaw: Int) {
     guard handlerRaw != 0,
           let ptr = UnsafeMutableRawPointer(bitPattern: handlerRaw),
@@ -1078,7 +1077,6 @@ public func kk_context_get_job(_ contextRaw: Int) -> Int {
 
 /// Extract the CoroutineName from a CoroutineContext.
 /// Returns a RuntimeStringBox pointer (or 0 if no name).
-@_cdecl("kk_context_get_name")
 public func kk_context_get_name(_ contextRaw: Int) -> Int {
     guard contextRaw != 0,
           isRegisteredRuntimeObjectPointer(contextRaw),
@@ -1094,7 +1092,6 @@ public func kk_context_get_name(_ contextRaw: Int) -> Int {
 
 
 /// Release a CoroutineContext (decrement reference count).
-@_cdecl("kk_context_release")
 public func kk_context_release(_ contextRaw: Int) {
     _ = runtimeReleaseObject(contextRaw)
 }
@@ -1518,12 +1515,10 @@ public func kk_dispatcher_named(_ kind: Int) -> Int {
     return Int(bitPattern: pointer)
 }
 
-@_cdecl("kk_dispatcher_default")
 public func kk_dispatcher_default() -> Int {
     RuntimeDispatcherTag.defaultDispatcher
 }
 
-@_cdecl("kk_dispatcher_io")
 public func kk_dispatcher_io() -> Int {
     RuntimeDispatcherTag.ioDispatcher
 }

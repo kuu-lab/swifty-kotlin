@@ -2640,6 +2640,12 @@ public final class SemaModule {
     /// ARCH-021: compiler-owned well-known declarations resolved by exact
     /// SymbolID after header collection.
     var wellKnownSymbols: WellKnownSymbols
+    /// Import-alias spellings (`import kotlin.enumValueOf as evo` → `evo`)
+    /// that bind one of the enum intrinsic FQ names, computed lazily per file
+    /// by `enumStdlibSpecialCallKind`. Its callee-name guard must admit every
+    /// spelling that can resolve to an intrinsic — an alias binds the same
+    /// SymbolID — while keeping the common case O(1).
+    var enumIntrinsicAliasNamesByFile: [FileID: Set<InternedString>] = [:]
 
     public init(
         symbols: SymbolTable,

@@ -135,15 +135,6 @@ public extension RuntimeABISpec {
     /// Sequence functions for lazy evaluation chains.
     static let sequenceFunctions: [RuntimeABIFunctionSpec] = [
         // Sequence from List (asSequence)
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_from_list",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
         // Intermediate operations (lazy)
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("map", arity: 1, fallback: "kk_sequence_map"),
