@@ -262,7 +262,6 @@ public func kk_future_complete(_ futureHandle: Int, _ valueRaw: Int) -> Int {
 }
 
 /// Returns 1 if the Future has been resolved, 0 otherwise.
-@_cdecl("kk_future_is_ready")
 public func kk_future_is_ready(_ futureHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
           let box = tryCast(ptr, to: RuntimeFutureBox.self)
@@ -531,6 +530,7 @@ public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) ->
 ///
 /// - Returns: the original `objectRaw` handle, or 0 for a null handle.
 @discardableResult
+// DEAD-CDECL-TEST-HOOK: CONCURRENCY-TRANSFER - Runtime tests exercise object transfer ownership.
 @_cdecl("kk_transfer_object")
 public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     guard objectRaw != 0 else {

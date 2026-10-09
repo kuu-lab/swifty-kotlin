@@ -53,6 +53,10 @@ extension LLVMCAPIBindings {
         setLinkageFn(value, 3)
     }
 
+    func setThreadLocal(_ value: LLVMValueRef?, isThreadLocal: Bool = true) {
+        setThreadLocalFn(value, isThreadLocal ? 1 : 0)
+    }
+
     func int8Type(context: LLVMContextRef?) -> LLVMTypeRef? {
         int8TypeInContextFn(context)
     }
@@ -110,8 +114,6 @@ extension LLVMCAPIBindings {
         positionBuilderFn(builder, block)
     }
 
-    /// Positions the builder immediately before `instruction`. Returns false when
-    /// the underlying `LLVMPositionBuilderBefore` symbol is unavailable.
     func positionBuilder(_ builder: LLVMBuilderRef?, before instruction: LLVMValueRef?) -> Bool {
         guard let positionBuilderBeforeFn else { return false }
         positionBuilderBeforeFn(builder, instruction)
@@ -122,11 +124,9 @@ extension LLVMCAPIBindings {
         getFirstInstructionFn?(block)
     }
 
-    /// Emits an `alloca` at the top of `entryBlock` through a dedicated builder.
     /// Slots emitted while a loop body is being lowered must not live in the loop
     /// block: a non-entry `alloca` is a dynamic stack allocation that grows the
     /// frame on every iteration and overflows the stack in long-running loops.
-    /// Falls back to `fallbackBuilder` when the positioning symbols are missing.
     func buildEntryAlloca(
         type: LLVMTypeRef?,
         name: String,

@@ -14,6 +14,9 @@ extension KIRLoweringDriver {
         var declIDs: [KIRDeclID] = []
         let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
         let isExtensionProperty = propertyDecl.receiverType != nil
+        let isThreadLocal = !isExtensionProperty && sema.symbols.annotations(for: symbol).contains {
+            KnownCompilerAnnotation.nativeThreadLocal.matches($0.annotationFQName)
+        }
 
         // Getter-only computed properties (`val x: T get() = expr`) have no
         // storage — skip emitting a KIRGlobal so no backing field is generated
@@ -37,12 +40,15 @@ extension KIRLoweringDriver {
         let isDelegateProperty = propertyDecl.delegateExpression != nil
 
         if !isExtensionProperty, !isGetterOnlyComputed, !isDelegateProperty {
-            let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
+            let kirID = arena.appendDecl(.global(KIRGlobal(
+                symbol: symbol, type: propType, isThreadLocal: isThreadLocal
+            )))
             declIDs.append(kirID)
         }
 
         emitBackingFieldIfNeeded(
             symbol: symbol, propType: propType, isExtension: isExtensionProperty,
+            isThreadLocal: isThreadLocal,
             shared: shared, declIDs: &declIDs
         )
         lowerPropertyAccessors(
@@ -71,6 +77,7 @@ extension KIRLoweringDriver {
         if propertyDecl.delegateExpression != nil, !isExtensionProperty {
             lowerPropertyDelegate(
                 propertyDecl, symbol: symbol, propType: propType,
+                isThreadLocal: isThreadLocal,
                 shared: shared, compilationCtx: compilationCtx,
                 allTopLevelInitInstructions: &allTopLevelInitInstructions,
                 delegateStorageSymbolByPropertySymbol: &delegateStorageSymbolByPropertySymbol,
@@ -87,6 +94,7 @@ extension KIRLoweringDriver {
         symbol: SymbolID,
         propType: TypeID,
         isExtension: Bool,
+        isThreadLocal: Bool,
         shared: KIRLoweringSharedContext,
         declIDs: inout [KIRDeclID]
     ) {
@@ -94,7 +102,9 @@ extension KIRLoweringDriver {
               let backingFieldSymbol = shared.sema.symbols.backingFieldSymbol(for: symbol)
         else { return }
         let backingFieldType = shared.sema.symbols.propertyType(for: backingFieldSymbol) ?? propType
-        declIDs.append(shared.arena.appendDecl(.global(KIRGlobal(symbol: backingFieldSymbol, type: backingFieldType))))
+        declIDs.append(shared.arena.appendDecl(.global(KIRGlobal(
+            symbol: backingFieldSymbol, type: backingFieldType, isThreadLocal: isThreadLocal
+        ))))
     }
 
     // MARK: - Explicit Backing Field Initializer (Kotlin 2.0)
@@ -228,6 +238,7 @@ extension KIRLoweringDriver {
         _ propertyDecl: PropertyDecl,
         symbol: SymbolID,
         propType: TypeID,
+        isThreadLocal: Bool,
         shared: KIRLoweringSharedContext,
         compilationCtx: CompilationContext,
         allTopLevelInitInstructions: inout KIRLoweringEmitContext,
@@ -239,7 +250,9 @@ extension KIRLoweringDriver {
         let delegateStorageSymbol = resolveDelegateStorageSymbol(
             propertyDecl: propertyDecl, symbol: symbol, shared: shared
         )
-        declIDs.append(arena.appendDecl(.global(KIRGlobal(symbol: delegateStorageSymbol, type: delegateType))))
+        declIDs.append(arena.appendDecl(.global(KIRGlobal(
+            symbol: delegateStorageSymbol, type: delegateType, isThreadLocal: isThreadLocal
+        ))))
         delegateStorageSymbolByPropertySymbol[symbol] = delegateStorageSymbol
         let delegateKind = StdlibDelegateKind.detect(
             delegateExpr: propertyDecl.delegateExpression,
@@ -551,8 +564,7 @@ extension KIRLoweringDriver {
             return
         }
         let delegateObjExpr = lowerExpr(delegateExpr, shared: shared, emit: &initInstructions)
-        let delegateExprType = sema.bindings.exprType(for: delegateExpr)
-        if checkHasProvideDelegate(delegateExprType: delegateExprType, shared: shared) {
+        if sema.symbols.hasProvideDelegate(for: symbol) {
             emitProvideDelegateInit(
                 delegateObjExpr: delegateObjExpr, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol, delegateType: delegateType,

@@ -258,18 +258,16 @@ extension ExprLowerer {
                 if driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema) {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
-                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
-                        sema: sema, arena: arena, interner: interner, instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: getterSymbol,
-                        callee: interner.intern("get"),
-                        arguments: getterArguments,
+                    driver.callLowerer.appendPropertyGetterCall(
+                        getterSymbol: getterSymbol,
+                        receiver: receiverExprID,
+                        callExprID: exprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return result
                 }
                 let helperName = interner.intern(
@@ -513,20 +511,17 @@ extension ExprLowerer {
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
-                    let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
-                        sema: sema, arena: arena, interner: interner, instructions: &instructions
-                    )
-                    instructions.append(.virtualCall(
-                        symbol: getterSymbol,
-                        callee: interner.intern("get"),
-                        receiver: virtualAccessorArguments[0],
-                        arguments: Array(virtualAccessorArguments.dropFirst()),
+                    driver.callLowerer.appendVirtualPropertyGetterCall(
+                        getterSymbol: getterSymbol,
+                        getterSlot: getterSlot,
+                        receiver: receiverExprID,
+                        callExprID: exprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil,
-                        dispatch: .vtable(slot: getterSlot)
-                    ))
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return result
                 }
 
@@ -659,18 +654,16 @@ extension ExprLowerer {
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
-                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
-                        sema: sema, arena: arena, interner: interner, instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: getterSymbol,
-                        callee: interner.intern("get"),
-                        arguments: getterArguments,
+                    driver.callLowerer.appendPropertyGetterCall(
+                        getterSymbol: getterSymbol,
+                        receiver: receiverExprID,
+                        callExprID: exprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return result
                 }
 
@@ -824,18 +817,16 @@ extension ExprLowerer {
                     let result = arena.appendTemporary(type: resultType)
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
-                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: getterSymbol, arguments: [receiver], callExprID: exprID,
-                        sema: sema, arena: arena, interner: interner, instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: getterSymbol,
-                        callee: interner.intern("get"),
-                        arguments: getterArguments,
+                    driver.callLowerer.appendPropertyGetterCall(
+                        getterSymbol: getterSymbol,
+                        receiver: receiver,
+                        callExprID: exprID,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return result
                 }
                 // Inline constant initializers only for immutable (val) properties.

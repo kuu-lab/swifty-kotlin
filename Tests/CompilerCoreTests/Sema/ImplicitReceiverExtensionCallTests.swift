@@ -173,5 +173,61 @@ import Testing
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" })
     }
+
+    /// KUU-1645: an unrelated same-name package extension must not pollute
+    /// overload resolution for an unqualified call on a receiver lambda's
+    /// implicit `this`.
+    @Test func unrelatedExtensionDoesNotPolluteReceiverLambdaCall() throws {
+        let source = """
+        import kotlinx.coroutines.*
+
+        interface ChannelJob { val job: Job }
+        fun ChannelJob.invokeOnCompletion(block: (cause: Throwable?) -> Unit): DisposableHandle = TODO()
+
+        suspend fun g() {
+            Job().apply {
+                invokeOnCompletion { val x = it }
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "unrelated ChannelJob extension polluted Job receiver lookup: \(errors)")
+            guard errors.isEmpty else { return }
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(calleeExpr, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(calleeExpr)
+                else {
+                    return false
+                }
+                return ctx.interner.resolve(name) == "invokeOnCompletion"
+            }
+            let boundCall = calls.first { sema.bindings.callBinding(for: $0) != nil }
+            guard let call = boundCall else {
+                Issue.record("unqualified invokeOnCompletion call was not bound")
+                return
+            }
+            guard let binding = sema.bindings.callBinding(for: call) else {
+                Issue.record("unqualified invokeOnCompletion call was not bound")
+                return
+            }
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            let receiver = try #require(signature.receiverType)
+            guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+                Issue.record("expected Job extension receiver, got \(receiver)")
+                return
+            }
+            #expect(sema.symbols.symbol(receiverClass.classSymbol)?.fqName == [
+                ctx.interner.intern("kotlinx"),
+                ctx.interner.intern("coroutines"),
+                ctx.interner.intern("Job"),
+            ])
+        }
+    }
 }
 #endif

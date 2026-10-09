@@ -98,7 +98,6 @@ public struct ASTArenaSnapshot: Codable {
     }
 }
 
-/// Provides a read-only, file-local index of expression source ranges.
 fileprivate struct ASTExpressionRangeIndex: Sendable {
     fileprivate struct Entry: Sendable {
         let startOffset: Int
@@ -112,10 +111,7 @@ fileprivate struct ASTExpressionRangeIndex: Sendable {
         self.entriesByFile = entriesByFile
     }
 
-    /// Returns the narrowest expression containing `offset` in `fileID`.
-    ///
-    /// The upper bound is found by binary-searching the position-sorted
-    /// entries. The remaining scan is limited to the requested file and
+    /// The scan is limited to the requested file and
     /// compares expression IDs explicitly so equal-width ties retain the
     /// arena insertion-order behavior of the linear resolver.
     fileprivate func innermostExpr(at offset: Int, in fileID: FileID) -> ExprID? {
@@ -155,16 +151,10 @@ public final class ASTArena: @unchecked Sendable {
     private var _exprs: [Expr] = []
     private var _typeRefs: [TypeRef] = []
     private var _expressionRangeIndex: ASTExpressionRangeIndex?
-    /// Maps loop expression IDs (forExpr/whileExpr/doWhileExpr) to their user-defined label.
     private var _loopLabels: [ExprID: InternedString] = [:]
-    /// Maps whenExpr IDs to their subject variable name for `when (val x = expr)` syntax.
     private var _whenSubjectVarNames: [ExprID: InternedString] = [:]
-    /// Preserves explicit type annotations in `when (val x: Type = expr)`.
     private var _whenSubjectTypeRefs: [ExprID: TypeRefID] = [:]
-    /// Maps lambdaLiteral expression IDs to their explicit parameter type
-    /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
-    /// Preserves explicit type receivers such as `Box<String>::echo`.
     private var _callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:]
     /// Tracks member-call expressions written with parentheses so zero-argument
     /// function calls remain distinct from bare property access in the AST.
@@ -269,7 +259,6 @@ public final class ASTArena: @unchecked Sendable {
         return _decls
     }
 
-    /// The number of declarations in the arena (thread-safe).
     public var declCount: Int {
         lock.lock()
         defer { lock.unlock() }
@@ -545,7 +534,6 @@ public final class ASTModule {
     public let activeDeclsByFileRawID: [Int32: [DeclID]]
 
     /// Files pre-sorted by fileID for stable iteration order.
-    /// All callers that previously used `sortedFiles` now use this directly.
     public let sortedFiles: [ASTFile]
 
     /// Files indexed by fileID so resolving a declaration's owning file does

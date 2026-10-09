@@ -108,68 +108,7 @@ struct LoweringFlowCodegenTests {
 
     @Test(arguments: [false, true])
     func testOnEmptyPreservesEmitAndEmitAllOrder(useSourceStdlib: Bool) throws {
-        let source = """
-        import kotlinx.coroutines.flow.*
-        import kotlinx.coroutines.runBlocking
-
-        fun main() = runBlocking {
-            println(emptyFlow<Int>().onEmpty {
-                emit(7)
-                emitAll(flowOf(8, 9))
-            }.toList())
-            println(emptyFlow<Int>().onEmpty {
-                emitAll(flowOf(8, 9))
-                emit(7)
-            }.toList())
-            println(emptyFlow<Int>().onEmpty {
-                emit(7)
-                emit(8)
-                emitAll(flowOf(9))
-            }.toList())
-            var fallbackCalls = 0
-            val fallback = emptyFlow<Int>().onEmpty {
-                fallbackCalls += 1
-                emit(1)
-                emitAll(emptyFlow<Int>())
-                emit(2)
-                emitAll(flowOf(3, 4))
-                emit(5)
-                emitAll(flowOf(6))
-                emit(7)
-            }
-            println("fallbackCalls:$fallbackCalls")
-            println(fallback.toList())
-            println(fallback.toList())
-            println("fallbackCalls:$fallbackCalls")
-            println(emptyFlow<Int?>().onEmpty {
-                emit(null)
-                emitAll(flowOf(8, null))
-                emit(9)
-            }.toList())
-            var calls = 0
-            println(flowOf(10).onEmpty {
-                calls += 1
-                emit(7)
-                emitAll(flowOf(8, 9))
-            }.toList())
-            println("calls:$calls")
-            println(emptyFlow<Int>().onEmpty { emit(10) }.toList())
-            println(flow<Int> {
-                emit(7)
-                emitAll(flowOf(8, 9))
-            }.toList())
-            try {
-                emptyFlow<Int>().onEmpty {
-                    emit(7)
-                    emitAll(flow<Int> { throw IllegalArgumentException("nested") })
-                    emit(8)
-                }.collect { println("value:$it") }
-            } catch (e: IllegalArgumentException) {
-                println("failure:${e.message}")
-            }
-            Unit
-        }
-        """
+        let source = try diffCaseSource("flow_onempty_emit_all.kt", file: #filePath)
 
         try assertFlowExecutableOutput(
             source: source,
@@ -1167,31 +1106,7 @@ struct LoweringFlowCodegenTests {
 
     @Test(arguments: [false, true])
     func testColdFlowPredicatesAwaitSuspendedCallbacks(useSourceStdlib: Bool) throws {
-        let source = """
-        import kotlinx.coroutines.*
-        import kotlinx.coroutines.flow.*
-
-        fun main() = runBlocking {
-            val limit = 30
-            println(flowOf(10, 20, 30, 40).filter { delay(1); it <= limit }.toList())
-            println(flowOf(10, 20, 30, 40).filterNot { delay(1); it <= limit }.toList())
-            println(flowOf(10, 20, 30, 40).dropWhile { delay(1); it < 20 }.toList())
-            println(flowOf(10, 20, 30, 40).takeWhile { delay(1); it <= limit }.toList())
-            try {
-                flowOf(1, 2, 3).filter { delay(1); true }.collect {
-                    delay(1)
-                    println(it)
-                    if (it == 2) throw IllegalStateException("collector")
-                }
-            } catch (e: IllegalStateException) {
-                println(e.message)
-            }
-            withContext(Dispatchers.Default) {
-                println(flowOf(10, 20, 30).filter { delay(1); it <= 20 }.toList())
-                println(flowOf(10, 20, 30).dropWhile { delay(1); it < 20 }.toList())
-            }
-        }
-        """
+        let source = try diffCaseSource("flow_suspend_predicates_cold.kt", file: #filePath)
         try assertFlowExecutableOutput(
             source: source,
             moduleName: "ColdFlowSuspendPredicates",

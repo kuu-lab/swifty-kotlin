@@ -1261,88 +1261,11 @@ extension CallTypeChecker {
             driver.helpers.emitVisibilityError(for: firstInvisible, name: calleeStr, range: range, diagnostics: ctx.semaCtx.diagnostics)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        if let fallbackType = tryRegexMemberFallback(
-            id,
-            calleeName: calleeName,
+        if let fallbackType = tryCommonMemberCallFallbacks(
+            request,
             isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryKFunctionMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryStringMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryFileMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryCollectionMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            expectedType: expectedType,
+            collectionFallbackFirst: false,
             admitNominalIterableReceiver: true,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryArrayMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
-            locals: &locals
-        ) {
-            return fallbackType
-        }
-        if let fallbackType = tryRangeMemberFallback(
-            id,
-            calleeName: calleeName,
-            isClassNameReceiver: isClassNameReceiver,
-            safeCall: safeCall,
-            receiverID: receiverID,
-            args: args,
-            ctx: ctx,
             locals: &locals
         ) {
             return fallbackType
@@ -1439,11 +1362,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            lookupReceiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isCoroutineHandleReceiver = ReceiverClassifier(sema: sema, interner: interner)
+            .isCoroutineHandleReceiverType(lookupReceiverType)
         if !isClassNameReceiver, args.isEmpty, isCoroutineHandleReceiver {
             let memberName = calleeStr
             switch memberName {

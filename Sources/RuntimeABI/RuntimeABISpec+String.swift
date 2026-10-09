@@ -227,15 +227,6 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_flat_string_release",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         bridgeStringConcatFlatSpec,
         RuntimeABIFunctionSpec(
             name: "kk_string_trim_flat",
@@ -680,16 +671,6 @@ public extension RuntimeABISpec {
         stringReplaceCharIgnoreCaseFlatSpec,
         RuntimeABIFunctionSpec(
             name: "kk_any_to_string",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "tag", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_any_to_string_nullable",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "tag", type: .intptr),
@@ -1689,14 +1670,6 @@ public extension RuntimeABISpec {
         // STDLIB-TEXT-FN-077: String.substringBeforeLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
         // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
-        RuntimeABIFunctionSpec(
-            name: "kk_char_isUnicodeIdentifierPart",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         // STDLIB-534: String?.orEmpty()
         RuntimeABIFunctionSpec(
             name: "kk_string_orEmpty_flat",

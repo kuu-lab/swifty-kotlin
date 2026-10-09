@@ -205,19 +205,7 @@ struct ImportedInlineKIRRegressionTests {
     @Test
     func importedFirstPredicateFalseBranchRunsThroughArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
-        let source = """
-        private fun firstNonLocal(source: CharSequence): Char {
-            source.first {
-                if (it == 'x') return '!'
-                false
-            }
-            return '?'
-        }
-
-        fun main() {
-            println(firstNonLocal("ax").code)
-        }
-        """
+        let source = try diffCaseSource("stdlib_kotlin_text_CharSequence_first_imported_nlr.kt", file: #filePath)
 
         try withTemporaryFile(contents: source) { userPath in
             let outputBase = FileManager.default.temporaryDirectory

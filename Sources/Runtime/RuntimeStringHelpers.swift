@@ -117,6 +117,15 @@ func runtimeMakeStringRaw(_ value: String) -> Int {
     registerRuntimeObject(RuntimeStringBox(value))
 }
 
+/// Creates the foreign runtime string representation used by `kk_string_from_utf8`.
+func runtimeMakeUTF8StringRaw(_ value: String) -> Int {
+    Int(bitPattern: value.withCString { cstr in
+        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+            kk_string_from_utf8(pointer, Int32(value.utf8.count))
+        }
+    })
+}
+
 func runtimeMakeListRaw(_ values: [Int]) -> Int {
     let box = RuntimeListBox(elements: values)
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())

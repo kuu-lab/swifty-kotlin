@@ -15,25 +15,6 @@ extension DataFlowSemaPhase {
 
 
 
-    func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
-        switch decl {
-        case let .classDecl(classDecl):
-            classDecl.annotations
-        case let .interfaceDecl(interfaceDecl):
-            interfaceDecl.annotations
-        case let .objectDecl(objectDecl):
-            objectDecl.annotations
-        case let .funDecl(funDecl):
-            funDecl.annotations
-        case let .propertyDecl(propertyDecl):
-            propertyDecl.annotations
-        case let .typeAliasDecl(typeAliasDecl):
-            typeAliasDecl.annotations
-        case let .enumEntryDecl(enumEntryDecl):
-            enumEntryDecl.annotations
-        }
-    }
-
     func registerAnnotations(
         for decl: Decl,
         symbol: SymbolID,
@@ -59,7 +40,7 @@ extension DataFlowSemaPhase {
         guard let suppressionRange = suppressionRange(for: decl, declRange: declRange) else {
             return
         }
-        for ann in declarationAnnotations(for: decl) where KnownCompilerAnnotation.suppress.matches(ann.name) {
+        for ann in decl.annotations where KnownCompilerAnnotation.suppress.matches(ann.name) {
             for arg in ann.arguments {
                 let code = arg.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
                 if !code.isEmpty {
@@ -71,7 +52,7 @@ extension DataFlowSemaPhase {
 
     private func metadataAnnotations(for decl: Decl) -> [AnnotationNode] {
         guard case let .propertyDecl(property) = decl else {
-            return declarationAnnotations(for: decl)
+            return decl.annotations
         }
 
         var annotations = property.annotations
@@ -331,16 +312,7 @@ extension DataFlowSemaPhase {
     }
 
     func visibility(from modifiers: Modifiers) -> Visibility {
-        if modifiers.contains(.private) {
-            return .private
-        }
-        if modifiers.contains(.internal) {
-            return .internal
-        }
-        if modifiers.contains(.protected) {
-            return .protected
-        }
-        return .public
+        Visibility(modifiers: modifiers)
     }
 
     func restrictedVisibility(_ lhs: Visibility, _ rhs: Visibility) -> Visibility {

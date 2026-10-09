@@ -510,7 +510,8 @@ extension CallLowerer {
             return fallback
         }
 
-        if isCoroutineHandleReceiverType(receiverType, sema: sema, interner: interner) {
+        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        if receiverClassifier.isCoroutineHandleReceiverType(receiverType) {
             switch fallbackName {
             case "await":
                 return interner.intern("kk_kxmini_async_await")
@@ -536,7 +537,7 @@ extension CallLowerer {
                 break
             }
         }
-        if isChannelReceiverType(receiverType, sema: sema, interner: interner) {
+        if receiverClassifier.isChannelReceiverType(receiverType) {
             switch fallbackName {
             case "send":
                 return interner.intern("kk_channel_send")

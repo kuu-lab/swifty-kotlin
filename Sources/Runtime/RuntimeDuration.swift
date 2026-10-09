@@ -14,12 +14,7 @@ final class RuntimeDurationBox {
 }
 
 private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    let isRegisteredObject = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isRegisteredObject else { return nil }
-    return tryCast(ptr, to: RuntimeDurationBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeDurationBox.self)
 }
 
 private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
@@ -154,14 +149,6 @@ private func runtimeDurationFormatFractional(
     let keepDigits = significantDigits < 3 ? significantDigits : ((significantDigits + 2) / 3) * 3
     let trimmed = String(digits.prefix(keepDigits))
     return "\(whole).\(trimmed)\(suffix)"
-}
-
-private func runtimeDurationMakeString(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
 }
 
 private func runtimeDurationComponents(
@@ -585,12 +572,10 @@ public func kk_duration_zero() -> Int {
     runtimeDurationHandle(fromNanoseconds: 0)
 }
 
-@_cdecl("kk_duration_infinite")
 public func kk_duration_infinite() -> Int {
     Int(Int64.max)
 }
 
-@_cdecl("kk_duration_toDuration_int")
 public func kk_duration_toDuration_int(_ value: Int, _ unitOrdinal: Int) -> Int {
     Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
@@ -600,7 +585,6 @@ public func kk_duration_toDuration_long(_ value: Int, _ unitOrdinal: Int) -> Int
     Int(runtimeDurationFromLong(Int64(value), scale: runtimeDurationUnitScale(fromOrdinal: unitOrdinal)))
 }
 
-@_cdecl("kk_duration_toDuration_double")
 public func kk_duration_toDuration_double(_ valueBits: Int, _ unitOrdinal: Int) -> Int {
     Int(runtimeDurationNanoseconds(
             fromDoubleBits: valueBits,
@@ -623,19 +607,18 @@ public func kk_duration_inWholeNanoseconds(_ durationRaw: Int) -> Int {
     return Int(truncatingIfNeeded: nanoseconds)
 }
 
-@_cdecl("kk_duration_toString")
 public func kk_duration_toString(_ durationRaw: Int) -> Int {
     let rawValue = runtimeDurationRawValue(from: durationRaw)
     let ns = rawValue >> 1
 
     if ns == 0 {
-        return runtimeDurationMakeString("0s")
+        return runtimeMakeUTF8StringRaw("0s")
     }
     if rawValue == Int64.max {
-        return runtimeDurationMakeString("Infinity")
+        return runtimeMakeUTF8StringRaw("Infinity")
     }
     if rawValue == runtimeDurationNegativeInfinity {
-        return runtimeDurationMakeString("-Infinity")
+        return runtimeMakeUTF8StringRaw("-Infinity")
     }
 
     let isNegative = ns < 0
@@ -712,7 +695,7 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
     } else {
         str = out
     }
-    return runtimeDurationMakeString(str)
+    return runtimeMakeUTF8StringRaw(str)
 }
 
 @_cdecl("kk_duration_parse")
@@ -767,13 +750,11 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)
 
-@_cdecl("kk_duration_absoluteValue")
 public func kk_duration_absoluteValue(_ durationRaw: Int) -> Int {
     let raw = runtimeDurationRawValue(from: durationRaw)
     return Int(runtimeDurationApplySign(raw, sign: raw < 0 ? -1 : 1))
 }
 
-@_cdecl("kk_duration_isNegative")
 public func kk_duration_isNegative(_ durationRaw: Int) -> Int {
     guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_isNegative received invalid Duration handle")
@@ -781,7 +762,6 @@ public func kk_duration_isNegative(_ durationRaw: Int) -> Int {
     return nanoseconds < 0 ? 1 : 0
 }
 
-@_cdecl("kk_duration_isInfinite")
 public func kk_duration_isInfinite(_ durationRaw: Int) -> Int {
     runtimeDurationIsInfinite(runtimeDurationRawValue(from: durationRaw)) ? 1 : 0
 }
@@ -791,22 +771,18 @@ public func kk_duration_plus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationRawValue(from: rhsRaw)))
 }
 
-@_cdecl("kk_duration_minus")
 public func kk_duration_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     Int(runtimeDurationAdd(runtimeDurationRawValue(from: lhsRaw), runtimeDurationApplySign(runtimeDurationRawValue(from: rhsRaw), sign: -1)))
 }
 
-@_cdecl("kk_duration_times_int")
 public func kk_duration_times_int(_ durationRaw: Int, _ scale: Int) -> Int {
     Int(runtimeDurationMultiply(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
-@_cdecl("kk_duration_div_int")
 public func kk_duration_div_int(_ durationRaw: Int, _ scale: Int) -> Int {
     Int(runtimeDurationDivide(runtimeDurationRawValue(from: durationRaw), Int64(scale)))
 }
 
-@_cdecl("kk_duration_div_duration")
 public func kk_duration_div_duration(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = runtimeDurationRawValue(from: lhsRaw)
     let rhs = runtimeDurationRawValue(from: rhsRaw)
@@ -820,12 +796,10 @@ public func kk_duration_div_duration(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return kk_double_to_bits(lhsValue / rhsValue)
 }
 
-@_cdecl("kk_duration_unary_minus")
 public func kk_duration_unary_minus(_ durationRaw: Int) -> Int {
     Int(runtimeDurationApplySign(runtimeDurationRawValue(from: durationRaw), sign: -1))
 }
 
-@_cdecl("kk_duration_compareTo")
 public func kk_duration_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = runtimeDurationRawValue(from: lhsRaw)
     let rhs = runtimeDurationRawValue(from: rhsRaw)

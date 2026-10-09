@@ -509,7 +509,7 @@ extension TypeCheckHelpers {
         let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
-            let value = optInArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
@@ -540,7 +540,7 @@ extension TypeCheckHelpers {
     }
 
     private func normalizeOptInMarkerName(_ raw: String) -> String? {
-        let trimmed = optInArgumentValue(raw)
+        let trimmed = SemaAnnotationArgument.value(raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]()"))
         guard !trimmed.isEmpty else {
@@ -554,14 +554,6 @@ extension TypeCheckHelpers {
         }
 
         return nil
-    }
-
-    private func optInArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return String(trimmed[trimmed.index(after: equalIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func splitOptInNamedArgument(_ argument: String) -> (String, String)? {

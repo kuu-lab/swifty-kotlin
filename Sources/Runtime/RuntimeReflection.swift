@@ -11,16 +11,7 @@ private func runtimeShouldExposeAnnotation(fqName: String) -> Bool {
 }
 
 private func runtimeReflectionKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeKClassBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }
 
 private extension RuntimeKClassBox {
@@ -77,7 +68,6 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
 
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
-@_cdecl("__kk_kclass_get_arity")
 public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
         return 0
@@ -231,16 +221,7 @@ public func __kk_kclass_register_single_annotation(
 // MARK: - KFunction Dynamic Call (STDLIB-REFLECT-067)
 
 private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeKFunctionBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeKFunctionBox.self)
 }
 
 // MARK: - KParameter (STDLIB-REFLECT-063)
@@ -275,16 +256,7 @@ public func __kk_kparameter_create(
 }
 
 private func runtimeKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeKParameterBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeKParameterBox.self)
 }
 
 @_cdecl("__kk_kparameter_create_typed")

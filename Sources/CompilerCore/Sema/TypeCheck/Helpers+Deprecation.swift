@@ -84,14 +84,47 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let annotations = sema.symbols.annotations(for: symbolID)
+        checkDeprecation(
+            for: symbolID,
+            symbols: sema.symbols,
+            interner: interner,
+            range: range,
+            diagnostics: diagnostics
+        )
+    }
+
+    func checkDeprecation(
+        for symbolID: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner,
+        range: SourceRange?,
+        diagnostics: DiagnosticEngine
+    ) {
+        let annotationSymbolID: SymbolID = {
+            let directAnnotations = symbols.annotations(for: symbolID)
+            if directAnnotations.contains(where: {
+                KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+            }) {
+                return symbolID
+            }
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let owner = symbols.parentSymbol(for: symbolID),
+                  symbols.annotations(for: owner).contains(where: {
+                      KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
+                  })
+            else {
+                return symbolID
+            }
+            return owner
+        }()
+        let annotations = symbols.annotations(for: annotationSymbolID)
         guard let deprecatedAnnotation = annotations.first(where: {
             KnownCompilerAnnotation.deprecated.matches($0.annotationFQName)
         }) else {
             return
         }
 
-        let symbolName = if let sym = sema.symbols.symbol(symbolID) {
+        let symbolName = if let sym = symbols.symbol(annotationSymbolID) {
             sym.fqName.map { interner.resolve($0) }.joined(separator: ".")
         } else {
             "<unknown>"
@@ -99,8 +132,8 @@ extension TypeCheckHelpers {
         let stringValue = { (raw: String) in
             normalizeAnnotationStringArgument(
                 raw,
-                annotatedSymbol: symbolID,
-                sema: sema,
+                annotatedSymbol: annotationSymbolID,
+                symbols: symbols,
                 interner: interner
             )
         }
@@ -493,13 +526,13 @@ extension TypeCheckHelpers {
     private func normalizeAnnotationStringArgument(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
-        sema: SemaModule,
+        symbols: SymbolTable,
         interner: StringInterner
     ) -> String {
         if let resolved = resolveStringConstantReference(
             raw,
             annotatedSymbol: symbolID,
-            sema: sema,
+            symbols: symbols,
             interner: interner
         ) {
             return resolved
@@ -514,7 +547,7 @@ extension TypeCheckHelpers {
     private func resolveStringConstantReference(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
-        sema: SemaModule,
+        symbols: SymbolTable,
         interner: StringInterner
     ) -> String? {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -526,19 +559,19 @@ extension TypeCheckHelpers {
         guard !components.isEmpty,
               components.joined(separator: ".") == value,
               components.allSatisfy(isSimpleKotlinIdentifier),
-              let annotated = sema.symbols.symbol(symbolID)
+              let annotated = symbols.symbol(symbolID)
         else {
             return nil
         }
 
-        let annotatedFileID = sema.symbols.sourceFileID(for: symbolID)
+        let annotatedFileID = symbols.sourceFileID(for: symbolID)
         let path = components.map { interner.intern($0) }
         var container = Array(annotated.fqName.dropLast())
         while true {
             if let resolved = lookupStringConstant(
                 fqName: container + path,
                 annotatedFileID: annotatedFileID,
-                sema: sema,
+                symbols: symbols,
                 interner: interner
             ) {
                 return resolved
@@ -553,13 +586,13 @@ extension TypeCheckHelpers {
     private func lookupStringConstant(
         fqName: [InternedString],
         annotatedFileID: FileID?,
-        sema: SemaModule,
+        symbols: SymbolTable,
         interner: StringInterner
     ) -> String? {
         var fallback: String?
-        for candidateID in sema.symbols.lookupAll(fqName: fqName) {
-            guard let candidate = sema.symbols.symbol(candidateID),
-                  case let .stringLiteral(literal)? = sema.symbols.constValueExprKind(for: candidateID)
+        for candidateID in symbols.lookupAll(fqName: fqName) {
+            guard let candidate = symbols.symbol(candidateID),
+                  case let .stringLiteral(literal)? = symbols.constValueExprKind(for: candidateID)
             else {
                 continue
             }
@@ -567,7 +600,7 @@ extension TypeCheckHelpers {
             // referenced from the same file as the annotated declaration;
             // same-file candidates are also preferred when the FQName is
             // shared by declarations in several files.
-            let sameFile = sema.symbols.sourceFileID(for: candidateID) == annotatedFileID
+            let sameFile = symbols.sourceFileID(for: candidateID) == annotatedFileID
             if candidate.visibility == .private && !sameFile {
                 continue
             }

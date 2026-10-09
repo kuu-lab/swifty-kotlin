@@ -19,9 +19,9 @@ extension LLVMCAPIBindings {
         return bindings
     }
 
-    /// Default LLVM discovery candidates. Every entry is a canonical absolute
-    /// path inside a well-known install location; generic library-search
-    /// variables (`LIBRARY_PATH`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) are
+    /// Every entry is a canonical absolute path inside a well-known install
+    /// location; generic library-search variables (`LIBRARY_PATH`,
+    /// `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`) are
     /// deliberately ignored because relative or group/other-writable entries
     /// in them would let another local user substitute a malicious library.
     /// The only environment-driven override is `KSWIFTK_LLVM_DYLIB`, which
@@ -139,6 +139,7 @@ extension LLVMCAPIBindings {
                   let setTarget = loadSymbol(handle: handle, name: "LLVMSetTarget", as: LLVMSetTargetFn.self),
                   let setDataLayout = loadSymbol(handle: handle, name: "LLVMSetDataLayout", as: LLVMSetDataLayoutFn.self),
                   let setLinkage = loadSymbol(handle: handle, name: "LLVMSetLinkage", as: LLVMSetLinkageFn.self),
+                  let setThreadLocal = loadSymbol(handle: handle, name: "LLVMSetThreadLocal", as: LLVMSetThreadLocalFn.self),
                   let int8Type = loadSymbol(handle: handle, name: "LLVMInt8TypeInContext", as: LLVMInt8TypeInContextFn.self),
                   let int64Type = loadSymbol(handle: handle, name: "LLVMInt64TypeInContext", as: LLVMInt64TypeInContextFn.self),
                   let pointerType = loadSymbol(handle: handle, name: "LLVMPointerType", as: LLVMPointerTypeFn.self),
@@ -197,6 +198,7 @@ extension LLVMCAPIBindings {
                 setTargetFn: setTarget,
                 setDataLayoutFn: setDataLayout,
                 setLinkageFn: setLinkage,
+                setThreadLocalFn: setThreadLocal,
                 int8TypeInContextFn: int8Type,
                 int64TypeFn: int64Type,
                 structTypeInContextFn: loadSymbol(handle: handle, name: "LLVMStructTypeInContext", as: LLVMStructTypeInContextFn.self),
@@ -221,7 +223,6 @@ extension LLVMCAPIBindings {
                 buildSDivFn: buildSDiv,
                 buildUDivFn: buildUDiv,
                 buildURemFn: buildURem,
-                // Bitwise/shift builder symbols (P5-103)
                 buildAndFn: loadSymbol(handle: handle, name: "LLVMBuildAnd", as: LLVMBuildAndFn.self),
                 buildOrFn: loadSymbol(handle: handle, name: "LLVMBuildOr", as: LLVMBuildOrFn.self),
                 buildXorFn: loadSymbol(handle: handle, name: "LLVMBuildXor", as: LLVMBuildXorFn.self),

@@ -59,20 +59,12 @@ extension DataFlowSemaPhase {
         }
         symbols.setParentSymbol(rangesPackageSymbol, for: interfaceSymbol)
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = interfaceFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: interfaceFQName,
+            symbols: symbols,
+            interner: interner
+        )
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: interfaceSymbol)
 
@@ -173,20 +165,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([closedRangeSymbol], for: interfaceSymbol)
         types.setNominalDirectSupertypes([closedRangeSymbol], for: interfaceSymbol)
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = interfaceFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: interfaceFQName,
+            symbols: symbols,
+            interner: interner
+        )
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: interfaceSymbol)
 

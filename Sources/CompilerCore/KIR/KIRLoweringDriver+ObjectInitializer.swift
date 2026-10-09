@@ -92,6 +92,7 @@ extension KIRLoweringDriver {
         objectSymbol: SymbolID,
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
+        ctx.registerObjectInitializer(for: objectSymbol)
         let sema = shared.sema
 
         // A source-backed top-level singleton must have a real runtime handle

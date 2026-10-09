@@ -1029,7 +1029,6 @@ public func kk_cleaner_create(_ valueRaw: Int, _ blockRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeCleanerBox(valueRaw: valueRaw, blockRaw: blockRaw))
 }
 
-@_cdecl("kk_cleaner_clean")
 public func kk_cleaner_clean(_ cleanerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let box = runtimeCleanerBox(from: cleanerRaw) else {
         return 0
@@ -1037,7 +1036,6 @@ public func kk_cleaner_clean(_ cleanerRaw: Int, _ outThrown: UnsafeMutablePointe
     return box.clean(outThrown: outThrown)
 }
 
-@_cdecl("kk_cleaner_dispose")
 public func kk_cleaner_dispose(_ cleanerRaw: Int) -> Int {
     guard let box = runtimeCleanerBox(from: cleanerRaw) else {
         return 0
@@ -1133,7 +1131,6 @@ public func kk_freeze_object(_ objectRaw: Int) -> Int {
     return objectRaw
 }
 
-@_cdecl("kk_is_frozen")
 public func kk_is_frozen(_ objectRaw: Int) -> Int {
     runtimeFrozenSet.isFrozen(objectRaw) ? 1 : 0
 }
@@ -1498,7 +1495,6 @@ private final class RuntimeCNameRegistry: @unchecked Sendable {
 
 private let runtimeCNameRegistry = RuntimeCNameRegistry()
 
-@_cdecl("kk_cname_register")
 public func kk_cname_register(_ externNameRaw: Int, _ fnPtr: Int) -> Int {
     guard let namePtr = UnsafeMutableRawPointer(bitPattern: externNameRaw),
           let name = extractString(from: namePtr)
@@ -1509,7 +1505,6 @@ public func kk_cname_register(_ externNameRaw: Int, _ fnPtr: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_cname_lookup")
 public func kk_cname_lookup(_ externNameRaw: Int) -> Int {
     guard let namePtr = UnsafeMutableRawPointer(bitPattern: externNameRaw),
           let name = extractString(from: namePtr)

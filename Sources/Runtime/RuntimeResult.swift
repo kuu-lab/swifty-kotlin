@@ -13,16 +13,7 @@ final class RuntimeResultBox {
 }
 
 private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
-    guard let pointer = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeResultBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeResultBox.self)
 }
 
 func runtimeResultSuccess(_ value: Int) -> Int {
