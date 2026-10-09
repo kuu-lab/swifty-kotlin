@@ -931,22 +931,25 @@ extension ExprTypeChecker {
         // dispatch receivers, enclosing class) — a member extension body's
         // `this` is the extension receiver, but the dispatch owner's members,
         // inherited ones included, still resolve unqualified.
-        let implicitReceiverLookupTypes = ctx.implicitReceiverMemberLookupTypes()
-        if !implicitReceiverLookupTypes.isEmpty {
+        let implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
+        if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
-            for (index, receiverType) in implicitReceiverLookupTypes.enumerated() {
+            for (index, receiver) in implicitReceiverLookupEntries.enumerated() {
                 memberType = resolveImplicitReceiverMember(
                     id: id,
                     name: name,
-                    receiverType: receiverType,
+                    receiverType: receiver.type,
                     ctx: ctx,
                     sema: sema,
                     interner: interner,
                     nameRange: nameRange,
-                    emitDiagnosticOnFailure: index == implicitReceiverLookupTypes.count - 1
+                    emitDiagnosticOnFailure: index == implicitReceiverLookupEntries.count - 1
                         && candidates.isEmpty && invisibleSyms.isEmpty && dslBlockedIDs.isEmpty
                 )
                 if memberType != nil {
+                    if memberType != sema.types.errorType, let receiverSymbol = receiver.symbol {
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                    }
                     break
                 }
             }
@@ -984,7 +987,7 @@ extension ExprTypeChecker {
                 // Package-scope extension properties remain in import scopes
                 // so `receiver.property` can resolve them, but a bare name in
                 // a receiver-free context must not bind as a global property.
-                return implicitReceiverLookupTypes.isEmpty
+                return implicitReceiverLookupEntries.isEmpty
             }
             return !sema.types.isSubtype(
                 sema.types.makeNonNullable(receiverType),
@@ -993,12 +996,15 @@ extension ExprTypeChecker {
         }
         if candidates.isEmpty {
             var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
-            for receiverType in implicitReceiverLookupTypes {
+            for receiver in implicitReceiverLookupEntries {
                 if let result = driver.helpers.lookupMemberProperty(
                     named: name,
-                    receiverType: sema.types.makeNonNullable(receiverType),
+                    receiverType: sema.types.makeNonNullable(receiver.type),
                     sema: sema
                 ) {
+                    if let receiverSymbol = receiver.symbol {
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                    }
                     implicitMemberResult = result
                     break
                 }

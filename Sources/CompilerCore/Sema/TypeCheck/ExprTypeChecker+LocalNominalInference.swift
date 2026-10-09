@@ -145,6 +145,7 @@ extension ExprTypeChecker {
         let captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
+            .union(ctx.implicitReceiverStack.map(\.symbol))
 
         let classFQName = fqNamePrefix + [classDecl.name]
         let classSymbol = sema.symbols.define(
@@ -420,6 +421,7 @@ extension ExprTypeChecker {
             ownerSymbol: classSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
             outerReceiverTypes: ctx.outerReceiverTypes,
+            receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )
 

@@ -301,7 +301,11 @@ extension ExprLowerer {
                     return localValue
                 }
                 let receiverExprID: KIRExprID
-                if let symbol = sema.bindings.identifierSymbols[exprID],
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+                   let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
+                {
+                    receiverExprID = capturedReceiver
+                } else if let symbol = sema.bindings.identifierSymbols[exprID],
                    let capturedReceiver = driver.objectLiteralLowerer.implicitReceiverExprID(
                        forProperty: symbol,
                        sema: sema
