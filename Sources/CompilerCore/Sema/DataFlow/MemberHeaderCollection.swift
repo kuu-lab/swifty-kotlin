@@ -265,7 +265,9 @@ extension DataFlowSemaPhase {
                 symbol: memberSymbol,
                 declRange: funDecl.range,
                 sourceFileID: sourceFileID,
+                sourceFile: sourceFile,
                 sourceManager: sourceManager,
+                interner: interner,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -546,7 +548,9 @@ extension DataFlowSemaPhase {
                 symbol: memberSymbol,
                 declRange: propertyDecl.range,
                 sourceFileID: sourceFileID,
+                sourceFile: sourceFile,
                 sourceManager: sourceManager,
+                interner: interner,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -821,7 +825,9 @@ extension DataFlowSemaPhase {
             symbol: nestedSymbol,
             declRange: declSite,
             sourceFileID: sourceFileID,
+            sourceFile: ast.file(for: sourceFileID),
             sourceManager: sourceManager,
+            interner: interner,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -1020,7 +1026,9 @@ extension DataFlowSemaPhase {
                         symbol: nestedPrimaryCtorSymbol,
                         declRange: nestedClass.range,
                         sourceFileID: sourceFileID,
+                        sourceFile: ast.file(for: sourceFileID),
                         sourceManager: ctx.sourceManager,
+                        interner: interner,
                         symbols: symbols,
                         diagnostics: diagnostics
                     )

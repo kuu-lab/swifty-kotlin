@@ -39,7 +39,7 @@ struct HashSetInternalMetadataTests {
             if name == "build" {
                 #expect(info.visibility == .internal)
                 #expect(signature.parameterTypes.isEmpty)
-                #expect(annotations.contains { $0.annotationFQName == "PublishedApi" })
+                #expect(annotations.contains { $0.annotationFQName == "kotlin.PublishedApi" })
                 let set = try #require(sema.symbols.lookup(fqName: ["kotlin", "collections", "Set"].map(ctx.interner.intern)))
                 guard case let .classType(result) = sema.types.kind(of: signature.returnType) else {
                     Issue.record("HashSet.build must return Set<E>")
@@ -52,8 +52,8 @@ struct HashSetInternalMetadataTests {
                 #expect(info.visibility == .public)
                 #expect(signature.parameterTypes == [sema.types.make(.typeParam(TypeParamType(symbol: element, nullability: .nonNull)))])
                 #expect(signature.returnType == sema.types.make(.typeParam(TypeParamType(symbol: element, nullability: .nullable))))
-                #expect(annotations.contains { $0.annotationFQName == "Deprecated" })
-                let since = try #require(annotations.first { $0.annotationFQName == "DeprecatedSinceKotlin" })
+                #expect(annotations.contains { $0.annotationFQName == "kotlin.Deprecated" })
+                let since = try #require(annotations.first { $0.annotationFQName == "kotlin.DeprecatedSinceKotlin" })
                 #expect(since.arguments.contains { $0.hasPrefix("warningSince=") && $0.contains("1.9") })
                 #expect(since.arguments.contains { $0.hasPrefix("errorSince=") && $0.contains("2.1") })
             }

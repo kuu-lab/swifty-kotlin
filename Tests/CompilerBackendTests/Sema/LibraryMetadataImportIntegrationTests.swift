@@ -7,6 +7,84 @@ import Testing
 @Suite
 struct LibraryMetadataImportIntegrationTests {
     @Test
+    func testShortTargetMetadataSurvivesKklibImport() throws {
+        let librarySource = """
+        package targetprobe
+        import kotlin.annotation.Target as AppliesTo
+        @Target(AnnotationTarget.FUNCTION)
+        annotation class FunctionOnly
+        @AppliesTo(AnnotationTarget.FUNCTION)
+        annotation class AliasedFunctionOnly
+        """
+        try withCompiledLibrary(source: librarySource, moduleName: "TargetProbe") { libraryPath in
+            let appSource = """
+            @targetprobe.FunctionOnly class Invalid
+            @targetprobe.AliasedFunctionOnly class InvalidAlias
+            fun main() {}
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath], moduleName: "TargetProbeApp",
+                    emit: .kirDump, searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+
+                let sema = try #require(appCtx.sema)
+                for name in ["FunctionOnly", "AliasedFunctionOnly"] {
+                    let symbol = try #require(sema.symbols.lookup(
+                        fqName: ["targetprobe", name].map(appCtx.interner.intern)
+                    ))
+                    #expect(sema.symbols.annotations(for: symbol).contains {
+                        $0.annotationFQName == "kotlin.annotation.Target"
+                    })
+                }
+                let targetDiagnostics = appCtx.diagnostics.diagnostics.filter {
+                    $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" && $0.severity == .error
+                }
+                #expect(targetDiagnostics.count == 2, "\(appCtx.diagnostics.diagnostics)")
+                #expect(targetDiagnostics.contains {
+                    $0.message == "Annotation 'targetprobe.FunctionOnly' is not applicable to a class declaration."
+                })
+                #expect(targetDiagnostics.contains {
+                    $0.message == "Annotation 'targetprobe.AliasedFunctionOnly' is not applicable to a class declaration."
+                })
+            }
+        }
+    }
+
+    @Test
+    func testShadowedShortTargetDoesNotBecomeBuiltinTarget() throws {
+        let librarySource = """
+        package targetprobe.shadow
+        annotation class Target(val value: AnnotationTarget)
+        @Target(AnnotationTarget.FUNCTION)
+        annotation class FunctionOnly
+        """
+        try withCompiledLibrary(source: librarySource, moduleName: "TargetShadowProbe") { libraryPath in
+            let appSource = """
+            @targetprobe.shadow.FunctionOnly class Valid
+            fun main() {}
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath], moduleName: "TargetShadowProbeApp",
+                    emit: .kirDump, searchPaths: [libraryPath]
+                )
+                try runToKIR(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "\(appCtx.diagnostics.diagnostics)")
+                let sema = try #require(appCtx.sema)
+                let functionOnly = try #require(sema.symbols.lookup(
+                    fqName: ["targetprobe", "shadow", "FunctionOnly"].map(appCtx.interner.intern)
+                ))
+                #expect(sema.symbols.annotations(for: functionOnly).contains {
+                    $0.annotationFQName == "targetprobe.shadow.Target"
+                })
+            }
+        }
+    }
+
+    @Test
     func testImportedNominalVarianceIsComposedInMemberDeclarations() throws {
         let librarySource = """
         package varianceLib
