@@ -53,10 +53,13 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         preferredSourcePackage: [InternedString]? = nil,
         bindCall: Bool = true,
-        requireInScope: Bool = false
+        requireInScope: Bool = false,
+        invocationCandidateFilter: ((SymbolID) -> Bool)? = nil
     ) -> TypeID? {
         let sema = ctx.sema
-        let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        let scopedCandidates = invocationCandidateFilter == nil
+            ? ctx.cachedScopeLookup(calleeName) : ctx.scope.lookupMergingChain(calleeName)
+        let visible = ctx.filterByVisibility(scopedCandidates).visible
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
         var invisibleProperties: [SymbolID] = []
@@ -116,6 +119,7 @@ extension CallTypeChecker {
                   !requireSynthetic || symbol.flags.contains(.synthetic),
                   hasDispatchReceiverOrImport(for: candidate),
                   isInInvocationScope(candidate),
+                  invocationCandidateFilter?(candidate) ?? true,
                   preferredSourcePackage == nil || isUserSourceDeclaration(candidate)
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
@@ -243,6 +247,15 @@ extension CallTypeChecker {
             return nil
         }
 
+        if invocationCandidateFilter != nil,
+           let priority = getterCandidates.compactMap({ propertyForGetter[$0] }).map({
+               callableInvocationScopePriority($0, named: calleeName, ctx: ctx)
+           }).min() {
+            getterCandidates.removeAll { getter in
+                guard let property = propertyForGetter[getter] else { return true }
+                return callableInvocationScopePriority(property, named: calleeName, ctx: ctx) != priority
+            }
+        }
         var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(

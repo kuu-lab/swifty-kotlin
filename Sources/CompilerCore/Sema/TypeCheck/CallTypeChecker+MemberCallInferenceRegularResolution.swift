@@ -2086,6 +2086,19 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
+        // Scope/import priority precedes function-vs-property priority. Do this
+        // before lambda preparation, which would otherwise infer a package
+        // property's block as the implicitly imported T.apply receiver lambda.
+        if !isClassNameReceiver, !isSuperCall,
+           let functionPriority = candidates.map({ callableInvocationScopePriority($0, named: calleeName, ctx: ctx) }).min(),
+           functionPriority > 0,
+           let propertyType = tryInferCallableMemberPropertyInvocation(
+               request, memberLookupType: memberLookupType, argTypes: argTypes,
+               isClassNameReceiver: false, locals: &locals,
+               maximumPropertyPriority: functionPriority - 1
+           ) {
+            return propertyType
+        }
         var cachedNonLambdaArgTypes: [Int: TypeID] = [:]
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
@@ -2693,7 +2706,9 @@ extension CallTypeChecker {
         let requiresScopedBitwiseExtension = (nonNullReceiverForScope == sema.types.byteType
             || nonNullReceiverForScope == sema.types.shortType)
             && ["and", "or", "xor", "inv", "shl", "shr", "ushr"].contains(interner.resolve(calleeName))
-        var scopeCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+        // A nearer property is a separate callable namespace. Keep explicitly
+        // imported function aliases available while comparing invocation tiers.
+        var scopeCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   let signature = sema.symbols.functionSignature(for: candidate) else { return false }
@@ -2707,7 +2722,7 @@ extension CallTypeChecker {
                 return sema.symbols.parentSymbol(for: candidate).map { supertypeSymbols.contains($0) } ?? false
             }
             return true
-        }
+        })
         if let dispatchReceiver = ctx.implicitReceiverType {
             let dispatchMembers = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName, receiverType: dispatchReceiver, sema: sema, interner: interner
