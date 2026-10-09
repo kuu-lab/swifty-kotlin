@@ -171,21 +171,13 @@ private func regexStringFromFlat(
     KotlinStringSurrogateEncoding.unicodeString(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
 }
 
-private func regexMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
-
 private func regexMakeListRaw(_ values: [Int]) -> Int {
     let box = RuntimeListBox(elements: values)
     return registerRuntimeObject(box)
 }
 
 private func regexMakeStringListRaw(_ values: [String]) -> Int {
-    regexMakeListRaw(values.map(regexMakeStringRaw))
+    regexMakeListRaw(values.map(runtimeMakeUTF8StringRaw))
 }
 
 private func regexBoxFromRaw(_ raw: Int) -> RuntimeRegexBox? {
@@ -723,15 +715,15 @@ public func kk_string_replace_regex(
     outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw(rawStr) }
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw(rawStr) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
     guard let matches else {
-        return regexMakeStringRaw(rawStr)
+        return runtimeMakeUTF8StringRaw(rawStr)
     }
     if matches.isEmpty {
-        return regexMakeStringRaw(str)
+        return runtimeMakeUTF8StringRaw(str)
     }
     do {
         try validateRegexReplacementTemplate(
@@ -763,7 +755,7 @@ public func kk_string_replace_regex(
         lastEnd = matchRange.upperBound
     }
     result.append(String(str[lastEnd...]))
-    return regexMakeStringRaw(result)
+    return runtimeMakeUTF8StringRaw(result)
 }
 
 @_cdecl("__kk_string_split_regex_flat")
@@ -832,14 +824,14 @@ public func kk_regex_replace_lambda(
         let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
         if thrown != 0 {
             outThrown?.pointee = thrown
-            return regexMakeStringRaw("")
+            return runtimeMakeUTF8StringRaw("")
         }
         let replacement = regexStringFromRaw(replacementRaw) ?? ""
         result.append(replacement)
         lastEnd = matchRange.upperBound
     }
     result.append(String(str[lastEnd...]))
-    return regexMakeStringRaw(result)
+    return runtimeMakeUTF8StringRaw(result)
 }
 
 // MARK: - STDLIB-350: Regex.matchEntire
@@ -1087,8 +1079,8 @@ public func kk_string_toRegex_flat(
 
 @_cdecl("__kk_regex_pattern")
 public func __kk_regex_pattern(_ regexRaw: Int) -> Int {
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw("") }
-    return regexMakeStringRaw(regexBox.pattern)
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw("") }
+    return runtimeMakeUTF8StringRaw(regexBox.pattern)
 }
 
 /// Bit mask of the Kotlin `RegexOption` ordinals this regex was created with
@@ -1117,9 +1109,9 @@ public func __kk_match_result_group_count(_ matchRaw: Int) -> Int {
 public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
           index >= 0, index < matchResult.groupValues.count else {
-        return regexMakeStringRaw("")
+        return runtimeMakeUTF8StringRaw("")
     }
-    return regexMakeStringRaw(matchResult.groupValues[index])
+    return runtimeMakeUTF8StringRaw(matchResult.groupValues[index])
 }
 
 /// UTF-16 start offset of group [index], or -1 when the group did not participate.
@@ -1258,12 +1250,12 @@ public func kk_string_replaceFirst_regex(
     outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw(rawStr) }
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw(rawStr) }
     let str = regexBox.normalizeIfNeeded(rawStr)
     let range = NSRange(str.startIndex..., in: str)
     guard let match = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range),
           let matchRange = Range(match.range, in: str) else {
-        return regexMakeStringRaw(str)
+        return runtimeMakeUTF8StringRaw(str)
     }
     do {
         try validateRegexReplacementTemplate(
@@ -1288,7 +1280,7 @@ public func kk_string_replaceFirst_regex(
     )
     var result = str
     result.replaceSubrange(matchRange, with: templateResult)
-    return regexMakeStringRaw(result)
+    return runtimeMakeUTF8StringRaw(result)
 }
 
 // MARK: - STDLIB-REGEX-098: Regex.matches(input)

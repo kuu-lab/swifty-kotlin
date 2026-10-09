@@ -1078,7 +1078,7 @@ extension ExprTypeChecker {
                 name: functionDecl.name,
                 fqName: memberFQNamePrefix + [functionDecl.name],
                 declSite: functionDecl.range,
-                visibility: objectLiteralVisibility(from: functionDecl.modifiers),
+                visibility: Visibility(modifiers: functionDecl.modifiers),
                 flags: objectLiteralFunctionFlags(
                     from: functionDecl,
                     objectSymbol: objectSymbol,
@@ -1166,13 +1166,6 @@ extension ExprTypeChecker {
         }
 
         return result
-    }
-
-    private func objectLiteralVisibility(from modifiers: Modifiers) -> Visibility {
-        if modifiers.contains(.private) { return .private }
-        if modifiers.contains(.internal) { return .internal }
-        if modifiers.contains(.protected) { return .protected }
-        return .public
     }
 
     private func objectLiteralFunctionFlags(

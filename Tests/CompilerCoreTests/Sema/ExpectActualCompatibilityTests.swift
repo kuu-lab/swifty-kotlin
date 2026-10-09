@@ -4,6 +4,32 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testOptionalExpectationDoesNotRequireActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            @OptIn(ExperimentalMultiplatform::class)
+            @OptionalExpectation
+            expect annotation class JsName(val name: String)
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" },
+            "Optional expect annotation classes may omit an actual declaration: \(errors)"
+        )
+
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("kmp"),
+            ctx.interner.intern("JsName"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol) == nil)
+    }
+
     @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
         let ctx = makeContextFromSource(
             """
@@ -18,6 +44,28 @@ struct ExpectActualCompatibilityTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(!errors.isEmpty)
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testExpectActualObjectLinksWithoutDuplicateDeclaration() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect object O
+            """,
+            """
+            actual object O
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let symbols = sema.symbols.lookupAll(fqName: [ctx.interner.intern("O")])
+            .compactMap { sema.symbols.symbol($0) }
+        let expectSymbol = try #require(symbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
     }
 
     @Test func testCommonModuleFlagAllowsExpectWithoutActual() throws {
@@ -66,6 +114,55 @@ struct ExpectActualCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual abstract fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let acName = [ctx.interner.intern("AC")]
+        let classes = sema.symbols.lookupAll(fqName: acName).compactMap { sema.symbols.symbol($0) }
+        let expectClass = try #require(classes.first { $0.flags.contains(.expectDeclaration) })
+        let actualClass = try #require(classes.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectClass.id) == actualClass.id)
+
+        let methodName = acName + [ctx.interner.intern("name")]
+        let methods = sema.symbols.lookupAll(fqName: methodName).compactMap { sema.symbols.symbol($0) }
+        let actualMethod = try #require(methods.first { $0.flags.contains(.actualDeclaration) })
+        #expect(actualMethod.flags.contains(.abstractType))
+    }
+
+    @Test func testActualFunctionInheritsAbstractnessFromExpectMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let methodName = [ctx.interner.intern("AC"), ctx.interner.intern("name")]
+        let actualMethod = try #require(sema.symbols.lookupAll(fqName: methodName).first {
+            sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+        })
+        #expect(sema.symbols.symbol(actualMethod)?.flags.contains(.abstractType) == true)
     }
 
     @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
@@ -131,6 +228,56 @@ struct ExpectActualCompatibilityTests {
             ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
         ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true })
         #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
+    }
+
+    @Test func testClassConstructorCallsPreferLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            expect open class S()
+            expect open class M(message: String): Exception
+            fun use() { val s = S(); val m = M("x") }
+            fun useQualified() { val s = x.S(); val m = x.M("x") }
+            """,
+            """
+            package x
+            actual open class S actual constructor()
+            actual open class M(message: String): Exception(message)
+            typealias AliasS = S
+            fun useAlias() { val s = AliasS() }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Paired class constructors should not be ambiguous: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let constructorName = ctx.interner.intern("<init>")
+        let classNames = [ctx.interner.intern("S"), ctx.interner.intern("M")]
+        var expectConstructors: Set<SymbolID> = []
+        var actualConstructors: Set<SymbolID> = []
+        for className in classNames {
+            let classFQName = [ctx.interner.intern("x"), className]
+            let classSymbols = sema.symbols.lookupAll(fqName: classFQName).compactMap { sema.symbols.symbol($0) }
+            let expectClass = try #require(classSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualClass = try #require(classSymbols.first { $0.flags.contains(.actualDeclaration) })
+            let constructorSymbols = sema.symbols.lookupAll(fqName: classFQName + [constructorName])
+            expectConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == expectClass.id
+            })
+            actualConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == actualClass.id
+            })
+        }
+
+        let chosenConstructorCalls = sema.bindings.callBindings.values.map(\.chosenCallee).filter {
+            expectConstructors.contains($0) || actualConstructors.contains($0)
+        }
+        #expect(expectConstructors.count == 2)
+        #expect(actualConstructors.count == 2)
+        #expect(chosenConstructorCalls.count == 5, "All constructor call forms should resolve: \(chosenConstructorCalls)")
+        #expect(Set(chosenConstructorCalls) == actualConstructors, "Calls should bind only actual constructors: \(chosenConstructorCalls)")
     }
 
     @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {

@@ -9,8 +9,7 @@ import Glibc
 import CompilerCore
 
 enum CodegenCriticalSection {
-    /// Process-local lock for LLVM target initialization and native emission on
-    /// Linux. LLVM's target registry is process-global and is not safe to touch
+    /// LLVM's target registry is process-global and is not safe to touch
     /// concurrently, even when each compilation owns a separate context and
     /// output path. Cross-process serialization is unnecessary because each
     /// `kswiftc` process has its own LLVM target registry.
@@ -29,10 +28,10 @@ enum CodegenCriticalSection {
 
     private static let linuxLLVMProcessLock = NSLock()
 
-    /// Cross-process lock for Linux executable linking. Each `kswiftc` process has
-    /// private temporary inputs, but concurrent Swift toolchain invocations can
-    /// still interfere on self-hosted runners. Keep the complete link operation
-    /// serialized per target while retaining private autolink stub directories.
+    /// Each `kswiftc` process has private temporary inputs, but concurrent Swift
+    /// toolchain invocations can still interfere on self-hosted runners. Keep the
+    /// complete link operation serialized per target while retaining private
+    /// autolink stub directories.
     static func withLinuxExecutableToolchainLock<T>(
         target: TargetTriple,
         body: () throws -> T
@@ -41,10 +40,8 @@ enum CodegenCriticalSection {
             return try body()
         }
 
-        // Isolate the lock directory per-user so it cannot be pre-created by
-        // another local user. Create it atomically with mkdir(0700); if it
-        // already exists, verify it is a directory we own with 0700
-        // permissions before trusting it. This defeats the TOCTOU/symlink
+        // Per-user directory so another local user cannot pre-create it. Atomic
+        // mkdir(0700) plus the ownership check on EEXIST defeats the TOCTOU/symlink
         // hazard of a shared, world-writable temp directory.
         let lockDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("kswiftk-codegen-locks-\(getuid())", isDirectory: true)
@@ -81,8 +78,6 @@ enum CodegenCriticalSection {
         return try body()
     }
 
-    /// Verifies the given path is a real directory (not a symlink) owned by the
-    /// current effective user with no group/other permission bits.
     private static func verifyOwnedDirectory(at url: URL) throws {
         var info = stat()
         let result = url.path.withCString { path in
@@ -102,8 +97,6 @@ enum CodegenCriticalSection {
         }
     }
 
-    /// Verifies the opened descriptor refers to a regular file owned by the
-    /// current effective user, rejecting attacker-controlled inodes.
     private static func verifyOwnedRegularFile(descriptor: Int32) throws {
         var info = stat()
         guard fstat(descriptor, &info) == 0 else {

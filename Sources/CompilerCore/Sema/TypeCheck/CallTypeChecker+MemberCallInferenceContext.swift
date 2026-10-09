@@ -288,7 +288,11 @@ extension CallTypeChecker {
         }
         if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
             guard let symbol = ctx.cachedSymbol($0) else { return false }
-            return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass
+            guard symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass else {
+                return false
+            }
+            return !symbol.flags.contains(.expectDeclaration)
+                || sema.symbols.actualSymbol(for: $0) == nil
         }), let classSymbol = ctx.cachedSymbol(classSymbolID) {
             // Merge constructors with same-name factory functions, just as
             // unqualified call resolution does. fqnPath may name both a class
@@ -330,8 +334,11 @@ extension CallTypeChecker {
             }
             let ctorFQName = fqnPath + [interner.intern("<init>")]
             if !classSymbol.flags.contains(.abstractType) {
+                // Constructor symbols carry their declaring class as parent;
+                // filter out the linked expect class's duplicate constructors.
                 fqnCandidates.append(contentsOf: sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
                     ctx.cachedSymbol(candidate)?.kind == .constructor
+                        && sema.symbols.parentSymbol(for: candidate) == classSymbolID
                 })
             }
         }
@@ -372,6 +379,13 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        driver.helpers.checkDeprecation(
+            for: chosen,
+            sema: sema,
+            interner: interner,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
         // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
         // namespace path, never type-checked above, so KIR lowering must not
         // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.

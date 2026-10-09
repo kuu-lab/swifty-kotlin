@@ -2,19 +2,7 @@ import Foundation
 import RuntimeABI
 
 func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
-    guard raw != runtimeNullSentinelInt,
-          raw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
-    else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeThrowableBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeThrowableBox.self)
 }
 
 private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
@@ -799,7 +787,6 @@ public func kk_string_to_flat(
 /// Returns `1` when a registered storage was dropped, and `0` when `data` is
 /// nil, a string literal or other foreign buffer, or an already-released
 /// buffer, making the call idempotent for stale pointers.
-@_cdecl("kk_flat_string_release")
 public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
     guard let data else {
         return 0
