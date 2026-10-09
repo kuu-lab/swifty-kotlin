@@ -271,25 +271,6 @@ struct RuntimeStringArrayTests {
         }
     }
 
-    private func flatStringReturnValueNoThrow(
-        _ value: String,
-        intArg: Int,
-        using call: RuntimeFlatStringReturnWithIntNoThrowEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = call(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
     private func flatStringReturnValue(
         _ value: String,
         leadingIntArg: Int,
@@ -2557,74 +2538,6 @@ struct RuntimeStringArrayTests {
         return array
     }
 
-    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
-        makeRuntimeValueArray(values.map(runtimeStringAggregateValue))
-    }
-
-    private func makeRuntimeValueList(_ values: [RuntimeValue]) -> Int {
-        registerRuntimeObject(RuntimeListBox(values: values))
-    }
-
-    private func assertFindAnyOfPair(
-        _ pairRaw: Int,
-        offset: Int,
-        match: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        #expect(pairRaw != runtimeNullSentinelInt)
-        guard pairRaw != runtimeNullSentinelInt,
-              let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
-              let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
-        else {
-            Issue.record("Expected RuntimePairBox result")
-            return
-        }
-        #expect(pairBox.firstValue.tag == RuntimeValue.rawTag)
-        #expect(pairBox.firstValue.payload0 == offset)
-        #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
-        #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == match)
-        #expect(kk_pair_first(pairRaw) == offset)
-        #expect(runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function) == match)
-    }
-
-    private func assertStringValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
-            return
-        }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected)
-    }
-
-    private func assertRawValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [Int],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
-            return
-        }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.rawTag, count: expected.count))
-        #expect(values.map(\.payload0) == expected)
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw) == expected)
-    }
-
     private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
         var length = 0
         var byteCount = 0
@@ -2645,20 +2558,6 @@ struct RuntimeStringArrayTests {
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func runtimeFlatStringValue(_ value: RuntimeValue) -> String {
-        guard value.tag == RuntimeValue.stringTag,
-              let data = UnsafePointer<UInt8>(bitPattern: value.payload0)
-        else {
-            return ""
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
     }
 }
 #endif

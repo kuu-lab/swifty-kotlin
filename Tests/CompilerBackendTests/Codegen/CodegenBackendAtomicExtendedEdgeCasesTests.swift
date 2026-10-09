@@ -407,6 +407,32 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "LegacyAtomicRefStringCAE", expected: "true\ny\nz\n")
     }
 
+    /// KUU-1507: Keep the Kotlin/Native-only legacy API covered without JVM kotlinc.
+    @Test
+    func testCodegenLegacyAtomicArrayOperations() throws {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
+        import kotlin.concurrent.AtomicArray
+
+        fun main() {
+            val values = AtomicArray(2) { "v$it" }
+            println(values.length)
+            println(values[0])
+            values[0] = "updated"
+            println(values.getAndSet(0, "exchanged"))
+            println(values.compareAndSet(0, "exchanged", "cas"))
+            println(values.compareAndExchange(0, "cas", "changed"))
+            println(values.toString())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LegacyAtomicArrayOperations",
+            expected: "2\nv0\nupdated\ntrue\ncas\n[changed, v1]\n"
+        )
+    }
+
     @Test
     func testCodegenAtomicReferenceExchangeAndStore() throws {
         let source = """
@@ -498,6 +524,30 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "AtomicArrayOfNullsFactory", expected: "2\nfirst\nvalue\n")
+    }
+
+    @Test
+    func testCodegenLegacyAtomicArrayConstructorsAndCopySemantics() throws {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalStdlibApi::class)
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
+        import kotlin.concurrent.AtomicArray
+
+        fun main() {
+            val initialized = AtomicArray(2) { index -> index.toString() }
+            val source = arrayOf("alpha", "beta")
+            val copied = AtomicArray(source)
+            source[0] = "x"
+            println(initialized)
+            println(copied)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "LegacyAtomicArrayConstructors",
+            expected: "[0, 1]\n[alpha, beta]\n"
+        )
     }
 
     @Test

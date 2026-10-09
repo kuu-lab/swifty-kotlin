@@ -1,5 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): Kotlin/Native 2.3.10 exposes the nullable-message
-// constructor, while the JVM kotlinc reference exposes only the no-arg actual.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_text_CharacterCodingException_n_n.expected.txt
 
 import kotlin.text.CharacterCodingException
 

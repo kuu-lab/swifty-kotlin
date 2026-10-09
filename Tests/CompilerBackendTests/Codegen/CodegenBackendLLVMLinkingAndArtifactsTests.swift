@@ -1391,17 +1391,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        func appendThrowingScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
-                arguments: arguments,
-                result: temporary(types.intType),
-                canThrow: true,
-                thrownResult: temporary(types.intType)
-            ))
-        }
-
         appendScalarCall(try runtimeLinkName("string_split_flat"), [textExpr, delimiterExpr])
         appendScalarCall(try runtimeLinkName("string_split_limit_flat"), [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall(try runtimeLinkName("string_splitToSequence_flat"), [textExpr, delimiterExpr])

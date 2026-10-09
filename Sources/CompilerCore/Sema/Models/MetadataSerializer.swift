@@ -420,7 +420,11 @@ package final class MetadataEncoder {
                     && Self.isSourceBackedEnumClassMember(
                         symbol.id,
                         symbols: symbols,
-                        excludedSourceFileIDs: excludeSourceFileIDs
+                        excludedSourceFileIDs: excludeSourceFileIDs,
+                        allowShellBackedEnum: Self.isPublicImplicitEnumClassHelper(
+                            symbol,
+                            interner: interner
+                        )
                     )
                 // `$enumConstructorProperty$` helpers are lowered synthesized
                 // functions, but they are the only representation of an enum
@@ -968,6 +972,21 @@ package final class MetadataEncoder {
             valueParameterNames = signature.valueParameterSymbols.compactMap { paramSymbol in
                 symbols.symbol(paramSymbol).map { interner.resolve($0.name) }
             }
+            // The synthetic enum `valueOf` signature can have an arity without
+            // a corresponding value-parameter symbol. Its public Kotlin
+            // parameter is still named `name`, which imported consumers need
+            // for named-argument resolution.
+            if interner.resolve(symbol.name) == "valueOf",
+               signature.parameterTypes.count == 1,
+               Self.isPublicImplicitEnumClassHelper(symbol, interner: interner),
+               Self.isSourceBackedEnumClassMember(
+                   symbol.id,
+                   symbols: symbols,
+                   excludedSourceFileIDs: [],
+                   allowShellBackedEnum: true
+               ) {
+                valueParameterNames = ["name"]
+            }
             reifiedTypeParameterIndices = signature.reifiedTypeParameterIndices
             receiverOwnerFQName = signature.receiverType.flatMap { receiverType in
                 BundledDeclarationIndex.receiverOwnerFQName(
@@ -1408,6 +1427,26 @@ package final class MetadataEncoder {
             currentID = symbols.parentSymbol(for: parentID)
         }
         return false
+    }
+
+    /// Synthetic enum members are only retained for source-backed shell enums
+    /// when they are one of Kotlin's public implicit enum helpers. This keeps
+    /// shell-backed metadata from exporting unrelated synthetic or non-public
+    /// enum members.
+    private static func isPublicImplicitEnumClassHelper(
+        _ symbol: SemanticSymbol,
+        interner: StringInterner
+    ) -> Bool {
+        guard symbol.flags.contains(.synthetic), symbol.visibility == .public else {
+            return false
+        }
+        switch (symbol.kind, interner.resolve(symbol.name)) {
+        case (.property, "name"), (.property, "ordinal"), (.property, "entries"),
+             (.function, "values"), (.function, "valueOf"):
+            return true
+        default:
+            return false
+        }
     }
 
     /// True when `symbolID` is a compiler-generated member of a source-backed enum

@@ -20,6 +20,7 @@ internal external fun __kkCoroutineScopeNewWithContext(context: CoroutineContext
 @KsSymbolName("kk_coroutine_current_context")
 internal external fun __kkCurrentCoroutineContext(): CoroutineContext
 
+@DelicateCoroutinesApi
 public object GlobalScope : CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = EmptyCoroutineContext

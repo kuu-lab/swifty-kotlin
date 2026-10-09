@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): JVM kotlinc does not provide KSwiftK's bundled top-level two-value API; run the candidate directly.
+// CANDIDATE-ONLY: DEBT-DIFF-001; kotlinc lacks KSwiftK's bundled top-level two-value API.
 import kotlin.comparisons.maxWith
 import kotlin.comparisons.minWith
 import kotlin.comparisons.naturalOrder
