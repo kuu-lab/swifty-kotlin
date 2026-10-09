@@ -28,6 +28,9 @@ KOTLINC_KOTLINX_IO_SHA256="${KOTLINC_KOTLINX_IO_SHA256:-}"
 KOTLINC_KOTLINX_IO_JAR="${KOTLINC_KOTLINX_IO_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-core-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
 KOTLINC_KOTLINX_IO_BYTESTRING_SHA256="${KOTLINC_KOTLINX_IO_BYTESTRING_SHA256:-}"
 KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-bytestring-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
+KOTLINC_ATOMICFU_VERSION="${KOTLINC_ATOMICFU_VERSION:-0.33.0}"
+KOTLINC_ATOMICFU_SHA256="${KOTLINC_ATOMICFU_SHA256:-}"
+KOTLINC_ATOMICFU_JAR="${KOTLINC_ATOMICFU_JAR:-$KOTLINC_DEP_DIR/atomicfu-jvm-$KOTLINC_ATOMICFU_VERSION.jar}"
 # Reference jars are cached across runs by default. Set to empty
 # (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
 # explicitly empty value as "disabled" instead of re-applying the default.
@@ -154,6 +157,9 @@ Environment:
   DIFF_KSWIFTC_FLAGS
                      Space-separated arguments appended to the candidate
                      kswiftc invocation (default: empty)
+  KOTLINC_ATOMICFU_VERSION / KOTLINC_ATOMICFU_SHA256 / KOTLINC_ATOMICFU_JAR
+                     atomicfu-jvm reference dependency (default: pinned 0.33.0);
+                     custom versions require an explicit SHA-256
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -358,7 +364,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Shared by requires_kotlinx_coroutines/requires_kotlinx_io. Plain grep
+# Shared by dependency detection functions. Plain grep
 # (POSIX ERE) + find, not rg: this must keep working on hosts/CI jobs without
 # ripgrep installed. A missing `rg` here previously made `rg -q` exit
 # non-zero for "command not found" the same way it does for "no match", so
@@ -397,6 +403,18 @@ requires_kotlinx_io() {
 
 requires_kotlinx_io_bytestring() {
   target_matches_import "$1" 'import[[:space:]]+kotlinx\.io\.bytestring'
+}
+
+requires_atomicfu() {
+  target_matches_import "$1" '^[[:space:]]*import[[:space:]]+kotlinx\.atomicfu\.'
+}
+
+# Pin the real Maven artifact; unknown versions need an explicit checksum.
+known_atomicfu_sha256() {
+  case "$1" in
+    0.33.0) printf 'cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e' ;;
+    *) printf '' ;;
+  esac
 }
 
 # Known checksums per kotlinx-coroutines version. For other versions, set
@@ -533,8 +551,9 @@ ensure_maven_jar() {
 
   local actual_sha256
   if ! actual_sha256="$(sha256_file "$jar_path")"; then
-    echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
-    actual_sha256="$expected_sha256"
+    echo "Error: unable to verify checksum for $dep_label-${version}.jar" >&2
+    echo "Install shasum or sha256sum and ensure the cached jar is readable." >&2
+    return 1
   fi
   if [[ "$actual_sha256" != "$expected_sha256" ]]; then
     echo "Error: checksum mismatch for $dep_label-${version}.jar" >&2
@@ -566,6 +585,13 @@ ensure_kotlinx_io_bytestring_jar() {
     "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_BYTESTRING_JAR" "$KOTLINC_KOTLINX_IO_BYTESTRING_SHA256" known_kotlinx_io_bytestring_sha256
 }
 
+ensure_atomicfu_jar() {
+  ensure_maven_jar \
+    "atomicfu-jvm" \
+    "org/jetbrains/kotlinx/atomicfu-jvm/${KOTLINC_ATOMICFU_VERSION}/atomicfu-jvm-${KOTLINC_ATOMICFU_VERSION}.jar" \
+    "$KOTLINC_ATOMICFU_VERSION" "$KOTLINC_ATOMICFU_JAR" "$KOTLINC_ATOMICFU_SHA256" known_atomicfu_sha256
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -586,6 +612,11 @@ ensure_kotlinc_classpath() {
   if requires_kotlinx_io_bytestring "$TARGET"; then
     ensure_kotlinx_io_bytestring_jar || return 1
     jars+=("$KOTLINC_KOTLINX_IO_BYTESTRING_JAR")
+  fi
+
+  if requires_atomicfu "$TARGET"; then
+    ensure_atomicfu_jar || return 1
+    jars+=("$KOTLINC_ATOMICFU_JAR")
   fi
 
   if [[ ${#jars[@]} -eq 0 ]]; then

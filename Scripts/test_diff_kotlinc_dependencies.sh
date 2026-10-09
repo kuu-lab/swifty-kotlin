@@ -14,6 +14,7 @@ source "$TEMP_DIR/functions.sh"
 KOTLINC_COROUTINES_JAR="$TEMP_DIR/coroutines.jar"
 KOTLINC_KOTLINX_IO_JAR="$TEMP_DIR/io.jar"
 KOTLINC_KOTLINX_IO_BYTESTRING_JAR="$TEMP_DIR/bytestring.jar"
+KOTLINC_ATOMICFU_JAR="$TEMP_DIR/atomicfu.jar"
 DOWNLOADS=""
 FAIL_IO=0
 ensure_coroutines_jar() { DOWNLOADS+="coroutines;"; }
@@ -22,6 +23,7 @@ ensure_kotlinx_io_jar() {
   [[ "$FAIL_IO" == 0 ]]
 }
 ensure_kotlinx_io_bytestring_jar() { DOWNLOADS+="bytestring;"; }
+ensure_atomicfu_jar() { DOWNLOADS+="atomicfu;"; }
 
 check_selection() {
   local imports="$1" expected_classpath="$2" expected_downloads="$3"
@@ -41,6 +43,16 @@ check_selection 'import kotlinx.io.bytestring.ByteString' \
   "$KOTLINC_KOTLINX_IO_JAR:$KOTLINC_KOTLINX_IO_BYTESTRING_JAR" 'io;bytestring;'
 check_selection $'import kotlinx.coroutines.runBlocking\nimport kotlinx.io.Buffer' \
   "$KOTLINC_COROUTINES_JAR:$KOTLINC_KOTLINX_IO_JAR" 'coroutines;io;'
+check_selection 'import kotlinx.atomicfu.*' "$KOTLINC_ATOMICFU_JAR" 'atomicfu;'
+check_selection 'import kotlinx.atomicfu.atomic as makeAtomic' "$KOTLINC_ATOMICFU_JAR" 'atomicfu;'
+check_selection '// kotlinx.atomicfu.atomic is mentioned only in documentation' '' ''
+check_selection 'fun main() { println("kotlinx.atomicfu.atomic") }' '' ''
+check_selection $'import kotlinx.coroutines.*\nimport kotlinx.io.bytestring.ByteString\nimport kotlinx.atomicfu.atomic' \
+  "$KOTLINC_COROUTINES_JAR:$KOTLINC_KOTLINX_IO_JAR:$KOTLINC_KOTLINX_IO_BYTESTRING_JAR:$KOTLINC_ATOMICFU_JAR" \
+  'coroutines;io;bytestring;atomicfu;'
+check_selection 'import kotlinx.atomicfuture.*' '' ''
+[[ "$(known_atomicfu_sha256 0.33.0)" == 'cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e' ]]
+[[ -z "$(known_atomicfu_sha256 0.33.1)" ]]
 
 # Recursion, spaces in paths, and non-Kotlin files in a directory.
 mkdir -p "$TEMP_DIR/cases/nested dir"
@@ -66,4 +78,17 @@ if ensure_kotlinc_classpath; then
   exit 1
 fi
 [[ -z "$KOTLINC_CLASSPATH" ]]
+
+# A cached artifact must fail when checksum verification cannot be performed.
+# No download is needed; a curl function also keeps this check portable to
+# dependency-selection-only hosts without a curl executable.
+curl() { return 1; }
+KOTLINC_DEP_DIR="$TEMP_DIR"
+printf '%s' 'cached jar' > "$TEMP_DIR/integrity.jar"
+sha256_file() { return 1; }
+if ensure_maven_jar atomicfu-jvm unused 0.33.0 "$TEMP_DIR/integrity.jar" '' known_atomicfu_sha256; then
+  echo 'Expected unverifiable cached dependency to fail.' >&2
+  exit 1
+fi
+[[ -s "$TEMP_DIR/integrity.jar" ]]
 echo 'PASS diff_kotlinc dependency selection'
