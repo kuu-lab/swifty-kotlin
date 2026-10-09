@@ -110,6 +110,36 @@ extension BundledStdlibExecutionTests {
     }
 
     @Test(arguments: [false, true])
+    func testRunTestChildDelayUsesVirtualTime(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.test.*
+
+            @OptIn(ExperimentalCoroutinesApi::class)
+            fun main() {
+                runTest {
+                    println("in-test")
+                    println(currentTime)
+                    launch { delay(10000); println("delayed") }
+                    advanceTimeBy(5000)
+                    println("t=$currentTime")
+                    advanceUntilIdle()
+                    println("idle t=$currentTime")
+                }
+                runTest {
+                    val testScope = this
+                    launch { delay(10000); println("auto t=${testScope.currentTime}") }
+                }
+                println("done")
+            }
+            """,
+            expectedOutput: "in-test\n0\nt=5000\ndelayed\nidle t=10000\nauto t=10000\ndone\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    @Test(arguments: [false, true])
     func testTestSchedulerLongClockABI(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             """
