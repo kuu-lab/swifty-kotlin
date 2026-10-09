@@ -504,7 +504,9 @@ extension CallLowerer {
                         callableValueCallBinding: callableBinding,
                         sema: sema
                     )
-                    if fnType.receiver != nil {
+                    if fnType.receiver != nil,
+                       sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
+                    {
                         // `val action: R.() -> T` invoked as `receiver.action(args)`:
                         // the call-site receiver is the lambda's dispatch receiver,
                         // passed right after the function value (mirroring the
