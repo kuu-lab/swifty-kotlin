@@ -2,6 +2,17 @@
 struct MemberCallReceiver {
     let expr: ExprID
     let loweredID: KIRExprID
+    let typeOverride: TypeID?
+
+    init(expr: ExprID, loweredID: KIRExprID, typeOverride: TypeID? = nil) {
+        self.expr = expr
+        self.loweredID = loweredID
+        self.typeOverride = typeOverride
+    }
+
+    func type(in sema: SemaModule) -> TypeID? {
+        typeOverride ?? sema.bindings.exprType(for: expr)
+    }
 }
 
 /// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`

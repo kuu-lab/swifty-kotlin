@@ -1750,6 +1750,7 @@ public final class BindingTable {
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
+    public private(set) var invokeOperatorPropertyCalls: [ExprID: InvokeOperatorPropertyBinding] = [:]
     public private(set) var collectionExprIDs: Set<ExprID> = []
     public private(set) var rangeExprIDs: Set<ExprID> = []
     public private(set) var charRangeExprIDs: Set<ExprID> = []
@@ -2037,6 +2038,10 @@ public final class BindingTable {
 
     public func markInvokeOperatorCall(_ expr: ExprID) {
         invokeOperatorCallExprs.insert(expr)
+    }
+
+    public func bindInvokeOperatorPropertyCall(_ expr: ExprID, binding: InvokeOperatorPropertyBinding) {
+        invokeOperatorPropertyCalls[expr] = binding
     }
 
     public func markCollectionExpr(_ expr: ExprID) {

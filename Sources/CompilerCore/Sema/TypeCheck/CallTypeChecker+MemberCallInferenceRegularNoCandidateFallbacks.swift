@@ -80,8 +80,7 @@ extension CallTypeChecker {
             // Package-owned extension properties have getter accessors rather
             // than nominal fields. Resolve the getter without replacing this
             // expression's eventual function-value invocation binding.
-            guard explicitTypeArgs.isEmpty,
-                  let propertyType = resolveExtensionPropertyGetter(
+            guard let propertyType = resolveExtensionPropertyGetter(
                 id: id, calleeName: calleeName, range: range,
                 receiverType: memberLookupType, expectedType: nil, ctx: ctx, bindCall: false, requireInScope: true,
                 invocationCandidateFilter: { property in
@@ -95,8 +94,7 @@ extension CallTypeChecker {
                                 property, request: request, argTypes: argTypes, locals: invocationLocals
                             )
                 }
-            ), inferFunctionTypeOrError(from: propertyType, sema: sema) != nil,
-                  let property = sema.bindings.identifierSymbol(for: id) else {
+            ), let property = sema.bindings.identifierSymbol(for: id) else {
                 return nil
             }
             return (property, propertyType)
@@ -151,23 +149,23 @@ extension CallTypeChecker {
             ).filter { candidateID in
                 guard let sym = sema.symbols.symbol(candidateID) else { return false }
                 return sym.flags.contains(.operatorFunction)
+                    && ctx.visibilityChecker.isAccessible(sym, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
             }
 
             if !invokeCandidates.isEmpty {
-                let resolvedArgs = zip(args, argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
-                }
-                let resolved = ctx.resolver.resolveCall(
-                    candidates: invokeCandidates,
-                    call: CallExpr(
-                        range: range,
-                        calleeName: invokeName,
-                        args: resolvedArgs,
-                        explicitTypeArgs: explicitTypeArgs
-                    ),
-                    expectedType: expectedType,
-                    implicitReceiverType: propResult.type,
-                    ctx: ctx.semaCtx
+                let prepared = prepareCallArguments(
+                    args: args, candidates: invokeCandidates, explicitTypeArgs: explicitTypeArgs,
+                    receiverType: propResult.type, ctx: ctx, locals: &locals
+                )
+                let resolved = resolveCallRespectingLambdaReturnType(
+                    candidates: invokeCandidates, args: args, argTypes: prepared.argTypes,
+                    range: range, calleeName: invokeName, explicitTypeArgs: explicitTypeArgs,
+                    expectedType: expectedType, implicitReceiverType: propResult.type,
+                    lambdaLiteralIndices: prepared.lambdaLiteralIndices,
+                    inputOnlyLambdaIndices: prepared.inputOnlyLambdaIndices,
+                    blockedLambdaRefinement: prepared.blockedLambdaRefinement,
+                    hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter,
+                    ctx: ctx
                 )
                 if let diagnostic = resolved.diagnostic {
                     ctx.semaCtx.diagnostics.emit(diagnostic)
@@ -177,6 +175,9 @@ extension CallTypeChecker {
                     let returnType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
                     sema.bindings.markInvokeOperatorCall(id)
                     sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+                    sema.bindings.bindInvokeOperatorPropertyCall(id, binding: InvokeOperatorPropertyBinding(
+                        property: propResult.symbol, propertyType: propResult.type, resultType: returnType
+                    ))
                     let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType

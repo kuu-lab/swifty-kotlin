@@ -10,6 +10,19 @@ public struct CallBinding {
     }
 }
 
+/// The value read before invoking an object's operator member through a property.
+public struct InvokeOperatorPropertyBinding {
+    public let property: SymbolID
+    public let propertyType: TypeID
+    public let resultType: TypeID
+
+    public init(property: SymbolID, propertyType: TypeID, resultType: TypeID) {
+        self.property = property
+        self.propertyType = propertyType
+        self.resultType = resultType
+    }
+}
+
 public enum CallableTarget: Equatable {
     case symbol(SymbolID)
     case localValue(SymbolID)
