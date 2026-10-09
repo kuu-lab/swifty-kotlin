@@ -9,6 +9,8 @@ KSwiftK or establish full API compatibility.
 IDs and SHA-256 for 15 API dumps and the Apache 2.0 license. The tag's Gradle
 version is `1.10.1-SNAPSHOT`; the reference uses the published **1.10.0** Maven
 artifacts, not a build of that snapshot setting.
+The scoped Git attributes retain upstream bytes and their final empty lines;
+upstream blob/hash checks still require exact copies.
 
 `declarations.json` retains 3,067 JVM/KLIB dump declarations separately, including
 owners, original line numbers, raw signatures, ABI IDs, target sets, and simple
