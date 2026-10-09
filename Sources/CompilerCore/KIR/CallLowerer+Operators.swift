@@ -102,7 +102,7 @@ extension CallLowerer {
                 self.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
             }
             if let foldedText = collector.constantStringConcatOperandText(
-                exprID, ast: ast, interner: interner
+                exprID, ast: ast, sema: sema, interner: interner
             ) {
                 let foldedSymbol = interner.intern(foldedText)
                 let literalID = arena.appendExpr(.stringLiteral(foldedSymbol), type: stringType)
