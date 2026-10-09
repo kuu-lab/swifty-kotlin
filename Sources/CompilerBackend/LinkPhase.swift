@@ -12,8 +12,7 @@ final class LinkPhase: CompilerPhase {
     static let name = "Link"
 
     /// Linux links emit a Swift autolink stub that pulls in runtime dependencies. The stub is
-    /// written to a per-`LinkPhase` private temporary directory
-    /// (`TMPDIR/kswiftk-link-stubs-<uid>-<pid>-<uuid>`, mode 0700). Because every compilation
+    /// written to a per-`LinkPhase` private temporary directory. Because every compilation
     /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
     /// the same stub path. The complete link operation is still guarded by a per-target
     /// cross-process toolchain lock on Linux because concurrent `swiftc` invocations can
