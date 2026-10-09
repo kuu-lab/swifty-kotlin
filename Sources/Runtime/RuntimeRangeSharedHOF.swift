@@ -127,7 +127,17 @@ private func runtimeRangeList(_ elements: [Int]) -> Int {
 /// collides with the null sentinel or loses type identity are boxed so
 /// generic consumers recover the primitive.
 private func runtimeRangeElementList(_ elements: [Int], kind: RuntimeRangeKind) -> Int {
-    runtimeRangeList(elements.map { runtimeRangeErasedElement($0, kind: kind) })
+    switch kind {
+    case .charRange, .charProgression,
+         .longRange, .longProgression,
+         .ulongRange, .ulongProgression:
+        return runtimeRangeList(elements.map { runtimeRangeErasedElement($0, kind: kind) })
+    case .intRange, .intProgression,
+         .uintRange, .uintProgression:
+        // `runtimeRangeErasedElement` is the identity for these kinds, so the
+        // map would only allocate a second array to copy the input.
+        return runtimeRangeList(elements)
+    }
 }
 
 private func runtimeRangeValues<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> [Int] {
