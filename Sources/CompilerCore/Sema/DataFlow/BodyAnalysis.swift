@@ -85,11 +85,10 @@ extension DataFlowSemaPhase {
                 return types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: nullability)))
             }
 
-            if let builtinType = resolveBuiltinTypeName(
+            if let builtinType = builtinTypeNames(interner: interner).resolveBuiltinType(
                 shortName,
                 nullability: nullability,
-                types: types,
-                interner: interner
+                types: types
             ) {
                 return builtinType
             }
@@ -404,21 +403,6 @@ extension DataFlowSemaPhase {
                 range: usageRange
             )
         }
-    }
-
-    private func resolveBuiltinTypeName(
-        _ name: InternedString,
-        nullability: Nullability,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID? {
-        if let builtin = builtinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
-            return builtin
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.make(.primitive(.int, nullability))
-        }
-        return nil
     }
 
     private func resolveRelativeNominalCandidates(
@@ -910,7 +894,7 @@ extension DataFlowSemaPhase {
                let replacement = argSubstitution[tp.symbol]
             {
                 if tp.nullability == .nullable {
-                    return applyNullabilityToArg(replacement, types: types)
+                    return replacement.mapTypes { applyNullability($0, types: types) }
                 }
                 return replacement
             }
@@ -959,19 +943,6 @@ extension DataFlowSemaPhase {
             ))
         case .star:
             return .star
-        }
-    }
-
-    private func applyNullabilityToArg(_ arg: TypeArg, types: TypeSystem) -> TypeArg {
-        switch arg {
-        case let .invariant(inner):
-            .invariant(applyNullability(inner, types: types))
-        case let .out(inner):
-            .out(applyNullability(inner, types: types))
-        case let .in(inner):
-            .in(applyNullability(inner, types: types))
-        case .star:
-            .star
         }
     }
 
