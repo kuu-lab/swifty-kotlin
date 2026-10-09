@@ -113,15 +113,6 @@ public extension RuntimeABISpec {
             section: "Duration",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_comparable_time_mark_from_reading_nanos",
-            parameters: [
-                RuntimeABIParameter(name: "readingNanos", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
         // KSP-649: TimeSource / Monotonic reading bridges and Clock factory.
         RuntimeABIFunctionSpec(
             name: "__kk_time_source_mark_now",

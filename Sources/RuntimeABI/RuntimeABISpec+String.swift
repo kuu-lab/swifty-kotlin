@@ -1688,17 +1688,6 @@ public extension RuntimeABISpec {
         // MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
         RuntimeABIFunctionSpec(
-            name: "__kk_string_format_locale",
-            parameters: [
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_string_codePointCount",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
