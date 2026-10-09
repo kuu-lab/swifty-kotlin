@@ -1,5 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 
 struct TestCompilationFailure: Error, CustomStringConvertible {

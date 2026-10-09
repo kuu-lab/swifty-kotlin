@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// KSP-1481: calls through `Clock` must remain interface dispatch after the

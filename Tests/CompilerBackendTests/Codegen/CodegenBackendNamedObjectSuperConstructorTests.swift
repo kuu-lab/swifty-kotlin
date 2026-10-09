@@ -14,6 +14,7 @@
 // panicked at runtime.
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 

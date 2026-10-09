@@ -3,6 +3,7 @@ import Testing
 import Foundation
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 
 @Suite
 struct CodegenBackendCollectionIndexOfLastTests {
