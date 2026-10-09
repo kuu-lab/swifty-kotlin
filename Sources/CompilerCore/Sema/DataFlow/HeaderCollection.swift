@@ -16,8 +16,20 @@ extension DataFlowSemaPhase {
         }
 
         let packageSymbol = symbols.lookup(fqName: file.packageFQName.isEmpty ? [interner.intern("_root_")] : file.packageFQName)
-        let records = file.annotations.map { annotation in
-            MetadataAnnotationRecord(
+        let records = file.annotations.compactMap { annotation -> MetadataAnnotationRecord? in
+            // File annotations are also kept on the package symbol so
+            // binary annotations such as @file:JsExport can round-trip.
+            // SOURCE-retained annotations only affect the current source file
+            // and must not be written into a library's package metadata.
+            if hasSourceRetention(
+                annotation,
+                file: file,
+                symbols: symbols,
+                interner: interner
+            ) {
+                return nil
+            }
+            return MetadataAnnotationRecord(
                 annotationFQName: annotation.name,
                 arguments: annotation.arguments,
                 useSiteTarget: annotation.useSiteTarget
@@ -38,6 +50,38 @@ extension DataFlowSemaPhase {
             for argument in annotation.arguments {
                 let code = argument.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
                 diagnostics.addSuppression(code: code, range: fileRange)
+            }
+        }
+    }
+
+    private func hasSourceRetention(
+        _ annotation: AnnotationNode,
+        file: ASTFile,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = resolveAnnotationSymbol(
+            named: annotation.name,
+            in: file,
+            symbols: symbols,
+            interner: interner
+        ) else {
+            return false
+        }
+        if symbols.symbol(symbol)?.fqName.map(interner.resolve) == ["kotlin", "js", "JsFileName"] {
+            // File annotations are registered before stdlib declaration
+            // annotations have been collected, so this SOURCE-retained
+            // declaration's metadata is not available at this point.
+            return true
+        }
+        return symbols.annotations(for: symbol).contains { metaAnnotation in
+            guard metaAnnotation.annotationFQName == "Retention"
+                || metaAnnotation.annotationFQName == "kotlin.annotation.Retention"
+            else {
+                return false
+            }
+            return metaAnnotation.arguments.contains { argument in
+                argument.contains("SOURCE")
             }
         }
     }
