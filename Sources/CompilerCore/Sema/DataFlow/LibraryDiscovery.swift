@@ -105,7 +105,7 @@ extension DataFlowSemaPhase {
             .resolvingSymlinksInPath()
             .standardizedFileURL
 
-        guard Self.isContained(manifestURL, in: libraryRoot) else {
+        guard CompilerFileSystem.isContained(manifestURL, in: libraryRoot) else {
             diagnostics.error(
                 "KSWIFTK-LIB-0018",
                 "Manifest path escapes library directory \(libName)",
@@ -118,7 +118,7 @@ extension DataFlowSemaPhase {
                 isValid: false
             )
         }
-        guard Self.isRegularFile(at: manifestURL, fileManager: .default) else {
+        guard CompilerFileSystem.isRegularFile(at: manifestURL) else {
             diagnostics.error(
                 "KSWIFTK-LIB-0015",
                 "Missing or invalid manifest.json in \(libName); library cannot be loaded",
@@ -364,14 +364,14 @@ extension DataFlowSemaPhase {
 
         // Validate metadata path is within library directory
         let metadataURL = URL(fileURLWithPath: metadataPath).resolvingSymlinksInPath().standardizedFileURL
-        if !Self.isContained(metadataURL, in: libraryRoot) {
+        if !CompilerFileSystem.isContained(metadataURL, in: libraryRoot) {
             diagnostics.error(
                 "KSWIFTK-LIB-0018",
                 "Metadata path '\(metadataPath)' escapes library directory \(libName)",
                 range: nil
             )
             isValid = false
-        } else if !Self.isRegularFile(at: metadataURL, fileManager: fm) {
+        } else if !CompilerFileSystem.isRegularFile(at: metadataURL, fileManager: fm) {
             diagnostics.error(
                 "KSWIFTK-LIB-0014",
                 "Metadata file is missing or is not a regular file at '\(metadataPath)' referenced by \(libName)/manifest.json",
@@ -405,14 +405,14 @@ extension DataFlowSemaPhase {
             for relativePath in objectPaths {
                 let fullPath = URL(fileURLWithPath: libraryDir).appendingPathComponent(relativePath).path
                 let resolvedObjURL = URL(fileURLWithPath: fullPath).resolvingSymlinksInPath().standardizedFileURL
-                if !Self.isContained(resolvedObjURL, in: libraryRoot) {
+                if !CompilerFileSystem.isContained(resolvedObjURL, in: libraryRoot) {
                     diagnostics.error(
                         "KSWIFTK-LIB-0018",
                         "Object path '\(relativePath)' escapes library directory \(libName)",
                         range: nil
                     )
                     isValid = false
-                } else if !Self.isRegularFile(at: resolvedObjURL, fileManager: fm) {
+                } else if !CompilerFileSystem.isRegularFile(at: resolvedObjURL, fileManager: fm) {
                     let message = "Object file is missing or is not a regular file at '\(relativePath)' referenced by \(libName)/manifest.json"
                     if isStdlibArtifact {
                         diagnostics.error("KSWIFTK-LIB-0014", message, range: nil)
@@ -427,7 +427,7 @@ extension DataFlowSemaPhase {
         // Validate inlineKIRDir path
         if let inlineDir = inlineKIRDir {
             let inlineDirURL = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
-            if !Self.isContained(inlineDirURL, in: libraryRoot) {
+            if !CompilerFileSystem.isContained(inlineDirURL, in: libraryRoot) {
                 diagnostics.error(
                     "KSWIFTK-LIB-0018",
                     "Inline KIR path '\(inlineDir)' escapes library directory \(libName)",
@@ -459,12 +459,4 @@ extension DataFlowSemaPhase {
         return isValid
     }
 
-    private static func isContained(_ candidate: URL, in root: URL) -> Bool {
-        candidate.path == root.path || candidate.path.hasPrefix(root.path.hasSuffix("/") ? root.path : root.path + "/")
-    }
-
-    private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
-        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
-        return attributes[.type] as? FileAttributeType == .typeRegular
-    }
 }

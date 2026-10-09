@@ -550,24 +550,6 @@ extension CallLowerer {
         return converted
     }
 
-    func isCoroutineHandleReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        ReceiverClassifier(sema: sema, interner: interner)
-            .isCoroutineHandleReceiverType(receiverType)
-    }
-
-    func isChannelReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        ReceiverClassifier(sema: sema, interner: interner)
-            .isChannelReceiverType(receiverType)
-    }
-
     func isFlowReceiverType(
         _ receiverType: TypeID,
         sema: SemaModule,
