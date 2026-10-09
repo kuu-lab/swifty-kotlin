@@ -1080,18 +1080,6 @@ func runtimeMutableMapIteratorBox(from rawValue: Int) -> RuntimeMutableMapIterat
     return tryCast(ptr, to: RuntimeMutableMapIteratorBox.self)
 }
 
-func runtimeIndexingIteratorBox(from rawValue: Int) -> RuntimeIndexingIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeIndexingIteratorBox.self)
-}
 
 func runtimeMapArrayPair(
     keysRaw: Int,

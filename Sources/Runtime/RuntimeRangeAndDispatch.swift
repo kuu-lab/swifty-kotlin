@@ -431,16 +431,6 @@ func runtimeRandomIndex(count: Int, randomRaw: Int?) -> Int {
     return Int.random(in: 0 ..< count)
 }
 
-func runtimeSignedRangeCount(_ range: RuntimeRangeBox) -> Int {
-    if range.step > 0 {
-        guard range.first <= range.last else { return 0 }
-        return (range.last &- range.first) / range.step &+ 1
-    } else if range.step < 0 {
-        guard range.first >= range.last else { return 0 }
-        return (range.first &- range.last) / (0 &- range.step) &+ 1
-    }
-    return 0
-}
 
 func runtimeCharRangeCount(_ range: RuntimeRangeBox) -> Int {
     let first = kk_unbox_char(range.first)

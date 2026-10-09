@@ -13,33 +13,7 @@ extension DataFlowSemaPhase {
         types.nominalTypeParameterSymbols(for: ownerSymbol)
     }
 
-    func hasImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        // Imported stdlib declarations own the public Kotlin surface; synthetic
-        // fallback stubs should not reintroduce direct runtime links there.
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID) else {
-                return false
-            }
-            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
-        }
-    }
 
-    func hasSourceOrImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
-                return false
-            }
-            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
-        }
-    }
 
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
