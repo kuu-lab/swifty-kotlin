@@ -261,7 +261,6 @@ public extension RuntimeABISpec {
 
     static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
-            bridgeSpec("kk_duration_isPositive", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_instant_compare", section: "System", params: ["aRaw", "bRaw"],
             isThrowing: false),
             bridgeSpec("kk_instant_epoch_seconds", section: "System", params: ["instantRaw"],

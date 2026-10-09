@@ -11,7 +11,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        isCommonModule: Bool
+        commonModuleMode: Bool
     ) {
         // Common libraries preserve expect markers so a platform compilation can
         // pair them with local actual declarations. Other imported declarations
@@ -72,7 +72,7 @@ extension DataFlowSemaPhase {
             guard let actualSym = compatibleCandidates.first else {
                 // Common source-set artifacts intentionally preserve expect
                 // declarations for a platform compilation to match later.
-                if isCommonModule, actuals.isEmpty {
+                if commonModuleMode, actuals.isEmpty {
                     continue
                 }
 

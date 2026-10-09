@@ -1241,15 +1241,15 @@ extension DataFlowSemaPhase {
         // `CVariable`) so `alloc<IntVar>()` satisfies its `T : CVariable` bound
         // and each carries a `var value` bridging to kk_cvar_*_load/_store.
         let primitiveVarKinds: [(name: String, valueType: TypeID, linkPrefix: String)] = [
-            ("UByteVar", types.ubyteType, "kk_cvar_ubyte"),
-            ("ShortVar", types.shortType, "kk_cvar_short"),
-            ("UShortVar", types.ushortType, "kk_cvar_ushort"),
-            ("IntVar", types.intType, "kk_cvar_int"),
-            ("UIntVar", types.uintType, "kk_cvar_uint"),
-            ("LongVar", types.longType, "kk_cvar_long"),
-            ("ULongVar", types.ulongType, "kk_cvar_ulong"),
-            ("FloatVar", types.floatType, "kk_cvar_float"),
-            ("DoubleVar", types.doubleType, "kk_cvar_double"),
+            (name: "UByteVar", valueType: types.ubyteType, linkPrefix: "kk_cvar_ubyte"),
+            (name: "ShortVar", valueType: types.shortType, linkPrefix: "kk_cvar_short"),
+            (name: "UShortVar", valueType: types.ushortType, linkPrefix: "kk_cvar_ushort"),
+            (name: "IntVar", valueType: types.intType, linkPrefix: "kk_cvar_int"),
+            (name: "UIntVar", valueType: types.uintType, linkPrefix: "kk_cvar_uint"),
+            (name: "LongVar", valueType: types.longType, linkPrefix: "kk_cvar_long"),
+            (name: "ULongVar", valueType: types.ulongType, linkPrefix: "kk_cvar_ulong"),
+            (name: "FloatVar", valueType: types.floatType, linkPrefix: "kk_cvar_float"),
+            (name: "DoubleVar", valueType: types.doubleType, linkPrefix: "kk_cvar_double"),
         ]
         for (primitiveVar, primitiveValueType, linkPrefix) in primitiveVarKinds {
             let symbol = ensureClassSymbol(
