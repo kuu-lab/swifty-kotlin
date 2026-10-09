@@ -27,21 +27,17 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.toSetName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            let toSetResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkSequenceToSetName,
                 arguments: [receiverID],
-                result: toSetResult,
+                result: result,
                 canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.setExprIDs.insert(result.rawValue)
-                state.setExprIDs.insert(toSetResult.rawValue)
-                loweredBody.append(.copy(from: toSetResult, to: result))
-            }
+                thrownResult: nil,
+                trackedAs: .set,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
     }
@@ -50,22 +46,18 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.toMapName, arguments.count == 1 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
-            let toMapResult = module.arena.appendTemporary(type: nil
-            )
             let thrownExpr = thrownResult ?? module.arena.appendTemporary(type: nil)
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkSequenceToMapName,
                 arguments: [receiverID],
-                result: toMapResult,
+                result: result,
                 canThrow: true,
-                thrownResult: thrownExpr
-            ))
-            if let result {
-                state.mapExprIDs.insert(result.rawValue)
-                state.mapExprIDs.insert(toMapResult.rawValue)
-                loweredBody.append(.copy(from: toMapResult, to: result))
-            }
+                thrownResult: thrownExpr,
+                trackedAs: .map,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
     }
@@ -158,39 +150,31 @@ extension CollectionLiteralConstructionLoweringPass {
         if state.sequenceExprIDs.contains(receiverID.rawValue),
            !state.arrayExprIDs.contains(receiverID.rawValue)
         {
-            let toListResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkSequenceToListName,
                 arguments: [receiverID],
-                result: toListResult,
+                result: result,
                 canThrow: true,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(toListResult.rawValue)
-                loweredBody.append(.copy(from: toListResult, to: result))
-            }
+                thrownResult: nil,
+                trackedAs: .list,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
         if state.arrayExprIDs.contains(receiverID.rawValue) {
-            let toListResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
+            appendCallWithTrackedResult(
                 callee: lookup.kkArrayToListName,
                 arguments: [receiverID],
-                result: toListResult,
+                result: result,
                 canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(toListResult.rawValue)
-                loweredBody.append(.copy(from: toListResult, to: result))
-            }
+                thrownResult: nil,
+                trackedAs: .list,
+                module: module,
+                state: &state,
+                loweredBody: &loweredBody
+            )
             return true
         }
         if state.rangeExprIDs.contains(receiverID.rawValue) {
