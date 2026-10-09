@@ -2,9 +2,10 @@
 @file:OptIn(
     kotlin.js.ExperimentalJsFileName::class,
     kotlin.js.ExperimentalJsReflectionCreateInstance::class,
-    kotlin.js.collections.ExperimentalJsCollectionsApi::class
+    kotlin.js.collections.ExperimentalJsCollectionsApi::class,
+    kotlin.js.ExperimentalJsStatic::class
 )
-@file:kotlin.js.ExperimentalJsFileName("JsAnnotationsCase")
+@file:kotlin.js.JsFileName("JsAnnotationsCase")
 
 import kotlin.js.ExperimentalJsExport
 import kotlin.js.ExperimentalJsStatic
@@ -17,6 +18,7 @@ import kotlin.reflect.createInstance
 class ExportedBox(val value: Int = 7)
 
 object JsHolder {
+    // This marker opts in users of the API; it does not create a JS static entry.
     @ExperimentalJsStatic
     fun message(): String = "js-annotations"
 }

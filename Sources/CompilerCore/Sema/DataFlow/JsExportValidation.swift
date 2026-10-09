@@ -10,7 +10,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        globalOptInMarkerNames: [String]
     ) {
         var externalTypes: Set<SymbolID> = []
         for file in ast.sortedFiles {
@@ -25,6 +26,34 @@ extension DataFlowSemaPhase {
         }
 
         for file in ast.sortedFiles {
+            for annotation in file.annotations {
+                if let annotationSymbol = resolveAnnotationSymbol(
+                    named: annotation.name,
+                    in: file,
+                    symbols: symbols,
+                    interner: interner
+                ), isJsExportAnnotationClass(annotationSymbol, symbols: symbols, interner: interner) {
+                    validateExperimentalAnnotationOptIn(
+                        for: annotation,
+                        in: file,
+                        scopeSymbol: nil,
+                        range: file.range,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        globalOptInMarkerNames: globalOptInMarkerNames
+                    )
+                }
+                validateJsExportAnnotationArguments(
+                    annotation,
+                    in: file,
+                    range: file.range,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner
+                )
+            }
+
             let exportsFileDeclarations = file.annotations.contains { annotation in
                 guard let annotationSymbol = resolveAnnotationSymbol(
                     named: annotation.name,
@@ -40,6 +69,7 @@ extension DataFlowSemaPhase {
             for declID in file.topLevelDecls {
                 validateJsExportDeclaration(
                     declID: declID,
+                    file: file,
                     isTopLevel: true,
                     exportsFileDeclarations: exportsFileDeclarations,
                     ast: ast,
@@ -48,7 +78,8 @@ extension DataFlowSemaPhase {
                     types: types,
                     externalTypes: externalTypes,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
         }
@@ -56,6 +87,7 @@ extension DataFlowSemaPhase {
 
     private func validateJsExportDeclaration(
         declID: DeclID,
+        file: ASTFile,
         isTopLevel: Bool,
         exportsFileDeclarations: Bool,
         ast: ASTModule,
@@ -64,10 +96,39 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         externalTypes: Set<SymbolID>,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        globalOptInMarkerNames: [String]
     ) {
         guard let decl = ast.arena.decl(declID) else {
             return
+        }
+
+        for annotation in decl.annotations {
+            if let annotationSymbol = resolveAnnotationSymbol(
+                named: annotation.name,
+                in: file,
+                symbols: symbols,
+                interner: interner
+            ), isJsExportAnnotationClass(annotationSymbol, symbols: symbols, interner: interner) {
+                validateExperimentalAnnotationOptIn(
+                    for: annotation,
+                    in: file,
+                    scopeSymbol: bindings.declSymbols[declID],
+                    range: jsExportAnnotationOwnerRange(for: decl),
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
+                )
+            }
+            validateJsExportAnnotationArguments(
+                annotation,
+                in: file,
+                range: jsExportAnnotationOwnerRange(for: decl),
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner
+            )
         }
 
         let symbolID = bindings.declSymbols[declID]
@@ -121,6 +182,7 @@ extension DataFlowSemaPhase {
         for childID in nestedJsExportDeclarationIDs(in: decl) {
             validateJsExportDeclaration(
                 declID: childID,
+                file: file,
                 isTopLevel: false,
                 exportsFileDeclarations: false,
                 ast: ast,
@@ -129,8 +191,54 @@ extension DataFlowSemaPhase {
                 types: types,
                 externalTypes: externalTypes,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
             )
+        }
+    }
+
+    private func validateJsExportAnnotationArguments(
+        _ annotation: AnnotationNode,
+        in file: ASTFile,
+        range: SourceRange?,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        guard !annotation.arguments.isEmpty,
+              let annotationSymbol = resolveAnnotationSymbol(
+                  named: annotation.name,
+                  in: file,
+                  symbols: symbols,
+                  interner: interner
+              ), let annotationFQName = symbols.symbol(annotationSymbol)?.fqName.map(interner.resolve).joined(separator: ".")
+        else {
+            return
+        }
+
+        let annotationName: String
+        switch annotationFQName {
+        case "kotlin.js.JsExport": annotationName = "JsExport"
+        case "kotlin.js.ExperimentalJsExport": annotationName = "ExperimentalJsExport"
+        default: return
+        }
+
+        diagnostics.error(
+            "KSWIFTK-SEMA-JS-ANNOTATION-TOO-MANY-ARGUMENTS",
+            "Annotation '@\(annotationName)' does not accept arguments.",
+            range: range
+        )
+    }
+
+    private func jsExportAnnotationOwnerRange(for decl: Decl) -> SourceRange {
+        switch decl {
+        case let .classDecl(value): value.range
+        case let .interfaceDecl(value): value.range
+        case let .objectDecl(value): value.range
+        case let .funDecl(value): value.range
+        case let .propertyDecl(value): value.range
+        case let .typeAliasDecl(value): value.range
+        case let .enumEntryDecl(value): value.range
         }
     }
 
