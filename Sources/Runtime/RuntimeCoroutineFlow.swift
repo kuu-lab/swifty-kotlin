@@ -1501,7 +1501,6 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
 }
 
 // (a) RF-DEAD-002: Internal compatibility helpers for the bundled Flow source.
-@_cdecl("__kk_flow_emit_with_timestamp")
 public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag: Int, _ timestamp: UInt64) -> Int {
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
@@ -1643,7 +1642,6 @@ public func __kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutab
 }
 
 /// Count the number of elements emitted after applying the operator chain.
-@_cdecl("__kk_flow_count")
 public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
@@ -1655,7 +1653,6 @@ public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
 
 /// Fold: accumulate values with an initial value and an operation.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
-@_cdecl("__kk_flow_fold")
 public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return initial
@@ -1685,7 +1682,6 @@ public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: 
 
 /// Reduce: like fold but uses the first element as the initial accumulator.
 /// operation ABI: (closureRaw, accumulator, value, outThrown) -> newAccumulator
-@_cdecl("__kk_flow_reduce")
 public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0

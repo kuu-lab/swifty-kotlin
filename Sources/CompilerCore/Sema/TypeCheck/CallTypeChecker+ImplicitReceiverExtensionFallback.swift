@@ -25,10 +25,24 @@ extension CallTypeChecker {
         guard candidates.allSatisfy({ ctx.sema.symbols.functionSignature(for: $0)?.receiverType != nil }) else {
             return candidates
         }
+        let scopeExtensionsOnly = candidates.allSatisfy { isScopeExtensionCandidate($0, ctx: ctx) }
         for entry in ctx.implicitReceiverMemberLookupEntries() {
             let applicable = candidates.filter { matchesReceiver($0, receiverType: entry.type) }
             if !applicable.isEmpty {
                 return applicable
+            }
+            // Ordinary name lookup stops at the first scope that declares this
+            // name, even when its extensions have unrelated receivers. Retry
+            // through the scope chain with the receiver predicate so a nearer
+            // same-name extension cannot hide an applicable imported overload.
+            if scopeExtensionsOnly {
+                let matchingScopeCandidates = ctx.scope.lookup(name, matching: { candidate in
+                    isScopeExtensionCandidate(candidate, ctx: ctx)
+                        && matchesReceiver(candidate, receiverType: entry.type)
+                })
+                if !matchingScopeCandidates.isEmpty {
+                    return matchingScopeCandidates
+                }
             }
         }
         return candidates

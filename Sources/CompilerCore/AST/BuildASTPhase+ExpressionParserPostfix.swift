@@ -1,8 +1,7 @@
 
 extension BuildASTPhase.ExpressionParser {
-    /// Extract the simple callee name from an expression for use as an
-    /// implicit lambda label (Kotlin spec: lambdas get the callee name
-    /// as their implicit label for `return@label`).
+    /// Kotlin spec: lambdas get the callee name as their implicit label for
+    /// `return@label`.
     private func calleeNameForImplicitLabel(_ exprID: ExprID) -> InternedString? {
         guard let expr = astArena.expr(exprID) else { return nil }
         switch expr {
@@ -15,9 +14,6 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// Parses an explicitly labeled trailing lambda (`foo(...) lbl@{ ... }`).
-    /// Returns nil (leaving the cursor untouched) unless the next tokens are
-    /// exactly `identifier @ {`.
     private func parseLabeledTrailingLambda() -> ExprID? {
         guard let nameToken = current(),
               let name = labelNameFromToken(nameToken),
@@ -51,9 +47,7 @@ extension BuildASTPhase.ExpressionParser {
         return parsePostfixSuffixes(expr, receiverStartIndex: receiverStartIndex)
     }
 
-    /// Applies the postfix-unary suffix chain (call parens, trailing lambdas,
-    /// indexing, `!!`, `::`, member navigation) to an already-parsed primary
-    /// expression. Call-argument lambdas re-enter here so that Kotlin's
+    /// Call-argument lambdas re-enter here so that Kotlin's
     /// `{ ... }(...)` direct-invocation form parses: a `lambdaLiteral` is a
     /// `primaryExpression` and takes the same `postfixUnarySuffix` chain as
     /// any other primary.
@@ -75,7 +69,6 @@ extension BuildASTPhase.ExpressionParser {
                         var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
                         let close = consumeIf(.symbol(.rParen))
                         var callEndRange = close?.range ?? open.range
-                        // Trailing lambda without parentheses: foo<T> { ... }.
                         if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                             args.append(CallArgument(expr: trailingLambda))
                             callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
@@ -86,7 +79,6 @@ extension BuildASTPhase.ExpressionParser {
                         expr = astArena.appendExpr(.call(callee: expr, typeArgs: typeArgs, args: args, range: range))
                         continue
                     }
-                    // Trailing lambda without parentheses: foo<T> { ... }.
                     if let trailingStart = current(),
                        let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr))
                     {
@@ -109,7 +101,6 @@ extension BuildASTPhase.ExpressionParser {
                 var args = parseCallArguments(implicitLambdaLabel: calleeNameForImplicitLabel(expr))
                 let close = consumeIf(.symbol(.rParen))
                 var callEndRange = close?.range ?? open.range
-                // Trailing lambda after a parenthesized call: foo(...) { ... }.
                 if let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr)) {
                     args.append(CallArgument(expr: trailingLambda))
                     callEndRange = astArena.exprRange(trailingLambda) ?? callEndRange
@@ -121,7 +112,6 @@ extension BuildASTPhase.ExpressionParser {
                 continue
             }
 
-            // Trailing lambda without parentheses: foo { ... }.
             if let trailingStart = current(),
                let trailingLambda = parseTrailingLambda(implicitLabel: calleeNameForImplicitLabel(expr))
             {
@@ -204,7 +194,6 @@ extension BuildASTPhase.ExpressionParser {
                 let close = consumeIf(.symbol(.rParen))
                 memberEndRange = close?.range ?? open.range
             }
-            // Trailing lambda: attach `{ ... }` as the last argument (Kotlin grammar).
             if let trailingLambda = parseTrailingLambda(implicitLabel: memberName) {
                 args.append(CallArgument(expr: trailingLambda))
                 memberEndRange = astArena.exprRange(trailingLambda) ?? memberEndRange
@@ -353,10 +342,6 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// True when `kind` can begin a postfix-unary suffix applied by the loop
-    /// in `parsePostfixOrPrimary`: call parens, a trailing lambda, indexing,
-    /// `!!`, `::`, `++`/`--`, member navigation, or an explicit-type-argument
-    /// call attempt.
     func isPostfixSuffixStart(_ kind: TokenKind) -> Bool {
         switch kind {
         case .symbol(.lParen), .symbol(.lBrace), .symbol(.lBracket),
@@ -369,9 +354,6 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// Scans forward from the `{` at `index` to its matching `}` and reports
-    /// whether a postfix suffix follows. Pure lookahead — `index` is unchanged.
-    ///
     /// In Kotlin a `name@` label is a unary prefix on the whole postfix-unary
     /// expression, so `foo@{ ... }()` labels the invocation rather than the
     /// lambda literal. `return@foo` inside such a lambda resolves to a label

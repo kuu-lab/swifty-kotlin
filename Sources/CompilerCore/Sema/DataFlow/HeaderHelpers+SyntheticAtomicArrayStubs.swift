@@ -303,20 +303,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = packageFQName + [className, typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
+        let typeParamSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: packageFQName + [className],
+            symbols: symbols,
+            interner: interner
+        )
         let typeParamType = types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: .nullable)))
         let ownerType = types.make(.classType(ClassType(
             classSymbol: symbol,

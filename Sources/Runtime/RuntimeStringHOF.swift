@@ -53,7 +53,6 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
 // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt).
 
-@_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)

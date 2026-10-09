@@ -141,7 +141,7 @@ extension ControlFlowTypeChecker {
                     }
                     switch conditionSymbol.kind {
                     case .field:
-                        if let ownerID = driver.helpers.enumOwnerSymbol(for: conditionSymbol, symbols: sema.symbols),
+                        if let ownerID = sema.symbols.enumOwnerSymbol(for: conditionSymbol),
                            ownerID == subjectNominalSymbol
                         {
                             covered.insert(conditionSymbol.name)

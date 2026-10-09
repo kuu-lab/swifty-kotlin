@@ -1,10 +1,6 @@
-/// Represents a single annotation usage in Kotlin source code, e.g. `@Suppress("UNCHECKED_CAST")`.
 public struct AnnotationNode: Equatable, Codable {
-    /// The simple or qualified name of the annotation (e.g. "Suppress", "kotlin.Deprecated").
     public let name: String
-    /// Serialized argument values extracted from the annotation's parenthesized argument list.
     public let arguments: [String]
-    /// Optional use-site target (e.g. "get", "set", "field", "param").
     public let useSiteTarget: String?
 
     public init(name: String, arguments: [String] = [], useSiteTarget: String? = nil) {
@@ -84,16 +80,9 @@ public struct ConstructorDecl: Codable {
     }
 }
 
-/// A single supertype entry in a class declaration, optionally with delegation.
-/// Used for `class Foo(impl: Printer) : Printer by impl` — the `by expr` part
-/// delegates interface implementation to the given expression.
 public struct SuperTypeEntry: Equatable, Codable {
     public let typeRef: TypeRefID
-    /// When present, this supertype (must be an interface) is implemented by
-    /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
-    /// Arguments of the superclass constructor invocation in the class header
-    /// (`class Sub(n: Int) : Base(n)`). Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
 
     public init(
@@ -107,15 +96,10 @@ public struct SuperTypeEntry: Equatable, Codable {
     }
 }
 
-/// Represents a member in the class body initialization sequence.
 /// Used to guarantee Kotlin's declaration-order execution of property
 /// initializers and `init` blocks.
 public enum ClassBodyInitMember: Equatable, Codable {
-    /// A property initializer; the associated value is the index into
-    /// `ClassDecl.memberProperties`.
     case property(Int)
-    /// An `init { }` block; the associated value is the index into
-    /// `ClassDecl.initBlocks`.
     case initBlock(Int)
 }
 
@@ -127,21 +111,14 @@ public struct ClassDecl: Codable {
     public let isInner: Bool
     public let typeParams: [TypeParamDecl]
     public let primaryConstructorParams: [ValueParamDecl]
-    /// Modifiers attached specifically to the primary constructor declaration,
-    /// e.g. `class Foo private constructor()`.
     public let primaryConstructorModifiers: Modifiers
-    /// Annotations placed on the primary constructor declaration,
-    /// e.g. `class Foo @Throws(IOException::class) constructor()`.
     public let primaryConstructorAnnotations: [AnnotationNode]
-    /// `true` when the class header contains explicit constructor parentheses,
-    /// distinguishing `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
+    /// Distinguishes `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
     public let hasPrimaryConstructorSyntax: Bool
-    /// Supertype entries; each may have an optional `by expr` for interface delegation.
     public let superTypeEntries: [SuperTypeEntry]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let enumEntries: [EnumEntryDecl]
     public let initBlocks: [FunctionBody]
-    /// Declaration-order sequence of property initializers and `init` blocks.
     /// Kotlin guarantees that these execute top-to-bottom in the order they
     /// appear in the class body (spec.md J7).
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -150,8 +127,6 @@ public struct ClassDecl: Codable {
     public let memberProperties: [DeclID]
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
-    /// The companion object declared inside this class, if any.
-    /// A class may have at most one companion object.
     public let companionObject: DeclID?
 
     public init(
@@ -206,8 +181,6 @@ public struct InterfaceDecl: Codable {
     public let name: InternedString
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
-    /// `true` when declared with `fun interface` — marks this as a functional
-    /// interface eligible for SAM (Single Abstract Method) conversion.
     public let isFunInterface: Bool
     public let typeParams: [TypeParamDecl]
     public let superTypes: [TypeRefID]
@@ -216,7 +189,6 @@ public struct InterfaceDecl: Codable {
     public let memberProperties: [DeclID]
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
-    /// The companion object declared inside this interface, if any.
     public let companionObject: DeclID?
 
     public init(
@@ -257,8 +229,6 @@ public struct ObjectDecl: Codable {
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
     public let superTypeEntries: [SuperTypeEntry]
-    /// Arguments of the superclass constructor invocation in the object
-    /// header (`object : Base(n) { ... }`).
     public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]
@@ -312,11 +282,9 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
-    /// Declaration-level `context(...)` receivers. Names are nil for unnamed
-    /// or `_:` parameters. These stay independent of `receiverType` so a
+    /// These stay independent of `receiverType` so a
     /// member function's class `this` is not overwritten by a context type.
     public let contextReceivers: [ContextReceiverDecl]
-    /// Names of `context(name: Type)` parameters, parallel to `contextReceivers`.
     public var contextReceiverNames: [InternedString?] {
         contextReceivers.map(\.name)
     }
@@ -400,7 +368,6 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
     public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
-    /// Explicit accessor visibility, or nil when it inherits the property's visibility.
     public let visibility: Visibility?
     public let parameterName: InternedString?
     public let body: FunctionBody
@@ -422,14 +389,8 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     }
 }
 
-/// Kotlin 2.0 explicit backing field declaration for a property.
-/// Example: `val fullName: String  field = ""  get() = field.uppercase()`
-/// The backing field may have a type that differs from the property type.
 public struct ExplicitBackingField: Codable {
-    /// Optional explicit type annotation for the backing field.
-    /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
-    /// The initializer expression for the backing field (required).
     public let initializer: ExprID
 
     public init(type: TypeRefID? = nil, initializer: ExprID) {
@@ -449,23 +410,12 @@ public struct PropertyDecl: Codable {
     public let getter: PropertyAccessorDecl?
     public let setter: PropertyAccessorDecl?
     public let delegateExpression: ExprID?
-    /// The trailing lambda body for delegate properties (e.g. `lazy { body }`,
-    /// `Delegates.observable(init) { body }`). Captured separately so existing
+    /// Captured separately so existing
     /// delegate lowering can reuse the call argument's parsed body.
     public let delegateBody: FunctionBody?
-    /// Parameter names declared by the trailing lambda of a delegate property
-    /// (e.g. `property, old, new` in `Delegates.observable(init) { property, old, new -> ... }`).
-    /// Empty when the lambda declares no parameters.
     public let delegateBodyParams: [InternedString]
-    /// The receiver type reference for extension properties (e.g. `val Int.double`).
-    /// `nil` for regular (non-extension) properties.
     public let receiverType: TypeRefID?
-    /// `true` for synthetic member properties materialized from primary
-    /// constructor `val` / `var` parameters.
     public let isSynthesizedPrimaryConstructorProperty: Bool
-    /// Kotlin 2.0 explicit backing field declaration (`field = expr` or
-    /// `field: Type = expr`).  When present, the backing field has its own
-    /// type and initializer distinct from the property's.
     public let explicitBackingField: ExplicitBackingField?
 
     public init(
@@ -533,15 +483,12 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
-    /// Functions declared in an enum entry's anonymous class body.
-    ///
     /// These declarations are kept separate from the enum class members. The
     /// runtime still represents enum values as ordinals, so the lowering pass
     /// can synthesize ordinal-based dispatch for overrides without creating a
     /// second heap-backed representation for enum entries.
     public let memberFunctions: [DeclID]
-    /// Properties declared in an enum entry's anonymous class body (e.g.
-    /// `PLUS { override val sym = "+" }`). Like `memberFunctions`, they are
+    /// Like `memberFunctions`, they are
     /// owned by the entry field symbol; their values live in the per-entry
     /// side storage that the enum's lazy initializer fills.
     public let memberProperties: [DeclID]
@@ -564,12 +511,6 @@ public struct EnumEntryDecl: Codable {
 }
 
 public extension EnumEntryDecl {
-    /// Maps each primary-constructor parameter (by index) to the entry
-    /// argument bound to it: positional arguments fill parameters in order
-    /// until the first named argument, and named arguments bind by label.
-    /// `nil` means the parameter is not supplied and its default applies.
-    /// Arguments that match no parameter (too many positional arguments, or
-    /// an unknown label) are returned in `unmatched`.
     func constructorArgumentMapping(
         parameterNames: [InternedString]
     ) -> (argumentIndexByParameter: [Int?], unmatched: [Int]) {
@@ -677,27 +618,18 @@ public struct TypeParamDecl: Codable {
 public struct ValueParamDecl: Equatable, Codable {
     public let name: InternedString
     public let type: TypeRefID?
-    /// `true` when the primary constructor parameter is declared as a property
-    /// via `val` or `var`.
     public let isProperty: Bool
-    /// `true` only for `var` primary constructor properties.
     public let isMutableProperty: Bool
-    /// `true` when a primary constructor property parameter carries the
-    /// `override` modifier, e.g. `class Foo(override val x: String)`.
     public let isOverrideProperty: Bool
-    /// `true` when a primary constructor property parameter carries the
-    /// `open` modifier, e.g. `open class Foo(open val x: String)`.
     public let isOpenProperty: Bool
     /// `true` when a primary constructor property parameter carries `actual`.
     public let isActualProperty: Bool
-    /// Explicit visibility on a primary constructor property. Optional so AST
+    /// Optional so AST
     /// payloads written before this field was introduced retain default visibility.
     public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
-    /// `true` when a function parameter is declared with `crossinline`.
     public let isCrossinline: Bool
-    /// `true` when a function parameter is declared with `noinline`.
     public let isNoinline: Bool
     public let defaultValue: ExprID?
     public let annotations: [AnnotationNode]

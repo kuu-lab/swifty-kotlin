@@ -20,7 +20,6 @@ public final class CodegenPhase: CompilerPhase {
             ctx: ctx,
             fileFacadeNamesByFileID: fileFacadeNamesByFileID
         )
-        // REFL-004: Build runtime reflection metadata records from sema state.
         let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
 
         do {
@@ -217,8 +216,6 @@ public final class CodegenPhase: CompilerPhase {
         )
     }
 
-    /// `kk_fn_` link names for every KIR function declaration, plus the subset
-    /// that is `inline`.
     private struct FunctionLinkInfo {
         var functionLinkNamesBySymbol: [SymbolID: String] = [:]
         var inlineFunctionSymbols: Set<SymbolID> = []
@@ -640,10 +637,6 @@ public final class CodegenPhase: CompilerPhase {
 
     // MARK: - REFL-004: Runtime Reflection Metadata
 
-    /// Builds MetadataRecords for all declared symbols (classes, interfaces,
-    /// objects, enum classes, annotation classes, and functions) from the
-    /// semantic analysis state. These records are embedded as
-    /// runtime-accessible binary metadata in the compiled output.
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
         functionLinkInfo: FunctionLinkInfo
@@ -663,8 +656,6 @@ public final class CodegenPhase: CompilerPhase {
         )
     }
 
-    /// Parses the owner symbol ID embedded in a synthetic top-level object
-    /// initializer name (`__object_init_<objectID>_<initID>`).
     private static func objectInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__object_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -674,8 +665,6 @@ public final class CodegenPhase: CompilerPhase {
         return Int32(first)
     }
 
-    /// Parses the owner class symbol ID embedded in a synthetic companion
-    /// object initializer name (`__companion_init_<ownerID>_<companionID>_<initID>`).
     private static func companionInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__companion_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -685,18 +674,12 @@ public final class CodegenPhase: CompilerPhase {
         return Int32(ownerID)
     }
 
-    /// Parses the object/companion symbol ID embedded in a guarded lazy
-    /// initializer (`__object_lazy_init_<objectID>` or
-    /// `__companion_lazy_init_<companionID>`).
     private static func objectLazyInitializerOwnerSymbolID(from name: String) -> Int32? {
         for prefix in ["__object_lazy_init_", "__companion_lazy_init_"] where name.hasPrefix(prefix) {
             return Int32(name.dropFirst(prefix.count))
         }
         return nil
     }
-    /// Returns the owner enum class symbol for a synthetic enum static
-    /// initializer (`__enum_static_init_<ClassName>`) by looking up the
-    /// function's parent FQ name in `sema.symbols`.
     private static func enumStaticInitOwnerSymbolID(
         from name: String,
         symbol: SymbolID,
