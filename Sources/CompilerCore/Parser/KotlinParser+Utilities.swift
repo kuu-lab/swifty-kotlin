@@ -605,21 +605,6 @@ extension KotlinParser {
         return false
     }
 
-    /// Tokens that can end an operand: an identifier that follows one of these
-    /// is an infix operator name rather than the start of a new statement.
-    static func isOperandEndToken(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .identifier, .backtickedIdentifier,
-             .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
-             .floatLiteral, .doubleLiteral, .charLiteral,
-             .stringQuote, .rawStringQuote,
-             .symbol(.rBracket), .symbol(.rParen),
-             .keyword(.this), .keyword(.true), .keyword(.false), .keyword(.null):
-            true
-        default:
-            false
-        }
-    }
 
     /// The last `limit` tokens of `children` (in source order), stopping at the
     /// most recent nested node so only the flat tail of the statement is seen.

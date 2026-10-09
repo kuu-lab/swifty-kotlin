@@ -13,11 +13,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-// KSP-1583: `runTest` is the degraded phase-1 skeleton — KSwiftK has no
-// virtual-time test scheduler, so the body runs on a real blocking event
-// loop (runBlocking-equivalent): `delay` and launched children observe real
-// time, and `timeout` is accepted for signature compatibility but not
-// enforced. `runTest` is extern so the trailing suspend lambda resolves at
+// KSP-1583: `runTest` is extern so the trailing suspend lambda resolves at
 // the call site: a literal is rewritten by CoroutineLoweringPass into the
 // launcher-continuation convention (`kk_test_run_blocking_with_cont`, scope
 // in launcherArgs[0]); a block held in a variable crosses as the (fnPtr,
@@ -35,9 +31,9 @@ public typealias TestResult = Unit
  * Executes [testBody] as a test coroutine: creates a [TestScope], runs the
  * body on it, and waits for it to complete.
  *
- * Degraded (KSP-1583): equivalent to `runBlocking` — the body runs on the
- * real blocking event loop, virtual-time controls only move the reported
- * [TestCoroutineScheduler.currentTime], and [timeout] is not enforced.
+ * Delays in the test scope use virtual time, and remaining scheduled child
+ * work is advanced before this function returns. [timeout] is accepted for
+ * signature compatibility but is not enforced.
  */
 @ExperimentalCoroutinesApi
 @KsSymbolName("kk_test_run_blocking")

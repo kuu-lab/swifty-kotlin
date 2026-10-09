@@ -278,6 +278,28 @@ extension BuildASTPhase {
         return nil
     }
 
+    private func accessorVisibility(in tokensBeforeAccessor: [Token]) -> Visibility? {
+        let propertyStart = tokensBeforeAccessor.lastIndex { token in
+            token.kind == .keyword(.val) || token.kind == .keyword(.var)
+        }
+        let previousAccessor = tokensBeforeAccessor.lastIndex { token in
+            token.kind == .softKeyword(.get) || token.kind == .softKeyword(.set)
+        }
+        let startIndex = max(propertyStart ?? -1, previousAccessor ?? -1) + 1
+
+        for token in tokensBeforeAccessor.dropFirst(startIndex).reversed() {
+            guard case let .keyword(keyword) = token.kind else { continue }
+            switch keyword {
+            case .public: return .public
+            case .private: return .private
+            case .internal: return .internal
+            case .protected: return .protected
+            default: continue
+            }
+        }
+        return nil
+    }
+
     /// Keep only an annotation prefix immediately preceding the accessor.
     /// Earlier property annotations and annotations inside an initializer are
     /// not accessor annotations.
@@ -318,7 +340,8 @@ extension BuildASTPhase {
                 false
             }
         }) {
-            let annotations = accessorAnnotations(from: Array(remaining[..<startIdx]), interner: interner)
+            let tokensBeforeAccessor = Array(remaining[..<startIdx])
+            let annotations = accessorAnnotations(from: tokensBeforeAccessor, interner: interner)
             let token = remaining[startIdx]
             let kind: PropertyAccessorKind
             switch token.kind {
@@ -329,10 +352,24 @@ extension BuildASTPhase {
                 continue
             }
 
-            // Require `(` immediately after the keyword.
-            guard startIdx + 1 < remaining.endIndex,
-                  remaining[startIdx + 1].kind == .symbol(.lParen)
-            else {
+            // A default setter may omit its parameter list: `private set`.
+            // Preserve it as an accessor so downstream checks can observe its
+            // explicit visibility even though it has no custom body.
+            let hasParameterList = startIdx + 1 < remaining.endIndex
+                && remaining[startIdx + 1].kind == .symbol(.lParen)
+            let explicitAccessorVisibility = accessorVisibility(in: tokensBeforeAccessor)
+            if kind == .setter, !hasParameterList, let explicitAccessorVisibility {
+                let accessor = PropertyAccessorDecl(
+                    range: nodeRange,
+                    kind: .setter,
+                    annotations: annotations,
+                    visibility: explicitAccessorVisibility
+                )
+                if setter == nil { setter = accessor }
+                remaining = remaining[(startIdx + 1)...]
+                continue
+            }
+            guard hasParameterList else {
                 remaining = remaining[(startIdx + 1)...]
                 continue
             }
@@ -472,6 +509,7 @@ extension BuildASTPhase {
                 range: nodeRange,
                 kind: kind,
                 annotations: annotations,
+                visibility: accessorVisibility(in: tokensBeforeAccessor),
                 parameterName: parameterName,
                 body: body
             )
@@ -524,6 +562,7 @@ extension BuildASTPhase {
             range: arena.node(accessorNodeID).range,
             kind: kind,
             annotations: annotations,
+            visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -579,6 +618,7 @@ extension BuildASTPhase {
             range: arena.node(statementID).range,
             kind: kind,
             annotations: annotations,
+            visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -676,15 +716,17 @@ extension BuildASTPhase {
             }
             guard case let .softKeyword(keyword) = headerTokens[0].kind else { continue }
             let kind: PropertyAccessorKind = keyword == .get ? .getter : .setter
+            let prefixTokens = items[..<start].compactMap { item -> Token? in
+                if case let .token(token) = item { return token }
+                return nil
+            }
             let accessor = PropertyAccessorDecl(
                 range: arena.node(nodeID).range,
                 kind: kind,
                 annotations: accessorAnnotations(
-                    from: items[..<start].compactMap { item in
-                        if case let .token(token) = item { return token }
-                        return nil
-                    }, interner: interner
+                    from: prefixTokens, interner: interner
                 ),
+                visibility: accessorVisibility(in: prefixTokens),
                 parameterName: kind == .setter
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,

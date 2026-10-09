@@ -1,5 +1,6 @@
 #if canImport(Testing)
 import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
@@ -136,14 +137,7 @@ struct LocalNamedNominalTypingTests {
         "class Writer { fun read(value: Int = run { args = Args(null); 4 }): Int = value }; Writer().read()",
     ])
     func testLocalClassDefaultAndDelegationCapture(_ declaration: String) throws {
-        let source = """
-        class Args(val x: String?)
-        fun probe() {
-            var args = Args("hello")
-            \(declaration)
-            println(args.x)
-        }
-        """
+        let source = KotlinSourceFixtures.localNamedNominalTypingSource(declaration: declaration)
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)

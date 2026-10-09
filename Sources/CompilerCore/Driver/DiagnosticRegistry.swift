@@ -132,6 +132,10 @@ enum DiagnosticRegistry {
         "OPT_IN_USAGE": ["KSWIFTK-SEMA-OPT-IN"],
         "UNCHECKED_IS": ["KSWIFTK-SEMA-ERASED-TYPE"],
         "ANNOTATION_TARGET": ["KSWIFTK-SEMA-ANNOTATION-TARGET"],
+        "ANNOTATION_ARGUMENT_MUST_BE_CONST": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST"],
+        "ARGUMENT_TYPE_MISMATCH": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE"],
+        "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
+        "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
     ]
 
@@ -486,6 +490,24 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Annotation is not applicable to this declaration target."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Annotation argument count does not match its constructor."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Annotation argument has an incompatible type."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Annotation argument is not a compile-time constant."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0061",

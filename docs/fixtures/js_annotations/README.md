@@ -16,6 +16,17 @@ candidate-only runner の製品実装・CI 接続は KUU-1612 以降の担当で
 | `evidence/native_observations.export.d.mts` | 統合 fixture から生成した TypeScript 宣言の保存例 |
 | `capture_reference.py` | 監査用の再採取/期待値比較。KSwiftK や JVM compile/run reference を実行しない |
 
+## JsStatic の観測経路
+
+native 側は `Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JsStatic.swift`
+で `StaticHolder.message()` と marker-only `JsHolder.message()` を別々の入力としてコンパイル・実行する。
+source fixture も `valid/static_accepted.kt` と `valid/marker_requirements.kt` に分け、marker を static emission の証拠として扱わない。
+
+JS static entry は Kotlin/JS 2.3.10 の `valid/native_observations.kt` を per-file JS にコンパイルし、
+`valid/js_emission.mjs` が生成 module の `JsHolder.message()` を import 後に呼び出して観測する。
+その結果は `evidence/reference-results.json` の `native_observations.consumer` に記録される。
+この consumer は Kotlin/JS の emission lane であり、native 実行テストでは検証できない。
+
 ## Toolchain
 
 - Kotlin compiler / `kotlin-stdlib-js.klib`: **2.3.10**、公式配布 archive を checksum 照合して使用。

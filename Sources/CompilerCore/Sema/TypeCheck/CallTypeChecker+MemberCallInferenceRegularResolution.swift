@@ -136,14 +136,30 @@ extension CallTypeChecker {
 
         let hasLeadingLocaleArgument = calleeName == knownNames.format
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
-        let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
-        if case let .functionType(functionType) = sema.types.kind(of: lookupReceiverType),
-           functionType.isCallableReference,
-           let result = inferCallableReferenceMember(
-               id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
-               args: args, safeCall: safeCall, ctx: ctx, locals: &locals
-           ) {
-            return result
+        let baseLookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let lookupReceiverType: TypeID
+        if case let .functionType(functionType) = sema.types.kind(of: baseLookupReceiverType),
+           functionType.isCallableReference
+        {
+            if let result = inferCallableReferenceMember(
+                id, receiverID: receiverID, functionType: functionType, calleeName: calleeName,
+                args: args, safeCall: safeCall, ctx: ctx, locals: &locals
+            ) {
+                return result
+            }
+            // Extensions on `KCallable<R>` / `KFunction<R>` (kotlin.reflect.full:
+            // `callSuspend`, ...) must see a callable reference as its reflective type.
+            if let kFunctionSymbol = sema.types.kFunctionInterfaceSymbol {
+                lookupReceiverType = sema.types.make(.classType(ClassType(
+                    classSymbol: kFunctionSymbol,
+                    args: [.out(functionType.returnType)],
+                    nullability: functionType.nullability
+                )))
+            } else {
+                lookupReceiverType = baseLookupReceiverType
+            }
+        } else {
+            lookupReceiverType = baseLookupReceiverType
         }
         // `f.invoke(...)` where `f`'s own type is a function type
         // (`(Int) -> Int`, `Int.(Int) -> Int`, ...) has no nominal owner at

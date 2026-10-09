@@ -71,18 +71,6 @@ extension CallLowerer {
         }
     }
 
-    func isMutableListLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return symbol.name == knownNames.mutableList
-            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-    }
 
     func isMutableSetLikeType(
         _ receiverType: TypeID,
