@@ -45,7 +45,8 @@ check_selection $'import kotlinx.coroutines.runBlocking\nimport kotlinx.io.Buffe
   "$KOTLINC_COROUTINES_JAR:$KOTLINC_KOTLINX_IO_JAR" 'coroutines;io;'
 check_selection 'import kotlinx.atomicfu.*' "$KOTLINC_ATOMICFU_JAR" 'atomicfu;'
 check_selection 'import kotlinx.atomicfu.atomic as makeAtomic' "$KOTLINC_ATOMICFU_JAR" 'atomicfu;'
-check_selection 'fun main() { val value = kotlinx.atomicfu.atomic(1) }' "$KOTLINC_ATOMICFU_JAR" 'atomicfu;'
+check_selection '// kotlinx.atomicfu.atomic is mentioned only in documentation' '' ''
+check_selection 'fun main() { println("kotlinx.atomicfu.atomic") }' '' ''
 check_selection $'import kotlinx.coroutines.*\nimport kotlinx.io.bytestring.ByteString\nimport kotlinx.atomicfu.atomic' \
   "$KOTLINC_COROUTINES_JAR:$KOTLINC_KOTLINX_IO_JAR:$KOTLINC_KOTLINX_IO_BYTESTRING_JAR:$KOTLINC_ATOMICFU_JAR" \
   'coroutines;io;bytestring;atomicfu;'

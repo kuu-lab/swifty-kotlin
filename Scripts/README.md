@@ -232,11 +232,13 @@ directory and downloads JVM reference jars from Maven Central:
 | `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
 | `kotlinx.atomicfu` | `atomicfu-jvm` | 0.33.0 |
 
-Cases using multiple libraries receive all their dependencies. Atomicfu also
-detects fully qualified calls and alias imports. This import
+Cases using multiple libraries receive all their dependencies, including
+atomicfu wildcard, individual, and alias imports. This import
 detection is the equivalent of a `requires_kotlinx_io` header; no extra header
 is needed. An explicit `--kotlinc-classpath` / `KOTLINC_CLASSPATH` bypasses all
 automatic downloads, so supply every required jar in that classpath.
+Cases using only fully qualified atomicfu expressions can supply the pinned
+jar with `--kotlinc-classpath`.
 You can control the cached path and version with:
 
 ```bash

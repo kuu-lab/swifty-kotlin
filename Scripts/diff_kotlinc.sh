@@ -406,7 +406,7 @@ requires_kotlinx_io_bytestring() {
 }
 
 requires_atomicfu() {
-  target_matches_import "$1" '(^|[^[:alnum:]_])kotlinx\.atomicfu\.'
+  target_matches_import "$1" '^[[:space:]]*import[[:space:]]+kotlinx\.atomicfu\.'
 }
 
 # Pin the real Maven artifact; unknown versions need an explicit checksum.
