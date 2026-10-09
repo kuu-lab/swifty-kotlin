@@ -39,7 +39,6 @@ extension NativeEmitter {
             self.allocaBuilder = allocaBuilder
         }
 
-        /// Allocates an i64 stack slot in the entry block of the current function.
         func buildEntrySlot(
             _ bindings: LLVMCAPIBindings,
             name: String
@@ -242,9 +241,7 @@ extension NativeEmitter {
             bindings.buildICmpNotEqual(state.builder, lhs: value, rhs: state.zeroValue, name: name)
         }
 
-        // Sign-extend the low 32 bits of a 64-bit slot back into a canonical
-        // 64-bit representation of a Kotlin `Int`. Implemented as
-        // `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
+        // Implemented as `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
         // binding. This enforces Kotlin's two's-complement `Int` wraparound.
         func narrowTo32(_ value: LLVMCAPIBindings.LLVMValueRef?, name: String) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let value,
@@ -256,11 +253,9 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
-        /// Emit a call to `__kk_string_equals_flat` when at least one operand is a
-        /// String aggregate. This is required for `==`/`!=` on generic `K` that
-        /// is instantiated with `String`, because the inlined function body ends
-        /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
-        /// `icmp` a struct. Returns `nil` when neither operand is a String aggregate.
+        /// Required for `==`/`!=` on generic `K` that is instantiated with
+        /// `String`, because the inlined function body ends up comparing flat
+        /// `{ i8*, i64, i64, i64 }` values and LLVM cannot `icmp` a struct.
         func emitStringAggregateEquality(
             lhsValue: LLVMCAPIBindings.LLVMValueRef,
             lhsType: TypeID?,
@@ -481,10 +476,8 @@ extension NativeEmitter {
         case "kk_op_ushr":
             lowered = bindings.buildLShr(state.builder, lhs: lhs, rhs: rhs, name: "ushr_\(instructionIndex)")
         case "kk_int_narrow":
-            // Wrap a 64-bit arithmetic result to Kotlin's 32-bit `Int`.
             lowered = narrowTo32(lhs, name: "narrow")
         case "kk_uint_narrow":
-            // Mask a 64-bit arithmetic result to Kotlin's 32-bit `UInt` (zero-extend low 32 bits).
             if let mask = bindings.constInt(state.int64Type, value: 0xFFFF_FFFF) {
                 lowered = bindings.buildAnd(state.builder, lhs: lhs, rhs: mask,
                                             name: "uint_narrow_\(instructionIndex)")
@@ -815,7 +808,6 @@ extension NativeEmitter {
             {
                 return functionPointer
             }
-            // Load from LLVM global variable if this symbol refers to a global.
             // Global slots always hold raw runtime handles (i64); bridge to the
             // lowered aggregate representation only when the expected KIR type is
             // the String struct.

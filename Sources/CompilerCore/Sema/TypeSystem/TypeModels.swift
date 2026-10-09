@@ -101,6 +101,17 @@ public enum TypeArg: Hashable, Sendable {
     case star
 }
 
+extension TypeArg {
+    func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeArg {
+        switch self {
+        case let .invariant(type): .invariant(transform(type))
+        case let .out(type): .out(transform(type))
+        case let .in(type): .in(transform(type))
+        case .star: .star
+        }
+    }
+}
+
 public struct TypeParamType: Hashable, Sendable {
     public let symbol: SymbolID
     public let nullability: Nullability

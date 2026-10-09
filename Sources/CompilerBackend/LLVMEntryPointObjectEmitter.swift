@@ -404,8 +404,6 @@ struct LLVMEntryPointObjectEmitter {
         }
     }
 
-    /// Returns `0` for every normal completion of `main`.
-    ///
     /// Kotlin never uses the value of `main` as the process status: a valid
     /// entry point returns `Unit`, and a program chooses a non-zero status
     /// through `kotlin.system.exitProcess`, which terminates the process

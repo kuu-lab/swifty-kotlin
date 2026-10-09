@@ -22,7 +22,6 @@ extension BuildASTPhase.ExpressionParser {
             let paramTokens = Array(bodyTokens[..<arrowIndex])
             let lambdaBodySlice = bodyTokens[(arrowIndex + 1)...]
 
-            // Detect lambda destructuring: { (a, b) -> body }
             if let names = extractDestructuringNames(from: paramTokens) {
                 let range = SourceRange(start: start ?? openBrace.range.start, end: end)
                 return buildDestructuringLambda(
@@ -43,8 +42,6 @@ extension BuildASTPhase.ExpressionParser {
             return lambdaID
         }
 
-        // No-arrow lambda: `{ body }`.
-        //
         // In expression position Kotlin treats bare braces as lambda literals,
         // including zero-argument lambdas like `{ 42 }`. Both trailing-lambda
         // call sites and plain expression contexts accept the same syntax.
@@ -168,10 +165,6 @@ extension BuildASTPhase.ExpressionParser {
         return reference
     }
 
-    /// Consumes tokens up to and including a closing brace matching a
-    /// just-consumed opening `{` (depth starts at 1). Returns the tokens
-    /// strictly between the braces, the end location reached, and whether
-    /// the depth actually returned to 0 before the token stream ran out.
     /// On imbalance, `bodyTokens` holds everything scanned and `end` is the
     /// last token's end (or `fallbackEnd` if nothing was consumed) — the
     /// caller decides whether that's acceptable.
@@ -201,9 +194,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     /// Kotlin parses a control-structure body `{ params -> ... }` as a function
-    /// literal rather than a block. Looks ahead (without consuming) at the brace
-    /// group starting at the current `{` and reports whether it opens with a
-    /// lambda parameter list followed by `->`.
+    /// literal rather than a block.
     func braceGroupStartsLambdaLiteral() -> Bool {
         guard matches(.symbol(.lBrace)) else {
             return false
@@ -303,7 +294,6 @@ extension BuildASTPhase.ExpressionParser {
         return params
     }
 
-    /// Parses the `: Type` annotation of a lambda parameter segment, if present.
     private func parseLambdaParamTypeAnnotation(in segment: [Token], after nameIndex: Int) -> TypeRefID? {
         let colonIndex = nameIndex + 1
         guard colonIndex < segment.count, segment[colonIndex].kind == .symbol(.colon) else {
@@ -346,8 +336,6 @@ extension BuildASTPhase.ExpressionParser {
         return Array(tokens.dropFirst().dropLast())
     }
 
-    /// Checks whether paramTokens form a `(name, name, ...)` destructuring pattern.
-    /// Returns the extracted names (nil for underscore), or nil when not destructuring.
     private func extractDestructuringNames(from paramTokens: [Token]) -> [InternedString?]? {
         let innerTokens = stripEnclosingParentheses(from: paramTokens)
         guard innerTokens.count != paramTokens.count else { return nil }
@@ -501,8 +489,6 @@ extension BuildASTPhase.ExpressionParser {
         return parsed.consumed == typeTokens.count
     }
 
-    /// Whether `inner` (the tokens between the parens of a destructuring
-    /// parameter) are a comma-separated list of entry names (`a, _, c`).
     private func isDestructuringEntries(_ inner: ArraySlice<Token>) -> Bool {
         var expectName = true
         var sawComma = false

@@ -3,7 +3,6 @@ import RuntimeABI
 
 import CompilerCore
 
-/// Counter for deterministic generated names in LLVM IR output.
 final class GeneratedNameCounter {
     private var value: Int32 = 0
 
@@ -19,10 +18,7 @@ final class GeneratedNameCounter {
 }
 
 struct NativeEmitter {
-    /// DWARF constants used across the emitter.
-    /// DW_LANG_C99 – used as the compile-unit language tag.
     static let dwarfLangC99: UInt32 = 11
-    /// DW_ATE_signed – DWARF attribute encoding for signed integers.
     static let dwarfATESigned: UInt32 = 5
 
     /// Legacy void/no-argument runtime call set retained for ABI compatibility.
@@ -40,7 +36,6 @@ struct NativeEmitter {
         "kk_suspend_function_invoke_6",
     ]
 
-    /// Quick lookup for runtime ABI function specs by symbol name.
     static let runtimeABIFunctionByName: [String: RuntimeABIFunctionSpec] = {
         Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
     }()
@@ -50,8 +45,6 @@ struct NativeEmitter {
         let type: LLVMCAPIBindings.LLVMTypeRef
     }
 
-    /// Lookup key used to resolve internal functions by either their KIR name
-    /// or generated C symbol name plus user parameter count.
     struct FunctionLookupKey: Hashable {
         let name: String
         let parameterCount: Int
@@ -61,9 +54,7 @@ struct NativeEmitter {
         let diBuilder: LLVMCAPIBindings.LLVMDIBuilderRef
         let file: LLVMCAPIBindings.LLVMMetadataRef
         let subprograms: [SymbolID: LLVMCAPIBindings.LLVMMetadataRef]
-        /// Per-file DI file metadata keyed by FileID.
         let diFiles: [FileID: LLVMCAPIBindings.LLVMMetadataRef]
-        /// DI basic type for i64 (used for parameter/variable debug info).
         let int64DIType: LLVMCAPIBindings.LLVMMetadataRef?
     }
 
@@ -79,7 +70,6 @@ struct NativeEmitter {
     let externalFunctionSymbolsByLinkName: [String: SymbolID]
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
-    /// REFL-004: Metadata records to embed as runtime reflection metadata.
     let reflectionMetadataRecords: [MetadataRecord]
     let reflectionMetadataSymbolPrefix: String?
     /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
@@ -280,9 +270,6 @@ struct NativeEmitter {
         return rawSymbols
     }
 
-    /// Maps each expression to the expressions whose value it may carry through
-    /// value-preserving instructions (`copy`, `nullAssert`, `kk_op_notnull`,
-    /// callable-reference metadata tags).
     private static func valueAliasSources(
         in body: [KIRInstruction],
         notNullCallee: InternedString,
@@ -515,7 +502,6 @@ struct NativeEmitter {
         return targetMachine
     }
 
-    /// Returns a stable C-compatible LLVM global slot name for the given symbol.
     /// For globals with a known fully-qualified name (e.g. properties and object
     /// singletons) the name is derived from that FQN so that a precompiled
     /// library and its consumers refer to the same storage. Otherwise it falls
@@ -543,9 +529,6 @@ struct NativeEmitter {
         return "kk_global_root_slot_\(max(0, Int(symbol.rawValue)))"
     }
 
-    /// Returns true for imported-library symbols that are expected to be
-    /// backed by a global variable in the linked object (properties, fields,
-    /// backing fields, and source-backed singleton objects).
     private func shouldEmitImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol),
               sym.flags.contains(.importedLibrary)
@@ -588,7 +571,6 @@ struct NativeEmitter {
         return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
     }
 
-    /// Returns the weak-linkage decision for an imported object global.
     /// A non-package parent is not sufficient to identify a companion object:
     /// regular nested objects must use their own initializer metadata.
     static func shouldUseWeakImportedObjectGlobalReference(
@@ -606,9 +588,7 @@ struct NativeEmitter {
         return symbols.objectInitializerSymbol(for: symbol) == nil
     }
 
-    /// Ensures that any imported-library global referenced by `loadGlobal`,
-    /// `storeGlobal`, or `symbolRef` has an LLVM global declaration in the
-    /// current module. Without this, the backend silently emits zero for
+    /// Without this, the backend silently emits zero for
     /// references to globals defined in a precompiled `.kklib` (e.g.
     /// `Uuid.Companion.NIL`) because those globals are not present in the
     /// current module's KIR global declarations.
@@ -697,7 +677,6 @@ struct NativeEmitter {
             return typeLowering != nil
         }
 
-        // Create LLVM global variables for each KIR global declaration.
         // Globals that back properties/singletons shared across .kklib modules
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
@@ -865,7 +844,6 @@ struct NativeEmitter {
             }
         }
 
-        // REFL-004: Emit runtime reflection metadata as global constants.
         RuntimeReflectionMetadataEmitter.emitGlobals(
             records: reflectionMetadataRecords,
             bindings: bindings,
@@ -878,8 +856,7 @@ struct NativeEmitter {
         return (context: context, module: llvmModule)
     }
 
-    /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)
-    /// BEFORE function bodies are emitted so that debug locations can be set
+    /// Created BEFORE function bodies are emitted so that debug locations can be set
     /// on instructions during emission.
     func createDebugInfoContext(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
@@ -894,7 +871,6 @@ struct NativeEmitter {
             return nil
         }
 
-        // Determine the primary source file from the SourceManager if available.
         let primaryFilename: String
         let primaryDirectory: String
         if let sourceManager, sourceManager.fileCount > 0 {
@@ -1023,7 +999,6 @@ struct NativeEmitter {
         return subprograms
     }
 
-    /// Finalizes the DIBuilder, adds module flags, and disposes the DIBuilder.
     func finalizeDebugInfo(
         diContext: DebugInfoContext,
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,

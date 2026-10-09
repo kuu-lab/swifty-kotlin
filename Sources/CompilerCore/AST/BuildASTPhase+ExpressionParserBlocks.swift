@@ -69,7 +69,6 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.blockExpr(statements: statements, trailingExpr: trailingExpr, range: range))
     }
 
-    /// Returns statement boundary ranges as `(startIndex, endIndex)` pairs into `tokens`.
     func splitBlockTokensIntoStatementRanges(_ tokens: [Token]) -> [(Int, Int)] {
         var ranges: [(Int, Int)] = []
         var groupStart = 0
