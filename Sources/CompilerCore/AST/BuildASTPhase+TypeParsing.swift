@@ -457,6 +457,13 @@ extension BuildASTPhase {
                     return tokens
                 }
                 if childKind == .block {
+                    // An expression getter may end in a lambda sibling block.
+                    // Strip its complete `get() =` header before returning the
+                    // property head, just as for a propertyAccessor child.
+                    let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+                    if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
+                        return Array(tokens.prefix(idx))
+                    }
                     // Do not scan tokens from a trailing lambda for inline
                     // accessors: a call such as `map.get(key)` uses the same
                     // soft keyword spelling as a property `get()` accessor.
