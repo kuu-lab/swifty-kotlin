@@ -114,6 +114,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicInt` の candidate-only runtime parity。`DIFF_CANDIDATE_ONLY` 指定ケースは sibling `.expected` と stdout を照合し、通常の diff harness でも JVM reference を呼ばずに実行する
 - `stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt`: Kotlin/Native 専用 `IncorrectDereferenceException` のコンストラクタ、message、例外階層判定、throw/catch 順序を candidate-only の stdout と sibling sidecar で検証する
 - `stdlib_kotlin_concurrent_AtomicReference_AtomicReference_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicReference` の compare-and-exchange、get-and-set、value access、`toString()` を candidate-only stdout sidecar と照合する
+- `stdlib_kotlin_native_Platform_Platform_n.kt`: Kotlin/Native 専用 `kotlin.native.Platform` API の candidate-only runtime coverage。各プロパティの読出し、enum の安定性、2 つの mutable property の書き戻し、available processor 数を `.expected.stdout` と照合する
 
 The set intentionally includes both successful programs and compile-error cases.
 
