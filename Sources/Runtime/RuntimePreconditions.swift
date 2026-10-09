@@ -67,11 +67,6 @@ func runtimeReleaseLock(for key: Int, lock: NSRecursiveLock) {
     runtimeLockStorage.unlock()
 }
 
-func runtimeWithLock<T>(for key: Int, _ body: () -> T) -> T {
-    let lock = runtimeAcquireLock(for: key)
-    defer { runtimeReleaseLock(for: key, lock: lock) }
-    return body()
-}
 
 // KSP-781: synchronization used by the bundled Lazy implementation.
 @_cdecl("__kk_lazy_sync_lock")

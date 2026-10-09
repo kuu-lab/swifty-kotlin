@@ -32,83 +32,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticAnnotationIntProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let valueName = interner.intern(name)
-        let valueFQName = ownerFQName + [valueName]
-        let valueSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: valueFQName) {
-            valueSymbol = existing
-        } else {
-            valueSymbol = symbols.define(
-                kind: .property,
-                name: valueName,
-                fqName: valueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
 
-        symbols.setParentSymbol(ownerSymbol, for: valueSymbol)
-        symbols.setPropertyType(types.intType, for: valueSymbol)
-    }
-
-    func registerSyntheticAnnotationIntConstructor(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        parameterName: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let initName = interner.intern("<init>")
-        let initFQName = ownerFQName + [initName]
-        let parameterTypes = [types.intType]
-        if symbols.lookupAll(fqName: initFQName).contains(where: {
-            symbols.functionSignature(for: $0)?.parameterTypes == parameterTypes
-        }) {
-            return
-        }
-
-        let initSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: initFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: initSymbol)
-
-        let paramName = interner.intern(parameterName)
-        let paramSymbol = symbols.define(
-            kind: .valueParameter,
-            name: paramName,
-            fqName: initFQName + [paramName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(initSymbol, for: paramSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: ownerType,
-                valueParameterSymbols: [paramSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
-            ),
-            for: initSymbol
-        )
-    }
 
     func registerSyntheticAnnotationTargetEnum(
         packageFQName: [InternedString],
@@ -320,49 +244,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers the synthetic `exceptionClasses` property and vararg constructor
-    /// for `kotlin.Throws` after bundled stdlib sources have been collected.
-    func registerSyntheticThrowsAnnotationMembersIfNeeded(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinPkg = ensurePackage(
-            path: ["kotlin"],
-            symbols: symbols,
-            interner: interner
-        )
-        let throwsName = interner.intern("Throws")
-        let throwsFQName = kotlinPkg + [throwsName]
-        guard let throwsSymbol = symbols.lookup(fqName: throwsFQName),
-              let symbolInfo = symbols.symbol(throwsSymbol),
-              symbolInfo.kind == .annotationClass
-        else {
-            return
-        }
-
-        appendSyntheticAnnotation(
-            MetadataAnnotationRecord(
-                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                arguments: [
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.CONSTRUCTOR",
-                ]
-            ),
-            to: throwsSymbol,
-            symbols: symbols
-        )
-        registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
-            ownerSymbol: throwsSymbol,
-            ownerFQName: throwsFQName,
-            kotlinPkg: kotlinPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
 
     func makeSyntheticThrowsThrowableType(
         kotlinPkg: [InternedString],

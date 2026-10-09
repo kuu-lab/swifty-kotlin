@@ -772,35 +772,6 @@ enum CacheSecurity {
         return fd
     }
 
-    /// Reads data from a regular file inside parentFD using O_NOFOLLOW.
-    static func readData(in parentFD: Int32, filename: String) -> Data? {
-        guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
-            return nil
-        }
-        let fd = openat(parentFD, filename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { return nil }
-        defer { close(fd) }
-
-        var st = stat()
-        guard fstat(fd, &st) == 0 else { return nil }
-        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
-        guard isOwnerAndModeSecure(st: st) else { return nil }
-
-        var data = Data()
-        let bufferSize = 8192
-        var buffer = [UInt8](repeating: 0, count: bufferSize)
-        while true {
-            let bytesRead = read(fd, &buffer, bufferSize)
-            if bytesRead < 0 {
-                return nil
-            }
-            if bytesRead == 0 {
-                break
-            }
-            data.append(buffer, count: bytesRead)
-        }
-        return data
-    }
 
     /// Writes data atomically into parentFD using a temporary file and renameat.
     static func writeAtomicFile(in parentFD: Int32, filename: String, data: Data) -> Bool {
