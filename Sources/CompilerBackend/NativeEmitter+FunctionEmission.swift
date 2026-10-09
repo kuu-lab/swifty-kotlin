@@ -678,7 +678,6 @@ extension NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("LLVMCreateBuilderInContext returned null")
         }
         defer {
-            // Clear debug location before disposing the builder.
             if diContext != nil {
                 bindings.clearCurrentDebugLocation(builder)
             }
@@ -758,8 +757,6 @@ extension NativeEmitter {
         // info (alloca/store require a valid insert point).
         bindings.positionBuilder(builder, at: entryBlock)
 
-        // Emit DILocalVariable + dbg.declare for each parameter when debug
-        // info is active and the required bindings are available.
         if let diContext,
            let subprogram = diContext.subprograms[function.symbol],
            let int64DIType = diContext.int64DIType,
@@ -941,8 +938,6 @@ extension NativeEmitter {
             argumentCount: Int,
             appendThrownChannel: Bool
         ) -> LLVMFunction? {
-            // String.length extension: redirect "length" (1 arg = receiver) to the
-            // aggregate field accessor sentinel. Codegen lowers it to extractvalue.
             // Lambda bodies may reach codegen with callee "length" when receiver type is not
             // available during KIR lowering (e.g. mapIndexed { _, v -> v.length }).
             let effectiveName: String = if Self.isStringLengthAggregateAccessorName(calleeName),
@@ -1214,9 +1209,6 @@ extension NativeEmitter {
                 storeResult(thrownResult, exceptionHandle)
                 _ = bindings.buildBr(builder, destination: continueBlock)
             } else {
-                // No enclosing catch reachable for this call within this
-                // function: propagate to this function's own caller
-                // immediately, matching the `nullAssert` case's pattern.
                 storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
             }
@@ -2075,7 +2067,7 @@ extension NativeEmitter {
             return block
         }
 
-        /// Builds a condition for exception-thrown slot checks. Does NOT call kk_unbox_bool;
+        /// Does NOT call kk_unbox_bool;
         /// thrown slots hold raw integers (0 = no exception, non-zero = exception).
         func buildThrownSlotCondition(
             from value: LLVMCAPIBindings.LLVMValueRef,
@@ -2217,15 +2209,13 @@ extension NativeEmitter {
         }
 
         for (instructionIndex, instruction) in function.body.enumerated() {
-            // Update debug location per-instruction when debug info is active.
             if let diContext,
                let subprogram = diContext.subprograms[function.symbol],
                bindings.debugLocationAvailable
             {
                 var instrLine: UInt32 = 0
                 var instrCol: UInt32 = 0
-                // Try per-instruction source location first, then fall back to
-                // function-level source range. Only use per-instruction locations
+                // Only use per-instruction locations
                 // when the parallel array is in sync with body (same count).
                 if function.instructionLocations.count == function.body.count,
                    instructionIndex < function.instructionLocations.count,
@@ -2306,9 +2296,6 @@ extension NativeEmitter {
                 let constLLVMValue = valueForConstant(value, expressionRawID: result.rawValue)
                 storeResult(result, constLLVMValue)
 
-                // Emit DIAutoVariable + dbg.declare for local variable bindings
-                // when debug info is active. We detect local variables by looking
-                // for symbolRef values that have a corresponding symbol name.
                 if let diContext,
                    let subprogram = diContext.subprograms[function.symbol],
                    let int64DIType = diContext.int64DIType,
@@ -3556,7 +3543,6 @@ extension NativeEmitter {
                     thenBlock: useVirtualBlock,
                     elseBlock: fallbackBlock
                 )
-                // Virtual dispatch path: use the looked-up function pointer.
                 bindings.positionBuilder(builder, at: useVirtualBlock)
                 let functionPointerType = bindings.pointerType(calleeFunction.type)
                 let fptr = bindings.buildIntToPtr(
@@ -3595,14 +3581,12 @@ extension NativeEmitter {
                 }
                 _ = bindings.buildBr(builder, destination: mergeBlock)
 
-                // Fallback path: trap on dispatch failure (GEN-002).
                 bindings.positionBuilder(builder, at: fallbackBlock)
                 if let trapFn = declareExternalFunction(named: "kk_dispatch_error", argumentCount: 0, appendThrownChannel: false) {
                     _ = bindings.buildCall(builder, functionType: trapFn.type, callee: trapFn.value, arguments: [], name: "trap_\(instructionIndex)")
                 }
                 _ = bindings.buildUnreachable(builder)
 
-                // Merge: use the virtual call result.
                 bindings.positionBuilder(builder, at: mergeBlock)
                 currentBlock = mergeBlock
                 let mergedValue: LLVMCAPIBindings.LLVMValueRef
@@ -3663,7 +3647,6 @@ extension NativeEmitter {
                 }
                 storeResult(result, mergedValue)
 
-                // Handle thrown channel from virtual dispatch.
                 if usesThrownChannel,
                    let thrownSlotPointer,
                    let thrownValue = bindings.buildLoad(
@@ -3974,7 +3957,6 @@ extension NativeEmitter {
         }
     }
 
-    /// Maximum KIR argument count per external callee name within a function body.
     /// Declarations are keyed only by name; if the first emitted call is arity-0 bootstrap noise
     /// (e.g. synthetic kotlin.math loads) and a later call passes arguments, LLVM must still
     /// declare the symbol with the maximum arity seen for declareExternalFunction.
