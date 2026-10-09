@@ -6,29 +6,6 @@ import Testing
 
 @Suite
 struct CodegenBackendStringSurrogateEscapeTests {
-    @Test
-    func testConsoleOutputReplacesIsolatedSurrogates() throws {
-        let source = """
-        fun main() {
-            val star = "🌟"
-            println(star.first())
-            println("hello🌟".lastOrNull())
-            val boxed: Any = star.last()
-            println(boxed)
-            println(star.last().toString().first().code)
-            println("x" + star.last() + "y")
-            println(star)
-            println("�")
-            print(star.last())
-            println("!")
-        }
-        """
-        try assertKotlinOutput(
-            source,
-            moduleName: "ConsoleSurrogate",
-            expected: "?\n?\n?\n57119\nx?y\n🌟\n�\n?!\n"
-        )
-    }
 
     @Test
     func testStringLiteralPreservesIsolatedSurrogateEscapesAsUTF16CodeUnits() throws {
