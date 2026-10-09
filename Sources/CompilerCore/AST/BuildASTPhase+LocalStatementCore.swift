@@ -415,8 +415,7 @@ extension BuildASTPhase {
             }
         }
 
-        /// Statement-level `++a[i]` / `--a[i, j]` (leading operator). The
-        /// generic expression parser's `tryParsePrefixIncrementDecrement`
+        /// The generic expression parser's `tryParsePrefixIncrementDecrement`
         /// (BuildASTPhase+ExpressionParserIncDec.swift) deliberately rejects
         /// an `.indexedAccess` operand: its desugaring re-reads the operand
         /// as a second AST node to produce the post-mutation value, which

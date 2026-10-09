@@ -82,3 +82,43 @@ public enum Decl: Codable {
     case objectDecl(ObjectDecl)
     case enumEntryDecl(EnumEntryDecl)
 }
+
+public extension Visibility {
+    init(modifiers: Modifiers) {
+        if modifiers.contains(.private) {
+            self = .private
+        } else if modifiers.contains(.internal) {
+            self = .internal
+        } else if modifiers.contains(.protected) {
+            self = .protected
+        } else {
+            self = .public
+        }
+    }
+}
+
+public extension Decl {
+    var annotations: [AnnotationNode] {
+        switch self {
+        case let .classDecl(decl): decl.annotations
+        case let .interfaceDecl(decl): decl.annotations
+        case let .objectDecl(decl): decl.annotations
+        case let .funDecl(decl): decl.annotations
+        case let .propertyDecl(decl): decl.annotations
+        case let .typeAliasDecl(decl): decl.annotations
+        case let .enumEntryDecl(decl): decl.annotations
+        }
+    }
+
+    var range: SourceRange {
+        switch self {
+        case let .classDecl(decl): decl.range
+        case let .interfaceDecl(decl): decl.range
+        case let .objectDecl(decl): decl.range
+        case let .funDecl(decl): decl.range
+        case let .propertyDecl(decl): decl.range
+        case let .typeAliasDecl(decl): decl.range
+        case let .enumEntryDecl(decl): decl.range
+        }
+    }
+}

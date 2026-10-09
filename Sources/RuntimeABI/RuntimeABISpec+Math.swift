@@ -662,10 +662,5 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // STDLIB-MATH-112: numeric constants — Double special values
-        RuntimeABIFunctionSpec(name: "kk_double_positive_infinity", parameters: [], returnType: .intptr, section: "Math"),
-        RuntimeABIFunctionSpec(name: "kk_double_negative_infinity", parameters: [], returnType: .intptr, section: "Math"),
-        RuntimeABIFunctionSpec(name: "kk_double_nan", parameters: [], returnType: .intptr, section: "Math"),
-        RuntimeABIFunctionSpec(name: "kk_double_max_value", parameters: [], returnType: .intptr, section: "Math"),
-        RuntimeABIFunctionSpec(name: "kk_double_min_value", parameters: [], returnType: .intptr, section: "Math"),
     ]
 }

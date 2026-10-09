@@ -116,9 +116,9 @@ extension LLVMCAPIBindings {
     /// `LLVMStructTypeKind` raw value per the stable LLVM-C ABI (`llvm-c/Core.h`).
     private static let structTypeKind: Int32 = 10
 
-    /// Returns true when `value`'s LLVM type is an aggregate struct type, so callers can
-    /// distinguish a flat string struct from a raw (boxed) Int64 handle before emitting
-    /// struct-field-extraction IR. Returns `false` (safe default) if type info is unavailable.
+    /// Lets callers distinguish a flat string struct from a raw (boxed) Int64 handle
+    /// before emitting struct-field-extraction IR. Returns `false` (safe default) if
+    /// type info is unavailable.
     func isAggregateStructValue(_ value: LLVMValueRef?) -> Bool {
         guard let typeOfFn, let getTypeKindFn, let type = typeOfFn(value) else {
             return false
@@ -188,7 +188,6 @@ extension LLVMCAPIBindings {
         name.withCString { buildURemFn(builder, lhs, rhs, $0) }
     }
 
-    /// LLVM ICmp predicate: 34=UGT, 35=UGE, 36=ULT, 37=ULE
     func buildICmpUnsignedLessThan(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         name.withCString { buildICmpFn(builder, 36, lhs, rhs, $0) }
     }
@@ -205,7 +204,6 @@ extension LLVMCAPIBindings {
         name.withCString { buildICmpFn(builder, 35, lhs, rhs, $0) }
     }
 
-    /// Bitwise/shift builder convenience methods (P5-103)
     func buildAnd(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         guard let buildAndFn else { return nil }
         return name.withCString { buildAndFn(builder, lhs, rhs, $0) }
@@ -277,7 +275,6 @@ extension LLVMCAPIBindings {
     }
 
     /// Build a global string pointer that correctly handles embedded null bytes.
-    /// Falls back to LLVMBuildGlobalStringPtr for strings without null bytes.
     func buildGlobalStringPtrNullSafe(
         _ builder: LLVMBuilderRef?,
         context: LLVMContextRef?,
@@ -288,7 +285,6 @@ extension LLVMCAPIBindings {
         let utf8 = Array(value.utf8)
         let containsNull = utf8.contains(0)
 
-        // Fast path: no embedded null bytes — use the standard C-string API.
         if !containsNull {
             return buildGlobalStringPtr(builder, value: value, name: name)
         }
@@ -305,7 +301,6 @@ extension LLVMCAPIBindings {
 
         let length = UInt32(utf8.count)
 
-        // Create the constant: [length+1 x i8] with null terminator appended.
         let constStr: LLVMValueRef? = utf8.withUnsafeBufferPointer { buf in
             buf.baseAddress!.withMemoryRebound(to: CChar.self, capacity: utf8.count) { ptr in
                 constStringFn(context, ptr, length, 0) // 0 = do null-terminate
@@ -325,7 +320,6 @@ extension LLVMCAPIBindings {
         setUnnamedAddrFn?(global, 1)
         setInternalLinkage(global)
 
-        // GEP to get i8* pointing to the first element.
         let zero = constInt(int8TypeInContextFn(context), value: 0)
         // We need i32 type for GEP indices. Use i64 and hope LLVM accepts it,
         // or use int32 if available.
@@ -333,7 +327,6 @@ extension LLVMCAPIBindings {
         if let int32Fn = int32TypeFn, let i32Ty = int32Fn(context) {
             zeroIdx = constIntFn(i32Ty, 0, 0)
         } else {
-            // Fallback: use i64 zero.
             if let i64Ty = int64TypeFn(context) {
                 zeroIdx = constIntFn(i64Ty, 0, 0)
             } else {

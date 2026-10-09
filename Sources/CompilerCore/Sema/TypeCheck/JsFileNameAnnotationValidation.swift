@@ -28,7 +28,7 @@ extension TypeCheckDriver {
                     continue
                 }
 
-                let rawArgument = annotationArgumentValue(annotation.arguments[0], parameterName: "name")
+                let rawArgument = SemaAnnotationArgument.value(annotation.arguments[0], parameterName: "name")
                 if extractKotlinStringLiteralContent(rawArgument) != nil {
                     continue
                 }
@@ -117,16 +117,6 @@ extension TypeCheckDriver {
             }
         }
         return nil
-    }
-
-    private func annotationArgumentValue(_ raw: String, parameterName: String) -> String {
-        let pieces = raw.split(separator: "=", maxSplits: 1).map(String.init)
-        guard pieces.count == 2,
-              pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == parameterName
-        else {
-            return raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return pieces[1].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func isNonStringLiteral(_ raw: String) -> Bool {

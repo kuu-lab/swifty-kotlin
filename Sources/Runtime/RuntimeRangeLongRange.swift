@@ -113,30 +113,24 @@ public func __kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, 
 
 @_cdecl("__kk_long_range_take")
 public func kk_long_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_take") { range in
-        RuntimeSignedRangeHOFKind.take(range, n)
-    }
+    runtimeRangeTakeEntry(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "kk_long_range_take"
+    )
 }
 
 @_cdecl("__kk_long_range_drop")
 public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_drop") { range in
-        RuntimeSignedRangeHOFKind.drop(range, n)
-    }
+    runtimeRangeDropEntry(
+        RuntimeSignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "kk_long_range_drop"
+    )
 }
 
 @_cdecl("__kk_long_range_average")
@@ -310,42 +304,15 @@ public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ 
 }
 
 func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeRangeBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeRangeBox.self)
 }
 
 func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeRangeIteratorBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
 }
 
 private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeIteratorBuilderBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
 }
 
 @_cdecl("kk_dispatch_error")

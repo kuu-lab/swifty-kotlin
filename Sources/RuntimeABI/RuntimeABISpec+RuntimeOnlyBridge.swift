@@ -25,12 +25,6 @@ private let arraySpecialBridgeFunctions: [RuntimeABIFunctionSpec] = [
     ),
 ]
 
-private let numericOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
-    ["kk_byte_to_char", "kk_byte_to_uint", "kk_byte_to_ulong",
-     "kk_short_to_char", "kk_short_to_uint", "kk_short_to_ulong"].map {
-        bridgeSpec($0, section: "NumericConversion", params: ["value"])
-    }
-
 private let minMaxFloatDoubleBridgeFunctions: [RuntimeABIFunctionSpec] =
     ["kk_min_float", "kk_max_float", "kk_min_double", "kk_max_double"].map {
         bridgeSpec(
@@ -50,15 +44,9 @@ private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
 
-private let kclassBridgeFunctions = [
-    "__kk_kclass_get_arity",
-].map { bridgeSpec($0, section: "TypeCheck", params: ["kclassRaw"]) }
-
 public extension RuntimeABISpec {
     static let runtimeOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
         arraySpecialBridgeFunctions
-        + numericOnlyBridgeFunctions
         + minMaxFloatDoubleBridgeFunctions
         + coroutineOnlyBridgeFunctions
-        + kclassBridgeFunctions
 }

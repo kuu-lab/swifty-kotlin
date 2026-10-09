@@ -115,6 +115,13 @@ extension DataFlowSemaPhase {
                         continue
                     }
                 }
+                TypeCheckHelpers().checkDeprecation(
+                    for: resolved.symbol,
+                    symbols: symbols,
+                    interner: interner,
+                    range: symbols.symbol(symbol)?.declSite,
+                    diagnostics: diagnostics
+                )
                 superSymbols.append(resolved.symbol)
                 if !resolved.typeArgs.isEmpty {
                     symbols.setSupertypeTypeArgs(resolved.typeArgs, for: symbol, supertype: resolved.symbol)
@@ -579,8 +586,8 @@ extension DataFlowSemaPhase {
             // Looking up kotlin.Boolean as a nominal class here would record
             // ArgType<Class#Boolean> instead of ArgType<Boolean>.
             if path.count == 2, path[0] == interner.intern("kotlin"),
-               let builtinType = resolveBuiltinTypeNameForInheritance(
-                   path[1], interner: interner, nullability: nullability, types: types
+               let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(
+                   path[1], nullability: nullability, types: types
                )
             {
                 return builtinType
@@ -604,9 +611,8 @@ extension DataFlowSemaPhase {
             // over the default-import packages (e.g. `Int` is the primitive Int,
             // not any class named `Int` that might exist under `kotlin`).
             if path.count == 1 {
-                if let builtinType = resolveBuiltinTypeNameForInheritance(
+                if let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(
                     path[0],
-                    interner: interner,
                     nullability: nullability,
                     types: types
                 ) {
@@ -706,21 +712,6 @@ extension DataFlowSemaPhase {
             contextReceivers: contextReceiverTypes,
             receiver: receiverType, params: paramTypes, returnType: returnType, isSuspend: isSuspend, nullability: nullability
         )))
-    }
-
-    private func resolveBuiltinTypeNameForInheritance(
-        _ name: InternedString,
-        interner: StringInterner,
-        nullability: Nullability,
-        types: TypeSystem
-    ) -> TypeID? {
-        if let builtinType = BuiltinTypeNames(interner: interner).resolveBuiltinType(name, nullability: nullability, types: types) {
-            return builtinType
-        }
-        if name == interner.intern("Byte") || name == interner.intern("Short") {
-            return types.make(.primitive(.int, nullability))
-        }
-        return nil
     }
 
     func isNominalTypeSymbol(_ kind: SymbolKind) -> Bool {

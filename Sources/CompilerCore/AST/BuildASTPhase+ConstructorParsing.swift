@@ -108,7 +108,6 @@ extension BuildASTPhase {
                 } else {
                     body = .unit
                 }
-                // Annotations from preceding sibling tokens + any inside the node
                 let nodeTokens = collectTokens(from: ctorNodeID, in: arena)
                 let combinedTokens = precedingTokens + nodeTokens
                 let annotations = annotationsFromTokens(combinedTokens, interner: interner)

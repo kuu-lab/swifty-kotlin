@@ -447,9 +447,8 @@ public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_
     return 0
 }
 
-// (a) RF-DEAD-002: 配線予定 → GC global root API (CInterop / native global 変数サポート)
-// `kk_global_root_slot_*` 動的名が補間 emit だが、公開 API としての register/unregister も配線予定。
-@_cdecl("kk_register_global_root")
+// These Swift helpers remain available to Runtime tests. Restore their C exports
+// only when the Kotlin compiler has a global-root emission path.
 public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {
         return
@@ -459,7 +458,6 @@ public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRa
     }
 }
 
-@_cdecl("kk_unregister_global_root")
 public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {
         return
@@ -469,6 +467,7 @@ public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutable
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests register synthetic stack maps.
 @_cdecl("kk_register_frame_map")
 public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPointer?) {
     runtimeStorage.withGCLock { state in
@@ -487,6 +486,7 @@ public func kk_register_frame_map(_ functionID: UInt32, _ mapPtr: UnsafeRawPoint
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests exercise frame registration and scanning.
 @_cdecl("kk_push_frame")
 public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPointer?) {
     runtimeStorage.withGCLock { state in
@@ -494,6 +494,7 @@ public func kk_push_frame(_ functionID: UInt32, _ frameBase: UnsafeMutableRawPoi
     }
 }
 
+// DEAD-CDECL-TEST-HOOK: GC-FRAME - Runtime tests balance synthetic frames.
 @_cdecl("kk_pop_frame")
 public func kk_pop_frame() {
     runtimeStorage.withGCLock { state in
@@ -525,6 +526,7 @@ public func kk_unregister_coroutine_root(_ value: UnsafeMutableRawPointer?) {
 
 // (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
 // RuntimeTests がテスト間でヒープオブジェクト数を検査するためのセム。
+// DEAD-CDECL-TEST-HOOK: GC-METRICS - Runtime tests assert managed heap object counts.
 @_cdecl("kk_runtime_heap_object_count")
 public func kk_runtime_heap_object_count() -> UInt32 {
     runtimeStorage.withGCLock { state in
@@ -534,6 +536,7 @@ public func kk_runtime_heap_object_count() -> UInt32 {
 
 // (b) RF-DEAD-002: テスト支援 API — Kotlin プログラムから直接呼ばれない。
 // RuntimeTests がテスト間でランタイム全状態をリセットするためのセム。
+// DEAD-CDECL-TEST-HOOK: RUNTIME-RESET - Runtime tests isolate process-global runtime state.
 @_cdecl("kk_runtime_force_reset")
 public func kk_runtime_force_reset() {
     kk_runtime_reset_gc()
