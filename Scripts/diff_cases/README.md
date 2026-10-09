@@ -25,6 +25,12 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
+Cases marked `// DIFF_CANDIDATE_ONLY_FROM_SOURCE` execute automatically in
+serial and parallel `diff_kotlinc.sh` runs without a JVM reference. The runner
+compiles bundled stdlib sources with kswiftc and compares stdout with the
+adjacent `.expected` file or ordered `// EXPECT-STDOUT:` lines. A single case
+can also be run with `bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`.
+
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
@@ -76,8 +82,8 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `digital_signature.kt`: `Signature` / `CertificateFactory` / `CertPathValidator` parity for signing and certificate validation
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
+- `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
 - `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
-- `ksp687_map_not_null.kt`: primitive array `mapNotNull` の bundled Kotlin source candidate-only coverage（JVM kotlinc に primitive-array API がないため `SKIP-DIFF`、KIR回帰テストがsource dispatchを検証）
 - `connection_validation.kt`: `java.sql` / JVM `Thread` API が未実装のため、kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）

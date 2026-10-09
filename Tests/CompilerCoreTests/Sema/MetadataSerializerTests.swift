@@ -833,5 +833,134 @@ struct MetadataSerializerTests {
         #expect(records.contains { $0.fqName == "kotlin.TransferMode.$enumConstructorProperty$value" })
         #expect(!records.contains { $0.fqName == "kotlin.TransferMode.$otherHelper" })
     }
+
+    @Test func testPublicImplicitEnumHelpersAreExportedForShellBackedEnum() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let enumName = interner.intern("TransferMode")
+        let companionName = interner.intern("Companion")
+
+        let enumSymbol = symbols.define(
+            kind: .enumClass,
+            name: enumName,
+            fqName: [kotlin, enumName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setSourceFileID(FileID(rawValue: 7), for: enumSymbol)
+        let enumType = types.make(.classType(ClassType(classSymbol: enumSymbol, args: [], nullability: .nonNull)))
+
+        let companionSymbol = symbols.define(
+            kind: .object,
+            name: companionName,
+            fqName: [kotlin, enumName, companionName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(enumSymbol, for: companionSymbol)
+        symbols.setCompanionObjectSymbol(companionSymbol, for: enumSymbol)
+
+        for propertyName in ["name", "ordinal", "entries"] {
+            let name = interner.intern(propertyName)
+            let parent = propertyName == "entries" ? companionSymbol : enumSymbol
+            let fqName = propertyName == "entries"
+                ? [kotlin, enumName, companionName, name]
+                : [kotlin, enumName, name]
+            let property = symbols.define(
+                kind: .property,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(parent, for: property)
+            symbols.setPropertyType(types.anyType, for: property)
+        }
+
+        for functionName in ["values", "valueOf"] {
+            let name = interner.intern(functionName)
+            let parent = functionName == "valueOf" ? companionSymbol : enumSymbol
+            let fqName = functionName == "valueOf"
+                ? [kotlin, enumName, companionName, name]
+                : [kotlin, enumName, name]
+            let function = symbols.define(
+                kind: .function,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(parent, for: function)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: functionName == "valueOf" ? [types.stringType] : [],
+                    returnType: functionName == "valueOf" ? enumType : types.anyType,
+                    isSuspend: false
+                ),
+                for: function
+            )
+        }
+
+        let unrelatedHelperName = interner.intern("$otherHelper")
+        let unrelatedHelper = symbols.define(
+            kind: .function,
+            name: unrelatedHelperName,
+            fqName: [kotlin, enumName, unrelatedHelperName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: unrelatedHelper)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: types.unitType, isSuspend: false),
+            for: unrelatedHelper
+        )
+
+        let nonPublicHelperName = interner.intern("internalHelper")
+        let nonPublicHelper = symbols.define(
+            kind: .function,
+            name: nonPublicHelperName,
+            fqName: [kotlin, enumName, nonPublicHelperName],
+            declSite: nil,
+            visibility: .internal,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: nonPublicHelper)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: types.unitType, isSuspend: false),
+            for: nonPublicHelper
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeNonPublic: true,
+            includeSynthetic: false
+        )
+
+        for member in ["name", "ordinal", "values"] {
+            #expect(records.contains { $0.fqName == "kotlin.TransferMode.\(member)" })
+        }
+        for member in ["entries", "valueOf"] {
+            #expect(records.contains { $0.fqName == "kotlin.TransferMode.Companion.\(member)" })
+        }
+        let valueOfRecord = try #require(records.first {
+            $0.fqName == "kotlin.TransferMode.Companion.valueOf"
+        })
+        #expect(valueOfRecord.arity == 1)
+        #expect(valueOfRecord.valueParameterNames == ["name"])
+        #expect(!records.contains { $0.fqName == "kotlin.TransferMode.$otherHelper" })
+        #expect(!records.contains { $0.fqName == "kotlin.TransferMode.internalHelper" })
+    }
 }
 #endif

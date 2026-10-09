@@ -1,4 +1,4 @@
-// The adjacent .expected file selects diff_kotlinc.sh's candidate-only runner.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_native_runtime_SweepStatistics_properties_n.expected
 import kotlin.native.runtime.SweepStatistics
 
 @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)

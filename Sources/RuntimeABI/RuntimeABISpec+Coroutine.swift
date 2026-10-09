@@ -108,6 +108,16 @@ public extension RuntimeABISpec {
         section: "Coroutine"
     )
 
+    static let bridgeMutexHoldsLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
+        name: "__kk_mutex_holdsLock",
+        parameters: [
+            RuntimeABIParameter(name: "handle", type: .intptr),
+            RuntimeABIParameter(name: "owner", type: .intptr),
+        ],
+        returnType: .intptr,
+        section: "Coroutine"
+    )
+
     static let bridgeLockWithLockSpec: RuntimeABIFunctionSpec = RuntimeABIFunctionSpec(
         name: "__kk_lock_withLock",
         parameters: [
@@ -1996,6 +2006,7 @@ public extension RuntimeABISpec {
         ),
         bridgeMutexTryLockSpec,
         bridgeMutexIsLockedSpec,
+        bridgeMutexHoldsLockSpec,
         // KSP-677: Lock.withLock is Kotlin source delegating to this demoted
         // __kk_lock_withLock bridge; the action is passed via the general
         // closure-taking ABI (function pointer + closure environment + outThrown).

@@ -8,6 +8,7 @@
 package kotlinx.coroutines.flow
 
 import kotlin.internal.KsSymbolName
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.ensureActive
 
 public interface Flow<out T>
@@ -219,6 +220,7 @@ public fun <T> merge(vararg flows: Flow<T>): Flow<T> = flow {
     }
 }
 
+@FlowPreview
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
     val source = this
     return flow { source.collect { value -> emit(value) } }
