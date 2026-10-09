@@ -4,6 +4,7 @@
 // kk_op_add/kk_op_sub via the IR, so codegen is the only layer that can verify them.
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 

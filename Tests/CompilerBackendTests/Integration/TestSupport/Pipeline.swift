@@ -4,15 +4,6 @@
 import Foundation
 import TestStdlibCache
 
-func makeSemaModule(
-    symbols: SymbolTable = SymbolTable(),
-    types: TypeSystem = TypeSystem(),
-    bindings: BindingTable = BindingTable(),
-    diagnostics: DiagnosticEngine = DiagnosticEngine()
-) -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
-    CompilerTestSupport.makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
-}
-
 /// Backend tests need the precompiled shared stdlib artifact on disk for most
 /// compilations (codegen/linking exercise the actual object-level stdlib, not
 /// just bundled Kotlin sources), so preparing it is an eager side effect of
@@ -102,22 +93,6 @@ func makeCompilationContext(
         stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
-}
-
-func runFrontend(_ ctx: CompilationContext) throws {
-    try CompilerTestSupport.runFrontend(ctx)
-}
-
-func runSema(_ ctx: CompilationContext) throws {
-    try CompilerTestSupport.runSema(ctx)
-}
-
-func runToKIR(_ ctx: CompilationContext) throws {
-    try CompilerTestSupport.runToKIR(ctx)
-}
-
-func runToLowering(_ ctx: CompilationContext) throws {
-    try CompilerTestSupport.runToLowering(ctx)
 }
 
 /// Compiles `source` into a real ".kklib" library on disk and passes its

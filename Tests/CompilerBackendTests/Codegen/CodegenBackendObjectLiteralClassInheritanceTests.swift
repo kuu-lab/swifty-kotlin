@@ -77,6 +77,7 @@
 //     with an initialized property crashed the same way.
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 

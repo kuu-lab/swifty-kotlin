@@ -4,37 +4,6 @@
 import RuntimeABI
 import Testing
 
-func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
-    CompilerTestSupport.findAllKIRFunctions(in: module)
-}
-
-func findKIRFunction(
-    named name: String,
-    in module: KIRModule,
-    interner: StringInterner,
-    file: StaticString = #filePath,
-    line: UInt = #line
-) throws -> KIRFunction {
-    try CompilerTestSupport.findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
-}
-
-func findKIRFunctionBody(
-    named name: String,
-    in module: KIRModule,
-    interner: StringInterner,
-    file: StaticString = #filePath,
-    line: UInt = #line
-) throws -> [KIRInstruction] {
-    try CompilerTestSupport.findKIRFunctionBody(named: name, in: module, interner: interner, file: file, line: line)
-}
-
-func extractCallees(
-    from body: [KIRInstruction],
-    interner: StringInterner
-) -> [String] {
-    CompilerTestSupport.extractCallees(from: body, interner: interner)
-}
-
 /// Like `extractCallees`, but also reports each call's argument count for
 /// tests that need to distinguish overloads by arity.
 func extractCalleesWithArgumentCounts(
@@ -114,10 +83,4 @@ func expectSourceBackedCall(_ name: String, in ctx: CompilationContext) throws {
     }
 }
 
-func extractThrowFlags(
-    from body: [KIRInstruction],
-    interner: StringInterner
-) -> [String: [Bool]] {
-    CompilerTestSupport.extractThrowFlags(from: body, interner: interner)
-}
 #endif
