@@ -33,6 +33,7 @@ enum CodegenSymbolSupport {
     static func cFunctionSymbol(
         for function: KIRFunction,
         interner: StringInterner,
+        moduleName: String = "main",
         symbols: SymbolTable? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:]
     ) -> String {
@@ -51,7 +52,14 @@ enum CodegenSymbolSupport {
         // a C name with a same-named real symbol of equal magnitude.
         let raw = function.symbol.rawValue
         let suffix = raw < 0 ? "s\(raw.magnitude)" : "\(raw)"
-        return "kk_fn_\(facadePrefix)\(safeName)_\(suffix)"
+        let fqName = symbols?.symbol(function.symbol)?.fqName.map { interner.resolve($0) } ?? []
+        let namespace = ([moduleName] + fqName).map(encodeNamespaceComponent).joined(separator: "_")
+        return "kk_fn_\(facadePrefix)\(safeName)_\(suffix)__\(namespace)"
+    }
+
+    // Encode bytes rather than sanitizing: e.g. `a-b` and `a_b` must stay distinct.
+    private static func encodeNamespaceComponent(_ text: String) -> String {
+        "\(text.utf8.count)x" + text.utf8.map { String(format: "%02x", $0) }.joined()
     }
 
     private static func jvmFunctionName(

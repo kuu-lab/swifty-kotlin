@@ -73,11 +73,10 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    @Test func testClassifyUnknownTypes() {
+    @Test func testClassifyFunctionType() {
         let types = TypeSystem()
         let sema = makeSemaModule(types: types).ctx
 
-        // Function type should classify as unknown
         let intType = types.make(.primitive(.int, .nonNull))
         let funcType = types.make(.functionType(FunctionType(
             receiver: nil,
@@ -87,7 +86,14 @@ struct RuntimeTypeCheckTokenTests {
             nullability: .nonNull
         )))
         let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
-        #expect(descriptor.category.base == RuntimeTypeCheckToken.unknownBase)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
+        #expect(!descriptor.nullable)
+        guard case let .function(arity, isSuspend) = descriptor.category else {
+            Issue.record("Expected .function category for function type")
+            return
+        }
+        #expect(arity == 1)
+        #expect(!isSuspend)
     }
 
     @Test func testEncodeConsistencyWithClassify() {
@@ -187,7 +193,7 @@ struct RuntimeTypeCheckTokenTests {
             (.primitive(.ulong, .nonNull), "ULong"),
             (.primitive(.ubyte, .nonNull), "UByte"),
             (.primitive(.ushort, .nonNull), "UShort"),
-            (.nothing(.nonNull), "Nothing"),
+            (.nothing(.nonNull), "Void"),
             (.nothing(.nullable), "Nothing"),
         ]
 
@@ -222,6 +228,21 @@ struct RuntimeTypeCheckTokenTests {
             let simpleName = RuntimeTypeCheckToken.simpleName(of: typeID, sema: sema, interner: interner)
             #expect(simpleName == expectedName)
         }
+    }
+
+    @Test func testNothingClassSymbolUsesJvmNames() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        let name = interner.intern("Nothing")
+        let symbol = symbols.define(
+            kind: .class, name: name, fqName: [interner.intern("kotlin"), name],
+            declSite: makeRange(), visibility: .public
+        )
+        let type = types.make(.classType(ClassType(classSymbol: symbol)))
+        #expect(RuntimeTypeCheckToken.simpleName(of: type, sema: sema, interner: interner) == "Void")
+        #expect(RuntimeTypeCheckToken.qualifiedName(of: type, sema: sema, interner: interner) == "java.lang.Void")
     }
 
     @Test func testCatchTokenMatchesIsToken() throws {
@@ -323,9 +344,8 @@ struct RuntimeTypeCheckTokenTests {
             println(k)
         }
         """
-        // Kept on the on-disk route: `firstExprID` scans the whole AST arena, and
-        // `makeContextFromSource` would register this snippet ahead of the bundled
-        // stdlib, changing which expression the scan reaches first.
+        // Keep the on-disk route, but search only this input so bundled stdlib
+        // class references cannot satisfy the predicate.
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
@@ -341,9 +361,9 @@ struct RuntimeTypeCheckTokenTests {
             let ast = try #require(ctx.ast)
             let interner = ctx.interner
 
-            let classRefExprID = try #require(firstExprID(in: ast) { _, expr in
+            let classRefExprID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 if case let .callableRef(_, member, _) = expr {
-                    return interner.resolve(member) == "class"
+                    return member == KnownCompilerNames(interner: interner).className
                 }
                 return false
             })
@@ -358,7 +378,10 @@ struct RuntimeTypeCheckTokenTests {
                 return
             }
             let symbol = try #require(sema.symbols.symbol(classType.classSymbol))
-            #expect(symbol.fqName.map { interner.resolve($0) } == ["kotlin", "String"])
+            let stringClass = try #require(sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"), KnownCompilerNames(interner: interner).string,
+            ]))
+            #expect(symbol.id == stringClass)
 
             let encoded = RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
             let expected = RuntimeTypeCheckToken.encode(base: RuntimeTypeCheckToken.stringBase, nullable: false)
@@ -366,6 +389,31 @@ struct RuntimeTypeCheckTokenTests {
                 encoded == expected,
                 "String::class should encode with stringBase like an ordinary `is String` check, not nominalBase."
             )
+        }
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func testClassifyFunctionTypes(hasReceiver: Bool, isSuspend: Bool) {
+        let types = TypeSystem()
+        let sema = makeSemaModule(types: types).ctx
+
+        let intType = types.make(.primitive(.int, .nonNull))
+        let funcType = types.make(.functionType(FunctionType(
+            contextReceivers: [intType],
+            receiver: hasReceiver ? intType : nil,
+            params: [intType],
+            returnType: intType,
+            isSuspend: isSuspend,
+            nullability: .nullable
+        )))
+        let descriptor = RuntimeTypeCheckToken.classify(type: funcType, sema: sema)
+        #expect(descriptor.category.base == RuntimeTypeCheckToken.functionBase)
+        #expect(descriptor.nullable)
+        if case let .function(arity, suspend) = descriptor.category {
+            #expect(arity == 2 + (hasReceiver ? 1 : 0))
+            #expect(suspend == isSuspend)
+        } else {
+            Issue.record("Expected function category")
         }
     }
 

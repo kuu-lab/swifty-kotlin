@@ -229,6 +229,40 @@ enum TypeRefParserCore {
             return functionType
         }
 
+        // Parenthesized type group: `(Type)`, most commonly used to allow a
+        // trailing `?` to bind to an entire function type rather than just its
+        // return type — `((Int) -> Int)?` is a nullable function type, while
+        // `(Int) -> Int?` is a non-nullable function returning `Int?`. Kotlin's
+        // grammar allows this grouping around any type, not just function
+        // types, so this is attempted whenever `(` did not already parse as a
+        // function type above.
+        if tokens[start].kind == .symbol(.lParen),
+           let closeParen = findMatchingCloseParen(in: tokens, from: start),
+           let inner = parseTypeRefPrefix(
+               tokens,
+               from: start + 1,
+               interner: interner,
+               astArena: astArena,
+               options: options,
+               diagnostics: diagnostics,
+               recursionDepth: recursionDepth + 1
+           ),
+           inner.next == closeParen
+        {
+            var next = closeParen + 1
+            var ref = inner.ref
+            if next < tokens.count, tokens[next].kind == .symbol(.question) {
+                next += 1
+                ref = nullableVariant(of: ref, astArena: astArena)
+            }
+            if next < tokens.count, tokens[next].kind == .symbol(.arrow) {
+                // `(T) -> U` reaching here means the caller disallowed function
+                // types; returning just `T` would leave `-> U` dangling.
+                return nil
+            }
+            return (ref, next)
+        }
+
         guard let firstName = identifier(
             from: tokens[start],
             interner: interner,
@@ -284,18 +318,11 @@ enum TypeRefParserCore {
             }
         }
 
-        // Check for receiver function type: ReceiverType.() -> ReturnType
-        // After parsing a named type, if we see `.` followed by `(` and eventually `) ->`,
-        // this is a receiver-based function type like `StringBuilder.() -> Unit`.
-        if options.allowFunctionType,
-           next + 1 < tokens.count,
-           tokens[next].kind == .symbol(.dot),
-           tokens[next + 1].kind == .symbol(.lParen)
-        {
-            let receiverRef = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        let receiverRef = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        if options.allowFunctionType {
             if let receiverFnType = parseReceiverFunctionTypeRefSuffix(
                 tokens,
-                from: next + 1,
+                from: next,
                 contextReceivers: [],
                 receiver: receiverRef,
                 isSuspend: false,
@@ -309,14 +336,10 @@ enum TypeRefParserCore {
             }
         }
 
-        var nullable = false
         if next < tokens.count, tokens[next].kind == .symbol(.question) {
-            nullable = true
-            next += 1
+            return (nullableVariant(of: receiverRef, astArena: astArena), next + 1)
         }
-
-        let named = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
-        return (named, next)
+        return (receiverRef, next)
     }
 
     private static func parseTypeArgRefsPrefix(
@@ -460,14 +483,10 @@ enum TypeRefParserCore {
             // Try to parse a named type as receiver.
             if let receiverParse = parseNamedTypeOnly(
                 tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
-            ),
-               receiverParse.next + 1 < tokens.count,
-               tokens[receiverParse.next].kind == .symbol(.dot),
-               tokens[receiverParse.next + 1].kind == .symbol(.lParen)
-            {
+            ) {
                 return parseReceiverFunctionTypeRefSuffix(
                     tokens,
-                    from: receiverParse.next + 1,
+                    from: receiverParse.next,
                     contextReceivers: contextReceivers,
                     receiver: receiverParse.ref,
                     isSuspend: true,
@@ -494,7 +513,54 @@ enum TypeRefParserCore {
         guard closeParen + 1 < tokens.count,
               tokens[closeParen + 1].kind == .symbol(.arrow)
         else {
-            return nil
+            // A `(` group that is not a function parameter list is a
+            // parenthesized type: `(T)` is `T`, so `((Int) -> Int)` still
+            // resolves to a function type.
+            guard let inner = parseTypeRefPrefix(
+                tokens,
+                from: next + 1,
+                interner: interner,
+                astArena: astArena,
+                options: options,
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
+            ),
+                  inner.next == closeParen
+            else {
+                return nil
+            }
+            var end = closeParen + 1
+            var nullable = false
+            while end < tokens.count, tokens[end].kind == .symbol(.question) {
+                nullable = true
+                end += 1
+            }
+            let receiver = nullable ? nullableVariant(of: inner.ref, astArena: astArena) : inner.ref
+            if let receiverFnType = parseReceiverFunctionTypeRefSuffix(
+                tokens,
+                from: end,
+                contextReceivers: contextReceivers,
+                receiver: receiver,
+                isSuspend: isSuspend,
+                interner: interner,
+                astArena: astArena,
+                options: options,
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth
+            ) {
+                return receiverFnType
+            }
+            guard let grouped = wrapTypeRefInGroup(
+                inner.ref,
+                astArena: astArena,
+                contextReceivers: contextReceivers,
+                isSuspend: isSuspend,
+                nullable: nullable
+            )
+            else {
+                return nil
+            }
+            return (grouped, end)
         }
 
         guard let params = parseFunctionParamRefs(
@@ -532,6 +598,49 @@ enum TypeRefParserCore {
         ))
 
         return (ref, returnRef.next)
+    }
+
+    /// Re-append `ref` absorbing an outer `suspend`/`context` prefix and the
+    /// `(T)` parenthesized group's optional `?` nullability mark.
+    private static func wrapTypeRefInGroup(
+        _ refID: TypeRefID,
+        astArena: ASTArena,
+        contextReceivers: [TypeRefID],
+        isSuspend: Bool,
+        nullable: Bool
+    ) -> TypeRefID? {
+        guard let ref = astArena.typeRef(refID) else {
+            return nil
+        }
+        if !nullable, contextReceivers.isEmpty, !isSuspend {
+            return refID
+        }
+        switch ref {
+        case let .named(path, args, innerNullable):
+            return astArena.appendTypeRef(.named(path: path, args: args, nullable: innerNullable || nullable))
+        case let .functionType(innerContextReceivers, receiver, params, returnType, innerIsSuspend, innerNullable):
+            return astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers + innerContextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend || innerIsSuspend,
+                nullable: innerNullable || nullable
+            ))
+        case let .annotated(base, annotations):
+            guard let wrappedBase = wrapTypeRefInGroup(
+                base,
+                astArena: astArena,
+                contextReceivers: contextReceivers,
+                isSuspend: isSuspend,
+                nullable: nullable
+            ) else {
+                return nil
+            }
+            return astArena.appendTypeRef(.annotated(base: wrappedBase, annotations: annotations))
+        case .intersection:
+            return nullable ? nil : refID
+        }
     }
 
     private static func parseContextFunctionTypeParams(
@@ -729,6 +838,29 @@ enum TypeRefParserCore {
         }
     }
 
+    /// Returns a `TypeRefID` equivalent to `ref` but with its `nullable` flag
+    /// set, rebuilding the arena entry when necessary. Used when a `?` suffix
+    /// follows a parenthesized type group, e.g. `((Int) -> Int)?`.
+    private static func nullableVariant(of ref: TypeRefID, astArena: ASTArena) -> TypeRefID {
+        switch astArena.typeRef(ref) {
+        case let .named(path, args, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.named(path: path, args: args, nullable: true))
+        case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.functionType(
+                contextReceivers: contextReceivers,
+                receiver: receiver,
+                params: params,
+                returnType: returnType,
+                isSuspend: isSuspend,
+                nullable: true
+            ))
+        case let .annotated(base, annotations):
+            return astArena.appendTypeRef(.annotated(base: nullableVariant(of: base, astArena: astArena), annotations: annotations))
+        case .intersection, .none:
+            return ref
+        }
+    }
+
     private static func findMatchingCloseParen(in tokens: [Token], from openIndex: Int) -> Int? {
         var depth = 0
         for index in openIndex ..< tokens.count {
@@ -782,7 +914,7 @@ enum TypeRefParserCore {
         }
     }
 
-    /// Parse a named type without consuming nullable suffix or checking for function type suffix.
+    /// Parse a named type, including nullability, without checking for a function type suffix.
     /// Used to parse the receiver part of `ReceiverType.() -> ReturnType`.
     private static func parseNamedTypeOnly(
         _ tokens: [Token],
@@ -843,16 +975,20 @@ enum TypeRefParserCore {
             }
         }
 
-        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        var nullable = false
+        if next < tokens.count, tokens[next].kind == .symbol(.question) {
+            nullable = true
+            next += 1
+        }
+        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
         return (ref, next)
     }
 
     /// Parse the suffix `(params) -> ReturnType` of a receiver function type,
-    /// starting from `(`.  The caller has already parsed the receiver type and
-    /// consumed the `.` before `(`.
+    /// starting at the receiver's optional nullability marker and `.`.
     private static func parseReceiverFunctionTypeRefSuffix(
         _ tokens: [Token],
-        from parenStart: Int,
+        from receiverEnd: Int,
         contextReceivers: [TypeRefID],
         receiver: TypeRefID,
         isSuspend: Bool,
@@ -862,6 +998,22 @@ enum TypeRefParserCore {
         diagnostics: DiagnosticEngine?,
         recursionDepth: Int
     ) -> (ref: TypeRefID, next: Int)? {
+        var delimiter = receiverEnd
+        var receiverNullable = false
+        if delimiter < tokens.count, tokens[delimiter].kind == .symbol(.question) {
+            receiverNullable = true
+            delimiter += 1
+        }
+        guard delimiter < tokens.count else { return nil }
+        switch tokens[delimiter].kind {
+        case .symbol(.questionDot):
+            receiverNullable = true
+        case .symbol(.dot):
+            break
+        default:
+            return nil
+        }
+        let parenStart = delimiter + 1
         guard parenStart < tokens.count,
               tokens[parenStart].kind == .symbol(.lParen)
         else {
@@ -913,7 +1065,7 @@ enum TypeRefParserCore {
 
         let ref = astArena.appendTypeRef(.functionType(
             contextReceivers: contextReceivers,
-            receiver: receiver,
+            receiver: receiverNullable ? nullableVariant(of: receiver, astArena: astArena) : receiver,
             params: params,
             returnType: returnRef.ref,
             isSuspend: isSuspend,

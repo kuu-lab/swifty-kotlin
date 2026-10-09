@@ -1,4 +1,35 @@
 extension OverloadResolver {
+    func satisfiesOnlyInputTypes(
+        signature: FunctionSignature,
+        substitution: [TypeVarID: TypeID],
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        inputConstraints: [VariableConstraint],
+        ctx: SemaModule
+    ) -> Bool {
+        for symbol in signature.typeParameterSymbols {
+            guard ctx.symbols.annotations(for: symbol).contains(where: {
+                $0.annotationFQName == "kotlin.internal.OnlyInputTypes"
+            }),
+                let variable = typeVarBySymbol[symbol],
+                let inferred = substitution[variable]
+            else { continue }
+            // A common supertype synthesized from unrelated inputs is not an
+            // input type. A supplied Any/Any? is, and permits erased membership.
+            let mentioned = inputConstraints.contains { constraint in
+                switch (constraint.left, constraint.right) {
+                case let (.type(type), .variable(other)), let (.variable(other), .type(type)):
+                    return other == variable && type == inferred
+                default:
+                    return false
+                }
+            }
+            if !mentioned {
+                return false
+            }
+        }
+        return true
+    }
+
     func checkForUninferredTypeVariables(
         signature: FunctionSignature,
         substitution: [TypeVarID: TypeID],
@@ -50,6 +81,7 @@ extension OverloadResolver {
         signature: FunctionSignature,
         substitution: [TypeVarID: TypeID],
         typeVarBySymbol: [SymbolID: TypeVarID],
+        starProjectedReceiverParameters: Set<SymbolID> = [],
         range: SourceRange,
         ctx: SemaModule
     ) -> Diagnostic? {
@@ -66,6 +98,9 @@ extension OverloadResolver {
         }
 
         for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            // A read-only receiver's star denotes an existential type constrained by its declaration.
+            // Its readable approximation cannot be rechecked as a concrete F-bounded type argument.
+            if starProjectedReceiverParameters.contains(typeParamSymbol) { continue }
             let signatureUpperBounds: [TypeID] = if index < signature.typeParameterUpperBoundsList.count {
                 signature.typeParameterUpperBoundsList[index]
             } else {
@@ -90,7 +125,9 @@ extension OverloadResolver {
                     substitution: substitution,
                     typeVarBySymbol: typeVarBySymbol
                 )
-                if !ctx.types.isSubtype(substitutedType, substitutedBound) {
+                if !ctx.types.isSubtype(substitutedType, substitutedBound),
+                   !ctx.diagnostics.isSuppressed(code: "KSWIFTK-SEMA-BOUND", range: range)
+                {
                     return Diagnostic(
                         severity: .error,
                         code: "KSWIFTK-SEMA-BOUND",

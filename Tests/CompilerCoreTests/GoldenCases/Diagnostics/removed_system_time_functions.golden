@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "removed_system_time_functions.kt",
+      "range": {
+        "start": { "line": 1, "character": 21 },
+        "end": { "line": 1, "character": 36 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0023",
+      "source": "kswiftk",
+      "message": "Unresolved function 'getTimeMillis'.",
+      "codeActions": []
+    },
+    {
+      "file": "removed_system_time_functions.kt",
+      "range": {
+        "start": { "line": 1, "character": 51 },
+        "end": { "line": 1, "character": 65 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0023",
+      "source": "kswiftk",
+      "message": "Unresolved function 'getTimeNanos'.",
+      "codeActions": []
+    }
+  ]
+}

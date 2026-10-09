@@ -52,7 +52,7 @@ extension LoweringPassRegressionTests {
             #expect(callsOwnToString, "the interpolated data class must call its own toString(); body: \(body)")
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "a class-typed value must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -94,7 +94,7 @@ extension LoweringPassRegressionTests {
             #expect(callsOwnToString, "the concatenated value class must call its own toString(); body: \(body)")
 
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "a value class's raw primitive must not reach the generic Any conversion; callees: \(callees)")
         }
     }
@@ -147,7 +147,7 @@ extension LoweringPassRegressionTests {
                     "the synthesized toString() must render a value-class field via its own toString(); body: \(synthesizedToString.body)")
 
             let callees = extractCallees(from: synthesizedToString.body, interner: ctx.interner)
-            #expect(!callees.contains("kk_any_to_string"),
+            #expect(!callees.contains(RuntimeCall.anyToString.name),
                     "a value-class field must not be rendered via the generic Any conversion; callees: \(callees)")
         }
     }
@@ -181,7 +181,7 @@ extension LoweringPassRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("kk_any_to_string"),
+            #expect(callees.contains(RuntimeCall.anyToString.name),
                     "a class with no toString of its own must keep the generic Any conversion; callees: \(callees)")
         }
     }

@@ -1,7 +1,71 @@
 import Foundation
+import RuntimeABI
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+
+private let defaultMaxResponseBodyBytes: Int = {
+    if let env = ProcessInfo.processInfo.environment["KSWIFTK_HTTP_MAX_RESPONSE_BODY_BYTES"],
+       let limit = Int(env), limit >= 0 {
+        return limit
+    }
+    return 10 * 1024 * 1024
+}()
+
+private struct StreamingUTF8Decoder {
+    private var pending: [UInt8] = []
+    private(set) var string: String = ""
+
+    mutating func append(_ data: Data) {
+        if data.isEmpty { return }
+        let bytes: [UInt8]
+        if pending.isEmpty {
+            bytes = [UInt8](data)
+        } else {
+            bytes = pending + [UInt8](data)
+            pending.removeAll(keepingCapacity: true)
+        }
+
+        var i = 0
+        var lastValidEnd = 0
+        let count = bytes.count
+
+        while i < count {
+            let b = bytes[i]
+            let needed: Int
+            if b & 0x80 == 0 {
+                needed = 1
+            } else if b & 0xE0 == 0xC0 {
+                needed = 2
+            } else if b & 0xF0 == 0xE0 {
+                needed = 3
+            } else if b & 0xF8 == 0xF0 {
+                needed = 4
+            } else {
+                needed = 1
+            }
+
+            if i + needed <= count {
+                i += needed
+                lastValidEnd = i
+            } else {
+                pending = Array(bytes[i...])
+                break
+            }
+        }
+
+        if lastValidEnd > 0 {
+            string += String(decoding: bytes[0..<lastValidEnd], as: UTF8.self)
+        }
+    }
+
+    mutating func finish() {
+        if !pending.isEmpty {
+            string += String(decoding: pending, as: UTF8.self)
+            pending.removeAll()
+        }
+    }
+}
 
 private final class RuntimeHTTPClientBox {
     private let lock = NSLock()
@@ -10,6 +74,8 @@ private final class RuntimeHTTPClientBox {
     private var followRedirects = true
     private var defaultHeaders: [String: String] = [:]
     private var authHeader: String?
+    private var trustedRedirectOrigins: Set<String> = []
+    private var maxResponseBodyBytes: Int = defaultMaxResponseBodyBytes
 
     struct Snapshot {
         let connectTimeoutMillis: Int
@@ -17,6 +83,8 @@ private final class RuntimeHTTPClientBox {
         let followRedirects: Bool
         let defaultHeaders: [String: String]
         let authHeader: String?
+        let trustedRedirectOrigins: Set<String>
+        let maxResponseBodyBytes: Int
     }
 
     func snapshot() -> Snapshot {
@@ -27,7 +95,9 @@ private final class RuntimeHTTPClientBox {
             readTimeoutMillis: readTimeoutMillis,
             followRedirects: followRedirects,
             defaultHeaders: defaultHeaders,
-            authHeader: authHeader
+            authHeader: authHeader,
+            trustedRedirectOrigins: trustedRedirectOrigins,
+            maxResponseBodyBytes: maxResponseBodyBytes
         )
     }
 
@@ -52,6 +122,18 @@ private final class RuntimeHTTPClientBox {
     func setBearerToken(_ token: String) {
         lock.lock()
         authHeader = "Bearer \(token)"
+        lock.unlock()
+    }
+
+    func addTrustedRedirectOrigin(_ originKey: String) {
+        lock.lock()
+        trustedRedirectOrigins.insert(originKey)
+        lock.unlock()
+    }
+
+    func setMaxResponseBodyBytes(_ value: Int) {
+        lock.lock()
+        maxResponseBodyBytes = max(0, value)
         lock.unlock()
     }
 }
@@ -137,19 +219,80 @@ final class RuntimeHttpHeadersBox {
     }
 }
 
-private final class RuntimeHTTPTaskResultBox: @unchecked Sendable {
-    var data = Data()
-    var response: URLResponse?
-    var error: Error?
+/// Canonical origin key (scheme, host, effective port) shared by the
+/// same-origin check and the trusted-redirect-origin list so both classify
+/// origins identically.
+private func runtimeOriginKey(_ url: URL?) -> String? {
+    guard let url,
+          let scheme = url.scheme?.lowercased(),
+          let host = url.host?.lowercased()
+    else {
+        return nil
+    }
+    let port: Int?
+    if let explicit = url.port {
+        port = explicit
+    } else {
+        switch scheme {
+        case "https": port = 443
+        case "http": port = 80
+        default: port = nil
+        }
+    }
+    guard let port else { return "\(scheme)://\(host)" }
+    return "\(scheme)://\(host):\(port)"
 }
 
-/// URLSession delegate that enforces a client's redirect policy and prevents
-/// sensitive headers from leaking across origins on redirects.
-private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let followRedirects: Bool
+/// URLSession delegate that enforces a client's redirect policy, prevents
+/// caller-supplied headers from leaking across origins on redirects, and
+/// guards against memory exhaustion by enforcing body size limits.
+private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    /// Headers re-applied on an untrusted cross-origin redirect. They carry
+    /// request semantics (representation metadata, content negotiation,
+    /// caching, ranges) but no credentials or origin-identifying data, so
+    /// forwarding them cannot leak secrets to another origin. Every other
+    /// caller-supplied header — Authorization, Cookie, Proxy-Authorization,
+    /// API keys, signing headers — is dropped deny-by-default.
+    private static let crossOriginSafeRequestHeaders: Set<String> = [
+        "accept", "accept-charset", "accept-encoding", "accept-language",
+        "cache-control",
+        "content-encoding", "content-language", "content-length", "content-location",
+        "content-md5", "content-range", "content-type",
+        "date", "dnt", "expect",
+        "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
+        "max-forwards", "pragma", "range", "save-data", "sec-gpc",
+        "te", "trailer", "upgrade", "upgrade-insecure-requests",
+        "user-agent", "via", "warning", "x-requested-with",
+    ]
 
-    init(followRedirects: Bool) {
+    private let followRedirects: Bool
+    private let trustedRedirectOrigins: Set<String>
+    private let maxResponseBodyBytes: Int
+    private let semaphore = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+
+    private var decoder = StreamingUTF8Decoder()
+    private var receivedByteCount: Int = 0
+    private var sizeExceeded: Bool = false
+    private var response: HTTPURLResponse?
+    private var error: Error?
+    private var responseBody: String = ""
+
+    init(
+        followRedirects: Bool,
+        trustedRedirectOrigins: Set<String>,
+        maxResponseBodyBytes: Int
+    ) {
         self.followRedirects = followRedirects
+        self.trustedRedirectOrigins = trustedRedirectOrigins
+        self.maxResponseBodyBytes = maxResponseBodyBytes
+    }
+
+    func waitForResult() -> (response: HTTPURLResponse?, body: String, error: Error?) {
+        semaphore.wait()
+        lock.lock()
+        defer { lock.unlock() }
+        return (response, responseBody, error)
     }
 
     func urlSession(
@@ -166,28 +309,122 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionTaskDelegate
             return
         }
 
+        lock.lock()
+        receivedByteCount = 0
+        decoder = StreamingUTF8Decoder()
+        sizeExceeded = false
+        self.response = nil
+        lock.unlock()
+
         var redirected = request
-        if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url) {
-            // Do not forward credentials to a different origin on redirect.
-            redirected.setValue(nil, forHTTPHeaderField: "Authorization")
-            redirected.setValue(nil, forHTTPHeaderField: "Cookie")
+        if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url)
+            && !isTrustedRedirectTarget(request.url) {
+            // Deny-by-default on a cross-origin redirect: keep only the safe
+            // allowlist so credential-bearing or signing headers cannot leak
+            // to a different origin.
+            if let headerFields = redirected.allHTTPHeaderFields {
+                for name in headerFields.keys
+                where !RuntimeHTTPSessionDelegate.crossOriginSafeRequestHeaders.contains(name.lowercased()) {
+                    redirected.setValue(nil, forHTTPHeaderField: name)
+                }
+            }
         }
         completionHandler(redirected)
     }
 
-    private static func sameOrigin(_ lhs: URL?, _ rhs: URL?) -> Bool {
-        guard let lhs, let rhs else { return false }
-        func port(for url: URL) -> Int? {
-            if let explicit = url.port { return explicit }
-            switch url.scheme?.lowercased() {
-            case "https": return 443
-            case "http": return 80
-            default: return nil
+    private func isTrustedRedirectTarget(_ url: URL?) -> Bool {
+        guard let key = runtimeOriginKey(url) else { return false }
+        return trustedRedirectOrigins.contains(key)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            completionHandler(.allow)
+            return
+        }
+
+        lock.lock()
+        self.response = httpResponse
+
+        var declaredLength: Int64 = httpResponse.expectedContentLength
+        if let lengthHeader = httpResponse.allHeaderFields.first(where: {
+            ($0.key as? String)?.caseInsensitiveCompare("Content-Length") == .orderedSame
+        })?.value as? String, let parsed = Int64(lengthHeader.trimmingCharacters(in: .whitespaces)) {
+            if parsed > declaredLength {
+                declaredLength = parsed
             }
         }
-        return lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
-            && lhs.host?.lowercased() == rhs.host?.lowercased()
-            && port(for: lhs) == port(for: rhs)
+
+        if declaredLength > 0 && declaredLength > Int64(maxResponseBodyBytes) {
+            sizeExceeded = true
+            self.error = NSError(
+                domain: "RuntimeNetwork",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "HTTP response body size exceeds limit of \(maxResponseBodyBytes) bytes"]
+            )
+            lock.unlock()
+            completionHandler(.cancel)
+            return
+        }
+
+        lock.unlock()
+        completionHandler(.allow)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive data: Data
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        if sizeExceeded { return }
+
+        let newTotal = receivedByteCount + data.count
+        if newTotal > maxResponseBodyBytes {
+            sizeExceeded = true
+            self.error = NSError(
+                domain: "RuntimeNetwork",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "HTTP response body size exceeds limit of \(maxResponseBodyBytes) bytes"]
+            )
+            dataTask.cancel()
+            return
+        }
+
+        receivedByteCount = newTotal
+        decoder.append(data)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        lock.lock()
+        defer {
+            lock.unlock()
+            semaphore.signal()
+        }
+
+        if sizeExceeded {
+            // Error was already recorded as size-exceeded error
+        } else if let error = error {
+            self.error = error
+        } else {
+            decoder.finish()
+            self.responseBody = decoder.string
+        }
+    }
+
+    private static func sameOrigin(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        guard let lhsKey = runtimeOriginKey(lhs), let rhsKey = runtimeOriginKey(rhs) else { return false }
+        return lhsKey == rhsKey
     }
 }
 
@@ -227,15 +464,7 @@ private func networkString(from raw: Int, caller: StaticString) -> String {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
     }
-    return str
-}
-
-private func networkStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
+    return KotlinStringSurrogateEncoding.unicodeString(str)
 }
 
 private func runtimeHTTPClientBox(from raw: Int) -> RuntimeHTTPClientBox? {
@@ -290,9 +519,9 @@ private func networkHeaderPairs(from response: HTTPURLResponse?) -> [(String, [S
 }
 
 private func networkHeaderMapRaw(_ headers: [(String, [String])]) -> Int {
-    let keys = headers.map { networkStringRaw($0.0) }
+    let keys = headers.map { runtimeMakeUTF8StringRaw($0.0) }
     let values = headers.map { header in
-        registerRuntimeObject(RuntimeListBox(elements: header.1.map(networkStringRaw)))
+        registerRuntimeObject(RuntimeListBox(elements: header.1.map(runtimeMakeUTF8StringRaw)))
     }
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
@@ -301,22 +530,18 @@ private func networkHeaderFirstValue(_ headers: [(String, [String])], name: Stri
     headers.first(where: { $0.0.caseInsensitiveCompare(name) == .orderedSame })?.1.first
 }
 
-@_cdecl("kk_http_client_newHttpClient")
 public func kk_http_client_newHttpClient() -> Int {
     registerRuntimeObject(RuntimeHTTPClientBox())
 }
 
-@_cdecl("kk_http_request_newBuilder")
 public func kk_http_request_newBuilder() -> Int {
     registerRuntimeObject(RuntimeHttpRequestBuilderBox())
 }
 
-@_cdecl("kk_http_request_newBuilder_uri")
 public func kk_http_request_newBuilder_uri(_ uriRaw: Int) -> Int {
     registerRuntimeObject(RuntimeHttpRequestBuilderBox(url: networkURL(from: uriRaw)))
 }
 
-@_cdecl("kk_http_request_builder_uri")
 public func kk_http_request_builder_uri(_ builderRaw: Int, _ uriRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_uri received invalid builder handle")
@@ -325,7 +550,6 @@ public func kk_http_request_builder_uri(_ builderRaw: Int, _ uriRaw: Int) -> Int
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_header")
 public func kk_http_request_builder_header(_ builderRaw: Int, _ nameRaw: Int, _ valueRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_header received invalid builder handle")
@@ -334,7 +558,6 @@ public func kk_http_request_builder_header(_ builderRaw: Int, _ nameRaw: Int, _ 
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_GET")
 public func kk_http_request_builder_GET(_ builderRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_GET received invalid builder handle")
@@ -344,7 +567,6 @@ public func kk_http_request_builder_GET(_ builderRaw: Int) -> Int {
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_POST")
 public func kk_http_request_builder_POST(_ builderRaw: Int, _ publisherRaw: Int) -> Int {
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_request_builder_POST received invalid builder handle")
@@ -357,7 +579,6 @@ public func kk_http_request_builder_POST(_ builderRaw: Int, _ publisherRaw: Int)
     return builderRaw
 }
 
-@_cdecl("kk_http_request_builder_build")
 public func kk_http_request_builder_build(_ builderRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let builder = runtimeHttpRequestBuilderBox(from: builderRaw) else {
@@ -376,20 +597,17 @@ public func kk_http_body_publishers_noBody(_ bodyPublishersRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: nil))
 }
 
-@_cdecl("kk_http_body_publishers_ofString")
 public func kk_http_body_publishers_ofString(_ bodyPublishersRaw: Int, _ bodyRaw: Int) -> Int {
     _ = bodyPublishersRaw
     let text = networkString(from: bodyRaw, caller: #function)
     return registerRuntimeObject(RuntimeHttpBodyPublisherBox(data: text.data(using: .utf8) ?? Data()))
 }
 
-@_cdecl("kk_http_body_handlers_ofString")
 public func kk_http_body_handlers_ofString(_ bodyHandlersRaw: Int) -> Int {
     _ = bodyHandlersRaw
     return registerRuntimeObject(RuntimeHttpBodyHandlerBox(kind: "string"))
 }
 
-@_cdecl("kk_http_client_send")
 public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandlerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
@@ -442,32 +660,29 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         sessionConfig.timeoutIntervalForResource = Double(config.connectTimeoutMillis + config.readTimeoutMillis) / 1000
     }
 
-    let delegate = RuntimeHTTPSessionDelegate(followRedirects: config.followRedirects)
+    let delegate = RuntimeHTTPSessionDelegate(
+        followRedirects: config.followRedirects,
+        trustedRedirectOrigins: config.trustedRedirectOrigins,
+        maxResponseBodyBytes: config.maxResponseBodyBytes
+    )
     let session = URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     defer { session.finishTasksAndInvalidate() }
 
-    let semaphore = DispatchSemaphore(value: 0)
-    let result = RuntimeHTTPTaskResultBox()
+    let task = session.dataTask(with: urlRequest)
+    task.resume()
 
-    session.dataTask(with: urlRequest) { data, response, error in
-        result.data = data ?? Data()
-        result.response = response
-        result.error = error
-        semaphore.signal()
-    }.resume()
-    semaphore.wait()
+    let (httpResponseOpt, body, responseErrorOpt) = delegate.waitForResult()
 
-    if let responseError = result.error {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(responseError.localizedDescription)")
+    if let responseError = responseErrorOpt {
+        outThrown?.pointee = runtimeAllocateIOException(message: responseError.localizedDescription)
         return 0
     }
 
-    guard let httpResponse = result.response as? HTTPURLResponse else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Missing HTTP response")
+    guard let httpResponse = httpResponseOpt else {
+        outThrown?.pointee = runtimeAllocateIOException(message: "Missing HTTP response")
         return 0
     }
 
-    let body = String(data: result.data, encoding: .utf8) ?? String(decoding: result.data, as: UTF8.self)
     let responseBox = RuntimeHttpResponseBox(
         statusCode: httpResponse.statusCode,
         headers: networkHeaderPairs(from: httpResponse),
@@ -476,7 +691,6 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
     return registerRuntimeObject(responseBox)
 }
 
-@_cdecl("kk_http_response_statusCode")
 public func kk_http_response_statusCode(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_statusCode received invalid response handle")
@@ -484,15 +698,13 @@ public func kk_http_response_statusCode(_ responseRaw: Int) -> Int {
     return response.statusCode
 }
 
-@_cdecl("kk_http_response_body")
 public func kk_http_response_body(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_body received invalid response handle")
     }
-    return networkStringRaw(response.body)
+    return runtimeMakeUTF8StringRaw(response.body)
 }
 
-@_cdecl("kk_http_response_headers")
 public func kk_http_response_headers(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_headers received invalid response handle")
@@ -500,7 +712,6 @@ public func kk_http_response_headers(_ responseRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeHttpHeadersBox(headers: response.headers))
 }
 
-@_cdecl("kk_http_headers_map")
 public func kk_http_headers_map(_ headersRaw: Int) -> Int {
     guard let headers = runtimeHttpHeadersBox(from: headersRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_headers_map received invalid headers handle")
@@ -508,7 +719,6 @@ public func kk_http_headers_map(_ headersRaw: Int) -> Int {
     return networkHeaderMapRaw(headers.headers)
 }
 
-@_cdecl("kk_http_headers_firstValue")
 public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int {
     guard let headers = runtimeHttpHeadersBox(from: headersRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_headers_firstValue received invalid headers handle")
@@ -517,7 +727,7 @@ public func kk_http_headers_firstValue(_ headersRaw: Int, _ nameRaw: Int) -> Int
     guard let value = networkHeaderFirstValue(headers.headers, name: name) else {
         return runtimeNullSentinelInt
     }
-    return networkStringRaw(value)
+    return runtimeMakeUTF8StringRaw(value)
 }
 
 @_cdecl("kk_http_client_setConnectTimeoutMillis")
@@ -538,7 +748,6 @@ public func kk_http_client_setReadTimeoutMillis(_ clientRaw: Int, _ timeoutMilli
     return 0
 }
 
-@_cdecl("kk_http_client_setFollowRedirects")
 public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setFollowRedirects received invalid client handle")
@@ -547,7 +756,6 @@ public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) 
     return 0
 }
 
-@_cdecl("kk_http_client_setBearerToken")
 public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setBearerToken received invalid client handle")
@@ -556,12 +764,31 @@ public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> 
     return 0
 }
 
+public func kk_http_client_addTrustedRedirectOrigin(_ clientRaw: Int, _ originRaw: Int) -> Int {
+    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_addTrustedRedirectOrigin received invalid client handle")
+    }
+    let spec = networkString(from: originRaw, caller: #function)
+    if let key = runtimeOriginKey(URL(string: spec)) {
+        client.addTrustedRedirectOrigin(key)
+    }
+    return 0
+}
+
+public func kk_http_client_setMaxResponseBodyBytes(_ clientRaw: Int, _ limit: Int) -> Int {
+    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setMaxResponseBodyBytes received invalid client handle")
+    }
+    client.setMaxResponseBodyBytes(limit)
+    return 0
+}
+
 @_cdecl("kk_http_response_url")
 public func kk_http_response_url(_ responseRaw: Int) -> Int {
     guard let response = runtimeHttpResponseBox(from: responseRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_url received invalid response handle")
     }
-    return networkStringRaw(response.url)
+    return runtimeMakeUTF8StringRaw(response.url)
 }
 
 @_cdecl("kk_http_response_errorMessage")
@@ -570,7 +797,7 @@ public func kk_http_response_errorMessage(_ responseRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_errorMessage received invalid response handle")
     }
     guard let errorMessage = response.errorMessage else { return runtimeNullSentinelInt }
-    return networkStringRaw(errorMessage)
+    return runtimeMakeUTF8StringRaw(errorMessage)
 }
 
 @_cdecl("kk_http_response_timedOut")
@@ -598,5 +825,5 @@ public func kk_http_response_header(_ responseRaw: Int, _ nameRaw: Int) -> Int {
     guard let value = networkHeaderFirstValue(response.headers, name: name) else {
         return runtimeNullSentinelInt
     }
-    return networkStringRaw(value)
+    return runtimeMakeUTF8StringRaw(value)
 }

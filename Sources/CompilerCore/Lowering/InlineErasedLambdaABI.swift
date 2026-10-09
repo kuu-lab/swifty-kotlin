@@ -14,12 +14,12 @@ enum InlineErasedLambdaABI {
     static let erasedFunctionInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3",
-        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
+        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6",
     ]
 
     /// Imported inline HOF bodies were ABI-lowered before they were serialized.
-    /// Their erased selector results therefore remain boxed when a lowered
-    /// floating-point operator consumes them in the caller.
+    /// Their erased selector results remain boxed even when the lambda body is
+    /// spliced into the caller. Floating-point operators consume raw bits.
     static func unboxErasedArithmeticArgumentsIfNeeded(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -45,9 +45,11 @@ enum InlineErasedLambdaABI {
                 return callResult == argument
                     && Self.erasedFunctionInvokeCallees.contains(ctx.interner.resolve(invokeCallee))
             }
-            guard isErasedInvokeResult else { continue }
-            let targetType = module.arena.exprType(argument)
-                ?? types.make(.primitive(primitive, .nonNull))
+            guard isErasedType(module.arena.exprType(argument), ctx: ctx)
+                || isErasedInvokeResult else { continue }
+            // The boxed result's Any/type-parameter type describes the handle,
+            // not the primitive representation required by this operator.
+            let targetType = types.make(.primitive(primitive, .nonNull))
             let unboxed = module.arena.appendTemporary(type: targetType)
             body.append(.call(
                 symbol: nil,
@@ -77,10 +79,12 @@ enum InlineErasedLambdaABI {
         }
         var boxed = loweredArguments
         for index in loweredArguments.indices.dropFirst() {
+            // Same scoping as boxPrimitiveArgumentsForErasedParameters: only a
+            // concrete primitive arg gets a plain box here; enum/value-class
+            // args stay raw so a later nominal-aware boundary keeps their tag.
             guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
-                  )
+                  let loweredType = module.arena.exprType(loweredArguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: loweredType)
             else {
                 continue
             }
@@ -119,13 +123,22 @@ enum InlineErasedLambdaABI {
 
     static func importedLambdaInvokeReturnType(
         inlineTarget: KIRFunction,
+        invokedParameter: SymbolID?,
         typeSubstitution: InlineTypeSubstitution?,
         ctx: KIRContext
     ) -> TypeID? {
         guard let types = ctx.sema?.types else { return nil }
-        for parameter in inlineTarget.params {
+        let functionParameters = inlineTarget.params.filter {
+            if case .functionType = types.kind(of: $0.type) { return true }
+            return false
+        }
+        // Multi-callback HOFs can return different types from each callback.
+        // Restore the invoked parameter's type, never the first selector's.
+        let parameter = functionParameters.first { $0.symbol == invokedParameter }
+            ?? (functionParameters.count == 1 ? functionParameters.first : nil)
+        if let parameter {
             guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
-                continue
+                return nil
             }
             return typeSubstitution?.applying(to: functionType.returnType, in: ctx) ?? functionType.returnType
         }
@@ -163,16 +176,47 @@ enum InlineErasedLambdaABI {
 
     private static func nonNullPrimitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
         guard let type, let types = ctx.sema?.types,
-              case let .primitive(primitive, .nonNull) = types.kind(of: type)
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, .nonNull) = resolvedKind
         else {
             return nil
         }
         return primitive
     }
 
-    /// Unbox arguments when a lambda is reached through an erased function
-    /// value.  Concrete lambda parameter types determine the required primitive
-    /// unboxing callee; nullable and reference values stay boxed.
+    /// Both nullabilities of a resolved primitive kind. Nullable parameters of
+    /// a spliced lambda still arrive boxed across the erased boundary and need
+    /// the sentinel-aware `kk_unbox_*` (which maps null to the primitive's
+    /// null sentinel), not a pass-through.
+    private static func primitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
+        guard let type, let types = ctx.sema?.types,
+              let symbols = ctx.sema?.symbols
+        else {
+            return nil
+        }
+        let resolvedKind = resolveValueClassKind(
+            types.kind(of: type),
+            types: types,
+            symbols: symbols
+        )
+        guard case let .primitive(primitive, _) = resolvedKind
+        else {
+            return nil
+        }
+        return primitive
+    }
+
+    /// Normalize arguments before expanding a lambda body. Erased function
+    /// values arrive boxed, and a nullable primitive can also be narrowed by a
+    /// surrounding safe call before it reaches a non-null lambda parameter.
     static func unboxErasedLambdaArguments(
         arguments: [KIRExprID],
         lambdaFunction: KIRFunction,
@@ -186,16 +230,36 @@ enum InlineErasedLambdaABI {
         }
         var normalized = arguments
         for index in arguments.indices {
+            let parameterType = lambdaFunction.params[index].type
+            let argumentType = module.arena.exprType(arguments[index])
             // Instructions restored from a library's inline KIR carry no expr
             // types, so inside such an expansion every value is erased.
-            let argumentIsErased = module.arena.exprType(arguments[index])
+            let argumentIsErased = argumentType
                 .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
+
+            if !argumentIsErased,
+               let argumentType,
+               let types = ctx.sema?.types,
+               case let .primitive(sourcePrimitive, .nullable) = types.kind(of: argumentType),
+               case let .primitive(targetPrimitive, .nonNull) = types.kind(of: parameterType),
+               sourcePrimitive == targetPrimitive
+            {
+                // A safe-call branch proves this value is present, but its
+                // expression still carries the nullable boxed representation.
+                // A typed copy lets ABI lowering unbox it for the lambda's
+                // non-null primitive parameter.
+                let unboxed = module.arena.appendTemporary(type: parameterType)
+                body.append(.copy(from: arguments[index], to: unboxed))
+                normalized[index] = unboxed
+                continue
+            }
+
             guard argumentIsErased,
-                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
+                  let primitive = primitiveKind(of: parameterType, ctx: ctx)
             else {
                 continue
             }
-            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
+            let unboxed = module.arena.appendTemporary(type: parameterType)
             body.append(.call(
                 symbol: nil,
                 callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
@@ -210,8 +274,8 @@ enum InlineErasedLambdaABI {
     }
 
     /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
-    /// feeds an erased slot, the primitive the lambda body produced must be
-    /// boxed again.
+    /// feeds an erased slot, the concrete value the lambda body produced must be
+    /// boxed again, preserving a value-class nominal tag when present.
     static func boxErasedLambdaResultIfNeeded(
         returnedExpr: KIRExprID,
         result: KIRExprID,
@@ -222,21 +286,55 @@ enum InlineErasedLambdaABI {
     ) -> KIRExprID {
         let resultType = module.arena.exprType(result)
         let resultIsErased = resultType.map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-        guard resultIsErased, let types = ctx.sema?.types,
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx)
+        guard resultIsErased,
+              let sema = ctx.sema,
+              let returnedType = module.arena.exprType(returnedExpr)
         else {
             return returnedExpr
         }
-        let boxed = module.arena.appendTemporary(type: resultType ?? types.anyType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: boxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return boxed
+        return boxValueForAnySlot(
+            returnedExpr,
+            sourceType: returnedType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: ctx.interner,
+            arena: module.arena,
+            resultType: resultType ?? sema.types.anyType,
+            requireNonNull: true,
+            sema: sema,
+            cache: ctx.nominalDispatchCache,
+            into: &body.instructions
+        )
+    }
+
+    /// Binds a non-null enum argument to an interface-typed parameter of a
+    /// spliced body through a parameter-typed `copy`, so ABILoweringPass boxes
+    /// it (`kk_enum_box_ordinal` + itable registration) the way it boxes the
+    /// argument of the equivalent non-inline call. Substituting the raw ordinal
+    /// directly would leave an interface member call in the body dispatching
+    /// on a bare Int, since nothing downstream sees the enum-to-interface edge.
+    static func bindEnumArgumentToInterfaceParameter(
+        _ argument: KIRExprID,
+        parameterType: TypeID,
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let sema = ctx.sema,
+              let argumentType = module.arena.exprType(argument),
+              case let .classType(argumentClass) = sema.types.kind(of: argumentType),
+              argumentClass.nullability == .nonNull,
+              let argumentInfo = sema.symbols.symbol(argumentClass.classSymbol),
+              argumentInfo.kind == .enumClass,
+              !argumentInfo.flags.contains(.synthetic),
+              case let .classType(parameterClass) = sema.types.kind(of: parameterType),
+              sema.symbols.symbol(parameterClass.classSymbol)?.kind == .interface
+        else {
+            return argument
+        }
+        let bound = module.arena.appendTemporary(type: parameterType)
+        body.append(.copy(from: argument, to: bound))
+        return bound
     }
 
     static func boxPrimitiveArgumentsForErasedParameters(
@@ -251,10 +349,14 @@ enum InlineErasedLambdaABI {
         }
         var boxed = arguments
         for index in arguments.indices {
+            // Only true primitives need the explicit box: enum and value-class
+            // arguments keep their nominal expr type, so the erased slots they
+            // reach downstream (e.g. the `__kk_sequence_generate` seed bridge)
+            // still see the concrete class and emit `kk_enum_box_ordinal` /
+            // `kk_tag_value_class_box` instead of a tagless primitive box.
             guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(arguments[index]), ctx: ctx
-                  )
+                  let argType = module.arena.exprType(arguments[index]),
+                  case let .primitive(primitive, .nonNull) = types.kind(of: argType)
             else {
                 continue
             }

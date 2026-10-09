@@ -62,6 +62,8 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases            # 全ケース
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
+CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。CompilerCore/Backend/Runtime/CLI/LSP の全テストと kotlinc diff（O0 / O2 全件）は `.github/workflows/nightly-full.yml` が毎朝 04:00 JST に master で 1 回実行する。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
+
 ### リファクタ PR のゲート
 
 RF 系リファクタ PR でも、ローカルの動作確認は上記の最小スコープで良い（全体は CI に任せる）。全体を回す必要があるとき（明示的な依頼 / CI 失敗の再現）のコマンドは以下。
@@ -204,7 +206,6 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 | [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
 | [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
 | [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md) | LoC / jscpd / stdlib 注入コストのベースライン（リファクタゲートの比較基準） |
-| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜009） |
 | [`Scripts/README.md`](Scripts/README.md) | swift_test.sh の環境変数・補助スクリプト一覧 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
 

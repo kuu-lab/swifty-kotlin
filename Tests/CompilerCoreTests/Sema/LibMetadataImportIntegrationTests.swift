@@ -5,6 +5,73 @@ import Testing
 
 @Suite
 struct LibMetadataImportIntegrationTests {
+    @Test(arguments: [false, true])
+    func testInlineParameterReturnModesSurviveSignatureNormalization(indexed: Bool) throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InlineParameters", "metadata": "metadata.bin"}
+        """
+        let records = [MetadataRecord(
+            kind: .function,
+            mangledName: "_KK_inlineParameters",
+            fqName: "test.inlineParameters",
+            arity: 3,
+            isInline: true,
+            typeSignature: "F3<F0<Z>,F0<Z>,F0<Z>,Z>",
+            valueParameterAllowsNonLocalReturn: [true, false, false],
+            valueParameterNames: ["block", "crossinlineBlock", "noinlineBlock"]
+        )]
+        let encoder = MetadataEncoder()
+        let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], searchPaths: [libDir.path], includeStdlib: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(
+                fqName: ["test", "inlineParameters"].map(ctx.interner.intern)
+            ))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            #expect(signature.parameterTypes.count == 3)
+            #expect(signature.valueParameterAllowsNonLocalReturn == [true, false, false])
+        }
+    }
+
+    @Test func testInputOnlyTypeParameterAnnotationIsRestored() throws {
+        let libDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        let manifest = """
+        {"formatVersion": 1, "moduleName": "InputOnly", "metadata": "metadata.bin"}
+        """
+        let metadata = """
+        symbols=1
+        function _KK_inputOnly fq=test.inputOnly schema=v1 arity=1 sig=F1<T0,Z> callTParams=T0 inputOnlyTParams=0
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "InputOnlyApp", emit: .kirDump, searchPaths: [libDir.path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("test"), ctx.interner.intern("inputOnly")]))
+            let signature = try #require(sema.symbols.functionSignature(for: function))
+            let parameter = try #require(signature.typeParameterSymbols.first)
+            #expect(sema.symbols.annotations(for: parameter).contains {
+                $0.annotationFQName == "kotlin.internal.OnlyInputTypes"
+            })
+        }
+    }
+
     // MARK: - Manifest Schema Validation Tests
 
     @Test func testManifestMissingFormatVersionEmitsError() throws {
@@ -36,9 +103,9 @@ struct LibMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0010", in: ctx)
-            let noSymbols = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "foo" && symbol.flags.contains(.synthetic)
-            }
+            let noSymbols = ctx.sema?.symbols.lookupAll(fqName: ["nv", "foo"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(noSymbols ?? false))
         }
     }
@@ -207,9 +274,9 @@ struct LibMetadataImportIntegrationTests {
             try runToKIR(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0013", in: ctx)
-            let hasImported = ctx.sema?.symbols.allSymbols().contains { symbol in
-                ctx.interner.resolve(symbol.name) == "fn" && symbol.flags.contains(.synthetic)
-            }
+            let hasImported = ctx.sema?.symbols.lookupAll(fqName: ["wt", "fn"].map(ctx.interner.intern))
+                .compactMap { ctx.sema?.symbols.symbol($0) }
+                .contains { symbol in symbol.flags.contains(.synthetic) }
             #expect(!(hasImported ?? false))
         }
     }
@@ -397,7 +464,14 @@ struct LibMetadataImportIntegrationTests {
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
         try kirbin.write(to: inlineDir.appendingPathComponent("HugeParams.kirbin"), atomically: true, encoding: .utf8)
 
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        // The artifact is only parsed when a call site expands to it, so the
+        // app must actually call `foo` — and the diagnostic lands during
+        // lowering, not import.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "HugeInlineApp",
@@ -405,9 +479,82 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
 
             assertHasDiagnostic("KSWIFTK-LIB-0020", in: ctx)
         }
+    }
+
+    @Test func testImportedCallableAndFunctionTypeAritiesAreBounded() throws {
+        let callableContext = try compileWithImportedMetadata(
+            """
+            symbols=4
+            function AtLimit fq=lib.AtLimit schema=v1 arity=1024
+            function HugeRecord fq=lib.HugeRecord schema=v1 arity=2000000000
+            function NegativeRecord fq=lib.NegativeRecord schema=v1 arity=-1
+            function OverflowRecord fq=lib.OverflowRecord schema=v1 arity=999999999999999999999999999
+            """,
+            moduleName: "BoundedCallableArityApp"
+        )
+        assertArityDiagnosticCount(3, in: callableContext)
+
+        let functionContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeFunctionType fq=lib.HugeFunctionType schema=v1 arity=0 sig=F2000000000<I,U>
+            """,
+            moduleName: "BoundedFunctionTypeArityApp"
+        )
+        assertArityDiagnosticCount(1, in: functionContext)
+
+        let contextReceiverContext = try compileWithImportedMetadata(
+            """
+            symbols=1
+            function HugeContextType fq=lib.HugeContextType schema=v1 arity=0 sig=F0<C2000000000<I>,I>
+            """,
+            moduleName: "BoundedContextArityApp"
+        )
+        assertArityDiagnosticCount(1, in: contextReceiverContext)
+    }
+
+    private func compileWithImportedMetadata(_ metadata: String, moduleName: String) throws -> CompilationContext {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+        let t = defaultTargetTriple()
+        let targetStr = "\(t.arch)-\(t.vendor)-\(t.os)"
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "\(moduleName)",
+          "kotlinLanguageVersion": "2.3.10",
+          "target": "\(targetStr)",
+          "metadata": "metadata.bin"
+        }
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: moduleName,
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+            result = ctx
+        }
+        return try #require(result)
+    }
+
+    private func assertArityDiagnosticCount(_ expectedCount: Int, in ctx: CompilationContext) {
+        assertHasDiagnostic("KSWIFTK-LIB-0024", in: ctx)
+        let arityDiagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-LIB-0024" }
+        #expect(arityDiagnostics.count == expectedCount)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0003" })
     }
 
     /// KSP-461: an unparsable instruction used to be dropped silently, leaving the
@@ -442,6 +589,21 @@ struct LibMetadataImportIntegrationTests {
         assertNoDiagnostic("KSWIFTK-LIB-0023", in: ctx)
     }
 
+    @Test func testInlineKIRSymlinkOutsideLibraryIsRejected() throws {
+        let outsideKIR = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kirbin")
+        try "version=2\nparams=0\nsuspend=false\nbody:\nreturnValue value=_\n"
+            .write(to: outsideKIR, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: outsideKIR) }
+
+        let ctx = try compileWithInlineKIRBody(
+            moduleName: "ExternalInline",
+            body: "returnValue value=_",
+            externalKIRURL: outsideKIR
+        )
+        assertHasDiagnostic("KSWIFTK-LIB-0019", in: ctx)
+    }
+
     private func base64(_ value: String) -> String {
         Data(value.utf8).base64EncodedString()
     }
@@ -450,7 +612,8 @@ struct LibMetadataImportIntegrationTests {
     /// then compiles a trivial program against it.
     private func compileWithInlineKIRBody(
         moduleName: String,
-        body: String
+        body: String,
+        externalKIRURL: URL? = nil
     ) throws -> CompilationContext {
         let fm = FileManager.default
         let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -484,10 +647,21 @@ struct LibMetadataImportIntegrationTests {
 
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
-        try kirbin.write(to: inlineDir.appendingPathComponent("InlineBody.kirbin"), atomically: true, encoding: .utf8)
+        let inlineKIRURL = inlineDir.appendingPathComponent("InlineBody.kirbin")
+        if let externalKIRURL {
+            try fm.createSymbolicLink(at: inlineKIRURL, withDestinationURL: externalKIRURL)
+        } else {
+            try kirbin.write(to: inlineKIRURL, atomically: true, encoding: .utf8)
+        }
 
+        // Deferred import only reads the artifact when `foo` is expanded,
+        // so the app calls it and the parse diagnostics land in lowering.
+        let appSource = """
+        import lib.foo
+        fun main() { foo() }
+        """
         var result: CompilationContext!
-        try withTemporaryFile(contents: "fun main() = 0") { path in
+        try withTemporaryFile(contents: appSource) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: moduleName + "App",
@@ -495,9 +669,138 @@ struct LibMetadataImportIntegrationTests {
                 searchPaths: [libDir.path]
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
             result = ctx
         }
         return result
+    }
+
+    @Test(arguments: [false, true])
+    func testClassAndFactoryAcrossLibrariesKeepDistinctKinds(indexed: Bool) throws {
+        let fm = FileManager.default
+        let directory = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: directory) }
+
+        func library(_ module: String, records: [MetadataRecord]) throws -> String {
+            let path = directory.appendingPathComponent(module).appendingPathExtension("kklib")
+            try fm.createDirectory(at: path, withIntermediateDirectories: true)
+            try "{\"formatVersion\":1,\"moduleName\":\"\(module)\",\"metadata\":\"metadata.bin\"}"
+                .write(to: path.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+            let encoder = MetadataEncoder()
+            let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+            try metadata.write(to: path.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+            return path.path
+        }
+
+        let classLibrary = try library("ClassLib", records: [
+            MetadataRecord(kind: .class, mangledName: "_Foo", fqName: "dup.Foo"),
+            MetadataRecord(kind: .constructor, mangledName: "_Foo_init", fqName: "dup.Foo.<init>",
+                           arity: 1, typeSignature: "F1<I,Ldup.Foo;>"),
+        ])
+        let factoryLibrary = try library("FactoryLib", records: [
+            MetadataRecord(kind: .function, mangledName: "_Foo_factory", fqName: "dup.Foo",
+                           arity: 0, typeSignature: "F0<I>"),
+        ])
+        for paths in [[classLibrary, factoryLibrary], [factoryLibrary, classLibrary]] {
+            try withTemporaryFile(contents: "fun constructor(): dup.Foo = dup.Foo(3)\nfun factory(): Int = dup.Foo()") { path in
+                let ctx = makeCompilationContext(inputs: [path], searchPaths: paths, includeStdlib: false)
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-LIB-0031" })
+                let sema = try #require(ctx.sema)
+                let candidates = sema.symbols.lookupAll(fqName: ["dup", "Foo"].map(ctx.interner.intern))
+                let kinds = candidates.compactMap { sema.symbols.symbol($0)?.kind }
+                #expect(kinds.contains(.class))
+                #expect(kinds.contains(.function))
+            }
+        }
+    }
+
+    // KUU-1213: two libraries exporting the same class FQName used to trap
+    // building the per-symbol binding map (duplicate SymbolID → SIGILL).
+    // The first library on the search path now wins and the shadowed
+    // duplicate reports KSWIFTK-LIB-0031 instead of crashing. The losing
+    // class's members shadow with it — a loser-only member resolving onto
+    // the winner's layout would compile and then crash at runtime.
+    @Test(arguments: [false, true])
+    func testDuplicateClassAcrossLibrariesFirstWinsWithWarning(indexed: Bool) throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: baseDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: baseDir) }
+
+        func writeLibrary(_ moduleName: String, extraMember: Bool = false) throws -> URL {
+            let libDir = baseDir.appendingPathComponent(moduleName).appendingPathExtension("kklib")
+            try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+            try """
+            {"formatVersion": 1, "moduleName": "\(moduleName)", "metadata": "metadata.bin"}
+            """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+            var records = [
+                MetadataRecord(
+                    kind: .class,
+                    mangledName: "_KK_\(moduleName)_Owner",
+                    fqName: "dup.Owner"
+                ),
+                MetadataRecord(
+                    kind: .property,
+                    mangledName: "_KK_\(moduleName)_Owner_value",
+                    fqName: "dup.Owner.value",
+                    typeSignature: "I"
+                ),
+            ]
+            if extraMember {
+                records.append(
+                    MetadataRecord(
+                        kind: .property,
+                        mangledName: "_KK_\(moduleName)_Owner_extra",
+                        fqName: "dup.Owner.extra",
+                        typeSignature: "I"
+                    )
+                )
+            }
+            let encoder = MetadataEncoder()
+            let metadata = indexed ? encoder.serializeIndexed(records) : encoder.serialize(records)
+            try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+            return libDir
+        }
+
+        let firstModule = "DuplicateA"
+        let secondModule = "DuplicateB"
+        let libA = try writeLibrary(firstModule)
+        let libB = try writeLibrary(secondModule, extraMember: true)
+
+        func assertWinningOwner(searchPaths: [String], expectedModule: String, winnerHasExtra: Bool) throws {
+            try withTemporaryFile(contents: "fun main() = 0") { path in
+                let ctx = makeCompilationContext(
+                    inputs: [path],
+                    searchPaths: searchPaths,
+                    includeStdlib: false
+                )
+                try runSema(ctx)
+                #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+                assertHasDiagnostic("KSWIFTK-LIB-0031", in: ctx)
+                let sema = try #require(ctx.sema)
+                let owner = try #require(sema.symbols.lookup(
+                    fqName: ["dup", "Owner"].map(ctx.interner.intern)
+                ))
+                #expect(sema.symbols.moduleFQN(for: owner) == ctx.interner.intern(expectedModule))
+                // Both libraries declare `dup.Owner.value`: exactly one
+                // symbol survives. The losing library's extra member is
+                // hidden with its owner instead of resolving onto the
+                // winner's layout.
+                #expect(sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "value"].map(ctx.interner.intern)
+                ).count == 1)
+                let extraSymbols = sema.symbols.lookupAll(
+                    fqName: ["dup", "Owner", "extra"].map(ctx.interner.intern)
+                )
+                #expect(extraSymbols.isEmpty != winnerHasExtra)
+            }
+        }
+
+        try assertWinningOwner(searchPaths: [libA.path, libB.path], expectedModule: firstModule, winnerHasExtra: false)
+        try assertWinningOwner(searchPaths: [libB.path, libA.path], expectedModule: secondModule, winnerHasExtra: true)
     }
 }
 #endif

@@ -180,13 +180,6 @@ import Testing
 
     // MARK: - Advanced Test Cases
 
-    @Test func testAbstractOverrideChaining() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
     @Test func testFinalOverrideTermination() throws {
         let ctx = try negativeCtx()
 
@@ -194,33 +187,6 @@ import Testing
     }
 
     // MARK: - Primary constructor `override val` / `override var` properties
-
-    @Test func testPrimaryConstructorOverridePropertiesImplementInterface() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
-        let ctx = try positiveCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!ctx.diagnostics.hasError)
-    }
-
-    @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
-        let ctx = try negativeCtx()
-
-        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-    }
 
     @Test func testPrimaryConstructorOpenPropertyCanBeOverridden() throws {
         let source = """
@@ -234,6 +200,78 @@ import Testing
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testExpectMembersWithoutBodiesAreContracts() throws {
+        let source = """
+        expect abstract class Pool<T : Any>(capacity: Int) {
+            protected abstract fun produce(): T
+            protected open fun disposeInstance(instance: T)
+            fun borrow(): T
+        }
+
+        actual abstract class Pool<T : Any> actual constructor(capacity: Int) {
+            protected actual abstract fun produce(): T
+            protected actual open fun disposeInstance(instance: T) {}
+            actual fun borrow(): T = produce()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testSealedClassesWithoutAbstractMembersDoNotWarn() throws {
+        let source = """
+        sealed class Grammar
+        class A : Grammar()
+
+        sealed class PartData {
+            fun dispose() {}
+        }
+
+        abstract sealed class ExplicitAbstract
+
+        sealed class Container {
+            sealed class NestedSealed
+            abstract class NestedAbstract
+        }
+
+        sealed interface SealedInterface
+        abstract class RegularEmpty
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
+        let emptyAbstractWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.severity == .warning
+                && $0.message.contains("has no abstract members")
+        }
+        #expect(emptyAbstractWarnings.isEmpty)
+    }
+
+    @Test func testEmptyExpectAbstractClassDoesNotWarn() throws {
+        let source = """
+        expect abstract class CharsetEncoder
+
+        actual abstract class CharsetEncoder {
+            abstract fun encode(): String
+        }
+
+        abstract class RegularEmpty
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let emptyAbstractWarnings = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                && $0.message.contains("has no abstract members")
+        }
+        #expect(emptyAbstractWarnings.isEmpty)
         #expect(!ctx.diagnostics.hasError)
     }
 

@@ -14,7 +14,7 @@ struct BuildKIRRegressionTests {
         let sources: [String] = [
             """
             package buildkir.raw0
-            fun main0() = "a" + "b"
+            fun main0(left: String, right: String) = left + right
             """,
             """
             package buildkir.raw1
@@ -111,6 +111,14 @@ struct BuildKIRRegressionTests {
                 println(v)
             }
             """,
+            """
+            package buildkir.lower3
+            fun mainLower3() {
+                val a: Any = 5
+                val b: Any = 5
+                println(a != b)
+            }
+            """,
         ]
 
         let ctx = makeContextFromSources(sources)
@@ -169,6 +177,7 @@ struct BuildKIRRegressionTests {
             "EnumNameAccessLowering",
             "LambdaClosureConversion",
             "InlineLowering",
+            "ReifiedEnumValuesLowering",
             "CoroutineLowering",
             "IntegerNarrowing",
             "ABILowering",
@@ -178,12 +187,13 @@ struct BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRLowersStringAdditionToRuntimeConcatCall() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("__kk_string_concat_flat"))
+        #expect(callees.contains(runtime[.stringConcat]))
         #expect(!(body.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else {
                 return false
@@ -192,40 +202,34 @@ struct BuildKIRRegressionTests {
         }))
     }
     @Test func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "lengthOf1", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("__kk_string_struct_get_length"))
-        #expect(!callees.contains("kk_string_struct_get_length"))
+        #expect(callees.contains(runtime[.stringLength]))
+        #expect(!callees.contains(runtime[.legacyStringLength]))
     }
     @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeOrSourceCalls() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
-        let parseCallees = Set(extractCallees(
-            from: try findKIRFunctionBody(named: "parse2", in: module, interner: ctx.interner),
-            interner: ctx.interner
-        ))
-        let trimCallees = Set(extractCallees(
-            from: try findKIRFunctionBody(named: "trimValue2", in: module, interner: ctx.interner),
-            interner: ctx.interner
-        ))
-        let takeCallees = Set(extractCallees(
-            from: try findKIRFunctionBody(named: "takeTwo2", in: module, interner: ctx.interner),
-            interner: ctx.interner
-        ))
-
-        #expect(parseCallees.contains("toInt"))
-        #expect(!parseCallees.contains("kk_string_toInt_flat"))
-        #expect(trimCallees.contains("trim"))
-        #expect(!trimCallees.contains("kk_string_trim_flat"))
-        #expect(takeCallees.contains("take"))
-        #expect(!takeCallees.contains("kk_string_take_flat"))
+        let sema = try #require(ctx.sema)
+        for functionName in ["parse2", "trimValue2", "takeTwo2"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let expectedSymbol = try expressionBodyCallSymbol(named: functionName, in: ctx)
+            let expected = try #require(sema.symbols.symbol(expectedSymbol))
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callsSymbol(expectedSymbol, in: body))
+            #expect(callees == [ctx.interner.resolve(expected.name)])
+            #expect(!callees.contains(runtime[.legacyStringTrim]))
+        }
     }
     @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
         let expectedArgumentCounts = [
             "implicitOneArg3": 2,
             "implicitTwoArgs3": 3,
@@ -233,20 +237,19 @@ struct BuildKIRRegressionTests {
         ]
         for (functionName, expectedArgumentCount) in expectedArgumentCounts {
             let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-            #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_string_substring_flat"))
-
-            let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ctx.interner.resolve(callee) == "substring"
-                else {
-                    return nil
-                }
-                return arguments
-            }.first, "\(functionName) should lower to a source-backed substring call")
+            let expectedSymbol = try expressionBodyCallSymbol(named: functionName, in: ctx)
+            let calls = body.filter { instruction in
+                if case .call = instruction { return true }
+                return false
+            }
+            try #require(calls.count == 1, "Expected exactly one source-backed call and no runtime redirect")
+            guard case let .call(symbol, callee, arguments, _, _, _, _, _) = calls[0] else { return }
+            #expect(symbol == expectedSymbol)
+            #expect(callee == sema.symbols.symbol(expectedSymbol)?.name)
 
             #expect(
-                substringCall.count == expectedArgumentCount,
-                "\(functionName) should pass \(expectedArgumentCount) arguments, got \(substringCall.count)"
+                arguments.count == expectedArgumentCount,
+                "\(functionName) should pass \(expectedArgumentCount) arguments, got \(arguments.count)"
             )
         }
     }
@@ -265,16 +268,26 @@ struct BuildKIRRegressionTests {
         #expect(binaryOps.contains(.equal))
     }
     @Test func testBuildKIRLowersComparisonOperatorsToRuntimeCalls() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
+        let binaryOps = body.compactMap { instruction -> KIRBinaryOp? in
+            guard case let .binary(op, _, _, _) = instruction else {
+                return nil
+            }
+            return op
+        }
 
-        #expect(callees.contains("kk_op_ne"))
-        #expect(callees.contains("kk_op_lt"))
-        #expect(callees.contains("kk_op_le"))
-        #expect(callees.contains("kk_op_gt"))
-        #expect(callees.contains("kk_op_ge"))
+        // `!=` stays a binary op here (like `==`): OperatorLoweringPass resolves
+        // it to kk_structural_ne for reference/nullable-primitive operands or
+        // kk_op_ne for primitives.
+        #expect(binaryOps.contains(.notEqual))
+        #expect(callees.contains(runtime[.less]))
+        #expect(callees.contains(runtime[.lessOrEqual]))
+        #expect(callees.contains(runtime[.greater]))
+        #expect(callees.contains(runtime[.greaterOrEqual]))
     }
     @Test func testBuildKIRLowersLogicalOperatorsToShortCircuitBranches() throws {
         let ctx = try sharedBuildKIRCtx()
@@ -282,8 +295,11 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main6", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-        #expect(!callees.contains("kk_op_and"))
-        #expect(!callees.contains("kk_op_or"))
+        #expect(callees.allSatisfy { $0 == "println" })
+        #expect(!body.contains { instruction in
+            guard case let .binary(op, _, _, _) = instruction else { return false }
+            return op == .logicalAnd || op == .logicalOr
+        })
         let jumpIfEqualCount = body.count { instruction in
             if case .jumpIfEqual = instruction { return true }
             return false
@@ -304,6 +320,7 @@ struct BuildKIRRegressionTests {
         #expect(!extractCallees(from: body, interner: ctx.interner).contains("plus"))
     }
     @Test func testBuildKIRUsesChosenMemberOperatorSymbolForBinaryPlusExpression() throws {
+        let runtime = try RuntimeNames()
         let source = """
         class Vec {
             operator fun plus(other: Vec): Vec = this
@@ -331,10 +348,10 @@ struct BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "plus")
+        #expect(chosenSemanticSymbol.name == KnownCompilerNames(interner: ctx.interner).plus)
         let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
         let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
-        #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+        #expect(ownerSymbol.id == sema.symbols.lookup(fqName: [ctx.interner.intern("Vec")]))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         #expect(signature.receiverType != nil)
         #expect(sema.bindings.exprTypes[operatorExprID] == signature.returnType)
@@ -356,8 +373,8 @@ struct BuildKIRRegressionTests {
         }
 
         #expect(callSymbol == chosenSymbol)
-        #expect(ctx.interner.resolve(callee) == "plus")
-        #expect(!(ctx.interner.resolve(callee).hasPrefix("kk_op_")))
+        #expect(callee == chosenSemanticSymbol.name)
+        #expect(!(runtime.operatorNames.contains(ctx.interner.resolve(callee))))
         #expect(!(body.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else {
                 return false
@@ -368,7 +385,7 @@ struct BuildKIRRegressionTests {
             guard case let .call(_, callCallee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callCallee).hasPrefix("kk_op_")
+            return runtime.operatorNames.contains(ctx.interner.resolve(callCallee))
         }))
         #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a", "b"])
     }
@@ -400,10 +417,10 @@ struct BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[memberExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "plus")
+        #expect(chosenSemanticSymbol.name == KnownCompilerNames(interner: ctx.interner).plus)
         let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
         let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
-        #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+        #expect(ownerSymbol.id == sema.symbols.lookup(fqName: [ctx.interner.intern("Vec")]))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         #expect(signature.receiverType != nil)
         #expect(sema.bindings.exprTypes[memberExprID] == signature.returnType)
@@ -425,7 +442,7 @@ struct BuildKIRRegressionTests {
         }
 
         #expect(callSymbol == chosenSymbol)
-        #expect(ctx.interner.resolve(callee) == "plus")
+        #expect(callee == chosenSemanticSymbol.name)
         #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a", "b"])
     }
 
@@ -457,10 +474,10 @@ struct BuildKIRRegressionTests {
         let resolvedBinding = try #require(sema.bindings.callBindings[operatorExprID])
         let chosenSymbol = resolvedBinding.chosenCallee
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
-        #expect(ctx.interner.resolve(chosenSemanticSymbol.name) == "unaryMinus")
+        #expect(chosenSymbol == sema.symbols.lookup(fqName: ["Vec", "unaryMinus"].map(ctx.interner.intern)))
         let ownerSymbolID = try #require(sema.symbols.parentSymbol(for: chosenSymbol))
         let ownerSymbol = try #require(sema.symbols.symbol(ownerSymbolID))
-        #expect(ctx.interner.resolve(ownerSymbol.name) == "Vec")
+        #expect(ownerSymbol.id == sema.symbols.lookup(fqName: [ctx.interner.intern("Vec")]))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
         #expect(signature.receiverType != nil)
         #expect(sema.bindings.exprTypes[operatorExprID] == signature.returnType)
@@ -481,7 +498,7 @@ struct BuildKIRRegressionTests {
         }
 
         #expect(callSymbol == chosenSymbol)
-        #expect(ctx.interner.resolve(callee) == "unaryMinus")
+        #expect(callee == chosenSemanticSymbol.name)
         #expect(symbolNames(for: arguments, module: module, sema: sema, interner: ctx.interner) == ["a"])
         #expect(!(body.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else {
@@ -497,29 +514,46 @@ struct BuildKIRRegressionTests {
     // symbol's Sema-recorded declared type (Any), so the local aliased the
     // raw unboxed literal register and no box call was ever emitted.
     @Test func testLocalDeclBoxesLiteralWhenWidenedToAny() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRLoweredCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "mainLower0", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains(runtime[.boxLongNonnullStatic]))
     }
     @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRLoweredCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "mainLower1", in: module, interner: ctx.interner)
         let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-        #expect(!callees.contains("kk_box_long"))
+        #expect(!callees.contains(runtime[.boxLong]))
     }
     @Test func testLocalDeclWideningFixAlsoBoxesLaterReassignment() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRLoweredCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "mainLower2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_box_int"))
-        #expect(callees.contains("kk_box_long_nonnull"))
+        #expect(callees.contains(runtime[.boxIntStatic]))
+        #expect(callees.contains(runtime[.boxLongNonnullStatic]))
+    }
+
+    /// `!=` on reference-typed operands must use structural equality: the raw
+    /// word-compare `kk_op_ne` treats two distinct boxes of the same value as
+    /// "not equal", which broke `AbstractList.equals` on boxed elements.
+    @Test func testNotEqualOnAnyLowersToStructuralCall() throws {
+        let runtime = try RuntimeNames()
+        let ctx = try sharedBuildKIRLoweredCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "mainLower3", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+        #expect(callees.contains(runtime[.structuralNotEqual]))
+        #expect(!callees.contains(runtime[.notEqual]))
     }
 }
 #endif

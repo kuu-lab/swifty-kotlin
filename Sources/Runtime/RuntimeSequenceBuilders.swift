@@ -12,6 +12,46 @@ private func runtimeCoroutineBuilderProxy(from rawValue: Int) -> RuntimeSequence
     resolveRuntimeHandle(rawValue, as: RuntimeSequenceCoroutineBuilderProxy.self)
 }
 
+private func runtimeSequenceBuilderYieldAllIterator(
+    from collectionRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if runtimeSequenceBox(from: collectionRaw) != nil {
+        return kk_sequence_box_iterator(collectionRaw, outThrown)
+    }
+
+    let isArray = runtimeArrayBox(from: collectionRaw).map { type(of: $0) == RuntimeArrayBox.self } ?? false
+    if runtimeListBox(from: collectionRaw) != nil
+        || isArray
+        || runtimeSetBox(from: collectionRaw) != nil
+        || runtimeRangeBox(from: collectionRaw) != nil
+    {
+        return kk_iterable_iterator(collectionRaw, outThrown)
+    }
+
+    if let iterator = runtimeSourceIterableIterator(collectionRaw, outThrown: outThrown) {
+        return iterator
+    }
+    if (outThrown?.pointee ?? 0) != 0 {
+        return 0
+    }
+
+    let sequenceIterator = kk_itable_lookup_dynamic(
+        collectionRaw,
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")),
+        0
+    )
+    if sequenceIterator != 0 {
+        let acquire = unsafeBitCast(
+            sequenceIterator,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return acquire(collectionRaw, outThrown)
+    }
+    return collectionRaw
+}
+
 @_cdecl("__kk_sequence_builder_yield")
 public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
     // STDLIB-563: If the handle is a coroutine builder proxy, yield lazily.
@@ -34,39 +74,79 @@ public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
 
 // MARK: - yieldAll(iterable) (STDLIB-553)
 
-@_cdecl("__kk_sequence_builder_yieldAll")
-public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
-    // STDLIB-563: If the handle is a coroutine builder proxy, yield each element lazily.
-    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
-        if let seq = runtimeSequenceBox(from: collectionRaw) {
-            // Preserve outer lazy semantics: traverse nested sequence elements
-            // on demand instead of materializing them first.
-            runtimeTraverseSequence(seq, outThrown: nil) { elem in
-                _ = proxy.coroutine.yieldValue(elem)
-                return true
-            }
-        } else if let list = runtimeListBox(from: collectionRaw) {
-            for elem in list.elements {
-                _ = proxy.coroutine.yieldValue(elem)
-            }
-        } else if let array = runtimeArrayBox(from: collectionRaw) {
-            for elem in array.elements {
-                _ = proxy.coroutine.yieldValue(elem)
-            }
-        } else if let set = runtimeSetBox(from: collectionRaw) {
-            for elem in set.elements {
-                _ = proxy.coroutine.yieldValue(elem)
-            }
-        } else if runtimeIteratorBuilderBox(from: collectionRaw) != nil
-               || runtimeListIteratorBox(from: collectionRaw) != nil {
-            while __kk_iterator_builder_hasNext(collectionRaw) != 0 {
-                _ = proxy.coroutine.yieldValue(__kk_iterator_builder_next(collectionRaw))
-            }
-        } else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid collection handle (expected List, Array, Set, Sequence, or Iterator)")
+@_cdecl("__kk_sequence_builder_yieldAll_checked")
+public func __kk_sequence_builder_yieldAll_checked(
+    _ builderRaw: Int,
+    _ collectionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let builder = runtimeIteratorBuilderBox(from: builderRaw) {
+        var thrown = 0
+        let iterator = runtimeSequenceBuilderYieldAllIterator(
+            from: collectionRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
         }
+        return builder.yieldAll(iterator, outThrown: outThrown)
+    }
+
+    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
+        var thrown = 0
+        let iterator = runtimeSequenceBuilderYieldAllIterator(
+            from: collectionRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return proxy.coroutine.yieldAll(iterator, outThrown: outThrown)
+    }
+
+    // Iterable ranges need an iterator before delegating to a legacy builder
+    // box. Their handles are objects, not scalar Int/Long values.
+    if runtimeRangeBox(from: collectionRaw) != nil,
+       runtimeSequenceBuilderBox(from: builderRaw) != nil
+    {
+        var thrown = 0
+        let iterator = kk_iterable_iterator(collectionRaw, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        while kk_iterator_hasNext(iterator, &thrown) != 0, thrown == 0 {
+            let value = kk_iterator_next(iterator, &thrown)
+            if thrown != 0 { break }
+            _ = __kk_sequence_builder_yield(builderRaw, value)
+        }
+        outThrown?.pointee = thrown
         return 0
     }
+
+    return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
+}
+
+@_cdecl("__kk_sequence_builder_yieldAll")
+public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: builderRaw) != nil {
+        var thrown = 0
+        let result = __kk_sequence_builder_yieldAll_checked(builderRaw, collectionRaw, &thrown)
+        runtimePropagateThrownOrTrap(thrown, outThrown: nil, context: #function)
+        return result
+    }
+    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
+        var thrown = 0
+        let result = __kk_sequence_builder_yieldAll_checked(builderRaw, collectionRaw, &thrown)
+        // This retained ABI has no thrown slot. Preserve the delegated failure
+        // for the sequence consumer, as the legacy coroutine builder did.
+        proxy.coroutine.recordFailure(thrown)
+        return result
+    }
+    // Legacy direct builder boxes retain their materialized representation.
     guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid builder handle")
     }
@@ -160,7 +240,7 @@ public func __kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
         return iter.probeHasNext() ? 1 : 0
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        return iter.index < iter.elements.count ? 1 : 0
+        return iter.index < iter.values.count ? 1 : 0
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext received invalid iterator handle")
 }
@@ -172,10 +252,10 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     }
     // Backwards compatibility: older lowering paths may pass a RuntimeListIteratorBox.
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        guard iter.index < iter.elements.count else {
+        guard iter.index < iter.values.count else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
         }
-        let value = iter.elements[iter.index]
+        let value = iter.values[iter.index].legacyRawValue
         iter.index += 1
         return value
     }
@@ -205,7 +285,7 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
 public func __kk_iterator_builder_hasNext_coro(_ iterRaw: Int, _ continuationRaw: Int) -> Int {
     guard let iter = runtimeIteratorBuilderBox(from: iterRaw) else {
         if let iter = runtimeListIteratorBox(from: iterRaw) {
-            return iter.index < iter.elements.count ? 1 : 0
+            return iter.index < iter.values.count ? 1 : 0
         }
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_iterator_builder_hasNext_coro received invalid iterator handle")
     }
@@ -229,10 +309,10 @@ public func __kk_iterator_builder_next_coro(_ iterRaw: Int) -> Int {
         return iter.consumeNext()
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
-        guard iter.index < iter.elements.count else {
+        guard iter.index < iter.values.count else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
         }
-        let value = iter.elements[iter.index]
+        let value = iter.values[iter.index].legacyRawValue
         iter.index += 1
         return value
     }

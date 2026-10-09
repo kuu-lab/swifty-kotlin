@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import TestStdlibCache
 import Testing
 
 // MARK: - SymbolTable Delegate Storage Tests
@@ -285,7 +286,7 @@ struct SemaDelegateTypeCheckTests {
                 "Delegate expression should bind in \(testCase.className)"
             )
             let symbol = try #require(sema.symbols.symbol(boundSymbol))
-            #expect(ctx.interner.resolve(symbol.name) == "m")
+            #expect(symbol.name == ctx.interner.intern("m"))
             #expect(
                 symbol.kind == testCase.expectedKind,
                 "Expected \(testCase.className).m to bind as \(testCase.expectedKind), got \(symbol.kind)"
@@ -644,6 +645,88 @@ struct SemaDelegateTypeCheckTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testMapPropertyDelegateResolution(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        package kuu1050
+
+        val inferred by mapOf("inferred" to 1)
+        val explicit: Int by mapOf("explicit" to 2)
+        val namedMap: Map<String, String> = mapOf("named" to "value")
+        val named by namedMap
+        val wideKeyMap: Map<Any, Int> = mapOf("wideKey" to 3)
+        val wideKey by wideKeyMap
+        val nullableMap: Map<String, Int?> = mapOf("nullable" to null)
+        val nullable by nullableMap
+        var mutable by mutableMapOf("mutable" to 4)
+        val defaulted by emptyMap<String, Int>().withDefault { 5 }
+        class Owner(val map: Map<String, Int>, val mutableMap: MutableMap<String, Int>) {
+            val member by map
+            var writable by mutableMap
+        }
+        fun local(map: Map<String, Int>, mutableMap: MutableMap<String, Int>) {
+            val localValue by map
+            val checked: Int = localValue
+            var localMutable by mutableMap
+            localMutable = 6
+            val checkedMutable: Int = localMutable
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(!diagnostics.contains { $0.severity == .error },
+                    "Map delegates: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))")
+            let sema = try #require(ctx.sema)
+            for name in ["inferred", "explicit", "wideKey", "mutable", "defaulted", "named", "nullable"] {
+                let property = try #require(topLevelSymbol(
+                    named: name, kind: .property, package: "kuu1050", sema: sema, interner: ctx.interner
+                ))
+                let expectedType = name == "named" ? sema.types.stringType
+                    : name == "nullable" ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
+                #expect(sema.symbols.propertyType(for: property) == expectedType)
+                let getter = try #require(sema.symbols.delegateGetValueSymbol(for: property))
+                let signature = try #require(sema.symbols.functionSignature(for: getter))
+                #expect(signature.parameterTypes.count == 2)
+                let receiverType = try #require(signature.receiverType)
+                let receiver = try #require(TypeCheckHelpers().nominalSymbol(of: receiverType, types: sema.types))
+                let receiverName = sema.symbols.symbol(receiver).map { ctx.interner.resolve($0.name) }
+                #expect(receiverName == (name == "mutable" ? "MutableMap" : "Map"))
+                if name == "mutable" {
+                    #expect(sema.symbols.delegateSetValueSymbol(for: property) != nil)
+                }
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testMapPropertyDelegateRejectsInvalidReceiver(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        let source = """
+        fun invalid(map: Map<Int, Int>, readOnly: Map<String, Int>, mutable: MutableMap<Int, Int>) {
+            val wrongKey by map
+            var readOnlyValue by readOnly
+            var wrongMutableKey by mutable
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths, emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(diagnostics.filter { $0.code == "KSWIFTK-SEMA-0103" }.count == 2)
+            #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0104" })
+        }
+    }
+
     @Test func testImportedAndNegativeExtensionPropertyDelegateResolution() throws {
         let importedLibrary = """
         package cap020.lib
@@ -825,7 +908,7 @@ struct KIRDelegateLoweringTests {
                 if let getter = delegateGetter {
                     let getValueCallCount = getter.body.reduce(into: 0) { count, instruction in
                         guard case let .call(_, callee, _, _, _, _, _, _) = instruction,
-                              interner.resolve(callee) == "getValue" else { return }
+                              callee == KnownCompilerNames(interner: interner).getValue else { return }
                         count += 1
                     }
                     #expect(getValueCallCount > 0, "Expected getter to contain a direct getValue call")

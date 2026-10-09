@@ -95,6 +95,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testNestedReturnInTryCatchBranchPropagatesCorrectly() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun safeDivide(a: Int, b: Int): Int {
             try {
@@ -118,11 +119,11 @@ extension BuildKIRRegressionTests {
 
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_throwable_is_cancellation"),
+            callees.contains(runtime[.isCancellation]),
             "Try/catch lowering must guard CancellationException with runtime predicate"
         )
         let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-        #expect(throwFlags["kk_throwable_is_cancellation"]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[runtime[.isCancellation]]?.allSatisfy { $0 == false } == true)
     }
 
     @Test func testIfExprLoweringUsesLabelBasedBranching() throws {
@@ -177,6 +178,7 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testVarargNonTrailingWithNamedTailPacksCorrectly() throws {
+        let runtime = try RuntimeNames()
         let source = """
         fun tagged(vararg nums: Int, tail: Int): Int = tail
         fun main() = tagged(10, 20, tail = 99)
@@ -186,12 +188,12 @@ extension BuildKIRRegressionTests {
 
         let module = try #require(ctx.kir)
         let mainFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "main" ? function : nil
+            return function.name == KnownCompilerNames(interner: ctx.interner).main ? function : nil
         }.first
         let body = try #require(mainFunction?.body)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        #expect(callNames.contains("kk_array_new"), "Expected kk_array_new for non-trailing vararg, got: \(callNames)")
-        #expect(callNames.contains("kk_array_set"), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arrayNew]), "Expected kk_array_new for non-trailing vararg, got: \(callNames)")
+        #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
     }
 
     // MARK: - if/when Control Flow (P5-51)
@@ -231,6 +233,35 @@ extension BuildKIRRegressionTests {
         // .select was removed from KIRInstruction; verify control-flow is used
         let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
         #expect(labelCount >= 3, "whenExpr with 2 branches + else needs at least 3 labels")
+    }
+
+    // KUU: `in`/`!in` when-branch conditions used to re-lower the whole
+    // `.inExpr`/`.notInExpr` node, which re-lowers its embedded `lhs` (the
+    // when subject) from scratch — re-evaluating a side-effecting subject
+    // once per `in`/`!in` branch tested instead of once for the whole `when`.
+    @Test func testWhenExprInNotInBranchesEvaluateSubjectExactlyOnce() throws {
+        let source = """
+        fun subject(): Int = 5
+        fun classify(): String {
+            return when (subject()) {
+                in 1..3 -> "a"
+                !in 0..4 -> "b"
+                else -> "c"
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "classify", in: module, interner: ctx.interner)
+
+        let subjectCallCount = extractCallees(from: body, interner: ctx.interner)
+            .filter { $0 == "subject" }.count
+        #expect(
+            subjectCallCount == 1,
+            "when subject must be lowered once and reused across in/!in branches, got \(subjectCallCount) calls to subject()"
+        )
     }
 }
 #endif

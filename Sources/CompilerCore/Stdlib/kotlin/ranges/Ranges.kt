@@ -13,26 +13,14 @@ package kotlin.ranges
 // `HeaderHelpers+SyntheticRangeInterfaceStubs.swift` /
 // `HeaderHelpers+SyntheticRangeProgressionStubs.swift`.
 //
-// The members (`start`, `endInclusive`, `endExclusive`, `contains`, `isEmpty`,
-// `lessThanOrEquals`) stay compiler residuals, alongside the concrete
-// `IntRange`/`LongRange`/`CharRange`/`UIntRange`/`ULongRange` conformances that
-// are wired before bundled headers are collected. Declaring them here instead
-// turns every interface-typed member call into an itable dispatch that the
-// pre-bundle conformance wiring cannot populate. Moving them to Kotlin belongs
-// with the concrete conformance rework (KSP-451).
-
-/**
- * Represents a range of values of type [T] with both bounds included in the range.
- */
-public interface ClosedRange<T : Comparable<T>>
-
-/**
- * Represents a range of [Comparable] values with the upper bound excluded from the range.
- */
-public interface OpenEndRange<T : Comparable<T>>
-
-/**
- * Represents a range of floating point numbers, where `lessThanOrEquals` keeps the
- * IEEE 754 ordering of the bounds.
- */
-public interface ClosedFloatingPointRange<T : Comparable<T>> : ClosedRange<T>
+// KSP-1311 moved the `OpenEndRange` declaration and its `start`/`endExclusive`/
+// `contains`/`isEmpty` members into `OpenEndRange/OpenEndRange.kt` (runtime
+// `__kk_range_*` links retained — the range boxes have no interface itables).
+// KUU-763 moved the `ClosedFloatingPointRange` declaration and its
+// `contains`/`isEmpty`/`lessThanOrEquals` members into
+// `ClosedFloatingPointRange/ClosedFloatingPointRange.kt` (runtime
+// `__kk_floating_range_*` probes retained — floating-point range boxes have no
+// interface itables).
+// Typed range class shells are source-backed by IntRange.kt, LongRange.kt, and
+// CharRange.kt; unsigned range shells are source-backed by
+// UIntRange/Stdlib.kt and ULongRange/Stdlib.kt (KSP-709).

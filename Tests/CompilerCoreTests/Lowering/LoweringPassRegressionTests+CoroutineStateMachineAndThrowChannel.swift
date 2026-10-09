@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation
+import RuntimeABI
 import Testing
 
 extension LoweringPassRegressionTests {
@@ -30,8 +31,8 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
-            #expect(allCallees.contains("__kk_iterator_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains(RuntimeCall.sequenceBuilderBuildCoro.name), "Callees: \(allCallees)")
+            #expect(allCallees.contains(RuntimeCall.iteratorBuilderBuildCoro.name), "Callees: \(allCallees)")
 
             let builderBuildCalls = functions.flatMap { function -> [(String, Int)] in
                 function.body.compactMap { instruction in
@@ -39,7 +40,7 @@ extension LoweringPassRegressionTests {
                         return nil
                     }
                     let name = ctx.interner.resolve(callee)
-                    guard name == "__kk_sequence_builder_build_coro" || name == "__kk_iterator_builder_build_coro" else {
+                    guard name == RuntimeCall.sequenceBuilderBuildCoro.name || name == RuntimeCall.iteratorBuilderBuildCoro.name else {
                         return nil
                     }
                     return (name, arguments.count)
@@ -48,7 +49,7 @@ extension LoweringPassRegressionTests {
             #expect(builderBuildCalls.allSatisfy { _, argumentCount in argumentCount == 3 }, "Builder calls: \(builderBuildCalls)")
 
             let yieldFunctions = functions.filter { function in
-                extractCallees(from: function.body, interner: ctx.interner).contains("__kk_sequence_builder_yield")
+                extractCallees(from: function.body, interner: ctx.interner).contains(RuntimeCall.sequenceBuilderYield.name)
             }
             #expect(!yieldFunctions.isEmpty, "Expected lowered builder functions to call __kk_sequence_builder_yield")
             #expect(yieldFunctions.allSatisfy { function in
@@ -83,8 +84,39 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("__kk_sequence_builder_build"), "Callees: \(allCallees)")
-            #expect(!allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains(RuntimeCall.sequenceBuilderBuild.name), "Callees: \(allCallees)")
+            #expect(!allCallees.contains(RuntimeCall.sequenceBuilderBuildCoro.name), "Callees: \(allCallees)")
+        }
+    }
+
+    @Test
+    func testMixedBuilderYieldAllPreservesInitialProbeThrowChannel() throws {
+        let source = """
+        fun main() {
+            val seq = sequence<Int> {
+                yield(1)
+                try {
+                    yieldAll(iterator<Int> { if (false) yield(99); throw IllegalArgumentException("nested") })
+                } catch (e: IllegalArgumentException) { yield(2) }
+            }
+            println(seq.toList())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let functions = findAllKIRFunctions(in: try #require(ctx.kir))
+            let calls = functions.flatMap { function in
+                function.body.compactMap { instruction -> (Bool, KIRExprID?)? in
+                    guard case let .call(_, callee, _, _, canThrow, thrown, _, _) = instruction,
+                          callee == ctx.interner.intern(RuntimeCall.sequenceBuilderYieldAllChecked.name)
+                    else { return nil }
+                    return (canThrow, thrown)
+                }
+            }
+            #expect(!calls.isEmpty)
+            #expect(calls.allSatisfy { $0.0 && $0.1 != nil })
         }
     }
 
@@ -111,18 +143,18 @@ extension LoweringPassRegressionTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            #expect(allCallees.contains("__kk_sequence_builder_build_coro"), "Callees: \(allCallees)")
+            #expect(allCallees.contains(RuntimeCall.sequenceBuilderBuildCoro.name), "Callees: \(allCallees)")
 
             let rangeYieldFunctions = functions.filter { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
                 // ARCH-012: the induction loop must retain CPS suspension
                 // handling without falling back to the range iterator ABI.
-                return callees.contains("__kk_sequence_builder_yield")
-                    && callees.contains("__kk_int_range_induction_le")
-                    && callees.contains("__kk_int_range_induction_add")
-                    && !callees.contains("kk_range_for_in_iterator")
-                    && !callees.contains("kk_range_for_in_hasNext")
-                    && !callees.contains("kk_range_for_in_next")
+                return callees.contains(RuntimeCall.sequenceBuilderYield.name)
+                    && callees.contains(CompilerCall.intRangeInductionLe.name)
+                    && callees.contains(CompilerCall.intRangeInductionAdd.name)
+                    && !callees.contains(RuntimeCall.rangeForInIterator.name)
+                    && !callees.contains(RuntimeCall.rangeForInHasNext.name)
+                    && !callees.contains(RuntimeCall.rangeForInNext.name)
             }
             #expect(!rangeYieldFunctions.isEmpty, "Expected a CPS-lowered range-loop builder, callees: \(allCallees)")
             #expect(rangeYieldFunctions.allSatisfy { function in
@@ -166,26 +198,71 @@ extension LoweringPassRegressionTests {
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [suspendID])], arena: arena)
         try runLowering(module: module, interner: interner, moduleName: "CoroutineSpill")
 
-        let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: module, interner: interner)
+        let loweredSuspend = try loweredSuspendFunction(originalNamed: "suspendTarget", in: module, interner: interner)
 
         let loweredCalls = extractCallees(from: loweredSuspend.body, interner: interner)
-        #expect(loweredCalls.contains("kk_coroutine_state_set_spill"))
-        #expect(loweredCalls.contains("kk_coroutine_state_get_spill"))
-        #expect(loweredCalls.contains("kk_coroutine_state_set_completion"))
-        #expect(loweredCalls.contains("kk_coroutine_state_get_completion"))
+        #expect(loweredCalls.contains(RuntimeCall.coroutineStateSetSpill.name))
+        #expect(loweredCalls.contains(RuntimeCall.coroutineStateGetSpill.name))
+        #expect(loweredCalls.contains(RuntimeCall.coroutineStateSetCompletion.name))
+        #expect(loweredCalls.contains(RuntimeCall.coroutineStateGetCompletion.name))
 
-        let setSpillCount = loweredCalls.filter { $0 == "kk_coroutine_state_set_spill" }.count
-        let getSpillCount = loweredCalls.filter { $0 == "kk_coroutine_state_get_spill" }.count
+        let setSpillCount = loweredCalls.filter { $0 == RuntimeCall.coroutineStateSetSpill.name }.count
+        let getSpillCount = loweredCalls.filter { $0 == RuntimeCall.coroutineStateGetSpill.name }.count
         #expect(setSpillCount == 1)
         #expect(getSpillCount == 1)
 
         let throwFlags = extractThrowFlags(from: loweredSuspend.body, interner: interner)
-        #expect(loweredCalls.contains("kk_coroutine_call_direct_suspend"))
-        #expect(throwFlags["kk_coroutine_call_direct_suspend"]?.allSatisfy { $0 == false } == true)
-        #expect(throwFlags["kk_coroutine_state_set_spill"]?.allSatisfy { $0 == false } == true)
-        #expect(throwFlags["kk_coroutine_state_get_spill"]?.allSatisfy { $0 == false } == true)
-        #expect(throwFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
-        #expect(throwFlags["kk_coroutine_state_get_completion"]?.allSatisfy { $0 == false } == true)
+        #expect(loweredCalls.contains(RuntimeCall.coroutineCallDirectSuspend.name))
+        #expect(throwFlags[RuntimeCall.coroutineCallDirectSuspend.name]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[RuntimeCall.coroutineStateSetSpill.name]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[RuntimeCall.coroutineStateGetSpill.name]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[RuntimeCall.coroutineStateSetCompletion.name]?.allSatisfy { $0 == false } == true)
+        #expect(throwFlags[RuntimeCall.coroutineStateGetCompletion.name]?.allSatisfy { $0 == false } == true)
+    }
+
+    @Test
+    func testCoroutineLivenessTracksGlobalLoadDefinitionsAndStoreUses() {
+        let pass = CoroutineLoweringPass()
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let globalSymbol = SymbolID(rawValue: 1901)
+        let loadResult = arena.appendTemporary(type: types.stringType)
+        let loadedLiveOut = pass.computeLiveOutByInstruction(
+            [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("suspendPoint"),
+                    arguments: [],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .loadGlobal(result: loadResult, symbol: globalSymbol),
+                .returnValue(loadResult),
+            ],
+            arena: arena
+        )
+        #expect(!(loadedLiveOut[0] ?? []).contains(loadResult))
+
+        let storedValue = arena.appendTemporary(type: types.stringType)
+        let storedLiveOut = pass.computeLiveOutByInstruction(
+            [
+                .constValue(result: storedValue, value: .stringLiteral(interner.intern("before"))),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("suspendPoint"),
+                    arguments: [],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .storeGlobal(value: storedValue, symbol: globalSymbol),
+                .returnUnit,
+            ],
+            arena: arena
+        )
+        #expect((storedLiveOut[1] ?? []).contains(storedValue))
     }
 
     @Test
@@ -208,16 +285,16 @@ extension LoweringPassRegressionTests {
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
-            let loweredProbe = try findKIRFunction(named: "kk_suspend_probe", in: module, interner: ctx.interner)
+            let loweredProbe = try loweredSuspendFunction(originalNamed: "probe", in: module, interner: ctx.interner)
 
             let loweredCalls = extractCallees(from: loweredProbe.body, interner: ctx.interner)
             #expect(!loweredCalls.contains("suspendCoroutineUninterceptedOrReturn"))
-            #expect(loweredCalls.contains("kk_coroutine_suspended"), "Callees: \(loweredCalls)")
-            #expect(loweredCalls.contains("kk_coroutine_state_enter"), "Callees: \(loweredCalls)")
-            #expect(loweredCalls.contains("kk_coroutine_state_exit"), "Callees: \(loweredCalls)")
+            #expect(loweredCalls.contains(RuntimeCall.coroutineSuspended.name), "Callees: \(loweredCalls)")
+            #expect(loweredCalls.contains(RuntimeCall.coroutineStateEnter.name), "Callees: \(loweredCalls)")
+            #expect(loweredCalls.contains(RuntimeCall.coroutineStateExit.name), "Callees: \(loweredCalls)")
 
             let throwFlags = extractThrowFlags(from: loweredProbe.body, interner: ctx.interner)
-            #expect(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false } == true)
+            #expect(throwFlags[RuntimeCall.coroutineSuspended.name]?.allSatisfy { $0 == false } == true)
         }
     }
 
@@ -293,43 +370,36 @@ extension LoweringPassRegressionTests {
         let ctx = try runLowering(module: module, interner: interner, moduleName: "CoroutineContinuationType", sema: makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx, diagnostics: diagnostics)
 
         let sema = try #require(ctx.sema)
-        let continuationTypeSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .class &&
-                symbol.flags.contains(.synthetic) &&
-                interner.resolve(symbol.name).contains("kk_suspend_suspendTarget$Cont")
-        }))
+        let loweredSuspend = try loweredSuspendFunction(originalNamed: interner.resolve(suspendName), in: module, interner: interner)
+        // Sema and KIR allocate separate symbols for the same lowered declaration.
+        let loweredSemaSymbol = try #require(sema.symbols.allSymbols().first {
+            $0.kind == .function && $0.name == loweredSuspend.name
+        })
+        let loweredSignature = try #require(sema.symbols.functionSignature(for: loweredSemaSymbol.id))
+        let continuationParameterType = try #require(loweredSignature.parameterTypes.last)
+        guard case let .classType(classType) = types.kind(of: continuationParameterType) else {
+            Issue.record("Expected lowered continuation parameter type to be class type.")
+            return
+        }
+        let continuationTypeSymbol = try #require(sema.symbols.symbol(classType.classSymbol))
+        #expect(continuationTypeSymbol.kind == .class)
+        #expect(continuationTypeSymbol.flags.contains(.synthetic))
 
         let continuationFields = sema.symbols.allSymbols().filter { symbol in
             symbol.kind == .field &&
                 symbol.fqName.count == continuationTypeSymbol.fqName.count + 1 &&
                 zip(continuationTypeSymbol.fqName, symbol.fqName).allSatisfy { $0 == $1 }
         }
-        let fieldNames = Set(continuationFields.map { interner.resolve($0.name) })
-        #expect(fieldNames.contains("$label"))
-        #expect(fieldNames.contains("$completion"))
-        #expect(fieldNames.contains("$spill0"))
-
         let layout = try #require(sema.symbols.nominalLayout(for: continuationTypeSymbol.id))
         #expect(layout.instanceFieldCount >= 3)
-        let labelField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$label" }))
-        let completionField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$completion" }))
-        let spillField = try #require(continuationFields.first(where: { interner.resolve($0.name) == "$spill0" }))
+        let labelField = try #require(continuationFields.first(where: { $0.name == interner.intern("$label") }))
+        let completionField = try #require(continuationFields.first(where: { $0.name == interner.intern("$completion") }))
+        let spillField = try #require(continuationFields.first(where: { $0.name == interner.intern("$spill0") }))
         let labelOffset = try #require(layout.fieldOffsets[labelField.id])
         let completionOffset = try #require(layout.fieldOffsets[completionField.id])
         let spillOffset = try #require(layout.fieldOffsets[spillField.id])
         #expect(labelOffset < completionOffset)
         #expect(completionOffset < spillOffset)
-
-        let loweredSuspendSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .function && interner.resolve(symbol.name).hasPrefix("kk_suspend_suspendTarget")
-        }))
-        let loweredSignature = try #require(sema.symbols.functionSignature(for: loweredSuspendSymbol.id))
-        let continuationParameterType = try #require(loweredSignature.parameterTypes.last)
-        guard case let .classType(classType) = types.kind(of: continuationParameterType) else {
-            Issue.record("Expected lowered continuation parameter type to be class type.")
-            return
-        }
-        #expect(classType.classSymbol == continuationTypeSymbol.id)
 
         let nominalSymbols = module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .nominalType(nominal) = decl else {
@@ -399,16 +469,16 @@ extension LoweringPassRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "CoroutineThrowFlags")
 
         let loweredMain = try findKIRFunction(named: "main", in: module, interner: interner)
-        let loweredTop = try findKIRFunction(named: "kk_suspend_top", in: module, interner: interner)
-        let loweredLeaf = try findKIRFunction(named: "kk_suspend_leaf", in: module, interner: interner)
+        let loweredTop = try loweredSuspendFunction(originalNamed: "top", in: module, interner: interner)
+        let loweredLeaf = try loweredSuspendFunction(originalNamed: "leaf", in: module, interner: interner)
 
         let mainThrowFlags = extractThrowFlags(from: loweredMain.body, interner: interner)
-        #expect(mainThrowFlags["kk_suspend_top"]?.allSatisfy { $0 == true } == true)
+        #expect(mainThrowFlags[interner.resolve(loweredTop.name)]?.allSatisfy { $0 == true } == true)
 
         let topThrowFlags = extractThrowFlags(from: loweredTop.body, interner: interner)
-        #expect(topThrowFlags["kk_coroutine_call_direct_suspend"]?.allSatisfy { $0 == false } == true)
-        #expect(topThrowFlags["kk_coroutine_state_set_label"]?.allSatisfy { $0 == false } == true)
-        #expect(topThrowFlags["kk_coroutine_state_set_completion"]?.allSatisfy { $0 == false } == true)
+        #expect(topThrowFlags[RuntimeCall.coroutineCallDirectSuspend.name]?.allSatisfy { $0 == false } == true)
+        #expect(topThrowFlags[RuntimeCall.coroutineStateSetLabel.name]?.allSatisfy { $0 == false } == true)
+        #expect(topThrowFlags[RuntimeCall.coroutineStateSetCompletion.name]?.allSatisfy { $0 == false } == true)
 
         let leafThrowFlags = extractThrowFlags(from: loweredLeaf.body, interner: interner)
         #expect(leafThrowFlags["external_throwing"]?.allSatisfy { $0 == true } == true)
@@ -418,6 +488,7 @@ extension LoweringPassRegressionTests {
     func testSuspendCoroutineLoweringEmitsRuntimeSuspendHelper() throws {
         let source = """
         import kotlin.coroutines.*
+        import kotlinx.coroutines.runBlocking
 
         suspend fun probe(): Int {
             return suspendCoroutine<Int> { cont: Continuation<Int> ->
@@ -425,23 +496,43 @@ extension LoweringPassRegressionTests {
             }
         }
 
-        fun main(): Any? = runBlocking(probe)
+        fun main(): Int = runBlocking { probe() }
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendCoroutineLowering", emit: .kirDump)
+            // Include the bundled inline builder body; kirDump omits stdlib bodies.
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendCoroutineLowering", emit: .executable)
             try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "Diagnostics: \(ctx.diagnostics.diagnostics)")
 
             let module = try #require(ctx.kir)
-            let loweredSuspend = try #require(findAllKIRFunctions(in: module).first { function in
-                let callees = extractCallees(from: function.body, interner: ctx.interner)
-                return callees.contains("kk_suspend_coroutine")
-            })
+            let loweredSuspend = try loweredSuspendFunction(originalNamed: "probe", in: module, interner: ctx.interner)
 
             let loweredCallees = extractCallees(from: loweredSuspend.body, interner: ctx.interner)
-            #expect(loweredCallees.contains("kk_suspend_coroutine"))
-            #expect(loweredCallees.contains("kk_coroutine_state_enter"))
-            #expect(loweredCallees.contains("kk_coroutine_state_exit"))
+            // The source-backed builder inlines the intrinsic invocation protocol.
+            #expect(!loweredCallees.contains(RuntimeCall.suspendCoroutine.name))
+            #expect(!loweredCallees.contains("suspendCoroutineUninterceptedOrReturn"))
+            #expect(!loweredCallees.contains("<suspendCoroutineUninterceptedOrReturn>"))
+            #expect(loweredCallees.contains(RuntimeCall.coroutineStateEnter.name))
+            #expect(loweredCallees.contains(RuntimeCall.coroutineStateExit.name))
+            let invokeABI = try #require(RuntimeABISpec.byName[RuntimeCall.functionInvoke.name])
+            let invokeResults = Set(loweredSuspend.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, _, result, canThrow, _, _, _) = instruction,
+                      callee == ctx.interner.intern(RuntimeCall.functionInvoke.name)
+                else { return nil }
+                #expect(canThrow == invokeABI.isThrowing)
+                return result
+            })
+            let suspendedResults = Set(loweredSuspend.body.compactMap { instruction -> KIRExprID? in
+                guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                      callee == ctx.interner.intern(RuntimeCall.coroutineSuspended.name)
+                else { return nil }
+                return result
+            })
+            #expect(loweredSuspend.body.contains { instruction in
+                guard case let .returnIfEqual(lhs, rhs) = instruction else { return false }
+                return invokeResults.contains(lhs) && suspendedResults.contains(rhs)
+            }, "Expected the intrinsic result to propagate COROUTINE_SUSPENDED")
         }
     }
 }

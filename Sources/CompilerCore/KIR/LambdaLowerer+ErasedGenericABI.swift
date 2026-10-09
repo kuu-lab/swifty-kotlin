@@ -22,7 +22,8 @@ extension LambdaLowerer {
             : returnType
     }
 
-    /// Boxes a primitive value flowing out of an erased return position.
+    /// Boxes a concrete value flowing out of an erased return position.
+    /// Value-class results retain their nominal tag at the same boundary.
     ///
     /// The box is emitted here rather than left to `ABILoweringPass` because the
     /// lambda's own declared return type stays concrete in the substituted
@@ -36,19 +37,23 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        guard let boxCallee = erasedReturnBoxCallee(
-            returnType,
-            returnsErasedGeneric: returnsErasedGeneric,
-            sema: sema,
-            interner: interner
-        ) else {
+        guard returnsErasedGeneric else {
             return value
         }
-        return emitNonThrowingCall(
-            callee: boxCallee,
-            arg: value,
-            resultType: sema.types.anyType,
+        // Prefer the lowered expression's concrete type over the contextual
+        // function return type. Generic inference may record that return type
+        // as `Any`, while a value-class expression such as `{ it }` still needs
+        // its nominal class tag when it crosses the erased boundary.
+        let sourceType = arena.exprType(value) ?? returnType
+        return boxValueForAnySlot(
+            value,
+            sourceType: sourceType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
             arena: arena,
+            resultType: sema.types.anyType,
+            requireNonNull: true,
             into: &instructions
         )
     }
@@ -61,7 +66,11 @@ extension LambdaLowerer {
     ) -> InternedString? {
         guard returnsErasedGeneric,
               let callee = BoxingCalleeTable(interner: interner).boxCallee(
-                  for: sema.types.kind(of: returnType),
+                  for: resolveValueClassKind(
+                      sema.types.kind(of: returnType),
+                      types: sema.types,
+                      symbols: sema.symbols
+                  ),
                   requireNonNull: true
               )
         else {

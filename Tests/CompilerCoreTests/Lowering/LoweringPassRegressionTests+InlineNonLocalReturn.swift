@@ -4,8 +4,105 @@ import Foundation
 import Testing
 
 extension LoweringPassRegressionTests {
+    @Test
+    func testFunctionNameLabeledReturnLowersAsNonLocalReturn() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        inline fun String.tryIt(block: () -> Unit) { block() }
+        fun named(): Int {
+            invokeBlock { return@named 17 }
+            return -1
+        }
+        fun extensionCall(s: String) {
+            s.tryIt { return@extensionCall }
+        }
+        fun lambdaLocal() {
+            invokeBlock { return@invokeBlock }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let lambdas = functionValueTargets(in: module)
+        let nonLocalLambdas = lambdas.filter { function in
+            function.body.contains { if case .nonLocalReturn = $0 { return true }; return false }
+        }
+        #expect(nonLocalLambdas.count == 2)
+        #expect(nonLocalLambdas.allSatisfy { $0.isInlineOnly })
+        #expect(lambdas.filter { !$0.isInlineOnly }.count == 1)
+        try LoweringPhase().run(ctx)
+        for name in ["named", "extensionCall", "lambdaLocal"] {
+            let function = module.arena.declarations.compactMap { $0.function }.first {
+                ctx.interner.resolve($0.name) == name
+            }
+            #expect(function != nil)
+            #expect(function?.body.contains { if case .nonLocalReturn = $0 { return true }; return false } == false)
+        }
+    }
+
+
+    @Test
+    func testFunctionNameReturnThroughFinallyDoesNotReadAnUndefinedResult() throws {
+        let ctx = makeContextFromSource("""
+        inline fun invokeBlock(block: () -> Unit) { block() }
+        fun cleanup(value: Int) {}
+        fun uncaptured(): Int {
+            try {
+                invokeBlock { try { return@uncaptured 17 } finally { cleanup(1) } }
+            } finally { cleanup(2) }
+            return -1
+        }
+        fun captured(value: Int): Int {
+            try {
+                invokeBlock { try { return@captured value } finally { cleanup(value) } }
+            } finally { cleanup(value + 1) }
+            return -1
+        }
+        fun unitReturn() {
+            try { invokeBlock { return@unitReturn } } finally { cleanup(1) }
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        try LoweringPhase().run(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let module = try requireTestValue(ctx.kir, "expected KIR module")
+        let failures = KIRVerifier.verify(module: module, symbols: ctx.sema?.symbols, interner: ctx.interner)
+        #expect(failures.isEmpty)
+    }
 
     // MARK: - BUG-209: source lambda returns
+
+    @Test(arguments: ["return 42", "return@value 42"])
+    func nestedInlineLambdaReturnKeepsLexicalFunctionTarget(returnStatement: String) throws {
+        let context = makeContextFromSource("""
+        inline fun around(block: () -> Unit) { block() }
+        inline fun value(): Int { around { around { \(returnStatement) } }; return -1 }
+        fun main() { println(value()); println("after") }
+        """)
+        try runToKIR(context)
+        let module = try #require(context.kir)
+        let valueSymbol = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.first { $0.name == context.interner.intern("value") }?.symbol)
+        let targets = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.flatMap(\.body).compactMap { instruction -> KIRReturnTarget? in
+            if case let .nonLocalReturn(_, target) = instruction { return target }
+            return nil
+        }
+        #expect(targets == [.function(valueSymbol)])
+        try LoweringPhase().run(context)
+        #expect(!context.diagnostics.hasError)
+        let main = try #require(module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            if case let .function(function) = declaration { return function }
+            return nil
+        }.first { $0.name == context.interner.intern("main") })
+        #expect(!main.body.contains { if case .returnValue = $0 { return true }; return false })
+        #expect(!main.body.contains { if case .nonLocalReturn = $0 { return true }; return false })
+    }
 
     @Test
     func testBug209LowersUnlabeledLambdaReturnAsNonLocalReturn() throws {
@@ -42,14 +139,7 @@ extension LoweringPassRegressionTests {
         let noSymbol = ctx.sema?.symbols.lookupByShortName(ctx.interner.intern("no")).first
         #expect(ctx.sema?.symbols.functionSignature(for: crossSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
         #expect(ctx.sema?.symbols.functionSignature(for: noSymbol ?? .invalid)?.valueParameterAllowsNonLocalReturn == [false])
-        let lambdaFunctions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
-            guard case let .function(function) = declaration,
-                  ctx.interner.resolve(function.name).hasPrefix("kk_lambda")
-            else {
-                return nil
-            }
-            return function
-        }
+        let lambdaFunctions = functionValueTargets(in: module)
         let lambdasWithNonLocalReturn = lambdaFunctions.filter { function in
             function.body.contains { instruction in
                 if case .nonLocalReturn = instruction { return true }
@@ -77,8 +167,8 @@ extension LoweringPassRegressionTests {
             guard case let .function(function) = declaration else { return nil }
             return function
         }
-        let unlabeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "unlabeled" }
-        let labeledFunction = loweredFunctions.first { ctx.interner.resolve($0.name) == "labeled" }
+        let unlabeledFunction = loweredFunctions.first { $0.name == ctx.interner.intern("unlabeled") }
+        let labeledFunction = loweredFunctions.first { $0.name == ctx.interner.intern("labeled") }
         #expect(unlabeledFunction != nil)
         #expect(labeledFunction != nil)
         #expect(unlabeledFunction?.body.contains { instruction in
@@ -363,7 +453,7 @@ extension LoweringPassRegressionTests {
             body: [
                 .constValue(result: inlineArg, value: .symbolRef(inlineParamSym)),
                 .constValue(result: inlineOne, value: .intLiteral(1)),
-                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern(CompilerCall.opAdd.name), arguments: [inlineArg, inlineOne], result: inlineSum, canThrow: false, thrownResult: nil),
                 .returnValue(inlineSum),
             ],
             isSuspend: false,
@@ -396,7 +486,7 @@ extension LoweringPassRegressionTests {
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("addOne"))
-        #expect(calleeNames.contains("kk_op_add"))
+        #expect(calleeNames.contains(CompilerCall.opAdd.name))
 
         let hasNonLocalReturn = loweredCaller.body.contains { instruction in
             if case .nonLocalReturn = instruction { return true }

@@ -9,6 +9,14 @@ final class KIRLoweringContext {
         let exprID: KIRExprID
     }
 
+    /// BUG-274: the lazy "ensure initialized" function and `$initialized`
+    /// flag registered for one source-backed `object`/`companion object`.
+    struct ObjectLazyInit {
+        let ensureInitSymbol: SymbolID
+        let ensureInitName: InternedString
+        let flagSymbol: SymbolID
+    }
+
     // MARK: - Scope State (saved/restored per function/lambda)
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
@@ -30,12 +38,16 @@ final class KIRLoweringContext {
     /// to the object literal itself, but `this@Outer` must still use the
     /// enclosing receiver value.
     private var qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID] = [:]
+    /// Captured enclosing class instances keyed by their nominal owner. Used
+    /// while lowering anonymous object members that access mutable outer fields.
+    private var capturedOuterReceiverExprsByOwner: [SymbolID: KIRExprID] = [:]
     private var contextReceiverValueStack: [[ContextReceiverValue]] = []
     var currentFunctionSymbol: SymbolID?
     /// Set while lowering a lambda body that is passed to a non-crossinline
     /// parameter of an inline function. A label-free return in that body exits
     /// the caller rather than the lambda.
     var currentLambdaAllowsNonLocalReturn = false
+    var nonLocalReturnTarget: SymbolID?
     /// One-shot allowance installed by CallLowerer for the lambda argument it
     /// is about to lower. This prevents nested lambdas from inheriting the
     /// enclosing lambda's non-local-return permission.
@@ -64,9 +76,23 @@ final class KIRLoweringContext {
     var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
+    /// Functions declared `tailrec` whose body is currently being (or has been) lowered.
+    /// Self-calls to these expand omitted defaults at the call site so the
+    /// TailrecLoweringPass sees a plain self-call instead of a `$default` detour.
+    private(set) var tailrecFunctionSymbols: Set<SymbolID> = []
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
+    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI
+    /// (source literal was marked via `markCoroutineLauncherLambdaExpr` and
+    /// carries an explicit receiver). Launcher-continuation rewrites must
+    /// gate on this set: a lambda that resolves through a variable/alias was
+    /// never marked, so its thunk keeps the captures-first layout and seeding
+    /// the receiver at launcherArgs[0] would corrupt a capture slot.
+    var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
+    /// Runtime scope handles have no Kotlin CoroutineScope property itable.
+    /// ExprIDs are arena-unique; retain their provenance across nested captures.
+    var runtimeCoroutineScopeReceiverExprIDs: Set<KIRExprID> = []
     /// Lambda literals whose contextual parameter type declares a type
     /// parameter as its return type. `nil` until the first lookup builds it
     /// (see `lambdaReturnsErasedGeneric(for:ast:sema:)`).
@@ -77,11 +103,36 @@ final class KIRLoweringContext {
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
     /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
+    /// Caches raw-returning bridges registered in the Throwable `message` vtable slot.
+    var throwableMessageBridgeSymbolsByGetter: [SymbolID: SymbolID] = [:]
+    /// Per-nominal vtable/itable registration entries, computed once per type
+    /// instead of once per construction site.
+    let nominalDispatchCache = KIRNominalDispatchCache()
     var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
     /// Companion object initializer functions registered during class lowering.
     /// These are called in order during module initialization.
     private var companionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
+
+    /// BUG-274: maps a source-backed `object`/`companion object`'s own
+    /// symbol to its lazily-run "ensure initialized" function and its
+    /// `$initialized` flag global. Populated only for objects synthesized in
+    /// THIS compilation via `synthesizeObjectInitializer`/
+    /// `synthesizeCompanionInitializerIfNeeded`. Imported-library entries
+    /// live in `SymbolTable` after metadata restoration instead.
+    private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
+
+    /// Maps a source-backed enum class to the guarded function that
+    /// constructs its entries once (constructor arguments, body property
+    /// initializers, `init` blocks, entry-body properties). Entry references
+    /// lowered in this compilation get a call to it inserted before them.
+    private(set) var enumLazyInitByOwner: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
+
+    /// While an enum entry is being constructed inside its class's lazy
+    /// initializer, maps each stored property symbol to the per-entry global
+    /// slot that receives its value; `emitFieldStore` writes there instead
+    /// of into instance-field storage the ordinal-backed value does not have.
+    var enumEntryStorageSlots: [SymbolID: SymbolID] = [:]
 
     // MARK: - Structured Scope Management
 
@@ -93,9 +144,12 @@ final class KIRLoweringContext {
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
         let currentImplicitReceiverSymbol: SymbolID?
+        let qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID]
+        let capturedOuterReceiverExprsByOwner: [SymbolID: KIRExprID]
         let contextReceiverValueStack: [[ContextReceiverValue]]
         let currentFunctionSymbol: SymbolID?
         let currentLambdaAllowsNonLocalReturn: Bool
+        let nonLocalReturnTarget: SymbolID?
         let pendingLambdaNonLocalReturnAllowance: Bool
         let loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)]
         let finallyBlockStack: [(exprID: ExprID, loopDepth: Int)]
@@ -111,9 +165,12 @@ final class KIRLoweringContext {
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
             currentImplicitReceiverSymbol: currentImplicitReceiverSymbol,
+            qualifiedThisReceiverExprsByLabel: qualifiedThisReceiverExprsByLabel,
+            capturedOuterReceiverExprsByOwner: capturedOuterReceiverExprsByOwner,
             contextReceiverValueStack: contextReceiverValueStack,
             currentFunctionSymbol: currentFunctionSymbol,
             currentLambdaAllowsNonLocalReturn: currentLambdaAllowsNonLocalReturn,
+            nonLocalReturnTarget: nonLocalReturnTarget,
             pendingLambdaNonLocalReturnAllowance: pendingLambdaNonLocalReturnAllowance,
             loopControlStack: loopControlStack,
             finallyBlockStack: finallyBlockStack,
@@ -129,9 +186,12 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
         currentImplicitReceiverSymbol = snapshot.currentImplicitReceiverSymbol
+        qualifiedThisReceiverExprsByLabel = snapshot.qualifiedThisReceiverExprsByLabel
+        capturedOuterReceiverExprsByOwner = snapshot.capturedOuterReceiverExprsByOwner
         contextReceiverValueStack = snapshot.contextReceiverValueStack
         currentFunctionSymbol = snapshot.currentFunctionSymbol
         currentLambdaAllowsNonLocalReturn = snapshot.currentLambdaAllowsNonLocalReturn
+        nonLocalReturnTarget = snapshot.nonLocalReturnTarget
         pendingLambdaNonLocalReturnAllowance = snapshot.pendingLambdaNonLocalReturnAllowance
         loopControlStack = snapshot.loopControlStack
         finallyBlockStack = snapshot.finallyBlockStack
@@ -155,9 +215,17 @@ final class KIRLoweringContext {
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
         currentImplicitReceiverSymbol = nil
+        // `this@Label` entries only ever hold values valid inside one KIR
+        // function's instruction stream — the exprIDs they point at are
+        // dangling past a member-function/lambda boundary. Clear them so a
+        // labeled `this` inside the next body cannot resolve to a stale
+        // exprID from an unrelated context.
+        qualifiedThisReceiverExprsByLabel.removeAll(keepingCapacity: true)
+        capturedOuterReceiverExprsByOwner.removeAll(keepingCapacity: true)
         contextReceiverValueStack.removeAll(keepingCapacity: true)
         currentFunctionSymbol = nil
         currentLambdaAllowsNonLocalReturn = false
+        nonLocalReturnTarget = nil
         pendingLambdaNonLocalReturnAllowance = false
         loopControlStack.removeAll(keepingCapacity: true)
         finallyBlockStack.removeAll(keepingCapacity: true)
@@ -261,6 +329,54 @@ final class KIRLoweringContext {
 
     func setQualifiedThisReceiver(_ exprID: KIRExprID, for label: InternedString) {
         qualifiedThisReceiverExprsByLabel[label] = exprID
+    }
+
+    func capturedOuterReceiverExprID(for owner: SymbolID) -> KIRExprID? {
+        capturedOuterReceiverExprsByOwner[owner]
+    }
+
+    /// A captured outer receiver whose declared owner is `owner` itself, a
+    /// nominal subtype of it (a member extension's `Derived` dispatch
+    /// receiver holds inherited `Base` members), or an inner-class receiver
+    /// whose `$outer` chain reaches it.
+    func capturedOuterReceiverExprID(reaching owner: SymbolID, sema: SemaModule) -> KIRExprID? {
+        capturedOuterReceiverOwner(reaching: owner, sema: sema).flatMap {
+            capturedOuterReceiverExprsByOwner[$0]
+        }
+    }
+
+    /// The owner a captured outer receiver is registered under that can reach
+    /// `owner` — see `capturedOuterReceiverExprID(reaching:)`. Entries are
+    /// probed in symbol order so codegen stays deterministic.
+    func capturedOuterReceiverOwner(reaching owner: SymbolID, sema: SemaModule) -> SymbolID? {
+        for registeredOwner in capturedOuterReceiverExprsByOwner.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            if receiverOwnerReaches(registeredOwner, target: owner, sema: sema) {
+                return registeredOwner
+            }
+        }
+        return nil
+    }
+
+    /// Whether a receiver registered under `candidate` can reach `target`:
+    /// `candidate` is `target` or a nominal subtype of it (inherited-member
+    /// owners), or `candidate` is an inner class whose `$outer` chain climbs
+    /// to `target` or to a subtype of it.
+    private func receiverOwnerReaches(_ candidate: SymbolID, target: SymbolID, sema: SemaModule) -> Bool {
+        var current: SymbolID? = candidate
+        var visited: Set<SymbolID> = []
+        while let owner = current, visited.insert(owner).inserted {
+            if owner == target || sema.types.isNominalSubtypeSymbol(owner, of: target) {
+                return true
+            }
+            current = sema.symbols.symbol(owner)?.flags.contains(.innerClass) == true
+                ? sema.symbols.parentSymbol(for: owner)
+                : nil
+        }
+        return false
+    }
+
+    func setCapturedOuterReceiver(_ exprID: KIRExprID, for owner: SymbolID) {
+        capturedOuterReceiverExprsByOwner[owner] = exprID
     }
 
     func restoreImplicitReceiver(symbol: SymbolID?, exprID: KIRExprID?) {
@@ -417,13 +533,15 @@ final class KIRLoweringContext {
         symbol: SymbolID,
         callee: InternedString,
         captureArguments: [KIRExprID],
-        hasClosureParam: Bool = false
+        hasClosureParam: Bool = false,
+        unboxedSymbol: SymbolID? = nil
     ) {
         callableValueInfoByExprID[exprID] = KIRCallableValueInfo(
             symbol: symbol,
             callee: callee,
             captureArguments: captureArguments,
-            hasClosureParam: hasClosureParam
+            hasClosureParam: hasClosureParam,
+            unboxedSymbol: unboxedSymbol
         )
     }
 
@@ -433,6 +551,10 @@ final class KIRLoweringContext {
 
     func setFunctionDefaultArguments(_ mapping: [SymbolID: [ExprID?]]) {
         functionDefaultArgumentsBySymbol = mapping
+    }
+
+    func markTailrecFunction(_ symbol: SymbolID) {
+        tailrecFunctionSymbols.insert(symbol)
     }
 
     func defaultArguments(for symbol: SymbolID) -> [ExprID?]? {
@@ -500,6 +622,33 @@ final class KIRLoweringContext {
         companionInitializerFunctions
     }
 
+    /// BUG-274: registers `objectSymbol`'s lazy "ensure initialized"
+    /// function so read/write/call sites that touch its state can insert a
+    /// guard call before the eager module-init call is removed for it.
+    func registerObjectLazyInit(
+        for objectSymbol: SymbolID,
+        ensureInitSymbol: SymbolID,
+        ensureInitName: InternedString,
+        flagSymbol: SymbolID
+    ) {
+        objectLazyInitBySymbol[objectSymbol] = ObjectLazyInit(
+            ensureInitSymbol: ensureInitSymbol,
+            ensureInitName: ensureInitName,
+            flagSymbol: flagSymbol
+        )
+    }
+
+    /// Returns `objectSymbol`'s lazy-init entry, or `nil` for any object this
+    /// compilation did not itself synthesize an initializer for. Imported
+    /// library singletons are restored separately in `SymbolTable`.
+    func objectLazyInit(for objectSymbol: SymbolID) -> ObjectLazyInit? {
+        objectLazyInitBySymbol[objectSymbol]
+    }
+
+    func registerEnumLazyInit(for enumSymbol: SymbolID, symbol: SymbolID, name: InternedString) {
+        enumLazyInitByOwner[enumSymbol] = (symbol, name)
+    }
+
     func resetModuleState() {
         pendingGeneratedCallableDeclIDs.removeAll(keepingCapacity: true)
         callableValueInfoByExprID.removeAll(keepingCapacity: true)
@@ -508,6 +657,10 @@ final class KIRLoweringContext {
         emittedObjectLiteralExprIDs.removeAll(keepingCapacity: true)
         itableBridgeSymbolsByKey.removeAll(keepingCapacity: true)
         anyToStringBridgeSymbolsByImplementation.removeAll(keepingCapacity: true)
+        throwableMessageBridgeSymbolsByGetter.removeAll(keepingCapacity: true)
         companionInitializerFunctions.removeAll(keepingCapacity: true)
+        objectLazyInitBySymbol.removeAll(keepingCapacity: true)
+        enumLazyInitByOwner.removeAll(keepingCapacity: true)
+        enumEntryStorageSlots.removeAll(keepingCapacity: true)
     }
 }

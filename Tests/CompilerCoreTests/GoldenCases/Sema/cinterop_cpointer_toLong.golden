@@ -1,6 +1,8 @@
-symbol fq=pointerToAddr.$0.p[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?] ret=Long
+symbol fq=kotlinx.cinterop.toLong.T[kind=tparam;origin=unknown] kind=typeParameter vis=private flags=synthetic
+symbol fq=kotlinx.cinterop.toLong[kind=fun;recv=kotlinx.cinterop.CPointer<T0>?;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CPointed];origin=unknown] kind=function vis=public flags=inlineFunction|synthetic sig=recv=kotlinx.cinterop.CPointer<kotlinx.cinterop.toLong.T>? params=[] ret=Long bounds=[kotlinx.cinterop.CPointed]
+symbol fq=pointerToAddr.$0.p[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>?;ret=Long;names=[p];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>?] ret=Long
 file fcinterop_cpointer_toLong package=_
-  decl pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?] fun pointerToAddr sym=pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>?]
-expr e@5:50 name(p) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Int>>? ref=pointerToAddr.$0.p[kind=vparam]
-expr e@5:50#1 memberCall recv=e@5:50 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong[kind=fun;recv=kotlinx.cinterop.CPointer<T0>?;params=;gen=1] targs=[kotlinx.cinterop.ByteVarOf<Int>]
+  decl pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>?;ret=Long;names=[p];origin=fixture] fun pointerToAddr sym=pointerToAddr[kind=fun;params=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>?;ret=Long;names=[p];origin=fixture]
+expr e@5:50 name(p) type=kotlinx.cinterop.CPointer<kotlinx.cinterop.ByteVarOf<Byte>>? ref=pointerToAddr.$0.p[kind=vparam;origin=fixture]
+expr e@5:50#1 memberCall recv=e@5:50 callee=toLong args=[] type=Long call=kotlinx.cinterop.toLong[kind=fun;recv=kotlinx.cinterop.CPointer<T0>?;params=;ret=Long;gen=1;bounds=[kotlinx.cinterop.CPointed];origin=unknown] targs=[kotlinx.cinterop.ByteVarOf<Byte>]

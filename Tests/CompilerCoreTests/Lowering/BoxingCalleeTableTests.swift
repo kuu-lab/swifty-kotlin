@@ -4,83 +4,95 @@ import Testing
 
 @Suite
 struct BoxingCalleeTableTests {
-    private let primitiveExpectations: [(PrimitiveType, String, String)] = [
-        (.int, "kk_box_int", "kk_unbox_int"),
-        (.uint, "kk_box_uint", "kk_unbox_int"),
-        (.ubyte, "kk_box_ubyte", "kk_unbox_int"),
-        (.ushort, "kk_box_ushort", "kk_unbox_int"),
-        (.long, "kk_box_long", "kk_unbox_long"),
-        (.ulong, "kk_box_ulong", "kk_unbox_ulong"),
-        (.boolean, "kk_box_bool", "kk_unbox_bool"),
-        (.float, "kk_box_float", "kk_unbox_float"),
-        (.double, "kk_box_double", "kk_unbox_double"),
-        (.char, "kk_box_char", "kk_unbox_char"),
+    private let primitives: [PrimitiveType] = [
+        .int, .byte, .short, .uint, .ubyte, .ushort,
+        .long, .ulong, .boolean, .float, .double, .char,
     ]
 
     @Test
-    func testPrimitiveNameLookupUsesRuntimeTable() {
-        for (primitive, boxName, unboxName) in primitiveExpectations {
-            #expect(BoxingCalleeTable.boxCalleeName(for: primitive) == boxName)
-            #expect(BoxingCalleeTable.unboxCalleeName(for: primitive) == unboxName)
+    func testPrimitiveNameLookupUsesRuntimeTable() throws {
+        for primitive in primitives {
+            let box = try loweringBoxingABI(.box, for: primitive)
+            let unbox = try loweringBoxingABI(.unbox, for: primitive)
+            #expect(BoxingCalleeTable.boxCalleeName(for: primitive) == box.name)
+            #expect(BoxingCalleeTable.unboxCalleeName(for: primitive) == unbox.name)
+            for abi in [box, unbox] {
+                #expect(abi.parameters.count == 1 && abi.parameters.first?.type == .intptr)
+                #expect(abi.returnType == .intptr)
+                #expect(!abi.isThrowing)
+            }
         }
     }
 
-    /// `.long`/`.ulong`/`.double` box callees when the source TypeKind is
-    /// provably non-null: `runtimeNullSentinelInt` (Int64.min) collides
-    /// bit-for-bit with a legitimate value of those 64-bit types
-    /// (Long.MIN_VALUE / ULong 2^63 / Double -0.0), so a non-null source
-    /// routes to a callee that boxes unconditionally instead of one that
-    /// treats that bit pattern as null.
-    private let nonNullBoxOverrides: [PrimitiveType: String] = [
-        .long: "kk_box_long_nonnull",
-        .ulong: "kk_box_ulong_nonnull",
-        .double: "kk_box_double_nonnull",
-    ]
-
     @Test
-    func testInternedTypeLookupUsesSharedTable() {
+    func testInternedTypeLookupUsesSharedTable() throws {
         let interner = StringInterner()
         let types = TypeSystem()
         let table = BoxingCalleeTable(interner: interner)
 
-        for (primitive, boxName, unboxName) in primitiveExpectations {
+        for primitive in primitives {
             let type = types.make(.primitive(primitive, .nonNull))
-            let boxCallee = table.boxCallee(for: type, types: types, requireNonNull: true)
-            let unboxCallee = table.unboxCallee(for: type, types: types, requireNonNull: true)
-            let expectedBoxName = nonNullBoxOverrides[primitive] ?? boxName
-            #expect(boxCallee.map(interner.resolve) == expectedBoxName)
-            #expect(unboxCallee.map(interner.resolve) == unboxName)
+            let box = try loweringBoxingABI(.box, for: primitive, nonNull: true)
+            let unbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true)
+            #expect(table.boxCallee(for: type, types: types, requireNonNull: true) == interner.intern(box.name))
+            #expect(table.unboxCallee(for: type, types: types, requireNonNull: true) == interner.intern(unbox.name))
         }
 
-        // Nullable Long/ULong sources must keep resolving to the default
-        // (null-checking) box callee, not the non-null override: the source
-        // might genuinely be null at runtime, and only the default callee
-        // preserves that by passing the sentinel through unboxed.
-        for (primitive, boxName, _) in primitiveExpectations where nonNullBoxOverrides[primitive] != nil {
+        // Nullable Long/ULong/Double must keep the null-aware box variant:
+        // their raw bits can collide with the runtime null sentinel.
+        for primitive in [PrimitiveType.long, .ulong, .double] {
             let nullableType = types.make(.primitive(primitive, .nullable))
-            let boxCallee = table.boxCallee(for: nullableType, types: types, requireNonNull: false)
-            #expect(boxCallee.map(interner.resolve) == boxName)
+            let box = try loweringBoxingABI(.box, for: primitive)
+            #expect(table.boxCallee(for: nullableType, types: types, requireNonNull: false) == interner.intern(box.name))
         }
 
         let nullableInt = types.make(.primitive(.int, .nullable))
-        if let callee = table.boxCallee(for: nullableInt, types: types, requireNonNull: true) {
-            Issue.record("Nullable Int should not satisfy requireNonNull boxing lookup: \(interner.resolve(callee))")
-        }
-        if let callee = table.unboxCallee(for: nullableInt, types: types, requireNonNull: true) {
-            Issue.record("Nullable Int should not satisfy requireNonNull unboxing lookup: \(interner.resolve(callee))")
-        }
+        #expect(table.boxCallee(for: nullableInt, types: types, requireNonNull: true) == nil)
+        #expect(table.unboxCallee(for: nullableInt, types: types, requireNonNull: true) == nil)
 
         let stringType = types.make(.stringStruct(.nonNull))
-        #expect(table.boxCallee(for: stringType, types: types, requireNonNull: true).map(interner.resolve) == "kk_string_from_flat")
-        #expect(table.unboxCallee(for: stringType, types: types, requireNonNull: true).map(interner.resolve) == "kk_string_to_flat")
+        let stringBox = try loweringRuntimeABI("string_from_flat")
+        let stringUnbox = try loweringRuntimeABI("string_to_flat")
+        #expect(table.boxCallee(for: stringType, types: types, requireNonNull: true) == interner.intern(stringBox.name))
+        #expect(table.unboxCallee(for: stringType, types: types, requireNonNull: true) == interner.intern(stringUnbox.name))
 
         let nullableString = types.make(.stringStruct(.nullable))
-        if let callee = table.boxCallee(for: nullableString, types: types, requireNonNull: true) {
-            Issue.record("Nullable String should not satisfy requireNonNull boxing lookup: \(interner.resolve(callee))")
+        #expect(table.boxCallee(for: nullableString, types: types, requireNonNull: true) == nil)
+        #expect(table.unboxCallee(for: nullableString, types: types, requireNonNull: true) == nil)
+    }
+
+    @Test
+    func testStaticPrimitiveLookupUsesTaggedHandleABI() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let table = BoxingCalleeTable(interner: interner)
+
+        for primitive in primitives {
+            let type = types.make(.primitive(primitive, .nonNull))
+            let box = try loweringBoxingABI(.box, for: primitive, nonNull: true, staticPrimitive: true)
+            let unbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true, staticPrimitive: true)
+            #expect(
+                table.boxCallee(for: type, types: types, requireNonNull: true, preferStaticPrimitive: true)
+                    == interner.intern(box.name)
+            )
+            #expect(
+                table.unboxCallee(for: type, types: types, requireNonNull: true, preferStaticPrimitive: true)
+                    == interner.intern(unbox.name)
+            )
         }
-        if let callee = table.unboxCallee(for: nullableString, types: types, requireNonNull: true) {
-            Issue.record("Nullable String should not satisfy requireNonNull unboxing lookup: \(interner.resolve(callee))")
-        }
+    }
+
+    @Test(arguments: [false, true])
+    func testNullableDoubleUnboxingKeepsNullAwareCallee(preferStaticPrimitive: Bool) throws {
+        let interner = StringInterner()
+        let table = BoxingCalleeTable(interner: interner)
+        let callee = table.unboxCallee(
+            for: .primitive(.double, .nullable),
+            requireNonNull: false,
+            preferStaticPrimitive: preferStaticPrimitive
+        )
+        let abi = try loweringBoxingABI(.unbox, for: .double, staticPrimitive: preferStaticPrimitive)
+        #expect(callee == interner.intern(abi.name))
     }
 }
 #endif

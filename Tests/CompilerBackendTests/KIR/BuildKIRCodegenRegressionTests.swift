@@ -1,26 +1,120 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
 
 @Suite(.serialized)
 struct BuildKIRCodegenRegressionTests {
-    private func expectNonThrowingCallees(_ names: [String]) {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-        for name in names {
-            #expect(callees.contains(interner.intern(name)), "Missing \(name)")
+    /// Select operations from the canonical ABI family without copying C link names.
+    private func abiFunctions(
+        _ operations: [String],
+        in family: [RuntimeABIFunctionSpec],
+        privateBridge: Bool = false
+    ) throws -> [RuntimeABIFunctionSpec] {
+        try operations.map { operation in
+            let matches = family.filter { function in
+                function.name.split(separator: "_").dropFirst().joined(separator: "_") == operation
+                    && function.name.hasPrefix("__") == privateBridge
+            }
+            try #require(matches.count == 1, "Expected one ABI entry for \(operation), got \(matches.map(\.name))")
+            return try #require(matches.first)
         }
     }
 
-    private func expectArrayRuntimeCallsThrow(body: [KIRInstruction], interner: StringInterner) {
-        let callNames = extractCallees(from: body, interner: interner)
-        let throwFlags = extractThrowFlags(from: body, interner: interner)
-        for name in ["kk_array_new_checked", "kk_array_set", "kk_array_get"] {
-            #expect(callNames.contains(name))
-            #expect(throwFlags[name]?.allSatisfy { $0 == true } == true)
+    private func expectNonThrowingCallees(_ functions: [RuntimeABIFunctionSpec]) {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+        #expect(!functions.isEmpty)
+        for function in functions {
+            #expect(!function.isThrowing)
+            #expect(callees.contains(interner.intern(function.name)), "Missing \(function.name)")
         }
+    }
+
+    private func expectRuntimeCalls(
+        _ functions: [RuntimeABIFunctionSpec],
+        in body: [KIRInstruction],
+        interner: StringInterner
+    ) throws {
+        let throwFlags = extractThrowFlags(from: body, interner: interner)
+        for function in functions {
+            let flags = try #require(throwFlags[function.name], "Missing \(function.name)")
+            #expect(!flags.isEmpty)
+            #expect(flags.allSatisfy { $0 == function.isThrowing }, "Throw flags disagree with ABI for \(function.name)")
+        }
+    }
+
+    /// Reject undeclared legacy helpers as well as misspelled runtime targets.
+    private func expectDeclaredCallees(in body: [KIRInstruction], context ctx: CompilationContext) throws {
+        let sema = try #require(ctx.sema)
+        var declared = Set(RuntimeABIExterns.allExterns.map { ctx.interner.intern($0.name) })
+        let compilerBuiltins = RuntimeABISpec.compilerInternalNonThrowingCalleeNames
+            .union(RuntimeABISpec.compilerInternalBuiltinCalleeNames)
+        declared.formUnion(compilerBuiltins.map(ctx.interner.intern))
+        let module = try #require(ctx.kir)
+        declared.formUnion(findAllKIRFunctions(in: module).map(\.name))
+        let calledSymbols = Set(body.compactMap { instruction -> SymbolID? in
+            guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return nil }
+            return symbol
+        })
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
+            declared.insert(symbol.name)
+            guard sema.symbols.isSourceBackedSymbol(symbol.id) else { continue }
+            let linkName = sema.symbols.externalLinkName(for: symbol.id)
+            if let linkName {
+                declared.insert(ctx.interner.intern(linkName))
+            }
+            // Imported default stubs may have link metadata without a Sema/KIR declaration.
+            let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
+            if calledSymbols.contains(stubSymbol),
+               sema.symbols.functionSignature(for: symbol.id)?.valueParameterHasDefaultValues.contains(true) == true,
+               let stubLinkName = sema.symbols.externalLinkName(for: stubSymbol) {
+                declared.insert(ctx.interner.intern(stubLinkName))
+                declared.insert(ctx.interner.intern(ctx.interner.resolve(symbol.name) + "$default"))
+                if let linkName {
+                    declared.insert(ctx.interner.intern(linkName + "$default"))
+                }
+            }
+        }
+        let unexpected = body.compactMap { instruction -> String? in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction,
+                  !declared.contains(callee) else { return nil }
+            return ctx.interner.resolve(callee)
+        }
+        #expect(unexpected.isEmpty, "Calls must resolve to a declaration or ABI extern: \(unexpected)")
+    }
+
+    private func expectSourceBackedCalls(
+        _ names: [String],
+        in body: [KIRInstruction],
+        context ctx: CompilationContext
+    ) throws {
+        try expectDeclaredCallees(in: body, context: ctx)
+        let sema = try #require(ctx.sema)
+        for name in names {
+            let expectedName = ctx.interner.intern(name)
+            let calls = body.filter { instruction in
+                guard case let .call(symbolID?, _, _, _, _, _, _, _) = instruction,
+                      let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.name == expectedName
+            }
+            #expect(!calls.isEmpty, "Missing source-backed call to \(name)")
+            for instruction in calls {
+                guard case let .call(symbolID?, callee, _, _, _, _, _, _) = instruction else { continue }
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(name) must bind to Kotlin source")
+                let expectedCallee = sema.symbols.externalLinkName(for: symbolID).map(ctx.interner.intern) ?? expectedName
+                #expect(callee == expectedCallee)
+                #expect(RuntimeABIExterns.externDecl(named: ctx.interner.resolve(callee)) == nil)
+            }
+        }
+    }
+
+    private func expectArrayRuntimeCallsThrow(body: [KIRInstruction], interner: StringInterner) throws {
+        let functions = try abiFunctions(["array_new_checked", "array_set", "array_get"], in: RuntimeABISpec.arrayFunctions)
+        #expect(functions.allSatisfy { $0.isThrowing })
+        try expectRuntimeCalls(functions, in: body, interner: interner)
     }
 
     @Test
@@ -39,20 +133,13 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("first", in: callNames))
-            #expect(containsKotlinCallee("firstOrNull", in: callNames))
-            #expect(containsKotlinCallee("lastOrNull", in: callNames))
-            #expect(!(callNames.contains("kk_list_first")))
-            #expect(!(callNames.contains("kk_list_firstOrNull")))
-            #expect(!(callNames.contains("kk_list_lastOrNull")))
+            try expectSourceBackedCalls(["first", "firstOrNull", "lastOrNull"], in: body, context: ctx)
         }
     }
 
     @Test
-    func testABILoweringMarksSetCollectionHelpersAsNonThrowing() {
-        expectNonThrowingCallees(["__kk_set_contains", "__kk_set_size"])
+    func testABILoweringMarksSetCollectionHelpersAsNonThrowing() throws {
+        expectNonThrowingCallees(try abiFunctions(["set_contains", "set_size"], in: RuntimeABISpec.collectionFunctions, privateBridge: true))
     }
 
     @Test
@@ -71,14 +158,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("intersect", in: callNames))
-            #expect(containsKotlinCallee("union", in: callNames))
-            #expect(containsKotlinCallee("subtract", in: callNames))
-            #expect(!(callNames.contains("kk_set_intersect")))
-            #expect(!(callNames.contains("kk_set_union")))
-            #expect(!(callNames.contains("kk_set_subtract")))
+            try expectSourceBackedCalls(["intersect", "union", "subtract"], in: body, context: ctx)
         }
     }
 
@@ -96,10 +176,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("unzip", in: callNames))
-            #expect(!(callNames.contains("kk_list_unzip")))
+            try expectSourceBackedCalls(["unzip"], in: body, context: ctx)
         }
     }
 
@@ -117,11 +194,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["unzip"], in: body, context: ctx)
+            let sequenceUnzip = try abiFunctions(["sequence_unzip"], in: RuntimeABISpec.sequenceFunctions)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("unzip", in: callNames))
-            #expect(!(callNames.contains("kk_sequence_unzip")))
-            #expect(!(callNames.contains("kk_list_unzip")))
+            #expect(sequenceUnzip.allSatisfy { !callNames.contains($0.name) })
         }
     }
 
@@ -141,10 +217,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("associateTo", in: callNames))
-            #expect(!(callNames.contains("kk_list_associateTo")))
+            try expectSourceBackedCalls(["associateTo"], in: body, context: ctx)
         }
     }
 
@@ -163,12 +236,39 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let functions = try abiFunctions(
+                ["list_zipWithNext", "list_zipWithNextTransform"],
+                in: RuntimeABISpec.collectionHOFFunctions,
+                privateBridge: true
+            )
             let callNames = extractCallees(from: body, interner: ctx.interner)
+            #expect(functions.allSatisfy { callNames.contains($0.name) })
+            try expectDeclaredCallees(in: body, context: ctx)
+        }
+    }
 
-            #expect(callNames.contains("__kk_list_zipWithNext"))
-            #expect(callNames.contains("__kk_list_zipWithNextTransform"))
-            #expect(!(callNames.contains("kk_list_zipWithNext")))
-            #expect(!(callNames.contains("kk_list_zipWithNextTransform")))
+    @Test
+    func testBuildKIRMarksListChunkedBridgesAsThrowing() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.chunked(2)
+            values.chunked(2) { chunk -> chunk.sum() }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let functions = try abiFunctions(
+                ["list_chunked", "list_chunked_transform"],
+                in: RuntimeABISpec.collectionHOFFunctions,
+                privateBridge: true
+            )
+            #expect(functions.allSatisfy { $0.isThrowing })
+            try expectRuntimeCalls(functions, in: body, interner: ctx.interner)
         }
     }
 
@@ -189,12 +289,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("withIndex", in: callNames))
-            #expect(containsKotlinCallee("forEachIndexed", in: callNames))
-            #expect(!(callNames.contains("kk_list_withIndex")))
-            #expect(!(callNames.contains("kk_list_forEachIndexed")))
+            try expectSourceBackedCalls(["withIndex", "forEachIndexed"], in: body, context: ctx)
         }
     }
 
@@ -216,18 +311,18 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["withIndex"], in: body, context: ctx)
+            let iterator = try abiFunctions(["iterable_iterator"], in: RuntimeABISpec.collectionBridgeFunctions)
+            let eagerIterator = try abiFunctions(["range_iterator"], in: RuntimeABISpec.allFunctions)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("withIndex", in: callNames))
-            #expect(callNames.contains("kk_iterable_iterator"), "Iterable.iterator() must use the lazy throwing bridge, got: \(callNames)")
-            #expect(!(callNames.contains("kk_list_withIndex")))
-            #expect(!(callNames.contains("kk_range_iterator")))
+            #expect(iterator.allSatisfy { callNames.contains($0.name) }, "Iterable.iterator() must use the lazy bridge")
+            #expect(eagerIterator.allSatisfy { !callNames.contains($0.name) })
         }
     }
 
-    /// KSP-977: only exact/custom Iterable receivers bind to the bundled
-    /// Iterable.forEach declaration; receiver-specific forEach families keep
-    /// their existing lowering paths.
+    /// KSP-977 / KUU-604: exact/custom Iterable and concrete List receivers
+    /// bind to the bundled inline Iterable.forEach declaration. Other
+    /// receiver-specific forEach families keep their existing lowering paths.
     @Test
     func testBuildKIRLowersIterableForEachWithoutHijackingOtherReceivers() throws {
         let source = """
@@ -262,19 +357,15 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let iterableBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["forEach"], in: iterableBody, context: ctx)
+            let eagerForEach = try abiFunctions(["list_forEach"], in: RuntimeABISpec.collectionHOFFunctions)
             let iterableCallees = extractCallees(from: iterableBody, interner: ctx.interner)
-            #expect(containsKotlinCallee("forEach", in: iterableCallees))
-            #expect(!(iterableCallees.contains("kk_list_forEach")))
-            #expect(!(iterableCallees.contains("kk_sequence_forEach")))
+            #expect(eagerForEach.allSatisfy { !iterableCallees.contains($0.name) })
 
             let familyBody = try findKIRFunctionBody(named: "receiverFamilies", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["forEach", "forEachIndexed"], in: familyBody, context: ctx)
             let familyCallees = extractCallees(from: familyBody, interner: ctx.interner)
-            #expect(familyCallees.contains("kk_list_forEach"))
-            // No kk_sequence_forEach intrinsic exists; Sequence.forEach is bundled Kotlin source (see CodegenBackendSequenceForEachTests).
-            #expect(!(familyCallees.contains("kk_sequence_forEach")))
-            #expect(containsKotlinCallee("forEach", in: familyCallees))
-            #expect(containsKotlinCallee("forEachIndexed", in: familyCallees))
-            #expect(!(familyCallees.contains("kk_list_forEachIndexed")))
+            #expect(eagerForEach.allSatisfy { !familyCallees.contains($0.name) })
         }
     }
 
@@ -292,11 +383,11 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let functions = try abiFunctions(["list_zip"], in: RuntimeABISpec.collectionHOFFunctions, privateBridge: true)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callNames.contains("__kk_list_zip"))
-            #expect(!(callNames.contains("zip")))
-            #expect(!(callNames.contains("kk_list_zip")))
+            #expect(functions.allSatisfy { callNames.contains($0.name) })
+            #expect(!containsKotlinCallee("zip", in: callNames))
+            try expectDeclaredCallees(in: body, context: ctx)
         }
     }
 
@@ -315,11 +406,15 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["zip"], in: body, context: ctx)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
             #expect(callNames.filter { isKotlinCallee($0, named: "zip") }.count == 2)
-            #expect(!(callNames.contains("__kk_list_zip")))
-            #expect(!(callNames.contains("__kk_list_zip_transform")))
+            let bridges = try abiFunctions(
+                ["list_zip", "list_zip_transform"],
+                in: RuntimeABISpec.collectionHOFFunctions,
+                privateBridge: true
+            )
+            #expect(bridges.allSatisfy { !callNames.contains($0.name) })
         }
     }
 
@@ -338,16 +433,9 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            try expectSourceBackedCalls(["zip"], in: body, context: ctx)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let removedNames = [
-                "kk_string_zip",
-                "kk_string_zipTransform",
-                "kk_string_zip_flat",
-                "kk_string_zipTransform_flat",
-            ]
-            let overlap = removedNames.filter(callNames.contains)
-            #expect(overlap.isEmpty, "Unexpected String runtime calls: \(overlap)")
+            #expect(callNames.filter { isKotlinCallee($0, named: "zip") }.count == 2)
         }
     }
 
@@ -375,23 +463,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let removedNames = [
-                "kk_string_toSortedSet", "kk_string_toSortedSet_flat",
-                "kk_string_toCollection", "kk_string_toCollection_flat",
-                "kk_string_withIndex", "kk_string_withIndex_flat",
-                "kk_string_zipWithNext", "kk_string_zipWithNext_flat",
-                "kk_string_zipWithNextTransform", "kk_string_zipWithNextTransform_flat",
-                "kk_string_zip", "kk_string_zip_flat",
-                "kk_string_zipTransform", "kk_string_zipTransform_flat",
-                "kk_string_chunked_sequence", "kk_string_chunked_sequence_flat",
-                "kk_string_chunked_sequence_transform", "kk_string_chunked_sequence_transform_flat",
-                "kk_string_windowedSequence_partial", "kk_string_windowedSequence_partial_flat",
-                "kk_string_windowedSequence_transform", "kk_string_windowedSequence_transform_flat",
-            ]
-            let overlap = removedNames.filter(callNames.contains)
-            #expect(overlap.isEmpty, "Unexpected String runtime calls: \(overlap)")
+            try expectSourceBackedCalls([
+                "toSortedSet", "toCollection", "withIndex", "zipWithNext", "zip",
+                "chunkedSequence", "windowedSequence",
+            ], in: body, context: ctx)
         }
     }
 
@@ -419,18 +494,10 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let migrated = [
+            try expectSourceBackedCalls([
                 "map", "mapIndexed", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull",
                 "sumBy", "partition", "reduce",
-            ]
-            for name in migrated {
-                #expect(
-                    !callNames.contains("kk_string_\(name)") && !callNames.contains("kk_string_\(name)_flat"),
-                    "String.\(name) must not lower to a runtime call"
-                )
-            }
+            ], in: body, context: ctx)
         }
     }
 
@@ -451,25 +518,24 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let functions = try abiFunctions(
+                ["string_byteInputStream_flat", "string_byteInputStream_charset_flat"],
+                in: RuntimeABISpec.fileIOFunctions,
+                privateBridge: true
+            )
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            let namePairs = [
-                ("__kk_string_byteInputStream_flat", "__kk_string_byteInputStream"),
-                ("__kk_string_byteInputStream_charset_flat", "__kk_string_byteInputStream_charset"),
-            ]
-            for (flatName, rawName) in namePairs {
-                #expect(callNames.contains(flatName), "Missing \(flatName)")
-                #expect(!(callNames.contains(rawName)), "Unexpected raw String stream call \(rawName)")
-            }
+            #expect(functions.allSatisfy { callNames.contains($0.name) })
+            try expectDeclaredCallees(in: body, context: ctx)
         }
     }
 
     @Test
-    func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() {
-        expectNonThrowingCallees([
-            "__kk_string_byteInputStream_flat",
-            "__kk_string_byteInputStream_charset_flat",
-        ])
+    func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() throws {
+        expectNonThrowingCallees(try abiFunctions(
+            ["string_byteInputStream_flat", "string_byteInputStream_charset_flat"],
+            in: RuntimeABISpec.fileIOFunctions,
+            privateBridge: true
+        ))
     }
 
     @Test
@@ -486,25 +552,22 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            // The caller must retain the Kotlin declaration rather than its flat-string bridge.
+            try expectSourceBackedCalls(["equals"], in: body, context: ctx)
+            let flatEquals = try abiFunctions(["string_equals_flat"], in: RuntimeABISpec.stringFunctions, privateBridge: true)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            // `String.equals(String?)` is bundled Kotlin source now. The
-            // caller must preserve that source-backed declaration instead of
-            // lowering directly to its private flat-string bridge.
-            #expect(containsKotlinCallee("equals", in: callNames))
-            #expect(!(callNames.contains("kk_string_equals")))
-            #expect(!(callNames.contains("__kk_string_equals_flat")))
+            #expect(flatEquals.allSatisfy { !callNames.contains($0.name) })
         }
     }
 
     @Test
-    func testABILoweringMarksStringEqualsFlatHelperAsNonThrowing() {
-        let pass = ABILoweringPass()
+    func testABILoweringMarksStringEqualsFlatHelperAsNonThrowing() throws {
+        expectNonThrowingCallees(try abiFunctions(["string_equals_flat"], in: RuntimeABISpec.stringFunctions, privateBridge: true))
         let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        #expect(callees.contains(interner.intern("__kk_string_equals_flat")))
-        #expect(!(callees.contains(interner.intern("kk_string_equals"))))
+        let classified = ABILoweringPass().nonThrowingCallees(interner: interner)
+        let registered = Set(RuntimeABIExterns.allExterns.map { interner.intern($0.name) })
+            .union(RuntimeABISpec.compilerInternalNonThrowingCalleeNames.map(interner.intern))
+        #expect(classified.isSubset(of: registered))
     }
 
     @Test
@@ -521,10 +584,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(containsKotlinCallee("withDefault", in: callNames))
-            #expect(!(callNames.contains("kk_map_withDefault")))
+            try expectSourceBackedCalls(["withDefault"], in: body, context: ctx)
         }
     }
 
@@ -544,47 +604,33 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let functions = try abiFunctions(["list_windowed"], in: RuntimeABISpec.collectionHOFFunctions, privateBridge: true)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callNames.contains("__kk_list_windowed"))
-            #expect(!(callNames.contains("windowed")))
-            #expect(!(callNames.contains("kk_list_windowed_default")))
-            #expect(!(callNames.contains("kk_list_windowed")))
-            #expect(!(callNames.contains("kk_list_windowed_partial")))
+            #expect(functions.allSatisfy { callNames.contains($0.name) })
+            #expect(!containsKotlinCallee("windowed", in: callNames))
+            try expectDeclaredCallees(in: body, context: ctx)
         }
     }
 
     @Test
-    func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() {
-        expectNonThrowingCallees([
-            "__kk_atomic_int_load",
-            "__kk_atomic_int_store",
-            "__kk_atomic_long_compareAndExchange",
-            "__kk_atomic_ref_exchange",
-        ])
+    func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() throws {
+        expectNonThrowingCallees(try abiFunctions([
+            "atomic_int_load", "atomic_int_store", "atomic_long_compareAndExchange", "atomic_ref_exchange",
+        ], in: RuntimeABISpec.atomicFunctions, privateBridge: true))
     }
 
     @Test
-    func testABILoweringMarksNativeRefRuntimeHelpersAsNonThrowing() {
-        expectNonThrowingCallees([
-            "kk_weak_ref_create",
-            "kk_weak_ref_get",
-            "kk_weak_ref_clear",
-            "kk_cleaner_create",
-            "kk_cleaner_dispose",
-            "kk_gc_collect",
-            "kk_gc_schedule",
-            "kk_gc_target_heap_bytes",
-            "kk_gc_target_heap_utilization",
-            "kk_gc_max_heap_bytes",
-            "__kk_debugging_is_thread_state_runnable",
-            "__kk_debugging_force_checked_shutdown_get",
-            "__kk_debugging_force_checked_shutdown_set",
-            "__kk_debugging_dump_memory",
-            "kk_debugging_gc_suspend_count",
-            "kk_debugging_thread_count",
-            "kk_debugging_global_object_count",
-        ])
+    func testABILoweringMarksNativeRefRuntimeHelpersAsNonThrowing() throws {
+        let publicFunctions = try abiFunctions([
+            "weak_ref_create", "weak_ref_get", "weak_ref_clear", "cleaner_create", "cleaner_dispose",
+            "gc_collect", "gc_schedule", "gc_target_heap_bytes", "gc_target_heap_utilization", "gc_max_heap_bytes",
+            "debugging_gc_suspend_count", "debugging_thread_count", "debugging_global_object_count",
+        ], in: RuntimeABISpec.nativeRefFunctions + RuntimeABISpec.memoryFunctions)
+        let privateFunctions = try abiFunctions([
+            "debugging_is_thread_state_runnable", "debugging_force_checked_shutdown_get",
+            "debugging_force_checked_shutdown_set", "debugging_dump_memory",
+        ], in: RuntimeABISpec.nativeRefFunctions, privateBridge: true)
+        expectNonThrowingCallees(publicFunctions + privateFunctions)
     }
 
     @Test
@@ -603,20 +649,17 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let combineFunction = try findKIRFunction(named: "combine", in: module, interner: ctx.interner)
-            let plusCall = try #require(combineFunction.body.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
-                }
-                return ctx.interner.resolve(callee) == "plus"
-            })
-            guard case let .call(_, _, arguments, _, _, _, _, _) = plusCall else {
-                Issue.record("Expected combine to lower to a call to plus.")
-                return
-            }
+            let plusFunction = try findKIRFunction(named: "plus", in: module, interner: ctx.interner)
+            let plusCall = try #require(combineFunction.body.compactMap { instruction -> (callee: InternedString, arguments: [KIRExprID])? in
+                guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction,
+                      symbol == plusFunction.symbol else { return nil }
+                return (callee, arguments)
+            }.first)
+            #expect(plusCall.callee == plusFunction.name)
 
             let implicitReceiverSymbol = try #require(combineFunction.params.first?.symbol)
-            #expect(arguments.count == 2)
-            guard case let .symbolRef(insertedReceiver)? = module.arena.expr(arguments[0]) else {
+            #expect(plusCall.arguments.count == 2)
+            guard case let .symbolRef(insertedReceiver)? = module.arena.expr(plusCall.arguments[0]) else {
                 Issue.record("Expected first argument to be a symbolRef for implicit this receiver.")
                 return
             }
@@ -641,9 +684,8 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_box_int"))
-            #expect(callNames.contains("kk_box_bool"))
+            let functions = try abiFunctions(["box_int_static", "box_bool_static"], in: RuntimeABISpec.staticPrimitiveBoxingFunctions)
+            try expectRuntimeCalls(functions, in: body, interner: ctx.interner)
         }
     }
 
@@ -665,8 +707,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            let boxingThrowFlags = ["kk_box_int", "kk_box_bool", "kk_unbox_int", "kk_unbox_bool"]
-                .flatMap { throwFlags[$0] ?? [] }
+            let functions = try abiFunctions(
+                ["box_int_static", "box_bool_static", "unbox_int_static", "unbox_bool_static"],
+                in: RuntimeABISpec.staticPrimitiveBoxingFunctions
+            )
+            #expect(functions.allSatisfy { !$0.isThrowing })
+            let boxingThrowFlags = functions.flatMap { throwFlags[$0.name] ?? [] }
             #expect(!(boxingThrowFlags.isEmpty))
             #expect(boxingThrowFlags.allSatisfy { $0 == false })
         }
@@ -696,29 +742,21 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            func flags(_ primary: String, _ aliases: String...) -> [Bool]? {
-                ([primary] + aliases).compactMap { throwFlags[$0] }.first
-            }
             func importedFlags(_ name: String) -> [Bool]? {
                 throwFlags.first { isKotlinCallee($0.key, named: name) }?.value
             }
-            #expect(throwFlags["kk_string_split_flat"] == nil)
-            #expect(throwFlags["kk_string_split"] == nil)
+            try expectDeclaredCallees(in: body, context: ctx)
+            let sourceOnlyRuntimeAlternatives = try abiFunctions([
+                "string_split_flat", "string_isNullOrEmpty_flat", "string_isNullOrBlank_flat",
+            ], in: RuntimeABISpec.stringFunctions)
+            #expect(sourceOnlyRuntimeAlternatives.allSatisfy { throwFlags[$0.name] == nil })
             #expect(importedFlags("split") != nil)
-            // KSP-406: subSequence is bundled Kotlin source (delegates to substring),
-            // so it no longer lowers to a String-specific runtime helper.
-            #expect(throwFlags["kk_string_subSequence_flat"] == nil)
-            #expect(throwFlags["kk_string_subSequence"] == nil)
-            #expect(throwFlags["kk_string_substring_flat"] == nil)
-            #expect(throwFlags["kk_string_substring"] == nil)
-            #expect(flags("kk_string_isNullOrEmpty", "kk_string_isNullOrEmpty_flat", "__string_isNullOrEmpty_flat") == nil)
-            #expect(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat") == nil)
-            #expect(throwFlags["kk_string_repeat_flat"] == nil)
-            #expect(throwFlags["kk_string_repeat"] == nil)
             // KSP-414: toInt is imported from the artifact rather than routed
             // through a public kk_string_toInt_flat helper.
             #expect(importedFlags("toInt")?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true } == true)
+            let toDouble = try abiFunctions(["string_toDouble_flat"], in: RuntimeABISpec.stringFunctions, privateBridge: true)
+            #expect(toDouble.allSatisfy { $0.isThrowing })
+            try expectRuntimeCalls(toDouble, in: body, interner: ctx.interner)
         }
     }
 
@@ -741,7 +779,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
             // negative size), not bare kk_array_new.
-            expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
+            try expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
         }
     }
 
@@ -752,9 +790,13 @@ struct BuildKIRCodegenRegressionTests {
             val values = intArrayOf(1, 2, 3)
             val mapped = values.map { it * 2 }
             val mappedNotNull = values.mapNotNull { if (it > 1) it.toString() else null }
+            val unsignedValues = UByteArray(3) { (it + 1).toUByte() }
+            val unsignedMappedNotNull = unsignedValues.mapNotNull {
+                if (it.toInt() > 1) it.toString() else null
+            }
             val total = values.fold(0) { accumulator, value -> accumulator + value }
             val rendered = values.joinToString(transform = { it.toString() })
-            return listOf(mapped, mappedNotNull, total, rendered)
+            return listOf(mapped, mappedNotNull, unsignedMappedNotNull, total, rendered)
         }
         """
 
@@ -767,7 +809,8 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             #expect(containsKotlinCallee("map", in: callNames))
-            #expect(containsKotlinCallee("mapNotNull", in: callNames))
+            // Both signed and unsigned primitive-array calls must bind to source.
+            #expect(callNames.filter { isKotlinCallee($0, named: "mapNotNull") }.count == 2)
             #expect(containsKotlinCallee("fold", in: callNames))
             // Source-backed default lowering may retain the default suffix or
             // emit the resolved source function name directly.
@@ -775,9 +818,7 @@ struct BuildKIRCodegenRegressionTests {
                 containsKotlinCallee("joinToString", in: callNames) ||
                     containsKotlinCallee("joinToString$default", in: callNames)
             )
-            #expect(!callNames.contains("kk_array_map"))
-            #expect(!callNames.contains("kk_array_fold"))
-            #expect(!callNames.contains("kk_array_joinToString_transform"))
+            try expectDeclaredCallees(in: body, context: ctx)
         }
     }
 
@@ -798,13 +839,14 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
+            try expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
         }
     }
 
     @Test
     func testUShortArrayStorageConstructorUsesSignedArrayViewBridge() throws {
         let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
         fun main(): Short {
             val storage = shortArrayOf(1, -1)
             val values = UShortArray(storage)
@@ -819,10 +861,12 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let viewBridge = try abiFunctions(["shortArray_asUShortArray"], in: RuntimeABISpec.collectionFunctions, privateBridge: true)
+            let objectAllocation = try abiFunctions(["object_new"], in: RuntimeABISpec.arrayFunctions)
             let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("__kk_shortArray_asUShortArray"))
-            #expect(callNames.contains("asShortArray"))
-            #expect(!callNames.contains("kk_object_new"))
+            #expect(viewBridge.allSatisfy { callNames.contains($0.name) })
+            #expect(containsKotlinCallee("asShortArray", in: callNames))
+            #expect(objectAllocation.allSatisfy { !callNames.contains($0.name) })
         }
     }
 
@@ -852,20 +896,21 @@ struct BuildKIRCodegenRegressionTests {
                 Issue.record("Expected make() to return a nominal UIntArray type.")
                 return
             }
-            #expect(ctx.interner.resolve(symbol.name) == "UIntArray")
+            let uintArraySymbol = try #require(sema.symbols.lookup(fqName: ["kotlin", "UIntArray"].map(ctx.interner.intern)))
+            #expect(symbol.id == uintArraySymbol)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_array_new_checked"))
-            #expect(callNames.contains("kk_array_set"))
-            #expect(callNames.contains("kk_array_get"))
+            try expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
 
             let makeBody = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
             let makeCallNames = extractCallees(from: makeBody, interner: ctx.interner)
-            #expect(makeCallNames.contains("kk_array_new"))
-            #expect(makeCallNames.filter { $0 == "kk_array_set" }.count == 2)
-            #expect(!makeCallNames.contains("kk_array_of"))
+            let allocation = try abiFunctions(["array_new"], in: RuntimeABISpec.arrayFunctions)
+            let stores = try abiFunctions(["array_set"], in: RuntimeABISpec.arrayFunctions)
+            let genericFactory = try abiFunctions(["array_of"], in: RuntimeABISpec.collectionFunctions)
+            #expect(allocation.allSatisfy { makeCallNames.contains($0.name) })
+            #expect(stores.allSatisfy { function in makeCallNames.filter { $0 == function.name }.count == 2 })
+            #expect(genericFactory.allSatisfy { !makeCallNames.contains($0.name) })
             #expect(!makeCallNames.contains("uintArrayOf"))
         }
     }
@@ -954,13 +999,9 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("__kk_mutable_list_add_at"))
-            #expect(callNames.contains("__kk_mutable_list_set"))
-
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["__kk_mutable_list_add_at"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["__kk_mutable_list_set"]?.allSatisfy { $0 == true } == true)
+            let functions = try abiFunctions(["mutable_list_add_at", "mutable_list_set"], in: RuntimeABISpec.collectionFunctions, privateBridge: true)
+            #expect(functions.allSatisfy { $0.isThrowing })
+            try expectRuntimeCalls(functions, in: body, interner: ctx.interner)
         }
     }
 
@@ -971,6 +1012,8 @@ struct BuildKIRCodegenRegressionTests {
             list.add(1)
             set.add(1)
             map.put("a", 1)
+            map.remove("a")
+            map.clear()
         }
         """
 
@@ -981,10 +1024,11 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["__kk_mutable_list_add"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["__kk_mutable_set_add"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["__kk_mutable_map_put"]?.allSatisfy { $0 == true } == true)
+            let functions = try abiFunctions([
+                "mutable_list_add", "mutable_set_add", "mutable_map_put", "mutable_map_remove", "mutable_map_clear",
+            ], in: RuntimeABISpec.collectionFunctions, privateBridge: true)
+            #expect(functions.allSatisfy { $0.isThrowing })
+            try expectRuntimeCalls(functions, in: body, interner: ctx.interner)
         }
     }
 
@@ -1047,7 +1091,7 @@ struct BuildKIRCodegenRegressionTests {
                         if case let .named(path, _, _) = typeRef {
                             #expect(!(path.isEmpty))
                         }
-                    } else if ctx.interner.resolve(property.name) == "delegated" {
+                    } else if property.delegateExpression != nil {
                         sawDelegatedPropertyWithoutType = true
                     }
                 default:
@@ -1064,18 +1108,34 @@ struct BuildKIRCodegenRegressionTests {
             let sema = try #require(ctx.sema)
             #expect(!(sema.symbols.allSymbols().isEmpty))
             #expect(!(sema.bindings.exprTypes.isEmpty))
-            let decorateSymbol = sema.symbols.allSymbols().first(where: { symbol in
-                ctx.interner.resolve(symbol.name) == "decorate"
-            })
-            #expect(decorateSymbol != nil)
-            if let decorateSymbol {
-                let signature = sema.symbols.functionSignature(for: decorateSymbol.id)
-                #expect(signature?.receiverType != nil)
-            }
+            let decorateSymbol = try #require(sema.symbols.lookup(fqName: ["typed", "demo", "decorate"].map(ctx.interner.intern)))
+            let signature = try #require(sema.symbols.functionSignature(for: decorateSymbol))
+            #expect(signature.receiverType == sema.types.stringType)
 
             let codes = Set(ctx.diagnostics.diagnostics.map(\.code))
             #expect(codes.contains("KSWIFTK-TYPE-0002"))
             #expect(codes.contains("KSWIFTK-SEMA-0001"))
+        }
+    }
+
+    @Test
+    func testRepeatLabeledReturnJumpsToIterationEndInsteadOfReturningFromEnclosingFunction() throws {
+        for (label, source) in [
+            ("implicit", "fun main() { var s = 0; repeat(5) { if (it == 3) return@repeat; s += it }; println(s) }"),
+            ("explicit", "fun main() { var s = 0; repeat(5) lbl@{ if (it == 3) return@lbl; s += it }; println(s) }"),
+        ] {
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+                try runToKIR(ctx)
+                let module = try #require(ctx.kir)
+                let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+                let returnCount = body.filter { instruction in
+                    if case .returnUnit = instruction { return true }
+                    return false
+                }.count
+                // Only the implicit trailing return of `main` may remain (\(label)).
+                #expect(returnCount <= 1, "\(label): return@ must not return from the enclosing function")
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ Exclusion pipeline (reproduces docs/dead-code-audit.md):
                         Swift-name aliases where @_cdecl("__kk_x") is declared
                         on `func kk_x(...)` and tests call the Swift name
   5. Runtime-internal — non-@_cdecl kk_* appearances inside Sources/Runtime
-                        (excluding fatalError(...) diagnostic-message text)
+                        (excluding comment-only lines and fatalError(...) text)
 
 Output categories:
   A: Completely unreachable — no path from compiler, tests, or runtime internals
@@ -186,6 +186,7 @@ LC_ALL=C sort -u "$WORK/kk_tests.txt" "$WORK/kk_tests_swiftname.txt" -o "$WORK/k
 # Also exclude fatalError(...) lines because their diagnostics commonly repeat the
 # enclosing function's own kk_* name instead of calling that symbol.
 (grep -rh '_*kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
+    | grep -vE '^[[:space:]]*//' \
     | grep -v '@_cdecl' \
     | grep -vE '\bfunc _*kk_' \
     | grep -v 'fatalError(' \
@@ -281,6 +282,7 @@ FIXTURES=(
   "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
   "kk_http_response_errorMessage|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
   "__kk_mutable_map_iterator_hasNext|dead_A.txt|absent|Runtime calls its unique Swift-name alias"
+  "kk_transfer_object|dead_B.txt|present|A comment-only Runtime mention is not an internal call"
 )
 
 if [[ $SELFTEST -eq 1 ]]; then

@@ -14,9 +14,7 @@
 /// `String.compareTo` maps to `__kk_string_compareTo_member`.
 ///
 /// Char is intentionally excluded: it already resolves through its own
-/// `kk_char_compareTo` synthetic stub, which returns the raw codepoint
-/// difference (matching `Character.compare`) rather than the sign (-1/0/1) that
-/// `kk_primitive_compareTo` produces.
+/// `kk_char_compareTo` synthetic stub, which also returns the sign (-1/0/1).
 extension CallLowerer {
     func tryLowerPrimitiveCompareTo(
         _ exprID: ExprID,
@@ -28,27 +26,49 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
+        precomputedReceiver: KIRExprID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard args.count == 1,
-              interner.resolve(calleeName) == "compareTo",
+              calleeName == knownNames.compareTo,
               let receiverType = sema.bindings.exprTypes[receiverExpr],
-              let kind = primitiveCompareABIKind(for: receiverType, sema: sema),
-              kind != .char
+              let receiverKind = primitiveCompareABIKind(for: receiverType, sema: sema),
+              receiverKind != .char,
+              let argType = sema.bindings.exprTypes[args[0].expr]
         else {
             return nil
         }
-        // Only handle same-kind comparisons (e.g. Int.compareTo(Int)). Mixed
-        // numeric overloads such as Int.compareTo(Double) require widening the
-        // receiver to the common type before comparing, which this raw-value
-        // path cannot express; let those fall through unchanged.
-        guard let argType = sema.bindings.exprTypes[args[0].expr],
-              primitiveCompareABIKind(for: argType, sema: sema) == kind
-        else {
+        let argumentKind = primitiveCompareABIKind(for: argType, sema: sema)
+        func isSignedNumeric(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            case .primitive(.byte, _), .primitive(.short, _), .primitive(.int, _),
+                 .primitive(.long, _), .primitive(.float, _), .primitive(.double, _):
+                true
+            default:
+                false
+            }
+        }
+        let isNumericComparison = isSignedNumeric(receiverType) && isSignedNumeric(argType)
+        guard argumentKind == receiverKind || isNumericComparison else {
             return nil
         }
 
-        let lhsID = driver.lowerExpr(
+        let kind: PrimitiveCompareABIKind
+        if isNumericComparison {
+            if receiverKind == .double || argumentKind == .double {
+                kind = .double
+            } else if receiverKind == .float || argumentKind == .float {
+                kind = .float
+            } else if receiverKind == .long || argumentKind == .long {
+                kind = .long
+            } else {
+                kind = .int
+            }
+        } else {
+            kind = receiverKind
+        }
+        var lhsID = precomputedReceiver ?? driver.lowerExpr(
             receiverExpr,
             ast: ast,
             sema: sema,
@@ -57,7 +77,13 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let rhsID = driver.lowerExpr(
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if precomputedReceiver != nil, nonNullReceiverType != receiverType {
+            let unboxedReceiver = arena.appendTemporary(type: nonNullReceiverType)
+            instructions.append(.copy(from: lhsID, to: unboxedReceiver))
+            lhsID = unboxedReceiver
+        }
+        var rhsID = driver.lowerExpr(
             args[0].expr,
             ast: ast,
             sema: sema,
@@ -66,11 +92,23 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        if kind == .float || kind == .double {
+            lhsID = widenIntegerOperandToFloatingPoint(
+                lhsID, operandTypeID: nonNullReceiverType,
+                isFloatingPoint: receiverKind == .float || receiverKind == .double, toDouble: kind == .double,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            rhsID = widenIntegerOperandToFloatingPoint(
+                rhsID, operandTypeID: argType,
+                isFloatingPoint: argumentKind == .float || argumentKind == .double, toDouble: kind == .double,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
         let kindLiteral = Int64(kind.rawValue)
         let kindExpr = arena.appendExpr(.intLiteral(kindLiteral), type: sema.types.intType)
         instructions.append(.constValue(result: kindExpr, value: .intLiteral(kindLiteral)))
 
-        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.intType
+        let resultType = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.intType)
         let result = arena.appendTemporary(type: resultType)
         instructions.append(.call(
             symbol: nil,

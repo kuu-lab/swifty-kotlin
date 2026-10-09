@@ -30,7 +30,7 @@ extension BuildKIRRegressionTests {
             callees.contains("measureTimedValue"),
             "Expected a call to bundled TimeSource.measureTimedValue"
         )
-        #expect(!callees.contains("__kk_time_source_mark_now"))
+        #expect(!callees.contains(runtimeCallee(.timeSourceMarkNow, tier: .privateBridge)))
     }
 
     /// KSP-1475: compiler-only contract DSL lambdas must not leave runtime KIR.
@@ -67,7 +67,7 @@ extension BuildKIRRegressionTests {
             "Compiler-only contract call must not be emitted into KIR: \(allCallees)"
         )
         #expect(
-            !allCallees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }),
+            !allCallees.contains(where: { $0.hasPrefix(EnumPropertyHelperNames.getterPrefix) }),
             "Contract effect enum access must not emit constructor-property helpers: \(allCallees)"
         )
     }

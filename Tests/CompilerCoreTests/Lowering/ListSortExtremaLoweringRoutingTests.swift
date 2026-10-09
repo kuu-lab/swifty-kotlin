@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -30,18 +31,18 @@ struct ListSortExtremaLoweringRoutingTests {
     /// The legacy `kk_list_*` ABI surface for the List sorting/extrema APIs,
     /// as registered in `RuntimeABISpec+CollectionHOF.swift`.  Matched exactly
     /// so `kk_list_sorted` does not also match `kk_list_sortedWith`.
-    static let legacyListSortExtremaRuntimeCallees: Set<String> = [
-        "kk_list_sorted", "kk_list_sorted_primitive",
-        "kk_list_sortedBy", "kk_list_sortedBy_primitive",
-        "kk_list_sortedDescending", "kk_list_sortedDescending_primitive",
-        "kk_list_sortedByDescending", "kk_list_sortedByDescending_primitive",
-        "kk_list_sortedWith",
-        "kk_list_max", "kk_list_maxOrNull", "kk_list_maxBy",
-        "kk_list_maxByOrNull", "kk_list_maxOfOrNull",
-        "kk_list_min", "kk_list_minOrNull", "kk_list_minBy",
-        "kk_list_minByOrNull", "kk_list_minOfOrNull",
+    static let legacyListSortExtremaRuntimeOperations: Set<String> = [
+        "list_sorted", "list_sorted_primitive",
+        "list_sortedBy", "list_sortedBy_primitive",
+        "list_sortedDescending", "list_sortedDescending_primitive",
+        "list_sortedByDescending", "list_sortedByDescending_primitive",
+        "list_sortedWith",
+        "list_max", "list_maxOrNull", "list_maxBy",
+        "list_maxByOrNull", "list_maxOfOrNull",
+        "list_min", "list_minOrNull", "list_minBy",
+        "list_minByOrNull", "list_minOfOrNull",
         // KSP-1511
-        "kk_list_shuffled", "kk_list_shuffled_random",
+        "list_shuffled", "list_shuffled_random",
     ]
 
     /// Every callee name the removed KSP-426 block used to enumerate in the two
@@ -57,56 +58,6 @@ struct ListSortExtremaLoweringRoutingTests {
         "maxWith", "minWith", "maxWithOrNull", "minWithOrNull",
         "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
     ]
-
-    static let listSortExtremaSource = """
-    import kotlin.random.Random
-
-    fun main() {
-        val nums = listOf(3, 1, 4, 1, 5)
-        println(nums.sorted())
-        println(nums.sortedDescending())
-        println(nums.sortedBy { it })
-        println(nums.sortedByDescending { it })
-        println(nums.sortedWith { a, b -> a - b })
-        println(nums.shuffled())
-        println(nums.shuffled(Random))
-        println(nums.max())
-        println(nums.min())
-        println(nums.maxOrNull())
-        println(nums.minOrNull())
-        println(nums.maxBy { it })
-        println(nums.minBy { it })
-        println(nums.maxByOrNull { it })
-        println(nums.minByOrNull { it })
-        println(nums.maxOf { it })
-        println(nums.minOf { it })
-        println(nums.maxOfOrNull { it })
-        println(nums.minOfOrNull { it })
-        println(nums.maxWith { a, b -> a - b })
-        println(nums.minWith { a, b -> a - b })
-        println(nums.maxWithOrNull(naturalOrder()))
-        println(nums.minWithOrNull(naturalOrder()))
-        println(nums.maxOfWith(naturalOrder()) { it })
-        println(nums.minOfWith(naturalOrder()) { it })
-        println(nums.maxOfWithOrNull(naturalOrder()) { it })
-        println(nums.minOfWithOrNull(naturalOrder()) { it })
-    }
-    """
-
-    /// Runs only `CollectionLiteralLoweringPass`, so a failure names that pass
-    /// rather than some later rewrite in `LoweringPhase`.
-    static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
 
     /// `.call` / `.virtualCall` callees across *every* function in the module,
     /// not just `main`: a rewrite that fired inside an injected stdlib body
@@ -146,7 +97,7 @@ struct ListSortExtremaLoweringRoutingTests {
     /// calls, and no legacy `kk_list_*` name reaches the lowered module.
     @Test
     func sourceBackedListSortAndExtremaCallsSurviveCollectionLiteralLowering() throws {
-        try withTemporaryFile(contents: Self.listSortExtremaSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "ListSortExtremaRouting",
@@ -155,7 +106,7 @@ struct ListSortExtremaLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let survivors = Set(Self.sortExtremaCalls(in: body, interner: ctx.interner).map(\.name))
             let missing = Self.expectedSourceCallees.subtracting(survivors).sorted()
@@ -165,7 +116,7 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(Self.legacyListSortExtremaRuntimeCallees)
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
             #expect(
                 redirects.isEmpty,
                 "no legacy kk_list_* sorting/extrema rewrite may reach lowered KIR; got \(redirects.sorted())"
@@ -178,7 +129,7 @@ struct ListSortExtremaLoweringRoutingTests {
     /// `externalLinkName` to bridge through.
     @Test
     func listSortAndExtremaCalleesResolveToBundledKotlinSource() throws {
-        try withTemporaryFile(contents: Self.listSortExtremaSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "ListSortExtremaSymbols",
@@ -211,6 +162,158 @@ struct ListSortExtremaLoweringRoutingTests {
                     "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
                 )
             }
+        }
+    }
+
+    /// KUU-542: `Set` receivers have no Set-specific bundled declarations for
+    /// most of the extrema/sorting family — only `minOrNull` / `maxOrNull` /
+    /// `sorted` / `sortedDescending` exist in `SetHOF.kt`.  Every other call
+    /// must resolve to the generic `Iterable<T>` source declarations.  Before
+    /// the fix these calls stayed unbound and `CallLowerer` emitted the
+    /// spec-only `kk_list_*` bridges, which failed at link time with
+    /// `Undefined symbols`.
+    @Test
+    func setSortAndExtremaCallsResolveToBundledKotlinSource() throws {
+        let source = """
+        fun main() {
+            val nums = setOf(3, 1, 4, 1, 5)
+            println(nums.sorted())
+            println(nums.sortedDescending())
+            println(nums.sortedBy { it })
+            println(nums.sortedByDescending { it })
+            println(nums.sortedWith { a, b -> a - b })
+            println(nums.max())
+            println(nums.min())
+            println(nums.maxOrNull())
+            println(nums.minOrNull())
+            println(nums.maxBy { it })
+            println(nums.minBy { it })
+            println(nums.maxByOrNull { it })
+            println(nums.minByOrNull { it })
+            println(nums.maxOf { it })
+            println(nums.minOf { it })
+            println(nums.maxOfOrNull { it })
+            println(nums.minOfOrNull { it })
+            println(nums.maxWith { a, b -> a - b })
+            println(nums.minWith { a, b -> a - b })
+            println(nums.maxWithOrNull(naturalOrder()))
+            println(nums.minWithOrNull(naturalOrder()))
+            println(nums.maxOfWith(naturalOrder()) { it })
+            println(nums.minOfWith(naturalOrder()) { it })
+            println(nums.maxOfWithOrNull(naturalOrder()) { it })
+            println(nums.minOfWithOrNull(naturalOrder()) { it })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "SetSortExtremaSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 25, "expected 25 sorting/extrema calls; got \(calls.count)")
+
+            let sema = try #require(ctx.sema)
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): production KIR must carry a resolved symbol")
+                let symbol = try #require(sema.symbols.symbol(symbolID), "\(call.name): symbol must be in the table")
+
+                #expect(!symbol.flags.contains(.synthetic), "\(call.name) must not resolve to a synthetic stub")
+                #expect(
+                    sema.symbols.externalLinkName(for: symbolID) == nil,
+                    "\(call.name) must not carry an external link name"
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(call.name) must be source-backed")
+
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(call.name): missing source file")
+                let sourcePath = ctx.sourceManager.path(of: fileID)
+                #expect(
+                    sourcePath.hasPrefix("__bundled_kotlin/"),
+                    "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
+                )
+            }
+
+            let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
+            #expect(
+                redirects.isEmpty,
+                "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
+            )
+        }
+    }
+
+    /// KUU-542: a statically `Collection<T>`-typed receiver took the same
+    /// broken path — the whole min-family fell through to `kk_list_*` /
+    /// bare-member-name fallbacks.  These must also bind the bundled
+    /// `Iterable<T>` declarations.
+    @Test
+    func collectionTypedExtremaCallsResolveToBundledKotlinSource() throws {
+        let source = """
+        fun main() {
+            val nums: Collection<Int> = setOf(3, 1, 4, 1, 5)
+            println(nums.min())
+            println(nums.minOrNull())
+            println(nums.minBy { it })
+            println(nums.minByOrNull { it })
+            println(nums.minOf { it })
+            println(nums.minOfOrNull { it })
+            println(nums.minWith { a, b -> a - b })
+            println(nums.minWithOrNull(naturalOrder()))
+            println(nums.minOfWith(naturalOrder()) { it })
+            println(nums.minOfWithOrNull(naturalOrder()) { it })
+            println(nums.maxByOrNull { it })
+            println(nums.maxOfOrNull { it })
+            println(nums.sortedByDescending { it })
+            println(nums.sortedWith(naturalOrder()))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionTypedExtremaSymbols",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
+            #expect(calls.count == 14, "expected 14 sorting/extrema calls; got \(calls.count)")
+
+            let sema = try #require(ctx.sema)
+            for call in calls {
+                let symbolID = try #require(call.symbol, "\(call.name): production KIR must carry a resolved symbol")
+                let symbol = try #require(sema.symbols.symbol(symbolID), "\(call.name): symbol must be in the table")
+
+                #expect(!symbol.flags.contains(.synthetic), "\(call.name) must not resolve to a synthetic stub")
+                #expect(
+                    sema.symbols.externalLinkName(for: symbolID) == nil,
+                    "\(call.name) must not carry an external link name"
+                )
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID), "\(call.name) must be source-backed")
+
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbolID), "\(call.name): missing source file")
+                let sourcePath = ctx.sourceManager.path(of: fileID)
+                #expect(
+                    sourcePath.hasPrefix("__bundled_kotlin/"),
+                    "\(call.name) must resolve into the bundled Kotlin stdlib; got \(sourcePath)"
+                )
+            }
+
+            let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations)
+            #expect(
+                redirects.isEmpty,
+                "no spec-only kk_list_* sorting/extrema bridge may reach lowered KIR; got \(redirects.sorted())"
+            )
         }
     }
 
@@ -284,7 +387,7 @@ struct ListSortExtremaLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(mainCallees.contains("sortedWith"), "the user sortedWith must stay; callees: \(mainCallees)")
@@ -292,7 +395,7 @@ struct ListSortExtremaLoweringRoutingTests {
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
             #expect(
-                callees.intersection(Self.legacyListSortExtremaRuntimeCallees).isEmpty,
+                LoweringTestRuntime.operations(in: callees).intersection(Self.legacyListSortExtremaRuntimeOperations).isEmpty,
                 "a user function may never be rewritten to a runtime sorter; callees: \(callees.sorted())"
             )
         }
@@ -328,7 +431,7 @@ struct ListSortExtremaLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(
@@ -337,7 +440,7 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
-            let redirects = callees.intersection(["kk_map_maxByOrNull", "kk_map_minByOrNull"])
+            let redirects = LoweringTestRuntime.operations(in: callees).intersection(["map_maxByOrNull", "map_minByOrNull"])
             #expect(
                 redirects.isEmpty,
                 "Map extrema must not reach the implementation-less kk_map_* exports; got \(redirects.sorted())"
@@ -375,7 +478,7 @@ struct ListSortExtremaLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let callees = Set(Self.allCallees(in: module, interner: ctx.interner))
             #expect(
                 callees.isSuperset(of: ["max", "min", "maxOrNull", "minOrNull"]),
@@ -383,7 +486,8 @@ struct ListSortExtremaLoweringRoutingTests {
             )
 
             let redirects = callees.filter {
-                $0.hasPrefix("kk_sequence_max") || $0.hasPrefix("kk_sequence_min")
+                LoweringTestRuntime.operation(of: $0)?.hasPrefix("sequence_max") == true
+                    || LoweringTestRuntime.operation(of: $0)?.hasPrefix("sequence_min") == true
             }
             #expect(
                 redirects.isEmpty,
@@ -416,7 +520,7 @@ struct ListSortExtremaLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(

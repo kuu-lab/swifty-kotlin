@@ -57,7 +57,7 @@ struct ArrayConstructorResolutionTests {
                   let range = ast.arena.exprRange(exprID),
                   !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_"),
                   case let .nameRef(name, _) = ast.arena.expr(callee),
-                  ctx.interner.resolve(name) == "Array"
+                  name == KnownCompilerNames(interner: ctx.interner).array
             else {
                 continue
             }

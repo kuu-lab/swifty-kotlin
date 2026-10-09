@@ -4,6 +4,232 @@ import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testOptionalExpectationDoesNotRequireActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            @OptIn(ExperimentalMultiplatform::class)
+            @OptionalExpectation
+            expect annotation class JsName(val name: String)
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" },
+            "Optional expect annotation classes may omit an actual declaration: \(errors)"
+        )
+
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("kmp"),
+            ctx.interner.intern("JsName"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol) == nil)
+    }
+
+    @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(!errors.isEmpty)
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testExpectClassBodylessMembersLinkToActual() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """,
+            """
+            actual abstract class Charset {
+                actual fun newEncoder(): Int = 1
+                actual final override fun equals(other: Any?): Boolean = false
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual abstract fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let acName = [ctx.interner.intern("AC")]
+        let classes = sema.symbols.lookupAll(fqName: acName).compactMap { sema.symbols.symbol($0) }
+        let expectClass = try #require(classes.first { $0.flags.contains(.expectDeclaration) })
+        let actualClass = try #require(classes.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectClass.id) == actualClass.id)
+
+        let methodName = acName + [ctx.interner.intern("name")]
+        let methods = sema.symbols.lookupAll(fqName: methodName).compactMap { sema.symbols.symbol($0) }
+        let actualMethod = try #require(methods.first { $0.flags.contains(.actualDeclaration) })
+        #expect(actualMethod.flags.contains(.abstractType))
+    }
+
+    @Test func testActualFunctionInheritsAbstractnessFromExpectMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let methodName = [ctx.interner.intern("AC"), ctx.interner.intern("name")]
+        let actualMethod = try #require(sema.symbols.lookupAll(fqName: methodName).first {
+            sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+        })
+        #expect(sema.symbols.symbol(actualMethod)?.flags.contains(.abstractType) == true)
+    }
+
+    @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
+        let ctx = makeContextFromSource(
+            """
+            abstract class Charset {
+                fun newEncoder(): Int
+                final override fun equals(other: Any?): Boolean
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 2, "Expected a missing-body error for each member: \(errors)")
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0009" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testUnresolvedExpectExtensionRemainsCallable() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """
+        )
+        try runSema(ctx)
+
+        // Missing actual is diagnosed independently of overload resolution.
+        // Both member-style calls must still bind the expect declaration.
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.compactMap(\.code)
+        #expect(codes.contains("KSWIFTK-MPP-UNRESOLVED"))
+        #expect(!codes.contains("KSWIFTK-SEMA-0002"), "Expect extension must be a viable call candidate: \(ctx.diagnostics.diagnostics)")
+        #expect(!codes.contains("KSWIFTK-SEMA-0003"), "Expect extension must not become ambiguous: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        let resolvedCalls = sema.bindings.callBindings.values.filter { $0.chosenCallee == expectSymbol }
+        #expect(resolvedCalls.count == 2, "Both member-style calls must bind the expect declaration")
+    }
+
+    @Test func testMemberCallPrefersLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect fun Short.reverseByteOrder(): Short
+            """,
+            """
+            package sample.kmp
+            actual fun Short.reverseByteOrder(): Short = this
+            fun fromShort(value: Short): Short = value.reverseByteOrder()
+            fun UShort.rb(): UShort = toShort().reverseByteOrder().toUShort()
+            """,
+        ])
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Linked actual must resolve both calls without ambiguous overloads: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let actualSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true })
+        #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
+    }
+
+    @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {
+        let ctx = makeContextFromSource(
+            """
+            expect abstract class Pool<T : Any>(capacity: Int) {
+                protected abstract fun produce(): T
+                protected open fun disposeInstance(instance: T)
+                fun borrow(): T
+            }
+
+            actual abstract class Pool<T : Any> actual constructor(capacity: Int) {
+                protected actual abstract fun produce(): T
+                protected actual open fun disposeInstance(instance: T) {}
+                actual fun borrow(): T = produce()
+            }
+
+            class IntPool : Pool<Int>(1) {
+                override fun produce(): Int = 42
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let fqName = [ctx.interner.intern("Pool")]
+        let poolSymbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+        let expectSymbol = try #require(poolSymbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualSymbol = try #require(poolSymbols.first { $0.flags.contains(.actualDeclaration) })
+        let intPoolSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("IntPool")]).first)
+        let produceFQName = fqName + [ctx.interner.intern("produce")]
+        let actualProduce = try #require(sema.symbols.lookupAll(fqName: produceFQName).first {
+            sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+        })
+        let intPoolProduce = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("IntPool"), ctx.interner.intern("produce"),
+        ]).first)
+        let expectLayout = try #require(sema.symbols.nominalLayout(for: expectSymbol.id))
+        let actualLayout = try #require(sema.symbols.nominalLayout(for: actualSymbol.id))
+        let intPoolLayout = try #require(sema.symbols.nominalLayout(for: intPoolSymbol))
+
+        #expect(sema.symbols.directSupertypes(for: intPoolSymbol).contains(actualSymbol.id))
+        #expect(!sema.symbols.directSupertypes(for: intPoolSymbol).contains(expectSymbol.id))
+        #expect(expectLayout.vtableSize == 3)
+        #expect(actualLayout.vtableSize == 3)
+        #expect(actualLayout.vtableSlots[actualProduce] == intPoolLayout.vtableSlots[intPoolProduce])
+    }
+
     private struct TestCase {
         let name: String
         let sources: [String]

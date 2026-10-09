@@ -40,6 +40,27 @@ fun decodeIntoCharSequenceRange(source: CharSequence): String {
 }
 
 @OptIn(ExperimentalEncodingApi::class)
+fun encodeIntoByteArrayDefaultArgs(source: ByteArray): String {
+    val destination = ByteArray(16)
+    val count = Base64.encodeIntoByteArray(source, destination)
+    return count.toString() + ":" + destination.decodeToString(0, count)
+}
+
+@OptIn(ExperimentalEncodingApi::class)
+fun decodeIntoByteArrayDefaultArgs(source: ByteArray): String {
+    val destination = ByteArray(16)
+    val count = Base64.decodeIntoByteArray(source, destination)
+    return count.toString() + ":" + destination.decodeToString(0, count)
+}
+
+@OptIn(ExperimentalEncodingApi::class)
+fun decodeIntoByteArrayDefaultArgs(source: CharSequence): String {
+    val destination = ByteArray(16)
+    val count = Base64.decodeIntoByteArray(source, destination)
+    return count.toString() + ":" + destination.decodeToString(0, count)
+}
+
+@OptIn(ExperimentalEncodingApi::class)
 fun main() {
     val source = "xfoob".encodeToByteArray()
     val encodedText = "xZm9vyy"
@@ -51,4 +72,7 @@ fun main() {
     println(decodeIntoByteArrayRange(encodedText.encodeToByteArray()))
     println(decodeCharSequenceRange(encodedText).decodeToString())
     println(decodeIntoCharSequenceRange(encodedText))
+    println(encodeIntoByteArrayDefaultArgs("hello".encodeToByteArray()))
+    println(decodeIntoByteArrayDefaultArgs("aGVsbG8=".encodeToByteArray()))
+    println(decodeIntoByteArrayDefaultArgs("aGVsbG8="))
 }

@@ -1,5 +1,47 @@
 
 extension LambdaLowerer {
+    func bindCoroutineScopeLambdaReceiver(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let receiverType = sema.bindings.coroutineScopeLambdaReceiverTypes[exprID] else {
+            return
+        }
+        let receiver = arena.appendTemporary(type: receiverType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_coroutine_current_scope"),
+            arguments: [],
+            result: receiver,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        let symbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: exprID)
+        driver.ctx.setImplicitReceiver(symbol: symbol, exprID: receiver)
+        driver.ctx.runtimeCoroutineScopeReceiverExprIDs.insert(receiver)
+        driver.ctx.setLocalValue(receiver, for: symbol)
+    }
+
+    /// Binds the lambda's receiver value (the explicit receiver parameter, or the
+    /// active implicit receiver it was satisfied by) to
+    /// `SyntheticSymbolScheme.lambdaReceiverSymbol`, the symbol Sema gives the
+    /// lambda's `this@callee` references. Must run after the receiver parameter
+    /// and capture bindings have been installed as the implicit receiver.
+    func registerLambdaReceiverValue(lambdaExprID: ExprID, hasReceiverParam: Bool) {
+        guard hasReceiverParam,
+              let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        else {
+            return
+        }
+        driver.ctx.setLocalValue(
+            receiverExprID,
+            for: SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID)
+        )
+    }
+
     func syntheticLambdaName(for exprID: ExprID, interner: StringInterner) -> InternedString {
         interner.intern("kk_lambda_\(exprID.rawValue)")
     }
@@ -65,12 +107,28 @@ extension LambdaLowerer {
             return propertyType
         }
         if let valueParameterType = typeForValueParameterSymbol(symbol, sema: sema) {
+            driver.ctx.setLocalDeclaredType(valueParameterType, for: symbol)
             return valueParameterType
         }
         return sema.types.anyType
     }
 
     private func typeForValueParameterSymbol(_ symbol: SymbolID, sema: SemaModule) -> TypeID? {
+        // `valueParameterOwner` maps a parameter symbol to the callable whose
+        // signature listed it, so the owner lookup is O(1) rather than a scan
+        // of every function/constructor signature in the module.
+        guard let ownerSymbol = sema.symbols.valueParameterOwner(for: symbol) else {
+            return nil
+        }
+        if let signature = sema.symbols.functionSignature(for: ownerSymbol),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           index < signature.parameterTypes.count
+        {
+            return signature.parameterTypes[index]
+        }
+        // The recorded owner's stored signature no longer lists the parameter
+        // (it was rewritten after the index entry was made), so another
+        // signature may still claim it — fall back to the module-wide scan.
         let kinds: [SymbolKind] = [.function, .constructor]
         for kind in kinds {
             for candidateID in sema.symbols.symbols(ofKind: kind) {
@@ -199,7 +257,7 @@ extension LambdaLowerer {
     ///   that entry's own synthesized subclass rather than `.enumClass`
     ///   itself — but this could not be verified either: referencing an
     ///   entry with a body at all (`EnumClass.ENTRY`) hits a separate,
-    ///   pre-existing, unrelated bug (see docs/diff-skip-inventory.md's
+    ///   pre-existing, unrelated bug (see the
     ///   `enum_edge_cases.kt` entry).
     /// - `.interface` is excluded because interface-owned properties have no
     ///   storage of their own (always dispatched through whichever class
@@ -249,7 +307,8 @@ extension LambdaLowerer {
         lambdaBodyExprID: ExprID,
         ast: ASTModule,
         sema: SemaModule,
-        hasExplicitReceiver: Bool = false
+        arena: KIRArena,
+        receiverType: TypeID? = nil
     ) -> [SymbolID] {
         let lexicalCaptures = lexicalCaptureSymbolsForLambda(
             lambdaExprID: lambdaExprID,
@@ -268,17 +327,22 @@ extension LambdaLowerer {
                     sema: sema
                 )
             }
-            // A receiver-bearing lambda receives its own receiver explicitly;
-            // do not also forward the enclosing receiver as a closure capture.
-            if hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol()
+            // The lambda's receiver replaces unqualified `this`, but not a
+            // different enclosing instance whose members its body references.
+            let capturesOuterReceiver = containsImplicitReceiverMemberAccess(
+                in: lambdaBodyExprID, ast: ast, sema: sema, excludingReceiverType: receiverType,
+                outerReceiverType: driver.ctx.activeImplicitReceiverExprID().flatMap { arena.exprType($0) }
+            )
+            if receiverType != nil,
+               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               !boundCaptures.contains(receiverSymbol),
+               !capturesOuterReceiver
             {
                 captures.removeAll { $0 == receiverSymbol }
             }
-            if !hasExplicitReceiver,
-               let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
-               containsImplicitReceiverReference(in: lambdaBodyExprID, ast: ast)
-               || containsImplicitReceiverMemberAccess(in: lambdaBodyExprID, ast: ast, sema: sema),
+            if let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
+               (receiverType == nil && containsImplicitReceiverReference(in: lambdaBodyExprID, ast: ast))
+               || capturesOuterReceiver,
                canCaptureSymbolForLambda(
                    receiverSymbol,
                    lambdaExprID: lambdaExprID,
@@ -337,7 +401,11 @@ extension LambdaLowerer {
     /// STDLIB-004: Check if an expression tree contains any implicit receiver
     /// member accesses (bare name references resolved through implicitReceiverType).
     /// Mirrors `containsImplicitReceiverReference` for all AST node types.
-    func containsImplicitReceiverMemberAccess(in exprID: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
+    func containsImplicitReceiverMemberAccess(
+        in exprID: ExprID, ast: ASTModule, sema: SemaModule,
+        excludingReceiverType: TypeID? = nil, outerReceiverType: TypeID? = nil,
+        excludingLocalExtensionBodies: Bool = false
+    ) -> Bool {
         if let symbolID = sema.bindings.identifierSymbols[exprID],
            let symbol = sema.symbols.symbol(symbolID),
            symbol.kind == .property || symbol.kind == .field,
@@ -345,22 +413,38 @@ extension LambdaLowerer {
            let parent = sema.symbols.symbol(parentID),
            parent.kind == .class || parent.kind == .object || parent.kind == .interface
         {
-            return true
+            if excludingReceiverType == nil || memberNeedsOuterReceiver(
+                owner: parentID, excluding: excludingReceiverType, outerReceiverType: outerReceiverType, sema: sema
+            ) {
+                return true
+            }
         }
-        if sema.bindings.implicitReceiverMemberNames[exprID] != nil {
+        if excludingReceiverType == nil, sema.bindings.implicitReceiverMemberNames[exprID] != nil {
             return true
         }
         guard let expr = ast.arena.expr(exprID) else {
             return false
         }
         let check = { (id: ExprID) -> Bool in
-            self.containsImplicitReceiverMemberAccess(in: id, ast: ast, sema: sema)
+            self.containsImplicitReceiverMemberAccess(
+                in: id, ast: ast, sema: sema,
+                excludingReceiverType: excludingReceiverType, outerReceiverType: outerReceiverType,
+                excludingLocalExtensionBodies: excludingLocalExtensionBodies
+            )
         }
         switch expr {
         case let .blockExpr(stmts, trailing, _):
             return stmts.contains(where: check) || trailing.map(check) ?? false
         case let .call(callee, _, args, _):
-            if callResolvesToImplicitReceiverMember(exprID, sema: sema) {
+            if callResolvesToImplicitReceiverMember(exprID, sema: sema),
+               excludingReceiverType == nil
+                || sema.bindings.callBinding(for: exprID).map({
+                    guard let owner = sema.symbols.parentSymbol(for: $0.chosenCallee) else { return false }
+                    return memberNeedsOuterReceiver(
+                        owner: owner, excluding: excludingReceiverType, outerReceiverType: outerReceiverType, sema: sema
+                    )
+                }) == true
+            {
                 return true
             }
             return check(callee) || args.contains { check($0.expr) }
@@ -399,7 +483,12 @@ extension LambdaLowerer {
             return check(lhs) || check(rhs)
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
-        case let .localFunDecl(_, _, _, body, _, _):
+        case let .localFunDecl(_, receiverType, _, _, body, _, _):
+            // Nested extensions supply their own implicit receiver. Their lexical
+            // value captures are handled by collectBoundIdentifierSymbols.
+            if excludingLocalExtensionBodies, receiverType != nil {
+                return false
+            }
             return checkFunctionBody(body, check: check)
         case let .forExpr(_, iterable, body, _, _):
             return check(iterable) || check(body)
@@ -420,12 +509,37 @@ extension LambdaLowerer {
             if objectDecl.superTypeConstructorArgs.contains(where: { check($0.expr) }) {
                 return true
             }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: check) {
+                return true
+            }
             // KSP-CAP-018: see the accessor-body note in
             // `collectBoundIdentifierSymbols`.
             return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains { check($0) }
         default:
             return false
         }
+    }
+
+    private func memberNeedsOuterReceiver(
+        owner: SymbolID, excluding receiverType: TypeID?, outerReceiverType: TypeID?, sema: SemaModule
+    ) -> Bool {
+        guard let receiverType,
+              let outerReceiverType
+        else { return false }
+        return receiverHasOwner(outerReceiverType, owner: owner, sema: sema)
+            && !receiverHasOwner(receiverType, owner: owner, sema: sema)
+    }
+
+    private func receiverHasOwner(_ type: TypeID, owner: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = nominalSymbol(for: type, types: sema.types) else { return false }
+        var pending = [symbol]
+        var visited: Set<SymbolID> = []
+        while let current = pending.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            if current == owner { return true }
+            pending.append(contentsOf: sema.symbols.directSupertypes(for: current))
+        }
+        return false
     }
 
     /// An unqualified `compute()` whose callee is a member function is `this.compute()`,
@@ -506,45 +620,13 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        func boxRawSuspendFunctionValue(_ valueExpr: KIRExprID) -> KIRExprID {
-            let valueType = arena.exprType(valueExpr) ?? typeForSymbolReference(symbol, sema: sema)
-            let nonNullType = sema.types.makeNonNullable(valueType)
-            guard case let .functionType(functionType) = sema.types.kind(of: nonNullType),
-                  functionType.isSuspend,
-                  case .symbolRef = arena.expr(valueExpr)
-            else {
-                return valueExpr
-            }
-
-            let arity = functionType.params.count
-                + (functionType.receiver == nil ? 0 : 1)
-            // The current generated Flow callback ABI uses a closure-first
-            // entry point for one-argument suspend values. Two-argument suspend
-            // values already use the raw `(arg1, arg2, outThrown)` ABI; boxing
-            // those values here would shift the first argument at invocation.
-            guard arity == 1 else {
-                return valueExpr
-            }
-
-            // A suspend lambda with an implicit closure parameter must cross the
-            // function-value ABI before a nested Flow collector invokes it.
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let boxedExpr = arena.appendTemporary(type: valueType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_function_create_\(arity)"),
-                arguments: [valueExpr, zeroExpr],
-                result: boxedExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return boxedExpr
-        }
-
+        // Keep suspend callables in their raw-thunk or boxed-closure form;
+        // kk_suspend_function_invoke handles both, while re-boxing a raw thunk
+        // would add a closure parameter that its entry point does not accept.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .local,
-           semanticSymbol.flags.contains(.mutable)
+           (semanticSymbol.flags.contains(.mutable)
+               || sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol))
         {
             if let existingCell = driver.ctx.mutableCaptureCell(for: symbol) {
                 return existingCell
@@ -563,9 +645,62 @@ extension LambdaLowerer {
                     instructions: &instructions
                 )
             }
+            // KSP-491: a delegated local (`var value by IntProp()`) also has no
+            // `localValue` -- its storage is the delegate instance, tracked
+            // separately below -- but it must NOT fall into the deferred-init
+            // seed path just below: that would fabricate a bogus zero-valued
+            // capture cell that shadows the real delegate storage, so reads
+            // inside the closure silently see 0/null instead of calling
+            // getValue (this regressed delegate_local_lambda_capture.kt when
+            // first introduced -- caught by CI, not by any local test run).
+            if let delegateStorage = driver.ctx.localDelegateStorage(for: symbol) {
+                return delegateStorage
+            }
+            // STDLIB-592 definite assignment: a `var` declared without an
+            // initializer has no `localValue` yet if this closure's own body is
+            // that local's first-ever write (e.g. `var r: Int; once { r = 3 }`
+            // under a `callsInPlace(EXACTLY_ONCE/AT_LEAST_ONCE)` contract, which
+            // lets definite assignment treat that write as guaranteed). The cell
+            // must still exist for the closure to capture, or the write inside
+            // it and the read after the call both silently fall through to an
+            // unboxed, never-set slot -- seed it with a placeholder the same way
+            // `deferredLocalCaptureCellSeedValue`'s doc comment explains.
+            //
+            // Scoped to `isContractCallsInPlaceInitializedSymbol` on purpose: a
+            // `localValue` can also read as nil transiently for reasons that have
+            // nothing to do with deferred init (e.g. a same-lambda local mutated
+            // across while-loop iterations reached this same fallback and, before
+            // this guard existed, got a bogus zero-seeded cell that silently
+            // shadowed its real value -- regressed
+            // stdlib_kotlin_time_Duration_Duration_n.kt's `.let { }` fraction
+            // formatting, caught by CI). Only apply the seed when Sema itself
+            // recorded this exact symbol as guaranteed-initialized by some
+            // callsInPlace lambda.
+            if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol) {
+                let declaredType = driver.ctx.localDeclaredType(for: symbol)
+                    ?? typeForSymbolReference(symbol, sema: sema)
+                let seedValue = deferredLocalCaptureCellSeedValue(
+                    for: declaredType,
+                    sema: sema,
+                    arena: arena,
+                    instructions: &instructions
+                )
+                return emitMutableCaptureCellInitialization(
+                    driver: driver,
+                    symbol: symbol,
+                    currentValue: seedValue,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
         }
         if let localValue = driver.ctx.localValue(for: symbol) {
-            return boxRawSuspendFunctionValue(localValue)
+            return localValue
+        }
+        if let receiver = driver.ctx.capturedOuterReceiverExprID(for: symbol) {
+            return receiver
         }
         // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
         // no `localValue` -- its storage is the delegate instance, tracked
@@ -591,6 +726,80 @@ extension LambdaLowerer {
         {
             return receiverExprID
         }
+        // An object literal captures its enclosing class receiver by the
+        // class symbol, while a member body may track `this` under a synthetic
+        // receiver symbol. Match by nominal type in that case so the captured
+        // field is initialized instead of left zeroed.
+        if sema.symbols.symbol(symbol)?.kind == .class,
+           let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
+        {
+            if let receiverType = arena.exprType(receiverExprID),
+               case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+               sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: symbol)
+            {
+                return receiverExprID
+            }
+            // BUG-inner-outer: `symbol` may name an ancestor class reachable
+            // only through further `$outer` hops (e.g. captured two lexical
+            // levels out, from inside an `inner class` nested inside another
+            // `inner class`) -- the active receiver's own class is then
+            // neither `symbol` nor a subtype of it, so walk the chain instead
+            // of leaving the captured field zeroed.
+            if let outerValue = resolveOuterChainValue(
+                from: receiverExprID,
+                to: symbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return outerValue
+            }
+        }
+        // KSP-CAP-001: object-literal member functions may capture an
+        // immutable stored property of their enclosing class. The enclosing
+        // receiver is still active while the object is constructed, so copy
+        // the property's value into the literal's capture field before the
+        // receiver switches to the literal itself.
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .property,
+           !semanticSymbol.flags.contains(.mutable),
+           !sema.symbols.propertyHasCustomGetter(for: symbol),
+           let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+           sema.symbols.symbol(ownerSymbol)?.kind == .class,
+           let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(forProperty: symbol, sema: sema),
+           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+               sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+           ]
+        {
+            // BUG-inner-outer: an inner class's implicit receiver is its
+            // own instance, but a captured property declared on an
+            // *enclosing* class must be read through the `$outer` chain
+            // instead of applying `ownerSymbol`'s field offset to the
+            // wrong object. A no-op for every other case, where the
+            // receiver already is (or subclasses) `ownerSymbol`.
+            let fieldReceiverExprID = resolveOuterChainValue(
+                from: receiverExprID,
+                to: ownerSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) ?? receiverExprID
+            let symbolType = typeForSymbolReference(symbol, sema: sema)
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let valueExpr = arena.appendTemporary(type: symbolType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [fieldReceiverExprID, offsetExpr],
+                result: valueExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return valueExpr
+        }
         guard let semanticSymbol = sema.symbols.symbol(symbol),
               semanticSymbol.kind == .valueParameter
         else {
@@ -600,6 +809,6 @@ extension LambdaLowerer {
         let symbolType = typeForSymbolReference(symbol, sema: sema)
         let symbolExpr = arena.appendExpr(.symbolRef(symbol), type: symbolType)
         instructions.append(.constValue(result: symbolExpr, value: .symbolRef(symbol)))
-        return boxRawSuspendFunctionValue(symbolExpr)
+        return symbolExpr
     }
 }

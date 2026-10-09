@@ -11,9 +11,69 @@ extension ABILoweringPass {
         callee: InternedString?,
         interner: StringInterner,
         boxTypeParamArguments: Bool = false,
+        sema: SemaModule? = nil,
+        cache: KIRNominalDispatchCache? = nil,
         newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
+        // Generic slots carry boxes even when their upper bound is primitive.
+        // A concrete primitive extension receiver requires the unboxed payload.
+        let receiverIndex = receiverOffset - 1
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           case let receiver = arguments[receiverIndex],
+           let receiverType = signature.receiverType,
+           case .primitive(_, .nonNull) = types.kind(of: receiverType),
+           let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
+           case .typeParam = types.kind(of: argType),
+           let unboxCallee = unboxingCallee(
+               sourceKind: types.kind(of: argType),
+               targetKind: types.kind(of: receiverType),
+               boxingCalleeTable: boxingCalleeTable,
+               types: types,
+               symbols: symbols,
+               preferStaticPrimitive: true
+           )
+        {
+            boxedArguments[receiverIndex] = emitNonThrowingCall(
+                callee: unboxCallee,
+                arg: receiver,
+                resultType: receiverType,
+                arena: module.arena,
+                into: &newBody
+            )
+        }
+        // A statically called member whose receiver is an interface (an
+        // interface default method, or a callable-reference dispatch thunk)
+        // dispatches through `this`'s itable, so an enum receiver -- a raw
+        // ordinal until something widens it -- must arrive as its box, the
+        // same way an enum value argument for an interface parameter does.
+        if receiverOffset > 0, arguments.indices.contains(receiverIndex),
+           case let receiver = arguments[receiverIndex],
+           let receiverType = signature.receiverType,
+           let argType = intrinsicArgType(receiver, arena: module.arena, types: types),
+           case let .classType(argClass) = types.kind(of: argType),
+           argClass.nullability == .nonNull,
+           let argInfo = symbols?.symbol(argClass.classSymbol),
+           argInfo.kind == .enumClass,
+           !argInfo.flags.contains(.synthetic),
+           case let .classType(receiverClass) = types.kind(of: receiverType),
+           symbols?.symbol(receiverClass.classSymbol)?.kind == .interface
+        {
+            boxedArguments[receiverIndex] = boxValueForAnySlot(
+                receiver,
+                sourceType: argType,
+                types: types,
+                symbols: symbols,
+                interner: interner,
+                arena: module.arena,
+                resultType: receiverType,
+                requireNonNull: true,
+                boxingCalleeTable: boxingCalleeTable,
+                sema: sema,
+                cache: cache,
+                into: &newBody.instructions
+            )
+        }
         let parameterTypes = signature.parameterTypes
         let varargFlags = signature.valueParameterIsVararg
         for argIndex in arguments.indices {
@@ -37,7 +97,8 @@ extension ABILoweringPass {
                 interner: interner,
                 boxingCalleeTable: boxingCalleeTable,
                 symbols: symbols,
-                boxTypeParamBoundary: boxTypeParamArguments
+                boxTypeParamBoundary: boxTypeParamArguments,
+                preferStaticPrimitive: true
             ) {
                 let boxedResult = module.arena.appendTemporary(type: paramType)
                 emitBoxCallWithValueClassTag(
@@ -50,6 +111,8 @@ extension ABILoweringPass {
                     symbols: symbols,
                     interner: interner,
                     arena: module.arena,
+                    sema: sema,
+                    cache: cache,
                     into: &newBody
                 )
                 boxedArguments[argIndex] = boxedResult
@@ -61,12 +124,15 @@ extension ABILoweringPass {
     func resolveUnboxForCall(
         callSymbol: SymbolID?,
         callee: InternedString,
+        arguments: [KIRExprID],
+        receiver: KIRExprID? = nil,
         result: KIRExprID?,
         signatureByName: [InternedString: FunctionSignature],
         module: KIRModule,
         types: TypeSystem?,
         symbols: SymbolTable?,
         boxingCalleeTable: BoxingCalleeTable,
+        nullableGenericResults: inout Set<KIRExprID>,
         boxedReturnCallees: Set<InternedString> = []
     ) -> (InternedString, TypeID)? {
         guard !boxedReturnCallees.contains(callee) else { return nil }
@@ -83,6 +149,32 @@ extension ABILoweringPass {
         let resultType = module.arena.exprType(result)
         guard let resultType else { return nil }
         let resultKind = resolveValueClassKind(types.kind(of: resultType), types: types, symbols: symbols)
+
+        if case let .typeParam(returnTypeParam) = types.kind(of: returnType),
+           let inferredReturnType = inferFunctionTypeParameter(
+               returnTypeParam.symbol,
+               callSymbol: callSymbol,
+               arguments: arguments,
+               receiver: receiver,
+               module: module,
+               types: types,
+               symbols: symbols
+           )
+        {
+            let concreteReturnType: TypeID = switch returnTypeParam.nullability {
+            case .nonNull: inferredReturnType
+            case .nullable, .platformType: types.makeNullable(inferredReturnType)
+            }
+            if types.nullability(of: concreteReturnType) == .nullable {
+                // Generic return types are erased in the callee signature. Recover
+                // nullable specializations from their actual generic arguments so
+                // the result keeps its nullable representation across the call.
+                module.arena.setExprType(concreteReturnType, for: result)
+                nullableGenericResults.insert(result)
+                return nil
+            }
+        }
+
         guard needsUnboxing(sourceKind: returnKind, targetKind: resultKind, symbols: symbols) else {
             return nil
         }
@@ -91,11 +183,114 @@ extension ABILoweringPass {
             targetKind: resultKind,
             boxingCalleeTable: boxingCalleeTable,
             types: types,
-            symbols: symbols
+            symbols: symbols,
+            preferStaticPrimitive: true
         ) else {
             return nil
         }
         return (unboxCallee, returnType)
+    }
+
+    private func inferFunctionTypeParameter(
+        _ targetSymbol: SymbolID,
+        callSymbol: SymbolID?,
+        arguments: [KIRExprID],
+        receiver: KIRExprID?,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?
+    ) -> TypeID? {
+        guard let callSymbol,
+              let symbols,
+              let signature = symbols.functionSignature(for: callSymbol),
+              signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).contains(targetSymbol)
+        else {
+            return nil
+        }
+
+        var actualTypes: [(formal: TypeID, actual: TypeID)] = []
+        let isMemberExtension = symbols.memberExtensionOwnerSymbol(for: callSymbol) != nil
+        let receiverArgumentCount = signature.receiverType == nil ? 0 : (
+            isMemberExtension ? (receiver == nil ? 2 : 1)
+                : (arguments.count == signature.parameterTypes.count + 1 ? 1 : 0)
+        )
+        if let formalReceiverType = signature.receiverType {
+            if receiverArgumentCount > 0,
+               arguments.indices.contains(receiverArgumentCount - 1),
+               let actualReceiverType = module.arena.exprType(arguments[receiverArgumentCount - 1])
+            {
+                actualTypes.append((formalReceiverType, actualReceiverType))
+            } else if let receiver,
+                      let actualReceiverType = module.arena.exprType(receiver)
+            {
+                actualTypes.append((formalReceiverType, actualReceiverType))
+            }
+        }
+        for (formalType, argument) in zip(signature.parameterTypes, arguments.dropFirst(receiverArgumentCount)) {
+            guard let actualType = module.arena.exprType(argument) else { continue }
+            actualTypes.append((formalType, actualType))
+        }
+
+        var inferred: [SymbolID: TypeID] = [:]
+        var conflictingBindings: Set<SymbolID> = []
+        let functionTypeParameters = Set(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+        for (formalType, actualType) in actualTypes {
+            collectFunctionTypeParameterBindings(
+                formal: formalType,
+                actual: actualType,
+                typeParameters: functionTypeParameters,
+                types: types,
+                conflictingBindings: &conflictingBindings,
+                into: &inferred
+            )
+        }
+        return conflictingBindings.contains(targetSymbol) ? nil : inferred[targetSymbol]
+    }
+
+    private func collectFunctionTypeParameterBindings(
+        formal: TypeID,
+        actual: TypeID,
+        typeParameters: Set<SymbolID>,
+        types: TypeSystem,
+        conflictingBindings: inout Set<SymbolID>,
+        into inferred: inout [SymbolID: TypeID]
+    ) {
+        switch (types.kind(of: formal), types.kind(of: actual)) {
+        case let (.typeParam(formalParam), _)
+            where typeParameters.contains(formalParam.symbol):
+            if let previous = inferred[formalParam.symbol], previous != actual {
+                conflictingBindings.insert(formalParam.symbol)
+            } else {
+                inferred[formalParam.symbol] = actual
+            }
+        case let (.classType(formalClass), .classType(actualClass))
+            where formalClass.classSymbol == actualClass.classSymbol
+                && formalClass.args.count == actualClass.args.count:
+            for (formalArg, actualArg) in zip(formalClass.args, actualClass.args) {
+                guard let formalInner = typeArgumentType(formalArg),
+                      let actualInner = typeArgumentType(actualArg)
+                else {
+                    continue
+                }
+                collectFunctionTypeParameterBindings(
+                    formal: formalInner,
+                    actual: actualInner,
+                    typeParameters: typeParameters,
+                    types: types,
+                    conflictingBindings: &conflictingBindings,
+                    into: &inferred
+                )
+            }
+        default:
+            break
+        }
+    }
+
+    private func typeArgumentType(_ argument: TypeArg) -> TypeID? {
+        switch argument {
+        case let .invariant(type), let .out(type), let .in(type): type
+        case .star: nil
+        }
     }
 
     func returnTypeForCall(
@@ -105,6 +300,17 @@ extension ABILoweringPass {
         guard let callSymbol, let symbols else {
             return nil
         }
-        return symbols.functionSignature(for: callSymbol)?.returnType
+        if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
+            return returnType
+        }
+        // An interface property's dynamic getter has a synthetic ID even
+        // when its declaration was imported from a library. The declaration
+        // still carries the erased T return type needed to unbox Double and
+        // other concrete values after dispatch.
+        if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(callSymbol),
+           accessor.kind == .getter {
+            return symbols.propertyType(for: accessor.property)
+        }
+        return nil
     }
 }

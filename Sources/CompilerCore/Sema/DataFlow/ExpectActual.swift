@@ -1,9 +1,4 @@
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#endif
 
 // MPP-001: Validate expect/actual declarations.
 // In Kotlin MPP, an `expect` declaration in common code must be implemented by a
@@ -11,7 +6,7 @@ import Glibc
 
 extension DataFlowSemaPhase {
     func validateExpectActualMatching(
-        ast _: ASTModule,
+        ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
@@ -22,8 +17,18 @@ extension DataFlowSemaPhase {
         let expects = symbols.allSymbols().filter { sym in
             sym.flags.contains(.expectDeclaration) && sym.declSite != nil
         }
+        let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
+            symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
+        }, by: \.0).mapValues { entries in entries.map(\.1) }
+        let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
+            guard case let .funDecl(function) = decl else { return nil }
+            return function
+        }, by: \.range)
 
         for expectSym in expects {
+            let isOptionalExpectation = symbols.annotations(for: expectSym.id).contains {
+                KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+            }
             let candidates = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
@@ -44,6 +49,10 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                guard !isOptionalExpectation else {
+                    continue
+                }
+
                 // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
@@ -79,7 +88,86 @@ extension DataFlowSemaPhase {
             }
 
             symbols.setExpectActualLink(expect: expectSym.id, actual: actualSym.id)
+            inheritAbstractActualMemberFlags(
+                expectOwner: expectSym,
+                actualOwner: actualSym,
+                membersByParent: membersByParent,
+                functionDeclarationsByRange: functionDeclarationsByRange,
+                symbols: symbols,
+                types: types
+            )
         }
+    }
+
+    private func inheritAbstractActualMemberFlags(
+        expectOwner: SemanticSymbol,
+        actualOwner: SemanticSymbol,
+        membersByParent: [SymbolID: [SemanticSymbol]],
+        functionDeclarationsByRange: [SourceRange: [FunDecl]],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) {
+        guard expectOwner.kind == .class,
+              actualOwner.kind == .class,
+              expectOwner.flags.contains(.abstractType),
+              actualOwner.flags.contains(.abstractType)
+        else {
+            return
+        }
+
+        let expectedFunctions = (membersByParent[expectOwner.id] ?? []).filter { $0.kind == .function }
+        let actualFunctions = (membersByParent[actualOwner.id] ?? []).filter {
+            $0.kind == .function && $0.flags.contains(.actualDeclaration)
+        }
+
+        for expectFunction in expectedFunctions {
+            guard let expectDeclaration = functionDeclaration(
+                for: expectFunction,
+                in: functionDeclarationsByRange
+            ), isBodylessNonRuntimeBridge(expectDeclaration),
+                let expectSignature = symbols.functionSignature(for: expectFunction.id)
+            else {
+                continue
+            }
+
+            for actualFunction in actualFunctions where actualFunction.fqName == expectFunction.fqName {
+                guard let actualDeclaration = functionDeclaration(
+                    for: actualFunction,
+                    in: functionDeclarationsByRange
+                ), isBodylessNonRuntimeBridge(actualDeclaration),
+                    let actualSignature = symbols.functionSignature(for: actualFunction.id),
+                    expectActualFunctionSignaturesMatch(
+                        expectSig: expectSignature,
+                        expectSymbol: expectFunction,
+                        actualSig: actualSignature,
+                        actualSymbol: actualFunction,
+                        symbols: symbols,
+                        types: types
+                    )
+                else {
+                    continue
+                }
+
+                // In an abstract expect class, a bodyless member is an abstract
+                // contract even when the expect source omits the modifier. The
+                // matching actual member inherits that modality in Kotlin MPP.
+                symbols.insertFlags(.abstractType, for: actualFunction.id)
+            }
+        }
+    }
+
+    private func functionDeclaration(
+        for symbol: SemanticSymbol,
+        in declarationsByRange: [SourceRange: [FunDecl]]
+    ) -> FunDecl? {
+        guard let declSite = symbol.declSite else { return nil }
+        return declarationsByRange[declSite]?.first { $0.name == symbol.name }
+    }
+
+    private func isBodylessNonRuntimeBridge(_ function: FunDecl) -> Bool {
+        function.body == .unit
+            && !function.modifiers.contains(.external)
+            && !hasCompilerAnnotation(.ksSymbolName, on: function.annotations)
     }
 
     private func areExpectActualCompatible(
@@ -90,15 +178,7 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
             // Check if the typealias's underlying type points to an annotation class
-            // Use retry mechanism for robust resolution in concurrent environments
-            let underlyingType = getTypeAliasUnderlyingTypeWithRetry(
-                for: actual.id,
-                symbols: symbols,
-                maxRetries: 3,
-                baseDelay: 0.001
-            )
-
-            guard let resolvedType = underlyingType else {
+            guard let resolvedType = symbols.typeAliasUnderlyingType(for: actual.id) else {
                 return false
             }
 
@@ -144,6 +224,13 @@ extension DataFlowSemaPhase {
                 types: types
             )
             return expect.flags.contains(.mutable) == actual.flags.contains(.mutable)
+                && expectActualOptionalTypeMatch(
+                    symbols.extensionPropertyReceiverType(for: expect.id),
+                    symbols.extensionPropertyReceiverType(for: actual.id),
+                    typeParamMapping: typeParamMapping,
+                    symbols: symbols,
+                    types: types
+                )
                 && expectActualTypesMatch(
                     expectType,
                     actualType,
@@ -471,7 +558,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         switch (types.kind(of: expectType), types.kind(of: actualType)) {
-        case (.error, .error), (.unit, .unit):
+        case (.error, .error), (.unit, .unit), (.nullableUnit, .nullableUnit):
             return true
 
         case let (.nothing(expectNullability), .nothing(actualNullability)):
@@ -555,28 +642,6 @@ extension DataFlowSemaPhase {
         default:
             return false
         }
-    }
-
-    /// Retry mechanism for getting typealias underlying type with exponential backoff
-    private func getTypeAliasUnderlyingTypeWithRetry(
-        for symbol: SymbolID,
-        symbols: SymbolTable,
-        maxRetries: Int,
-        baseDelay: TimeInterval
-    ) -> TypeID? {
-        for attempt in 0..<maxRetries {
-            if let underlyingType = symbols.typeAliasUnderlyingType(for: symbol) {
-                return underlyingType
-            }
-
-            // In CI environments, use shorter delays to avoid timing issues
-            if attempt < maxRetries - 1 {
-                // Minimal delay for CI environments with exponential backoff
-                let delay = baseDelay * pow(2.0, Double(attempt))
-                Thread.sleep(forTimeInterval: delay)
-            }
-        }
-        return nil
     }
 
     private func expectActualNominalSymbolsMatch(

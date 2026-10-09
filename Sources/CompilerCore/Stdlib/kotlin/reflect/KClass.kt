@@ -14,7 +14,10 @@ package kotlin.reflect
  * so the existing Any equality and hashCode lowering provides the matching
  * value semantics for these declarations.
  */
-public interface KClass<T : Any> : KClassifier {
+public interface KClass<T : Any> : KAnnotatedElement, KClassifier, KDeclarationContainer {
+    public val objectInstance: T?
+    public val sealedSubclasses: List<KClass<out T>>
+
     public override fun equals(other: Any?): Boolean
     public override fun hashCode(): Int
 }

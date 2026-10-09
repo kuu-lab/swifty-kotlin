@@ -10,12 +10,10 @@ struct PrimitiveBitFunctionTypeTests {
         """
         package sample0
         fun probe(value: Long): Long {
-            val highest: Long = value.highestOneBit()
-            val lowest: Long = value.lowestOneBit()
             val takenHighest: Long = value.takeHighestOneBit()
             val takenLowest: Long = value.takeLowestOneBit()
             val bitCount: Int = value.countOneBits()
-            return highest + lowest + takenHighest + takenLowest + bitCount.toLong()
+            return takenHighest + takenLowest + bitCount.toLong()
         }
         """,
         """
@@ -67,4 +65,68 @@ struct PrimitiveBitFunctionTypeTests {
             )
 
     }
+
+    @Test
+    func testUnsignedRotationsPreserveReceiverType() throws {
+        let source = """
+        fun probe(ui: UInt, ul: ULong, count: Int) {
+            val leftUInt: UInt = ui.rotateLeft(count)
+            val rightUInt: UInt = ui.rotateRight(count)
+            val leftULong: ULong = ul.rotateLeft(count)
+            val rightULong: ULong = ul.rotateRight(count)
+            val safeUInt: UInt? = (ui as UInt?)?.rotateLeft(count)
+            val safeULong: ULong? = (ul as ULong?)?.rotateRight(count)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func testNarrowRotationsPreserveReceiverType() throws {
+        let source = """
+        fun probe(b: Byte, s: Short, ub: UByte, us: UShort, count: Int) {
+            val leftByte: Byte = b.rotateLeft(count)
+            val rightByte: Byte = b.rotateRight(count)
+            val leftShort: Short = s.rotateLeft(count)
+            val rightShort: Short = s.rotateRight(count)
+            val leftUByte: UByte = ub.rotateLeft(count)
+            val rightUByte: UByte = ub.rotateRight(count)
+            val leftUShort: UShort = us.rotateLeft(count)
+            val rightUShort: UShort = us.rotateRight(count)
+            val safeByte: Byte? = (b as Byte?)?.rotateLeft(count)
+            val safeShort: Short? = (s as Short?)?.rotateRight(count)
+            val safeUByte: UByte? = (ub as UByte?)?.rotateRight(count)
+            val safeUShort: UShort? = (us as UShort?)?.rotateLeft(count)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func testPhantomOneBitMembersAreRejected() throws {
+        let source = """
+        fun rejected(i: Int, l: Long) {
+            i.highestOneBit()
+            i.lowestOneBit()
+            l.highestOneBit()
+            l.lowestOneBit()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 4)
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0024" })
+        }
+    }
+
 }

@@ -1,9 +1,9 @@
-symbol fq=test.BoolContainer[kind=class] kind=class vis=public flags=_
-symbol fq=test.Container[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=test.IntContainer[kind=class] kind=class vis=public flags=_
-symbol fq=test.StringContainer[kind=class] kind=class vis=public flags=_
+symbol fq=test.BoolContainer[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=test.Container[kind=iface;gen=1;variance=[i];origin=fixture] kind=interface vis=public flags=_
+symbol fq=test.IntContainer[kind=class;origin=fixture] kind=class vis=public flags=_
+symbol fq=test.StringContainer[kind=class;origin=fixture] kind=class vis=public flags=_
 file finheritance_generic_primitive package=test
-  decl test.Container[kind=iface;gen=1] interface Container sym=test.Container[kind=iface;gen=1]
-  decl test.IntContainer[kind=class] class IntContainer sym=test.IntContainer[kind=class]
-  decl test.StringContainer[kind=class] class StringContainer sym=test.StringContainer[kind=class]
-  decl test.BoolContainer[kind=class] class BoolContainer sym=test.BoolContainer[kind=class]
+  decl test.Container[kind=iface;gen=1;variance=[i];origin=fixture] interface Container sym=test.Container[kind=iface;gen=1;variance=[i];origin=fixture]
+  decl test.IntContainer[kind=class;origin=fixture] class IntContainer sym=test.IntContainer[kind=class;origin=fixture]
+  decl test.StringContainer[kind=class;origin=fixture] class StringContainer sym=test.StringContainer[kind=class;origin=fixture]
+  decl test.BoolContainer[kind=class;origin=fixture] class BoolContainer sym=test.BoolContainer[kind=class;origin=fixture]

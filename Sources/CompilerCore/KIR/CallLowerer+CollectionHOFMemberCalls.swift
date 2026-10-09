@@ -8,7 +8,7 @@ extension CallLowerer {
     ) -> Bool {
         [
             "map", "filter", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed",
-            "any", "none", "all", "fold", "foldRight", "reduce", "reduceRight", "scan", "scanIndexed", "scanReduce",
+            "any", "none", "all", "fold", "foldRight", "reduce", "reduceRight", "scan", "scanIndexed",
             "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "groupBy", "groupingBy",
             "aggregate", "aggregateTo",
             "sortedBy", "count", "first", "last", "find", "firstOrNull", "lastOrNull", "distinctBy",
@@ -173,7 +173,6 @@ extension CallLowerer {
             interner.intern("kk_list_maxWithOrNull"),
             interner.intern("kk_list_minWith"),
             interner.intern("kk_list_minWithOrNull"),
-            interner.intern("__kk_mutable_list_sortWith"),
         ]
         if comparatorOnlyCallees.contains(loweredCallee),
            finalArguments.count == 2

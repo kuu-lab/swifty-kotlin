@@ -97,6 +97,46 @@ struct CodegenBackendCollectionJoinToTests {
         )
     }
 
+    @Test func testCodegenSequenceJoinToDispatchesToUserAppendable() throws {
+        let source = """
+        import kotlin.text.Appendable
+
+        class MyBuffer : Appendable {
+            private val inner = StringBuilder()
+            override fun append(value: Char): Appendable {
+                inner.append(value)
+                return this
+            }
+            override fun append(value: CharSequence?): Appendable {
+                inner.append(value?.toString() ?: "null")
+                return this
+            }
+            override fun append(value: CharSequence?, startIndex: Int, endIndex: Int): Appendable {
+                inner.append(value?.toString()?.substring(startIndex, endIndex) ?: "null")
+                return this
+            }
+            override fun toString(): String = inner.toString()
+        }
+
+        fun main() {
+            val buffer = MyBuffer()
+            val returned = sequenceOf(1, 2, 3).joinTo(buffer, "|", "<", ">")
+            println(returned.toString())
+            println(returned === buffer)
+            val target: Appendable = buffer
+            target.append('!')
+            target.append("xyz", 1, 2)
+            println(buffer.toString())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceJoinToUserAppendable",
+            expected: "<1|2|3>\ntrue\n<1|2|3>!y\n"
+        )
+    }
+
     // KSP-435: Iterable.joinTo is bundled Kotlin source, so the call lowers to
     // the source function instead of the kk_iterable_joinTo runtime bridge.
     @Test func testCodegenIterableJoinToUsesBundledSource() throws {
@@ -120,12 +160,10 @@ struct CodegenBackendCollectionJoinToTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("joinTo", in: ctx)
             #expect(containsKotlinCallee("joinTo", in: callees)
                 || containsKotlinCallee("joinTo$default", in: callees))
-            #expect(!callees.contains("kk_iterable_joinTo"))
-            // KSP-621: the runtime bridge itself (and the CallLowerer fallback that
-            // used to rescue unresolved calls onto it) has been removed.
-            #expect(!callees.contains("__kk_iterable_joinTo"))
         }
     }
 }

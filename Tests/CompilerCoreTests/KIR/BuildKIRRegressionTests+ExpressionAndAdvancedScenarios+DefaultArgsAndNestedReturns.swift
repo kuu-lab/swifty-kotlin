@@ -99,14 +99,15 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testExternalStringStubWithDefaultArgsDoesNotCallDefaultStub() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
         let callees = extractCallees(from: mainBody, interner: ctx.interner)
-        #expect(!callees.contains("kk_string_split_flat"), "String.split should no longer lower directly to kk_string_split_flat: \(callees)")
+        #expect(!callees.contains(runtime[.legacyStringSplit]), "String.split should no longer lower directly to kk_string_split_flat: \(callees)")
         #expect(
-            callees.contains("split") || callees.contains("__kk_string_split"),
+            callees.contains("split") || callees.contains(runtime[.stringSplit]),
             "Expected source-backed String.split path, got: \(callees)"
         )
         #expect(!(callees.contains { $0.contains("split$default") }),
@@ -142,8 +143,9 @@ extension BuildKIRRegressionTests {
                       "Expected call to withDep2$default stub, got: \(mainCallees)")
 
         // Stub must exist and call the original function
+        let stubSymbol = try defaultStubSymbol(named: "withDep2", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "withDep2$default" ? function : nil
+            return function.symbol == stubSymbol ? function : nil
         }.first
         #expect(stubFunction != nil, "Expected withDep2$default stub function")
         if let stub = stubFunction {
@@ -167,8 +169,9 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
+        let stubSymbol = try defaultStubSymbol(named: "chain3", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "chain3$default" ? function : nil
+            return function.symbol == stubSymbol ? function : nil
         }.first
         #expect(stubFunction != nil, "Expected chain3$default stub function")
         if let stub = stubFunction {
@@ -208,8 +211,9 @@ extension BuildKIRRegressionTests {
                       "Expected call to addDefault4$default stub, got: \(mainCallees)")
 
         // Stub must exist and include a receiver parameter
+        let stubSymbol = try defaultStubSymbol(named: "addDefault4", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
-            return ctx.interner.resolve(function.name) == "addDefault4$default" ? function : nil
+            return function.symbol == stubSymbol ? function : nil
         }.first
         #expect(stubFunction != nil, "Expected addDefault4$default stub function")
         if let stub = stubFunction {
@@ -328,15 +332,23 @@ extension BuildKIRRegressionTests {
 
 
     @Test
-    func testFunctionTypedMemberPropertyCallKeepsPropertyCalleeName() throws {
+    func testFunctionTypedMemberPropertyCallLowersToRuntimeInvoke() throws {
+        let runtime = try RuntimeNames()
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "use10", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
+        // KUU-482/BUG-250: `h.transform(5)` on a function-typed member property
+        // reads the property and invokes the value through the runtime ABI,
+        // rather than emitting an unresolvable `call transform`.
         #expect(
-            callees.contains("transform"),
-            "Expected property callee name 'transform', got: \(callees)"
+            callees.contains(runtime[.functionInvoke]),
+            "Expected runtime invoke callee 'kk_function_invoke', got: \(callees)"
+        )
+        #expect(
+            !(callees.contains("transform")),
+            "Function-typed property calls must not emit a bare 'transform' call, got: \(callees)"
         )
         #expect(
             !(callees.contains("invoke")),

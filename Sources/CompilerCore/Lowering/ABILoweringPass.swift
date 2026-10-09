@@ -1,6 +1,8 @@
 
 final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "ABILowering"
+    static let requiredStage: KIRStage = .integerNarrowed
+    static let producedStage: KIRStage = .abiLowered
 
     static func primitiveBoxingCallee(for primitive: PrimitiveType, interner: StringInterner) -> InternedString {
         guard let callee = BoxingCalleeTable(interner: interner).boxCallee(for: primitive) else {
@@ -24,9 +26,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
         let boxingCalleeTable = BoxingCalleeTable(interner: ctx.interner)
         let intNarrowingCallee = ctx.interner.intern("kk_int_narrow")
+        let listViewChecks = listViewCheckedArguments(interner: ctx.interner)
+        let listViewCheckCallee = ctx.interner.intern("__kk_list_check_modification")
 
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
+        let listViewMembers = listViewMemberSymbols(symbols: symbols, interner: ctx.interner)
 
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
@@ -76,6 +81,12 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_op_fgt"),
             ctx.interner.intern("kk_op_fge"),
         ]
+        let unitEqualityCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_structural_eq"),
+            ctx.interner.intern("kk_structural_ne"),
+        ]
 
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
         // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
@@ -102,6 +113,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // downstream uses of the element (arithmetic, comparisons, calls) see
         // the plain primitive value.
         let collectionElementAccessorCallees: Set<InternedString> = [
+            ctx.interner.intern("__kk_list_get"),
             ctx.interner.intern("kk_list_iterator_next"),
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
@@ -111,6 +123,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // same unboxing as the accessors above only for the generic receiver;
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
+        let arrayClassName = ctx.interner.intern("Array")
 
         // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
         // generic and primitive arrays without a Sema function signature. Keep
@@ -120,17 +133,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_array_is_empty"),
         ]
 
-        // __kk_op_rangeUntil backs the `until` infix function (registered in
+        // The typed rangeUntil bridges back the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always returns a boxed RuntimeRangeBox
-        // reference at runtime (see __kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // used for range operators) but always return boxed RuntimeRangeBox
+        // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
         // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
         // on the range object itself.
         let boxedReturnRangeCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_long_rangeUntil"),
+            ctx.interner.intern("__kk_char_rangeUntil"),
+            ctx.interner.intern("__kk_uint_rangeUntil"),
         ]
 
         let unboxSkipCallees = boxedReturnRangeCallees.union(
@@ -195,6 +211,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             var updated: KIRFunction = function
             var newBody = KIRLoweringEmitContext()
             newBody.instructions.reserveCapacity(function.body.count)
+            var nullableGenericResults: Set<KIRExprID> = []
 
             let functionReturnKind: TypeKind? = types.map { $0.kind(of: function.returnType) }
 
@@ -205,6 +222,13 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     : nil
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
+                    if let vcSymbol, listViewMembers.contains(vcSymbol) {
+                        appendListViewChecks(
+                            arguments: [vcReceiver], checkedIndices: [0], thrownResult: vcThrownResult,
+                            followingInstructions: function.body[(idx + 1)...],
+                            checkCallee: listViewCheckCallee, newBody: &newBody
+                        )
+                    }
                     let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
                     let vcCanThrow = !vcIsClosureRelated
                         && !nonThrowingCalleeSet.contains(vcCallee)
@@ -219,7 +243,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         applyArgumentBoxing(
                             arguments: vcArguments,
                             signature: vcSignature,
-                            receiverOffset: 0,
+                            receiverOffset: vcSymbol.flatMap {
+                                symbols?.memberExtensionOwnerSymbol(for: $0)
+                            } != nil ? 1 : 0,
                             module: module,
                             types: types,
                             symbols: symbols,
@@ -227,6 +253,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: vcCallee,
                             interner: ctx.interner,
                             boxTypeParamArguments: isKotlinSourceCallee(vcSymbol, symbols: symbols),
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             newBody: &newBody
                         )
                     } else {
@@ -235,12 +263,15 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let vcUnbox = resolveUnboxForCall(
                         callSymbol: vcSymbol,
                         callee: vcCallee,
+                        arguments: vcArguments,
+                        receiver: vcReceiver,
                         result: vcResult,
                         signatureByName: signatureByName,
                         module: module,
                         types: types,
                         symbols: symbols,
                         boxingCalleeTable: boxingCalleeTable,
+                        nullableGenericResults: &nullableGenericResults,
                         boxedReturnCallees: unboxSkipCallees
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
@@ -295,7 +326,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        returnType: function.returnType,
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
-                       boxingCalleeTable: boxingCalleeTable
+                       boxingCalleeTable: boxingCalleeTable,
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -330,7 +363,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                        from: from, to: to,
                        module: module, types: types, symbols: symbols,
                        interner: ctx.interner,
-                       boxingCalleeTable: boxingCalleeTable
+                       boxingCalleeTable: boxingCalleeTable,
+                       sema: ctx.sema,
+                       cache: ctx.nominalDispatchCache
                    )
                 {
                     newBody.append(contentsOf: rewritten)
@@ -361,7 +396,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                guard case let .call(callSymbol, callee, arguments, result, _, thrownResult, isSuperCall, _) = instruction else {
+                guard case let .call(callSymbol, callee, arguments, result, _, thrownResult, isSuperCall, qualifiedSuperType) = instruction else {
                     newBody.append(instruction)
                     idx += 1
                     continue
@@ -401,12 +436,46 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     let storeLinkName = String(getterLink.dropLast("_load".count)) + "_store"
                     return ctx.interner.intern(storeLinkName)
                 }()
-                let effectiveCallee = rewrittenCallee ?? callee
+                var effectiveCallee = rewrittenCallee ?? callee
+                if let firstArgument = arguments.first,
+                   nullableGenericResults.contains(firstArgument)
+                {
+                    switch ctx.interner.resolve(effectiveCallee) {
+                    case "kk_box_double_nonnull":
+                        effectiveCallee = ctx.interner.intern("kk_box_double")
+                    case "kk_box_double_nonnull_static":
+                        effectiveCallee = ctx.interner.intern("kk_box_double_static")
+                    case "kk_box_long_nonnull":
+                        effectiveCallee = ctx.interner.intern("kk_box_long")
+                    case "kk_box_long_nonnull_static":
+                        effectiveCallee = ctx.interner.intern("kk_box_long_static")
+                    default:
+                        break
+                    }
+                }
                 let effectiveCallSymbol: SymbolID? = rewrittenCallee != nil ? nil : callSymbol
+                let runtimeLink = effectiveCallSymbol.flatMap { symbols?.externalLinkName(for: $0) }
+                    .map { ctx.interner.intern($0) } ?? effectiveCallee
+                let checkedIndices = listViewChecks[runtimeLink]
+                    ?? (effectiveCallSymbol.map { listViewMembers.contains($0) } == true ? [0] : nil)
+                if let checkedIndices {
+                    appendListViewChecks(
+                        arguments: arguments,
+                        checkedIndices: checkedIndices,
+                        thrownResult: thrownResult,
+                        followingInstructions: function.body[(idx + 1)...],
+                        checkCallee: listViewCheckCallee,
+                        newBody: &newBody
+                    )
+                }
                 // Stubs explicitly marked .throwingFunction must always emit the
                 // outThrown channel regardless of whether their callee name appears
                 // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
+                    if isSyntheticAccessor, let s = callSymbol,
+                       symbols?.functionSignature(for: s)?.canThrow == true {
+                        return true
+                    }
                     guard let s = callSymbol, let sym = symbols?.symbol(s) else { return false }
                     return sym.flags.contains(.throwingFunction)
                 }()
@@ -457,6 +526,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     // argument against its neighbour's declared type.
                     let receiverOffset: Int = {
                         guard signature.receiverType != nil else { return 0 }
+                        if let symbol = effectiveCallSymbol, let symbols,
+                           symbols.memberExtensionOwnerSymbol(for: symbol) != nil
+                        {
+                            return 2
+                        }
                         if symbols?.symbol(effectiveCallSymbol ?? .invalid)?.kind == .constructor,
                            arguments.count == signature.parameterTypes.count
                         {
@@ -475,6 +549,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         callee: effectiveCallee,
                         interner: ctx.interner,
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols),
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         newBody: &newBody
                     )
                 } else {
@@ -502,6 +578,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         symbols: symbols,
                         interner: ctx.interner,
                         arena: module.arena,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
                         into: &newBody
                     )
                 }
@@ -518,6 +596,23 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             operand: boxedArguments[i], resultExpr: result,
                             module: module, types: types, symbols: symbols,
                             boxingCalleeTable: boxingCalleeTable, newBody: &newBody
+                        )
+                    }
+                }
+                // Unit may arrive as a raw builtin value or an erased singleton
+                // handle. Compare singleton handles for both representations,
+                // including when-branch equality emitted by OperatorLowering.
+                if signature == nil, let types,
+                   unitEqualityCallees.contains(effectiveCallee)
+                {
+                    for i in boxedArguments.indices {
+                        guard let argType = intrinsicArgType(boxedArguments[i], arena: module.arena, types: types),
+                              case .unit = types.kind(of: argType),
+                              let boxCallee = boxingCalleeTable.boxCallee(for: .unit, requireNonNull: true)
+                        else { continue }
+                        boxedArguments[i] = emitNonThrowingCall(
+                            callee: boxCallee, arg: boxedArguments[i], resultType: types.anyType,
+                            arena: module.arena, into: &newBody
                         )
                     }
                 }
@@ -566,7 +661,11 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         resolveValueClassKind($0, types: types, symbols: symbols)
                     }
                     if let argKind,
-                       let boxCallee = boxCalleeForPrimitive(argKind, boxingCalleeTable: boxingCalleeTable)
+                       let boxCallee = boxCalleeForPrimitive(
+                           argKind,
+                           boxingCalleeTable: boxingCalleeTable,
+                           preferStaticPrimitive: true
+                       )
                     {
                         let boxedResult = module.arena.appendTemporary(type: types.anyType)
                         emitBoxCallWithValueClassTag(
@@ -579,6 +678,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             symbols: symbols,
                             interner: ctx.interner,
                             arena: module.arena,
+                            sema: ctx.sema,
+                            cache: ctx.nominalDispatchCache,
                             into: &newBody
                         )
                         boxedArguments[0] = boxedResult
@@ -588,12 +689,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 let resolvedUnbox = resolveUnboxForCall(
                     callSymbol: effectiveCallSymbol,
                     callee: effectiveCallee,
+                    arguments: arguments,
                     result: result,
                     signatureByName: signatureByName,
                     module: module,
                     types: types,
                     symbols: symbols,
                     boxingCalleeTable: boxingCalleeTable,
+                    nullableGenericResults: &nullableGenericResults,
                     boxedReturnCallees: unboxSkipCallees
                 )
 
@@ -609,7 +712,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             module: module,
                             types: types,
                             symbols: symbols,
-                            interner: ctx.interner
+                            arrayName: arrayClassName
                         ))
                     || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,
@@ -630,7 +733,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         // Leave string unboxing to the backend bridge.
                     } else if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
-                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols
+                        boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
+                        preferStaticPrimitive: true
                     ) {
                         effectiveUnbox = (unboxCallee, resultType)
                     }
@@ -646,7 +750,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         result: tempResult,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        isSuperCall: isSuperCall
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
                     ))
                     if thrownResult != nil {
                         let nextIdx = idx + 1
@@ -671,7 +776,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        isSuperCall: isSuperCall
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
                     ))
                 }
                 idx += 1
@@ -692,20 +798,30 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         interner: StringInterner,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let functionReturnKind,
-              isAnyOrNullableAny(functionReturnKind) || isNonValueClassReference(functionReturnKind, symbols: symbols),
               let valueType = intrinsicArgType(value, arena: module.arena, types: types)
         else {
             return nil
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
-        guard let boxCallee = boxCalleeForPrimitive(
-            resolvedValueKind,
-            boxingCalleeTable: boxingCalleeTable
-        ) else {
+        // A non-null primitive returned from a `P?`-typed function must be
+        // boxed — not passed through verbatim — because a `P?` slot holds
+        // box-or-sentinel and a raw sentinel-equal scalar (Long.MIN_VALUE,
+        // ULong 2^63, -0.0) would read as `null` at every call site (KUU-854).
+        guard isAnyOrNullableAny(functionReturnKind)
+            || isNonValueClassReference(functionReturnKind, symbols: symbols)
+            || needsBoxingForCopy(sourceKind: resolvedValueKind, targetKind: functionReturnKind),
+              let boxCallee = boxCalleeForPrimitive(
+                  resolvedValueKind,
+                  boxingCalleeTable: boxingCalleeTable,
+                  preferStaticPrimitive: true
+              )
+        else {
             return nil
         }
         var instructions: [KIRInstruction] = []
@@ -720,6 +836,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             symbols: symbols,
             interner: interner,
             arena: module.arena,
+            sema: sema,
+            cache: cache,
             into: &instructions
         )
         instructions.append(.returnValue(boxedResult))
@@ -732,7 +850,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         interner: StringInterner,
-        boxingCalleeTable: BoxingCalleeTable
+        boxingCalleeTable: BoxingCalleeTable,
+        sema: SemaModule?,
+        cache: KIRNominalDispatchCache?
     ) -> [KIRInstruction]? {
         guard let fromType = intrinsicArgType(from, arena: module.arena, types: types),
               let toType = module.arena.exprType(to)
@@ -765,7 +885,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             || isNonValueClassReference(rawToKind, symbols: symbols),
             let boxCallee = boxCalleeForPrimitive(
                 fromKind,
-                boxingCalleeTable: boxingCalleeTable
+                boxingCalleeTable: boxingCalleeTable,
+                preferStaticPrimitive: true
             )
         {
             var instructions: [KIRInstruction] = []
@@ -779,6 +900,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 symbols: symbols,
                 interner: interner,
                 arena: module.arena,
+                sema: sema,
+                cache: cache,
                 into: &instructions
             )
             return instructions
@@ -788,7 +911,8 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
            let unboxCallee = unboxingCallee(
                sourceKind: fromKind, targetKind: toKind,
                boxingCalleeTable: boxingCalleeTable,
-               types: types, symbols: symbols
+               types: types, symbols: symbols,
+               preferStaticPrimitive: true
            )
         {
             return [.call(symbol: nil, callee: unboxCallee, arguments: [from],

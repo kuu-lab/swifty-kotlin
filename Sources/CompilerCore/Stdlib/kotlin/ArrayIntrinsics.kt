@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.ExperimentalUnsignedTypes::class)
+
 package kotlin
 
 import kotlin.internal.KsSymbolName
@@ -30,9 +32,13 @@ public class FloatArray private constructor()
 public class IntArray private constructor()
 public class LongArray private constructor()
 public class ShortArray private constructor()
+@ExperimentalUnsignedTypes
 public class UByteArray private constructor()
+@ExperimentalUnsignedTypes
 public class UShortArray private constructor()
+@ExperimentalUnsignedTypes
 public class UIntArray private constructor()
+@ExperimentalUnsignedTypes
 public class ULongArray private constructor()
 
 // KSP-657: Array factory intrinsics migrated (b-reclass batch 1) from the

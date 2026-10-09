@@ -51,11 +51,13 @@ extension BuildKIRRegressionTests {
         let values = try #require(
             sema.symbols.lookup(fqName: memoryModelFQName + [interner.intern("values")])
         )
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: memoryModel))
+        let companionFQName = try #require(sema.symbols.symbol(companionSymbol)?.fqName)
         let valueOf = try #require(
-            sema.symbols.lookup(fqName: memoryModelFQName + [interner.intern("valueOf")])
+            sema.symbols.lookup(fqName: companionFQName + [interner.intern("valueOf")])
         )
         let entries = try #require(
-            sema.symbols.lookup(fqName: memoryModelFQName + [interner.intern("entries")])
+            sema.symbols.lookup(fqName: companionFQName + [interner.intern("entries")])
         )
         let valuesSignature = try #require(sema.symbols.functionSignature(for: values))
         let valueOfSignature = try #require(sema.symbols.functionSignature(for: valueOf))
@@ -65,7 +67,11 @@ extension BuildKIRRegressionTests {
         #expect(sema.symbols.symbol(entries)?.flags.contains(.static) == true)
         #expect(valuesSignature.receiverType == nil)
         #expect(valuesSignature.parameterTypes.isEmpty)
-        #expect(valueOfSignature.receiverType == nil)
+        #expect(valueOfSignature.receiverType == sema.types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        ))))
         #expect(valueOfSignature.parameterTypes == [sema.types.stringType])
         #expect(valueOfSignature.returnType == memoryModelType)
 
@@ -76,17 +82,18 @@ extension BuildKIRRegressionTests {
         #expect(mainCallees.contains("entries$get"))
         #expect(mainCallees.contains("values"))
         #expect(mainCallees.contains("valueOf"))
-        #expect(!mainCallees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }))
+        #expect(!mainCallees.contains(where: { $0.hasPrefix(EnumPropertyHelperNames.getterPrefix) }))
 
         let valuesBody = try findKIRFunctionBody(named: "values", in: module, interner: interner)
-        #expect(extractCallees(from: valuesBody, interner: interner).contains("kk_enum_make_values_array"))
+        #expect(extractCallees(from: valuesBody, interner: interner).contains(runtimeCallee(.enumMakeValuesArray)))
 
         let entriesBody = try findKIRFunctionBody(named: "entries$get", in: module, interner: interner)
-        #expect(extractCallees(from: entriesBody, interner: interner).contains("kk_enum_make_entries_list_cached"))
+        #expect(extractCallees(from: entriesBody, interner: interner).contains(runtimeCallee(.enumMakeEntriesListCached)))
 
         let valueOfFunction = try findKIRFunction(named: "valueOf", in: module, interner: interner)
-        #expect(valueOfFunction.params.count == 1)
-        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains("__kk_string_equals_flat"))
+        // The companion receiver is explicit in the lowered KIR signature.
+        #expect(valueOfFunction.params.count == 2)
+        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains(runtimeCallee(.stringEqualsFlat)))
     }
 }
 #endif

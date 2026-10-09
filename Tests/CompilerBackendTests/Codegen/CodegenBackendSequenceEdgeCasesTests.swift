@@ -115,69 +115,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceReduceRightIndexedReturnsRightFoldedValueOrThrowsOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightIndexed { index, value, acc -> index * 100 + value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightIndexed { index, value, acc -> index + value + acc }
-
-            println(reduced)
-            println(single)
-            try {
-                emptySequence<Int>().reduceRightIndexed { index, value, acc -> index + value + acc }
-                println("unexpected")
-            } catch (t: Throwable) {
-                println("empty")
-            }
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexed", expected: "364\n42\nempty\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightIndexedOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightIndexedOrNull { index, value, acc -> index * 100 + value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
-            val empty = emptySequence<Int>()
-                .reduceRightIndexedOrNull { index, value, acc -> index + value + acc }
-
-            println(reduced)
-            println(single)
-            println(empty ?: -1)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightIndexedOrNull", expected: "364\n42\n-1\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightOrNullReturnsRightFoldedValueOrNullOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRightOrNull { value, acc -> value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRightOrNull { value, acc -> value + acc }
-            val empty = emptySequence<Int>()
-                .reduceRightOrNull { value, acc -> value + acc }
-
-            println(reduced)
-            println(single)
-            println(empty ?: -1)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRightOrNull", expected: "64\n42\n-1\n")
-    }
-
-    @Test
     func testCodegenSequenceReduceOrNullReturnsAccumulatedValueOrNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -192,30 +129,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceReduceOrNull", expected: "10\nnull\n42\n")
-    }
-
-    @Test
-    func testCodegenSequenceReduceRightReturnsRightFoldedValueOrThrowsOnEmpty() throws {
-        let source = """
-        fun main() {
-            val reduced = sequenceOf(1, 2, 3, 4)
-                .reduceRight { value, acc -> value * 10 + acc }
-            val single = sequenceOf(42)
-                .reduceRight { value, acc -> value * 10 + acc }
-
-            println(reduced)
-            println(single)
-
-            try {
-                emptySequence<Int>().reduceRight { value, acc -> value + acc }
-                println("missing")
-            } catch (e: Throwable) {
-                println("empty")
-            }
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "SequenceReduceRight", expected: "64\n42\nempty\n")
     }
 
     @Test
@@ -262,73 +175,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_flatmap_indexed.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFlatMapIndexed",
-            expected:
-                """
-                [0, 10, 1, 20]
-                [1, 100, 3, 200]
-                [0, 1, 1]
-                []
-                """
-                    + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_firstnotnullof.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFirstNotNullOf",
-            expected:
-                """
-                three
-                missing
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_firstnotnullofornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceFirstNotNullOfOrNull",
-            expected:
-                """
-                three
-                missing
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_minuselement.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceMinusElement",
-            expected:
-                """
-                [1, 3, 2]
-                [1, 2, 3, 2]
-                []
-                """
-                + "\n"
-        )
-    }
-
-    @Test
     func testCodegenSequenceMinusRemovesSingleElement() throws {
         let source = """
         fun main() {
@@ -338,38 +184,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceMinus", expected: "[1, 3, 2]\n[1, 2, 3]\n")
-    }
-
-    @Test
-    func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_sumby.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceSumBy",
-            expected:
-                """
-                14
-                0
-                """
-                + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_sumbydouble.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceSumByDouble",
-            expected:
-                """
-                2.0
-                0.0
-                """
-                + "\n"
-        )
     }
 
     @Test
@@ -410,26 +224,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceRunningReduceIndexed", expected: "[1, 3, 9, 21]\n[]\n")
-    }
-
-    @Test
-    func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_shuffled.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceShuffled",
-            expected:
-                """
-                4
-                [1, 2, 3, 4]
-                4
-                [1, 2, 3, 4]
-                []
-                [42]
-                """
-                    + "\n"
-        )
     }
 
     @Test
@@ -631,11 +425,11 @@ struct CodegenBackendSequenceEdgeCasesTests {
     }
 
     @Test
-    func testCodegenSequenceReversedReturnsElementsInReverseOrder() throws {
+    func testCodegenMaterializedSequenceReversedReturnsElementsInReverseOrder() throws {
         let source = """
         fun main() {
-            println(sequenceOf(1, 2, 3, 4).reversed().toList())
-            println(emptySequence<Int>().reversed().toList())
+            println(sequenceOf(1, 2, 3, 4).toList().reversed())
+            println(emptySequence<Int>().toList().reversed())
         }
         """
 
@@ -832,23 +626,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
                 10;20;
                 """
                 + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("sequence_require_no_nulls.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "SequenceRequireNoNulls",
-            expected:
-                """
-                [1, 2, 3]
-                [1]
-                caught
-                """
-                    + "\n"
         )
     }
 

@@ -7,12 +7,13 @@ import Darwin
 import Glibc
 #endif
 
-/// Builds and locates the stdlib artifact used by the executable CLI path.
-///
-/// Packaged artifacts are preferred. When a package does not provide one, the
-/// artifact is generated in the user's standard caches directory. The cache is
-/// keyed by target and guarded by an advisory lock so parallel first launches
-/// cannot publish a partial `.kklib`.
+/// The `KSWIFTK_STDLIB_CACHE_DIR` override of the user's standard caches
+/// directory is intended for sandboxes and test isolation. Each target, bundled-source hash, and
+/// compiler fingerprint gets its own cache path, so another worktree cannot
+/// replace an artifact after a compiler has resolved its path. An advisory
+/// lock prevents parallel first launches for the same cache key from
+/// publishing a partial `.kklib`; each build stages under a unique
+/// `.building-*` path and only a fully validated artifact is moved into place.
 public enum StdlibArtifactCache {
     public enum Error: Swift.Error, CustomStringConvertible {
         case explicitArtifactInvalid(path: String, reason: String)
@@ -42,9 +43,8 @@ public enum StdlibArtifactCache {
 
     private static let artifactFileName = "KSwiftKStdlib.kklib"
     private static let kotlinLanguageVersion = "2.3.10"
-    private static let compilerVersion = "0.1.0"
+    private static let compilerVersion = CompilerBuildInfo.version
 
-    /// Resolve a packaged artifact or build one in the user's standard cache.
     public static func resolveOrBuild(target: TargetTriple) throws -> String {
         let fileManager = FileManager.default
         let environment = ProcessInfo.processInfo.environment
@@ -65,10 +65,59 @@ public enum StdlibArtifactCache {
             }
         }
 
-        let artifactURL = try cacheArtifactURL(for: target)
+        let cacheDirectory: URL
+        if let override = environment["KSWIFTK_STDLIB_CACHE_DIR"], !override.isEmpty {
+            cacheDirectory = URL(fileURLWithPath: override)
+        } else {
+            guard let cachesURL = fileManager.urls(
+                for: .cachesDirectory,
+                in: .userDomainMask
+            ).first else {
+                throw Error.cacheDirectoryUnavailable
+            }
+            cacheDirectory = cachesURL
+        }
+
+        return try resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory,
+            fileManager: fileManager
+        ) { outputBase in
+            try StdlibArtifactBuilder.build(outputBase: outputBase, target: target)
+        }
+    }
+
+    /// The cache path
+    /// includes the bundled-source hash and compiler fingerprint, so each
+    /// distinct build has an independent artifact that remains stable after
+    /// this method returns. The builder receives a private output-base path
+    /// and must return the `.kklib` directory it produced there; it is injected
+    /// so tests can exercise the locking, staging, and recovery paths without
+    /// paying for a real stdlib build.
+    ///
+    /// Recovery contract: a build that is killed or fails midway can only
+    /// leave its own uniquely-named staging tree behind — never a partially
+    /// published `KSwiftKStdlib.kklib` — and a cached artifact that fails
+    /// validation (e.g. inline-KIR blobs deleted out from under it) is
+    /// rebuilt instead of being handed to a compile that would fail later
+    /// with KSWIFTK-LIB-0019 or missing link symbols.
+    static func resolveOrBuildCached(
+        target: TargetTriple,
+        cacheDirectory: URL,
+        fileManager: FileManager = .default,
+        compilerFingerprint: String? = nil,
+        builder: (_ outputBase: String) throws -> String
+    ) throws -> String {
+        let currentFingerprint = compilerFingerprint ?? currentCompilerFingerprint()
+        let cacheFingerprint = currentFingerprint ?? "unavailable-\(UUID().uuidString)"
+        let artifactURL = cacheArtifactURL(
+            for: target,
+            cacheDirectory: cacheDirectory,
+            stdlibManifestHash: BundledStdlib.manifestHash(),
+            compilerFingerprint: cacheFingerprint
+        )
         let artifactPath = artifactURL.path
         let lockPath = artifactPath + ".lock"
-        let fingerprintPath = artifactPath + ".compiler-fingerprint"
         try fileManager.createDirectory(
             at: artifactURL.deletingLastPathComponent(),
             withIntermediateDirectories: true,
@@ -76,28 +125,21 @@ public enum StdlibArtifactCache {
         )
 
         return try withFileLock(at: lockPath) {
-            if case .valid = validateArtifact(at: artifactPath, target: target),
-               fingerprintMatches(fingerprintPath: fingerprintPath)
-            {
+            if case .valid = validateArtifact(at: artifactPath, target: target) {
                 return artifactPath
             }
 
-            if fileManager.fileExists(atPath: artifactPath) {
-                try fileManager.removeItem(atPath: artifactPath)
-            }
-            try? fileManager.removeItem(atPath: fingerprintPath)
+            removeStaleStagingDirectories(artifactPath: artifactPath, fileManager: fileManager)
 
-            let buildingBase = artifactPath + ".building"
+            // Stage each build under a per-attempt path: an interrupted build
+            // leaves an inert partial tree that is never published, and no
+            // other process ever shares or deletes this staging path.
+            let buildingBase = artifactPath + ".building-\(getpid())-\(UUID().uuidString)"
             let buildingArtifactPath = buildingBase + ".kklib"
-            try? fileManager.removeItem(atPath: buildingBase)
-            try? fileManager.removeItem(atPath: buildingArtifactPath)
 
             let builtArtifactPath: String
             do {
-                builtArtifactPath = try StdlibArtifactBuilder.build(
-                    outputBase: buildingBase,
-                    target: target
-                )
+                builtArtifactPath = try builder(buildingBase)
             } catch {
                 try? fileManager.removeItem(atPath: buildingBase)
                 try? fileManager.removeItem(atPath: buildingArtifactPath)
@@ -105,21 +147,43 @@ public enum StdlibArtifactCache {
             }
 
             guard case .valid = validateArtifact(at: builtArtifactPath, target: target) else {
+                let reason = validationReason(at: builtArtifactPath, target: target)
+                try? fileManager.removeItem(atPath: buildingBase)
+                try? fileManager.removeItem(atPath: builtArtifactPath)
                 throw Error.artifactInvalid(
                     path: builtArtifactPath,
-                    reason: validationReason(at: builtArtifactPath, target: target)
+                    reason: reason
                 )
             }
 
-            try fileManager.moveItem(atPath: builtArtifactPath, toPath: artifactPath)
-            if let fingerprint = currentCompilerFingerprint() {
-                try fingerprint.write(toFile: fingerprintPath, atomically: true, encoding: .utf8)
+            // Publish only now that the replacement is complete: the previous
+            // artifact stays in place until the swap so a failed rebuild never
+            // leaves the cache empty.
+            if fileManager.fileExists(atPath: artifactPath) {
+                try? fileManager.removeItem(atPath: artifactPath)
+            }
+            do {
+                try fileManager.moveItem(atPath: builtArtifactPath, toPath: artifactPath)
+            } catch {
+                // Unreachable while the lock holds, but a deleted or recreated
+                // lock file can split the critical section and let another
+                // builder publish first. Prefer whatever landed when it
+                // validates instead of reporting a spurious failure.
+                if case .valid = validateArtifact(at: artifactPath, target: target) {
+                    try? fileManager.removeItem(atPath: buildingBase)
+                    try? fileManager.removeItem(atPath: builtArtifactPath)
+                    return artifactPath
+                }
+                try? fileManager.removeItem(atPath: buildingBase)
+                try? fileManager.removeItem(atPath: builtArtifactPath)
+                throw Error.buildFailed(
+                    "could not publish the stdlib artifact: \(error.localizedDescription)"
+                )
             }
             return artifactPath
         }
     }
 
-    /// Candidate locations for artifacts installed next to `kswiftc`.
     /// `KSWIFTK_STDLIB_LIBRARY` is handled separately because it is explicit
     /// and must fail loudly when it points at an incompatible artifact.
     public static func packagedArtifactCandidates(executablePath: String? = nil) -> [String] {
@@ -156,25 +220,55 @@ public enum StdlibArtifactCache {
         return candidates
     }
 
-    private static func cacheArtifactURL(for target: TargetTriple) throws -> URL {
-        guard let cachesURL = FileManager.default.urls(
-            for: .cachesDirectory,
-            in: .userDomainMask
-        ).first else {
-            throw Error.cacheDirectoryUnavailable
-        }
-
+    private static func cacheArtifactURL(
+        for target: TargetTriple,
+        cacheDirectory: URL,
+        stdlibManifestHash: String,
+        compilerFingerprint: String
+    ) -> URL {
         let targetKey = [target.arch, target.vendor, target.os, target.osVersion ?? "none"]
             .map { component in
                 component.replacingOccurrences(of: "/", with: "_")
                     .replacingOccurrences(of: "\\", with: "_")
             }
             .joined(separator: "-")
-        return cachesURL
+        let fingerprintKey = compilerFingerprint
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+        return cacheDirectory
             .appendingPathComponent("kswiftk", isDirectory: true)
             .appendingPathComponent("stdlib", isDirectory: true)
-            .appendingPathComponent("\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)", isDirectory: true)
+            .appendingPathComponent(
+                "\(kotlinLanguageVersion)-\(compilerVersion)-\(targetKey)-\(stdlibManifestHash)-\(fingerprintKey)",
+                isDirectory: true
+            )
             .appendingPathComponent(artifactFileName, isDirectory: true)
+    }
+
+    /// A leftover staging tree from a build interrupted more than this long
+    /// ago can no longer be written by a live builder, so it is safe to
+    /// reclaim. A successful build finishes in minutes; this is deliberately
+    /// far above that.
+    private static let staleStagingAge: TimeInterval = 3600
+
+    /// Called while the cache lock is held, so only trees too old to belong to
+    /// a still-running builder are reclaimed — anything newer is left alone.
+    private static func removeStaleStagingDirectories(
+        artifactPath: String,
+        fileManager: FileManager
+    ) {
+        let parentPath = URL(fileURLWithPath: artifactPath).deletingLastPathComponent().path
+        let prefix = artifactFileName + ".building"
+        guard let entries = try? fileManager.contentsOfDirectory(atPath: parentPath) else { return }
+        let cutoff = Date().addingTimeInterval(-staleStagingAge)
+        for entry in entries where entry.hasPrefix(prefix) {
+            let entryPath = parentPath + "/" + entry
+            guard let attributes = try? fileManager.attributesOfItem(atPath: entryPath),
+                  let modified = attributes[.modificationDate] as? Date,
+                  modified < cutoff
+            else { continue }
+            try? fileManager.removeItem(atPath: entryPath)
+        }
     }
 
     private static func normalizedPath(_ path: String) -> String {
@@ -195,13 +289,17 @@ public enum StdlibArtifactCache {
 
     private static func validateArtifact(at path: String, target: TargetTriple) -> ValidationResult {
         let fileManager = FileManager.default
-        let rootURL = URL(fileURLWithPath: path).standardizedFileURL
+        let rootURL = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: rootURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             return .invalid("artifact directory does not exist")
         }
 
-        let manifestURL = rootURL.appendingPathComponent("manifest.json")
+        guard let manifestURL = containedURL(relativePath: "manifest.json", under: rootURL),
+              isRegularFile(at: manifestURL, fileManager: fileManager)
+        else {
+            return .invalid("manifest.json is missing, not a regular file, or escapes the artifact")
+        }
         guard let data = try? Data(contentsOf: manifestURL) else {
             return .invalid("manifest.json is missing")
         }
@@ -239,7 +337,7 @@ public enum StdlibArtifactCache {
 
         guard let metadata = manifest["metadata"] as? String,
               let metadataURL = containedURL(relativePath: metadata, under: rootURL),
-              fileManager.fileExists(atPath: metadataURL.path)
+              isRegularFile(at: metadataURL, fileManager: fileManager)
         else {
             return .invalid("metadata file is missing or escapes the artifact")
         }
@@ -258,30 +356,59 @@ public enum StdlibArtifactCache {
         }
         for objectPath in objects {
             guard let objectURL = containedURL(relativePath: objectPath, under: rootURL),
-                  fileManager.fileExists(atPath: objectURL.path)
+                  isRegularFile(at: objectURL, fileManager: fileManager)
             else {
                 return .invalid("an object path is missing or escapes the artifact")
+            }
+        }
+
+        // The manifest lists only object files; inline-KIR blobs are
+        // referenced indirectly through the metadata index (`inline=1`
+        // records). A cache entry left by an interrupted or racing build can
+        // keep the manifest while losing blobs, after which consumers fail
+        // lazily with KSWIFTK-LIB-0019 or undefined link symbols. Verify every
+        // referenced blob instead of trusting the directory layout.
+        guard let metadataText = try? String(contentsOf: metadataURL, encoding: .utf8) else {
+            return .invalid("metadata file is unreadable")
+        }
+        for mangledName in inlineKIRMangledNames(metadataText: metadataText) {
+            let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
+            guard let blobURL = containedURL(relativePath: blobRelativePath, under: rootURL),
+                  isRegularFile(at: blobURL, fileManager: fileManager)
+            else {
+                return .invalid(
+                    "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                )
             }
         }
 
         return .valid
     }
 
+    /// Works on both the indexed (v2) metadata layout, where each index line is
+    /// prefixed by "<offset>\t<length>\t", and the legacy line-per-record layout.
+    private static func inlineKIRMangledNames(metadataText: String) -> Set<String> {
+        var names: Set<String> = []
+        for rawLine in metadataText.split(separator: "\n") {
+            let record = rawLine.split(separator: "\t").last ?? rawLine
+            let fields = record.split(separator: " ")
+            guard fields.count >= 2, fields.contains("inline=1") else { continue }
+            names.insert(String(fields[1]))
+        }
+        return names
+    }
+
     private static func containedURL(relativePath: String, under rootURL: URL) -> URL? {
         guard !relativePath.isEmpty else { return nil }
-        let candidate = rootURL.appendingPathComponent(relativePath).standardizedFileURL
+        let candidate = rootURL.appendingPathComponent(relativePath).resolvingSymlinksInPath().standardizedFileURL
         let rootPath = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
         guard candidate.path.hasPrefix(rootPath) else { return nil }
         return candidate
     }
 
-    private static func fingerprintMatches(fingerprintPath: String) -> Bool {
-        guard let current = currentCompilerFingerprint(),
-              let saved = try? String(contentsOfFile: fingerprintPath, encoding: .utf8)
-        else {
-            return false
-        }
-        return current == saved
+    private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
+        return attributes[.type] as? FileAttributeType == .typeRegular
     }
 
     private static func currentCompilerFingerprint() -> String? {

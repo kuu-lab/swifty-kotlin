@@ -12,8 +12,7 @@ final class LinkPhase: CompilerPhase {
     static let name = "Link"
 
     /// Linux links emit a Swift autolink stub that pulls in runtime dependencies. The stub is
-    /// written to a per-`LinkPhase` private temporary directory
-    /// (`TMPDIR/kswiftk-link-stubs-<uid>-<pid>-<uuid>`, mode 0700). Because every compilation
+    /// written to a per-`LinkPhase` private temporary directory. Because every compilation
     /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
     /// the same stub path. The complete link operation is still guarded by a per-target
     /// cross-process toolchain lock on Linux because concurrent `swiftc` invocations can
@@ -60,7 +59,11 @@ final class LinkPhase: CompilerPhase {
         }
         guard let entrySymbol = resolveEntrySymbol(
             kir: kir,
+            ast: ctx.ast,
+            bindings: ctx.sema?.bindings,
             interner: ctx.interner,
+            moduleName: ctx.options.moduleName,
+            symbols: ctx.sema?.symbols,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
         ) else {
             ctx.diagnostics.error(
@@ -212,25 +215,43 @@ final class LinkPhase: CompilerPhase {
 
     private func resolveEntrySymbol(
         kir: KIRModule,
+        ast: ASTModule?,
+        bindings: BindingTable?,
         interner: StringInterner,
+        moduleName: String,
+        symbols: SymbolTable?,
         fileFacadeNamesByFileID: [Int32: String]
     ) -> String? {
+        guard let ast, let bindings else {
+            return nil
+        }
         let knownNames = KnownCompilerNames(interner: interner)
         let mainNameResolved = interner.resolve(knownNames.main)
-        for decl in kir.arena.declarations {
-            guard case let .function(function) = decl else {
-                continue
-            }
-            // Compare interned IDs first; fall back to the resolved string so
-            // an entry point is found even if `main` was interned on a
-            // different code path and received a distinct `InternedString`.
-            if function.name == knownNames.main
-                || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
-                return CodegenSymbolSupport.cFunctionSymbol(
-                    for: function,
-                    interner: interner,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                )
+        for file in ast.sortedFiles {
+            for declID in file.topLevelDecls {
+                guard let astDecl = ast.arena.decl(declID),
+                      case .funDecl = astDecl,
+                      let symbol = bindings.declSymbols[declID],
+                      let function = kir.arena.function(for: symbol)
+                else {
+                    continue
+                }
+                // Only file-level declarations are eligible as the executable
+                // entry point. The arena also contains local and class-member
+                // functions, which can share the name `main`.
+                // Compare interned IDs first; fall back to the resolved string so
+                // an entry point is found even if `main` was interned on a
+                // different code path and received a distinct `InternedString`.
+                if function.name == knownNames.main
+                    || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
+                    return CodegenSymbolSupport.cFunctionSymbol(
+                        for: function,
+                        interner: interner,
+                        moduleName: moduleName,
+                        symbols: symbols,
+                        fileFacadeNamesByFileID: fileFacadeNamesByFileID
+                    )
+                }
             }
         }
         return nil
@@ -265,7 +286,7 @@ final class LinkPhase: CompilerPhase {
         return CodegenRuntimeSupport.targetTripleString(target)
     }
 
-    private func discoverLibraryObjects(searchPaths: [String]) -> [String] {
+    func discoverLibraryObjects(searchPaths: [String]) -> [String] {
         let fileManager = FileManager.default
         var libraryDirs: [String] = []
         var libraryDirSeen: Set<String> = []
@@ -296,8 +317,12 @@ final class LinkPhase: CompilerPhase {
         var seen: Set<String> = []
         for libraryDir in libraryDirs {
             for objectPath in objectPaths(from: libraryDir) {
-                let absolutePath = URL(fileURLWithPath: objectPath).standardizedFileURL.path
-                guard fileManager.fileExists(atPath: absolutePath) else {
+                let rootURL = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+                guard let absolutePath = containedRegularFileURL(
+                    URL(fileURLWithPath: objectPath),
+                    under: rootURL,
+                    fileManager: fileManager
+                )?.path else {
                     continue
                 }
                 if seen.insert(absolutePath).inserted {
@@ -310,16 +335,22 @@ final class LinkPhase: CompilerPhase {
 
     private func objectPaths(from libraryDir: String) -> [String] {
         let fileManager = FileManager.default
-        let manifestPath = URL(fileURLWithPath: libraryDir).appendingPathComponent("manifest.json").path
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
+        let libraryRoot = URL(fileURLWithPath: libraryDir).resolvingSymlinksInPath().standardizedFileURL
+        let manifestURL = libraryRoot.appendingPathComponent("manifest.json")
+        if let safeManifestURL = containedRegularFileURL(manifestURL, under: libraryRoot, fileManager: fileManager),
+           let data = try? Data(contentsOf: safeManifestURL),
            let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
            let manifestObjects = manifest.objects
         {
-            let libraryDirNormalized = URL(fileURLWithPath: libraryDir).standardized.path
             let mapped = manifestObjects
                 .filter { !$0.isEmpty }
-                .map { URL(fileURLWithPath: libraryDir).appendingPathComponent($0).standardized.path }
-                .filter { $0.hasPrefix(libraryDirNormalized + "/") }
+                .compactMap {
+                    containedRegularFileURL(
+                        libraryRoot.appendingPathComponent($0),
+                        under: libraryRoot,
+                        fileManager: fileManager
+                    )?.path
+                }
             if !mapped.isEmpty {
                 return mapped
             }
@@ -332,7 +363,29 @@ final class LinkPhase: CompilerPhase {
         return entries
             .filter { $0.hasSuffix(".o") }
             .sorted()
-            .map { URL(fileURLWithPath: objectsDir).appendingPathComponent($0).path }
+            .compactMap {
+                containedRegularFileURL(
+                    URL(fileURLWithPath: objectsDir).appendingPathComponent($0),
+                    under: libraryRoot,
+                    fileManager: fileManager
+                )?.path
+            }
+    }
+
+    private func containedRegularFileURL(
+        _ candidate: URL,
+        under root: URL,
+        fileManager: FileManager
+    ) -> URL? {
+        let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard resolved.path.hasPrefix(rootPath),
+              let attributes = try? fileManager.attributesOfItem(atPath: resolved.path),
+              attributes[.type] as? FileAttributeType == .typeRegular
+        else {
+            return nil
+        }
+        return resolved
     }
 }
 

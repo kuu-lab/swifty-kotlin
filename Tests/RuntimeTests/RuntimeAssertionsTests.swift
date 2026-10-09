@@ -243,6 +243,26 @@ struct RuntimeAssertionsTests {
                 "Throwable should be last in hierarchy")
     }
 
+    // MARK: - RuntimeMalformedInputExceptionBox
+
+    @Test
+    func testMalformedInputExceptionBoxRuntimeIdentity() {
+        let message = runtimeMalformedInputExceptionDefaultMessage
+        let box = RuntimeMalformedInputExceptionBox(message: message)
+        #expect(box.exceptionFQName == "java.nio.charset.MalformedInputException")
+        #expect(box.message == message)
+        #expect(box.cause == 0)
+        #expect(box.renderedMessage == "MalformedInputException: \(message)")
+        #expect(box.exceptionHierarchyFQNames == [
+            "java.nio.charset.MalformedInputException",
+            "java.nio.charset.CharacterCodingException",
+            "kotlin.text.CharacterCodingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ])
+        #expect(runtimeValueIsThrowableBox(box))
+    }
+
     // MARK: - RuntimeInvalidMutabilityExceptionBox
 
     @Test
@@ -473,6 +493,24 @@ struct RuntimeAssertionsTests {
             "Expected typed NoWhenBranchMatchedException runtime boxes"
         )
 
+        let noArgBox = try #require(
+            runtimeBox(from: noArg, as: RuntimeNoWhenBranchMatchedExceptionBox.self)
+        )
+        #expect(noArgBox.message == nil)
+        #expect(noArgBox.cause == 0)
+        #expect(causeOnlyBox.message == "kotlin.NoWhenBranchMatchedException")
+        for nullRaw in [0, runtimeNullSentinelInt] {
+            let nullMessage = kk_no_when_branch_matched_exception_new_message(nullRaw)
+            let nullWithCause = kk_no_when_branch_matched_exception_new_message_cause(nullRaw, noArg)
+            let nullCause = kk_no_when_branch_matched_exception_new_cause(nullRaw)
+            let nullBoth = kk_no_when_branch_matched_exception_new_message_cause(nullRaw, nullRaw)
+            for (raw, expectedCause) in [(nullMessage, 0), (nullWithCause, noArg), (nullCause, 0), (nullBoth, 0)] {
+                let box = try #require(runtimeBox(from: raw, as: RuntimeNoWhenBranchMatchedExceptionBox.self))
+                #expect(box.message == nil)
+                #expect(box.cause == expectedCause)
+            }
+        }
+
         #expect(messageOnlyBox.message == "missing")
         #expect(withCauseBox.message == "missing")
         #expect(withCauseBox.cause == noArg)
@@ -576,6 +614,20 @@ struct RuntimeAssertionsTests {
 
         #expect(messageOnlyBox.message == "bad index")
         #expect(noArgBox.message == nil)
+    }
+
+    @Test
+    func testStringIndexOutOfBoundsExceptionRuntimeConstructors() throws {
+        let cases: [(Int, String?)] = [
+            (kk_string_index_out_of_bounds_exception_new(), nil),
+            (kk_string_index_out_of_bounds_exception_new_message(makeRuntimeString("bad index")), "bad index"),
+            (kk_string_index_out_of_bounds_exception_new_message(runtimeNullSentinelInt), nil),
+        ]
+        for (raw, message) in cases {
+            let box = try #require(runtimeBox(from: raw, as: RuntimeStringIndexOutOfBoundsExceptionBox.self))
+            #expect(box.exceptionFQName == "java.lang.StringIndexOutOfBoundsException")
+            #expect(box.message == message)
+        }
     }
 
     @Test

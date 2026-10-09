@@ -1,0 +1,35 @@
+symbol fq=__local_0.values[kind=local;type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture] kind=local vis=private flags=_ type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>
+symbol fq=__local_1.entries[kind=local;type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture] kind=local vis=private flags=_ type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons>
+symbol fq=__local_2.firstName[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__local_3.suspended[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.intrinsics.CoroutineSingletons
+symbol fq=__local_4.undecided[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.intrinsics.CoroutineSingletons
+symbol fq=__local_5.resumed[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.intrinsics.CoroutineSingletons
+symbol fq=__local_6.lookup[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture] kind=local vis=private flags=_ type=kotlin.coroutines.intrinsics.CoroutineSingletons
+symbol fq=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion.valueOf.name[kind=vparam;origin=unknown] kind=valueParameter vis=private flags=synthetic
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_coroutines_intrinsics_CoroutineSingletons_CoroutineSingletons_n package=_ annotations=[@file:Suppress("INVISIBLE_REFERENCE","INVISIBLE_MEMBER")]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@6:46 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@6:46#1 memberCall recv=e@6:46 callee=values args=[] type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=kotlin.coroutines.intrinsics.CoroutineSingletons.values[kind=fun;params=;ret=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>] call=kotlin.coroutines.intrinsics.CoroutineSingletons.values[kind=fun;params=;ret=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>]
+expr e@6:5 localDecl values mutable=0 type=Array<CoroutineSingletons> init=e@6:46#1 type=Unit ref=__local_0.values[kind=local;type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture]
+expr e@7:19 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@7:19#1 memberCall recv=e@7:19 callee=entries args=[] type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion.entries[kind=prop;type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons>]
+expr e@7:5 localDecl entries mutable=0 type=_ init=e@7:19#1 type=Unit ref=__local_1.entries[kind=local;type=kotlin.enums.EnumEntries<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture]
+expr e@8:29 name(values) type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons> ref=__local_0.values[kind=local;type=kotlin.Array<kotlin.coroutines.intrinsics.CoroutineSingletons>;origin=fixture]
+expr e@8:36 int(0) type=Int
+expr e@8:29#1 indexedAccess receiver=e@8:29 indices=[e@8:36] type=kotlin.coroutines.intrinsics.CoroutineSingletons
+expr e@8:29#2 memberCall recv=e@8:29#1 callee=name args=[] type=String ref=kotlin.coroutines.intrinsics.CoroutineSingletons.name[kind=prop;type=String]
+expr e@8:5 localDecl firstName mutable=0 type=String init=e@8:29#2 type=Unit ref=__local_2.firstName[kind=local;type=String;origin=fixture]
+expr e@9:42 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@9:42#1 memberCall recv=e@9:42 callee=COROUTINE_SUSPENDED args=[] type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons.COROUTINE_SUSPENDED[kind=field;type=kotlin.coroutines.intrinsics.CoroutineSingletons]
+expr e@9:5 localDecl suspended mutable=0 type=CoroutineSingletons init=e@9:42#1 type=Unit ref=__local_3.suspended[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture]
+expr e@10:42 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@10:42#1 memberCall recv=e@10:42 callee=UNDECIDED args=[] type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons.UNDECIDED[kind=field;type=kotlin.coroutines.intrinsics.CoroutineSingletons]
+expr e@10:5 localDecl undecided mutable=0 type=CoroutineSingletons init=e@10:42#1 type=Unit ref=__local_4.undecided[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture]
+expr e@11:40 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@11:40#1 memberCall recv=e@11:40 callee=RESUMED args=[] type=kotlin.coroutines.intrinsics.CoroutineSingletons ref=kotlin.coroutines.intrinsics.CoroutineSingletons.RESUMED[kind=field;type=kotlin.coroutines.intrinsics.CoroutineSingletons]
+expr e@11:5 localDecl resumed mutable=0 type=CoroutineSingletons init=e@11:40#1 type=Unit ref=__local_5.resumed[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture]
+expr e@12:39 name(CoroutineSingletons) type=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion ref=kotlin.coroutines.intrinsics.CoroutineSingletons[kind=enum]
+expr e@12:67 string(RESUMED) type=String
+expr e@12:39#1 memberCall recv=e@12:39 callee=valueOf args=[_:e@12:67] type=kotlin.coroutines.intrinsics.CoroutineSingletons call=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion.valueOf[kind=fun;recv=kotlin.coroutines.intrinsics.CoroutineSingletons.Companion;params=String;ret=kotlin.coroutines.intrinsics.CoroutineSingletons;names=[name]]
+expr e@12:5 localDecl lookup mutable=0 type=CoroutineSingletons init=e@12:39#1 type=Unit ref=__local_6.lookup[kind=local;type=kotlin.coroutines.intrinsics.CoroutineSingletons;origin=fixture]

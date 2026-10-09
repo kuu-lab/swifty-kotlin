@@ -36,27 +36,27 @@ struct SoftKeywordLocalDeclarationNameTests {
     /// assertions below read the AST directly rather than waiting for a Sema
     /// diagnostic. `includeStdlib: false` keeps the arena to the test source,
     /// so an arena-wide scan cannot collide with a stdlib declaration.
-    private func localDeclNames(_ ast: ASTModule, _ ctx: CompilationContext) -> [String] {
+    private func localDeclNames(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
             guard case let .localDecl(name, _, _, _, _, _) = expr else { return nil }
-            return ctx.interner.resolve(name)
+            return name
         }
     }
 
-    private func localFunDeclNames(_ ast: ASTModule, _ ctx: CompilationContext) -> [String] {
+    private func localFunDeclNames(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
-            guard case let .localFunDecl(name, _, _, _, _, _) = expr else { return nil }
-            return ctx.interner.resolve(name)
+            guard case let .localFunDecl(name, _, _, _, _, _, _) = expr else { return nil }
+            return name
         }
     }
 
     /// The bug's signature: the name scan found nothing, the declaration parse
     /// bailed out, and the statement was re-parsed as an expression — which
     /// turns the `val` / `var` keyword itself into a name reference.
-    private func nameRefs(_ ast: ASTModule, _ ctx: CompilationContext) -> [String] {
+    private func nameRefs(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
             guard case let .nameRef(name, _) = expr else { return nil }
-            return ctx.interner.resolve(name)
+            return name
         }
     }
 
@@ -89,10 +89,13 @@ struct SoftKeywordLocalDeclarationNameTests {
             return out
         }
         """)
-        #expect(localDeclNames(ast, ctx) == ["out"], "got \(localDeclNames(ast, ctx))")
         #expect(
-            !nameRefs(ast, ctx).contains("val"),
-            "the val keyword must not survive as a name reference; refs: \(nameRefs(ast, ctx))"
+            localDeclNames(ast) == [ctx.interner.intern(SoftKeyword.out.rawValue)],
+            "got \(localDeclNames(ast).map(ctx.interner.resolve))"
+        )
+        #expect(
+            !nameRefs(ast).contains(ctx.interner.intern(Keyword.val.rawValue)),
+            "the val keyword must not survive as a name reference; refs: \(nameRefs(ast).map(ctx.interner.resolve))"
         )
     }
 
@@ -105,15 +108,15 @@ struct SoftKeywordLocalDeclarationNameTests {
             return out
         }
         """)
-        let decls = ast.arena.exprs.compactMap { expr -> (String, Bool)? in
+        let decls = ast.arena.exprs.compactMap { expr -> (InternedString, Bool)? in
             guard case let .localDecl(name, isMutable, _, _, _, _) = expr else { return nil }
-            return (ctx.interner.resolve(name), isMutable)
+            return (name, isMutable)
         }
-        #expect(decls.map(\.0) == ["out"], "got \(decls)")
+        #expect(decls.map(\.0) == [ctx.interner.intern(SoftKeyword.out.rawValue)], "got \(decls)")
         #expect(decls.first?.1 == true, "var must stay mutable")
         #expect(
-            !nameRefs(ast, ctx).contains("var"),
-            "the var keyword must not survive as a name reference; refs: \(nameRefs(ast, ctx))"
+            !nameRefs(ast).contains(ctx.interner.intern(Keyword.var.rawValue)),
+            "the var keyword must not survive as a name reference; refs: \(nameRefs(ast).map(ctx.interner.resolve))"
         )
     }
 
@@ -128,9 +131,25 @@ struct SoftKeywordLocalDeclarationNameTests {
         }
         """)
         #expect(
-            localFunDeclNames(ast, ctx) == ["out"],
-            "the local function must be named out, not its return type; got \(localFunDeclNames(ast, ctx))"
+            localFunDeclNames(ast) == [ctx.interner.intern(SoftKeyword.out.rawValue)],
+            "the local function must be named out, not its return type; got \(localFunDeclNames(ast).map(ctx.interner.resolve))"
         )
+    }
+
+    @Test
+    func localExtensionNamedOutPreservesReceiver() throws {
+        let (ast, ctx) = try buildAST(from: """
+        fun f(): Int {
+            fun Int.out(): Int = this
+            return 7.out()
+        }
+        """)
+        let receivers = ast.arena.exprs.compactMap { expr -> TypeRefID? in
+            guard case let .localFunDecl(_, receiver, _, _, _, _, _) = expr else { return nil }
+            return receiver
+        }
+        #expect(localFunDeclNames(ast) == [ctx.interner.intern(SoftKeyword.out.rawValue)])
+        #expect(receivers.count == 1)
     }
 
     /// Declarations inside a block expression reach a third copy of the same
@@ -148,13 +167,12 @@ struct SoftKeywordLocalDeclarationNameTests {
             return result
         }
         """)
+        let names = localDeclNames(ast)
+        #expect(names.count == 2)
+        #expect(Set(names) == Set(["out", "result"].map(ctx.interner.intern)), "got \(names.map(ctx.interner.resolve))")
         #expect(
-            localDeclNames(ast, ctx).sorted() == ["out", "result"],
-            "got \(localDeclNames(ast, ctx))"
-        )
-        #expect(
-            !nameRefs(ast, ctx).contains("val"),
-            "refs: \(nameRefs(ast, ctx))"
+            !nameRefs(ast).contains(ctx.interner.intern(Keyword.val.rawValue)),
+            "refs: \(nameRefs(ast).map(ctx.interner.resolve))"
         )
     }
 
@@ -175,11 +193,11 @@ struct SoftKeywordLocalDeclarationNameTests {
         let property = ast.arena.declarations().compactMap { decl -> PropertyDecl? in
             guard case let .propertyDecl(propertyDecl) = decl else { return nil }
             return propertyDecl
-        }.first { ctx.interner.resolve($0.name) == "x" }
+        }.first { $0.name == ctx.interner.intern("x") }
         let propertyDecl = try #require(property)
         let setter = try #require(propertyDecl.setter)
         let parameterName = try #require(setter.parameterName, "the setter lost its parameter name")
-        #expect(ctx.interner.resolve(parameterName) == "out")
+        #expect(parameterName == ctx.interner.intern(SoftKeyword.out.rawValue))
     }
 
     /// The object-literal member parser keeps its own copy of the setter-name
@@ -207,8 +225,8 @@ struct SoftKeywordLocalDeclarationNameTests {
                 guard case let .propertyDecl(propertyDecl) = ast.arena.decl(propertyID) else { return nil }
                 return propertyDecl.setter?.parameterName
             }.first
-        }.map { ctx.interner.resolve($0) }
-        #expect(names == ["out"], "got \(names)")
+        }
+        #expect(names == [ctx.interner.intern(SoftKeyword.out.rawValue)], "got \(names.map(ctx.interner.resolve))")
     }
 
     // MARK: - variance is unaffected
@@ -223,11 +241,11 @@ struct SoftKeywordLocalDeclarationNameTests {
         let box = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(classDecl) = decl else { return nil }
             return classDecl
-        }.first { ctx.interner.resolve($0.name) == "Box" }
+        }.first { $0.name == ctx.interner.intern("Box") }
         let classDecl = try #require(box)
         let typeParam = try #require(classDecl.typeParams.first)
         #expect(
-            ctx.interner.resolve(typeParam.name) == "T",
+            typeParam.name == ctx.interner.intern("T"),
             "the type parameter name must be T, not the variance keyword"
         )
         #expect(typeParam.variance == .out, "variance must still be covariant")

@@ -7,7 +7,6 @@
 
 @file:OptIn(ExperimentalForeignApi::class)
 @file:Suppress("DEPRECATION_ERROR")
-
 package kotlin.native.concurrent
 
 import kotlin.concurrent.Volatile
@@ -15,10 +14,34 @@ import kotlin.internal.KsSymbolName
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.NativePtr
 
+@KsSymbolName("__kk_lazy_sync_lock")
+private external fun __atomicSyncLock(lock: Any): Unit
+
+@KsSymbolName("__kk_lazy_sync_unlock")
+private external fun __atomicSyncUnlock(lock: Any): Unit
+
+/**
+ * A deprecated atomic wrapper around an integer.
+ *
+ * This declaration owns the top-level constructor only. Its storage and
+ * receiver operations reuse the shared atomic runtime box.
+ */
+@Deprecated(
+    "Use kotlin.concurrent.atomics.AtomicInt instead.",
+    ReplaceWith("kotlin.concurrent.atomics.AtomicInt"),
+    DeprecationLevel.ERROR
+)
+public class AtomicInt {
+    @KsSymbolName("kk_atomic_int_create")
+    public constructor(value: Int)
+
+    public override fun toString(): String = __kkAtomicIntLoad().toString()
+}
+
 // KSP-1221: The legacy native AtomicInt receiver surface is source-backed
 // while its storage remains owned by the shared runtime atomic box. Keep the
 // ABI-only operations private and expose the Kotlin/Native API as extensions
-// on the KSP-1220 synthetic nominal anchor.
+// on the source-backed nominal class.
 @KsSymbolName("__kk_atomic_int_load")
 private external fun AtomicInt.__kkAtomicIntLoad(): Int
 
@@ -85,9 +108,6 @@ public fun AtomicInt.increment(): Unit {
 public fun AtomicInt.decrement(): Unit {
     __kkAtomicIntDecrementAndFetch()
 }
-
-/** Returns the string representation of the current atomic value. */
-public fun AtomicInt.toString(): String = value.toString()
 
 @KsSymbolName("__kk_atomic_long_load")
 private external fun AtomicLong.__kkLoad(): Long
@@ -157,15 +177,40 @@ public class AtomicLong {
     public override fun toString(): String = value.toString()
 }
 
-/**
- * A deprecated atomic wrapper around a native pointer.
- *
- * This declaration owns the top-level constructor only. The value property
- * and member operations remain separate migration surfaces.
- */
+// KSP-1224/KSP-1225: Keep the legacy native AtomicNativePtr API source-backed.
 @Deprecated("Use kotlin.concurrent.atomics.AtomicNativePtr instead.", ReplaceWith("kotlin.concurrent.atomics.AtomicNativePtr"), DeprecationLevel.ERROR)
-public class AtomicNativePtr {
-    public constructor(value: NativePtr)
+public class AtomicNativePtr(value: NativePtr) {
+    @Volatile
+    public var value: NativePtr = value
+
+    /** Atomically replaces the value and returns the value observed before the replacement. */
+    public fun getAndSet(newValue: NativePtr): NativePtr {
+        val oldValue = value
+        value = newValue
+        return oldValue
+    }
+
+    /** Atomically replaces the value when it matches [expected]; comparison is by value. */
+    public fun compareAndSet(expected: NativePtr, newValue: NativePtr): Boolean {
+        val oldValue = value
+        if (oldValue == expected) {
+            value = newValue
+            return true
+        }
+        return false
+    }
+
+    /** Atomically replaces the value when it matches [expected] and returns the observed value. */
+    public fun compareAndSwap(expected: NativePtr, newValue: NativePtr): NativePtr {
+        val oldValue = value
+        if (oldValue == expected) {
+            value = newValue
+        }
+        return oldValue
+    }
+
+    /** Returns the string representation of the current atomic value. */
+    public override fun toString(): String = value.toString()
 }
 
 // KSP-1226/KSP-1227: Keep the legacy native AtomicReference API source-backed.
@@ -180,18 +225,28 @@ public class AtomicReference<T>(value: T) {
 
     /** Atomically replaces the value and returns the value observed before the replacement. */
     public fun getAndSet(newValue: T): T {
-        val oldValue = value
-        value = newValue
-        return oldValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            value = newValue
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
+        }
     }
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+            }
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return oldValue
     }
 
     /** Returns the debug representation used by Kotlin/Native's legacy API. */
@@ -221,21 +276,31 @@ public class FreezableAtomicReference<T>(value: T) {
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSet(expected: T, newValue: T): Boolean {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
-            return true
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+                return true
+            }
+            return false
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return false
     }
 
     /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
-        val oldValue = value
-        if (oldValue === expected) {
-            value = newValue
+        __atomicSyncLock(this)
+        try {
+            val oldValue = value
+            if (oldValue === expected) {
+                value = newValue
+            }
+            return oldValue
+        } finally {
+            __atomicSyncUnlock(this)
         }
-        return oldValue
     }
 
     /** Returns the debug representation used by Kotlin/Native's legacy API. */

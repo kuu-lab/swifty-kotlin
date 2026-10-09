@@ -21,7 +21,7 @@ extension TypeCheckHelpers {
                let replacement = argSubstitution[tp.symbol]
             {
                 if tp.nullability == .nullable {
-                    return applyNullabilityToTypeArg(replacement, types: sema.types)
+                    return replacement.mapTypes { applyNullabilityForTypeCheck($0, types: sema.types) }
                 }
                 return replacement
             }
@@ -65,10 +65,10 @@ extension TypeCheckHelpers {
         case let .typeParam(tp):
             return types.make(.typeParam(TypeParamType(symbol: tp.symbol, nullability: .nullable)))
         case let .functionType(ft):
-            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, nullability: .nullable)))
+            return types.make(.functionType(FunctionType(contextReceivers: ft.contextReceivers, receiver: ft.receiver, params: ft.params, returnType: ft.returnType, isSuspend: ft.isSuspend, isCallableReference: ft.isCallableReference, nullability: .nullable)))
         case let .kClassType(kc):
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
-        case .any, .unit, .nothing:
+        case .any, .unit, .nullableUnit, .nothing:
             let nullable = types.makeNullable(typeID)
             if nullable == typeID {
                 return types.isSubtype(types.nullableNothingType, typeID) ? typeID : types.nullableAnyType
@@ -76,19 +76,6 @@ extension TypeCheckHelpers {
             return nullable
         default:
             return types.nullableAnyType
-        }
-    }
-
-    func applyNullabilityToTypeArg(_ arg: TypeArg, types: TypeSystem) -> TypeArg {
-        switch arg {
-        case let .invariant(inner):
-            .invariant(applyNullabilityForTypeCheck(inner, types: types))
-        case let .out(inner):
-            .out(applyNullabilityForTypeCheck(inner, types: types))
-        case let .in(inner):
-            .in(applyNullabilityForTypeCheck(inner, types: types))
-        case .star:
-            .star
         }
     }
 
@@ -272,7 +259,7 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
+        case .error, .unit, .nullableUnit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }
@@ -324,11 +311,12 @@ extension TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner,
         scope: Scope? = nil,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
-            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
         }
     }
 
@@ -344,6 +332,7 @@ extension TypeCheckHelpers {
         }
     }
 
+
     func compoundAssignToBinaryOp(_ op: CompoundAssignOp) -> BinaryOp {
         switch op {
         case .plusAssign: .add
@@ -356,7 +345,7 @@ extension TypeCheckHelpers {
 
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
-        case .unit:
+        case .unit, .nullableUnit:
             return types.unitClassSymbol
         case let .classType(classType):
             return classType.classSymbol
@@ -395,10 +384,14 @@ extension TypeCheckHelpers {
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
-        case .unit:
+        case .unit, .nullableUnit:
             return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
+        case let .functionType(functionType):
+            return functionType.isCallableReference
+                ? types.kFunctionInterfaceSymbol.map { [$0] } ?? []
+                : []
         case let .primitive(primitive, _):
             // Primitive values use dedicated TypeIDs, but their synthetic class
             // symbols carry the compiler-owned Comparable conformance and source
@@ -719,7 +712,7 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    private func resolveMemberPropertyType(
+    func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
         ownerSymbol: SymbolID,
@@ -771,15 +764,4 @@ extension TypeCheckHelpers {
         )
     }
 
-    func enumOwnerSymbol(for entrySymbol: SemanticSymbol, symbols: SymbolTable) -> SymbolID? {
-        guard entrySymbol.kind == .field,
-              entrySymbol.fqName.count >= 2
-        else {
-            return nil
-        }
-        let ownerFQName = Array(entrySymbol.fqName.dropLast())
-        return symbols.lookupAll(fqName: ownerFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .enumClass
-        })
-    }
 }

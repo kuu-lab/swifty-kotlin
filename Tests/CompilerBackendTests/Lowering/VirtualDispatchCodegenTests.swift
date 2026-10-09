@@ -2,6 +2,7 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
+import RuntimeABI
 import Testing
 
 // Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
@@ -352,7 +353,7 @@ struct VirtualDispatchCodegenTests {
                 return nil
             }
         }
-        #expect(callees.contains("kk_unbox_int"), "Expected kk_unbox_int call for Any? -> Int unboxing after virtualCall, got: \(callees)")
+        #expect(callees.contains(try runtimeABICallee("unbox_int_static")), "Expected kk_unbox_int_static call for Any? -> Int unboxing after virtualCall, got: \(callees)")
     }
 
     // MARK: - 4. virtualCall preserved through lowering (not converted to .call)
@@ -521,7 +522,8 @@ struct VirtualDispatchCodegenTests {
         let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
         try backend.emitLLVMIR(module: fixture.module, outputIRPath: irPath, interner: fixture.interner)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-        #expect(ir.contains("kk_vtable_lookup") || ir.contains("kk_fn_"), "IR should contain vtable dispatch or emitted functions")
+        let vtableLookup = try runtimeABICallee("vtable_lookup")
+        #expect(ir.contains(vtableLookup) || ir.contains(RuntimeABISpec.compilerGeneratedLinkNamePrefix), "IR should contain vtable dispatch or emitted functions")
     }
 
     // MARK: - 10. Codegen serialization of virtualCall

@@ -225,14 +225,20 @@ extension DataFlowSemaPhase {
         typeParameterSymbols: [SymbolID] = [],
         typeParameterUpperBoundsList: [[TypeID]] = [],
         classTypeParameterCount: Int = 0,
+        reifiedTypeParameterIndices: Set<Int> = [],
         flags: SymbolFlags = [.synthetic],
         annotations: [MetadataAnnotationRecord] = [],
         externalLinkName: String? = nil,
+        canThrow: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else {
             return
+        }
+        var functionFlags = flags
+        if canThrow {
+            functionFlags.insert(.throwingFunction)
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
@@ -246,8 +252,9 @@ extension DataFlowSemaPhase {
                 && signature.returnType == returnType
                 && signature.typeParameterSymbols == typeParameterSymbols
                 && signature.classTypeParameterCount == classTypeParameterCount
+                && signature.reifiedTypeParameterIndices == reifiedTypeParameterIndices
         }) {
-            symbols.insertFlags(flags, for: existing)
+            symbols.insertFlags(functionFlags, for: existing)
             if let externalLinkName {
                 symbols.setExternalLinkName(externalLinkName, for: existing)
             }
@@ -261,7 +268,7 @@ extension DataFlowSemaPhase {
             fqName: functionFQName,
             declSite: nil,
             visibility: .public,
-            flags: flags
+            flags: functionFlags
         )
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         for typeParameterSymbol in typeParameterSymbols {
@@ -289,10 +296,12 @@ extension DataFlowSemaPhase {
                 parameterTypes: parameterTypes,
                 returnType: returnType,
                 isSuspend: false,
+                canThrow: canThrow,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: defaultValues ?? Array(repeating: false, count: valueParameterSymbols.count),
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
                 typeParameterSymbols: typeParameterSymbols,
+                reifiedTypeParameterIndices: reifiedTypeParameterIndices,
                 typeParameterUpperBoundsList: typeParameterUpperBoundsList,
                 classTypeParameterCount: classTypeParameterCount
             ),
@@ -366,10 +375,10 @@ extension DataFlowSemaPhase {
             }
 
             // Use typeParameterSymbols to create a unique FQName discriminator for
-            // value parameters.  Without this, overloads that differ only in receiver
-            // type (e.g. CPointer<T1>.plus vs CPointer<T2>.plus) share the same
-            // parameter FQName, causing define() to return the same SymbolID for
-            // all of them and the last setPropertyType call to win.
+            // value parameters.  Without this, overloads that differ only in the
+            // receiver's type parameter share the same parameter FQName, causing
+            // define() to return the same SymbolID for all of them and the last
+            // setPropertyType call to win.
             let paramFQNameDiscriminator: [InternedString] = typeParameterSymbols.isEmpty
                 ? []
                 : [interner.intern("$tp" + typeParameterSymbols.map { String($0.rawValue) }.joined(separator: "_"))]

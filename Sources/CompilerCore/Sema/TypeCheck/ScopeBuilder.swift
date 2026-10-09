@@ -3,7 +3,8 @@ struct TypeCheckScopeBuilder {
     func buildFileScopes(
         ast: ASTModule,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) -> [Int32: FileScope] {
         var topLevelSymbolsByPackage = collectTopLevelSymbolsByPackage(ast: ast, sema: sema)
         let librarySymbolsByPackage = collectLibraryTopLevelSymbolsByPackage(sema: sema, interner: interner)
@@ -27,7 +28,7 @@ struct TypeCheckScopeBuilder {
 
         for file in ast.sortedFiles {
             let wildcardImportScope = ImportScope(parent: defaultImportScope, symbols: sema.symbols)
-            let explicitImportScope = ImportScope(parent: wildcardImportScope, symbols: sema.symbols)
+            let explicitImportScope = ExplicitImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
                 for: file,
                 sema: sema,
@@ -35,10 +36,12 @@ struct TypeCheckScopeBuilder {
                 wildcardImportScope: wildcardImportScope,
                 topLevelSymbolsByPackage: topLevelSymbolsByPackage,
                 diagnostics: sema.diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: sourceManager
             )
 
             let packageScope = PackageScope(parent: explicitImportScope, symbols: sema.symbols)
+            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
                 // KSP-1150: the coroutine registry retains a root-level
                 // CancellationException compatibility class. An explicit
@@ -52,10 +55,15 @@ struct TypeCheckScopeBuilder {
                 ) {
                     continue
                 }
-                packageScope.insert(packageSymbol)
+                if let symbol = sema.symbols.symbol(packageSymbol),
+                   symbol.visibility == .private,
+                   (sema.symbols.sourceFileID(for: packageSymbol) ?? symbol.declSite?.start.file) == file.fileID {
+                    fileScope.insert(packageSymbol)
+                } else {
+                    packageScope.insert(packageSymbol)
+                }
             }
 
-            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             fileScopes[file.fileID.rawValue] = fileScope
         }
 
@@ -80,15 +88,16 @@ struct TypeCheckScopeBuilder {
 
         return file.imports.contains { importDecl in
             guard importDecl.alias == nil,
-                  importDecl.path.last == symbol.name
+                  importDecl.isWildcard || importDecl.path.last == symbol.name
             else {
                 return false
             }
-            return sema.symbols.lookupAll(fqName: importDecl.path).contains { importedID in
+            let importedPath = importDecl.isWildcard ? importDecl.path + [symbol.name] : importDecl.path
+            return sema.symbols.lookupAll(fqName: importedPath).contains { importedID in
                 guard let imported = sema.symbols.symbol(importedID) else {
                     return false
                 }
-                return imported.kind == .class
+                return (imported.kind == .class || imported.kind == .typeAlias)
                     && imported.fqName.count > 1
                     && importedID != symbolID
             }
@@ -111,6 +120,48 @@ struct TypeCheckScopeBuilder {
         return mapping
     }
 
+    private func resolveExplicitImport(_ path: [InternedString], sema: SemaModule) -> [SymbolID] {
+        let resolved = sema.symbols.lookupAll(fqName: path)
+        guard resolved.isEmpty, let name = path.last else { return resolved }
+        // Bundled companion constants are package-owned extension properties.
+        // Resolve the qualifier as a singleton and retain only its extensions,
+        // rather than falling back to unrelated same-name package properties.
+        let owners = Set(sema.symbols.lookupAll(fqName: Array(path.dropLast())).filter {
+            sema.symbols.symbol($0)?.kind == .object
+        })
+        guard !owners.isEmpty else { return [] }
+        var candidates: Set<SymbolID> = []
+        for owner in owners {
+            guard let ownerInfo = sema.symbols.symbol(owner) else { continue }
+            // Imported metadata carries package parents; source nominal
+            // anchors can omit them. Support both representations.
+            var parent = sema.symbols.parentSymbol(for: owner)
+            while let current = parent, let info = sema.symbols.symbol(current) {
+                if info.kind == .package {
+                    candidates.formUnion(sema.symbols.lookupAll(fqName: info.fqName + [name]))
+                    break
+                }
+                parent = sema.symbols.parentSymbol(for: current)
+            }
+            for count in stride(from: ownerInfo.fqName.count - 1, through: 1, by: -1) {
+                let package = Array(ownerInfo.fqName.prefix(count))
+                if sema.symbols.lookupAll(fqName: package).contains(where: {
+                    sema.symbols.symbol($0)?.kind == .package
+                }) {
+                    candidates.formUnion(sema.symbols.lookupAll(fqName: package + [name]))
+                    break
+                }
+            }
+        }
+        return candidates.sorted { $0.rawValue < $1.rawValue }.filter { candidate in
+            guard sema.symbols.symbol(candidate)?.kind == .property,
+                  let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
+                  case let .classType(receiverClass) = sema.types.kind(of: receiver)
+            else { return false }
+            return owners.contains(receiverClass.classSymbol)
+        }
+    }
+
     func populateImportScopes(
         for file: ASTFile,
         sema: SemaModule,
@@ -118,9 +169,24 @@ struct TypeCheckScopeBuilder {
         wildcardImportScope: ImportScope,
         topLevelSymbolsByPackage: [[InternedString]: [SymbolID]],
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         var usedAliasNames: Set<InternedString> = []
+        let suppressesInvisibleAccess = file.annotations.contains { annotation in
+            KnownCompilerAnnotation.suppress.matches(annotation.name) && annotation.arguments.contains {
+                let code = $0.filter { $0 != "\"" && $0 != "'" }
+                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+            }
+        }
+        let visibility = VisibilityChecker(
+            symbols: sema.symbols, sourceManager: sourceManager,
+            invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
+        )
+        func isAccessibleWildcardSymbol(_ id: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(id) else { return false }
+            return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
+        }
 
         for importDecl in file.imports {
             if let alias = importDecl.alias {
@@ -128,7 +194,7 @@ struct TypeCheckScopeBuilder {
                     continue
                 }
 
-                let resolved = sema.symbols.lookupAll(fqName: importDecl.path)
+                let resolved = resolveExplicitImport(importDecl.path, sema: sema)
 
                 let isPackageOnlyImport = !resolved.isEmpty && resolved.allSatisfy {
                     sema.symbols.symbol($0)?.kind == .package
@@ -176,7 +242,9 @@ struct TypeCheckScopeBuilder {
                 continue
             }
 
-            let resolved = sema.symbols.lookupAll(fqName: importDecl.path)
+            let resolved = importDecl.isWildcard
+                ? sema.symbols.lookupAll(fqName: importDecl.path)
+                : resolveExplicitImport(importDecl.path, sema: sema)
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
                 if !packageSymbols.isEmpty {
@@ -184,6 +252,7 @@ struct TypeCheckScopeBuilder {
                         if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
                             continue
                         }
+                        if !isAccessibleWildcardSymbol(packageSymbol) { continue }
                         wildcardImportScope.insert(packageSymbol)
                     }
                 }
@@ -211,11 +280,15 @@ struct TypeCheckScopeBuilder {
                 }
             }
 
-            if hasPackageImport {
+            // A non-wildcard import resolving to a declaration must not dump
+            // that declaration's neighbours into the wildcard scope, even when
+            // a synthetic package record shares its FQ name (KUU-1205).
+            if sema.symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                 for importedSymbol in topLevelSymbolsByPackage[importDecl.path] ?? [] {
                     if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
                         continue
                     }
+                    if !isAccessibleWildcardSymbol(importedSymbol) { continue }
                     wildcardImportScope.insert(importedSymbol)
                 }
             }
@@ -243,19 +316,7 @@ struct TypeCheckScopeBuilder {
             // Library extension functions are intentionally included in the package
             // mapping so default/wildcard imports make them visible for member-style
             // call resolution. Direct calls still filter them by requiring no receiver.
-            let candidatePackage: [InternedString] = if symbol.kind == .property,
-                sema.symbols.extensionPropertyReceiverType(for: symbol.id) != nil,
-                let companionSymbol = sema.symbols.parentSymbol(for: symbol.id),
-                let companionInfo = sema.symbols.symbol(companionSymbol),
-                companionInfo.kind == .object,
-                companionInfo.name == interner.intern("Companion"),
-                let ownerSymbol = sema.symbols.parentSymbol(for: companionSymbol),
-                let ownerInfo = sema.symbols.symbol(ownerSymbol),
-                !ownerInfo.fqName.isEmpty,
-                !sema.symbols.isSourceBackedSymbol(symbol.id)
-            {
-                Array(ownerInfo.fqName.dropLast())
-            } else if symbol.fqName.count == 1 {
+            let candidatePackage: [InternedString] = if symbol.fqName.count == 1 {
                 []
             } else {
                 Array(symbol.fqName.dropLast())
@@ -332,12 +393,14 @@ struct TypeCheckScopeBuilder {
             // kotlin.math is not a Kotlin default import; importing it here broke
             // member resolution for java.security.Signature.sign vs kotlin.math.sign.
             ["kotlin", "io"],
+            ["kotlin", "jvm"],
             ["kotlin", "ranges"],
             ["kotlin", "reflect"],
             ["kotlin", "sequences"],
             ["kotlin", "text"],
             ["kotlin", "time"],
             ["kotlin", "system"],
+            ["java", "lang"],
         ]
         return packages.map { segments in
             segments.map { interner.intern($0) }

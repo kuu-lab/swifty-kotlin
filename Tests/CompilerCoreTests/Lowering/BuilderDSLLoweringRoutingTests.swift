@@ -9,7 +9,7 @@ import Testing
 /// RF-LOWER-CALL-004 / -005 / -006 have since deleted every arm: none of the six
 /// `__kk_build_{list,set,map}[_with_capacity]` names exists any more as a rewrite
 /// target, a `RuntimeABISpec` entry, or a Runtime `@_cdecl`, and the rewrite block
-/// itself is gone. All six stay in `legacyBuilderRuntimeCallees` below so the
+/// itself is gone. All six stay in `legacyBuilderRuntimeOperations` below so the
 /// negative assertions guard against their reintroduction. CALL-015 also retires
 /// the shared Builder DSL lookup entry point.
 ///
@@ -26,10 +26,10 @@ struct BuilderDSLLoweringRoutingTests {
     /// The legacy runtime entry points the rewrite substitutes.  Matched
     /// exactly: the source-backed helper `__kk_builder_list_new` also starts
     /// with `__kk_build`.
-    private static let legacyBuilderRuntimeCallees: Set<String> = [
-        "__kk_build_list", "__kk_build_list_with_capacity",
-        "__kk_build_set", "__kk_build_set_with_capacity",
-        "__kk_build_map", "__kk_build_map_with_capacity",
+    private static let legacyBuilderRuntimeOperations: Set<String> = [
+        "build_list", "build_list_with_capacity",
+        "build_set", "build_set_with_capacity",
+        "build_map", "build_map_with_capacity",
     ]
 
     private static let builderDSLSource = """
@@ -57,14 +57,6 @@ struct BuilderDSLLoweringRoutingTests {
         }
     }
 
-    private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
-        let module = try #require(ctx.kir)
-        let kirCtx = makeKIRContext(from: ctx)
-        module.scanFeatures()
-        try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-        return module
-    }
-
     // MARK: - source-backed routing (the production path)
 
     /// All six overloads survive `CollectionLiteralLoweringPass` untouched, so
@@ -80,7 +72,7 @@ struct BuilderDSLLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             let builderCalls = Self.builderCalls(in: body, interner: ctx.interner)
@@ -95,7 +87,7 @@ struct BuilderDSLLoweringRoutingTests {
                 "every capacity/no-capacity overload must stay a source call; got: \(survivors)"
             )
             #expect(
-                callees.allSatisfy { !Self.legacyBuilderRuntimeCallees.contains($0) },
+                LoweringTestRuntime.operations(in: callees).isDisjoint(with: Self.legacyBuilderRuntimeOperations),
                 "no __kk_build_* rewrite may reach production KIR; callees: \(callees)"
             )
         }
@@ -190,14 +182,14 @@ struct BuilderDSLLoweringRoutingTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
 
-            let module = try Self.runCollectionLiteralPassOnly(ctx)
+            let module = try runCollectionLiteralPassOnly(ctx)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(callees.contains("buildList"), "the user buildList must stay; callees: \(callees)")
             #expect(callees.contains("buildSet"), "the user buildSet must stay; callees: \(callees)")
             #expect(
-                callees.allSatisfy { !Self.legacyBuilderRuntimeCallees.contains($0) },
+                LoweringTestRuntime.operations(in: callees).isDisjoint(with: Self.legacyBuilderRuntimeOperations),
                 "a user function may never be rewritten to a runtime builder; callees: \(callees)"
             )
         }

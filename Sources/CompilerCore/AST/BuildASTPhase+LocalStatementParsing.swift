@@ -9,10 +9,12 @@ extension BuildASTPhase {
             return nil
         }
         var startIndex = 0
+        var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(kw) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(kw)
         {
+            leadingModifiers.append((kw.rawValue, statementTokens[startIndex].range))
             startIndex += 1
         }
         guard startIndex < statementTokens.count else {
@@ -28,14 +30,15 @@ extension BuildASTPhase {
         default:
             return nil
         }
+        validateLocalVariableModifiers(leadingModifiers, isMutable: isMutable)
 
-        // Check for destructuring declaration: val (a, b) = expr
         if let destructuringResult = Self.parseDestructuringDeclarationExpr(
             from: statementTokens,
             startIndex: startIndex,
             isMutable: isMutable,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         ) {
             return destructuringResult
         }
@@ -44,7 +47,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { typeTokens in
                 self.parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
@@ -72,7 +77,9 @@ extension BuildASTPhase {
             interner: interner,
             astArena: astArena,
             parseExpression: { tokens in
-                ExpressionParser(tokens: tokens, interner: interner, astArena: astArena).parse()
+                ExpressionParser(
+                    tokens: tokens, interner: interner, astArena: astArena, diagnostics: self.diagnostics
+                ).parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil }
@@ -84,19 +91,23 @@ extension BuildASTPhase {
         )
     }
 
-    /// Parse destructuring declaration: `val (a, b, _) = expr` from a whole
-    /// statement token group, skipping any leading declaration modifiers.
-    /// Returns nil if the tokens don't match the destructuring pattern.
+    /// `suppressesLocalModifierDiagnostics` is set when the same token group is
+    /// re-parsed as an anonymous-object member prefix, where visibility
+    /// modifiers are legal and handled by the member-property builder.
     static func parseDestructuringDeclarationStatement(
         from statementTokens: [Token],
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil,
+        suppressesLocalModifierDiagnostics: Bool = false
     ) -> ExprID? {
         var startIndex = 0
+        var leadingModifiers: [(name: String, range: SourceRange)] = []
         while startIndex < statementTokens.count,
               case let .keyword(keyword) = statementTokens[startIndex].kind,
               KotlinParser.isDeclarationModifierKeyword(keyword)
         {
+            leadingModifiers.append((keyword.rawValue, statementTokens[startIndex].range))
             startIndex += 1
         }
         guard startIndex < statementTokens.count else {
@@ -111,28 +122,30 @@ extension BuildASTPhase {
         default:
             return nil
         }
+        if !suppressesLocalModifierDiagnostics {
+            diagnoseLocalVariableModifiers(leadingModifiers, isMutable: isMutable, diagnostics: diagnostics)
+        }
         return parseDestructuringDeclarationExpr(
             from: statementTokens,
             startIndex: startIndex,
             isMutable: isMutable,
             interner: interner,
-            astArena: astArena
+            astArena: astArena,
+            diagnostics: diagnostics
         )
     }
 
-    /// Parse destructuring declaration: `val (a, b, _) = expr`
-    /// Returns nil if the tokens don't match the destructuring pattern.
     static func parseDestructuringDeclarationExpr(
         from statementTokens: [Token],
         startIndex: Int,
         isMutable: Bool,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        diagnostics: DiagnosticEngine? = nil
     ) -> ExprID? {
         // After val/var keyword, expect `(` — but the CST parser may insert
         // a `missing(identifier)` token before it when it expects a property name.
         var afterKeyword = startIndex + 1
-        // Skip any missing tokens inserted by the CST parser
         while afterKeyword < statementTokens.count,
               case .missing = statementTokens[afterKeyword].kind
         {
@@ -144,7 +157,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Find the matching closing paren
         var depth = 0
         var closeParenIndex: Int?
         for i in afterKeyword ..< statementTokens.count {
@@ -166,8 +178,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Parse names between parens, separated by commas
-        // Supports: identifiers and `_` (underscore)
         let innerTokens = Array(statementTokens[(afterKeyword + 1) ..< closeParenIndex])
         var names: [InternedString?] = []
         var idx = 0
@@ -199,10 +209,8 @@ extension BuildASTPhase {
                 names.append(interner.intern(soft.rawValue))
                 idx += 1
             default:
-                // Skip type annotations (`: Type`) after variable names
                 if token.kind == .symbol(.colon) {
                     idx += 1
-                    // Skip type tokens until comma or end
                     var typeDepth = BracketDepth()
                     while idx < innerTokens.count {
                         let t = innerTokens[idx]
@@ -222,7 +230,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // After closing paren, expect `=`
         var assignIndex: Int?
         for i in (closeParenIndex + 1) ..< statementTokens.count where statementTokens[i].kind == .symbol(.assign) {
             assignIndex = i
@@ -232,14 +239,15 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Parse the initializer expression
         let initializerTokens = statementTokens[(assignIndex + 1)...].filter { token in
             token.kind != .symbol(.semicolon)
         }
         guard !initializerTokens.isEmpty else {
             return nil
         }
-        let parser = ExpressionParser(tokens: initializerTokens[...], interner: interner, astArena: astArena)
+        let parser = ExpressionParser(
+            tokens: initializerTokens[...], interner: interner, astArena: astArena, diagnostics: diagnostics
+        )
         guard let initializerExpr = parser.parse() else {
             return nil
         }
@@ -254,5 +262,38 @@ extension BuildASTPhase {
             initializer: initializerExpr,
             range: range
         ))
+    }
+
+    /// KUU-1407: local variables reject every declaration modifier except
+    /// `lateinit` on `var`s (JVM reports them as compile errors).
+    private func validateLocalVariableModifiers(
+        _ modifiers: [(name: String, range: SourceRange)],
+        isMutable: Bool
+    ) {
+        Self.diagnoseLocalVariableModifiers(modifiers, isMutable: isMutable, diagnostics: diagnostics)
+    }
+
+    static func diagnoseLocalVariableModifiers(
+        _ modifiers: [(name: String, range: SourceRange)],
+        isMutable: Bool,
+        diagnostics: DiagnosticEngine?
+    ) {
+        for modifier in modifiers {
+            if modifier.name == "lateinit" {
+                if !isMutable {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-0418",
+                        "'lateinit' modifier is allowed only on mutable properties.",
+                        range: modifier.range
+                    )
+                }
+                continue
+            }
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0400",
+                "modifier '\(modifier.name)' is not applicable to 'local variable'.",
+                range: modifier.range
+            )
+        }
     }
 }

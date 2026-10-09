@@ -20,10 +20,19 @@
 ///   (`kk_op_ishl` / `kk_op_ishr` / `kk_op_iushr`) that mask the shift distance
 ///   and narrow the result.
 ///
-/// `Long` results keep the 64-bit builtins untouched, and unsigned / floating
-/// builtins are never matched, so their behavior is unchanged.
+/// `Long` results keep the 64-bit builtins untouched (shifts only get their
+/// distance masked). Unsigned shifts are routed through the same width-aware
+/// variants: `UInt` reuses the 32-bit `Int` variants (with `shr` mapped to the
+/// logical `iushr`) followed by `kk_uint_narrow`, and `ULong` reuses the
+/// 64-bit `Long` variants (again with `shr` mapped to `lushr`), because Kotlin
+/// defines unsigned `shr` as a logical shift. Floating builtins are never
+/// matched.
+/// `UByte.inv()` / `UShort.inv()` mask their result to 8 / 16 bits using
+/// the existing unsigned conversion builtins.
 final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
     static let name = "IntegerNarrowing"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .integerNarrowed
 
     /// Binary / unary integer builtins whose `Int` result must wrap to 32 bits.
     /// `Long` variants (`kk_op_lmod`, `kk_op_lfloor_div`, …) are intentionally
@@ -51,6 +60,18 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         "kk_op_ushr": "kk_op_lushr",
     ]
 
+    /// `UInt`/`ULong` only declare `shl`/`shr`, and their `shr` is logical.
+    /// `UInt` results are additionally masked back to 32 bits by `kk_uint_narrow`.
+    private static let uintShiftRenameNames: [String: String] = [
+        "kk_op_shl": "kk_op_ishl",
+        "kk_op_shr": "kk_op_iushr",
+    ]
+
+    private static let ulongShiftRenameNames: [String: String] = [
+        "kk_op_shl": "kk_op_lshl",
+        "kk_op_shr": "kk_op_lushr",
+    ]
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard ctx.sema != nil else { return false }
         module.ensureFeaturesScanned()
@@ -72,12 +93,26 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
         let arena = module.arena
         let narrowCallee = interner.intern("kk_int_narrow")
         let unarrowCallee = interner.intern("kk_uint_narrow")
+        let invCallee = interner.intern("kk_op_inv")
+        let smallUnsignedInvNarrowCallees: [PrimitiveType: InternedString] = [
+            .ubyte: interner.intern("kk_int_to_ubyte"),
+            .ushort: interner.intern("kk_int_to_ushort"),
+        ]
+        let charArithmeticAdd = interner.intern("kk_op_add")
+        let charArithmeticSub = interner.intern("kk_op_sub")
+        let charWrapCallee = interner.intern("kk_int_to_char")
         let narrowingIDs = Set(Self.narrowingCalleeNames.map { interner.intern($0) })
         let intShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.intShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
         )
         let longShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.longShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
+        )
+        let uintShiftRenameIDs: [InternedString: InternedString] = Dictionary(
+            uniqueKeysWithValues: Self.uintShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
+        )
+        let ulongShiftRenameIDs: [InternedString: InternedString] = Dictionary(
+            uniqueKeysWithValues: Self.ulongShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
         )
 
         func resultPrimitive(_ result: KIRExprID?) -> PrimitiveType? {
@@ -104,9 +139,25 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
                 let resultKind = resultPrimitive(result)
 
+                if callee == invCallee, let result, let resultKind,
+                   let narrowCallee = smallUnsignedInvNarrowCallees[resultKind]
+                {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result))
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
+
                 // Shift operators: route shifts through width-aware variants that
-                // mask the shift distance (5 bits for Int, 6 bits for Long) and,
-                // for Int, narrow the result to 32 bits.
+                // mask the shift distance (5 bits for Int/UInt, 6 bits for
+                // Long/ULong) and, for Int/UInt, narrow the result to 32 bits.
                 if resultKind == .int, let renamed = intShiftRenameIDs[callee] {
                     newBody.append(.call(
                         symbol: symbol, callee: renamed, arguments: arguments, result: result,
@@ -123,6 +174,29 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     ))
                     continue
                 }
+                if resultKind == .ulong, let renamed = ulongShiftRenameIDs[callee] {
+                    newBody.append(.call(
+                        symbol: symbol, callee: renamed, arguments: arguments, result: result,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    continue
+                }
+                // The 32-bit variants sign-extend their result; masking the low
+                // 32 bits afterwards yields the zero-extended `UInt` slot value.
+                if resultKind == .uint, let result, let renamed = uintShiftRenameIDs[callee] {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.uintType)
+                    newBody.append(.call(
+                        symbol: symbol, callee: renamed, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: unarrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
 
                 // Arithmetic / bitwise / unary builtins: keep the operation but
                 // wrap its Int result to 32 bits via kk_int_narrow.
@@ -136,6 +210,21 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
                     ))
                     newBody.append(.call(
                         symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
+
+                // Char results (`Char + Int` / `Char - Int`): wrap to 16 bits.
+                if callee == charArithmeticAdd || callee == charArithmeticSub, let result, resultKind == .char {
+                    let rawResult = arena.appendTemporary(type: arena.exprType(result) ?? types.charType)
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: charWrapCallee, arguments: [rawResult], result: result,
                         canThrow: false, thrownResult: nil
                     ))
                     continue

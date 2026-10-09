@@ -16,7 +16,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func genericTimeSourceMarkNowReturnsValidHandle() {
         let mark = kk_time_source_mark_now(0)
-        #expect(mark != 0, "kk_time_source_mark_now must return a non-zero handle")
+        #expect(mark != 0, "Generic time source mark must have a non-zero handle")
     }
 
     @Test func genericAndMonotonicMarkNowAreNonDecreasing() {
@@ -36,7 +36,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func posixClockMonotonicMarkNowReturnsValidHandle() {
         let mark = kk_clock_monotonic_mark_now()
-        #expect(mark != 0, "kk_clock_monotonic_mark_now must return a non-zero handle")
+        #expect(mark != 0, "POSIX monotonic clock mark must have a non-zero handle")
     }
 
     @Test func posixClockMonotonicMarkNowIsNonDecreasingAcrossReads() {
@@ -62,7 +62,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
         let t1 = kk_clock_gettime_monotonic_ns()
         let t2 = kk_clock_gettime_monotonic_ns()
         #expect(t2 >= t1,
-            "kk_clock_gettime_monotonic_ns must be non-decreasing (monotonic)")
+            "Monotonic nanosecond readings must be non-decreasing")
     }
 
     // MARK: - elapsedNow() always non-negative for present/past marks
@@ -233,7 +233,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func plusDurationSaturatesAtInt64Max() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
+        let infiniteDuration = kk_duration_infinite()
         let saturatedMark = timeMarkPlusDuration(mark, infiniteDuration)
         // The result must be a valid handle (non-zero).
         #expect(saturatedMark != 0,
@@ -246,7 +246,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func minusDurationSaturatesAtInt64Min() {
         let mark = kk_time_source_monotonic_mark_now(0)
-        let infiniteDuration = durationFromNanoseconds(Int(Int64.max))
+        let infiniteDuration = kk_duration_infinite()
         let saturatedMark = timeMarkMinusDuration(mark, infiniteDuration)
         #expect(saturatedMark != 0,
             "Saturated TimeMark from - Duration.INFINITE must yield a valid handle")
@@ -258,7 +258,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
 
     @Test func minusMarkOnSaturatedMarksDoesNotCrash() {
         let a = kk_time_source_monotonic_mark_now(0)
-        let inf = durationFromNanoseconds(Int(Int64.max))
+        let inf = kk_duration_infinite()
         let maxMark = timeMarkPlusDuration(a, inf)
         let minMark = timeMarkMinusDuration(a, inf)
         let diff = timeMarkMinusMark(maxMark, minMark)
@@ -276,7 +276,7 @@ struct RuntimeExperimentalTimeEdgeCaseTests {
         let elapsed = timeMarkElapsedNow(pastMark)
         let strHandle = kk_duration_toString(elapsed)
         let str = try #require(stringFromHandle(strHandle),
-            "kk_duration_toString returned nil handle for elapsed duration")
+            "Elapsed duration must render as a valid string handle")
         let validSuffixes = ["ns", "us", "ms", "s", "m", "h"]
         let hasValidSuffix = validSuffixes.contains { str.hasSuffix($0) }
         #expect(hasValidSuffix,

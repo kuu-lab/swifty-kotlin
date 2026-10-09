@@ -53,7 +53,6 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
 // KSP-413: equals(other, ignoreCase) is bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt).
 
-@_cdecl("kk_string_equals")
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)
@@ -87,12 +86,6 @@ public func __kk_string_equals_flat(
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-
-    if delimiter.isEmpty {
-        let singleElement = runtimeMakeStringRaw(source)
-        let seq = RuntimeSequenceBox(steps: [.source(elements: [singleElement])])
-        return registerRuntimeObject(seq)
-    }
 
     let splitStrings = runtimeSplitString(source, delimiter: delimiter).map { runtimeMakeStringRaw($0) }
     let seq = RuntimeSequenceBox(steps: [.source(elements: splitStrings)])

@@ -1,36 +1,140 @@
 
 extension DataFlowSemaPhase {
-    func synthesizeNominalLayouts(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
+    /// KUU-809: `.kklib` metadata is attacker-controlled input. A crafted
+    /// artifact can declare an arbitrarily deep acyclic supertype chain (or a
+    /// cyclic graph), so the traversal below runs off an explicit worklist —
+    /// never the native call stack — and refuses to follow edges beyond these
+    /// bounds, reporting them as validation errors instead.
+    static let maxNominalLayoutInheritanceDepth = 1024
+    static let maxNominalLayoutTypeCount = 1_000_000
+
+    func synthesizeNominalLayouts(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine,
+        maxInheritanceDepth: Int = DataFlowSemaPhase.maxNominalLayoutInheritanceDepth,
+        maxTypeCount: Int = DataFlowSemaPhase.maxNominalLayoutTypeCount
+    ) {
         let nominalKinds: [SymbolKind] = [.class, .interface, .object, .enumClass, .annotationClass]
         let nominalIDs = nominalKinds.flatMap { symbols.symbols(ofKind: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
         guard !nominalIDs.isEmpty else { return }
-        let topoOrder = buildTopoOrder(nominalIDs: nominalIDs, symbols: symbols)
+        let topoOrder = buildTopoOrder(
+            nominalIDs: nominalIDs,
+            symbols: symbols,
+            interner: interner,
+            diagnostics: diagnostics,
+            maxInheritanceDepth: maxInheritanceDepth,
+            maxTypeCount: maxTypeCount
+        )
         for nominalID in topoOrder {
             synthesizeLayoutForNominal(nominalID, symbols: symbols, types: types, interner: interner)
         }
     }
 
-    private func buildTopoOrder(nominalIDs: [SymbolID], symbols: SymbolTable) -> [SymbolID] {
+    /// Iterative post-order DFS producing the same deterministic order as a
+    /// recursive visit: a nominal is appended after all of its supertype
+    /// nominals, children explored in ascending raw-ID order. Cycles are
+    /// reported once per re-entered node and the offending edge is skipped;
+    /// nodes beyond `maxInheritanceDepth`/`maxTypeCount` are refused with a
+    /// single diagnostic each.
+    private func buildTopoOrder(
+        nominalIDs: [SymbolID],
+        symbols: SymbolTable,
+        interner: StringInterner,
+        diagnostics: DiagnosticEngine,
+        maxInheritanceDepth: Int,
+        maxTypeCount: Int
+    ) -> [SymbolID] {
         var topoOrder: [SymbolID] = []
-        var visited: Set<SymbolID> = []
+        topoOrder.reserveCapacity(min(nominalIDs.count, maxTypeCount))
+        var finished: Set<SymbolID> = []
+        var inProgress: Set<SymbolID> = []
+        var reportedCycleTargets: Set<SymbolID> = []
+        var reportedDepthViolation = false
+        var reportedCountViolation = false
 
-        func visit(_ symbolID: SymbolID) {
-            guard visited.insert(symbolID).inserted else { return }
-            let superNominals = symbols.directSupertypes(for: symbolID)
+        func sortedSuperNominals(of symbolID: SymbolID) -> [SymbolID] {
+            symbols.directSupertypes(for: symbolID)
                 .filter { superID in
                     guard let superSymbol = symbols.symbol(superID) else { return false }
                     return isNominalLayoutTargetSymbol(superSymbol.kind)
                 }
                 .sorted(by: { $0.rawValue < $1.rawValue })
-            for superNominal in superNominals {
-                visit(superNominal)
-            }
-            topoOrder.append(symbolID)
         }
 
         for nominalID in nominalIDs {
-            visit(nominalID)
+            if finished.contains(nominalID) { continue }
+            if finished.count >= maxTypeCount {
+                if !reportedCountViolation {
+                    reportedCountViolation = true
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-SUPER-COUNT",
+                        "Nominal type count exceeds the supported maximum of \(maxTypeCount); "
+                            + "remaining types keep no synthesized layout.",
+                        range: symbols.symbol(nominalID)?.declSite
+                    )
+                }
+                break
+            }
+            inProgress.insert(nominalID)
+            var worklist: [(node: SymbolID, supers: [SymbolID], nextIndex: Int)] = [
+                (nominalID, sortedSuperNominals(of: nominalID), 0)
+            ]
+            while let frame = worklist.last {
+                if frame.nextIndex < frame.supers.count {
+                    worklist[worklist.count - 1].nextIndex += 1
+                    let superNominal = frame.supers[frame.nextIndex]
+                    if inProgress.contains(superNominal) {
+                        // The supertype is still on the DFS path: the edge
+                        // closes a cycle. Layout cannot give a cyclic graph a
+                        // consistent base-first order, so reject it.
+                        if reportedCycleTargets.insert(superNominal).inserted {
+                            let name = symbols.symbol(superNominal)
+                                .map { renderFQName($0.fqName, interner: interner) } ?? "?"
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-CYCLE",
+                                "Cyclic supertype reference involving \(name); the edge is ignored.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    if finished.contains(superNominal) { continue }
+                    if worklist.count >= maxInheritanceDepth {
+                        if !reportedDepthViolation {
+                            reportedDepthViolation = true
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-DEPTH",
+                                "Inheritance chain exceeds the maximum supported depth of "
+                                    + "\(maxInheritanceDepth); deeper supertypes are ignored.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    if finished.count + inProgress.count >= maxTypeCount {
+                        if !reportedCountViolation {
+                            reportedCountViolation = true
+                            diagnostics.error(
+                                "KSWIFTK-SEMA-SUPER-COUNT",
+                                "Nominal type count exceeds the supported maximum of \(maxTypeCount); "
+                                    + "remaining types keep no synthesized layout.",
+                                range: symbols.symbol(superNominal)?.declSite
+                            )
+                        }
+                        continue
+                    }
+                    inProgress.insert(superNominal)
+                    worklist.append((superNominal, sortedSuperNominals(of: superNominal), 0))
+                } else {
+                    topoOrder.append(frame.node)
+                    inProgress.remove(frame.node)
+                    finished.insert(frame.node)
+                    worklist.removeLast()
+                }
+            }
         }
         return topoOrder
     }
@@ -118,40 +222,13 @@ extension DataFlowSemaPhase {
         // the separate itable-relative slot space BUG-141 introduced
         // (kirInterfacePropertyGetterSlots) — this loop must not create a
         // second, inconsistent slot space for the same property there.
-        let ownAccessorProperties = Self.orderedOwnAccessorProperties(
+        Self.assignPropertyAccessorVtableSlots(
             for: nominalSymbol,
-            symbols: symbols
+            symbols: symbols,
+            inheritedVtable: inheritedVtable,
+            vtableSlots: &vtableSlots,
+            nextVtableSlot: &nextVtableSlot
         )
-        for property in ownAccessorProperties {
-            // Properties cannot be overloaded, so — unlike methods above,
-            // which must disambiguate same-(name, arity) siblings — a name
-            // match against the class's own inheritance chain is always
-            // unambiguous.
-            let inheritedProperty = property.flags.contains(.overrideMember)
-                ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalID, symbols: symbols)
-                : nil
-
-            let getterAccessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
-            if let inheritedProperty,
-               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: inheritedProperty)]
-            {
-                vtableSlots[getterAccessor] = matchedSlot
-            } else {
-                vtableSlots[getterAccessor] = nextVtableSlot
-                nextVtableSlot += 1
-            }
-
-            guard property.flags.contains(.mutable) else { continue }
-            let setterAccessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property.id)
-            if let inheritedProperty,
-               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: inheritedProperty)]
-            {
-                vtableSlots[setterAccessor] = matchedSlot
-            } else {
-                vtableSlots[setterAccessor] = nextVtableSlot
-                nextVtableSlot += 1
-            }
-        }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
 
         let inheritedItable = superClass.flatMap { symbols.nominalLayout(for: $0)?.itableSlots } ?? [:]
@@ -168,8 +245,9 @@ extension DataFlowSemaPhase {
             // Interfaces have no backing field storage; skip property fields.
             []
         } else {
-            symbols.children(ofFQName: nominalSymbol.fqName)
-                .compactMap { id -> SymbolID? in
+            Self.ownMembers(of: nominalSymbol, symbols: symbols)
+                .compactMap { member -> SymbolID? in
+                    let id = member.id
                     guard let kind = symbols.symbol(id)?.kind else { return nil }
                     switch kind {
                     case .field:
@@ -309,9 +387,120 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> [SemanticSymbol] {
-        let methods = symbols.children(ofFQName: nominalSymbol.fqName)
-            .compactMap { symbols.symbol($0) }
+        let methods = ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .function }
+            // KUU-545: extension member aliases (KSP-443) are owner+name lookup
+            // shims, not dispatchable members. Counting one here inflates
+            // vtableSize, which shifts the interface property getter region
+            // (kirInterfacePropertyGetterSlots bases its slots on vtableSize)
+            // and breaks the fixed itable slot contract the runtime registers
+            // for runtime-created objects (e.g. CharSequence.length at slot 2).
+            .filter { !$0.flags.contains(.extensionMemberAlias) }
+
+        if nominalSymbol.fqName.map(interner.resolve) == ["kotlin", "coroutines", "CoroutineContext"] {
+            // The runtime bridges use these slots for source-defined contexts.
+            let bridgeMethods = ["get", "fold", "plus", "minusKey"]
+            return methods.sorted { lhs, rhs in
+                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
+                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                return lhsSlot == rhsSlot ? lhs.id.rawValue < rhs.id.rawValue : lhsSlot < rhsSlot
+            }
+        }
+
+        let isList = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "List"
+        if isList {
+            // Runtime List bridges dispatch source implementations through
+            // the List itable. Keep get(index) and listIterator(index) at
+            // slots 0 and 1 independently of synthetic-symbol definition order;
+            // the read-only subList bridge uses slot 2.
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
+                    let name = interner.resolve(symbol.name)
+                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
+                    if name == "get" && arity == 1 { return 0 }
+                    if name == "listIterator" && arity == 1 { return 1 }
+                    if name == "subList" && arity == 2 { return 2 }
+                    return 3
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot {
+                    return lhsSlot < rhsSlot
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMutableList = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableList"
+        if isMutableList {
+            // MutableList runtime bridges share these stable source dispatch slots.
+            // Preserve the existing subList/set slots for live mutable views.
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
+                    let name = interner.resolve(symbol.name)
+                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
+                    if name == "subList" && arity == 2 { return 0 }
+                    if name == "set" && arity == 2 { return 1 }
+                    if name == "add" && arity == 1 { return 2 }
+                    if name == "add" && arity == 2 { return 3 }
+                    if name == "addAll" && arity == 1 { return 4 }
+                    if name == "addAll" && arity == 2 { return 5 }
+                    if name == "removeAt" && arity == 1 { return 6 }
+                    if name == "remove" && arity == 1 { return 7 }
+                    if name == "clear" && arity == 0 { return 8 }
+                    if name == "removeAll" && arity == 1 { return 9 }
+                    if name == "retainAll" && arity == 1 { return 10 }
+                    if name == "listIterator" && arity == 0 { return 11 }
+                    if name == "listIterator" && arity == 1 { return 12 }
+                    return 13
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot {
+                    return lhsSlot < rhsSlot
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMutableCollection = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableCollection"
+        if isMutableCollection {
+            let bridgeMethods = ["add", "addAll", "clear", "remove", "removeAll", "retainAll"]
+            return methods.sorted { lhs, rhs in
+                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
+                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
+
+        let isMutableSet = nominalSymbol.fqName.count == 3
+            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
+            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
+            && interner.resolve(nominalSymbol.name) == "MutableSet"
+        if isMutableSet {
+            // Preserve add/remove/clear slots used by existing source Set bridges.
+            let bridgeMethods = ["add", "remove", "clear", "addAll", "removeAll", "retainAll"]
+            return methods.sorted { lhs, rhs in
+                func fixedSlot(_ method: SemanticSymbol) -> Int {
+                    guard symbols.isSourceBackedSymbol(method.id) else { return bridgeMethods.count }
+                    return bridgeMethods.firstIndex(of: interner.resolve(method.name)) ?? bridgeMethods.count
+                }
+                let lhsSlot = fixedSlot(lhs)
+                let rhsSlot = fixedSlot(rhs)
+                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        }
 
         let isSequence = nominalSymbol.fqName.count == 3
             && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
@@ -333,6 +522,50 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Shared by header-time named layouts and body-time local/anonymous layouts.
+    static func assignPropertyAccessorVtableSlots(
+        for nominalSymbol: SemanticSymbol,
+        symbols: SymbolTable,
+        inheritedVtable: [SymbolID: Int],
+        vtableSlots: inout [SymbolID: Int],
+        nextVtableSlot: inout Int
+    ) {
+        let ownAccessorProperties = orderedOwnAccessorProperties(
+            for: nominalSymbol,
+            symbols: symbols
+        )
+        for property in ownAccessorProperties {
+            // Properties cannot be overloaded, so — unlike methods above,
+            // which must disambiguate same-(name, arity) siblings — a name
+            // match against the class's own inheritance chain is always
+            // unambiguous.
+            let inheritedProperty = property.flags.contains(.overrideMember)
+                ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalSymbol.id, symbols: symbols)
+                : nil
+
+            let getterAccessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: inheritedProperty)]
+            {
+                vtableSlots[getterAccessor] = matchedSlot
+            } else {
+                vtableSlots[getterAccessor] = nextVtableSlot
+                nextVtableSlot += 1
+            }
+
+            guard property.flags.contains(.mutable) else { continue }
+            let setterAccessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: inheritedProperty)]
+            {
+                vtableSlots[setterAccessor] = matchedSlot
+            } else {
+                vtableSlots[setterAccessor] = nextVtableSlot
+                nextVtableSlot += 1
+            }
+        }
+    }
+
     /// This nominal's own properties that ever need virtual dispatch: the
     /// open/abstract root of an override chain, or a link further down it.
     /// A plain `final` property is never overridden in either direction, so
@@ -345,8 +578,7 @@ extension DataFlowSemaPhase {
         guard nominalSymbol.kind != .interface else {
             return []
         }
-        return symbols.children(ofFQName: nominalSymbol.fqName)
-            .compactMap { symbols.symbol($0) }
+        return ownMembers(of: nominalSymbol, symbols: symbols)
             .filter { $0.kind == .property }
             .filter {
                 $0.flags.contains(.openType)
@@ -375,15 +607,50 @@ extension DataFlowSemaPhase {
         var current = superclass(of: nominalID)
         while let ancestorID = current, visited.insert(ancestorID).inserted {
             guard let ancestorSym = symbols.symbol(ancestorID) else { return nil }
-            let match = symbols.children(ofFQName: ancestorSym.fqName).first { childID in
-                guard let child = symbols.symbol(childID) else { return false }
-                return child.kind == .property && child.name == name
+            let match = ownMembers(of: ancestorSym, symbols: symbols).first { child in
+                child.kind == .property && child.name == name
             }
             if let match {
-                return match
+                return match.id
             }
             current = superclass(of: ancestorID)
         }
         return nil
+    }
+
+    /// Members of same-module expect and actual declarations share an FQName.
+    /// Reconstruct each declaration's member set from source ranges so unmarked
+    /// members of an expect class and platform-only actual members stay attached
+    /// to the declaration that contains them.
+    private static func ownMembers(of nominalSymbol: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
+        let members = symbols.children(ofFQName: nominalSymbol.fqName).compactMap { symbols.symbol($0) }
+        let expectsActualCounterpart = nominalSymbol.flags.contains(.expectDeclaration)
+            ? SymbolFlags.actualDeclaration
+            : SymbolFlags.expectDeclaration
+        guard (nominalSymbol.flags.contains(.expectDeclaration)
+                || nominalSymbol.flags.contains(.actualDeclaration)),
+              let ownerRange = nominalSymbol.declSite,
+              symbols.lookupAll(fqName: nominalSymbol.fqName).contains(where: { candidateID in
+                  guard candidateID != nominalSymbol.id,
+                        let candidate = symbols.symbol(candidateID)
+                  else {
+                      return false
+                  }
+                  return candidate.kind == nominalSymbol.kind
+                      && candidate.flags.contains(expectsActualCounterpart)
+              })
+        else {
+            return members
+        }
+
+        return members.filter { member in
+            if let parent = symbols.parentSymbol(for: member.id) {
+                return parent == nominalSymbol.id
+            }
+            guard let memberRange = member.declSite else {
+                return false
+            }
+            return ownerRange.contains(memberRange)
+        }
     }
 }

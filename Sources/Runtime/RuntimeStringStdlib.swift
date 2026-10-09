@@ -38,17 +38,17 @@ func runtimeStringTrimWithPredicate(
     context: String
 ) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
+    let units = runtimeStringUTF16CodeUnits(strRaw)
     guard fnPtr != 0 else {
-        return runtimeMakeStringRaw(runtimeStringFromScalars(scalars))
+        return strRaw
     }
 
-    func shouldTrim(_ scalar: UnicodeScalar) -> Bool? {
+    func shouldTrim(_ unit: UInt16) -> Bool? {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
             fnPtr: fnPtr,
             closureRaw: closureRaw,
-            value: Int(scalar.value),
+            value: Int(unit),
             outThrown: &thrown
         )
         if thrown != 0 {
@@ -59,10 +59,10 @@ func runtimeStringTrimWithPredicate(
     }
 
     var start = 0
-    var end = scalars.count
+    var end = units.count
     if trimLeading {
         while start < end {
-            guard let matches = shouldTrim(scalars[start]) else {
+            guard let matches = shouldTrim(units[start]) else {
                 return runtimeMakeStringRaw("")
             }
             guard matches else { break }
@@ -71,14 +71,14 @@ func runtimeStringTrimWithPredicate(
     }
     if trimTrailing {
         while end > start {
-            guard let matches = shouldTrim(scalars[end - 1]) else {
+            guard let matches = shouldTrim(units[end - 1]) else {
                 return runtimeMakeStringRaw("")
             }
             guard matches else { break }
             end -= 1
         }
     }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[start ..< end]))
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(Array(units[start ..< end])))
 }
 
 // MARK: - STDLIB-006/009/013 String Functions
@@ -87,28 +87,28 @@ func runtimeStringTrimWithPredicate(
 
 @_cdecl("__kk_string_intern")
 public func __kk_string_intern(_ strRaw: Int) -> Int {
-    return strRaw
+    runtimeInternString(strRaw)
 }
 
 @_cdecl("kk_string_lowercase")
 public func kk_string_lowercase(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(source.lowercased())
+    return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source, mapping: runtimeKotlinLowercased))
 }
 
 @_cdecl("kk_string_uppercase")
 public func kk_string_uppercase(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(source.uppercased())
+    return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source) { $0.uppercased() })
 }
 
 @_cdecl("__kk_lowercase_locale")
 public func __kk_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return runtimeMakeStringRaw(source.lowercased())
+        return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source, mapping: runtimeKotlinLowercased))
     }
-    return runtimeMakeStringRaw(source.lowercased(with: box.locale))
+    return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source) { $0.lowercased(with: box.locale) })
 }
 
 @_cdecl("__kk_lowercase_locale_flat")
@@ -134,9 +134,9 @@ public func __kk_lowercase_locale_flat(
 public func __kk_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return runtimeMakeStringRaw(source.uppercased())
+        return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source) { $0.uppercased() })
     }
-    return runtimeMakeStringRaw(source.uppercased(with: box.locale))
+    return runtimeMakeStringRaw(runtimeKotlinCaseMapped(source) { $0.uppercased(with: box.locale) })
 }
 
 @_cdecl("__kk_uppercase_locale_flat")
@@ -257,9 +257,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
@@ -294,9 +291,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     let ignoreCase = ignoreCaseRaw != 0
     let limit = limitRaw
 
-    if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
-    }
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
@@ -333,7 +327,7 @@ func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue))
 }
 
 // MARK: - STDLIB-TEXT-FN-055: String.replace overloads
@@ -342,23 +336,21 @@ func runtimeStringReplaceChar(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: In
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr))
 }
 
 func runtimeStringReplaceIgnoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue, options: options))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue, ignoreCase: ignoreCaseRaw != 0))
 }
 
 func runtimeStringReplaceCharIgnoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr, options: options))
+    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr, ignoreCase: ignoreCaseRaw != 0))
 }
 
 // KSP-406: substring / subSequence / slice are bundled Kotlin source
@@ -436,19 +428,16 @@ public func __kk_string_codePointCount_range(
     )
 }
 
+// KUU-634: CharArray elements are UTF-16 code units, so decode them through
+// the UTF-16 helper — surrogate pairs recombine and isolated surrogates
+// survive via the marker representation (the old scalar loop dropped them).
 @_cdecl("kk_chararray_concatToString")
 public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     guard let box = runtimeArrayBox(from: arrRaw) else {
         return runtimeMakeStringRaw("")
     }
-    var scalars = String.UnicodeScalarView()
-    for i in 0..<box.elements.count {
-        let charValue = kk_unbox_char(box.elements[i])
-        if let scalar = UnicodeScalar(charValue) {
-            scalars.append(scalar)
-        }
-    }
-    return runtimeMakeStringRaw(String(scalars))
+    let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
 
 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source

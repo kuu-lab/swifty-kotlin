@@ -165,12 +165,12 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
 
 final class RuntimeStringIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
-        "kotlin.StringIndexOutOfBoundsException"
+        "java.lang.StringIndexOutOfBoundsException"
     }
 
     override var exceptionHierarchyFQNames: [String] {
         [
-            "kotlin.StringIndexOutOfBoundsException",
+            "java.lang.StringIndexOutOfBoundsException",
             "kotlin.IndexOutOfBoundsException",
             "kotlin.RuntimeException",
             "kotlin.Exception",
@@ -266,6 +266,24 @@ final class RuntimeExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeIOExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.io.IOException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.io.IOException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("IOException", message)
+    }
+}
+
 final class RuntimeCharacterCodingExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.text.CharacterCodingException"
@@ -281,6 +299,26 @@ final class RuntimeCharacterCodingExceptionBox: RuntimeThrowableBox {
 
     override var renderedMessage: String {
         runtimeRenderedExceptionMessage("CharacterCodingException", message)
+    }
+}
+
+final class RuntimeMalformedInputExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "java.nio.charset.MalformedInputException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "java.nio.charset.MalformedInputException",
+            "java.nio.charset.CharacterCodingException",
+            "kotlin.text.CharacterCodingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("MalformedInputException", message)
     }
 }
 
@@ -335,6 +373,24 @@ final class RuntimeOutOfMemoryErrorBox: RuntimeThrowableBox {
 
     override var renderedMessage: String {
         runtimeRenderedExceptionMessage("OutOfMemoryError", message)
+    }
+}
+
+final class RuntimeStackOverflowErrorBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.StackOverflowError"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.StackOverflowError",
+            "kotlin.Error",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("StackOverflowError", message)
     }
 }
 
@@ -476,165 +532,100 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
 /// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
 func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
     let message = "freezing of \(runtimeRenderAnyForPrint(toFreezeRaw)) has failed, first blocker is \(runtimeRenderAnyForPrint(blockerRaw))"
-    let throwable = RuntimeFreezingExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeFreezingExceptionBox(message: message))
 }
 
 /// Allocates an `AssertionError` with the given message.
 func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeAssertionErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeAssertionErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `IllegalStateException` with the given message.
 func runtimeAllocateIllegalStateException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIllegalStateExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIllegalStateExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `IllegalArgumentException` with the given message.
 func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIllegalArgumentExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIllegalArgumentExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateConcurrentModificationException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeConcurrentModificationExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeConcurrentModificationExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateInvalidMutabilityException(message: String?) -> Int {
-    let throwable = RuntimeInvalidMutabilityExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeInvalidMutabilityExceptionBox(message: message))
 }
 
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String?) -> Int {
-    let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeArrayIndexOutOfBoundsExceptionBox(message: message))
 }
 
 func runtimeAllocateStringIndexOutOfBoundsException(message: String?) -> Int {
-    let throwable = RuntimeStringIndexOutOfBoundsExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeStringIndexOutOfBoundsExceptionBox(message: message))
 }
 
 func runtimeAllocateNumberFormatException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNumberFormatExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNumberFormatExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateArithmeticException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeArithmeticExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeArithmeticExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NegativeArraySizeException` with the given message.
 func runtimeAllocateNegativeArraySizeException(message: String?) -> Int {
-    let throwable = RuntimeNegativeArraySizeExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNegativeArraySizeExceptionBox(message: message))
 }
 
 /// Allocates an `Exception` with the given message.
 func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeExceptionBox(message: message, cause: cause))
+}
+
+/// Allocates a `java.io.IOException` with the given message and cause.
+func runtimeAllocateIOException(message: String?, cause: Int = 0) -> Int {
+    return runtimeRegisterThrowable(RuntimeIOExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `CharacterCodingException` with the given message.
 func runtimeAllocateCharacterCodingException(message: String?) -> Int {
-    let throwable = RuntimeCharacterCodingExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeCharacterCodingExceptionBox(message: message))
+}
+
+/// Message used by `MalformedInputException` for a one-byte invalid sequence.
+let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
+
+/// Allocates a `MalformedInputException` with the given message.
+func runtimeAllocateMalformedInputException(
+    message: String? = runtimeMalformedInputExceptionDefaultMessage
+) -> Int {
+    return runtimeRegisterThrowable(RuntimeMalformedInputExceptionBox(message: message))
 }
 
 /// Allocates a `KotlinNothingValueException` with the given message.
 func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `OutOfMemoryError` with the given message.
 func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeOutOfMemoryErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeOutOfMemoryErrorBox(message: message, cause: cause))
+}
+
+/// Allocates a `StackOverflowError` with the given message.
+func runtimeAllocateStackOverflowError(message: String?, cause: Int = 0) -> Int {
+    return runtimeRegisterThrowable(RuntimeStackOverflowErrorBox(message: message, cause: cause))
 }
 
 /// Message used by `NotImplementedError()` when no reason is supplied.
@@ -642,72 +633,37 @@ let runtimeNotImplementedDefaultMessage = "An operation is not implemented."
 
 /// Allocates a `NotImplementedError` with the given message.
 func runtimeAllocateNotImplementedError(message: String, cause: Int = 0) -> Int {
-    let throwable = RuntimeNotImplementedErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNotImplementedErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `IndexOutOfBoundsException` with the given message.
 func runtimeAllocateIndexOutOfBoundsException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `UnsupportedOperationException` with the given message.
 func runtimeAllocateUnsupportedOperationException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NoSuchElementException` with the given message.
 func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNoSuchElementExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNoSuchElementExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `ClassCastException` with the given message.
 func runtimeAllocateClassCastException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeClassCastExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeClassCastExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `TypeCastException` with the given message.
 func runtimeAllocateTypeCastException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeTypeCastExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeTypeCastExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NullPointerException` with the given message.
 func runtimeAllocateNullPointerException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNullPointerExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNullPointerExceptionBox(message: message, cause: cause))
 }
 
 private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> String? {
@@ -751,6 +707,8 @@ func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
         return "java.lang.Error"
     case "kotlin.OutOfMemoryError":
         return "java.lang.OutOfMemoryError"
+    case "kotlin.StackOverflowError":
+        return "java.lang.StackOverflowError"
     case "kotlin.ConcurrentModificationException":
         return "java.util.ConcurrentModificationException"
     case "kotlin.NoSuchElementException":
@@ -794,7 +752,7 @@ func runtimeCauseToString(from raw: Int) -> String? {
         let exceptionFQName = runtimeJVMExceptionFQName(
             from: runtimeSourceThrowableQualifiedName(for: object.classID)
         )
-        guard let message = object.throwableMessage else {
+        guard let message = runtimeSourceThrowableMessage(raw, object: object) else {
             return exceptionFQName
         }
         return "\(exceptionFQName): \(message)"
@@ -812,20 +770,20 @@ private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
 
 @_cdecl("__kk_no_when_branch_matched_exception_new")
 public func kk_no_when_branch_matched_exception_new() -> Int {
-    runtimeAllocateNoWhenBranchMatchedException(message: "No when branch matched")
+    runtimeAllocateNoWhenBranchMatchedException(message: nil)
 }
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_message")
 public func kk_no_when_branch_matched_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched")
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_message_cause")
 public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: "No when branch matched"),
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -833,7 +791,7 @@ public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: 
 @_cdecl("__kk_no_when_branch_matched_exception_new_cause")
 public func kk_no_when_branch_matched_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateNoWhenBranchMatchedException(
-        message: "No when branch matched",
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -885,6 +843,18 @@ public func kk_array_index_out_of_bounds_exception_new_message(_ messageRaw: Int
     )
 }
 
+@_cdecl("__kk_string_index_out_of_bounds_exception_new")
+public func kk_string_index_out_of_bounds_exception_new() -> Int {
+    runtimeAllocateStringIndexOutOfBoundsException(message: nil)
+}
+
+@_cdecl("__kk_string_index_out_of_bounds_exception_new_message")
+public func kk_string_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateStringIndexOutOfBoundsException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
+    )
+}
+
 @_cdecl("kk_negative_array_size_exception_new")
 public func kk_negative_array_size_exception_new() -> Int {
     runtimeAllocateNegativeArraySizeException(message: nil)
@@ -914,6 +884,18 @@ public func kk_freezing_exception_new(_ toFreezeRaw: Int, _ blockerRaw: Int) -> 
 @_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {
     runtimeAllocateIllegalStateException(message: nil)
+}
+
+/// BUG-B: allocates a message-less `NullPointerException`. Used by the
+/// backend when a String-struct field accessor (currently `.length`)
+/// observes an actually-null value at runtime -- e.g. an overridden
+/// non-null `String` property read during superclass construction, before
+/// the subclass has run its own initializer -- so the call throws exactly
+/// like calling any method on a null reference, regardless of the
+/// statically-declared non-null type.
+@_cdecl("__kk_null_pointer_exception_new")
+public func kk_null_pointer_exception_new() -> Int {
+    runtimeAllocateNullPointerException(message: nil)
 }
 
 @_cdecl("__kk_illegal_state_exception_new_message")
@@ -1076,6 +1058,32 @@ public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
     )
 }
 
+@_cdecl("__kk_io_exception_new")
+public func kk_io_exception_new() -> Int {
+    runtimeAllocateIOException(message: nil)
+}
+
+@_cdecl("__kk_io_exception_new_message")
+public func kk_io_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateIOException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_io_exception_new_message_cause")
+public func kk_io_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateIOException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_io_exception_new_cause")
+public func kk_io_exception_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateIOException(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
 @_cdecl("__kk_character_coding_exception_new")
 public func kk_character_coding_exception_new() -> Int {
     runtimeAllocateCharacterCodingException(message: nil)
@@ -1148,6 +1156,32 @@ public func kk_out_of_memory_error_new() -> Int {
 @_cdecl("__kk_out_of_memory_error_new_message")
 public func kk_out_of_memory_error_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateOutOfMemoryError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_stack_overflow_error_new")
+public func kk_stack_overflow_error_new() -> Int {
+    runtimeAllocateStackOverflowError(message: nil)
+}
+
+@_cdecl("__kk_stack_overflow_error_new_message")
+public func kk_stack_overflow_error_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
+}
+
+@_cdecl("__kk_stack_overflow_error_new_message_cause")
+public func kk_stack_overflow_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_stack_overflow_error_new_cause")
+public func kk_stack_overflow_error_new_cause(_ causeRaw: Int) -> Int {
+    runtimeAllocateStackOverflowError(
+        message: runtimeCauseToString(from: causeRaw),
+        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
 }
 
 @_cdecl("__kk_not_implemented_error_new")

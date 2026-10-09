@@ -2,6 +2,7 @@
 @testable import CompilerBackend
 import Foundation
 import Testing
+import TestStdlibCache
 
 /// STDLIB-ARTIFACT-001: shared stdlib artifact (.kklib) is correctly consumed
 /// by a user module. This is a regression test for the `uuid_basic` shared-path
@@ -12,6 +13,37 @@ import Testing
 struct StdlibArtifactRegressionTests {
 
     private static let sharedArtifactLock = NSLock()
+
+    /// KUU-1022: interface bridges must preserve source overrides and captures.
+    @Test(arguments: [false, true])
+    func testCoroutineContextOverrideDispatch(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/coroutine_context_override_dispatch.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "CoroutineContextOverrideDispatch",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "0\ntrue\ntrue\ntrue\ntrue\n13\ntrue\ntrue\ninherited plus\n16\ntrue\ntrue\ntrue\ntrue\nstart:item:item\nfold override\nplus override\nplus override\nplus override\ntrue\n")
+        }
+    }
     nonisolated(unsafe) private static var sharedArtifactPath: String?
 
     private static func buildStdlibArtifact() throws -> String {
@@ -48,6 +80,457 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    /// KUU-1343: Channel<T> retains its SendChannel<T> view in both stdlib modes.
+    @Test(arguments: [false, true])
+    func testChannelSendChannelSubtype(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/channel_send_channel_subtype.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ChannelSendChannelSubtype", emit: .executable, outputPath: outputBase,
+                stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
+                "false\ntrue\ntrue\n7\n9\ntrue\ntrue\ntrue\nvalue\ntrue\n")
+        }
+    }
+
+    /// KUU-1339: Unit literals and returned values share identity at erased boundaries.
+    @Test(arguments: [false, true])
+    func testUnitReturnSingleton(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/unit_return_singleton.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "UnitReturnSingleton",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            true
+            true
+            true
+            true
+            true
+            true
+            w
+            true
+            true
+            true
+            true
+            true
+            true
+            true
+            false
+            false
+            false
+            false
+            true
+            boxed
+            kotlin.Unit
+
+            """)
+        }
+    }
+
+    /// KUU-971: nullable channel exception messages survive source and artifact compilation.
+    @Test(arguments: [false, true])
+    func testChannelExceptionsNullableMessage(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kotlinx_coroutines_channel_ex_nullable_message.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ChannelExceptionsNullableMessage",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") ==
+                "send closed\nreceive closed\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n")
+        }
+    }
+
+    /// KUU-1320: reified enumValues specializes in both stdlib modes.
+    @Test(arguments: [false, true])
+    func testReifiedEnumValues(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/enum_values_reified.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ReifiedEnumValues", emit: .executable, outputPath: outputBase,
+                stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\n[X, Y, Z]\n[A, B]\n[]\n[SOURCE, BINARY, RUNTIME]\n[A, B]\n[A, B]\n")
+        }
+    }
+
+    /// KUU-1462: a reified enum token remains available inside a noinline lambda.
+    @Test(arguments: [false, true])
+    func testReifiedEnumValuesInsideNoinlineLambda(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/enum_values_reified_noinline_lambda.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ReifiedEnumValuesNoinlineLambda", emit: .executable,
+                outputPath: outputBase, stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\nB\n")
+        }
+    }
+
+    @Test
+    func testReifiedEnumValuesThroughInlineLibrary() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stdlib = try testStdlibArtifactPath()
+        let librarySource = directory.appendingPathComponent("Factory.kt").path
+        let libraryOutput = directory.appendingPathComponent("Factory").path
+        try """
+        package factory
+        inline fun <reified T : Enum<T>> values(unused: Int = 0): List<T> = enumValues<T>().toList()
+        inline fun <reified T : Enum<T>> nestedValues(): List<T> = values<T>()
+        """.write(toFile: librarySource, atomically: true, encoding: .utf8)
+        let library = makeCompilationContext(
+            inputs: [librarySource], moduleName: "EnumFactory", emit: .library,
+            outputPath: libraryOutput, stdlibLibraryPath: stdlib
+        )
+        try runToLowering(library)
+        try assertNoDiagnosticErrors(library)
+        try CodegenPhase().run(library)
+        let source = """
+        import factory.values
+        import factory.nestedValues
+        enum class E { A, B }
+        fun main() {
+            println(values<E>())
+            println(nestedValues<E>())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let output = directory.appendingPathComponent("consumer").path
+            let consumer = makeCompilationContext(
+                inputs: [path], moduleName: "EnumFactoryConsumer", emit: .executable, outputPath: output,
+                searchPaths: [libraryOutput + ".kklib"], stdlibLibraryPath: stdlib
+            )
+            try runToLowering(consumer)
+            try assertNoDiagnosticErrors(consumer)
+            try CodegenPhase().run(consumer)
+            try LinkPhase().run(consumer)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "[A, B]\n[A, B]\n")
+        }
+    }
+
+    /// KUU-1301: chunked transforms escape into nested sequence/iterator objects.
+    /// Exercise both source injection and imported stdlib callback ABIs.
+    @Test(arguments: [false, true])
+    func testSequenceChunkedTransformCaptures(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/sequence_chunked_transform_capture.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "SequenceChunkedTransformCaptures",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            [3, 7, 5]
+            [[1, 2], [3, 4], [5]]
+            [3, 7, 5]
+            [103, 107, 105]
+            [chunk:1+2, chunk:3+4, chunk:5]
+            [[1, 2], [3, 4], [5]]
+            []
+            0
+            [3]
+            1
+            [3, 7, 5]
+            4
+            transform
+            size 0 must be greater than zero.
+
+            """)
+        }
+    }
+
+    /// KUU-1133: Channel.kt's SendChannel extension must remain visible in all
+    /// ProducerScope builders, alongside the distinct Channel extension.
+    @Test(arguments: [false, true])
+    func testProducerScopeClosedForSend(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1133_producer_scope_closed_for_send.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ProducerScopeClosedForSend",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            channel open: false
+            channel closed: true
+            callbackFlow open: false,false,false
+            callbackFlow closed: true,true,true
+            channelFlow open: false,false,false
+            channelFlow closed: true,true,true
+            produce open: false,false,false
+            produce closed: true,true,true
+
+            """)
+        }
+    }
+
+    /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
+    @Test
+    func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.system.*
+        fun main() { println(getTimeMillis() > 0); println(getTimeNanos() > 0) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            do {
+                try runSema(ctx)
+            } catch {
+                // Inspect the emitted diagnostics rather than the pipeline error alone.
+            }
+            let sema = try #require(ctx.sema)
+            for name in ["getTimeMillis", "getTimeNanos"] {
+                #expect(ctx.diagnostics.diagnostics.contains {
+                    $0.severity == .error && $0.message.contains("Unresolved function '\(name)'")
+                }, "Expected unresolved removed API, got: \(ctx.diagnostics.diagnostics)")
+                let fq = ["kotlin", "system", name].map { ctx.interner.intern($0) }
+                #expect(sema.symbols.lookupAll(fqName: fq).isEmpty)
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testStringLengthPropertyReferencesPreserveGetterABI(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/callable_ref_string_length.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "StringLengthPropertyReferences",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            [1, 2]
+            3
+            [0, 6]
+            4
+            5
+            [0, 2, 2]
+            6
+            6
+            6
+            6
+            [[x], [yy]]
+            [z]
+
+            """)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testOutputStreamBulkWritesPreserveBytes(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.io.*
+        import java.io.IOException
+
+        fun main() {
+            val buffer = Buffer()
+            val out = buffer.asOutputStream()
+            out.write(listOf(104, 105, 106, 0, 127, 128, 255, -1, 256))
+            out.write(byteArrayOf(104, 105, 106, -128, -1))
+            out.write(listOf<Int>())
+            out.write(byteArrayOf())
+            out.write(65)
+            out.flush()
+            println(buffer.size)
+            while (buffer.size > 0) {
+                println(buffer.readByte().toInt())
+            }
+
+            val raw: RawSink = Buffer()
+            val closed = raw.buffered().asOutputStream()
+            closed.close()
+            try {
+                closed.write(listOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+            try {
+                closed.write(byteArrayOf(104, 105, 106))
+                println("no-throw")
+            } catch (e: IOException) {
+                println(e.message)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "OutputStreamBulkWrites",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            15
+            104
+            105
+            106
+            0
+            127
+            -128
+            -1
+            -1
+            0
+            104
+            105
+            106
+            -128
+            -1
+            65
+            Underlying sink is closed.
+            Underlying sink is closed.
+
+            """)
+        }
+    }
+
     private static let abstractCollectionSource = """
     import kotlin.collections.AbstractCollection
     import kotlin.collections.Iterator
@@ -68,6 +551,464 @@ struct StdlibArtifactRegressionTests {
         println(EvenNumbers().size)
     }
     """
+
+    @Test(arguments: [false, true])
+    func testContinuationContextOverrides(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/continuation_context_override.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "ContinuationContextOverrides",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\ngetter\ntrue\ntrue\ntrue\n7\n42\n")
+        }
+    }
+
+    @Test
+    func testContinuationInterceptorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/stdlib_kotlin_coroutines_ContinuationInterceptor_ContinuationInterceptor_n.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ContinuationInterceptorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            let expected = String(repeating: "true\n", count: 15) + "resumed\ndefault released\n1\n"
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
+        }
+    }
+
+    @Test
+    func testNativeDispatcherInterceptorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.Dispatchers
+
+        class Done : Continuation<Unit> {
+            override val context: CoroutineContext = EmptyCoroutineContext
+            override fun resumeWith(result: Result<Unit>) {}
+        }
+        fun main() {
+            val original = Done()
+            val direct = Dispatchers.Default.interceptContinuation(original)
+            val interceptor: ContinuationInterceptor = Dispatchers.Default
+            val indirect = interceptor.interceptContinuation(original)
+            println(direct === indirect)
+            interceptor.releaseInterceptedContinuation(indirect)
+            println("released")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "NativeInterceptorArtifact",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\nreleased\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testDispatcherNames(useArtifact: Bool) throws {
+        TestStdlibCache.shared.prepare()
+        let artifactPath = useArtifact ? CompilerOptions.defaultStdlibLibraryPath : nil
+        if useArtifact {
+            try #require(artifactPath != nil, "shared stdlib artifact must be available")
+        }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/dispatchers_to_string.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "DispatcherNames",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            let expected = """
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            Dispatchers.IO
+            Dispatchers.Unconfined
+            Dispatchers.Default
+            [Dispatchers.IO, Dispatchers.Unconfined, Dispatchers.Default]
+            false
+            false
+            true
+            1263223809
+            1263223810
+            1263223812
+            [1263223809, 1263223810, 1263223812]
+            io
+            unconfined
+            Dispatchers.IO
+            true
+            Dispatchers.Unconfined
+            true
+            true
+
+            """
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testFlowTakeFirstAbort(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/flow_take_first_abort.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowTakeFirstAbort",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                Requested element count 0 should be positive
+                Requested element count -1 should be positive
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                [1]
+                start
+                second
+                cleanup
+                [1, 2]
+                start
+                cleanup
+                1
+                start
+                cleanup
+                [1]
+                start
+                cleanup
+                1
+                [1, 2]
+                []
+                null
+                empty
+                start
+                cleanup
+                downstream
+                upstream
+
+                """)
+        }
+    }
+
+    @Test
+    func testFlowTerminalLogicThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            println(emptyFlow<Int>().any { true })
+            println(emptyFlow<Int>().all { false })
+            println(emptyFlow<Int>().none { true })
+            println(flowOf(1, 2, 3).any { it == 2 })
+            println(flowOf(1, 2, 3).all { it > 0 })
+            println(flowOf(1, 2, 3).none { it > 3 })
+            var calls = 0
+            println(flow<Int> {
+                emit(1)
+                emit(2)
+                throw IllegalStateException("unreachable")
+            }.any { value -> calls += 1; value == 2 })
+            println(calls)
+            println(flow<Int> {
+                emit(1)
+                throw IllegalStateException("unreachable")
+            }.all { it > 1 })
+            println(flow<Int?> {
+                emit(null)
+                throw IllegalStateException("unreachable")
+            }.none { it == null })
+            try {
+                flowOf(1).any { throw IllegalArgumentException("predicate") }
+            } catch (e: IllegalArgumentException) {
+                println("predicate failure")
+            }
+            Unit
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowTerminalLogic",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                false
+                true
+                true
+                true
+                true
+                true
+                true
+                2
+                false
+                false
+                predicate failure
+
+                """)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testFlowAccumulatorsAndCollectorThroughSharedStdlibArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun runCollect(source: Flow<Int>, action: suspend (Int) -> Unit) = runBlocking {
+            source.collect(action)
+        }
+
+        fun main() = runBlocking {
+            val folded = flowOf(1, 2).runningFold("x") { acc, value -> acc + value }
+            println(folded.toList())
+            println(folded.toList())
+            flowOf("a", "b").collectIndexed { index, value -> println("$index:$value") }
+            var calls = 0
+            val fallback = emptyFlow<Int>().onEmpty {
+                calls += 1
+                emit(7)
+                emitAll(flowOf(8, 9))
+            }
+            println(calls)
+            println(fallback.toList())
+            println(fallback.toList())
+            println(calls)
+            val collector = object : FlowCollector<Int> {
+                override suspend fun emit(value: Int) { println("collector:$value") }
+            }
+            collector.emitAll(flowOf(10, 11))
+            runCollect(flowOf(12, 13)) { value -> println("forwarded:$value") }
+            try {
+                emptyFlow<Int>().onEmpty { throw IllegalArgumentException("action") }.toList()
+            } catch (e: IllegalArgumentException) {
+                println("action failure")
+            }
+            Unit
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowAccumulatorsAndCollector",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                [x, x1, x12]
+                [x, x1, x12]
+                0:a
+                1:b
+                0
+                [7, 8, 9]
+                [7, 8, 9]
+                2
+                collector:10
+                collector:11
+                forwarded:12
+                forwarded:13
+                action failure
+
+                """)
+        }
+    }
+
+    @Test
+    func testFlowCollectSuspendConversionThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.flow.*
+        import kotlinx.coroutines.runBlocking
+        fun runCollect(source: Flow<Int>, action: (Int) -> Unit) = runBlocking {
+            source.collect(action)
+        }
+        fun runFailure(action: (Int) -> Unit) = runBlocking {
+            try { flowOf(1).collect(action) }
+            catch (e: IllegalArgumentException) { println(e.message) }
+        }
+        fun main() {
+            runCollect(flowOf(12, 13)) { println(it) }
+            var total = 10
+            val action: (Int) -> Unit = { total += it }
+            runCollect(flowOf(2, 3), action)
+            runCollect(flowOf(4), action)
+            println(total)
+            val failure: (Int) -> Unit = { throw IllegalArgumentException("converted") }
+            runFailure(failure)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "FlowCollectSuspendConversion",
+                emit: .executable, outputPath: outputBase,
+                includeStdlib: false, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "12\n13\n19\nconverted\n")
+        }
+    }
+
+    /// A direct range expression can retain its primitive element type in
+    /// Sema. Its source-backed members still receive a runtime range box,
+    /// which has no Kotlin vtable.
+    @Test
+    func testLongRangeExpressionIteratorThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val iterator = (Long.MAX_VALUE - 1L..Long.MAX_VALUE).iterator()
+            while (iterator.hasNext()) println(iterator.next())
+            println(iterator.hasNext())
+
+            val range: LongRange = Long.MIN_VALUE..Long.MIN_VALUE
+            val typedIterator: LongIterator = range.iterator()
+            println(typedIterator.nextLong())
+            println(typedIterator.hasNext())
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "LongRangeExpressionIteratorArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                9223372036854775806
+                9223372036854775807
+                false
+                -9223372036854775808
+                false
+
+                """)
+        }
+    }
 
     /// KSP-697: inferred mutable collection factories must preserve their
     /// MutableIterable supertype when the stdlib is consumed as an artifact.
@@ -153,32 +1094,34 @@ struct StdlibArtifactRegressionTests {
                 from: try findKIRFunctionBody(named: "sumList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(listCallees.contains("kk_list_iterator"), "artifact List loop must use kk_list_iterator: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_hasNext"), "artifact List loop must use list hasNext: \(listCallees)")
-            #expect(listCallees.contains("kk_list_iterator_next"), "artifact List loop must use list next: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterable_iterator"), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_hasNext"), "artifact List loop must not use generic hasNext: \(listCallees)")
-            #expect(!listCallees.contains("kk_iterator_next"), "artifact List loop must not use generic next: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator")), "artifact List loop must use kk_list_iterator: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact List loop must use list hasNext: \(listCallees)")
+            #expect(listCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact List loop must use list next: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact List loop must not use generic Iterable iterator: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact List loop must not use generic hasNext: \(listCallees)")
+            #expect(!listCallees.contains(try runtimeABICallee("iterator_next")), "artifact List loop must not use generic next: \(listCallees)")
 
             let iterableCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumIterable", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(iterableCallees.contains("kk_iterable_iterator"), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_hasNext"), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
-            #expect(iterableCallees.contains("kk_iterator_next"), "artifact Iterable loop must use generic next: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_hasNext"), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
-            #expect(!iterableCallees.contains("kk_list_iterator_next"), "artifact Iterable loop must not use list next: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact Iterable loop must use generic iterator: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact Iterable loop must use generic hasNext: \(iterableCallees)")
+            #expect(iterableCallees.contains(try runtimeABICallee("iterator_next")), "artifact Iterable loop must use generic next: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact Iterable loop must not use list hasNext: \(iterableCallees)")
+            #expect(!iterableCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact Iterable loop must not use list next: \(iterableCallees)")
 
             let mutableListCallees = extractCallees(
                 from: try findKIRFunctionBody(named: "sumMutableList", in: module, interner: ctx.interner),
                 interner: ctx.interner
             )
-            #expect(mutableListCallees.contains("kk_iterator_hasNext"), "artifact MutableList loop must use generic hasNext: \(mutableListCallees)")
-            #expect(mutableListCallees.contains("kk_iterator_next"), "artifact MutableList loop must use generic next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_hasNext"), "artifact MutableList loop must not force list hasNext: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_list_iterator_next"), "artifact MutableList loop must not force list next: \(mutableListCallees)")
-            #expect(!mutableListCallees.contains("kk_range_iterator"), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator")), "artifact MutableList loop must use the concrete list iterator: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_hasNext")), "artifact MutableList loop must use list hasNext: \(mutableListCallees)")
+            #expect(mutableListCallees.contains(try runtimeABICallee("list_iterator_next")), "artifact MutableList loop must use list next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterable_iterator")), "artifact MutableList loop must not use generic Iterable iterator: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_hasNext")), "artifact MutableList loop must not use generic hasNext: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("iterator_next")), "artifact MutableList loop must not use generic next: \(mutableListCallees)")
+            #expect(!mutableListCallees.contains(try runtimeABICallee("range_iterator")), "artifact MutableList loop must not use the range iterator: \(mutableListCallees)")
 
             try LoweringPhase().run(ctx)
             try CodegenPhase().run(ctx)
@@ -507,6 +1450,124 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-1040: primary constructor properties can override the open message
+    /// and cause properties through the bundled exception hierarchy in both modes.
+    @Test(arguments: [false, true])
+    func testThrowableConstructorPropertyOverrides(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/throwable_constructor_property_override.kt"
+        ), encoding: .utf8)
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ThrowableConstructorPropertyOverrides",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            invalid input
+            true
+            invalid input
+            root
+            invalid input
+            true
+            missing field
+            true
+            invalid input
+            root
+
+            """)
+        }
+    }
+
+    /// KUU-594: user-defined Throwable subclasses must initialize the object
+    /// allocated by the consumer module when their superclass constructor is
+    /// imported from the precompiled stdlib artifact. Runtime factory
+    /// constructors need accessor-based initialization, while source-backed
+    /// RuntimeException constructors must retain their normal super call.
+    @Test
+    func testUserDefinedThrowableSubclassThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        class MyEx(msg: String, cause: Throwable? = null) : RuntimeException(msg, cause)
+        class MyEx2(msg: String) : Exception(msg)
+        class MyEx3 : RuntimeException("fixed")
+        open class BaseEx(m: String) : Exception(m)
+        class SubEx(m: String) : BaseEx(m)
+
+        fun main() {
+            try {
+                throw MyEx("boom", IllegalArgumentException("root"))
+            } catch (e: MyEx) {
+                println("${e.message} / ${e.cause?.message} / ${e.cause is IllegalArgumentException} / $e")
+            }
+            try {
+                throw MyEx2("m2")
+            } catch (e: Exception) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw MyEx3()
+            } catch (e: RuntimeException) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw SubEx("sub")
+            } catch (e: BaseEx) {
+                println("${e.message} / $e / ${e is SubEx}")
+            }
+            println(RuntimeException("rt").message)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UserDefinedThrowableArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            let expectedStdout = [
+                "boom / root / true / MyEx: boom",
+                "m2 / MyEx2: m2",
+                "fixed / MyEx3: fixed",
+                "sub / SubEx: sub / true",
+                "rt",
+            ].joined(separator: "\n") + "\n"
+            #expect(normalizedStdout == expectedStdout)
+        }
+    }
+
     /// STDLIB-ARTIFACT-004: generic `maxOf`/`minOf` overloads on `Comparable`
     /// work through the shared stdlib artifact even though their `Comparable<T>`
     /// upper bound is not preserved in metadata; the CallLowerer recognizes the
@@ -648,6 +1709,8 @@ struct StdlibArtifactRegressionTests {
         let artifactPath = try Self.buildStdlibArtifact()
 
         let source = """
+        import kotlin.time.Duration.Companion.seconds
+
         fun main() {
             val d1 = 1.seconds
             val d2 = 2.seconds
@@ -975,7 +2038,165 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// Imported runtime-backed interface getters retain a direct external link
+    @Test(arguments: [false, true])
+    func testResultInlineSuspension(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/result_inline_suspend.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { path in
+            let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [path], moduleName: "ResultInlineSuspension", emit: .executable, outputPath: output,
+                includeStdlib: !useArtifact, stdlibLibraryPath: artifactPath, allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try #require(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: output, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "flush\nflush\n7\nsuspended\n7\n14\ntrue\nsuspended\n14\n7\n14\n7\n7\n7\n7\nsuspended\nsuspended\n9\nsuspended\nfinally\n7\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testResultGetOrDefaultPreservesFallback(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        fun main() {
+            val failed = runCatching { throw IllegalStateException("x") }
+            val success = runCatching { 42 }
+            println(failed.getOrDefault(-2))
+            println(success.getOrDefault(-2))
+            println(failed.getOrDefault("fallback"))
+            println(runCatching { null }.getOrDefault(-2))
+            println(runCatching<Int> { throw IllegalStateException("typed") }.getOrDefault(-3))
+            val absent: Result<Nothing>? = null
+            val present: Result<Nothing>? = failed
+            println(absent?.getOrDefault(-4))
+            println(present?.getOrDefault(-4))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ResultGetOrDefault",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "-2\n42\nfallback\nnull\n-3\nnull\n-4\n")
+        }
+    }
+
+    /// Setter counterpart of `testResultMemberPropertyGetterSharedPath`:
+    /// `var` properties with custom setters — a bundled extension `var`
+    /// (`AtomicInt.value`) and a bundled member `var` (`AtomicLong.value`) —
+    /// must round-trip the precompiled setter link through the shared stdlib
+    /// artifact (`propertySetterExternalLinkName`). Without it the consumer
+    /// lowers `a.value = x` to a call to a bare `set`/`value` symbol and
+    /// fails to link.
+    @Test
+    func testBundledAtomicPropertySetterSharedPath() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        import kotlin.native.concurrent.AtomicLong
+        fun main() {
+            val i = AtomicInt(1)
+            i.value = 42
+            println(i.value)
+            val l = AtomicLong(10)
+            l.value = 64
+            println(l.value)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertySetterArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "42\n64\n")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testBundledAtomicExtensionPropertyCompoundAssign(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let source = """
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.native.concurrent.AtomicInt
+        fun main() {
+            val i = AtomicInt(10)
+            i.value += 5
+            println(i.value)
+            println(i.value++)
+            println(++i.value)
+            println(i.value--)
+            println(--i.value)
+            i.value -= 3
+            i.value *= 2
+            i.value /= 4
+            i.value %= 4
+            println(i.value)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "AtomicPropertyCompoundAssign",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "15\n15\n17\n17\n15\n2\n")
+        }
+    }
+
+    /// Imported runtime-backed interface getters retain a direct runtime target
     /// in the shared artifact. They must not be redirected to an itable property
     /// slot that the runtime collection boxes do not register.
     @Test
@@ -1012,14 +2233,15 @@ struct StdlibArtifactRegressionTests {
                 interner: ctx.interner
             )
             let directGetterLinks = body.compactMap { instruction -> String? in
-                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
-                      let symbol
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction
                 else {
                     return nil
                 }
-                return sema.symbols.externalLinkName(for: symbol)
+                // Runtime intrinsics may use a direct KIR callee without a Sema symbol.
+                return symbol.flatMap { sema.symbols.externalLinkName(for: $0) }
+                    ?? ctx.interner.resolve(callee)
             }
-            #expect(directGetterLinks.contains("__kk_collection_size"))
+            #expect(directGetterLinks.contains(try runtimeABICallee("collection_size")))
             #expect(!body.contains { instruction in
                 guard case .virtualCall = instruction else { return false }
                 return true
@@ -1123,10 +2345,8 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-016: imported synthetic enum entries for
-    /// `CharDirectionality` must round-trip as compile-time ordinals so the
-    /// shared stdlib `Char.directionality` extension can compare directionality
-    /// values by ordinal.
+    /// STDLIB-ARTIFACT-016: source-backed CharDirectionality entries must
+    /// preserve ordinal comparisons through the shared stdlib artifact.
     @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -1592,11 +2812,11 @@ struct StdlibArtifactRegressionTests {
             shared.emit(2)
             shared.emit(3)
             println(shared.replayCache)
-            shared.collect { value -> println("class=$value") }
+            shared.take(2).collect { value -> println("class=$value") }
 
             val view: SharedFlow<Int> = shared
             println(view.replayCache)
-            view.collect { value -> println("iface=$value") }
+            view.take(2).collect { value -> println("iface=$value") }
 
             println(flowOf(4, 5, 6).shareIn(2).replayCache)
         }
@@ -1633,6 +2853,189 @@ struct StdlibArtifactRegressionTests {
                 [5, 6]
 
                 """)
+        }
+    }
+
+    @Test
+    func testFlowSharingSurfaceThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kotlinx_coroutines_flow_share_surface.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            collector=1
+            collector=2
+            7
+            [-1, -2, 7]
+            true
+            true
+            true
+            -1
+            []
+            []
+            invalid-stop
+            invalid-replay
+
+            """)
+    }
+
+    @Test(arguments: [false, true])
+    func testFlowSharingSnapshotsAndLegacyOverloadsThroughSharedStdlibArtifact(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        class SubscriptionCounts : StateFlow<Int> {
+            override val value: Int get() = 0
+            override val replayCache: List<Int> get() = listOf(0)
+            override suspend fun collect(collector: suspend (Int) -> Unit) {
+                collector(0)
+                collector(1)
+                collector(2)
+                collector(0)
+            }
+        }
+
+        fun main() = runBlocking {
+            val scope = CoroutineScope(Job())
+            val counts = SubscriptionCounts()
+            println(SharingStarted.Lazily.command(counts).toList() == listOf(SharingCommand.START))
+            println(SharingStarted.WhileSubscribed().command(counts).toList() ==
+                listOf(SharingCommand.START, SharingCommand.STOP))
+            println(SharingStarted.WhileSubscribed(0L, 0L).command(counts).toList() ==
+                listOf(SharingCommand.START, SharingCommand.STOP_AND_RESET_REPLAY_CACHE))
+            val state = flowOf(2, 3).stateIn(scope, SharingStarted.Lazily, -1)
+            println(state.value)
+            state.take(1).collect { println("state=$it") }
+            println(state.value)
+            val shared = flowOf(4, 5).shareIn(scope, SharingStarted.Lazily, 2)
+            println(shared.replayCache)
+            shared.take(2).collect { println("shared=$it") }
+            println(shared.replayCache)
+            val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
+            reset.take(1).collect { println("reset=$it") }
+            println(reset.value)
+            reset.take(1).collect { println("restart=$it") }
+            println(reset.value)
+            val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
+            eager.take(1).collect { println("eager=$it") }
+            println(eager.replayCache)
+            val mutable = MutableStateFlow(0)
+            val collector: FlowCollector<Int> = mutable
+            flowOf(10, 11).collect(collector)
+            println(mutable.value)
+            println(flowOf(8, 9).stateIn(0).value)
+            println(flowOf(12, 13, 14).shareIn(2).replayCache)
+            scope.cancel()
+        }
+        """
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            true
+            true
+            true
+            -1
+            state=3
+            3
+            []
+            shared=4
+            shared=5
+            [4, 5]
+            reset=6
+            -2
+            restart=6
+            -2
+            eager=7
+            [7]
+            11
+            9
+            [13, 14]
+
+            """)
+    }
+
+    @Test(arguments: [false, true])
+    func testLazyFlowSharingCapturedLauncher(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        try expectFlowSharingOutput("""
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            fun main() = runBlocking {
+                val shared = flowOf(1, 2).shareIn(this, SharingStarted.Lazily, 2)
+                println(shared.take(2).toList())
+            }
+            """, artifactPath: artifactPath, expected: "[1, 2]\n")
+    }
+
+    @Test(arguments: [false, true])
+    func testCoroutineLauncherPreservesGenericReceiverAndLocalCapture(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        try expectFlowSharingOutput("""
+            import kotlinx.coroutines.*
+
+            fun accept(scope: CoroutineScope) { println("scope") }
+
+            class Launcher<T>(val scope: CoroutineScope, var value: T) {
+                fun read(): T = value
+                fun start(): Job {
+                    val local = 2
+                    return scope.launch {
+                        accept(this)
+                        println(read())
+                        value = read()
+                        println(value)
+                        println(local)
+                    }
+                }
+            }
+
+            fun main() = runBlocking {
+                Launcher(this, 41).start().join()
+            }
+            """, artifactPath: artifactPath, expected: "scope\n41\n41\n2\n")
+    }
+
+    @Test(arguments: [false, true])
+    func testProduceActorLiteralBlocks(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kotlinx_coroutines_produce_actor_basic.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath,
+                                    expected: "produced total: 60\ncaptured: 2\nlooped last: 9\nactor got: 107\nactor got: 108\ndone\n")
+    }
+
+    @Test(arguments: [false, true])
+    func testProduceActorStoredBlocks(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Scripts/diff_cases/kuu1127_produce_actor_stored_blocks.kt"
+        ), encoding: .utf8)
+        try expectFlowSharingOutput(source, artifactPath: artifactPath,
+                                    expected: "uncaptured: 3\nsingle: 6\ncaptured: 9\nforwarded: 15\nactor: 33\n")
+    }
+
+    private func expectFlowSharingOutput(_ source: String, artifactPath: String?, expected: String) throws {
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath], moduleName: "TestModule", emit: .executable,
+                outputPath: outputBase, includeStdlib: artifactPath == nil, stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected)
         }
     }
 
@@ -1844,6 +3247,7 @@ struct StdlibArtifactRegressionTests {
     /// they must keep working when the consumer only sees them through a prebuilt stdlib artifact.
     /// This covers `value`, `tryEmit`, `emit`, `replayCache`, `collect`, and the `stateIn` extension
     /// lowered to `kk_flow_collect` on an explicit local receiver.
+    @Test
     func testStateFlowThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
 
@@ -1907,6 +3311,392 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func testMutableFlowHierarchy(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1296_mutable_flow_hierarchy.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "MutableFlowHierarchy",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                true
+                false
+                10
+                true
+                12
+                [12]
+                0
+                true
+                [12]
+                true
+                true
+                13
+                state reset unsupported
+                0
+                true
+                [21]
+                []
+                false
+                false
+                null
+
+                """)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func testMutableSharedFlowSubscriptionCountTracksLaunchedCollectors(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/kuu1465_mutable_shared_flow_subscription_count.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "MutableSharedFlowSubscriptionCount",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                1
+                0
+
+                """)
+        }
+    }
+
+    /// KUU-1599: hot flows must keep their collectors registered while they
+    /// wait for updates, deliver emissions to every subscriber, and release
+    /// each subscription on completion or cancellation.
+    @Test(arguments: [false, true])
+    func testHotFlowEmissionsReachLiveCollectors(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            suspend fun awaitCondition(label: String, condition: () -> Boolean) {
+                var remaining = 1000
+                while (remaining > 0 && !condition()) {
+                    delay(1)
+                    remaining -= 1
+                }
+                check(condition()) { "Timed out waiting for $label" }
+            }
+
+            suspend fun awaitJob(label: String, job: Job) {
+                awaitCondition(label) { job.isCompleted }
+                job.join()
+            }
+
+            val shared = MutableSharedFlow<Int>()
+            val sharedCount = shared.subscriptionCount
+            val sharedValues = mutableListOf<Int>()
+            val sharedJob = launch {
+                shared.take(3).collect { sharedValues.add(it) }
+            }
+            awaitCondition("shared subscription") { sharedCount.value == 1 }
+            println("sharedCount=${sharedCount.value}")
+            shared.emit(1)
+            delay(5)
+            shared.emit(2)
+            delay(5)
+            shared.emit(3)
+            awaitJob("shared take completion", sharedJob)
+            println("shared=${sharedValues}")
+            println("sharedCountAfter=${sharedCount.value}")
+
+            val state = MutableStateFlow(0)
+            val stateCount = state.subscriptionCount
+            val stateValues = mutableListOf<Int>()
+            val stateJob = launch {
+                state.take(3).collect { stateValues.add(it) }
+            }
+            awaitCondition("state subscription") { stateCount.value == 1 }
+            println("stateCount=${stateCount.value}")
+            state.value = 1
+            delay(5)
+            state.value = 1
+            delay(5)
+            state.value = 2
+            awaitJob("state take completion", stateJob)
+            println("state=${stateValues}")
+            println("stateCountAfter=${stateCount.value}")
+
+            val multiple = MutableSharedFlow<Int>()
+            val multipleCount = multiple.subscriptionCount
+            val firstValues = mutableListOf<Int>()
+            val secondValues = mutableListOf<Int>()
+            val firstJob = launch {
+                multiple.collect { firstValues.add(it) }
+            }
+            val secondJob = launch {
+                multiple.collect { secondValues.add(it) }
+            }
+            awaitCondition("both shared subscriptions") { multipleCount.value == 2 }
+            println("multipleCount=${multipleCount.value}")
+            multiple.emit(10)
+            delay(5)
+            multiple.emit(20)
+            awaitCondition("both shared collectors receive both values") {
+                firstValues.size == 2 && secondValues.size == 2
+            }
+            firstJob.cancelAndJoin()
+            secondJob.cancelAndJoin()
+            println("multipleFirst=${firstValues}")
+            println("multipleSecond=${secondValues}")
+            println("multipleCountAfter=${multipleCount.value}")
+
+            val operators = MutableSharedFlow<Int>()
+            val operatorValues = mutableListOf<Int>()
+            val operatorJob = launch {
+                operators.drop(1).take(2).collect { operatorValues.add(it) }
+            }
+            awaitCondition("operator subscription") { operators.subscriptionCount.value == 1 }
+            operators.emit(4)
+            delay(5)
+            operators.emit(5)
+            delay(5)
+            operators.emit(6)
+            awaitJob("drop/take completion", operatorJob)
+            println("dropTake=${operatorValues}")
+
+            val latest = MutableSharedFlow<Int>()
+            val latestCount = latest.subscriptionCount
+            val latestValues = mutableListOf<Int>()
+            val latestFinished = CompletableDeferred<Int>()
+            val latestJob = launch {
+                latest.collectLatest { value ->
+                    if (value == 1) delay(80)
+                    latestValues.add(value)
+                    if (value == 3) latestFinished.complete(value)
+                }
+            }
+            awaitCondition("collectLatest subscription") { latestCount.value == 1 }
+            println("latestCount=${latestCount.value}")
+            latest.emit(1)
+            delay(10)
+            latest.emit(2)
+            delay(100)
+            latest.emit(3)
+            awaitCondition("collectLatest third value") { latestFinished.isCompleted }
+            println("latestFinished=${latestFinished.await()}")
+            latestJob.cancelAndJoin()
+            println("latest=${latestValues}")
+            println("latestCountAfter=${latestCount.value}")
+
+            val lazySubscriptionCount = MutableStateFlow(0)
+            val lazyCommands = mutableListOf<SharingCommand>()
+            val lazyCommandJob = launch {
+                SharingStarted.Lazily.command(lazySubscriptionCount).take(1)
+                    .collect { lazyCommands.add(it) }
+            }
+            awaitCondition("lazy command subscription") {
+                lazySubscriptionCount.subscriptionCount.value == 1
+            }
+            lazySubscriptionCount.value = 1
+            awaitJob("lazy command start", lazyCommandJob)
+            println("lazyCommands=${lazyCommands}")
+            println("lazyCommandCountAfter=${lazySubscriptionCount.subscriptionCount.value}")
+
+            val whileSubscribedCount = MutableStateFlow(0)
+            val whileSubscribedCommands = mutableListOf<SharingCommand>()
+            val whileSubscribedJob = launch {
+                SharingStarted.WhileSubscribed().command(whileSubscribedCount).take(2)
+                    .collect { whileSubscribedCommands.add(it) }
+            }
+            awaitCondition("while-subscribed command subscription") {
+                whileSubscribedCount.subscriptionCount.value == 1
+            }
+            whileSubscribedCount.value = 1
+            awaitCondition("while-subscribed start command") {
+                whileSubscribedCommands.size == 1
+            }
+            whileSubscribedCount.value = 0
+            awaitJob("while-subscribed stop command", whileSubscribedJob)
+            println("whileSubscribedCommands=${whileSubscribedCommands}")
+            println("whileSubscribedCommandCountAfter=${whileSubscribedCount.subscriptionCount.value}")
+
+            val sharingScope = CoroutineScope(Job())
+            val defaultReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly)
+            val explicitReplay = flowOf(1, 2, 3).shareIn(sharingScope, SharingStarted.Eagerly, replay = 3)
+            awaitCondition("explicit replay cache") { explicitReplay.replayCache.size == 3 }
+            println("defaultReplay=${defaultReplay.replayCache}")
+            println("explicitReplay=${explicitReplay.replayCache}")
+            sharingScope.cancel()
+        }
+        """
+        try expectFlowSharingOutput(source, artifactPath: artifactPath, expected: """
+            sharedCount=1
+            shared=[1, 2, 3]
+            sharedCountAfter=0
+            stateCount=1
+            state=[0, 1, 2]
+            stateCountAfter=0
+            multipleCount=2
+            multipleFirst=[10, 20]
+            multipleSecond=[10, 20]
+            multipleCountAfter=0
+            dropTake=[5, 6]
+            latestCount=1
+            latestFinished=3
+            latest=[2, 3]
+            latestCountAfter=0
+            lazyCommands=[START]
+            lazyCommandCountAfter=0
+            whileSubscribedCommands=[START, STOP]
+            whileSubscribedCommandCountAfter=0
+            defaultReplay=[]
+            explicitReplay=[1, 2, 3]\n
+            """)
+    }
+
+    @Test(arguments: [false, true])
+    func testSnapshotFlowAPIs(fromSource: Bool) throws {
+        let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.coroutines.EmptyCoroutineContext
+        import kotlinx.coroutines.runBlocking
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val shared = MutableSharedFlow<Int>(2)
+            shared.emit(1)
+            shared.emit(2)
+            val count = shared.subscriptionCount
+            val view = shared.asSharedFlow()
+            println(count.value)
+            view.take(2).collect { value ->
+                println("shared=$value/count=${count.value}")
+                if (value == 1) {
+                    shared.resetReplayCache()
+                    shared.tryEmit(3)
+                }
+            }
+            println(count.value)
+            println(view.replayCache)
+            try {
+                view.collect { throw IllegalStateException("stop") }
+            } catch (e: IllegalStateException) {
+                println("exception/count=${count.value}")
+            }
+            shared.take(1).collect {
+                shared.take(1).collect { println("nested=${count.value}") }
+                println("outer=${count.value}")
+            }
+            println(count.value)
+            println(view.buffer(0) === view)
+            println(view.flowOn(EmptyCoroutineContext) === view)
+            println(view.cancellable() === view)
+            println(view.conflate() === view)
+            try {
+                view.buffer(-3)
+            } catch (e: IllegalArgumentException) {
+                println("invalid buffer")
+            }
+            val state = MutableStateFlow(5)
+            val stateCount = state.subscriptionCount
+            val stateView = state.asStateFlow()
+            stateView.collect { value ->
+                state.value = 6
+                println("state=$value/count=${stateCount.value}")
+            }
+            println(stateCount.value)
+            println(stateView.value)
+            println(stateView.replayCache)
+            println(stateView.distinctUntilChanged() === stateView)
+            println(state.asSharedFlow().replayCache)
+            state.setValue(7)
+            println(stateView.value)
+            try {
+                state.collect { throw IllegalStateException("stop") }
+            } catch (e: IllegalStateException) {
+                println("state exception/count=${stateCount.value}")
+            }
+            stateCount.collect { println("count snapshot=$it") }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: fromSource,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                0
+                shared=1/count=1
+                shared=2/count=1
+                0
+                [3]
+                exception/count=0
+                nested=2
+                outer=1
+                0
+                true
+                true
+                true
+                true
+                invalid buffer
+                state=5/count=1
+                0
+                6
+                [6]
+                true
+                [6]
+                7
+                state exception/count=0
+                count snapshot=0
+
+                """)
+        }
+    }
+
     /// KSP-707: symbols loaded from a precompiled stdlib library artifact carry
     /// both `.importedLibrary` and `.synthetic`, so `require`/`check`/`assert`'s
     /// `ContractNonNullEffect` (which powers `require(x != null)`-style smart-cast
@@ -1948,6 +3738,25 @@ struct StdlibArtifactRegressionTests {
             val f: String? = "asserted"
             assert(f != null)
             println(f.length)
+
+            // KUU-1091: `contract { returns() implies (value != null) }` on
+            // requireNotNull/checkNotNull must narrow the argument itself, not
+            // just the call's return value.
+            val g: String? = "notnull"
+            requireNotNull(g)
+            println(g.length)
+
+            val h: String? = "checked"
+            checkNotNull(h)
+            println(h.length)
+
+            val i: String? = "lazy2"
+            requireNotNull(i) { "i must not be null" }
+            println(i.length)
+
+            val j: String? = "lazy3"
+            checkNotNull(j) { "j must not be null" }
+            println(j.length)
         }
         """
 
@@ -1978,6 +3787,10 @@ struct StdlibArtifactRegressionTests {
                 4
                 12
                 8
+                7
+                7
+                5
+                5
 
                 """)
         }
@@ -2033,27 +3846,63 @@ struct StdlibArtifactRegressionTests {
         @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 
         import kotlin.native.concurrent.FutureState
+        import kotlin.native.concurrent.TransferMode
 
-        fun futureStateEntries(): kotlin.enums.EnumEntries<FutureState> = FutureState.entries
-        fun futureStateValue(): Int = FutureState.COMPUTED.value
-        fun futureStateValueOf(): FutureState = FutureState.valueOf("THROWN")
-        fun futureStateValues(): Array<FutureState> = FutureState.values()
-        fun futureStateOrdinal(): Int = FutureState.CANCELLED.ordinal
-        fun futureStateName(): String = FutureState.INVALID.name
+        fun main() {
+            println(FutureState.entries.size)
+            println(FutureState.INVALID.value)
+            println(FutureState.SCHEDULED.value)
+            println(FutureState.COMPUTED.value)
+            println(FutureState.CANCELLED.value)
+            println(FutureState.THROWN.value)
+            println(FutureState.valueOf(name = "THROWN").value)
+            println(FutureState.values().size)
+
+            println(TransferMode.entries.size)
+            println(TransferMode.SAFE.value)
+            println(TransferMode.valueOf("UNSAFE").value)
+            println(TransferMode.values().size)
+        }
         """
         try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
             let ctx = makeCompilationContext(
                 inputs: [userPath],
                 moduleName: "ImportedEnumMembersArtifact",
-                emit: .kirDump,
+                emit: .executable,
+                outputPath: outputBase,
                 includeStdlib: false,
                 stdlibLibraryPath: artifactPath
             )
             try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
             #expect(
                 !ctx.diagnostics.hasError,
                 "Imported enum implicit members should resolve: \(ctx.diagnostics.diagnostics)"
             )
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                5
+                0
+                1
+                2
+                3
+                4
+                4
+                5
+                2
+                0
+                1
+                2
+
+                """)
         }
     }
 
@@ -2184,6 +4033,117 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "1\ntrue\n1\ntrue\n1\n")
+        }
+    }
+
+    /// KSP-1571: the bundled channel send/close/consume surface (trySend,
+    /// close(cause), isClosedForSend, isEmpty, consumeEach, cancel,
+    /// ChannelResult holder API) must compile and run when the bundled
+    /// Channel.kt / ChannelResult.kt come from a precompiled .kklib artifact,
+    /// and the new `__kk_channel_*` / `kk_channel_*` bridges must link.
+    @Test
+    func testChannelSendApisThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+        import kotlinx.coroutines.flow.*
+
+        fun main() = runBlocking {
+            val ch = Channel<Int>(2)
+            println("trySend ok: ${ch.trySend(7).isSuccess}")
+            println("close(cause): ${ch.close(IllegalStateException("boom"))}")
+            val closed = ch.trySend(9)
+            println("closed: ${closed.isClosed}")
+            println("cause: ${closed.exceptionOrNull()?.message}")
+
+            val ch2 = Channel<Int>(3)
+            ch2.send(1)
+            ch2.send(2)
+            ch2.close()
+            var sum = 0
+            ch2.consumeEach { sum += it }
+            println("sum: $sum")
+            println("empty: ${ch2.isEmpty}")
+
+            callbackFlow<Int> {
+                this.trySend(11).onSuccess { println("ps: ok") }
+                println("ps closed: ${this.isClosedForSend}")
+                this.close()
+            }.collect { println("got: $it") }
+
+            println("done")
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ChannelSendApis",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "trySend ok: true\nclose(cause): true\nclosed: true\ncause: boom\nsum: 3\nempty: false\nps: ok\nps closed: false\ngot: 11\ndone\n")
+        }
+    }
+
+    /// `UIntProgression.fromClosedRange` / `downTo` / `step` lower to runtime
+    /// factories, so the returned handle never passes `kk_object_new` and never
+    /// received the constructor-site `kk_object_register_vtable_method`
+    /// registrations. Once `UIntRange : UIntProgression` made the progression
+    /// open, dispatch on its source-backed `toString`/`equals`/`hashCode` went
+    /// through `kk_vtable_lookup` and trapped. The lowering now registers the
+    /// nominal vtable implementations on range factory boxes, which also makes
+    /// `UIntRange` overrides win when a range handle is viewed through the
+    /// progression base type.
+    @Test
+    func testUIntProgressionOpenMembersDispatchOnFactoryBox() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        fun main() {
+            val positive = UIntProgression.fromClosedRange(2u, 11u, 3)
+            val negative = 10u downTo 1u step 3
+            println(positive)
+            println(negative)
+            val asProgression: UIntProgression = UIntRange(2u, 6u)
+            println(asProgression)
+            println(positive == UIntProgression.fromClosedRange(2u, 11u, 3))
+            println(positive == negative)
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UIntProgressionFactoryVtable",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "2..11 step 3\n10 downTo 1 step 3\n2..6 step 1\ntrue\nfalse\n")
         }
     }
 }

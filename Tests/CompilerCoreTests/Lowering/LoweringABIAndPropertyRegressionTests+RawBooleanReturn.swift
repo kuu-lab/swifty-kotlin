@@ -18,7 +18,9 @@ extension LoweringABIAndPropertyRegressionTests {
         let callerSym = SymbolID(rawValue: 7100)
         let targetSym = SymbolID(rawValue: 7101)
 
-        let targetName = interner.intern("__kk_set_contains")
+        let rawBooleanABI = try loweringRuntimeABI("set_contains")
+        #expect(rawBooleanABI.returnsRawBoolean)
+        let targetName = interner.intern(rawBooleanABI.name)
 
         symbols.setFunctionSignature(
             FunctionSignature(parameterTypes: [], returnType: boolType),
@@ -59,11 +61,11 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIRawBool", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(
-            !callees.contains("kk_unbox_bool"),
-            "Expected no kk_unbox_bool for raw-Boolean callee __kk_set_contains, got: \(callees)"
-        )
+        let calls = loweringCalls(in: lowered.body)
+        #expect(calls.count == 1, "A raw Boolean result must not insert any unboxing call")
+        #expect(calls.first?.symbol == targetSym)
+        #expect(calls.first?.callee == targetName)
+        #expect(calls.first?.result == resultExpr)
     }
 
     @Test
@@ -119,11 +121,13 @@ extension LoweringABIAndPropertyRegressionTests {
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxedBool", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        let callees = extractCallees(from: lowered.body, interner: interner)
-        #expect(
-            callees.contains("kk_unbox_bool"),
-            "Expected kk_unbox_bool for Boolean-returning callee outside the raw-Boolean spec set, got: \(callees)"
-        )
+        let abi = try loweringBoxingABI(.unbox, for: .boolean, nonNull: true, staticPrimitive: true)
+        let unboxing = try requireLoweringRuntimeCall(abi, in: lowered.body, interner: interner)
+        let targetCall = try #require(loweringCalls(in: lowered.body).first { $0.symbol == targetSym })
+        let boxed = try #require(targetCall.result)
+        #expect(unboxing.arguments == [boxed])
+        #expect(unboxing.result == resultExpr)
+        #expect(boxed != resultExpr)
     }
 }
 #endif

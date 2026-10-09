@@ -48,6 +48,11 @@ public func kk_long_to_ulong(_ value: Int) -> Int {
     value
 }
 
+@_cdecl("kk_ulong_to_long")
+public func kk_ulong_to_long(_ value: Int) -> Int {
+    value
+}
+
 @_cdecl("kk_uint_to_ulong")
 public func kk_uint_to_ulong(_ value: Int) -> Int {
     value
@@ -215,6 +220,16 @@ public func kk_ushort_to_ubyte(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
+@_cdecl("kk_byte_to_ubyte")
+public func kk_byte_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_short_to_ubyte")
+public func kk_short_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
 @_cdecl("kk_ubyte_to_uint")
 public func kk_ubyte_to_uint(_ value: Int) -> Int {
     // UByte is always in valid range for UInt
@@ -249,44 +264,34 @@ public func kk_int_to_char(_ value: Int) -> Int {
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
 
-@_cdecl("kk_byte_to_uint")
 public func kk_byte_to_uint(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_uint")
 public func kk_short_to_uint(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_byte_to_ulong")
 public func kk_byte_to_ulong(_ value: Int) -> Int {
     Int(UInt8(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_short_to_ulong")
 public func kk_short_to_ulong(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
 // MARK: - Additional Char Conversions (STDLIB-PRIM-002)
 
-@_cdecl("kk_byte_to_char")
 public func kk_byte_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int8(truncatingIfNeeded: value)))
 }
 
-@_cdecl("kk_short_to_char")
 public func kk_short_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
 }
 
 func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {
-    value.withCString { cString in
-        cString.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    }
+    UnsafeMutableRawPointer(bitPattern: runtimeMakeStringRaw(value))!
 }
 
 func runtimeNormalizedShift(_ value: Int) -> Int {

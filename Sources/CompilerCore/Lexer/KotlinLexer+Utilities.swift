@@ -20,7 +20,8 @@ extension KotlinLexer {
     }
 
     func isIdentifierStart(_ ch: UInt8) -> Bool {
-        ch == 0x5F || (0x41 ... 0x5A).contains(ch) || (0x61 ... 0x7A).contains(ch) || ch == 0x24 || ch >= 0x80
+        // `$` is reserved for string-template markers, not Kotlin identifiers.
+        ch == 0x5F || (0x41 ... 0x5A).contains(ch) || (0x61 ... 0x7A).contains(ch) || ch >= 0x80
     }
 
     func isIdentifierContinue(_ ch: UInt8) -> Bool {

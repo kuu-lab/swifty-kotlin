@@ -22,10 +22,8 @@ struct FinallyExecutionOnControlFlowTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
         let returnValueIndices = body.indices.filter { index in
             if case .returnValue = body[index] { return true }
             return false
@@ -68,10 +66,8 @@ struct FinallyExecutionOnControlFlowTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "doWork", in: module, interner: ctx.interner)
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
         let returnUnitIndices = body.indices.filter { index in
             if case .returnUnit = body[index] { return true }
             return false
@@ -91,6 +87,56 @@ struct FinallyExecutionOnControlFlowTests {
             hasCleanupBeforeReturn,
             "finally block (cleanup()) must execute before returnUnit"
         )
+    }
+
+    @Test func testReturnBareLocalInsideTryFinallyDoesNotObserveFinallyMutation() throws {
+        // `return i` inside a try must snapshot `i`'s value before the
+        // finally block runs. `nameRef` resolves a bare variable read to
+        // the variable's own storage register (not a copy), so without a
+        // snapshot the register `.returnValue` reads from is the same one
+        // the finally's `i = 99` reassignment (`.copy(..., to: <that
+        // register>)`) writes into.
+        let source = """
+        fun f4(): Int {
+            var i = 0
+            try {
+                i = 1
+                return i
+            } finally {
+                i = 99
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "f4", in: module, interner: ctx.interner)
+
+        // Locate the constant 99 produced for the finally's `i = 99`, then
+        // the copy that writes it into `i`'s storage register.
+        let ninetyNineExprs: Set<KIRExprID> = Set(body.compactMap { instr -> KIRExprID? in
+            guard case let .constValue(result, value) = instr, value == .intLiteral(99) else { return nil }
+            return result
+        })
+        let iStorageRegisters: [KIRExprID] = body.compactMap { instr -> KIRExprID? in
+            guard case let .copy(from, to) = instr, ninetyNineExprs.contains(from) else { return nil }
+            return to
+        }
+        #expect(!iStorageRegisters.isEmpty, "Expected to find the copy lowering `i = 99` in the finally block")
+
+        let returnValueOperands: [KIRExprID] = body.compactMap { instr -> KIRExprID? in
+            guard case let .returnValue(value) = instr else { return nil }
+            return value
+        }
+        #expect(!returnValueOperands.isEmpty, "Expected at least one returnValue instruction")
+
+        for iStorage in iStorageRegisters {
+            #expect(
+                !returnValueOperands.contains(iStorage),
+                "returnValue must not alias `i`'s storage register, or it would observe the finally's `i = 99` mutation"
+            )
+        }
     }
 
     @Test func testBreakInsideTryFinallyInlinesFinallyBeforeBreak() throws {
@@ -120,10 +166,8 @@ struct FinallyExecutionOnControlFlowTests {
         }
 
         // cleanup() should appear in the lowered body before the break jump.
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
 
         // Find jump instructions whose target is NOT the continue (condition) label,
         // i.e. break jumps.  Match by specific target label to avoid false positives
@@ -188,10 +232,8 @@ struct FinallyExecutionOnControlFlowTests {
             }
         }
 
-        let cleanupCallIndices = body.indices.filter { index in
-            guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
-            return ctx.interner.resolve(callee) == "cleanup"
-        }
+        let cleanup = try findKIRFunction(named: "cleanup", in: module, interner: ctx.interner)
+        let cleanupCallIndices = kirCalls(to: cleanup.symbol, in: body).map(\.index)
 
         // Find jump instructions whose target IS the continue (condition) label.
         // This specifically identifies continue transfers, excluding break jumps

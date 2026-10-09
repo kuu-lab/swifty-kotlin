@@ -10,11 +10,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isRegexSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner).isRegexLikeType(receiverType)
     }
 
     /// Check whether a type is Sequence-like (for member-call and operator
@@ -26,11 +22,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isSequenceSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner).isSequenceLikeType(receiverType)
     }
 
     func isIterableOrCollectionInterfaceType(
@@ -57,11 +49,9 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isConcreteListLikeSymbol(symbol)
+        // Preserve KIR's historical name-only matching; the stricter Sema
+        // overload predicate also checks for one type argument.
+        ReceiverClassifier(sema: sema, interner: interner).isListLikeType(receiverType)
     }
 
     func collectionSelectorPrimitiveCompareKind(
@@ -81,29 +71,13 @@ extension CallLowerer {
         }
     }
 
-    func isMutableListLikeType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return symbol.name == knownNames.mutableList
-            || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-    }
 
     func isMutableSetLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isMutableSetSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner).isMutableSetLikeType(receiverType)
     }
 
     func isConcreteCollectionLikeType(
@@ -111,11 +85,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isCollectionLikeSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner).isConcreteCollectionLikeType(receiverType)
     }
 
     func isConcreteArrayLikeType(
@@ -123,11 +93,7 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isArrayLikeName(symbol.name)
+        ReceiverClassifier(sema: sema, interner: interner).isConcreteArrayLikeType(receiverType)
     }
 
     func isGenericKotlinArrayType(
@@ -146,10 +112,6 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
-            return false
-        }
-        return knownNames.isSetLikeSymbol(symbol)
+        ReceiverClassifier(sema: sema, interner: interner).isSetLikeType(receiverType)
     }
 }

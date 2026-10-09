@@ -118,7 +118,16 @@ extension CallTypeChecker {
             }
             let parentKind = sema.symbols.parentSymbol(for: candidate)
                 .flatMap { sema.symbols.symbol($0) }?.kind
-            return parentKind == nil || parentKind == .package
+            // A package-qualified object member such as
+            // `kotlin.text.Charsets.UTF_8` has the object as its symbol
+            // parent, even though the receiver path is still a namespace-only
+            // FQN. Resolve it here so receiver inference does not treat the
+            // leading `kotlin` segment as a runtime value. Keep source object
+            // members on the regular receiver path so their object instance
+            // and custom getter are preserved during lowering.
+            let isStaticObjectProperty = parentKind == .object
+                && (symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary))
+            return parentKind == nil || parentKind == .package || isStaticObjectProperty
         }
         if !propertyCandidates.isEmpty {
             let visibility = ctx.filterByVisibility(propertyCandidates)
@@ -260,15 +269,16 @@ extension CallTypeChecker {
         // leaves trailing lambda parameters without an expected type. Bail
         // out here so the regular member-call path (which defers lambda
         // inference until overload resolution picks a signature) handles it.
-        if let receiverSymbolID = sema.symbols.lookup(fqName: receiverPath),
-           let receiverSymbol = ctx.cachedSymbol(receiverSymbolID)
-        {
-            switch receiverSymbol.kind {
+        if sema.symbols.lookupAll(fqName: receiverPath).contains(where: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
             case .class, .interface, .object, .enumClass, .annotationClass:
-                return nil
+                return true
             default:
-                break
+                return false
             }
+        }) {
+            return nil
         }
 
         let fqnPath = receiverPath + [calleeName]
@@ -276,26 +286,22 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
-        if fqnCandidates.isEmpty {
-            // fqnPath may itself name a class rather than a top-level function
+        if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
+            guard let symbol = ctx.cachedSymbol($0) else { return false }
+            return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass
+        }), let classSymbol = ctx.cachedSymbol(classSymbolID) {
+            // Merge constructors with same-name factory functions, just as
+            // unqualified call resolution does. fqnPath may name both a class
+            // and a top-level function
             // (e.g. `kotlin.text.StringBuilder` in `kotlin.text.StringBuilder()`,
             // or `kotlin.Pair` in `kotlin.Pair(1, 2)`): the class's own
             // declaration symbol lives at fqnPath, while its constructor(s)
             // live one level deeper at fqnPath + ["<init>"] (see
             // HeaderCollection's constructor registration). Mirrors the
-            // unqualified-name constructor fallback in CallTypeChecker.swift,
+            // unqualified-name constructor merging in CallTypeChecker.swift,
             // minus `.object`: a singleton `object` is never callable as
             // `Obj()` in real Kotlin (verified against kotlinc), unlike a
             // bare class/enum-class/annotation-class reference.
-            guard let classSymbolID = sema.symbols.lookup(fqName: fqnPath),
-                  let classSymbol = ctx.cachedSymbol(classSymbolID)
-            else { return nil }
-            switch classSymbol.kind {
-            case .class, .enumClass, .annotationClass:
-                break
-            default:
-                return nil
-            }
             // A class qualifier and a zero-argument constructor call share the
             // same `.memberCall` shape. The AST arena records whether parentheses
             // were written, so a parenthesis-less class/enum/annotation reference
@@ -303,12 +309,6 @@ extension CallTypeChecker {
             // `HexFormat.Builder`); an explicit call must continue through
             // constructor resolution.
             if args.isEmpty, !ast.arena.isExplicitCall(id) {
-                switch classSymbol.kind {
-                case .class, .enumClass, .annotationClass:
-                    break
-                default:
-                    return nil
-                }
                 let classifierType = sema.types.make(.classType(ClassType(
                     classSymbol: classSymbolID,
                     args: [],
@@ -318,7 +318,7 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: classifierType)
                 return classifierType
             }
-            if classSymbol.flags.contains(.abstractType) {
+            if classSymbol.flags.contains(.abstractType), fqnCandidates.isEmpty {
                 let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
@@ -329,10 +329,11 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             let ctorFQName = fqnPath + [interner.intern("<init>")]
-            fqnCandidates = sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
-                ctx.cachedSymbol(candidate)?.kind == .constructor
+            if !classSymbol.flags.contains(.abstractType) {
+                fqnCandidates.append(contentsOf: sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
+                    ctx.cachedSymbol(candidate)?.kind == .constructor
+                })
             }
-            guard !fqnCandidates.isEmpty else { return nil }
         }
 
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
@@ -371,10 +372,25 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        driver.helpers.checkDeprecation(
+            for: chosen,
+            sema: sema,
+            interner: interner,
+            range: range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
         // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
         // namespace path, never type-checked above, so KIR lowering must not
         // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
         sema.bindings.markFQNTopLevelCallExpr(id)
+        // KSP-1323: fully-qualified `kotlin.reflect.typeOf<T>()` expands
+        // through the same intrinsic as the unqualified spelling instead of
+        // calling the bundled declaration body.
+        if args.isEmpty,
+           sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
+        {
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(
             in: signature.returnType,

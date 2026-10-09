@@ -132,9 +132,13 @@ struct InlineErasedLambdaABITests {
         )
 
         #expect(unboxedArguments[0] != erasedArguments[0])
-        #expect(unboxedArguments[1] == erasedArguments[1])
+        // Nullable primitives use sentinel-aware unboxing at erased boundaries.
+        #expect(unboxedArguments[1] != erasedArguments[1])
+        #expect(arena.exprType(unboxedArguments[1]) == nullableIntType)
         #expect(unboxedArguments[2] == erasedArguments[2])
-        #expect(callNames(in: body, interner: interner) == ["kk_unbox_int"])
+        #expect(callNames(in: body, interner: interner) == [
+            LoweringTestRuntime.name("unbox_int"), LoweringTestRuntime.name("unbox_int"),
+        ])
 
         let returnedInt = arena.appendExpr(.intLiteral(7), type: types.intType)
         let erasedResult = arena.appendTemporary(type: types.anyType)
@@ -146,7 +150,7 @@ struct InlineErasedLambdaABITests {
             into: &body
         )
         #expect(boxedResult != returnedInt)
-        #expect(callNames(in: body, interner: interner).last == "kk_box_int")
+        #expect(callNames(in: body, interner: interner).last == LoweringTestRuntime.name("box_int"))
 
         let returnedNullable = arena.appendTemporary(type: nullableIntType)
         let nullableResult = arena.appendTemporary(type: types.anyType)
@@ -158,7 +162,7 @@ struct InlineErasedLambdaABITests {
             into: &body
         )
         #expect(unchanged == returnedNullable)
-        #expect(callNames(in: body, interner: interner).filter { $0 == "kk_box_int" }.count == 1)
+        #expect(callNames(in: body, interner: interner).filter { $0 == LoweringTestRuntime.name("box_int") }.count == 1)
     }
 
     @Test
@@ -210,7 +214,7 @@ struct InlineErasedLambdaABITests {
         #expect(loweredInvokeArguments[0] == callable)
         #expect(loweredInvokeArguments[1] != loweredInt)
         #expect(loweredInvokeArguments[2] == nullable)
-        #expect(callNames(in: body, interner: interner) == ["kk_box_int"])
+        #expect(callNames(in: body, interner: interner) == [LoweringTestRuntime.name("box_int")])
 
         let target = KIRFunction(
             symbol: SymbolID(rawValue: 20),
@@ -235,7 +239,7 @@ struct InlineErasedLambdaABITests {
         #expect(directArguments[0] != loweredInt)
         #expect(directArguments[1] == nullable)
         #expect(directArguments[2] == originalErased)
-        #expect(callNames(in: body, interner: interner).filter { $0 == "kk_box_int" }.count == 2)
+        #expect(callNames(in: body, interner: interner).filter { $0 == LoweringTestRuntime.name("box_int") }.count == 2)
 
         let originalResult = arena.appendTemporary(type: genericType)
         let loweredResult = arena.appendTemporary(type: types.intType)
@@ -246,7 +250,7 @@ struct InlineErasedLambdaABITests {
             module: module,
             ctx: ctx
         )
-        #expect(unboxCallee.map { interner.resolve($0) } == "kk_unbox_int")
+        #expect(unboxCallee == LoweringTestRuntime.callee("unbox_int", interner: interner))
 
         let nullableUnboxCallee = InlineErasedLambdaABI.substitutedErasedResultUnboxingCallee(
             originalResult: originalResult,
@@ -279,7 +283,7 @@ struct InlineErasedLambdaABITests {
         let module = KIRModule(files: [], arena: arena)
         let invokeResult = arena.appendTemporary()
         let other = arena.appendExpr(.floatLiteral(1), type: types.floatType)
-        let invokeCallee = interner.intern("kk_function_invoke")
+        let invokeCallee = LoweringTestRuntime.callee("function_invoke", interner: interner)
         var body = KIRLoweringEmitContext([
             .call(
                 symbol: nil,
@@ -292,7 +296,7 @@ struct InlineErasedLambdaABITests {
         ])
 
         let normalized = InlineErasedLambdaABI.unboxErasedArithmeticArgumentsIfNeeded(
-            callee: interner.intern("kk_op_fadd"),
+            callee: LoweringTestRuntime.callee("op_fadd", interner: interner),
             arguments: [invokeResult, other],
             module: module,
             ctx: ctx,
@@ -300,7 +304,52 @@ struct InlineErasedLambdaABITests {
         )
         #expect(normalized[0] != invokeResult)
         #expect(normalized[1] == other)
-        #expect(callNames(in: body, interner: interner).last == "kk_unbox_float")
+        #expect(callNames(in: body, interner: interner).last == LoweringTestRuntime.name("unbox_float"))
+    }
+
+    @Test(arguments: [PrimitiveType.float, .double])
+    func unboxesSplicedLambdaResultsBeforeFloatingPointOperators(primitive: PrimitiveType) {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(
+            symbols: SymbolTable(),
+            types: types,
+            diagnostics: diagnostics
+        ).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InlineErasedLambdaABI",
+            interner: interner,
+            sema: sema,
+            diagnostics: diagnostics
+        )
+        let module = KIRModule(files: [], arena: arena)
+        let primitiveType = types.make(.primitive(primitive, .nonNull))
+        let returned = arena.appendTemporary(type: primitiveType)
+        let erasedResult = arena.appendTemporary()
+        var body = KIRLoweringEmitContext()
+        let boxed = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
+            returnedExpr: returned,
+            result: erasedResult,
+            module: module,
+            ctx: ctx,
+            erasedCallConvention: true,
+            into: &body
+        )
+        #expect(boxed != returned)
+
+        let normalized = InlineErasedLambdaABI.unboxErasedArithmeticArgumentsIfNeeded(
+            callee: interner.intern(primitive == .float ? LoweringTestRuntime.name("op_fadd") : LoweringTestRuntime.name("op_dadd")),
+            arguments: [boxed, returned],
+            module: module,
+            ctx: ctx,
+            into: &body
+        )
+        #expect(normalized[0] != boxed)
+        #expect(arena.exprType(normalized[0]) == primitiveType)
+        #expect(normalized[1] == returned)
+        #expect(callNames(in: body, interner: interner).last == (primitive == .float ? LoweringTestRuntime.name("unbox_float") : LoweringTestRuntime.name("unbox_double")))
     }
 
     private func callNames(in body: KIRLoweringEmitContext, interner: StringInterner) -> [String] {

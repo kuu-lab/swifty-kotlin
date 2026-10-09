@@ -19,11 +19,62 @@ public struct CallableValueCallBinding {
     public let target: CallableTarget?
     public let functionType: TypeID
     public let parameterMapping: [Int: Int]
+    public let extensionCallableExpr: ExprID?
 
-    public init(target: CallableTarget?, functionType: TypeID, parameterMapping: [Int: Int]) {
+    public init(target: CallableTarget?, functionType: TypeID, parameterMapping: [Int: Int], extensionCallableExpr: ExprID? = nil) {
         self.target = target
         self.functionType = functionType
         self.parameterMapping = parameterMapping
+        self.extensionCallableExpr = extensionCallableExpr
+    }
+}
+
+/// The custom `set()` operator call resolved for the write-back half of an
+/// `a[i] op= v` / `a[i]++`/`a[i]--` compound assignment on a receiver whose
+/// indexing is backed by a user-defined (or source-backed member, e.g.
+/// `MutableList`) `operator fun get`/`set` pair rather than a genuine
+/// built-in array. The matching `get()` call is already recorded in
+/// `callBindings[exprID]` for the same expression by the read half's
+/// resolution; this side-channel carries the write-back `set()` binding
+/// plus the get's substituted element type (needed to pick the right
+/// `kk_op_*` runtime variant), since the compound-assign expression itself
+/// is bound to `Unit`, not the element type.
+public struct IndexedCompoundAssignOperatorBinding {
+    public let setCall: CallBinding
+    public let elementType: TypeID
+
+    public init(setCall: CallBinding, elementType: TypeID) {
+        self.setCall = setCall
+        self.elementType = elementType
+    }
+}
+
+/// The operator applied to the *element* of `a[i] op= v` / `a[i]++` when the
+/// element type defines it (`plusAssign`, `plus`, `inc`, ...), as opposed to
+/// the builtin numeric/String arithmetic. Bound separately from the `get()`
+/// call binding, which already occupies `callBindings[expr]`.
+public struct IndexedCompoundAssignElementOperatorBinding {
+    public enum Kind {
+        /// `plusAssign`-style operator returning Unit: mutates the element
+        /// in place, so no `set()` write-back follows.
+        case inPlace
+        /// `plus`-style binary operator: `a[i] = a[i].plus(v)`.
+        case binary
+        /// `inc()` / `dec()` for `a[i]++` / `a[i]--`; takes no argument.
+        case incrementDecrement
+    }
+
+    public let call: CallBinding
+    public let kind: Kind
+    /// The `get()` result type the operator is applied to.
+    public let elementType: TypeID
+    public let resultType: TypeID
+
+    public init(call: CallBinding, kind: Kind, elementType: TypeID, resultType: TypeID) {
+        self.call = call
+        self.kind = kind
+        self.elementType = elementType
+        self.resultType = resultType
     }
 }
 
@@ -68,6 +119,10 @@ public enum ScopeFunctionKind: Equatable {
     /// CValue<T>.useContents { } (STDLIB-CINTEROP-FN-041): temporarily exposes
     /// the contained native value as the lambda receiver.
     case scopeUseContents
+    /// kotlinx.cinterop.memScoped { } (KUU-1375): creates a MemScope arena,
+    /// invokes the block with it as the implicit receiver, and runs
+    /// kk_arena_clear in a finally path (deferred blocks + frees).
+    case scopeMemScoped
 }
 
 

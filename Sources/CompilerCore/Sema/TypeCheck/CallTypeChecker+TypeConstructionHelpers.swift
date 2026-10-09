@@ -445,12 +445,25 @@ extension CallTypeChecker {
     }
 
     func applyContractEffects(
+        id: ExprID,
         chosen: SymbolID,
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
+        applyContractCallsInPlaceEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         let sema = ctx.sema
+        let implications = sema.symbols.contractImplicationEffects(for: chosen)
+        if !implications.isEmpty {
+            if implications.contains(where: { $0.returnCondition == .normally }) {
+                let state = ctx.dataFlow.applyContractImplications(
+                    id, result: .normally, base: ctx.flowState, locals: locals,
+                    ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
+                )
+                driver.exprChecker.applyFlowStateToLocals(state, locals: &locals, sema: sema)
+            }
+            return
+        }
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return
         }
@@ -476,7 +489,9 @@ extension CallTypeChecker {
         } else {
             return
         }
-        let conditionExpr = args[parameterIndex].expr
+        guard let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+              args.indices.contains(argumentIndex) else { return }
+        let conditionExpr = args[argumentIndex].expr
         // Synthetic precondition effects describe a Boolean condition, while
         // source-backed contract effects point directly at the nullable
         // argument from a returns() implies clause.
@@ -484,7 +499,7 @@ extension CallTypeChecker {
         if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -495,7 +510,7 @@ extension CallTypeChecker {
         } else {
             narrowedState = ctx.dataFlow.narrowNonNull(
                 conditionExpr,
-                base: ctx.flowState,
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -507,5 +522,46 @@ extension CallTypeChecker {
             locals: &locals,
             sema: sema
         )
+    }
+
+    /// STDLIB-592 definite assignment: when `chosen` declares
+    /// `contract { callsInPlace(param, EXACTLY_ONCE) }` (or `AT_LEAST_ONCE`) for one
+    /// of its lambda parameters, the argument lambda's body is guaranteed to run to
+    /// completion at least once as part of this call. Fold the outer-scope locals
+    /// that lambda body unconditionally initialized (recorded by
+    /// `inferLambdaLiteralExpr`) back into the call site's own definite-assignment
+    /// state -- the same way a plain sequential block would.
+    /// `AT_MOST_ONCE`/`UNKNOWN` do not guarantee the lambda runs at all, so they are
+    /// skipped.
+    private func applyContractCallsInPlaceEffects(
+        id: ExprID,
+        chosen: SymbolID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        let effects = sema.symbols.contractCallsInPlaceEffects(for: chosen)
+        guard !effects.isEmpty,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else {
+            return
+        }
+        for effect in effects {
+            guard effect.kind == .exactlyOnce || effect.kind == .atLeastOnce,
+                  let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+                  let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
+                  args.indices.contains(argumentIndex)
+            else {
+                continue
+            }
+            let initializedSymbols = Set(
+                sema.bindings.contractCallsInPlaceInitializedSymbols(for: args[argumentIndex].expr)
+            )
+            guard !initializedSymbols.isEmpty else { continue }
+            for (name, local) in locals where !local.isInitialized && initializedSymbols.contains(local.symbol) {
+                locals[name] = (local.type, local.symbol, local.isMutable, true)
+            }
+        }
     }
 }

@@ -3,7 +3,8 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    @Test func testDirectSharedAPICallForwardersAreReachable() {
+    @Test func testDirectSharedAPICallForwardersAreReachable() throws {
+        let runtime = try RuntimeNames()
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -116,8 +117,8 @@ extension BuildKIRRegressionTests {
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
         #expect(!(emit.instructions.isEmpty))
-        #expect(callees.contains("kk_array_get"))
-        #expect(callees.contains("kk_array_set"))
+        #expect(callees.contains(runtime[.arrayGet]))
+        #expect(callees.contains(runtime[.arraySet]))
     }
 
     @Test func testDirectSharedAPIControlFlowForwardersAreReachable() {
@@ -156,9 +157,12 @@ extension BuildKIRRegressionTests {
             type: intType,
             fixture: fixture
         )
+        let catchParamType = fixture.astArena.appendTypeRef(
+            .named(path: [fixture.interner.intern("Any")], args: [], nullable: false)
+        )
         let catchClause = CatchClause(
             paramName: fixture.interner.intern("e"),
-            paramTypeName: fixture.interner.intern("Any"),
+            paramType: catchParamType,
             body: catchBody,
             range: range
         )
@@ -297,7 +301,7 @@ extension BuildKIRRegressionTests {
             return
         }
         #expect(chosen == invoke)
-        #expect(fixture.interner.resolve(loweredCallee) == "invoke")
+        #expect(loweredCallee == KnownCompilerNames(interner: fixture.interner).invoke)
     }
 
     @Test func testDirectSafeMemberCallWithInvokeOperatorRoutesToInvokeCallee() {
@@ -376,7 +380,7 @@ extension BuildKIRRegressionTests {
             return
         }
         #expect(chosen == invoke)
-        #expect(fixture.interner.resolve(loweredCallee) == "invoke")
+        #expect(loweredCallee == KnownCompilerNames(interner: fixture.interner).invoke)
     }
 
     @Test func testDirectMemberCallMutableMapPutAllFallsBackToRuntimeCallee() {
@@ -432,8 +436,7 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        #expect(callees.contains("__kk_mutable_map_putAll"))
-        #expect(!(callees.contains("putAll")))
+        #expect(callees.contains("putAll"))
     }
 
     @Test func testDirectSharedAPILambdaAndObjectForwardersAreReachable() {

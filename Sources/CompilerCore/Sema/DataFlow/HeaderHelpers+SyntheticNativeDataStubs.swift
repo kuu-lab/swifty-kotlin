@@ -1,4 +1,51 @@
 extension DataFlowSemaPhase {
+    /// Source declarations do not carry the synthetic throwing-function flag,
+    /// but this bridge has an outThrown ABI channel that must remain visible to
+    /// Sema and later lowering passes.
+    func patchSourceBackedNativeUnhandledExceptionHookContract(
+        symbols: SymbolTable,
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        let nativePkg = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+        ]
+        let functionName = interner.intern("processUnhandledException")
+        guard bundledIndex.contains(
+            ownerFQName: nativePkg,
+            name: functionName,
+            arity: 1
+        ),
+        let functionSymbol = symbols.lookup(fqName: nativePkg + [functionName]),
+        let signature = symbols.functionSignature(for: functionSymbol)
+        else {
+            return
+        }
+
+        symbols.insertFlags([.throwingFunction], for: functionSymbol)
+        guard !signature.canThrow else { return }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: signature.receiverType,
+                parameterTypes: signature.parameterTypes,
+                returnType: signature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: true,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                typeParameterSymbols: signature.typeParameterSymbols,
+                reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: signature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                classTypeParameterCount: signature.classTypeParameterCount
+            ),
+            for: functionSymbol
+        )
+    }
+
     func registerSyntheticNativeByteArrayAccessorStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -108,6 +155,15 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-1191: Runtime.kt now owns this surface. Keep the synthetic
+        // registration only for configurations without the bundled source.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: nativePkg,
+            name: interner.intern("getUnhandledExceptionHook"),
+            arity: 0
+        ) else {
+            return
+        }
         let nativePkgSymbol = symbols.lookup(fqName: nativePkg)
         let throwableType = syntheticThrowableType(
             symbols: symbols,

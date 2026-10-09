@@ -8,7 +8,6 @@
 /// | Annotation                | Package              | Severity |
 /// |---------------------------|----------------------|----------|
 /// | ExperimentalVersionOverloading | kotlin          | ERROR    |
-/// | ExpectRefinement          | kotlin.experimental  | @ExperimentalMultiplatform |
 ///
 /// The common root opt-in markers (`ExperimentalUnsignedTypes`,
 /// `ExperimentalMultiplatform`, `ExperimentalSubclassOptIn`) and the
@@ -42,19 +41,25 @@ extension DataFlowSemaPhase {
         )
 
         // --- kotlin.experimental.ExpectRefinement ---
+        // The bundled Kotlin declaration owns the annotation and its constructor.
+        // Keep the residual stub only for --no-stdlib compilation.
         let kotlinExperimentalPkg = ensurePackage(
             path: ["kotlin", "experimental"],
             symbols: symbols,
             interner: interner
         )
         let kotlinExperimentalPkgSymbol = symbols.lookup(fqName: kotlinExperimentalPkg) ?? .invalid
-        registerSyntheticExpectRefinementAnnotation(
-            packageFQName: kotlinExperimentalPkg,
-            packageSymbol: kotlinExperimentalPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
+            fqName: kotlinExperimentalPkg + [interner.intern("ExpectRefinement")]
+        ) {
+            registerSyntheticExpectRefinementAnnotation(
+                packageFQName: kotlinExperimentalPkg,
+                packageSymbol: kotlinExperimentalPkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
     }
 
     /// Registers a single experimental opt-in marker annotation class and attaches

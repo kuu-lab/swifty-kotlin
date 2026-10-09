@@ -30,20 +30,28 @@ struct CodegenBackendBug222ObjectToStringTests {
     func testObjectCrossingAnyBoundaryKeepsRegisteredHandle() throws {
         let source = """
         object Plain
+        object Override {
+            override fun toString(): String = "I am Override"
+        }
         fun main() {
             val erased: Any = Plain
+            val overridden: Any = Override
             println(Plain)
             println(erased)
             println("prefix=$erased")
+            println(overridden)
+            println("prefix=$overridden")
         }
         """
 
         let output = try runKotlinOutput(source, moduleName: "Bug222ObjectAnyBoundary")
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
-        #expect(lines.count == 4)
+        #expect(lines.count == 6)
         #expect(lines[0] == "Plain")
         #expect(lines[1].hasPrefix("<object 0x"))
         #expect(lines[2].hasPrefix("prefix=<object 0x"))
+        #expect(lines[3] == "I am Override")
+        #expect(lines[4] == "prefix=I am Override")
         #expect(!output.contains("\n0\n"))
     }
 

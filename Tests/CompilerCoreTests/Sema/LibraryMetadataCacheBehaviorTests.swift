@@ -45,7 +45,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols1 = SymbolTable()
             let types1 = TypeSystem()
             let diagnostics1 = DiagnosticEngine()
-            var inlineFns1: [SymbolID: KIRFunction] = [:]
+            let inlineFns1 = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -53,7 +53,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types1,
                 diagnostics: diagnostics1,
                 interner: sharedInterner,
-                importedInlineFunctions: &inlineFns1,
+                importedInlineFunctions: inlineFns1,
                 cache: cache
             )
 
@@ -61,9 +61,9 @@ struct LibraryMetadataCacheBehaviorTests {
             #expect(cache.metadataCacheCount == 1, "Metadata should be cached after first load")
             #expect(cache.signatureCacheCount > 0, "Signatures should be cached after first load")
 
-            let addSymbol = symbols1.allSymbols().first { symbol in
-                sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
-            }
+            let addSymbol = symbols1.lookupAll(fqName: ["cachetest", "add"].map(sharedInterner.intern))
+                .compactMap { symbols1.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             #expect(addSymbol != nil, "Function 'add' should be imported")
         }
 
@@ -83,7 +83,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols2 = SymbolTable()
             let types2 = TypeSystem()
             let diagnostics2 = DiagnosticEngine()
-            var inlineFns2: [SymbolID: KIRFunction] = [:]
+            let inlineFns2 = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -91,7 +91,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types2,
                 diagnostics: diagnostics2,
                 interner: sharedInterner,
-                importedInlineFunctions: &inlineFns2,
+                importedInlineFunctions: inlineFns2,
                 cache: cache
             )
 
@@ -102,9 +102,9 @@ struct LibraryMetadataCacheBehaviorTests {
             #expect(cache.metadataCacheCount == metadataCountAfterFirst, "Metadata cache should be reused on second load")
             #expect(cache.signatureCacheCount == signatureCountAfterFirst, "Signature cache should have the same number of entries after second load")
 
-            let addSymbol = symbols2.allSymbols().first { symbol in
-                sharedInterner.resolve(symbol.name) == "add" && symbol.kind == .function
-            }
+            let addSymbol = symbols2.lookupAll(fqName: ["cachetest", "add"].map(sharedInterner.intern))
+                .compactMap { symbols2.symbol($0) }
+                .first { symbol in symbol.kind == .function }
             #expect(addSymbol != nil, "Function 'add' should be imported from cache")
         }
     }
@@ -149,7 +149,7 @@ struct LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             _ = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -157,7 +157,7 @@ struct LibraryMetadataCacheBehaviorTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -229,7 +229,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let symbols = SymbolTable()
                     let types = TypeSystem()
                     let diagnostics = DiagnosticEngine()
-                    var inlineFns: [SymbolID: KIRFunction] = [:]
+                    let inlineFns = ImportedInlineFunctionStore()
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
@@ -239,7 +239,7 @@ struct LibraryMetadataCacheBehaviorTests {
                         types: types,
                         diagnostics: diagnostics,
                         interner: ctx.interner,
-                        importedInlineFunctions: &inlineFns
+                        importedInlineFunctions: inlineFns
                     )
                     let elapsed = Date().timeIntervalSinceReferenceDate - start
                     total += elapsed
@@ -272,7 +272,7 @@ struct LibraryMetadataCacheBehaviorTests {
                     let symbols = SymbolTable()
                     let types = TypeSystem()
                     let diagnostics = DiagnosticEngine()
-                    var inlineFns: [SymbolID: KIRFunction] = [:]
+                    let inlineFns = ImportedInlineFunctionStore()
                     let phase = DataFlowSemaPhase()
 
                     let start = Date().timeIntervalSinceReferenceDate
@@ -282,7 +282,7 @@ struct LibraryMetadataCacheBehaviorTests {
                         types: types,
                         diagnostics: diagnostics,
                         interner: ctx.interner,
-                        importedInlineFunctions: &inlineFns,
+                        importedInlineFunctions: inlineFns,
                         cache: cache
                     )
                     let elapsed = Date().timeIntervalSinceReferenceDate - start

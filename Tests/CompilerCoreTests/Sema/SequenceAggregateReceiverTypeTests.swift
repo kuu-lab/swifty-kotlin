@@ -6,13 +6,15 @@ import Testing
 /// overload for a receiver with a different element type.
 @Suite
 struct SequenceAggregateReceiverTypeTests {
+    /// KUU-1413: sum()/average() remain rejected for element types that have
+    /// no numeric Sequence overload (e.g. String, generic T), matching
+    /// kotlinc's unresolved-reference diagnostics.
     @Test
-    func unsupportedNumericSequenceAggregatesProduceDiagnostics() throws {
+    func nonNumericSequenceAggregatesProduceDiagnostics() throws {
         let source = """
-        fun doubleSum(values: Sequence<Double>): Double = values.sum()
-        fun floatSum(values: Sequence<Float>): Float = values.sum()
-        fun longSum(values: Sequence<Long>): Long = values.sum()
-        fun doubleAverage(values: Sequence<Double>): Double = values.average()
+        fun stringSum(values: Sequence<String>): Int = values.sum()
+        fun stringAverage(values: Sequence<String>): Double = values.average()
+        fun badSumOfSelector(values: Sequence<String>): String = values.sumOf { it }
         """
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
@@ -21,7 +23,7 @@ struct SequenceAggregateReceiverTypeTests {
             $0.code == "KSWIFTK-SEMA-0024"
         }
         #expect(
-            diagnostics.count == 4,
+            diagnostics.count == 3,
             "Expected one unresolved aggregate diagnostic per unsupported call, got \(ctx.diagnostics.diagnostics)"
         )
 
@@ -31,12 +33,12 @@ struct SequenceAggregateReceiverTypeTests {
             ctx.sourceManager.origin(of: $0) == .user
         })
         let calls = memberCalls(
-            named: ["sum", "average"],
+            named: ["sum", "average", "sumOf"],
             in: ast,
             interner: ctx.interner,
             userFileID: userFileID
         )
-        #expect(calls.count == 4, "Expected four user Sequence aggregate calls, got \(calls)")
+        #expect(calls.count == 3, "Expected three user Sequence aggregate calls, got \(calls)")
         #expect(calls.allSatisfy { sema.bindings.callBinding(for: $0) == nil })
     }
 
@@ -87,6 +89,106 @@ struct SequenceAggregateReceiverTypeTests {
             case .star: nil
             }
             #expect(receiverElement == sema.types.intType)
+        }
+    }
+
+    /// KSP-1359: every monomorphic Sequence sum() overload and the three
+    /// sumOf selector-return-type overloads resolve to bundled Kotlin source
+    /// declarations, each with its declared return type.
+    @Test
+    func sequenceSumFamilyBindsSourceOverloadsWithDeclaredReturnTypes() throws {
+        let source = """
+        fun byteSum(values: Sequence<Byte>): Int = values.sum()
+        fun shortSum(values: Sequence<Short>): Int = values.sum()
+        fun doubleSum(values: Sequence<Double>): Double = values.sum()
+        fun floatSum(values: Sequence<Float>): Float = values.sum()
+        fun longSum(values: Sequence<Long>): Long = values.sum()
+        fun ubyteSum(values: Sequence<UByte>): UInt = values.sum()
+        fun ushortSum(values: Sequence<UShort>): UInt = values.sum()
+        fun uintSum(values: Sequence<UInt>): UInt = values.sum()
+        fun ulongSum(values: Sequence<ULong>): ULong = values.sum()
+        fun sumOfLong(values: Sequence<String>): Long = values.sumOf { it.length.toLong() }
+        fun sumOfUInt(values: Sequence<String>): UInt = values.sumOf { it.length.toUInt() }
+        fun sumOfULong(values: Sequence<String>): ULong = values.sumOf { it.length.toULong() }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected the Sequence sum-family to resolve, got \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let calls = memberCalls(
+            named: ["sum", "sumOf"],
+            in: ast,
+            interner: ctx.interner,
+            userFileID: userFileID
+        )
+        #expect(calls.count == 12, "Expected twelve user Sequence sum-family calls, got \(calls)")
+
+        let expectedReturns: [TypeID] = [
+            sema.types.intType,
+            sema.types.intType,
+            sema.types.doubleType,
+            sema.types.floatType,
+            sema.types.longType,
+            sema.types.uintType,
+            sema.types.uintType,
+            sema.types.uintType,
+            sema.types.ulongType,
+            sema.types.longType,
+            sema.types.uintType,
+            sema.types.ulongType
+        ]
+        for (callID, expectedReturn) in zip(calls, expectedReturns) {
+            let binding = try #require(sema.bindings.callBinding(for: callID))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            #expect(signature.returnType == expectedReturn)
+        }
+    }
+
+    /// KUU-1413: every monomorphic Sequence average() overload resolves to a
+    /// bundled Kotlin source declaration with the stdlib's declared Double
+    /// return type.
+    @Test
+    func sequenceAverageFamilyBindsSourceOverloadsWithDoubleReturnType() throws {
+        let source = """
+        fun byteAverage(values: Sequence<Byte>): Double = values.average()
+        fun shortAverage(values: Sequence<Short>): Double = values.average()
+        fun intAverage(values: Sequence<Int>): Double = values.average()
+        fun longAverage(values: Sequence<Long>): Double = values.average()
+        fun floatAverage(values: Sequence<Float>): Double = values.average()
+        fun doubleAverage(values: Sequence<Double>): Double = values.average()
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected the Sequence average-family to resolve, got \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let calls = memberCalls(
+            named: ["average"],
+            in: ast,
+            interner: ctx.interner,
+            userFileID: userFileID
+        )
+        #expect(calls.count == 6, "Expected six user Sequence average calls, got \(calls)")
+
+        for callID in calls {
+            let binding = try #require(sema.bindings.callBinding(for: callID))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+
+            let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+            #expect(signature.returnType == sema.types.doubleType)
         }
     }
 }

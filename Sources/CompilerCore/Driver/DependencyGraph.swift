@@ -12,7 +12,37 @@ public final class DependencyGraph: Codable {
 
     private var dependedSymbols: [String: Set<String>] = [:]
 
+    /// Package names are retained for source files so wildcard imports can be
+    /// invalidated without treating every package as a dependency.
+    private var providedPackages: [String: String] = [:]
+
+    /// Package names imported with `*`, keyed by importing file.
+    private var wildcardImportedPackages: [String: Set<String>] = [:]
+
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case providedSymbols
+        case dependedSymbols
+        case providedPackages
+        case wildcardImportedPackages
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        providedSymbols = try container.decodeIfPresent([String: Set<String>].self, forKey: .providedSymbols) ?? [:]
+        dependedSymbols = try container.decodeIfPresent([String: Set<String>].self, forKey: .dependedSymbols) ?? [:]
+        providedPackages = try container.decodeIfPresent([String: String].self, forKey: .providedPackages) ?? [:]
+        wildcardImportedPackages = try container.decodeIfPresent([String: Set<String>].self, forKey: .wildcardImportedPackages) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(providedSymbols, forKey: .providedSymbols)
+        try container.encode(dependedSymbols, forKey: .dependedSymbols)
+        try container.encode(providedPackages, forKey: .providedPackages)
+        try container.encode(wildcardImportedPackages, forKey: .wildcardImportedPackages)
+    }
 
     // MARK: - Mutation
 
@@ -20,8 +50,19 @@ public final class DependencyGraph: Codable {
         providedSymbols[filePath] = symbols
     }
 
+    /// Records the symbols and package provided by a source file.
+    public func recordProvided(filePath: String, symbols: Set<String>, package: String) {
+        recordProvided(filePath: filePath, symbols: symbols)
+        providedPackages[filePath] = package
+    }
+
     public func recordDepended(filePath: String, symbols: Set<String>) {
         dependedSymbols[filePath] = symbols
+    }
+
+    /// Records a package wildcard import such as `import example.api.*`.
+    public func recordWildcardImport(filePath: String, package: String) {
+        wildcardImportedPackages[filePath, default: []].insert(package)
     }
 
     // MARK: - Query
@@ -37,44 +78,70 @@ public final class DependencyGraph: Codable {
             return []
         }
 
-        var invalidatedSymbols = Set<String>()
-        for changed in changedFiles {
-            if let provided = providedSymbols[changed] {
-                invalidatedSymbols.formUnion(provided)
+        // Reverse indexes, built once: each depended-on symbol or wildcard-imported
+        // package maps to the files in `allFiles` that reference it.
+        var symbolDependents: [String: Set<String>] = [:]
+        var packageDependents: [String: Set<String>] = [:]
+        for filePath in allFiles {
+            for symbol in dependedSymbols[filePath] ?? [] {
+                symbolDependents[symbol, default: []].insert(filePath)
+            }
+            for package in wildcardImportedPackages[filePath] ?? [] {
+                packageDependents[package, default: []].insert(filePath)
             }
         }
 
         var affected = changedFiles
-        var frontier = changedFiles
-        var visited = changedFiles
+        var seenSymbols = Set<String>()
+        var seenPackages = Set<String>()
+        var pendingSymbols: [String] = []
+        var pendingPackages: [String] = []
+        var pendingFiles: [String] = []
 
-        // Iterate to handle transitive dependencies: if file A depends on file B's
-        // symbol and file B is newly added to the recompilation set, file A's
-        // provided symbols may also need to invalidate further files.
-        while !frontier.isEmpty {
-            var nextFrontier = Set<String>()
-            for filePath in allFiles {
-                guard !visited.contains(filePath) else { continue }
-                guard let depended = dependedSymbols[filePath] else { continue }
-                if !depended.isDisjoint(with: invalidatedSymbols) {
-                    affected.insert(filePath)
-                    nextFrontier.insert(filePath)
-                    // The newly-affected file's provided symbols may cause
-                    // further invalidation.
-                    if let provided = providedSymbols[filePath] {
-                        invalidatedSymbols.formUnion(provided)
-                    }
+        for changed in changedFiles {
+            for symbol in providedSymbols[changed] ?? [] where seenSymbols.insert(symbol).inserted {
+                pendingSymbols.append(symbol)
+            }
+            if let package = providedPackages[changed], seenPackages.insert(package).inserted {
+                pendingPackages.append(package)
+            }
+        }
+
+        // A wildcard import of the root ("") package matches any invalidated
+        // package, so those files are affected whenever something changed.
+        for filePath in packageDependents[""] ?? [] where !affected.contains(filePath) {
+            pendingFiles.append(filePath)
+        }
+
+        // Worklist propagation: each symbol/package expands its dependents once,
+        // and each newly-affected file contributes its provided symbols once.
+        while !pendingFiles.isEmpty || !pendingSymbols.isEmpty || !pendingPackages.isEmpty {
+            if let filePath = pendingFiles.popLast() {
+                guard affected.insert(filePath).inserted else { continue }
+                for symbol in providedSymbols[filePath] ?? [] where seenSymbols.insert(symbol).inserted {
+                    pendingSymbols.append(symbol)
+                }
+                if let package = providedPackages[filePath], seenPackages.insert(package).inserted {
+                    pendingPackages.append(package)
+                }
+            } else if let symbol = pendingSymbols.popLast() {
+                for filePath in symbolDependents[symbol] ?? [] where !affected.contains(filePath) {
+                    pendingFiles.append(filePath)
+                }
+            } else if let package = pendingPackages.popLast() {
+                for filePath in packageDependents[package] ?? [] where !affected.contains(filePath) {
+                    pendingFiles.append(filePath)
                 }
             }
-            visited.formUnion(nextFrontier)
-            frontier = nextFrontier
         }
 
         return allFiles.filter { affected.contains($0) }
     }
 
     public var trackedFiles: [String] {
-        let allKeys = Set(providedSymbols.keys).union(dependedSymbols.keys)
+        let allKeys = Set(providedSymbols.keys)
+            .union(dependedSymbols.keys)
+            .union(wildcardImportedPackages.keys)
         return allKeys.sorted()
     }
 
@@ -84,6 +151,10 @@ public final class DependencyGraph: Codable {
 
     public func depended(by filePath: String) -> Set<String> {
         dependedSymbols[filePath] ?? []
+    }
+
+    public func wildcardImportedPackages(by filePath: String) -> Set<String> {
+        wildcardImportedPackages[filePath] ?? []
     }
 
     // MARK: - Serialization

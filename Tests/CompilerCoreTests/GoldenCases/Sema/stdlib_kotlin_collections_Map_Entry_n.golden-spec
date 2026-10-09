@@ -1,0 +1,5 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.collections.Map.Entry[kind=iface;gen=2]
+target=kotlin.collections.Map.Entry.key[kind=prop]
+target=kotlin.collections.Map.Entry.value[kind=prop]

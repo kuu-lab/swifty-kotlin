@@ -1,6 +1,8 @@
 
 final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
     static let name = "FlowLowering"
+    static let requiredStage: KIRStage = .desugared
+    static let producedStage: KIRStage = .desugared
 
     private enum RuntimeFlowTag: Int64 {
         case emit = 0
@@ -12,8 +14,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         case catchHandler = 6
         case retry = 7
         case retryWhen = 8
-        case onErrorReturn = 9
-        case onErrorResume = 10
         case transform = 11
     }
 
@@ -29,8 +29,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("catch"),
             ctx.interner.intern("retry"),
             ctx.interner.intern("retryWhen"),
-            ctx.interner.intern("onErrorReturn"),
-            ctx.interner.intern("onErrorResume"),
             ctx.interner.intern("collect"),
             ctx.interner.intern("toList"),
             ctx.interner.intern("first"),
@@ -52,8 +50,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
         let catchName = interner.intern("catch")
         let retryName = interner.intern("retry")
         let retryWhenName = interner.intern("retryWhen")
-        let onErrorReturnName = interner.intern("onErrorReturn")
-        let onErrorResumeName = interner.intern("onErrorResume")
         let collectName = interner.intern("collect")
         let toListName = interner.intern("toList")
         let firstName = interner.intern("first")
@@ -211,7 +207,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     loweredBody.append(instruction)
 
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                     if let result, isFlowClassResultType(result) {
                         flowExprIDs.insert(result.rawValue)
                         activeFlowExpr = result
@@ -234,8 +230,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [flowExpr, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         continue
                     }
@@ -259,8 +255,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         continue
                     }
 
-                    if callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                    if callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,
                        flowExprIDs.contains(flowExpr.rawValue)
@@ -272,10 +267,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.map.rawValue
                         }
@@ -327,8 +318,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
                     if callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 2 ||
                         ((callee == mapName || callee == filterName || callee == catchName ||
                             callee == retryWhenName || callee == transformName) && arguments.count == 3),
@@ -347,10 +337,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.take.rawValue
                         }
@@ -384,8 +370,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [arguments[0], arguments[1], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         if let result {
                             activeFlowExpr = result
@@ -455,8 +441,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             || tag == RuntimeFlowTag.catchHandler.rawValue
                             || tag == RuntimeFlowTag.retry.rawValue
                             || tag == RuntimeFlowTag.retryWhen.rawValue
-                            || tag == RuntimeFlowTag.onErrorReturn.rawValue
-                            || tag == RuntimeFlowTag.onErrorResume.rawValue
                         {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result
@@ -470,7 +454,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                         result: result,
                         canThrow: canThrow,
                         thrownResult: thrownResult,
-                        isSuperCall: isSuperCall
+                        isSuperCall: isSuperCall,
+                        qualifiedSuperType: qualifiedSuperType
                     ))
 
                 case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
@@ -523,8 +508,7 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
                     if callee == mapName || callee == filterName || callee == takeName ||
                         callee == transformName ||
-                        callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName,
+                        callee == catchName || callee == retryName || callee == retryWhenName,
                        arguments.count == 1,
                        flowExprIDs.contains(receiver.rawValue)
                     {
@@ -541,10 +525,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             RuntimeFlowTag.retry.rawValue
                         case retryWhenName:
                             RuntimeFlowTag.retryWhen.rawValue
-                        case onErrorReturnName:
-                            RuntimeFlowTag.onErrorReturn.rawValue
-                        case onErrorResumeName:
-                            RuntimeFlowTag.onErrorResume.rawValue
                         default:
                             RuntimeFlowTag.take.rawValue
                         }
@@ -577,8 +557,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             callee: kkFlowCollectName,
                             arguments: [receiver, arguments[0], collectorFunctionID],
                             result: result,
-                            canThrow: false,
-                            thrownResult: nil
+                            canThrow: true,
+                            thrownResult: thrownResult
                         ))
                         activeFlowExpr = receiver
                         continue
@@ -646,8 +626,6 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                             || tag == RuntimeFlowTag.catchHandler.rawValue
                             || tag == RuntimeFlowTag.retry.rawValue
                             || tag == RuntimeFlowTag.retryWhen.rawValue
-                            || tag == RuntimeFlowTag.onErrorReturn.rawValue
-                            || tag == RuntimeFlowTag.onErrorResume.rawValue
                         {
                             flowExprIDs.insert(result.rawValue)
                             activeFlowExpr = result

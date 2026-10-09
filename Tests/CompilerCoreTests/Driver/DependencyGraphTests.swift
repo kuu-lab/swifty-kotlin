@@ -111,6 +111,52 @@ struct DependencyGraphTests {
     }
 
     @Test
+    func testRecompilationSetIncludesPackageWildcardDependents() {
+        let graph = DependencyGraph()
+        graph.recordProvided(filePath: "p.kt", symbols: ["Foo"], package: "pkg")
+        graph.recordWildcardImport(filePath: "q.kt", package: "pkg")
+
+        let result = graph.recompilationSet(
+            changedFiles: ["p.kt"],
+            allFiles: ["p.kt", "q.kt"]
+        )
+        #expect(result == ["p.kt", "q.kt"])
+    }
+
+    @Test
+    func testRecompilationSetDoesNotMatchWildcardFromAnotherPackage() {
+        let graph = DependencyGraph()
+        graph.recordProvided(filePath: "p.kt", symbols: ["Foo"], package: "pkg")
+        graph.recordWildcardImport(filePath: "q.kt", package: "other")
+
+        let result = graph.recompilationSet(
+            changedFiles: ["p.kt"],
+            allFiles: ["p.kt", "q.kt"]
+        )
+        #expect(result == ["p.kt"])
+    }
+
+    @Test
+    func testRecompilationSetDeepDependencyChain() {
+        let graph = DependencyGraph()
+        // f0 provides S0; each f<i> depends on S<i-1> and provides S<i>.
+        let depth = 16
+        let files = (0 ..< depth).map { "f\($0).kt" }
+        for index in 0 ..< depth {
+            graph.recordProvided(filePath: files[index], symbols: ["S\(index)"])
+            if index > 0 {
+                graph.recordDepended(filePath: files[index], symbols: ["S\(index - 1)"])
+            }
+        }
+
+        let result = graph.recompilationSet(
+            changedFiles: [files[0]],
+            allFiles: files
+        )
+        #expect(result == files)
+    }
+
+    @Test
     func testRecompilationSetPreservesAllFilesOrder() {
         let graph = DependencyGraph()
         graph.recordProvided(filePath: "a.kt", symbols: ["X"])
@@ -129,14 +175,16 @@ struct DependencyGraphTests {
     @Test
     func testSerializeAndDeserializeRoundTrip() throws {
         let graph = DependencyGraph()
-        graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"])
+        graph.recordProvided(filePath: "a.kt", symbols: ["Foo", "Bar"], package: "pkg")
         graph.recordDepended(filePath: "b.kt", symbols: ["Foo"])
+        graph.recordWildcardImport(filePath: "b.kt", package: "pkg")
 
         let data = try graph.serialize()
         let restored = try DependencyGraph.deserialize(from: data)
 
         #expect(restored.provided(by: "a.kt") == ["Foo", "Bar"])
         #expect(restored.depended(by: "b.kt") == ["Foo"])
+        #expect(restored.wildcardImportedPackages(by: "b.kt") == ["pkg"])
         #expect(restored.trackedFiles == ["a.kt", "b.kt"])
     }
 

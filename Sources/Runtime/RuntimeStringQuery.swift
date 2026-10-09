@@ -51,8 +51,8 @@ func runtimeRegisterCharSequenceItable(_ raw: Int) {
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
     // may be any CharSequence implementation (String or StringBuilder handles).
-    if let text = runtimeCharSequenceText(from: raw) {
-        return runtimeKotlinStringUTF16Length(text)
+    if let length = runtimeCharSequenceUTF16Length(from: raw) {
+        return length
     }
     return runtimeKotlinStringUTF16Length(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
@@ -63,7 +63,6 @@ public func kk_char_sequence_length(_ raw: Int) -> Int {
 // lastOrNull/singleOrNull functions that used to live here were superseded
 // and unreachable from any CompilerCore call site; removed.
 
-@_cdecl("kk_string_getOrNull")
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard index >= 0, index < codeUnits.count else {
@@ -72,8 +71,9 @@ public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     return kk_box_char(Int(codeUnits[index]))
 }
 
-// MARK: - Flat ABI wrappers
-
+// The public declarations remain bundled Kotlin source. Flat String call
+// sites use these compatibility bridges because String has an aggregate ABI
+// and cannot be erased to a CharSequence object receiver.
 @_cdecl("kk_string_ifBlank_flat")
 public func kk_string_ifBlank_flat(
     _ data: UnsafePointer<UInt8>?, _ length: Int, _ byteCount: Int, _ hash: Int,
@@ -93,11 +93,7 @@ public func kk_string_ifBlank_flat(
     var thrown = 0
     let raw = lambda(closureRaw, &thrown)
     if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown,
-            outThrown: outThrown,
-            context: "ifBlank defaultValue"
-        )
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "ifBlank defaultValue")
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
     guard let string = runtimeStringFromRaw(raw) else { return nil }
@@ -123,18 +119,76 @@ public func kk_string_ifEmpty_flat(
     var thrown = 0
     let raw = lambda(closureRaw, &thrown)
     if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown,
-            outThrown: outThrown,
-            context: "ifEmpty defaultValue"
-        )
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "ifEmpty defaultValue")
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
     guard let string = runtimeStringFromRaw(raw) else { return nil }
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
-@_cdecl("kk_string_get")
+
+private func runtimeInvokeCharSequenceDefaultValue(
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?,
+    context: String
+) -> Int {
+    guard fnPtr != 0 else { return 0 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let raw = lambda(closureRaw, &thrown)
+    if thrown != 0 {
+        runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
+        return 0
+    }
+    return raw
+}
+
+@_cdecl("kk_charsequence_ifBlank")
+public func kk_charsequence_ifBlank(
+    _ sequenceRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+        return 0
+    }
+    let source = String(decoding: codeUnits, as: UTF16.self)
+    guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return sequenceRaw
+    }
+    return runtimeInvokeCharSequenceDefaultValue(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown,
+        context: "CharSequence.ifBlank defaultValue"
+    )
+}
+
+@_cdecl("kk_charsequence_ifEmpty")
+public func kk_charsequence_ifEmpty(
+    _ sequenceRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
+        return 0
+    }
+    guard codeUnits.isEmpty else {
+        return sequenceRaw
+    }
+    return runtimeInvokeCharSequenceDefaultValue(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown,
+        context: "CharSequence.ifEmpty defaultValue"
+    )
+}
+
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
@@ -155,14 +209,13 @@ public func kk_char_sequence_get(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
     }
-    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -181,14 +234,13 @@ public func kk_char_sequence_subSequence(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+    guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
     }
-    let codeUnits = runtimeKotlinStringUTF16CodeUnits(text)
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
         runtimeSetThrown(
             outThrown,
@@ -213,15 +265,17 @@ public func __kk_string_get_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard indexRaw >= 0, indexRaw < codeUnits.count else {
+    let lookup = runtimeFlatStringCodeUnit(
+        data: data, length: length, byteCount: byteCount, hash: hash, index: indexRaw
+    )
+    guard let unit = lookup.unit else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(lookup.utf16Length)")
         )
         return 0
     }
-    return Int(codeUnits[indexRaw])
+    return Int(unit)
 }
 
 @_cdecl("__kk_string_getOrNull_flat")
@@ -232,11 +286,13 @@ public func __kk_string_getOrNull_flat(
     _ hash: Int,
     _ indexRaw: Int
 ) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard indexRaw >= 0, indexRaw < codeUnits.count else {
+    let lookup = runtimeFlatStringCodeUnit(
+        data: data, length: length, byteCount: byteCount, hash: hash, index: indexRaw
+    )
+    guard let unit = lookup.unit else {
         return runtimeNullSentinelInt
     }
-    return Int(codeUnits[indexRaw])
+    return Int(unit)
 }
 
 @_cdecl("__kk_string_compareTo_member")

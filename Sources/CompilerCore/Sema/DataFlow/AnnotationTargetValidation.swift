@@ -79,14 +79,14 @@ extension DataFlowSemaPhase {
         let symbolID = bindings.declSymbols[declID]
         let ownerSymbol = symbolID.flatMap { symbols.symbol($0) }
 
-        for annotation in declarationAnnotations(for: decl) {
+        for annotation in decl.annotations {
             guard let site = annotationUsageSite(for: annotation, on: decl, ownerSymbol: ownerSymbol) else {
                 continue
             }
             validateAnnotationTarget(
                 annotation: annotation,
                 site: site,
-                ownerRange: ownerRange(for: decl),
+                ownerRange: decl.range,
                 decl: decl,
                 file: file,
                 propertySymbol: ownerSymbol?.kind == .property ? symbolID : nil,
@@ -137,7 +137,7 @@ extension DataFlowSemaPhase {
                 validateAnnotationTarget(
                     annotation: annotation,
                     site: .constructor,
-                    ownerRange: ownerRange(for: decl),
+                    ownerRange: decl.range,
                     decl: decl,
                     file: file,
                     propertySymbol: nil,
@@ -161,7 +161,7 @@ extension DataFlowSemaPhase {
                     validateAnnotationTarget(
                         annotation: annotation,
                         site: .constructor,
-                        ownerRange: ownerRange(for: decl),
+                        ownerRange: decl.range,
                         decl: decl,
                         file: file,
                         propertySymbol: nil,
@@ -185,7 +185,7 @@ extension DataFlowSemaPhase {
                     validateAnnotationTarget(
                         annotation: annotation,
                         site: .enumEntry,
-                        ownerRange: ownerRange(for: decl),
+                        ownerRange: decl.range,
                         decl: decl,
                         file: file,
                         propertySymbol: nil,
@@ -238,7 +238,20 @@ extension DataFlowSemaPhase {
                     interner: interner, filesByID: filesByID
                 )
             }
-        case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
+        case let .propertyDecl(property):
+            for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+                for annotation in accessor.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: accessor.kind == .getter ? .getter : .setter,
+                        ownerRange: accessor.range, decl: decl, file: file,
+                        propertySymbol: symbolID, symbols: symbols,
+                        diagnostics: diagnostics, interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+        case .typeAliasDecl, .enumEntryDecl:
             break
         }
     }
@@ -261,7 +274,9 @@ extension DataFlowSemaPhase {
         for annotation in param.annotations {
             let site: AnnotationUsageSite
             switch annotation.useSiteTarget?.lowercased() {
-            case nil, "param", "setparam":
+            case nil:
+                site = param.isProperty ? .constructorPropertyParameter : .valueParameter
+            case "param", "setparam":
                 site = .valueParameter
             case "field":
                 site = .paramField
@@ -279,7 +294,7 @@ extension DataFlowSemaPhase {
             validateAnnotationTarget(
                 annotation: annotation,
                 site: site,
-                ownerRange: ownerRange(for: ownerDecl),
+                ownerRange: ownerDecl.range,
                 decl: ownerDecl,
                 file: file,
                 propertySymbol: nil,
@@ -336,6 +351,18 @@ extension DataFlowSemaPhase {
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
+            return
+        }
+
+        if case .getter = site,
+           symbols.annotations(for: annotationSymbolID).contains(where: {
+               KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
+           }) {
+            diagnostics.error(
+                "KSWIFTK-SEMA-OPT-IN-GETTER",
+                "Opt-in requirement marker annotation cannot be used on getter.",
+                range: ownerRange
+            )
             return
         }
 
@@ -480,8 +507,28 @@ extension DataFlowSemaPhase {
             allowedTargets.formUnion(parseAnnotationTargets(from: meta.arguments))
         }
 
-        return sawTargetMeta ? allowedTargets : nil
+        // Kotlin's default annotation target set includes every declaration
+        // target except FILE. In particular, opt-in marker annotations without
+        // an explicit @Target must not become file annotations.
+        return sawTargetMeta ? allowedTargets : Self.defaultDeclarationAnnotationTargets
     }
+
+    private static let defaultDeclarationAnnotationTargets: Set<String> = [
+        "CLASS",
+        "ANNOTATION_CLASS",
+        "TYPE_PARAMETER",
+        "PROPERTY",
+        "FIELD",
+        "LOCAL_VARIABLE",
+        "VALUE_PARAMETER",
+        "CONSTRUCTOR",
+        "FUNCTION",
+        "PROPERTY_GETTER",
+        "PROPERTY_SETTER",
+        "TYPE",
+        "EXPRESSION",
+        "TYPEALIAS",
+    ]
 
     private func isTargetMetaAnnotation(
         _ annotation: MetadataAnnotationRecord,
@@ -518,60 +565,6 @@ extension DataFlowSemaPhase {
         return resolvedSymbol.fqName == builtInTargetFQName
     }
 
-    private func resolveAnnotationSymbol(
-        named rawName: String,
-        in file: ASTFile,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID? {
-        let parts = rawName.split(separator: ".").map(String.init)
-
-        if parts.count > 1 {
-            let fqName = parts.map { interner.intern($0) }
-            if let symbol = symbols.lookup(fqName: fqName),
-               symbols.symbol(symbol)?.kind == .annotationClass
-            {
-                return symbol
-            }
-        }
-
-        let shortName = interner.intern(parts.last ?? rawName)
-        let samePackageFQName = file.packageFQName + [shortName]
-        if let symbol = symbols.lookup(fqName: samePackageFQName),
-           symbols.symbol(symbol)?.kind == .annotationClass
-        {
-            return symbol
-        }
-
-        for importDecl in file.imports {
-            if let alias = importDecl.alias, alias == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            if importDecl.path.last == shortName {
-                if let symbol = symbols.lookup(fqName: importDecl.path),
-                   symbols.symbol(symbol)?.kind == .annotationClass
-                {
-                    return symbol
-                }
-            }
-
-            if let packageSymbol = symbols.lookup(fqName: importDecl.path),
-               symbols.symbol(packageSymbol)?.kind == .package
-            {
-                if let child = symbols.children(ofFQName: importDecl.path).compactMap({ symbols.symbol($0) }).first(where: { $0.kind == .annotationClass && $0.name == shortName }) {
-                    return child.id
-                }
-            }
-        }
-
-        return symbols.lookupByShortName(shortName).first(where: { symbols.symbol($0)?.kind == .annotationClass })
-    }
-
     private func parseAnnotationTargets(from arguments: [String]) -> Set<String> {
         let knownTargets: Set<String> = [
             "CLASS",
@@ -593,7 +586,7 @@ extension DataFlowSemaPhase {
 
         var parsed: Set<String> = []
         for argument in arguments {
-            let value = annotationArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let tokens = value.split { character in
                 !(character.isLetter || character.isNumber || character == "_")
             }
@@ -605,14 +598,6 @@ extension DataFlowSemaPhase {
             }
         }
         return parsed
-    }
-
-    private func annotationArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return trimmed[trimmed.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func annotationTarget(
@@ -634,6 +619,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .constructorPropertyParameter:
+            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -709,6 +696,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .constructorPropertyParameter:
+            return "a constructor property parameter"
         case .enumEntry:
             return "an enum entry"
         case .property:
@@ -765,30 +754,12 @@ extension DataFlowSemaPhase {
             || propertyDecl.isSynthesizedPrimaryConstructorProperty
     }
 
-    private func ownerRange(for decl: Decl) -> SourceRange {
-        switch decl {
-        case let .classDecl(classDecl):
-            classDecl.range
-        case let .interfaceDecl(interfaceDecl):
-            interfaceDecl.range
-        case let .objectDecl(objectDecl):
-            objectDecl.range
-        case let .funDecl(funDecl):
-            funDecl.range
-        case let .propertyDecl(propertyDecl):
-            propertyDecl.range
-        case let .typeAliasDecl(typeAliasDecl):
-            typeAliasDecl.range
-        case let .enumEntryDecl(entry):
-            entry.range
-        }
-    }
-
     private enum AnnotationUsageSite {
         case classLike(SymbolKind)
         case function
         case constructor
         case valueParameter
+        case constructorPropertyParameter
         case enumEntry
         case property(explicitUseSiteTarget: Bool)
         case getter

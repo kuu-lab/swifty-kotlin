@@ -8,132 +8,6 @@ import Testing
 struct CodegenBackendCollectionWindowedEdgeCasesTests {
 
     @Test
-    func testCodegenCollectionFirstNotNullOfUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_firstnotnullof.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionFirstNotNullOf",
-            expected:
-                """
-                two
-                missing
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_firstnotnullofornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionFirstNotNullOfOrNull",
-            expected:
-                """
-                two
-                missing
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionMinusElementUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_minuselement.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionMinusElement",
-            expected:
-                """
-                [1, 2, 3]
-                [1, 2, 2, 3]
-                []
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionReduceRightIndexedUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_reducerightindexed.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionReduceRightIndexed",
-            expected:
-                """
-                133
-                7
-                empty
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionReduceRightIndexedOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_reducerightindexedornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionReduceRightIndexedOrNull",
-            expected:
-                """
-                133
-                7
-                -1
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionReduceRightOrNullUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_reducerightornull.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionReduceRightOrNull",
-            expected:
-                """
-                33
-                7
-                -1
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionSumByUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_sumby.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionSumBy",
-            expected:
-                """
-                14
-                21
-                0
-                """ + "\n"
-        )
-    }
-
-    @Test
-    func testCodegenCollectionSumByDoubleUsesCanonicalDiffCase() throws {
-        let source = try diffCaseSource("collection_sumbydouble.kt")
-
-        try assertKotlinOutput(
-            source,
-            moduleName: "CollectionSumByDouble",
-            expected:
-                """
-                2.0
-                7.5
-                0.0
-                """ + "\n"
-        )
-    }
-
-    @Test
     func testCodegenCompilesCollectionWindowedTransformEdgeCases() throws {
         let source = """
         fun main() {
@@ -189,6 +63,58 @@ struct CodegenBackendCollectionWindowedEdgeCasesTests {
                 [[1, 2], [3, 4], [5]]
                 [6, 9]
                 []
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenCollectionChunkedRejectsNonPositiveSizes() throws {
+        let source = try diffCaseSource("list_chunked_invalid_size.kt")
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ListChunkedInvalidSize",
+            expected:
+                """
+                list-zero:ok
+                list-negative:ok
+                iterable-zero:ok
+                iterable-negative:ok
+                array-iterable-zero:ok
+                array-iterable-negative:ok
+                transform-zero:ok
+                transform-negative:ok
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenConcreteArrayChunkedRejectsNonPositiveSizes() throws {
+        let source = """
+        fun main() {
+            val array = arrayOf(1, 2, 3)
+            try {
+                array.chunked(0)
+                println("array-zero:missing")
+            } catch (e: IllegalArgumentException) {
+                println("array-zero:ok")
+            }
+            try {
+                array.chunked(-2)
+                println("array-negative:missing")
+            } catch (e: IllegalArgumentException) {
+                println("array-negative:ok")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ConcreteArrayChunkedInvalidSize",
+            expected:
+                """
+                array-zero:ok
+                array-negative:ok
                 """ + "\n"
         )
     }

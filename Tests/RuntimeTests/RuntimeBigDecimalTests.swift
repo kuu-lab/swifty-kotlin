@@ -96,5 +96,25 @@ struct RuntimeBigDecimalTests {
             #expect(raw == runtimeNullSentinelInt, "Expected \(value) to yield null")
         }
     }
+
+    @Test
+    func testBigDecimalCompareToComparesNumerically() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0, "Expected \(text) to parse as BigDecimal")
+            return raw
+        }
+        #expect(__kk_bignum_compareTo(box("1.5"), box("1.4")) > 0)
+        #expect(__kk_bignum_compareTo(box("1.4"), box("1.5")) < 0)
+        #expect(__kk_bignum_compareTo(box("1.40"), box("1.4")) == 0)
+        #expect(__kk_bignum_compareTo(box("1e3"), box("999")) > 0)
+        #expect(__kk_bignum_compareTo(box("0.05"), box("5e-2")) == 0)
+        #expect(__kk_bignum_compareTo(box("-0.0"), box("0")) == 0)
+        #expect(__kk_bignum_compareTo(box("-2"), box("1")) < 0)
+        #expect(__kk_bignum_compareTo(box("-1.5"), box("-1.4")) < 0)
+    }
 }
 #endif

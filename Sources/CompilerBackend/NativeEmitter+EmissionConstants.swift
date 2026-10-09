@@ -39,7 +39,6 @@ extension NativeEmitter {
             self.allocaBuilder = allocaBuilder
         }
 
-        /// Allocates an i64 stack slot in the entry block of the current function.
         func buildEntrySlot(
             _ bindings: LLVMCAPIBindings,
             name: String
@@ -242,31 +241,7 @@ extension NativeEmitter {
             bindings.buildICmpNotEqual(state.builder, lhs: value, rhs: state.zeroValue, name: name)
         }
 
-        func buildSignedFloorMod(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
-            guard let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "\(name)_q_\(instructionIndex)"),
-                  let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "\(name)_p_\(instructionIndex)"),
-                  let remainder = bindings.buildSub(state.builder, lhs: lhs, rhs: product, name: "\(name)_rem_\(instructionIndex)"),
-                  let remainderIsNonZero = bindings.buildICmpNotEqual(state.builder, lhs: remainder, rhs: state.zeroValue, name: "\(name)_nonzero_\(instructionIndex)"),
-                  let lhsIsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: lhs, rhs: state.zeroValue, name: "\(name)_lhs_neg_\(instructionIndex)"),
-                  let rhsIsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: rhs, rhs: state.zeroValue, name: "\(name)_rhs_neg_\(instructionIndex)"),
-                  let signsDiffer = bindings.buildXor(state.builder, lhs: lhsIsNegative, rhs: rhsIsNegative, name: "\(name)_signs_\(instructionIndex)"),
-                  let shouldAdjust = bindings.buildAnd(state.builder, lhs: remainderIsNonZero, rhs: signsDiffer, name: "\(name)_adjust_\(instructionIndex)"),
-                  let adjusted = bindings.buildAdd(state.builder, lhs: remainder, rhs: rhs, name: "\(name)_adjusted_\(instructionIndex)")
-            else {
-                return nil
-            }
-            return bindings.buildSelect(
-                state.builder,
-                condition: shouldAdjust,
-                thenValue: adjusted,
-                elseValue: remainder,
-                name: "\(name)_\(instructionIndex)"
-            )
-        }
-
-        // Sign-extend the low 32 bits of a 64-bit slot back into a canonical
-        // 64-bit representation of a Kotlin `Int`. Implemented as
-        // `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
+        // Implemented as `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
         // binding. This enforces Kotlin's two's-complement `Int` wraparound.
         func narrowTo32(_ value: LLVMCAPIBindings.LLVMValueRef?, name: String) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let value,
@@ -278,11 +253,9 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
-        /// Emit a call to `__kk_string_equals_flat` when at least one operand is a
-        /// String aggregate. This is required for `==`/`!=` on generic `K` that
-        /// is instantiated with `String`, because the inlined function body ends
-        /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
-        /// `icmp` a struct. Returns `nil` when neither operand is a String aggregate.
+        /// Required for `==`/`!=` on generic `K` that is instantiated with
+        /// `String`, because the inlined function body ends up comparing flat
+        /// `{ i8*, i64, i64, i64 }` values and LLVM cannot `icmp` a struct.
         func emitStringAggregateEquality(
             lhsValue: LLVMCAPIBindings.LLVMValueRef,
             lhsType: TypeID?,
@@ -333,6 +306,14 @@ extension NativeEmitter {
                 return (false, nil)
             }
             let firstType = argumentTypes.first.flatMap { $0 }
+            // `length` is also a legal Kotlin member name. Preserve calls on a
+            // known non-String receiver for normal member-function lowering.
+            if calleeName == "length",
+               let firstType,
+               !isStringAggregateType(firstType)
+            {
+                return (false, nil)
+            }
             // `firstType` only reflects the Kotlin-level type (String → .stringStruct);
             // it says nothing about how this particular KIR expression was materialized.
             // Values that pass through a boxed/erased path (e.g. a HOF lambda parameter
@@ -371,32 +352,6 @@ extension NativeEmitter {
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
             lowered = bindings.buildMul(state.builder, lhs: lhs, rhs: rhs, name: "mul_\(instructionIndex)")
-        case "kk_op_floor_div", "kk_op_lfloor_div":
-            if let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "floordiv_q_\(instructionIndex)"),
-               let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "floordiv_p_\(instructionIndex)"),
-               let remainder = bindings.buildSub(state.builder, lhs: lhs, rhs: product, name: "floordiv_r_\(instructionIndex)"),
-               let remainderNonZero = bindings.buildICmpNotEqual(state.builder, lhs: remainder, rhs: state.zeroValue, name: "floordiv_rnz_\(instructionIndex)"),
-               let lhsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: lhs, rhs: state.zeroValue, name: "floordiv_lneg_\(instructionIndex)"),
-               let rhsNegative = bindings.buildICmpSignedLessThan(state.builder, lhs: rhs, rhs: state.zeroValue, name: "floordiv_rneg_\(instructionIndex)"),
-               let signsDiffer = bindings.buildXor(state.builder, lhs: lhsNegative, rhs: rhsNegative, name: "floordiv_sdiff_\(instructionIndex)"),
-               let shouldAdjust = bindings.buildAnd(state.builder, lhs: remainderNonZero, rhs: signsDiffer, name: "floordiv_adj_\(instructionIndex)"),
-               let one = bindings.constInt(state.int64Type, value: 1),
-               let adjustedQuotient = bindings.buildSub(state.builder, lhs: quotient, rhs: one, name: "floordiv_dec_\(instructionIndex)")
-            {
-                lowered = bindings.buildSelect(
-                    state.builder,
-                    condition: shouldAdjust,
-                    thenValue: adjustedQuotient,
-                    elseValue: quotient,
-                    name: "floordiv_\(instructionIndex)"
-                )
-            } else {
-                lowered = nil
-            }
-        case "kk_op_floor_mod":
-            lowered = buildSignedFloorMod(name: "floor_mod")
-        case "kk_op_lfloor_mod":
-            lowered = buildSignedFloorMod(name: "lfloor_mod")
         // kk_op_udiv/kk_op_urem are intentionally NOT lowered as native LLVM
         // UDiv/URem here (unlike kk_op_uge/ugt/ule/ult below): LLVM's udiv/urem
         // by zero is undefined behavior (traps at the hardware level), but
@@ -405,6 +360,9 @@ extension NativeEmitter {
         // generic external-call path below routes these to the throwing
         // Sources/Runtime/RuntimeNumericCompat.swift implementations, exactly
         // like kk_op_div/kk_op_mod (which are likewise absent from this switch).
+        // The flooring kk_op_floor_div/kk_op_lfloor_div/kk_op_floor_mod/
+        // kk_op_lfloor_mod (Int/Long/Byte/Short `floorDiv`/`mod`) take the same
+        // runtime route for the same reason.
         case "kk_op_eq":
             if let stringEq = emitStringAggregateEquality(
                 lhsValue: lhs, lhsType: argumentTypes.indices.contains(0) ? argumentTypes[0] : nil,
@@ -518,10 +476,8 @@ extension NativeEmitter {
         case "kk_op_ushr":
             lowered = bindings.buildLShr(state.builder, lhs: lhs, rhs: rhs, name: "ushr_\(instructionIndex)")
         case "kk_int_narrow":
-            // Wrap a 64-bit arithmetic result to Kotlin's 32-bit `Int`.
             lowered = narrowTo32(lhs, name: "narrow")
         case "kk_uint_narrow":
-            // Mask a 64-bit arithmetic result to Kotlin's 32-bit `UInt` (zero-extend low 32 bits).
             if let mask = bindings.constInt(state.int64Type, value: 0xFFFF_FFFF) {
                 lowered = bindings.buildAnd(state.builder, lhs: lhs, rhs: mask,
                                             name: "uint_narrow_\(instructionIndex)")
@@ -691,6 +647,7 @@ extension NativeEmitter {
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
         nameCounter: GeneratedNameCounter,
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
+        declareExternalSymbolFunction: (SymbolID) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
         func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
@@ -720,9 +677,9 @@ extension NativeEmitter {
                 return raw
             }
             guard let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
-                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
-                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
-                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+                  let lengthSlot = state.buildEntrySlot(bindings, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = state.buildEntrySlot(bindings, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = state.buildEntrySlot(bindings, name: "string_bridge_hash_\(suffix)")
             else {
                 return nil
             }
@@ -800,26 +757,6 @@ extension NativeEmitter {
             ) else {
                 return state.zeroValue
             }
-            if let expectedType,
-               let typeLowering = state.typeLowering,
-               let typeSystem,
-               case .stringStruct = typeSystem.kind(of: expectedType)
-            {
-                // KSP-817: Kotlin String/CharSequence length is measured in UTF-16 code
-                // units; `byteCount` remains the UTF-8 byte count used by the flat ABI.
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf16.count)) ?? state.zeroValue
-                let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
-                let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
-                return buildStringAggregate(
-                    builder: state.builder,
-                    lowering: typeLowering,
-                    data: globalStringPointer,
-                    length: lengthValue,
-                    byteCount: byteCountValue,
-                    hash: hashValue,
-                    name: nameCounter.nextName("str_agg_")
-                ) ?? state.zeroValue
-            }
             guard let pointerAsInt = bindings.buildPtrToInt(
                 state.builder,
                 value: globalStringPointer,
@@ -830,19 +767,22 @@ extension NativeEmitter {
             }
             let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
             guard let stringFromUTF8 = declareExternalFunction(
-                "kk_string_from_utf8",
+                "__kk_string_literal_from_utf8",
                 2,
                 false
             ) else {
                 return state.zeroValue
             }
-            return bindings.buildCall(
+            let raw = bindings.buildCall(
                 state.builder,
                 functionType: stringFromUTF8.type,
                 callee: stringFromUTF8.value,
                 arguments: [pointerAsInt, lengthValue],
-                name: nameCounter.nextName("str_from_utf8_")
+                name: nameCounter.nextName("str_literal_")
             ) ?? state.zeroValue
+            return bridgeRuntimeRawToStringAggregateIfNeeded(
+                raw, suffix: nameCounter.nextName("literal_")
+            ) ?? raw
         case let .externSymbolAddress(symbolName):
             let symbolStr = interner.resolve(symbolName)
             if let externFn = declareExternalFunction(symbolStr, 4, false) {
@@ -868,7 +808,6 @@ extension NativeEmitter {
             {
                 return functionPointer
             }
-            // Load from LLVM global variable if this symbol refers to a global.
             // Global slots always hold raw runtime handles (i64); bridge to the
             // lowered aggregate representation only when the expected KIR type is
             // the String struct.
@@ -890,18 +829,9 @@ extension NativeEmitter {
             // but they may be referenced as function pointers (e.g. for vtable/itable
             // registration). Resolve them by their external link name.
             //
-            // Declarations are cached module-wide by name, so the thrown channel here must
-            // match the callee's real ABI; hardcoding `true` mis-sized non-throwing runtime
-            // callees (e.g. kk_list_iterator) for every other call site reached later.
-            if let symbols = self.symbols,
-               let signature = symbols.functionSignature(for: symbol),
-               let linkName = symbols.externalLinkName(for: symbol),
-               !linkName.isEmpty,
-               let externFn = declareExternalFunction(
-                   linkName,
-                   [signature.receiverType].compactMap { $0 }.count + signature.parameterTypes.count,
-                   Self.runtimeABIFunctionByName[linkName]?.isThrowing ?? true
-               ),
+            // Function addresses and direct calls share a module-wide declaration;
+            // both must use the imported signature, including aggregate String types.
+            if let externFn = declareExternalSymbolFunction(symbol),
                let functionPointer = bindings.buildPtrToInt(
                    state.builder,
                    value: externFn.value,

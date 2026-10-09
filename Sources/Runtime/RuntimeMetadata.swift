@@ -17,6 +17,7 @@ public struct KmValueParameter: Codable, Equatable, Sendable {
         case instance
         case extensionReceiver
         case value
+        case context
 
         init(runtimeKind: Int) {
             switch runtimeKind {
@@ -24,6 +25,8 @@ public struct KmValueParameter: Codable, Equatable, Sendable {
                 self = .instance
             case 1:
                 self = .extensionReceiver
+            case 3:
+                self = .context
             default:
                 self = .value
             }
@@ -194,27 +197,9 @@ private func runtimeMetadataString(from raw: Int) -> String? {
 }
 
 private func runtimeMetadataKParameterBox(from raw: Int) -> RuntimeKParameterBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeKParameterBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeKParameterBox.self)
 }
 
 private func runtimeMetadataKClassBox(from raw: Int) -> RuntimeKClassBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeKClassBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeKClassBox.self)
 }

@@ -102,6 +102,7 @@ private typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
     Int,
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
 
@@ -270,30 +271,12 @@ struct RuntimeStringArrayTests {
         }
     }
 
-    private func flatStringReturnValueNoThrow(
-        _ value: String,
-        intArg: Int,
-        using call: RuntimeFlatStringReturnWithIntNoThrowEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = call(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash)
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
     private func flatStringReturnValue(
         _ value: String,
         leadingIntArg: Int,
         trailingIntArg: Int,
-        using call: RuntimeFlatStringReturnWithLeadingIntAndIntEntry
+        using call: RuntimeFlatStringReturnWithLeadingIntAndIntEntry,
+        outThrown: UnsafeMutablePointer<Int>? = nil
     ) -> String {
         withFlatString(value) { data, length, byteCount, hash in
             var outLength = 0
@@ -308,7 +291,8 @@ struct RuntimeStringArrayTests {
                 trailingIntArg,
                 &outLength,
                 &outByteCount,
-                &outHash
+                &outHash,
+                outThrown
             )
             return flatStringValue(
                 data: outData.map { UnsafePointer($0) },
@@ -449,6 +433,10 @@ struct RuntimeStringArrayTests {
         Double(bitPattern: UInt64(bitPattern: Int64(raw)))
     }
 
+    private func floatFromRuntimeBits(_ raw: Int) -> Float {
+        Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: raw)))
+    }
+
     // MARK: - kk_string_from_utf8
 
     @Test
@@ -485,19 +473,27 @@ struct RuntimeStringArrayTests {
         #expect(concatFlatValue("Hello, ", "World!") == "Hello, World!")
     }
 
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil buffer. String templates and `+`/`String?.plus` must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type, instead of silently treating it as "" (which hid an
+    // uninitialized-field bug behind output that merely looked wrong
+    // instead of null -- see null_string_length_npe.kt).
+
     @Test
-    func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
-        #expect(concatFlatValue(nil, "World") == "World")
+    func testStringConcatFlatWithNilDataLeftRendersNullPrefix() {
+        #expect(concatFlatValue(nil, "World") == "nullWorld")
     }
 
     @Test
-    func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
-        #expect(concatFlatValue("Hello", nil) == "Hello")
+    func testStringConcatFlatWithNilDataRightRendersNullSuffix() {
+        #expect(concatFlatValue("Hello", nil) == "Hellonull")
     }
 
     @Test
-    func testStringConcatFlatBothNilDataReturnsEmptyString() {
-        #expect(concatFlatValue(nil, nil) == "")
+    func testStringConcatFlatBothNilDataReturnsNullNull() {
+        #expect(concatFlatValue(nil, nil) == "nullnull")
     }
 
     // MARK: - kk_string_compareTo_flat
@@ -587,13 +583,6 @@ struct RuntimeStringArrayTests {
         #expect(kk_compare_any(nan, finite) == 1)
         #expect(kk_compare_any(finite, nan) == -1)
         #expect(kk_compare_any(nan, nan) == 0)
-    }
-
-    @Test
-    func testFloatFormattingUsesKotlinSpecialValueSpellings() {
-        #expect(runtimeFormatFloatingPoint(Float.nan) == "NaN")
-        #expect(runtimeFormatFloatingPoint(Float.infinity) == "Infinity")
-        #expect(runtimeFormatFloatingPoint(-Float.infinity) == "-Infinity")
     }
 
     @Test
@@ -825,7 +814,7 @@ struct RuntimeStringArrayTests {
             #expect(__kk_string_toByte_flat(data, length, byteCount, hash, &thrown) == 42)
             #expect(thrown == 0)
             #expect(__kk_string_toIntOrNull_flat(data, length, byteCount, hash) == 42)
-            #expect(__kk_string_toLongOrNull_flat(data, length, byteCount, hash) == 42)
+            #expect(kk_unbox_long(__kk_string_toLongOrNull_flat(data, length, byteCount, hash)) == 42)
             #expect(__kk_string_toShortOrNull_flat(data, length, byteCount, hash) == 42)
             #expect(__kk_string_toByteOrNull_flat(data, length, byteCount, hash) == 42)
         }
@@ -856,7 +845,7 @@ struct RuntimeStringArrayTests {
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
             var thrown = 0
-            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(kk_unbox_ulong(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown)) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
             #expect(thrown == 0)
         }
 
@@ -1029,8 +1018,9 @@ struct RuntimeStringArrayTests {
         let arrayRaw = kk_array_new(2)
         _ = kk_array_set(arrayRaw, 0, 1, &thrown)
         _ = kk_array_set(arrayRaw, 1, 2, &thrown)
-        #expect(runtimeElementToString(arrayRaw) == "[1, 2]")
-        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) } == "[1, 2]")
+        let identity = "kotlin.Array@\(String(UInt32(truncatingIfNeeded: kk_any_hashCode(arrayRaw, 0)), radix: 16))"
+        #expect(runtimeElementToString(arrayRaw) == identity)
+        #expect(capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: arrayRaw)) } == identity)
     }
 
     @Test
@@ -1338,7 +1328,7 @@ struct RuntimeStringArrayTests {
         var thrown = 0
 
         withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
-            #expect(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
+            #expect(kk_unbox_ulong(__kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown)) == Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
             #expect(thrown == 0)
         }
         withFlatString("10000000000000000") { data, length, byteCount, hash in
@@ -1425,7 +1415,120 @@ struct RuntimeStringArrayTests {
             __kk_string_toDoubleOrNull_flat(data, length, byteCount, hash)
         }
         #expect(parsed != runtimeNullSentinelInt)
-        #expect(abs(doubleFromRuntimeBits(parsed) - 4.0) <= 1e-12)
+        #expect(abs(doubleFromRuntimeBits(kk_unbox_double(parsed)) - 4.0) <= 1e-12)
+    }
+
+    @Test
+    func testStringToFloatParsesKotlinFloatingLiteralsAndRejectsSwiftOnlySpellings() {
+        var thrown = 0
+        let cases: [(String, Float)] = [
+            ("1.", 1.0),
+            (".5", 0.5),
+            ("1e3", 1_000.0),
+            ("1.0d", 1.0),
+            ("+6.25F", 6.25),
+            ("0x1.8p1", 3.0),
+        ]
+
+        for (source, expected) in cases {
+            thrown = 0
+            let raw = __kk_string_toFloat(rawFromRuntimeString(source), &thrown)
+            #expect(thrown == 0, "Expected \(source) to parse")
+            #expect(abs(floatFromRuntimeBits(raw) - expected) <= 1e-6)
+        }
+
+        let specialCases: [(String, Float)] = [
+            ("NaN", .nan),
+            ("Infinity", .infinity),
+            ("+Infinity", .infinity),
+            ("-Infinity", -.infinity),
+        ]
+        for (source, expected) in specialCases {
+            let raw = __kk_string_toFloatOrNull(rawFromRuntimeString(source))
+            #expect(raw != runtimeNullSentinelInt, "Expected \(source) to parse")
+            let parsed = floatFromRuntimeBits(kk_unbox_float(raw))
+            if expected.isNaN {
+                #expect(parsed.isNaN)
+            } else {
+                #expect(parsed == expected)
+            }
+        }
+
+        for source in ["inf", "nan", "infinity", "-nan", "INFINITY"] {
+            #expect(
+                __kk_string_toFloatOrNull(rawFromRuntimeString(source)) == runtimeNullSentinelInt,
+                "Expected \(source) to be rejected by toFloatOrNull"
+            )
+
+            thrown = 0
+            _ = __kk_string_toFloat(rawFromRuntimeString(source), &thrown)
+            #expect(thrown != 0, "Expected \(source) to be rejected by toFloat")
+        }
+    }
+
+    private func expectFormatError(_ template: String, _ arguments: [Int], _ kind: String) {
+        let args = makeRuntimeArray(arguments)
+        for localized in [false, true] {
+            var thrown = 0
+            let result: String
+            if localized {
+                result = flatStringReturnValue(template, leadingIntArg: runtimeNullSentinelInt,
+                    trailingIntArg: args, using: __kk_string_format_locale_flat, outThrown: &thrown)
+            } else {
+                result = flatStringReturnValue(template, intArg: args, using: __kk_string_format_flat, outThrown: &thrown)
+            }
+            #expect(result.isEmpty)
+            let box = throwableBox(from: thrown)
+            #expect(box?.exceptionFQName == "java.util.\(kind)", "\(template), localized=\(localized)")
+            #expect(box?.exceptionHierarchyFQNames.contains("java.util.IllegalFormatException") == true)
+            #expect(box?.exceptionHierarchyFQNames.contains("kotlin.IllegalArgumentException") == true)
+        }
+    }
+
+    @Test
+    func testStringFormatValidatesSpecifiersAndArguments() {
+        let string = rawFromRuntimeString("s")
+        expectFormatError("%.2x", [255], "IllegalFormatPrecisionException")
+        expectFormatError("%d", [string], "IllegalFormatConversionException")
+        expectFormatError("%s %s", [string], "MissingFormatArgumentException")
+        expectFormatError("%+s", [string], "FormatFlagsConversionMismatchException")
+        expectFormatError("%05s", [string], "FormatFlagsConversionMismatchException")
+        expectFormatError("%c", [string], "IllegalFormatConversionException")
+        expectFormatError("%.2d", [5], "IllegalFormatPrecisionException")
+        expectFormatError("%8.3d", [5], "IllegalFormatPrecisionException")
+        expectFormatError("%q", [5], "UnknownFormatConversionException")
+        expectFormatError("%--5s", [string], "DuplicateFormatFlagsException")
+        expectFormatError("%-s", [string], "MissingFormatWidthException")
+        expectFormatError("%+ d", [1], "IllegalFormatFlagsException")
+        expectFormatError("%f", [kk_box_int(1)], "IllegalFormatConversionException")
+        expectFormatError("%d", [kk_box_double(Int(bitPattern: UInt(1.0.bitPattern)))], "IllegalFormatConversionException")
+        expectFormatError("%tQ", [string], "IllegalFormatConversionException")
+        expectFormatError("%c", [-1], "IllegalFormatCodePointException")
+        expectFormatError("%c", [0x110000], "IllegalFormatCodePointException")
+        expectFormatError("%i", [1], "UnknownFormatConversionException")
+        expectFormatError("%.s", [string], "UnknownFormatConversionException")
+        expectFormatError("%", [], "UnknownFormatConversionException")
+        expectFormatError("%5n", [], "IllegalFormatWidthException")
+        expectFormatError("%+%", [], "IllegalFormatFlagsException")
+        expectFormatError("%s %q", [], "UnknownFormatConversionException")
+        for template in ["%0s", "%0c", "%0tQ"] {
+            expectFormatError(template, [1], "FormatFlagsConversionMismatchException")
+        }
+        expectFormatError("%0%", [], "IllegalFormatFlagsException")
+        expectFormatError("%-.2d", [1], "MissingFormatWidthException")
+        expectFormatError("%#s", [], "MissingFormatArgumentException")
+        expectFormatError("%#s", [string], "FormatFlagsConversionMismatchException")
+        expectFormatError("%100000sX%d", [string, string], "IllegalFormatConversionException")
+        expectFormatError("%100000sX%s", [string], "MissingFormatArgumentException")
+        let null = makeRuntimeArray([runtimeNullSentinelInt])
+        #expect(flatStringReturnValue("%.2f", intArg: null, using: __kk_string_format_flat) == "nu")
+    }
+
+    @Test
+    func testStringFormatNullAndBooleanPrecision() {
+        let args = makeRuntimeArray([runtimeNullSentinelInt, kk_box_bool(1)])
+        #expect(flatStringReturnValue("%1$.2f|%1$.2h|%1$.2b|%2$.2B",
+            intArg: args, using: __kk_string_format_flat) == "nu|nu|fa|TR")
     }
 
     @Test
@@ -1436,7 +1539,7 @@ struct RuntimeStringArrayTests {
             Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern)),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%s:%d %.2f", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%s:%d %.2f", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "age:7 3.50")
     }
 
@@ -1445,11 +1548,11 @@ struct RuntimeStringArrayTests {
         let args = makeRuntimeValueArray([
             runtimeStringAggregateValue("age"),
             RuntimeValue(raw: 7),
-            runtimeStringAggregateValue("3.5"),
+            RuntimeValue(raw: kk_box_double(Int(bitPattern: UInt(3.5.bitPattern)))),
         ])
         let baselineObjectCount = kk_debugging_global_object_count()
 
-        let formatted = flatStringReturnValueNoThrow("%s:%d %.1f", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%s:%d %.1f", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "age:7 3.5")
 
         let formattedWithLocale = flatStringReturnValue(
@@ -1463,14 +1566,14 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
-    func testStringFormatSupportsFloatingSpecifiersForIntegersAndBoxedFloats() {
+    func testStringFormatSupportsLegacyRawFloatingValuesAndBoxedFloats() {
         let args = makeRuntimeArray([
             3,
             kk_box_float(Int(Float(1.5).bitPattern)),
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 2.5.bitPattern))),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%.1f %.1f %.1f", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%.1f %.1f %.1f", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "3.0 1.5 2.5")
     }
 
@@ -1489,7 +1592,7 @@ struct RuntimeStringArrayTests {
             boxDouble(1.0005),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%.2f %.1f %.1f %.0f %.0f %.2f %.3f",
             intArg: args,
             using: __kk_string_format_flat
@@ -1511,7 +1614,7 @@ struct RuntimeStringArrayTests {
             boxDouble(999999.5),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%.20f %.17g %.2e %.6g %.6g %.6g",
             intArg: args,
             using: __kk_string_format_flat
@@ -1532,7 +1635,7 @@ struct RuntimeStringArrayTests {
             boxDouble(.nan),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%g|%f|%.2f|%(f|%010E",
             intArg: args,
             using: __kk_string_format_flat
@@ -1548,12 +1651,97 @@ struct RuntimeStringArrayTests {
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%(d|%(05d|%(,.1f",
             intArg: args,
             using: __kk_string_format_flat
         )
         #expect(formatted == "(5)|(005)|(1,234.5)")
+    }
+
+    @Test
+    func testStringFormatParenthesesPreserveNonNegativeValuesAndIntegerLimits() {
+        let args = makeRuntimeArray([
+            kk_box_int(-42),
+            kk_box_int(42),
+            kk_box_int(0),
+            kk_box_int(Int(Int32.min)),
+            kk_box_long_nonnull(Int(Int64.min)),
+            kk_box_long(Int(Int64.max)),
+        ])
+
+        let formatted = flatStringReturnValue(
+            "%(d|%(d|%(d|%(d|%(d|%(d",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "(42)|42|0|(2147483648)|(9223372036854775808)|9223372036854775807")
+    }
+
+    @Test
+    func testStringFormatParenthesesCombineWithWidthSignsAndArgumentReuse() {
+        let cases: [(String, Int, String)] = [
+            ("%(6d", -42, "  (42)"),
+            ("%-(6d", -42, "(42)  "),
+            ("%(06d", -42, "(0042)"),
+            ("%(3d", -42, "(42)"),
+            ("%(06d", 42, "000042"),
+            ("%+(06d", -42, "(0042)"),
+            ("%+(06d", 42, "+00042"),
+            ("% (06d", -42, "(0042)"),
+            ("% (06d", 42, " 00042"),
+            ("%(,012d", -1234, "(000001,234)"),
+            ("%(,012d", 1234, "00000001,234"),
+            ("%1$(d|%<(06d", -42, "(42)|(0042)"),
+        ]
+        for (template, value, expected) in cases {
+            let formatted = flatStringReturnValue(
+                template,
+                intArg: makeRuntimeArray([kk_box_int(value)]),
+                using: __kk_string_format_flat
+            )
+            #expect(formatted == expected, "Template: \(template), value: \(value)")
+        }
+    }
+
+    @Test
+    func testStringFormatParenthesesCoverFloatingPointSignsAndSpecialValues() {
+        let cases: [(String, Double, String)] = [
+            ("%(010.2f", -42.5, "(00042.50)"),
+            ("%(010.2f", 42.5, "0000042.50"),
+            ("%(010.2f", -0.0, "(00000.00)"),
+            ("%(010.2f", 0.0, "0000000.00"),
+            ("%(.2e", -42.5, "(4.25e+01)"),
+            ("%(.2E", -42.5, "(4.25E+01)"),
+            ("%(.4g", -42.5, "(42.50)"),
+            ("%(012f", -.infinity, "  (Infinity)"),
+            ("%(012E", -.infinity, "  (INFINITY)"),
+            ("%(012f", .infinity, "    Infinity"),
+            ("%(012f", .nan, "         NaN"),
+        ]
+        for (template, value, expected) in cases {
+            let argument = kk_box_double_nonnull(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+            let formatted = flatStringReturnValue(
+                template,
+                intArg: makeRuntimeArray([argument]),
+                using: __kk_string_format_flat
+            )
+            #expect(formatted == expected, "Template: \(template), value: \(value)")
+        }
+    }
+
+    @Test
+    func testStringFormatParenthesesApplyAfterLocaleGroupingBeforePadding() {
+        let formatted = flatStringReturnValue(
+            "%(,012d|%(,012.2f",
+            leadingIntArg: makeLocale(language: "de", country: "DE"),
+            trailingIntArg: makeRuntimeArray([
+                kk_box_int(-1234),
+                kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
+            ]),
+            using: __kk_string_format_locale_flat
+        )
+        #expect(formatted == "(000001.234)|(001.234,50)")
     }
 
     @Test
@@ -1570,7 +1758,7 @@ struct RuntimeStringArrayTests {
             boxDouble(1.0),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%a|%A|%.2a|%a|%.1a|%010a",
             intArg: args,
             using: __kk_string_format_flat
@@ -1585,8 +1773,47 @@ struct RuntimeStringArrayTests {
             rawFromRuntimeString("age"),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%2$s:%1$d", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%2$s:%1$d", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "age:7")
+    }
+
+    @Test
+    func testStringFormatSupportsPreviousArgumentReuseFlag() {
+        func format(_ template: String, _ args: [Int]) -> String {
+            flatStringReturnValue(template, intArg: makeRuntimeArray(args), using: __kk_string_format_flat)
+        }
+
+        // `java.util.Formatter` `<` flag: reuse the argument selected by the
+        // previous specifier without consuming the ordinary index.
+        #expect(format("%s %<s", [rawFromRuntimeString("x")]) == "x x")
+        #expect(format("%d|%03d|%<d", [7, 8]) == "7|008|8")
+        #expect(format("%1$s %<s", [rawFromRuntimeString("a")]) == "a a")
+        #expect(format("%s %s %<s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "a b b b")
+        #expect(format("%s %<s %s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a b")
+        #expect(format("%2$s %s %<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+            rawFromRuntimeString("c"),
+        ]) == "b a a")
+        #expect(format("%d %<05d %<d", [42]) == "42 00042 42")
+        #expect(format("%s %<d", [7]) == "7 7")
+        #expect(format("%s|%<5s|%-<5s", [rawFromRuntimeString("x")]) == "x|    x|x    ")
+
+        // The `<` flag overrides an explicit `%n$` index, matching
+        // `java.util.Formatter`.
+        #expect(format("%s %2$<s", [
+            rawFromRuntimeString("a"),
+            rawFromRuntimeString("b"),
+        ]) == "a a")
+
+        expectFormatError("%<s", [rawFromRuntimeString("x")], "MissingFormatArgumentException")
     }
 
     @Test
@@ -1597,8 +1824,52 @@ struct RuntimeStringArrayTests {
             runtimeNullSentinelInt,
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%b %B %b", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%b %B %b", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "true FALSE false")
+    }
+
+    @Test
+    func testStringFormatBooleanSpecifierUsesJavaTruthinessForNonBooleans() {
+        let args = makeRuntimeValueArray([
+            runtimeStringAggregateValue(""),
+            RuntimeValue(raw: 0),
+            RuntimeValue(raw: 1),
+            RuntimeValue(raw: kk_box_bool(0)),
+            RuntimeValue(raw: kk_box_bool(1)),
+            RuntimeValue(raw: runtimeNullSentinelInt),
+        ])
+
+        let formatted = flatStringReturnValue(
+            "%b %b %b %b %b %b",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "true true true false true false")
+    }
+
+    @Test
+    func testStringFormatStringPrecisionUsesUTF16CodeUnits() {
+        func format(_ template: String, _ argument: String) -> String {
+            let args = makeRuntimeArray([rawFromRuntimeString(argument)])
+            return flatStringReturnValue(template, intArg: args, using: __kk_string_format_flat)
+        }
+
+        // U+10000 (𐀀) is one grapheme / two UTF-16 units. Precision 3 keeps the
+        // high surrogate; precision 2 stops before the pair; precision 4 keeps it.
+        let supplementary = "ab\u{10000}cd"
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.3s", supplementary)) == [0x61, 0x62, 0xD800])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.2s", supplementary)) == [0x61, 0x62])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.4s", supplementary)) == [0x61, 0x62, 0xD800, 0xDC00])
+
+        // NFD "é" is two UTF-16 units (e + combining acute). Precision 3 is e, ◌́, a.
+        let combining = "e\u{0301}abc"
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.3s", combining)) == [0x65, 0x0301, 0x61])
+        #expect(runtimeKotlinStringUTF16CodeUnits(format("%.1s", combining)) == [0x65])
+
+        #expect(format("%.3s", "hello") == "hel")
+        #expect(format("%.0s", "hello") == "")
+        #expect(format("%.10s", "hi") == "hi")
+        #expect(format("%.2S", "abcd") == "AB")
     }
 
     @Test
@@ -1607,7 +1878,7 @@ struct RuntimeStringArrayTests {
         let unsigned = Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
         let args = makeRuntimeArray([signed, unsigned])
 
-        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%d %x", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "9223372036854775807 ffffffffffffffff")
     }
 
@@ -1617,7 +1888,7 @@ struct RuntimeStringArrayTests {
         let boxedUnsigned = kk_box_long(Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
         let args = makeRuntimeArray([boxedSigned, boxedUnsigned])
 
-        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%d %x", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "9223372036854775807 ffffffffffffffff")
     }
 
@@ -1631,7 +1902,7 @@ struct RuntimeStringArrayTests {
             kk_box_long(-8),
         ])
 
-        let formatted = flatStringReturnValueNoThrow(
+        let formatted = flatStringReturnValue(
             "%x %x %X %o %o",
             intArg: args,
             using: __kk_string_format_flat
@@ -1652,41 +1923,39 @@ struct RuntimeStringArrayTests {
             kk_box_bool(1),
         ])
 
-        let formatted = flatStringReturnValueNoThrow("%s %s %s %s %s", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%s %s %s %s %s", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "9223372036854775807 1.5 2.5 A true")
     }
 
     @Test
     func testStringFormatSupportsEscapedPercentWithoutArguments() {
-        let formatted = flatStringReturnValueNoThrow("progress=100%%", intArg: kk_array_new(0), using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("progress=100%%", intArg: kk_array_new(0), using: __kk_string_format_flat)
         #expect(formatted == "progress=100%")
     }
 
     @Test
-    func testStringFormatTreatsUnsupportedUnsignedConversionAsLiteral() {
-        let args = makeRuntimeArray([7])
-        let formatted = flatStringReturnValueNoThrow("%u", intArg: args, using: __kk_string_format_flat)
-        #expect(formatted == "%u")
+    func testStringFormatRejectsUnsupportedUnsignedConversion() {
+        expectFormatError("%u", [7], "UnknownFormatConversionException")
     }
 
     @Test
     func testStringFormatGroupsIntegersForGroupingFlag() {
         let args = makeRuntimeArray([1234567])
-        let formatted = flatStringReturnValueNoThrow("%,d", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%,d", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "1,234,567")
     }
 
     @Test
     func testStringFormatZeroPadsGroupedIntegersAfterGrouping() {
         let args = makeRuntimeArray([1234])
-        let formatted = flatStringReturnValueNoThrow("%,012d", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%,012d", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "00000001,234")
     }
 
     @Test
     func testStringFormatSupportsScientificNotationForDouble() {
         let args = makeRuntimeArray([kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1234.5.bitPattern)))])
-        let formatted = flatStringReturnValueNoThrow("%.2e", intArg: args, using: __kk_string_format_flat)
+        let formatted = flatStringReturnValue("%.2e", intArg: args, using: __kk_string_format_flat)
         #expect(formatted == "1.23e+03")
     }
 
@@ -1739,6 +2008,102 @@ struct RuntimeStringArrayTests {
         #expect(formatted == "3.5")
     }
 
+    @Test
+    func testStringFormatRejectsIntMaxPrecisionWithoutTrap() {
+        expectFormatError("%.9223372036854775807f", [], "IllegalFormatPrecisionException")
+        expectFormatError("%.99999999999999999999f", [], "IllegalFormatPrecisionException")
+    }
+
+    @Test
+    func testStringFormatRejectsLargeWidthWithoutAllocationFailure() {
+        expectFormatError("%9223372036854775807d", [], "IllegalFormatWidthException")
+        expectFormatError("%100001d", [], "IllegalFormatWidthException")
+    }
+
+    @Test
+    func testStringFormatEnforcesCumulativeBudgetAcrossMultipleSpecifiers() {
+        let str = rawFromRuntimeString("x")
+        let args = makeRuntimeArray([str, str])
+        let formatted = flatStringReturnValue("%60000s%60000s", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted.count <= 100_000)
+        #expect(formatted.count == 60_000)
+    }
+
+    @Test
+    func testStringFormatExactBoundaryHandling() {
+        let str = rawFromRuntimeString("x")
+        let args1 = makeRuntimeArray([str])
+        let formattedWidthBoundary = flatStringReturnValue("%100000s", intArg: args1, using: __kk_string_format_flat)
+        #expect(formattedWidthBoundary.count == 100_000)
+        #expect(formattedWidthBoundary.hasSuffix("x"))
+
+        let args2 = makeRuntimeArray([str, str])
+        let formattedBudgetBoundary = flatStringReturnValue("%50000s%50000s", intArg: args2, using: __kk_string_format_flat)
+        #expect(formattedBudgetBoundary.count == 100_000)
+    }
+
+    @Test
+    func testStringFormatSupportsHexHashCodeConversion() {
+        let args = makeRuntimeArray([
+            rawFromRuntimeString("abc"),
+            runtimeNullSentinelInt,
+            42,
+        ])
+        let formatted = flatStringReturnValue(
+            "%1$h %2$h %3$h %1$H %1$8h",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "17862 null 2a 17862    17862")
+    }
+
+    @Test
+    func testStringFormatSupportsDateTimeEpochConversions() {
+        let millis = 1_700_000_000_123
+        let args = makeRuntimeArray([millis, runtimeNullSentinelInt])
+        let formatted = flatStringReturnValue(
+            "%1$tQ %1$ts %2$tQ",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "1700000000123 1700000000 null")
+    }
+
+    @Test
+    func testStringFormatDateTimeUsesLocalCalendarFields() {
+        let millis: Int64 = 1_704_067_200_000
+        let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let year = calendar.component(.year, from: date)
+        let month = calendar.component(.month, from: date)
+        let day = calendar.component(.day, from: date)
+        let args = makeRuntimeArray([Int(millis)])
+        let formatted = flatStringReturnValue(
+            "%1$tY %1$tm %1$td %1$tF",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        let expected = String(format: "%04d %02d %02d %04d-%02d-%02d", year, month, day, year, month, day)
+        #expect(formatted == expected)
+    }
+
+    @Test
+    func testStringFormatDateTimeSupportsInstantBox() {
+        let millis = 1_700_000_000_123
+        let instant = kk_instant_from_epoch_millis(millis)
+        let args = makeRuntimeArray([instant])
+        let formatted = flatStringReturnValue("%1$tQ %1$ts", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted == "1700000000123 1700000000")
+    }
+
+    @Test
+    func testStringFormatMixedStringAndHashConversions() {
+        let args = makeRuntimeArray([42, 42])
+        let formatted = flatStringReturnValue("%s %h", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted == "42 2a")
+    }
+
     // MARK: - __kk_throwable_new
 
     @Test
@@ -1777,6 +2142,32 @@ struct RuntimeStringArrayTests {
             #expect(__kk_throwable_message(throwable) == runtimeNullSentinelInt)
             #expect(__kk_throwable_cause(throwable) == runtimeNullSentinelInt)
         }
+    }
+
+    /// Runtime-allocated throwables have no Kotlin vtable; the open `message`
+    /// and `cause` getter slots must resolve to raw-ABI runtime bridges.
+    @Test
+    func testThrowableVtableLookupResolvesMessageAndCauseSlots() {
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("inner")))
+        let throwable = Int(bitPattern: __kk_throwable_new_with_cause(makeRuntimeString("outer"), cause))
+        typealias Getter = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
+        let messageGetter = unsafeBitCast(
+            kk_vtable_lookup(throwable, RuntimeThrowableVtableSlot.message),
+            to: Getter.self
+        )
+        var thrown = -1
+        #expect(runtimeStringValue(messageGetter(throwable, &thrown)) == "outer")
+        #expect(thrown == 0)
+
+        let causeGetter = unsafeBitCast(
+            kk_vtable_lookup(throwable, RuntimeThrowableVtableSlot.cause),
+            to: Getter.self
+        )
+        #expect(causeGetter(throwable, nil) == cause)
+
+        let noMessage = Int(bitPattern: __kk_throwable_new(nil))
+        #expect(messageGetter(noMessage, nil) == runtimeNullSentinelInt)
     }
 
     @Test
@@ -1835,16 +2226,24 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
-    func testThrowableRawStackFramesReturnsMessageHeader() {
+    func testThrowableRawStackFramesReturnsQualifiedHeaderAndSavedFrames() throws {
         let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("print me")))
 
         let frames = __kk_throwable_rawStackFrames(throwable)
-        #expect(kk_array_size(frames) == 1)
+        let box = try #require(throwableBox(from: throwable))
+        #expect(kk_array_size(frames) == box.stackTraceAddresses.count + 1)
 
         var thrown = 0
         let frameRaw = kk_array_get(frames, 0, &thrown)
         #expect(thrown == 0)
-        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)) == "print me")
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: frameRaw)) == "java.lang.Throwable: print me")
+        let savedLines = runtimeThrowableStackFrameLines(box.stackTraceAddresses)
+        #expect(!savedLines.isEmpty)
+        for (index, savedLine) in savedLines.enumerated() {
+            let raw = kk_array_get(frames, index + 1, &thrown)
+            #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) == savedLine)
+            #expect(savedLine.hasPrefix("\tat "))
+        }
     }
 
     @Test
@@ -1874,17 +2273,39 @@ struct RuntimeStringArrayTests {
 
     @Test
     func testArrayOfNullsCreatesNullableSlots() {
-        let array = kk_array_of_nulls(3)
+        var thrown = 0
+        let array = kk_array_of_nulls(3, &thrown)
+        #expect(thrown == 0)
         #expect(array != 0)
         #expect(kk_array_size(array) == 3)
 
-        var thrown = 0
         #expect(kk_array_get(array, 0, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
         #expect(kk_array_get(array, 1, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
         #expect(kk_array_get(array, 2, &thrown) == runtimeNullSentinelInt)
         #expect(thrown == 0)
+    }
+
+    @Test
+    func testArrayOfNullsNegativeSizeThrowsNegativeArraySizeException() throws {
+        var thrown = 0
+        let array = kk_array_of_nulls(-1, &thrown)
+
+        #expect(array == 0)
+        #expect(thrown != 0)
+        let ptr = try #require(
+            UnsafeMutableRawPointer(bitPattern: thrown),
+            "negative arrayOfNulls must return a throwable"
+        )
+        let box = try #require(
+            tryCast(ptr, to: RuntimeThrowableBox.self),
+            "negative arrayOfNulls must return a RuntimeThrowableBox"
+        )
+        #expect(
+            box.exceptionHierarchyFQNames.contains("kotlin.NegativeArraySizeException"),
+            "negative arrayOfNulls must throw NegativeArraySizeException"
+        )
     }
 
     // MARK: - kk_array_get / kk_array_set
@@ -2023,6 +2444,57 @@ struct RuntimeStringArrayTests {
         #expect(output.contains("some error"))
     }
 
+    // MARK: - kk_array_fill (KUU-554)
+
+    @Test
+    func testArrayFillWritesEveryElement() {
+        let array = kk_array_new(4)
+        var thrown = 0
+        _ = kk_array_set(array, 0, 1, &thrown)
+        _ = kk_array_fill(array, 7)
+        for index in 0 ..< 4 {
+            #expect(kk_array_get(array, index, &thrown) == 7)
+            #expect(thrown == 0)
+        }
+    }
+
+    @Test
+    func testArrayFillPreservesAnyFallbackTags() {
+        // fill must behave like repeated kk_array_set: overwrite the payload
+        // while keeping each slot's anyFallbackTag for Any-erased dispatch.
+        let array = kk_array_new(3)
+        _ = kk_array_set_typed(array, 0, 10, 8)
+        _ = kk_array_set_typed(array, 1, 20, 5)
+        _ = kk_array_set_typed(array, 2, 30, 7)
+        _ = kk_array_fill(array, 0)
+        let box = runtimeArrayBox(from: array)
+        #expect(box?.values.map(\.anyFallbackTag) == [8, 5, 7])
+        #expect(box?.values.map(\.legacyRawValue) == [0, 0, 0])
+    }
+
+    @Test
+    func testArrayFillLargeArray() {
+        // Exercises the O(n) subscript path; the previous elements[i] loop was
+        // O(n²) and could not complete at this size.
+        let array = kk_array_new(100_000)
+        _ = kk_array_fill(array, 42)
+        var thrown = 0
+        #expect(kk_array_get(array, 0, &thrown) == 42)
+        #expect(kk_array_get(array, 99_999, &thrown) == 42)
+        #expect(thrown == 0)
+    }
+
+    @Test
+    func testArrayCopyOfPreservesAnyFallbackTags() {
+        let array = kk_array_new(2)
+        _ = kk_array_set_typed(array, 0, 10, 8)
+        _ = kk_array_set_typed(array, 1, 20, 6)
+        let copy = __kk_array_copyOf(array)
+        let box = runtimeArrayBox(from: copy)
+        #expect(box?.values.map(\.anyFallbackTag) == [8, 6])
+        #expect(box?.values.map(\.legacyRawValue) == [10, 20])
+    }
+
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
 
@@ -2066,74 +2538,6 @@ struct RuntimeStringArrayTests {
         return array
     }
 
-    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
-        makeRuntimeValueArray(values.map(runtimeStringAggregateValue))
-    }
-
-    private func makeRuntimeValueList(_ values: [RuntimeValue]) -> Int {
-        registerRuntimeObject(RuntimeListBox(values: values))
-    }
-
-    private func assertFindAnyOfPair(
-        _ pairRaw: Int,
-        offset: Int,
-        match: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        #expect(pairRaw != runtimeNullSentinelInt)
-        guard pairRaw != runtimeNullSentinelInt,
-              let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
-              let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
-        else {
-            Issue.record("Expected RuntimePairBox result")
-            return
-        }
-        #expect(pairBox.firstValue.tag == RuntimeValue.rawTag)
-        #expect(pairBox.firstValue.payload0 == offset)
-        #expect(pairBox.secondValue.tag == RuntimeValue.stringTag)
-        #expect(runtimeRenderAnyForPrint(pairBox.secondValue) == match)
-        #expect(kk_pair_first(pairRaw) == offset)
-        #expect(runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function) == match)
-    }
-
-    private func assertStringValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [String],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
-            return
-        }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue) == expected)
-    }
-
-    private func assertRawValueSequence(
-        _ sequenceRaw: Int,
-        equals expected: [Int],
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
-            Issue.record("Expected a RuntimeSequenceBox")
-            return
-        }
-        guard case let .valueSource(values)? = sequence.steps.first else {
-            Issue.record("Expected aggregate RuntimeValue sequence source")
-            return
-        }
-        #expect(values.map(\.tag) == Array(repeating: RuntimeValue.rawTag, count: expected.count))
-        #expect(values.map(\.payload0) == expected)
-        #expect(runtimeSequenceSourceElements(from: sequenceRaw) == expected)
-    }
-
     private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
         var length = 0
         var byteCount = 0
@@ -2154,20 +2558,6 @@ struct RuntimeStringArrayTests {
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func runtimeFlatStringValue(_ value: RuntimeValue) -> String {
-        guard value.tag == RuntimeValue.stringTag,
-              let data = UnsafePointer<UInt8>(bitPattern: value.payload0)
-        else {
-            return ""
-        }
-        return runtimeStringFromFlatFields(
-            data: data,
-            length: value.payload1,
-            byteCount: value.payload2,
-            hash: value.payload3
-        )
     }
 }
 #endif

@@ -26,54 +26,54 @@ extension LibraryMetadataCacheBehaviorTests {
         try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
         try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
-        // Load without cache
-        var symbolNames1: [String] = []
+        let sharedInterner = StringInterner()
+
+        // Share the interner so FQName identities can be compared across both loads.
+        var symbolFQNames1: [[InternedString]] = []
         try withTemporaryFile(contents: "fun main() = 0") { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "NoCacheApp", emit: .kirDump, searchPaths: [libDir.path])
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
-                diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns
+                diagnostics: diagnostics, interner: sharedInterner,
+                importedInlineFunctions: inlineFns
                 // cache: nil (default)
             )
-            symbolNames1 = symbols.allSymbols()
+            symbolFQNames1 = symbols.allSymbols()
                 .filter { $0.flags.contains(.synthetic) }
-                .map { interner.resolve($0.name) }
-                .sorted()
+                .map(\.fqName)
+                .sorted { $0.map(\.rawValue).lexicographicallyPrecedes($1.map(\.rawValue)) }
         }
 
         // Load with explicit nil cache
-        var symbolNames2: [String] = []
+        var symbolFQNames2: [[InternedString]] = []
         try withTemporaryFile(contents: "fun main() = 0") { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "NilCacheApp", emit: .kirDump, searchPaths: [libDir.path])
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
-                diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                diagnostics: diagnostics, interner: sharedInterner,
+                importedInlineFunctions: inlineFns,
                 cache: nil
             )
-            symbolNames2 = symbols.allSymbols()
+            symbolFQNames2 = symbols.allSymbols()
                 .filter { $0.flags.contains(.synthetic) }
-                .map { interner.resolve($0.name) }
-                .sorted()
+                .map(\.fqName)
+                .sorted { $0.map(\.rawValue).lexicographicallyPrecedes($1.map(\.rawValue)) }
         }
 
-        #expect(symbolNames1 == symbolNames2, "cache=nil should produce identical symbols as no cache parameter")
-        let hasAdd = symbolNames1.contains("add")
+        #expect(symbolFQNames1 == symbolFQNames2, "cache=nil should produce identical symbols as no cache parameter")
+        let hasAdd = symbolFQNames1.contains(["nilcache", "add"].map(sharedInterner.intern))
         #expect(hasAdd, "Should contain function 'add'")
-        let hasVersion = symbolNames1.contains("version")
+        let hasVersion = symbolFQNames1.contains(["nilcache", "version"].map(sharedInterner.intern))
         #expect(hasVersion, "Should contain property 'version'")
-        let hasNoop = symbolNames1.contains("noop")
+        let hasNoop = symbolFQNames1.contains(["nilcache", "noop"].map(sharedInterner.intern))
         #expect(hasNoop, "Should contain function 'noop'")
     }
 
@@ -110,18 +110,22 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
             // Verify symbols
-            let calcSymbol = symbols.allSymbols().first { interner.resolve($0.name) == "calc" && $0.kind == .function }
+            let calcSymbol = symbols.lookupAll(fqName: ["pop", "calc"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .function }
             #expect(calcSymbol != nil, "Function 'calc' should be imported")
-            let valSymbol = symbols.allSymbols().first { interner.resolve($0.name) == "val" && $0.kind == .property }
+            let valSymbol = symbols.lookupAll(fqName: ["pop", "val"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .property }
             #expect(valSymbol != nil, "Property 'val' should be imported")
 
             // Verify function signature is correct
@@ -178,17 +182,23 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
-            let fnSym = symbols.allSymbols().first { interner.resolve($0.name) == "fn" && $0.kind == .function }
-            let propSym = symbols.allSymbols().first { interner.resolve($0.name) == "prop" && $0.kind == .property }
-            let taSym = symbols.allSymbols().first { interner.resolve($0.name) == "MyInt" && $0.kind == .typeAlias }
+            let fnSym = symbols.lookupAll(fqName: ["mixed", "fn"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .function }
+            let propSym = symbols.lookupAll(fqName: ["mixed", "prop"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .property }
+            let taSym = symbols.lookupAll(fqName: ["mixed", "MyInt"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .typeAlias }
             #expect(fnSym != nil, "Function should be imported")
             #expect(propSym != nil, "Property should be imported")
             #expect(taSym != nil, "TypeAlias should be imported")
@@ -227,11 +237,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -251,11 +261,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 

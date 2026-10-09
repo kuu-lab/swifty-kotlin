@@ -17,11 +17,11 @@ internal external fun __charLowercaseString(code: Int): String
 @KsSymbolName("__kk_char_titlecase_string")
 internal external fun __charTitlecaseString(code: Int): String
 
-/// One-to-one uppercase mapping; returns -1 for multi-scalar or undefined mappings.
+/// Simple (one-to-one) uppercase mapping; returns -1 for surrogate code units.
 @KsSymbolName("__kk_char_uppercase_code")
 internal external fun __charUppercaseCode(code: Int): Int
 
-/// One-to-one lowercase mapping; returns -1 for undefined mappings.
+/// Simple (one-to-one) lowercase mapping; returns -1 for surrogate code units.
 @KsSymbolName("__kk_char_lowercase_code")
 internal external fun __charLowercaseCode(code: Int): Int
 
@@ -41,6 +41,7 @@ internal external fun __charLowercaseLocale(code: Int, locale: java.util.Locale)
 
 /// Builds a Char from a code point by reusing the existing Int.toChar() conversion.
 @KsSymbolName("kk_int_to_char")
+@PublishedApi
 internal external fun __charFromCode(code: Int): Char
 
 private const val CHAR_CODE_ZERO = 48 // '0'
@@ -56,6 +57,29 @@ public fun Char.uppercase(locale: java.util.Locale): String = __charUppercaseLoc
 
 public fun Char.lowercase(locale: java.util.Locale): String = __charLowercaseLocale(this.code, locale)
 
+/**
+ * Converts this character to title case using Unicode mapping rules of the specified [locale].
+ *
+ * This function supports one-to-many character mapping, thus the length of the returned
+ * string can be greater than one. If this character has no title case mapping, the result
+ * of `uppercase(locale)` is returned instead.
+ */
+@SinceKotlin("1.5")
+public fun Char.titlecase(locale: java.util.Locale): String {
+    val localizedUppercase = uppercase(locale)
+    if (localizedUppercase.length > 1) {
+        return if (this == 'ŉ') {
+            localizedUppercase
+        } else {
+            localizedUppercase.substring(0, 1) + localizedUppercase.substring(1).lowercase()
+        }
+    }
+    if (localizedUppercase != uppercase()) {
+        return localizedUppercase
+    }
+    return titlecaseChar().toString()
+}
+
 public fun Char.uppercaseChar(): Char {
     val mapped = __charUppercaseCode(this.code)
     return if (mapped < 0) this else __charFromCode(mapped)
@@ -70,6 +94,43 @@ public fun Char.titlecaseChar(): Char {
     val mapped = __charTitlecaseCode(this.code)
     return if (mapped < 0) uppercaseChar() else __charFromCode(mapped)
 }
+
+/**
+ * Converts this character to lower case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use lowercaseChar() instead.", ReplaceWith("lowercaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toLowerCase(): Char = lowercaseChar()
+
+/**
+ * Converts this character to upper case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use uppercaseChar() instead.", ReplaceWith("uppercaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toUpperCase(): Char = uppercaseChar()
+
+/**
+ * Converts this character to title case using Unicode mapping rules of the invariant locale.
+ *
+ * Deprecated by Kotlin, but still provided for compatibility.
+ */
+@Deprecated("Use titlecaseChar() instead.", ReplaceWith("titlecaseChar()"))
+@DeprecatedSinceKotlin(warningSince = "1.5", errorSince = "2.1")
+public fun Char.toTitleCase(): Char = titlecaseChar()
+
+/**
+ * Returns this character incremented by one UTF-16 code unit.
+ */
+public operator fun Char.inc(): Char = __charFromCode(this.code + 1)
+
+/**
+ * Returns this character decremented by one UTF-16 code unit.
+ */
+public operator fun Char.dec(): Char = __charFromCode(this.code - 1)
 
 public fun Char.digitToInt(): Int = digitToInt(10)
 

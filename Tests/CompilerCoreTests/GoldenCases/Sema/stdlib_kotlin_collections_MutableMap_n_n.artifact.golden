@@ -1,0 +1,72 @@
+symbol fq=__destructuring_0.key[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=__destructuring_0.value[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<Any, Any>
+symbol fq=__local_1.map[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
+symbol fq=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableMap.MutableEntry<String, Int>
+symbol fq=__local_3.pair[kind=local;type=kotlin.Pair<String,Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.Pair<String, Int>
+symbol fq=__local_4.previous[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_5.nullableMap[kind=local;type=kotlin.collections.MutableMap<String?,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String?, Int?>
+symbol fq=__local_6.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableMap.MutableEntry<String?, Int?>
+symbol fq=__local_7.nullableKey[kind=local;type=String?;origin=fixture] kind=local vis=private flags=_ type=String?
+symbol fq=__local_8.nullableValue[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=__local_9.nullablePrevious[kind=local;type=Int?;origin=fixture] kind=local vis=private flags=_ type=Int?
+symbol fq=main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=readOnly.$0.K[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=readOnly.$0.V[kind=tparam;origin=fixture] kind=typeParameter vis=private flags=_
+symbol fq=readOnly.$0.entry[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=readOnly[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<T0,T1>;ret=kotlin.collections.Map.Entry<T0,T1>;gen=2;names=[entry];origin=fixture] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.collections.MutableMap.MutableEntry<readOnly.$0.K, readOnly.$0.V>] ret=kotlin.collections.Map.Entry<readOnly.$0.K, readOnly.$0.V>
+symbol fq=show.$1.entry[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=show[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<String,Int>;ret=kotlin.Pair<String,Int>;names=[entry];origin=fixture] kind=function vis=private flags=_ sig=recv=_ params=[kotlin.collections.MutableMap.MutableEntry<String, Int>] ret=kotlin.Pair<String, Int>
+file fstdlib_kotlin_collections_MutableMap_n_n package=_
+  decl readOnly[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<T0,T1>;ret=kotlin.collections.Map.Entry<T0,T1>;gen=2;names=[entry];origin=fixture] fun readOnly sym=readOnly[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<T0,T1>;ret=kotlin.collections.Map.Entry<T0,T1>;gen=2;names=[entry];origin=fixture]
+  decl show[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<String,Int>;ret=kotlin.Pair<String,Int>;names=[entry];origin=fixture] fun show sym=show[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<String,Int>;ret=kotlin.Pair<String,Int>;names=[entry];origin=fixture]
+  decl main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@2:86 name(entry) type=kotlin.collections.MutableMap.MutableEntry<readOnly.$0.K, readOnly.$0.V> ref=readOnly.$0.entry[kind=vparam;origin=fixture]
+expr e@5:46 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=show.$1.entry[kind=vparam;origin=fixture]
+expr e@5:37 call callee=e@5:37#1 args=[_:e@5:46] type=kotlin.collections.Map.Entry<String, Int> call=readOnly[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<T0,T1>;ret=kotlin.collections.Map.Entry<T0,T1>;gen=2;names=[entry];origin=fixture] targs=[String,Int]
+expr e@5:5 localDecl wide mutable=0 type=Map.Entry<Any,Any> init=e@5:37 type=Unit ref=__local_0.wide[kind=local;type=kotlin.collections.Map.Entry<Any,Any>;origin=fixture]
+expr e@6:24 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=show.$1.entry[kind=vparam;origin=fixture]
+expr e@6:5 destructuringDecl names=[key,value] mutable=0 init=e@6:24 type=Unit
+expr e@7:17 name(key) type=String ref=__destructuring_0.key[kind=local;type=String;origin=fixture]
+expr e@7:22 name(value) type=Int ref=__destructuring_0.value[kind=local;type=Int;origin=fixture]
+expr e@7:12 call callee=e@7:12#1 args=[_:e@7:17,_:e@7:22] type=kotlin.Pair<String, Int> call=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;ret=kotlin.Pair<T0,T1>;gen=2;classGen=2;names=[first,second]] targs=[String,Int]
+expr e@7:5 return value=e@7:12 type=Nothing
+expr e@11:28 string(key) type=String
+expr e@11:37 int(1) type=Int
+expr e@11:28#1 memberCall recv=e@11:28 callee=to args=[_:e@11:37] type=kotlin.Pair<String, Int> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[String,Int]
+expr e@11:15 call callee=e@11:15#1 args=[_:e@11:28#1] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.mutableMapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.MutableMap<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String,Int]
+expr e@11:5 localDecl map mutable=0 type=_ init=e@11:15 type=Unit ref=__local_1.map[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
+expr e@12:55 name(map) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.map[kind=local;type=kotlin.collections.MutableMap<String,Int>;origin=fixture]
+expr e@12:55#1 memberCall recv=e@12:55 callee=entries args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<String, Int>> ref=kotlin.collections.MutableMap.entries[kind=prop;type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<T0,T1>>]
+expr e@12:55#2 memberCall recv=e@12:55#1 callee=iterator args=[] type=kotlin.collections.MutableIterator<out kotlin.collections.MutableMap.MutableEntry<String, Int>> call=kotlin.collections.MutableIterable.iterator[kind=fun;recv=kotlin.collections.MutableIterable<T0>;params=;ret=kotlin.collections.MutableIterator<T0>;gen=1;classGen=1]
+expr e@12:55#3 memberCall recv=e@12:55#2 callee=next args=[] type=kotlin.collections.MutableMap.MutableEntry<String, Int> call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=T0;gen=1;classGen=1] targs=[kotlin.collections.MutableMap.MutableEntry<String, Int>]
+expr e@12:5 localDecl entry mutable=0 type=MutableMap.MutableEntry<String,Int> init=e@12:55#3 type=Unit ref=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
+expr e@13:40 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
+expr e@13:35 call callee=e@13:35#1 args=[_:e@13:40] type=kotlin.Pair<String, Int> call=show[kind=fun;params=kotlin.collections.MutableMap.MutableEntry<String,Int>;ret=kotlin.Pair<String,Int>;names=[entry];origin=fixture]
+expr e@13:5 localDecl pair mutable=0 type=Pair<String,Int> init=e@13:35 type=Unit ref=__local_3.pair[kind=local;type=kotlin.Pair<String,Int>;origin=fixture]
+expr e@14:25 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int> ref=__local_2.entry[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String,Int>;origin=fixture]
+expr e@14:40 int(42) type=Int
+expr e@14:25#1 memberCall recv=e@14:25 callee=setValue args=[_:e@14:40] type=Int call=kotlin.collections.MutableMap.MutableEntry.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;classGen=2;names=[newValue]] targs=[String,Int]
+expr e@14:5 localDecl previous mutable=0 type=Int init=e@14:25#1 type=Unit ref=__local_4.previous[kind=local;type=Int;origin=fixture]
+expr e@16:51 name(null) type=Nothing?
+expr e@16:59 name(null) type=Nothing?
+expr e@16:51#1 memberCall recv=e@16:51 callee=to args=[_:e@16:59] type=kotlin.Pair<Nothing?, Nothing?> call=kotlin.to[kind=fun;recv=T0;params=T1;ret=kotlin.Pair<T0,T1>;gen=2;names=[that]] targs=[Nothing?,Nothing?]
+expr e@16:23 call callee=e@16:23#1 args=[_:e@16:51#1] type=kotlin.collections.MutableMap<String?, Int?> call=kotlin.collections.mutableMapOf[kind=fun;params=*kotlin.Pair<T0,T1>;ret=kotlin.collections.MutableMap<T0,T1>;gen=2;vararg=[1];names=[pairs]] targs=[String?,Int?]
+expr e@16:5 localDecl nullableMap mutable=0 type=_ init=e@16:23 type=Unit ref=__local_5.nullableMap[kind=local;type=kotlin.collections.MutableMap<String?,Int?>;origin=fixture]
+expr e@17:60 name(nullableMap) type=kotlin.collections.MutableMap<String?, Int?> ref=__local_5.nullableMap[kind=local;type=kotlin.collections.MutableMap<String?,Int?>;origin=fixture]
+expr e@17:60#1 memberCall recv=e@17:60 callee=entries args=[] type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<String?, Int?>> ref=kotlin.collections.MutableMap.entries[kind=prop;type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<T0,T1>>]
+expr e@17:60#2 memberCall recv=e@17:60#1 callee=iterator args=[] type=kotlin.collections.MutableIterator<out kotlin.collections.MutableMap.MutableEntry<String?, Int?>> call=kotlin.collections.MutableIterable.iterator[kind=fun;recv=kotlin.collections.MutableIterable<T0>;params=;ret=kotlin.collections.MutableIterator<T0>;gen=1;classGen=1]
+expr e@17:60#3 memberCall recv=e@17:60#2 callee=next args=[] type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;ret=T0;gen=1;classGen=1] targs=[kotlin.collections.MutableMap.MutableEntry<String?, Int?>]
+expr e@17:5 localDecl nullable mutable=0 type=MutableMap.MutableEntry<String?,Int?> init=e@17:60#3 type=Unit ref=__local_6.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
+expr e@18:32 name(nullable) type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> ref=__local_6.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
+expr e@18:32#1 memberCall recv=e@18:32 callee=key args=[] type=String? ref=kotlin.collections.Map.Entry.key[kind=prop;type=T0]
+expr e@18:5 localDecl nullableKey mutable=0 type=String? init=e@18:32#1 type=Unit ref=__local_7.nullableKey[kind=local;type=String?;origin=fixture]
+expr e@19:31 name(nullable) type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> ref=__local_6.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
+expr e@19:31#1 memberCall recv=e@19:31 callee=value args=[] type=Int? ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
+expr e@19:5 localDecl nullableValue mutable=0 type=Int? init=e@19:31#1 type=Unit ref=__local_8.nullableValue[kind=local;type=Int?;origin=fixture]
+expr e@20:34 name(nullable) type=kotlin.collections.MutableMap.MutableEntry<String?, Int?> ref=__local_6.nullable[kind=local;type=kotlin.collections.MutableMap.MutableEntry<String?,Int?>;origin=fixture]
+expr e@20:52 int(7) type=Int
+expr e@20:34#1 memberCall recv=e@20:34 callee=setValue args=[_:e@20:52] type=Int? call=kotlin.collections.MutableMap.MutableEntry.setValue[kind=fun;recv=kotlin.collections.MutableMap.MutableEntry<T0,T1>;params=T1;ret=T1;gen=2;classGen=2;names=[newValue]] targs=[String?,Int?]
+expr e@20:5 localDecl nullablePrevious mutable=0 type=Int? init=e@20:34#1 type=Unit ref=__local_9.nullablePrevious[kind=local;type=Int?;origin=fixture]
+section stdlib-targets
+target fq=kotlin.collections.MutableMap.MutableEntry[kind=iface;gen=2] origin=importedLibrary kind=interface vis=public flags=synthetic tparams=[T0,T1] supertypes=[kotlin.collections.Map.Entry<out kotlin.collections.MutableMap.MutableEntry.K, out kotlin.collections.MutableMap.MutableEntry.V>]

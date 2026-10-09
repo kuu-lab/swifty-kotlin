@@ -10,7 +10,9 @@ import kotlin.internal.KsSymbolName
 //
 // These map directly to @_cdecl functions in RuntimeCollections.swift and
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
-// parameter layout: null array + count=0 produces a fresh mutable collection.
+// parameter layout: null array + count=0 produces a fresh collection. Map's
+// `__kk_map_of` is the read-only `Map` tag (KUU-646); mutable map factories
+// go through `__kk_linked_hash_map_of` / `__kk_hash_map_of`.
 
 @KsSymbolName("__kk_emptyList")
 private external fun <T> __kk_emptyList(): List<T>
@@ -29,6 +31,12 @@ private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
 @KsSymbolName("__kk_map_of")
 private external fun <K, V> __kk_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
+
+@KsSymbolName("__kk_linked_hash_map_of")
+private external fun <K, V> __kk_linked_hash_map_of(keys: Any?, values: Any?, count: Int): MutableMap<K, V>
+
+@KsSymbolName("__kk_builder_map_freeze")
+private external fun <K, V> __kk_map_freeze(value: MutableMap<K, V>): Map<K, V>
 
 // --- emptyList / emptySet / emptyMap -----------------------------------------
 
@@ -142,6 +150,20 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
     return result
 }
 
+// KUU-1361: JVM `sortedSetOf`/`sortedMapOf` — the concrete instances are
+// TreeSet/TreeMap; the declared return types match upstream.
+public fun <T> sortedSetOf(vararg elements: T): java.util.TreeSet<T> {
+    val result = java.util.TreeSet<T>()
+    for (element in elements) result.add(element)
+    return result
+}
+
+public fun <T> sortedSetOf(comparator: Comparator<in T>, vararg elements: T): java.util.TreeSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
+    for (element in elements) result.add(element)
+    return result
+}
+
 // --- Map factories -----------------------------------------------------------
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
@@ -154,19 +176,31 @@ public fun <K, V> mapOf(): Map<K, V> = emptyMap()
  */
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> {
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 1)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     result[pair.first] = pair.second
-    return result as Map<K, V>
+    return __kk_map_freeze(result)
 }
 
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     for (pair in pairs) {
         result[pair.first] = pair.second
     }
-    return result as Map<K, V>
+    return __kk_map_freeze(result)
+}
+
+public fun <K, V> sortedMapOf(vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>()
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
+}
+
+public fun <K, V> sortedMapOf(comparator: Comparator<in K>, vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {
+    val result = java.util.TreeMap<K, V>(comparator)
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
 }
 
 @PublishedApi
@@ -177,10 +211,15 @@ internal fun mapCapacity(expectedSize: Int): Int = when {
     else -> Int.MAX_VALUE
 }
 
-public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of(null, null, 0)
+// NOTE for RF-LOWER-CALL: both mutableMapOf bodies below bind
+// `__kk_linked_hash_map_of` so a missed interception still answers
+// `is MutableMap`. `__kk_map_of` is the read-only `Map` tag shared with
+// `mapOf` (KUU-646); the rewriters intercept these calls by FQName.
+
+public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
 
 public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
-    val result: MutableMap<K, V> = __kk_map_of(null, null, 0)
+    val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)
     for (pair in pairs) {
         result[pair.first] = pair.second
     }

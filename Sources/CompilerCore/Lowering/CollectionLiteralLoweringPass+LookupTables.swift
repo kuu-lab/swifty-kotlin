@@ -19,6 +19,9 @@ struct CollectionLiteralLookupTables {
     // name-only match would erase that distinction. Their private bridge
     // results remain unknown until a later, explicit runtime fact is available.
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
+    /// Interned name/package tables for `trackedStaticTypeKind` — built once
+    /// here rather than per classified expression (LOWERING-001).
+    let staticTypeClassification: StaticTypeClassificationNames
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
     init(interner: StringInterner) {
@@ -38,6 +41,7 @@ struct CollectionLiteralLookupTables {
             arrayLookup.kkListAsSequenceName,
             arrayLookup.kkArrayAsSequenceName
         ]
+        staticTypeClassification = StaticTypeClassificationNames(interner: interner)
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
             (spec.arity.minimum ... spec.arity.maximum).map { arity in
                 (
@@ -142,6 +146,11 @@ struct CollectionLiteralLookupTables {
     var emptySetName: InternedString { setLookup.emptySetName }
     var hashSetName: InternedString { setLookup.hashSetName }
     var linkedHashSetName: InternedString { setLookup.linkedHashSetName }
+    var treeSetName: InternedString { setLookup.treeSetName }
+    var sortedSetOfName: InternedString { setLookup.sortedSetOfName }
+    var kkTreeSetNewName: InternedString { setLookup.kkTreeSetNewName }
+    var kkTreeSetNewCollectionName: InternedString { setLookup.kkTreeSetNewCollectionName }
+    var kkTreeSetNewSortedSetName: InternedString { setLookup.kkTreeSetNewSortedSetName }
     var kkEmptySetName: InternedString { setLookup.kkEmptySetName }
     var kkSetOfName: InternedString { setLookup.kkSetOfName }
     var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
@@ -167,6 +176,11 @@ struct CollectionLiteralLookupTables {
     var emptyMapName: InternedString { mapLookup.emptyMapName }
     var hashMapName: InternedString { mapLookup.hashMapName }
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
+    var treeMapName: InternedString { mapLookup.treeMapName }
+    var sortedMapOfName: InternedString { mapLookup.sortedMapOfName }
+    var kkTreeMapNewName: InternedString { mapLookup.kkTreeMapNewName }
+    var kkTreeMapNewMapName: InternedString { mapLookup.kkTreeMapNewMapName }
+    var kkTreeMapNewSortedMapName: InternedString { mapLookup.kkTreeMapNewSortedMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
     var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
@@ -315,14 +329,7 @@ struct CollectionLiteralLookupTables {
     var kkBoxCharName: InternedString { rangeLookup.kkBoxCharName }
     var kkCharRangeToListName: InternedString { rangeLookup.kkCharRangeToListName }
     var kkCharRangeForEachName: InternedString { rangeLookup.kkCharRangeForEachName }
-    var kkULongRangeToListName: InternedString { rangeLookup.kkULongRangeToListName }
-    var kkULongRangeContainsName: InternedString { rangeLookup.kkULongRangeContainsName }
-    var kkULongRangeFirstName: InternedString { rangeLookup.kkULongRangeFirstName }
-    var kkULongRangeLastName: InternedString { rangeLookup.kkULongRangeLastName }
     var kkULongRangeStepName: InternedString { rangeLookup.kkULongRangeStepName }
-    var kkULongRangeIsEmptyName: InternedString { rangeLookup.kkULongRangeIsEmptyName }
-    var kkULongRangeReversedName: InternedString { rangeLookup.kkULongRangeReversedName }
-    var kkULongRangeCountName: InternedString { rangeLookup.kkULongRangeCountName }
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }

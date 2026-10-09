@@ -1,10 +1,6 @@
-/// Represents a single annotation usage in Kotlin source code, e.g. `@Suppress("UNCHECKED_CAST")`.
 public struct AnnotationNode: Equatable, Codable {
-    /// The simple or qualified name of the annotation (e.g. "Suppress", "kotlin.Deprecated").
     public let name: String
-    /// Serialized argument values extracted from the annotation's parenthesized argument list.
     public let arguments: [String]
-    /// Optional use-site target (e.g. "get", "set", "field", "param").
     public let useSiteTarget: String?
 
     public init(name: String, arguments: [String] = [], useSiteTarget: String? = nil) {
@@ -84,16 +80,9 @@ public struct ConstructorDecl: Codable {
     }
 }
 
-/// A single supertype entry in a class declaration, optionally with delegation.
-/// Used for `class Foo(impl: Printer) : Printer by impl` — the `by expr` part
-/// delegates interface implementation to the given expression.
 public struct SuperTypeEntry: Equatable, Codable {
     public let typeRef: TypeRefID
-    /// When present, this supertype (must be an interface) is implemented by
-    /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
-    /// Arguments of the superclass constructor invocation in the class header
-    /// (`class Sub(n: Int) : Base(n)`). Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
 
     public init(
@@ -107,15 +96,10 @@ public struct SuperTypeEntry: Equatable, Codable {
     }
 }
 
-/// Represents a member in the class body initialization sequence.
 /// Used to guarantee Kotlin's declaration-order execution of property
 /// initializers and `init` blocks.
 public enum ClassBodyInitMember: Equatable, Codable {
-    /// A property initializer; the associated value is the index into
-    /// `ClassDecl.memberProperties`.
     case property(Int)
-    /// An `init { }` block; the associated value is the index into
-    /// `ClassDecl.initBlocks`.
     case initBlock(Int)
 }
 
@@ -127,21 +111,14 @@ public struct ClassDecl: Codable {
     public let isInner: Bool
     public let typeParams: [TypeParamDecl]
     public let primaryConstructorParams: [ValueParamDecl]
-    /// Modifiers attached specifically to the primary constructor declaration,
-    /// e.g. `class Foo private constructor()`.
     public let primaryConstructorModifiers: Modifiers
-    /// Annotations placed on the primary constructor declaration,
-    /// e.g. `class Foo @Throws(IOException::class) constructor()`.
     public let primaryConstructorAnnotations: [AnnotationNode]
-    /// `true` when the class header contains explicit constructor parentheses,
-    /// distinguishing `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
+    /// Distinguishes `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
     public let hasPrimaryConstructorSyntax: Bool
-    /// Supertype entries; each may have an optional `by expr` for interface delegation.
     public let superTypeEntries: [SuperTypeEntry]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let enumEntries: [EnumEntryDecl]
     public let initBlocks: [FunctionBody]
-    /// Declaration-order sequence of property initializers and `init` blocks.
     /// Kotlin guarantees that these execute top-to-bottom in the order they
     /// appear in the class body (spec.md J7).
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -150,8 +127,6 @@ public struct ClassDecl: Codable {
     public let memberProperties: [DeclID]
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
-    /// The companion object declared inside this class, if any.
-    /// A class may have at most one companion object.
     public let companionObject: DeclID?
 
     public init(
@@ -206,8 +181,6 @@ public struct InterfaceDecl: Codable {
     public let name: InternedString
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
-    /// `true` when declared with `fun interface` — marks this as a functional
-    /// interface eligible for SAM (Single Abstract Method) conversion.
     public let isFunInterface: Bool
     public let typeParams: [TypeParamDecl]
     public let superTypes: [TypeRefID]
@@ -216,7 +189,6 @@ public struct InterfaceDecl: Codable {
     public let memberProperties: [DeclID]
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
-    /// The companion object declared inside this interface, if any.
     public let companionObject: DeclID?
 
     public init(
@@ -256,8 +228,7 @@ public struct ObjectDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
-    /// Arguments of the superclass constructor invocation in the object
-    /// header (`object : Base(n) { ... }`).
+    public let superTypeEntries: [SuperTypeEntry]
     public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]
@@ -273,6 +244,7 @@ public struct ObjectDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         superTypes: [TypeRefID] = [],
+        superTypeEntries: [SuperTypeEntry] = [],
         superTypeConstructorArgs: [CallArgument] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         initBlocks: [FunctionBody] = [],
@@ -287,6 +259,9 @@ public struct ObjectDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.superTypes = superTypes
+        self.superTypeEntries = superTypeEntries.isEmpty
+            ? superTypes.map { SuperTypeEntry(typeRef: $0) }
+            : superTypeEntries
         self.superTypeConstructorArgs = superTypeConstructorArgs
         self.nestedTypeAliases = nestedTypeAliases
         self.initBlocks = initBlocks
@@ -307,6 +282,12 @@ public struct FunDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let receiverType: TypeRefID?
+    /// These stay independent of `receiverType` so a
+    /// member function's class `this` is not overwritten by a context type.
+    public let contextReceivers: [ContextReceiverDecl]
+    public var contextReceiverNames: [InternedString?] {
+        contextReceivers.map(\.name)
+    }
     public let valueParams: [ValueParamDecl]
     public let returnType: TypeRefID?
     public let body: FunctionBody
@@ -321,6 +302,7 @@ public struct FunDecl: Codable {
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
         receiverType: TypeRefID? = nil,
+        contextReceivers: [ContextReceiverDecl] = [],
         valueParams: [ValueParamDecl] = [],
         returnType: TypeRefID? = nil,
         body: FunctionBody = .unit,
@@ -334,12 +316,40 @@ public struct FunDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.receiverType = receiverType
+        self.contextReceivers = contextReceivers
         self.valueParams = valueParams
         self.returnType = returnType
         self.body = body
         self.isSuspend = isSuspend
         self.isInline = isInline
         self.isTailrec = isTailrec
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
+        annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
+        typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
+        receiverType = try container.decodeIfPresent(TypeRefID.self, forKey: .receiverType)
+        contextReceivers = try container.decodeIfPresent([ContextReceiverDecl].self, forKey: .contextReceivers) ?? []
+        valueParams = try container.decode([ValueParamDecl].self, forKey: .valueParams)
+        returnType = try container.decodeIfPresent(TypeRefID.self, forKey: .returnType)
+        body = try container.decode(FunctionBody.self, forKey: .body)
+        isSuspend = try container.decode(Bool.self, forKey: .isSuspend)
+        isInline = try container.decode(Bool.self, forKey: .isInline)
+        isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
+    }
+}
+
+public struct ContextReceiverDecl: Codable {
+    public let name: InternedString?
+    public let type: TypeRefID
+
+    public init(name: InternedString? = nil, type: TypeRefID) {
+        self.name = name
+        self.type = type
     }
 }
 
@@ -356,31 +366,31 @@ public enum PropertyAccessorKind: Equatable, Codable {
 
 public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
+    public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
+    public let visibility: Visibility?
     public let parameterName: InternedString?
     public let body: FunctionBody
 
     public init(
         range: SourceRange,
         kind: PropertyAccessorKind,
+        annotations: [AnnotationNode] = [],
+        visibility: Visibility? = nil,
         parameterName: InternedString? = nil,
         body: FunctionBody = .unit
     ) {
         self.range = range
         self.kind = kind
+        self.annotations = annotations
+        self.visibility = visibility
         self.parameterName = parameterName
         self.body = body
     }
 }
 
-/// Kotlin 2.0 explicit backing field declaration for a property.
-/// Example: `val fullName: String  field = ""  get() = field.uppercase()`
-/// The backing field may have a type that differs from the property type.
 public struct ExplicitBackingField: Codable {
-    /// Optional explicit type annotation for the backing field.
-    /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
-    /// The initializer expression for the backing field (required).
     public let initializer: ExprID
 
     public init(type: TypeRefID? = nil, initializer: ExprID) {
@@ -400,23 +410,12 @@ public struct PropertyDecl: Codable {
     public let getter: PropertyAccessorDecl?
     public let setter: PropertyAccessorDecl?
     public let delegateExpression: ExprID?
-    /// The trailing lambda body for delegate properties (e.g. `lazy { body }`,
-    /// `Delegates.observable(init) { body }`). Captured separately so existing
+    /// Captured separately so existing
     /// delegate lowering can reuse the call argument's parsed body.
     public let delegateBody: FunctionBody?
-    /// Parameter names declared by the trailing lambda of a delegate property
-    /// (e.g. `property, old, new` in `Delegates.observable(init) { property, old, new -> ... }`).
-    /// Empty when the lambda declares no parameters.
     public let delegateBodyParams: [InternedString]
-    /// The receiver type reference for extension properties (e.g. `val Int.double`).
-    /// `nil` for regular (non-extension) properties.
     public let receiverType: TypeRefID?
-    /// `true` for synthetic member properties materialized from primary
-    /// constructor `val` / `var` parameters.
     public let isSynthesizedPrimaryConstructorProperty: Bool
-    /// Kotlin 2.0 explicit backing field declaration (`field = expr` or
-    /// `field: Type = expr`).  When present, the backing field has its own
-    /// type and initializer distinct from the property's.
     public let explicitBackingField: ExplicitBackingField?
 
     public init(
@@ -484,26 +483,57 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
-    /// Functions declared in an enum entry's anonymous class body.
-    ///
     /// These declarations are kept separate from the enum class members. The
     /// runtime still represents enum values as ordinals, so the lowering pass
     /// can synthesize ordinal-based dispatch for overrides without creating a
     /// second heap-backed representation for enum entries.
     public let memberFunctions: [DeclID]
+    /// Like `memberFunctions`, they are
+    /// owned by the entry field symbol; their values live in the per-entry
+    /// side storage that the enum's lazy initializer fills.
+    public let memberProperties: [DeclID]
 
     public init(
         range: SourceRange,
         name: InternedString,
         annotations: [AnnotationNode] = [],
         constructorArgs: [CallArgument] = [],
-        memberFunctions: [DeclID] = []
+        memberFunctions: [DeclID] = [],
+        memberProperties: [DeclID] = []
     ) {
         self.range = range
         self.name = name
         self.annotations = annotations
         self.constructorArgs = constructorArgs
         self.memberFunctions = memberFunctions
+        self.memberProperties = memberProperties
+    }
+}
+
+public extension EnumEntryDecl {
+    func constructorArgumentMapping(
+        parameterNames: [InternedString]
+    ) -> (argumentIndexByParameter: [Int?], unmatched: [Int]) {
+        var mapping = [Int?](repeating: nil, count: parameterNames.count)
+        var unmatched: [Int] = []
+        var nextPositional = 0
+        for (argIndex, arg) in constructorArgs.enumerated() {
+            if let label = arg.label {
+                if let paramIndex = parameterNames.firstIndex(of: label), mapping[paramIndex] == nil {
+                    mapping[paramIndex] = argIndex
+                } else {
+                    unmatched.append(argIndex)
+                }
+                continue
+            }
+            if nextPositional < parameterNames.count {
+                mapping[nextPositional] = argIndex
+                nextPositional += 1
+            } else {
+                unmatched.append(argIndex)
+            }
+        }
+        return (mapping, unmatched)
     }
 }
 
@@ -511,11 +541,42 @@ public struct ImportDecl: Sendable, Codable {
     public let range: SourceRange
     public let path: [InternedString]
     public let alias: InternedString?
+    public let isWildcard: Bool
 
-    public init(range: SourceRange, path: [InternedString], alias: InternedString? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case range
+        case path
+        case alias
+        case isWildcard
+    }
+
+    public init(
+        range: SourceRange,
+        path: [InternedString],
+        alias: InternedString? = nil,
+        isWildcard: Bool = false
+    ) {
         self.range = range
         self.path = path
         self.alias = alias
+        self.isWildcard = isWildcard
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        path = try container.decode([InternedString].self, forKey: .path)
+        alias = try container.decodeIfPresent(InternedString.self, forKey: .alias)
+        // Older frontend caches did not record whether an import was wildcard.
+        isWildcard = try container.decodeIfPresent(Bool.self, forKey: .isWildcard) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(range, forKey: .range)
+        try container.encode(path, forKey: .path)
+        try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encode(isWildcard, forKey: .isWildcard)
     }
 }
 
@@ -524,39 +585,49 @@ public struct TypeParamDecl: Codable {
     public let variance: TypeVariance
     public let isReified: Bool
     public let upperBounds: [TypeRefID]
+    public let annotations: [AnnotationNode]
 
     public init(
         name: InternedString,
         variance: TypeVariance = .invariant,
         isReified: Bool = false,
-        upperBounds: [TypeRefID] = []
+        upperBounds: [TypeRefID] = [],
+        annotations: [AnnotationNode] = []
     ) {
         self.name = name
         self.variance = variance
         self.isReified = isReified
         self.upperBounds = upperBounds
+        self.annotations = annotations
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, variance, isReified, upperBounds, annotations
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(InternedString.self, forKey: .name)
+        variance = try container.decode(TypeVariance.self, forKey: .variance)
+        isReified = try container.decode(Bool.self, forKey: .isReified)
+        upperBounds = try container.decode([TypeRefID].self, forKey: .upperBounds)
+        annotations = try container.decodeIfPresent([AnnotationNode].self, forKey: .annotations) ?? []
     }
 }
 
 public struct ValueParamDecl: Equatable, Codable {
     public let name: InternedString
     public let type: TypeRefID?
-    /// `true` when the primary constructor parameter is declared as a property
-    /// via `val` or `var`.
     public let isProperty: Bool
-    /// `true` only for `var` primary constructor properties.
     public let isMutableProperty: Bool
-    /// `true` when a primary constructor property parameter carries the
-    /// `override` modifier, e.g. `class Foo(override val x: String)`.
     public let isOverrideProperty: Bool
-    /// `true` when a primary constructor property parameter carries the
-    /// `open` modifier, e.g. `open class Foo(open val x: String)`.
     public let isOpenProperty: Bool
+    /// Optional so AST
+    /// payloads written before this field was introduced retain default visibility.
+    public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
-    /// `true` when a function parameter is declared with `crossinline`.
     public let isCrossinline: Bool
-    /// `true` when a function parameter is declared with `noinline`.
     public let isNoinline: Bool
     public let defaultValue: ExprID?
     public let annotations: [AnnotationNode]
@@ -568,6 +639,7 @@ public struct ValueParamDecl: Equatable, Codable {
         isMutableProperty: Bool = false,
         isOverrideProperty: Bool = false,
         isOpenProperty: Bool = false,
+        propertyVisibilityModifiers: Modifiers? = nil,
         hasDefaultValue: Bool = false,
         isVararg: Bool = false,
         isCrossinline: Bool = false,
@@ -581,6 +653,7 @@ public struct ValueParamDecl: Equatable, Codable {
         self.isMutableProperty = isMutableProperty
         self.isOverrideProperty = isOverrideProperty
         self.isOpenProperty = isOpenProperty
+        self.propertyVisibilityModifiers = propertyVisibilityModifiers
         self.hasDefaultValue = hasDefaultValue
         self.isVararg = isVararg
         self.isCrossinline = isCrossinline

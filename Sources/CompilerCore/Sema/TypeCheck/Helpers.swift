@@ -28,6 +28,43 @@ func nominalRangeElementType(
 }
 
 struct TypeCheckHelpers {
+    /// The companion object's type when `exprID` is a bare `ClassName` value
+    /// expression naming a class/interface/enum that has a companion object.
+    ///
+    /// Sema types such a name as the class's own nominal type so that
+    /// `ClassName.member()` keeps resolving through the companion. In Kotlin,
+    /// however, a bare class name used as a *value* denotes the companion object
+    /// (`val f: Factory<Widget> = Widget`, `makeTwo(Widget)`), and the lowering
+    /// already redirects it to the companion singleton. Value-position callers
+    /// use this to give the expression the companion's type -- which carries the
+    /// companion's supertypes -- and rebind the expression to it.
+    func retypeClassNameAsCompanionValue(
+        _ exprID: ExprID,
+        currentType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> TypeID? {
+        guard case .nameRef = ast.arena.expr(exprID),
+              let boundSymbol = sema.bindings.identifierSymbols[exprID],
+              let boundInfo = sema.symbols.symbol(boundSymbol),
+              boundInfo.kind == .class || boundInfo.kind == .interface || boundInfo.kind == .enumClass,
+              let companionSymbol = sema.symbols.companionObjectSymbol(for: boundSymbol),
+              case let .classType(currentClass) = sema.types.kind(of: currentType),
+              currentClass.classSymbol == boundSymbol
+        else {
+            return nil
+        }
+        let companionType = sema.symbols.propertyType(for: companionSymbol)
+            ?? sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+        sema.bindings.bindExprType(exprID, type: companionType)
+        return companionType
+    }
+
+    /// Per-compilation memoization for opt-in requirement derivation and
+    /// annotation-class resolution (see `OptInResolutionCache`). A class, so
+    /// copies of this struct and every `driver.helpers` call site share it.
+    let optInResolutionCache = OptInResolutionCache()
+
     private func syntheticCoroutineNominalType(
         packageName: [InternedString],
         shortName: String,
@@ -51,7 +88,17 @@ struct TypeCheckHelpers {
         guard let symbolID = candidates.first else {
             return nil
         }
-        return sema.types.make(.classType(ClassType(classSymbol: symbolID, args: [], nullability: .nonNull)))
+        // Source-backed Deferred is generic (`Deferred<out T>`). An empty
+        // ClassType.args list is an arity mismatch and breaks `.await()`
+        // member matching after KSP-1564 / #7485.
+        let typeArguments: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbolID).map { _ in
+            .out(sema.types.anyType)
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: symbolID,
+            args: typeArguments,
+            nullability: .nonNull
+        )))
     }
 
     func emitVisibilityError(
@@ -60,8 +107,21 @@ struct TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let visLabel = symbol.visibility == .protected ? "protected" : "private"
-        let code = symbol.visibility == .protected ? "KSWIFTK-SEMA-0041" : "KSWIFTK-SEMA-0040"
+        let visLabel: String
+        let code: String
+        switch symbol.visibility {
+        case .private:
+            visLabel = "private"
+            code = "KSWIFTK-SEMA-0040"
+        case .protected:
+            visLabel = "protected"
+            code = "KSWIFTK-SEMA-0041"
+        case .internal:
+            visLabel = "internal in the bundled stdlib module"
+            code = "KSWIFTK-SEMA-0044"
+        case .public:
+            return
+        }
         diagnostics.error(code, "Cannot access '\(name)': it is \(visLabel).", range: range)
     }
 
@@ -72,7 +132,19 @@ struct TypeCheckHelpers {
 
     func isStableLocalSymbol(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID) else {
-            return false
+            // A symbol ID outside the registered table is either `.invalid`
+            // (-1), a genuinely unknown/out-of-range ID, or one of the
+            // synthetic per-binding schemes that deliberately never register
+            // a table entry -- lambda parameters
+            // (ExprTypeChecker+NameLambdaAndCallableRefInference's per-lambda
+            // negative IDs) and the extension/implicit-receiver `this`
+            // (SyntheticSymbolScheme.receiverParameterSymbol). Both schemes
+            // stay well below -1 (SyntheticSymbolScheme documents its bands
+            // as <= -10000; the lambda-parameter band starts past -1_000_000),
+            // and both name bindings that Kotlin never allows reassigning, so
+            // they are stable. Anything else (including -1 and other
+            // out-of-range IDs) is treated conservatively as unstable.
+            return symbolID.rawValue < -1
         }
         switch symbol.kind {
         case .valueParameter, .local:
@@ -336,12 +408,41 @@ struct TypeCheckHelpers {
         }
         // BUG-167: A class implementing `Iterable<T>` iterates over `T` even when
         // its `iterator()` override carries no `operator` flag of its own.
-        return iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner)
+        if let supertypeElement = iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner) {
+            return supertypeElement
+        }
+        // `CharSequence.iterator()` is a `kotlin.text` package-level extension,
+        // not an interface member, so the member-candidate walks above never see
+        // it; every CharSequence subtype iterates `Char` through that extension.
+        if isCharSequenceSubtype(iterableType, sema: sema, interner: interner) {
+            return sema.types.charType
+        }
+        return nil
+    }
+
+    /// Whether `type` is a subtype of the `kotlin.CharSequence` interface.
+    private func isCharSequenceSubtype(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("CharSequence"),
+        ]) else {
+            return false
+        }
+        let charSequenceType = sema.types.make(.classType(ClassType(
+            classSymbol: charSequenceSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(sema.types.makeNonNullable(type), charSequenceType)
     }
 
     /// Element type lifted from the `kotlin.collections.Iterable<T>` supertype of
     /// a class, or nil when the class does not implement `Iterable`.
-    private func iterableSupertypeElementType(
+    func iterableSupertypeElementType(
         for iterableType: TypeID,
         sema: SemaModule,
         interner: StringInterner
@@ -474,27 +575,15 @@ struct TypeCheckHelpers {
             return nil
         }
 
-        // Extract K and V type arguments from the Map-compatible shape.
-        let keyArg = mapArgs[0]
-        let valueArg = mapArgs[1]
-        let keyType: TypeID
-        let valueType: TypeID
-        switch keyArg {
-        case let .invariant(inner), let .out(inner), let .in(inner):
-            keyType = inner
-        case .star:
-            keyType = sema.types.nullableAnyType
-        }
-        switch valueArg {
-        case let .invariant(inner), let .out(inner), let .in(inner):
-            valueType = inner
-        case .star:
-            valueType = sema.types.nullableAnyType
-        }
-
+        // Mirror the actual `iterator().next()` element types: Map yields
+        // `Map.Entry<K, V>` and MutableMap yields `MutableMap.MutableEntry<K, V>`,
+        // so the map's own K/V arguments (including any use-site projections)
+        // carry through unchanged. Wrapping them as `out` would mark V
+        // write-forbidden on the invariant MutableEntry and wrongly reject
+        // `e.setValue(...)` in `for (e in mutableMap)` loops.
         return sema.types.make(.classType(ClassType(
             classSymbol: entrySymbol,
-            args: [.out(keyType), .out(valueType)],
+            args: Array(mapArgs.prefix(2)),
             nullability: .nonNull
         )))
     }
@@ -627,7 +716,7 @@ struct TypeCheckHelpers {
              interner.intern("transform"), interner.intern("takeWhile"), interner.intern("dropWhile"),
              interner.intern("flatMapConcat"), interner.intern("flatMapMerge"), interner.intern("flatMapLatest"),
              interner.intern("buffer"), interner.intern("conflate"), interner.intern("flowOn"),
-             interner.intern("debounce"), interner.intern("sample"), interner.intern("delayEach"),
+             interner.intern("debounce"), interner.intern("sample"),
              interner.intern("zip"), interner.intern("combine"), interner.intern("merge"):
             guard argumentCount == 1 || argumentCount == 2 else { return nil }
             return sema.types.nullableAnyType
@@ -718,16 +807,16 @@ struct TypeCheckHelpers {
                     }
                 }
                 // Prefer the lexically-scoped candidate (which encodes import
-                // priority: explicit imports > wildcard imports > default
-                // imports, same as expression name resolution) for unqualified
-                // references. Without this, an unrelated same-named
-                // declaration from a non-imported package (e.g.
+                // priority: explicit imports > same-package declarations >
+                // wildcard imports > default imports for classifiers, KUU-1423)
+                // for unqualified references. Without this, an unrelated
+                // same-named declaration from a non-imported package (e.g.
                 // `kotlin.properties.Lazy` vs. the in-scope `kotlin.Lazy`)
                 // could shadow the correct symbol merely by having a lower
                 // internal ID, since the short-name fallback below has no
                 // notion of scope.
                 let scopeCandidates: [SymbolID] = if path.count == 1, let scope {
-                    scope.lookup(shortName).filter(isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
+                    scope.lookupClassifier(shortName, matching: isTypeLikeSymbol).sorted(by: { $0.rawValue < $1.rawValue })
                 } else {
                     []
                 }
@@ -737,8 +826,7 @@ struct TypeCheckHelpers {
                 // imported outer symbol before falling back to short-name lookup.
                 let qualifiedScopeCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else { return [] }
-                    var current = scope.lookup(path[0])
-                        .filter(isTypeLikeSymbol)
+                    var current = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
                         .sorted(by: { $0.rawValue < $1.rawValue })
                     for component in path.dropFirst() {
                         current = current.flatMap { ownerID -> [SymbolID] in
@@ -763,7 +851,7 @@ struct TypeCheckHelpers {
                     guard path.count > 1, let scope else {
                         return []
                     }
-                    let rootCandidates = scope.lookup(path[0]).filter(isTypeLikeSymbol)
+                    let rootCandidates = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
                     return rootCandidates.flatMap { rootSymbol -> [SymbolID] in
                         guard let rootInfo = sema.symbols.symbol(rootSymbol) else {
                             return []
@@ -790,6 +878,24 @@ struct TypeCheckHelpers {
                         .sorted(by: { $0.rawValue < $1.rawValue })
                 }
                 if let symbolID = candidates.first {
+                    if let symbol = sema.symbols.symbol(symbolID),
+                       symbol.flags.contains(.importedLibrary),
+                       let inferenceContext,
+                       !inferenceContext.visibilityChecker.isAccessible(
+                           symbol,
+                           fromFile: inferenceContext.currentFileID,
+                           enclosingClass: inferenceContext.enclosingClassSymbol
+                       ) {
+                        if let diagnostics {
+                            emitVisibilityError(
+                                for: symbol,
+                                name: interner.resolve(shortName),
+                                range: usageRange,
+                                diagnostics: diagnostics
+                            )
+                        }
+                        return sema.types.errorType
+                    }
                     if let inferenceContext, let diagnostics {
                         checkOptIn(
                             for: symbolID,
@@ -798,9 +904,18 @@ struct TypeCheckHelpers {
                             diagnostics: diagnostics
                         )
                     }
+                    if let diagnostics {
+                        checkDeprecation(
+                            for: symbolID,
+                            sema: sema,
+                            interner: interner,
+                            range: usageRange,
+                            diagnostics: diagnostics
+                        )
+                    }
                     let resolvedArgs = resolveTypeArgRefsForTypeCheck(
                         argRefs, ast: ast, sema: sema, interner: interner,
-                        scope: scope, diagnostics: diagnostics
+                        scope: scope, diagnostics: diagnostics, usageRange: usageRange
                     )
                     // Expand typealias at call-site
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
@@ -869,11 +984,11 @@ struct TypeCheckHelpers {
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):
             let nullability: Nullability = nullable ? .nullable : .nonNull
             let contextReceiverTypes = contextReceiverRefIDs.map {
-                resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+                resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             }
-            let receiverType: TypeID? = receiverRefID.flatMap { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
-            let paramTypes = paramRefIDs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
-            let returnType = resolveTypeRef(returnRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            let receiverType: TypeID? = receiverRefID.flatMap { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
+            let paramTypes = paramRefIDs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
+            let returnType = resolveTypeRef(returnRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             return sema.types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
                 receiver: receiverType,
@@ -884,11 +999,11 @@ struct TypeCheckHelpers {
             )))
 
         case let .intersection(partRefs):
-            let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
+            let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange) }
             return sema.types.make(.intersection(partTypes))
 
         case let .annotated(base, annotations):
-            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
             return ExtensionFunctionTypeSupport.normalizeAnnotatedType(
                 baseType: baseType,
                 annotations: annotations,
@@ -907,16 +1022,17 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner,
         scope: Scope? = nil,
-        diagnostics: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         argRefs.map { argRef in
             switch argRef {
             case let .invariant(innerRef):
-                .invariant(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .invariant(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case let .out(innerRef):
-                .out(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .out(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case let .in(innerRef):
-                .in(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics))
+                .in(resolveTypeRef(innerRef, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange))
             case .star:
                 .star
             }

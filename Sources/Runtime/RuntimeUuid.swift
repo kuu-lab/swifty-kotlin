@@ -149,22 +149,17 @@ private func runtimeStableNominalTypeID(_ fqName: String) -> Int64 {
 }
 
 private func runtimeUuidObjectRaw(mostSignificantBits: Int64, leastSignificantBits: Int64) -> Int {
+    // Uuid values are created here rather than by the Kotlin constructor, so its
+    // equals/hashCode overrides are never registered per object. Value equality
+    // is structural over the two bit slots.
+    runtimeRegisterDataClass(classID: runtimeUuidClassID)
     let raw = kk_object_new(4, Int(runtimeUuidClassID))
-    guard let box = runtimeArrayBox(from: raw), box.elements.count >= 4 else {
+    guard let box = runtimeArrayBox(from: raw), box.count >= 4 else {
         return raw
     }
-    box.elements[2] = Int(mostSignificantBits)
-    box.elements[3] = Int(leastSignificantBits)
+    box[2] = Int(mostSignificantBits)
+    box[3] = Int(leastSignificantBits)
     return raw
-}
-
-/// Helper to create a runtime string from a Swift String, returning Int.
-private func uuidMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
 }
 
 // MARK: - Uuid.random()

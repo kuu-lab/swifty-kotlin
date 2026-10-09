@@ -33,7 +33,21 @@ extension ControlFlowLowerer {
             if let loweredSubject = subjectID,
                let subjectSymbol = sema.bindings.identifierSymbols[exprID]
             {
-                driver.ctx.setLocalValue(loweredSubject, for: subjectSymbol)
+                if ast.arena.whenSubjectTypeRef(for: exprID) != nil,
+                   let declaredType = sema.symbols.propertyType(for: subjectSymbol)
+                {
+                    // Copy into declared storage so ABI lowering applies widening/boxing.
+                    let slot = arena.appendTemporary(type: declaredType)
+                    instructions.append(.copy(from: loweredSubject, to: slot))
+                    subjectID = slot
+                    driver.ctx.setLocalDeclaredType(declaredType, for: subjectSymbol)
+                    driver.ctx.setLocalValue(slot, for: subjectSymbol)
+                    if let callableInfo = driver.ctx.callableValueInfo(for: loweredSubject) {
+                        driver.ctx.callableValueInfoByExprID[slot] = callableInfo
+                    }
+                } else {
+                    driver.ctx.setLocalValue(loweredSubject, for: subjectSymbol)
+                }
             }
         }
         let endLabel = driver.ctx.makeLoopLabel()
@@ -184,7 +198,15 @@ extension ControlFlowLowerer {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let typeTokenLiteral: Int64 = if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
-                RuntimeTypeCheckToken.encode(type: targetType, sema: sema, interner: interner)
+                RuntimeTypeCheckToken.encode(
+                    type: driver.exprLowerer.runtimeIsCheckTargetType(
+                        subjectType: sema.bindings.exprType(for: checkedExprID),
+                        targetType: targetType,
+                        sema: sema
+                    ),
+                    sema: sema,
+                    interner: interner
+                )
             } else {
                 RuntimeTypeCheckToken.unknownBase
             }
@@ -206,6 +228,43 @@ extension ControlFlowLowerer {
             let negatedResult = arena.appendTemporary(type: boolType)
             instructions.append(.binary(op: .equal, lhs: isResult, rhs: falseID, result: negatedResult))
             return negatedResult
+        }
+
+        // `in a..b -> ...` / `!in a..b -> ...`: unlike a plain value condition
+        // (which desugars to `subject == condition`), `in`/`!in` already
+        // stands alone as a complete Boolean test against the subject
+        // (`.inExpr`/`.notInExpr` embed the subject as their own `lhs`), so
+        // its lowered value is the match result directly. Route through
+        // `lowerContainsCheck` with the subject's already-lowered value
+        // (`loweredSubjectID`) rather than re-lowering the whole condition —
+        // that would re-lower `lhsExpr` (the subject) from scratch and
+        // re-evaluate a side-effecting subject once per `in`/`!in` branch.
+        if let loweredSubjectID,
+           let conditionExpr = ast.arena.expr(conditionExprID)
+        {
+            let inCondition: (lhsExpr: ExprID, rhsExpr: ExprID, negated: Bool)? = switch conditionExpr {
+            case let .inExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, false)
+            case let .notInExpr(lhsExpr, rhsExpr, _): (lhsExpr, rhsExpr, true)
+            default: nil
+            }
+            if let inCondition,
+               isSameWhenSubjectExpression(inCondition.lhsExpr, subjectExprID: subjectExprID, sema: sema)
+            {
+                return driver.exprLowerer.lowerContainsCheck(
+                    exprID: conditionExprID,
+                    lhsID: loweredSubjectID,
+                    lhsExpr: inCondition.lhsExpr,
+                    rhsExpr: inCondition.rhsExpr,
+                    negated: inCondition.negated,
+                    boundType: boolType,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
         }
 
         let conditionValueID = driver.lowerExpr(

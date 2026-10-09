@@ -52,7 +52,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -60,11 +60,16 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             let stdlibModuleName = try #require(work.stdlibModuleName)
-            #expect(ctx.interner.resolve(stdlibModuleName) == "KSwiftKStdlib")
+            let manifest = try JSONDecoder().decode(
+                LibraryManifest.self,
+                from: Data(contentsOf: libDir.appendingPathComponent("manifest.json"))
+            )
+            let expectedModuleName = try #require(manifest.moduleName)
+            #expect(stdlibModuleName == ctx.interner.intern(expectedModuleName))
             #expect(
                 !diagnostics.hasError,
                 "Unexpected import errors: \(diagnostics.diagnostics.map(\.message).joined(separator: "\n"))"
@@ -85,7 +90,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -93,7 +98,7 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
 
             #expect(work.stdlibModuleName == nil)
@@ -116,7 +121,7 @@ struct LibraryImportStdlibModuleNameTests {
             let symbols = SymbolTable()
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             let phase = DataFlowSemaPhase()
             let work = phase.loadImportedLibrarySymbols(
                 options: ctx.options,
@@ -124,7 +129,7 @@ struct LibraryImportStdlibModuleNameTests {
                 types: types,
                 diagnostics: diagnostics,
                 interner: ctx.interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
             let stdlibModuleName = try #require(work.stdlibModuleName)
 

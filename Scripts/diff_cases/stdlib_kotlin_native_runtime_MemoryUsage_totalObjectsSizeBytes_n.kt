@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// CANDIDATE-ONLY: kotlin.native.* APIs are Kotlin/Native-only; verify the candidate's exact stdout without JVM kotlinc.
 import kotlin.native.runtime.MemoryUsage
 
 @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)

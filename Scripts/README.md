@@ -6,13 +6,16 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
-| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
+| `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
+| `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
+| `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
@@ -73,6 +76,25 @@ sudo xcode-select -s /Applications/Xcode.app
 # or per-invocation:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/swift_test.sh ...
 ```
+
+## Candidate-only diff cases
+
+Some cases have no JVM `kotlinc` reference target. Mark these in the Kotlin
+source with `// DIFF_CANDIDATE_ONLY_FROM_SOURCE`, add a sibling `.expected`
+file or ordered `// EXPECT-STDOUT:` lines containing the expected stdout,
+then run the case without kotlinc or a JDK reference. The
+candidate compiles bundled stdlib sources with the case rather than using a
+precompiled artifact, preserving internal source-backed declarations:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt
+```
+
+Regular differential runs execute these cases in the same source mode, in
+both serial and parallel runs. The separate `run_candidate_only.sh` lane
+continues to own `// CANDIDATE-ONLY` cases with `.expected.stdout` or
+`.expected.stderr` sidecars. Run `bash Scripts/test_diff_kotlinc_candidate_from_source.sh`
+to verify discovery, source compilation, and exclusion from that lane.
 
 ## Runtime ABI link validation
 
@@ -150,6 +172,22 @@ bash Scripts/swift_test.sh --filter Golden
 bash Scripts/swift_test.sh --filter Golden
 ```
 
+## Candidate-only Kotlin cases
+
+Cases under `Scripts/candidate_cases/` do not use the JVM `kotlinc` reference.
+The runner compiles the case and any supplied support sources into one
+candidate module, runs the native executable, and diffs stdout with the
+adjacent `.expected` file:
+
+```bash
+bash Scripts/run_candidate_only.sh \
+  Scripts/candidate_cases/logging_basic.kt \
+  Scripts/candidate_cases/support/slf4j_minimal.kt
+```
+
+The runner reuses `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` when present.
+Set `KSWIFTK_STDLIB_LIBRARY` to reuse another prebuilt artifact.
+
 ## kotlinc diff workflow
 
 Run one case:
@@ -158,19 +196,50 @@ Run one case:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 ```
 
+For a case without a JVM reference target, add
+`// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar-filename>` to the `.kt` file
+and store its expected stdout in a regular sidecar file beside the source. The
+harness compiles and runs that case with `kswiftc` and compares stdout to the
+sidecar. A direct invocation of that case does not require or invoke kotlinc or
+Java; a directory run uses this
+mode only for marked cases and keeps the JVM comparison for other cases.
+
 Run all tracked regression cases:
 
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-For coroutine/Flow cases, `diff_kotlinc.sh` can automatically download
-`kotlinx-coroutines-core-jvm` when needed (if no `--kotlinc-classpath` is
-set).  
+Cases that cannot use the JVM reference compiler can opt into candidate-only
+execution with `// DIFF_CANDIDATE_ONLY` and exactly one
+`// DIFF_EXPECT_STDOUT: <expected line>` directive. The harness compiles and runs
+the case with `kswiftc`, then compares stdout (with a trailing newline) against
+the expected line. It does not invoke `kotlinc` or `java` when every selected
+case is candidate-only; in a mixed run, those tools are used only by the other
+cases. Run a candidate-only file directly to verify it without JVM tooling:
+
+```bash
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt
+```
+
+`diff_kotlinc.sh` detects imports in the target file or recursively in a target
+directory and downloads JVM reference jars from Maven Central:
+
+| Import | Artifact | Default version |
+|---|---|---|
+| `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.10.2 |
+| `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.1 |
+| `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
+
+Cases importing both coroutines and io receive both dependencies. This import
+detection is the equivalent of a `requires_kotlinx_io` header; no extra header
+is needed. An explicit `--kotlinc-classpath` / `KOTLINC_CLASSPATH` bypasses all
+automatic downloads, so supply every required jar in that classpath.
 You can control the cached path and version with:
 
 ```bash
 export KOTLINC_COROUTINES_VERSION=1.10.2
+export KOTLINC_KOTLINX_IO_VERSION=0.9.1
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
 ```
 
@@ -179,7 +248,20 @@ the script, also set:
 
 ```bash
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
+export KOTLINC_KOTLINX_IO_SHA256=<expected sha256 of the io core jar>
+export KOTLINC_KOTLINX_IO_BYTESTRING_SHA256=<expected sha256 of the bytestring jar>
 ```
+
+Override individual cached paths with `KOTLINC_COROUTINES_JAR`,
+`KOTLINC_KOTLINX_IO_JAR`, and `KOTLINC_KOTLINX_IO_BYTESTRING_JAR`.
+Run `bash Scripts/test_diff_kotlinc_dependencies.sh` to check dependency
+selection without downloading jars or building the compiler.
+
+A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
+usable oracle. The runner compiles and runs only kswiftc, then compares stdout
+to that fixture. When the target is this single case, JVM tooling is not
+required; directory runs still configure JVM tooling for their ordinary diff
+cases.
 
 Successful non-script reference compilations are reused across runs via
 `KOTLINC_REF_CACHE_DIR` (default: `.runtime-build/kotlinc-ref-cache`, so a
@@ -221,6 +303,20 @@ Omit `PASS` lines in logs (CI uses `DIFF_LOG_PASS=0`):
 DIFF_LOG_PASS=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+Pass additional arguments to each candidate `kswiftc` invocation with
+`DIFF_KSWIFTC_FLAGS`. The per-shard stdlib artifact remains at the default
+optimization level, while the case under test receives these flags; CI uses
+this to keep the baseline and optimized lanes separate:
+
+```bash
+DIFF_KSWIFTC_FLAGS="-O2" bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+```
+
+In CI, the diff corpus (at both `-O0` and `-O2`) runs only in the daily full
+verification, `.github/workflows/nightly-full.yml`; pull requests and the merge
+queue do not run it. Trigger that workflow with `workflow_dispatch` on a branch
+to run the corpus before merging.
+
 You can control parallel execution. The worker count is set by `--jobs <n>`
 (or the equivalent `DIFF_WORKERS` env var); `0` means serial. By default the
 script runs in parallel with one worker per CPU:
@@ -241,7 +337,7 @@ warning and is treated as `DIFF_WORKERS`.
 
 `DIFF_WORKERS` parallelizes within one machine. To split the case
 set across several machines (CI shards the regression this way; the current
-shard count is the diff-regression matrix in `.github/workflows/ci.yml`),
+shard count is the diff-regression matrix in `.github/workflows/nightly-full.yml`),
 use interleaved sharding — case `i` runs only when `i % count == index`:
 
 ```bash
@@ -275,6 +371,14 @@ the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
 must be rejected by both compilers; acceptance is the default and can be stated
 explicitly with `// EXPECT-ACCEPT`.
 
+A case may pass extra flags to `kotlinc` with `// KOTLINC_FLAGS: <flags>`.
+Fixtures are treated as untrusted input: the flag list is validated against an
+allowlist of language-feature and diagnostic toggles (e.g. `-Xfeature`,
+`-Xfeature=mode`, `-XXLanguage:+Feature`, `-jvm-target 21`, `-opt-in=<fqname>`)
+before `kotlinc` runs. Options that load JVM code or reshape the compiler
+environment — `-Xplugin`, plugin `-P`, `-J`, `@argfile`, `-classpath` and
+friends — fail the case without invoking the compiler.
+
 ```bash
 bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases
 bash Scripts/diff_diagnostics.sh --report /tmp/diagnostics.tsv Scripts/diagnostic_cases
@@ -284,6 +388,13 @@ bash Scripts/diff_diagnostics.sh --self-test
 The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.3.10
 lane. For local toolchains that are intentionally different, set
 `DIFF_REQUIRE_JDK21=0` and record that limitation with the result.
+
+Cases marked `// DIFF_CANDIDATE_ONLY` bypass kotlinc compilation and execution.
+Add one `// DIFF_EXPECT_OUTPUT: <line>` directive for each expected stdout line;
+repeated directives represent multiline output, and an empty directive represents
+an empty line. The candidate must compile, exit successfully, and match those
+lines exactly. This path is for cases where a JVM reference target cannot model
+the input, such as same-module `expect`/`actual` declarations.
 
 ## Precompiled stdlib artifact for diff runs
 
@@ -351,3 +462,19 @@ bash Scripts/dead_code_audit.sh --verbose
 The `Quarterly Audits` workflow runs this audit with the fiction audit on the
 first day of January, April, July, and October. Its summary and the intermediate
 audit files are retained as a 90-day GitHub Actions artifact.
+
+## Ktor build probe
+
+`ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
+sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
+into a cache dir outside the repo, compiles each with `kswiftc --emit
+library`, and writes a per-module TSV of diagnostic-code counts (see
+`docs/ktor-build-status.md` for the current gap inventory). It is a
+diagnostic probe, not a CI-wired regression test — a module failing to
+compile is expected until the remaining gaps close.
+
+```bash
+bash Scripts/ktor_build.sh                  # fetch + compile all modules
+bash Scripts/ktor_build.sh --no-fetch        # reuse an existing checkout
+bash Scripts/ktor_build.sh --module ktor_io  # compile a single module
+```

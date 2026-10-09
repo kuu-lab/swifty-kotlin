@@ -2,7 +2,7 @@ package kotlin
 
 // KSP-860: Keep Long.Companion's numeric constants in bundled Kotlin source.
 private fun ksp860LongMaxValue(): Long = 9223372036854775807L
-private fun ksp860LongMinValue(): Long = 0x8000000000000000L
+private fun ksp860LongMinValue(): Long = -9223372036854775807L - 1L
 private fun ksp860LongSizeBits(): Int = 64
 private fun ksp860LongSizeBytes(): Int = 8
 

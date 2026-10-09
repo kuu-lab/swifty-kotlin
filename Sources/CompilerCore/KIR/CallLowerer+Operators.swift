@@ -60,7 +60,61 @@ extension CallLowerer {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
-        let lhsID = driver.lowerExpr(
+        // `P == null` / `P != null` with a statically non-null operand is a
+        // tautology on the JVM. Folding before operand lowering keeps the
+        // floating-point `!=` path below from desugaring `-0.0 != null` into
+        // a Double compare (-0.0 != 0.0 → false), and keeps sentinel-aliased
+        // raw bits (Long.MIN_VALUE, -0.0) out of kk_op_eq/ne.
+        // OperatorLoweringPass folds the residual `.binary` form for operands
+        // that only resolve to a non-null primitive after value-class
+        // unwrapping.
+        if op == .equal || op == .notEqual {
+            func isNullLiteralExpr(_ e: ExprID) -> Bool {
+                guard let kind = ast.arena.expr(e) else { return false }
+                if case .nullLiteral = kind { return true }
+                return false
+            }
+            func isNonNullPrimitiveExpr(_ e: ExprID) -> Bool {
+                guard let typeID = sema.bindings.exprTypes[e],
+                      case .primitive(_, .nonNull) = sema.types.kind(of: typeID)
+                else { return false }
+                return true
+            }
+            let lhsIsNullLiteral = isNullLiteralExpr(lhs)
+            let rhsIsNullLiteral = isNullLiteralExpr(rhs)
+            if lhsIsNullLiteral != rhsIsNullLiteral,
+               isNonNullPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
+            {
+                let foldedID = arena.appendExpr(.boolLiteral(op == .notEqual), type: boolType)
+                instructions.append(.constValue(result: foldedID, value: .boolLiteral(op == .notEqual)))
+                return foldedID
+            }
+        }
+        // KUU-1385: a `+` whose result is String and whose operands are all
+        // compile-time constants is itself a compile-time constant on the
+        // JVM — folded and interned, so `("ab" + "c") === "abc"` is true.
+        // Emit the pooled string literal directly instead of the runtime
+        // concat. Anything non-constant (a var, a plain `val`, a call)
+        // falls through to `__kk_string_concat_flat` unchanged.
+        // A `+` Sema bound to a callee that is not Kotlin's built-in string
+        // concatenation — e.g. `operator fun Int.plus(s: String)` — must keep
+        // that call instead of folding as `"2" + "x"` text.
+        if op == .add, sema.bindings.exprTypes[exprID] == stringType,
+           isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner) {
+            var collector = driver.constantCollector
+            collector.resolvedConstant = { constExprID in
+                self.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
+            }
+            if let foldedText = collector.constantStringConcatOperandText(
+                exprID, ast: ast, sema: sema, interner: interner
+            ) {
+                let foldedSymbol = interner.intern(foldedText)
+                let literalID = arena.appendExpr(.stringLiteral(foldedSymbol), type: stringType)
+                instructions.append(.constValue(result: literalID, value: .stringLiteral(foldedSymbol)))
+                return literalID
+            }
+        }
+        let rawLhsID = driver.lowerExpr(
             lhs,
             ast: ast,
             sema: sema,
@@ -69,6 +123,18 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        // Freeze lhs before lowering rhs: a bare mutable-local lhs (e.g. `x`
+        // in `x + x++`) must observe its value at the point it was
+        // evaluated, not any mutation rhs performs on the same variable.
+        // Only worth doing when rhs could actually perform a mutation
+        // (e.g. `result + 22` cannot touch `result`, so freezing here
+        // would only add a dead copy some optimization levels don't fold
+        // away). See freezeEvaluationOrderOperand / needsEvaluationOrderFreeze
+        // / expressionMayMutateState.
+        let lhsID = needsEvaluationOrderFreeze(lhs, ast: ast, sema: sema)
+            && expressionMayMutateState(rhs, ast: ast)
+            ? freezeEvaluationOrderOperand(rawLhsID, arena: arena, instructions: &instructions)
+            : rawLhsID
         let rhsID = driver.lowerExpr(
             rhs,
             ast: ast,
@@ -79,6 +145,59 @@ extension CallLowerer {
             instructions: &instructions
         )
         let result = arena.appendTemporary(type: boundType)
+        // Comparing a statically non-null operand against `null` (`Nothing?`)
+        // is a constant: `==`/`===` are always false, `!=`/`!==` always true.
+        // Folding here also avoids the kk_op_eq/ne raw path, where a non-null
+        // Long/ULong/Double/Float whose bits equal the null sentinel (e.g.
+        // Long.MIN_VALUE produced by nullable flow narrowing) would compare
+        // equal to null.
+        if op == .equal || op == .notEqual || op == .identityEqual || op == .notIdentityEqual {
+            func isNullLiteralOperand(_ expr: ExprID) -> Bool {
+                guard let type = sema.bindings.exprTypes[expr],
+                      case let .nothing(nullability) = sema.types.kind(of: type)
+                else { return false }
+                return nullability != .nonNull
+            }
+            func isProvablyNonNullOperand(_ expr: ExprID, _ kirID: KIRExprID) -> Bool {
+                if let type = sema.bindings.exprTypes[expr],
+                   sema.types.nullability(of: type) == .nonNull
+                {
+                    return true
+                }
+                if let type = arena.exprType(kirID),
+                   sema.types.nullability(of: type) == .nonNull
+                {
+                    return true
+                }
+                return false
+            }
+            if (isNullLiteralOperand(rhs) && isProvablyNonNullOperand(lhs, lhsID))
+                || (isNullLiteralOperand(lhs) && isProvablyNonNullOperand(rhs, rhsID))
+            {
+                instructions.append(.constValue(
+                    result: result,
+                    value: .boolLiteral(op == .notEqual || op == .notIdentityEqual)
+                ))
+                return result
+            }
+        }
+        // Sema's builtin context + path has no call binding. Emit the bridge
+        // before try lowering so thrown overrides reach the enclosing catch.
+        if op == .add,
+           sema.bindings.callBindings[exprID] == nil,
+           let boundType,
+           isCoroutineContextReceiverType(boundType, sema: sema, interner: interner)
+        {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_context_plus_dispatch"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: true,
+                thrownResult: nil
+            ))
+            return result
+        }
         if (op == .rangeTo || op == .rangeUntil),
            let floatingPointElementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
         {
@@ -92,6 +211,31 @@ extension CallLowerer {
                 result: result,
                 canThrow: false,
                 thrownResult: nil
+            ))
+            return result
+        }
+        // Enum locals use raw ordinals, while erased collection slots hold
+        // tagged boxes. Normalize before the inherited Enum.equals binding
+        // can box only the argument and compare it against a raw receiver.
+        if op == .equal || op == .notEqual,
+           let lhsType = sema.bindings.exprTypes[lhs],
+           let rhsType = sema.bindings.exprTypes[rhs],
+           lhsType == rhsType,
+           case let .classType(enumType) = sema.types.kind(of: lhsType),
+           enumType.nullability == .nonNull,
+           sema.symbols.symbol(enumType.classSymbol)?.kind == .enumClass
+        {
+            let ordinalLhs = unboxIfEnumTyped(
+                lhsID, staticType: lhsType, sema: sema, arena: arena,
+                interner: interner, into: &instructions
+            )
+            let ordinalRhs = unboxIfEnumTyped(
+                rhsID, staticType: rhsType, sema: sema, arena: arena,
+                interner: interner, into: &instructions
+            )
+            instructions.append(.binary(
+                op: op == .equal ? .equal : .notEqual,
+                lhs: ordinalLhs, rhs: ordinalRhs, result: result
             ))
             return result
         }
@@ -119,6 +263,24 @@ extension CallLowerer {
             ))
             return result
         }
+        let isRangeEquality = (op == .equal || op == .notEqual)
+            && (sema.bindings.isRangeExpr(lhs) || sema.bindings.isRangeExpr(rhs))
+        if isRangeEquality {
+            // Range expressions are duck-typed as their scalar element type
+            // during semantic analysis. Their raw values are still heap
+            // handles, so the scalar kk_op_eq path would unbox the handle and
+            // compare pointer bits. Preserve Kotlin's nominal range value
+            // equality through the runtime structural bridge instead.
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         // Resolve String operators before the generic call-binding path. The
         // bundled stdlib exposes `String` APIs as ordinary Kotlin wrappers,
         // so Sema may bind `+`/`==` to those source declarations. String is a
@@ -127,6 +289,26 @@ extension CallLowerer {
         // than the corresponding flat runtime ABI.
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
+        // JVM compares non-null primitive Float/Double identity with IEEE
+        // equality, including signed zero and NaN. Nullable/Any operands
+        // retain reference identity and must not enter this scalar path.
+        if op == .identityEqual || op == .notIdentityEqual,
+           let lhsType, let rhsType,
+           case let .primitive(primitive, .nonNull) = sema.types.kind(of: lhsType),
+           case let .primitive(rhsPrimitive, .nonNull) = sema.types.kind(of: rhsType),
+           primitive == rhsPrimitive,
+           primitive == .float || primitive == .double
+        {
+            let prefix = primitive == .double ? "d" : "f"
+            let suffix = op == .identityEqual ? "eq" : "ne"
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_op_\(prefix)\(suffix)"),
+                arguments: [lhsID, rhsID], result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
         let nullableStringType = sema.types.makeNullable(stringType)
         let lhsIsString = lhsType == stringType || lhsType == nullableStringType
         let rhsIsString = rhsType == stringType || rhsType == nullableStringType
@@ -140,6 +322,89 @@ extension CallLowerer {
             guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
             return true
         }()
+        if (op == .identityEqual || op == .notIdentityEqual), lhsIsString || rhsIsString {
+            // Compare canonical object handles, including String/Any mixed
+            // operands. Normalize both runtime null representations before
+            // the raw comparison; flat String boxing returns zero for null.
+            var handles: [KIRExprID] = []
+            for (id, isString) in [(lhsID, lhsIsString), (rhsID, rhsIsString)] {
+                var handle = id
+                if isString {
+                    handle = arena.appendTemporary(type: sema.types.nullableAnyType)
+                    instructions.append(.call(
+                        symbol: nil, callee: interner.intern("kk_string_from_flat"),
+                        arguments: [id], result: handle,
+                        canThrow: false, thrownResult: nil
+                    ))
+                }
+                let normalized = arena.appendTemporary(type: sema.types.nullableAnyType)
+                let nonNullLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: handle, target: nonNullLabel))
+                instructions.append(.constValue(result: normalized, value: .null))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(nonNullLabel))
+                instructions.append(.copy(from: handle, to: normalized))
+                instructions.append(.label(endLabel))
+                handles.append(normalized)
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
+                arguments: handles, result: result,
+                canThrow: false, thrownResult: nil
+            ))
+            return result
+        }
+        // KUU-1385: `===`/`!==` on a nullable-primitive operand is JVM
+        // reference equality on the boxed value. `P?` slots already carry
+        // the tagged box handle (or the null sentinel), so a raw handle
+        // compare is the identity check — `kk_box_*_static` below is a
+        // pass-through for them. The same call boxes a non-null primitive
+        // peer through the JVM-compatible identity cache, so `x === 5`
+        // converges on the shared box while out-of-cache-range values stay
+        // distinct. Operands of any other type keep their existing handle.
+        if op == .identityEqual || op == .notIdentityEqual {
+            let lhsKind = lhsType.map { sema.types.kind(of: $0) }
+            let rhsKind = rhsType.map { sema.types.kind(of: $0) }
+            let hasNullablePrimitiveOperand = [lhsKind, rhsKind].contains { kind in
+                guard case .primitive(_, let nullability) = kind else { return false }
+                return nullability != .nonNull
+            }
+            if hasNullablePrimitiveOperand {
+                let boxingTable = BoxingCalleeTable(interner: interner)
+                var operandIDs = [lhsID, rhsID]
+                for (index, kind) in [lhsKind, rhsKind].enumerated() {
+                    guard let kind,
+                          case .primitive = kind,
+                          let boxCallee = boxingTable.boxCallee(
+                              for: kind,
+                              requireNonNull: false,
+                              preferStaticPrimitive: true
+                          )
+                    else {
+                        continue
+                    }
+                    let boxed = arena.appendTemporary(type: sema.types.nullableAnyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: boxCallee,
+                        arguments: [operandIDs[index]],
+                        result: boxed,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    operandIDs[index] = boxed
+                }
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(op == .identityEqual ? "kk_op_eq" : "kk_op_ne"),
+                    arguments: operandIDs, result: result,
+                    canThrow: false, thrownResult: nil
+                ))
+                return result
+            }
+        }
         let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
             || (rhsIsString && lhsIsNullLiteral)
         let isStringComparison: Bool = if isStringOperand {
@@ -153,7 +418,18 @@ extension CallLowerer {
         } else {
             false
         }
-        let isStringAdd = op == .add && sema.bindings.exprTypes[exprID] == stringType
+        // `String.plus(Any?)` is itself a member, so a String-receiver `+`
+        // always keeps the flat string-concat ABI below regardless of which
+        // (bundled-source) symbol Sema bound it to. Only a *non*-String
+        // receiver whose `+` resolved to a genuine operator candidate (e.g. a
+        // user's `operator fun Int.plus(s: String): String` extension) should
+        // defer to the resolved callee instead of this String-result
+        // shortcut; a non-String receiver with no such binding is the
+        // unresolved lenient built-in concatenation path, which keeps using
+        // this ABI too.
+        let isStringAdd = op == .add
+            && sema.bindings.exprTypes[exprID] == stringType
+            && (lhsIsString || isStringOperand || sema.bindings.callBindings[exprID] == nil)
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -263,7 +539,13 @@ extension CallLowerer {
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )
-                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: callBinding.chosenCallee)
+                    // KUU-655: an override that inherits its defaults never
+                    // has its own stub; resolve to the base declaration's
+                    // stub instead (see `defaultStubOwnerSymbol`). Operators
+                    // have no `super.`-qualified call syntax, so there is no
+                    // mask "super call" bit to set here.
+                    let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: callBinding.chosenCallee, sema: sema)
+                    let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
                     instructions.append(.call(
                         symbol: stubSym,
                         callee: stubName,
@@ -291,14 +573,33 @@ extension CallLowerer {
                     } else {
                         interner.intern(op.kotlinFunctionName)
                     }
-                    instructions.append(.call(
-                        symbol: sourceBackedHashSetEquality ? nil : callBinding.chosenCallee,
-                        callee: loweredCalleeName,
-                        arguments: finalArguments,
-                        result: callResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    // An open/abstract member operator must dispatch on the
+                    // receiver's runtime type, exactly like `lhs.plus(rhs)`.
+                    if !sourceBackedHashSetEquality,
+                       let virtualInstruction = tryEmitVirtualDispatch(
+                           chosenCallee: callBinding.chosenCallee,
+                           calleeName: loweredCalleeName,
+                           receiverExpr: lhs,
+                           loweredReceiverID: lhsID,
+                           isSuperCall: false,
+                           finalArguments: finalArguments,
+                           result: callResult,
+                           sema: sema,
+                           arena: arena,
+                           interner: interner
+                       )
+                    {
+                        instructions.append(virtualInstruction)
+                    } else {
+                        instructions.append(.call(
+                            symbol: sourceBackedHashSetEquality ? nil : callBinding.chosenCallee,
+                            callee: loweredCalleeName,
+                            arguments: finalArguments,
+                            result: callResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
                 }
                 // compareTo desugaring: emit `compareTo(a,b) <op> 0` to produce Bool
                 if isCompareToDesugaring {
@@ -418,12 +719,7 @@ extension CallLowerer {
                 return nullStringID
             }
             switch op {
-            // `===`/`!==` fold into the same content-equality codegen as `==`/`!=`
-            // here: String is a "flat" by-value aggregate (data/length/byteCount/hash)
-            // in this runtime, not a heap reference, so there is no separate pointer
-            // identity to compare — `kk_op_eq`/`kk_op_ne` also cannot accept it
-            // (their ABI takes one word per operand, not a 4-word aggregate).
-            case .equal, .identityEqual:
+            case .equal:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
@@ -435,7 +731,7 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
                 return result
-            case .notEqual, .notIdentityEqual:
+            case .notEqual:
                 let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendTemporary(type: boolType)
@@ -491,7 +787,17 @@ extension CallLowerer {
             let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
             let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
             let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
-            if lhsIsFloatingPoint || rhsIsFloatingPoint {
+            // `!=` on a *nullable* Double?/Float? must stay null-aware: a
+            // null operand can never be IEEE-compared, and the runtime null
+            // sentinel's bit pattern equals -0.0, so kk_op_dne/fne's fixed
+            // IEEE comparison would treat a genuine null as -0.0. Defer to
+            // the generic `.binary` path below (op == .notEqual falls through
+            // this switch unchanged), which OperatorLoweringPass routes
+            // through the null-aware kk_nullable_primitive_ne instead.
+            let isNullableFloatingPointNotEqual = op == .notEqual
+                && ((lhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false)
+                    || (rhsTypeID.map { isNullableFloatingPointType($0, types: sema.types) } ?? false))
+            if (lhsIsFloatingPoint || rhsIsFloatingPoint), !isNullableFloatingPointNotEqual {
                 // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
                 // the non-floating-point side to the same floating-point type
                 // before comparing -- kk_op_d*/kk_op_f* interpret both
@@ -657,7 +963,7 @@ extension CallLowerer {
             kirOp = .notEqual
         case .identityEqual, .notIdentityEqual:
             // Always resolved earlier: builtinBinaryRuntimeCallee (kk_op_eq/kk_op_ne)
-            // for ordinary operands, or the string content-equality path above for
+            // for ordinary operands, or the canonical string-handle path above for
             // String operands. Neither falls through to this raw KIRBinaryOp path.
             preconditionFailure("=== / !== must be lowered before reaching the raw KIRBinaryOp path")
         case .lessThan:
@@ -675,12 +981,20 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
-            // kk_op_rangeTo / __kk_uint_rangeTo / __kk_ulong_rangeTo are residual
-            // operator-core helpers.
+            // Range expressions are duck-typed to their scalar element type,
+            // but the runtime needs the exact nominal range class for equality
+            // and hashCode semantics.
             let rangeToCallee: InternedString
-            if sema.bindings.isFloatingPointRangeExpr(exprID) {
-                let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
-                let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeToCallee = interner.intern("__kk_char_rangeTo")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeToCallee = interner.intern("__kk_long_rangeTo")
+            } else if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 if lhsType == sema.types.floatType || rhsType == sema.types.floatType {
                     rangeToCallee = interner.intern("__kk_float_rangeTo")
                 } else {
@@ -690,6 +1004,8 @@ extension CallLowerer {
                 rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 rangeToCallee = interner.intern("__kk_uint_rangeTo")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeToCallee = interner.intern("__kk_ulong_rangeTo")
             } else {
                 rangeToCallee = interner.intern("kk_op_rangeTo")
             }
@@ -701,8 +1017,14 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            appendRuntimeRangeItableRegistrations(
+                objectValue: result, factoryName: rangeToCallee,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             return result
         case .rangeUntil:
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
             let rangeUntilCallee: InternedString
             if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 let elementType = sema.bindings.floatingPointRangeElementType(forExpr: exprID)
@@ -711,8 +1033,17 @@ extension CallLowerer {
                 } else {
                     rangeUntilCallee = interner.intern("__kk_double_rangeUntil")
                 }
+            } else if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeUntilCallee = interner.intern("__kk_char_rangeUntil")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeUntilCallee = interner.intern("__kk_long_rangeUntil")
             } else if sema.bindings.isULongRangeExpr(exprID) {
                 rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_uint_rangeUntil")
             } else {
                 rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
@@ -724,6 +1055,10 @@ extension CallLowerer {
                 canThrow: false,
                 thrownResult: nil
             ))
+            appendRuntimeRangeItableRegistrations(
+                objectValue: result, factoryName: rangeUntilCallee,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
             return result
         case .downTo:
             let downToCallee: InternedString
@@ -745,7 +1080,9 @@ extension CallLowerer {
             return result
         case .step:
             let stepCallee: InternedString
-            if sema.bindings.isULongRangeExpr(exprID) {
+            if sema.bindings.isCharRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_char_range_step")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_ulong_step")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_uint_step")
@@ -935,9 +1272,38 @@ extension CallLowerer {
         ))
     }
 
+    /// Whether a String-typed `+` lowerer may treat the expression as Kotlin's
+    /// built-in concatenation (constant folding and `__kk_string_concat_flat`).
+    /// Only true when Sema left the operator unbound (the lenient built-in
+    /// concat path) or bound it to the stdlib `String.plus` member or the
+    /// `kotlin.text.String?.plus` facade; a user-declared operator that merely
+    /// returns String must keep its resolved call.
+    private func isBuiltinStringPlusCallee(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee)
+        else {
+            return true
+        }
+        let kotlinName = interner.intern("kotlin")
+        let plusName = interner.intern("plus")
+        return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
+            || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
+    }
+
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {
         switch types.kind(of: typeID) {
         case .primitive(.double, _), .primitive(.float, _): return true
+        default: return false
+        }
+    }
+
+    private func isNullableFloatingPointType(_ typeID: TypeID, types: TypeSystem) -> Bool {
+        switch types.kind(of: typeID) {
+        case .primitive(.double, .nullable), .primitive(.float, .nullable): return true
         default: return false
         }
     }
@@ -950,7 +1316,7 @@ extension CallLowerer {
     /// misread as an unrelated floating-point value. A value that is already
     /// the target floating-point type (or of unknown type) passes through
     /// unchanged.
-    private func widenIntegerOperandToFloatingPoint(
+    func widenIntegerOperandToFloatingPoint(
         _ operandID: KIRExprID,
         operandTypeID: TypeID?,
         isFloatingPoint: Bool,
@@ -1191,6 +1557,111 @@ extension CallLowerer {
         return result
     }
 
+    /// Snapshots an already-lowered operand into a fresh temporary.
+    ///
+    /// A bare reference to a mutable local (`nameRef`) returns that local's
+    /// persistent storage register by identity rather than a value snapshot
+    /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
+    /// via `localValue(for:)`). KIR instructions execute strictly in the
+    /// order they are appended, so if a later-evaluated sibling operand
+    /// (e.g. an indexed assignment's value expression, or the right operand
+    /// of a binary expression, when it contains `i++`/`++i` on the same
+    /// variable this operand already read) mutates that register in place
+    /// before the instruction that consumes this operand actually runs, that
+    /// instruction observes the mutated value instead of the value at the
+    /// point this operand was evaluated. Copying into a fresh temporary
+    /// immediately after evaluation freezes the evaluate-once value that
+    /// Kotlin's specified left-to-right evaluation order requires. Call this
+    /// on every operand of a multi-operand construct as soon as it is
+    /// lowered, before lowering the next sibling operand.
+    func freezeEvaluationOrderOperand(
+        _ id: KIRExprID,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let temp = arena.appendTemporary(type: arena.exprType(id))
+        instructions.append(.copy(from: id, to: temp))
+        return temp
+    }
+
+    /// True when `exprID` is a bare reference to a mutable (`var`) local —
+    /// the only shape whose lowered `KIRExprID` aliases a register that a
+    /// later-evaluated sibling operand could still mutate in place (see
+    /// `freezeEvaluationOrderOperand`). Anything else — a `val`, a literal,
+    /// a lambda, a nested call, a property, a value parameter, ... — either
+    /// cannot be mutated by a sibling, or is already lowered into its own
+    /// fresh value, so freezing it would only add a needless extra copy.
+    /// That matters beyond cost: a call argument that is a trailing lambda
+    /// passed to an `inline` stdlib function (e.g. `fold`/`reduce` on a
+    /// range) is later consumed by the separate inline-lowering pass, which
+    /// expects to find the closure construction directly feeding the call;
+    /// splicing an unconditional copy in between broke that pattern match
+    /// and crashed under `-O2`.
+    func needsEvaluationOrderFreeze(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
+        guard case .nameRef = ast.arena.expr(exprID),
+              let symbol = sema.bindings.identifierSymbols[exprID],
+              let symbolInfo = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        return symbolInfo.kind == .local && symbolInfo.flags.contains(.mutable)
+    }
+
+    /// Conservatively true when `exprID` could possibly perform a write
+    /// (an assignment, an increment/decrement, or a call that might do
+    /// either indirectly) while it is evaluated. False only for an
+    /// expression built purely from literals, bare reads, and arithmetic/
+    /// comparison/logical operators over such expressions — a shape that
+    /// can never mutate anything, however deep it nests.
+    ///
+    /// This exists to avoid freezing a sibling operand needlessly: e.g. in
+    /// `result = result + 22`, the rhs `22` cannot mutate `result`, so
+    /// there is no aliasing hazard and freezing the lhs would only add a
+    /// dead `.copy` that some optimization levels don't fold away (this
+    /// was caught by `LLVMOptimizationPipelineTests`'s stack-slot-
+    /// elimination probe). `needsEvaluationOrderFreeze` should only cause
+    /// a freeze when *this* also returns true for the later-evaluated
+    /// sibling(s).
+    ///
+    /// Bounded by the same depth the expression parser itself enforces
+    /// (`ExpressionParser.maxRecursionDepth`), so hitting the bound
+    /// conservatively returns true rather than recursing unboundedly.
+    func expressionMayMutateState(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        depth: Int = 0
+    ) -> Bool {
+        guard depth < 64, let expr = ast.arena.expr(exprID) else {
+            return true
+        }
+        switch expr {
+        case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+             .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral,
+             .stringLiteral, .nameRef:
+            return false
+        case let .binary(_, lhs, rhs, _):
+            return expressionMayMutateState(lhs, ast: ast, depth: depth + 1)
+                || expressionMayMutateState(rhs, ast: ast, depth: depth + 1)
+        case let .unaryExpr(_, operand, _):
+            return expressionMayMutateState(operand, ast: ast, depth: depth + 1)
+        default:
+            return true
+        }
+    }
+
+    /// True when any of `exprIDs` might mutate state per
+    /// `expressionMayMutateState`.
+    func anyExpressionMayMutateState<S: Sequence>(
+        _ exprIDs: S,
+        ast: ASTModule
+    ) -> Bool where S.Element == ExprID {
+        exprIDs.contains { expressionMayMutateState($0, ast: ast) }
+    }
+
     func lowerIndexedAssignExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -1214,7 +1685,7 @@ extension CallLowerer {
         )
         // Built-in array set only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1223,6 +1694,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast,
@@ -1313,6 +1788,7 @@ extension CallLowerer {
                 symbols: sema.symbols,
                 interner: interner,
                 arena: arena,
+                sema: sema,
                 into: &instructions
             )
         } else {
@@ -1343,10 +1819,19 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        guard let expr = ast.arena.expr(exprID),
+              case let .indexedCompoundAssign(op, _, _, _, _) = expr
+        else {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
         // Conceptual desugaring: a[i] += v
         //   1) t = kk_array_get(a, i)
-        //   2) t' = kk_op_*(t, v)      // appropriate kk_op_* for the compound operator
-        //   3) kk_array_set(a, i, t')
+        //   2) t' = kk_op_*(t, v)      // appropriate kk_op_* for the compound operator,
+        //                              // or the element's own operator bound by Sema
+        //   3) kk_array_set(a, i, t')  // skipped for an in-place `plusAssign`
         let receiverID = driver.lowerExpr(
             receiverExpr,
             ast: ast,
@@ -1356,9 +1841,50 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+
+        // KSWIFTK-BUG: when Sema resolved a custom (or source-backed member,
+        // e.g. MutableList) get()/set() pair for this compound assign, both
+        // halves must dispatch through those member calls instead of the raw
+        // array runtime below — otherwise the write silently lands on the
+        // receiver's own raw memory layout instead of the container it
+        // actually indexes into (bindIndexedCompoundAssignSetOperator only
+        // binds this for a non-array-like receiver, so genuine
+        // Array<T>/IntArray/... always fall through to the raw path).
+        let elementOperator = sema.bindings.indexedCompoundAssignElementOperatorBinding(for: exprID)
+        let operatorBinding = sema.bindings.indexedCompoundAssignOperatorBinding(for: exprID)
+        // A get()-only receiver is valid for an in-place `plusAssign`, which
+        // never writes back, so Sema binds no set() for it.
+        let usesInPlaceElementOperatorWithoutSet = elementOperator?.kind == .inPlace
+            && !isConcreteArrayLikeType(
+                sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
+                sema: sema,
+                interner: interner
+            )
+        if let getCallBinding = sema.bindings.callBinding(for: exprID),
+           operatorBinding != nil || usesInPlaceElementOperatorWithoutSet
+        {
+            return lowerIndexedCompoundAssignExprViaCustomOperator(
+                exprID,
+                op: op,
+                receiverExpr: receiverExpr,
+                indices: indices,
+                valueExpr: valueExpr,
+                receiverID: receiverID,
+                getCallBinding: getCallBinding,
+                operatorBinding: operatorBinding,
+                elementOperator: elementOperator,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         // Built-in array compound assign only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed compound assign")
-        let indexID = driver.lowerExpr(
+        let rawIndexID = driver.lowerExpr(
             indices[0],
             ast: ast,
             sema: sema,
@@ -1367,15 +1893,10 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let valueID = driver.lowerExpr(
-            valueExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &instructions
-        )
+        let indexID = needsEvaluationOrderFreeze(indices[0], ast: ast, sema: sema)
+            && expressionMayMutateState(valueExpr, ast: ast)
+            ? freezeEvaluationOrderOperand(rawIndexID, arena: arena, instructions: &instructions)
+            : rawIndexID
         // Derive element type from the receiver's array type.
         // Mirrors TypeCheckHelpers.arrayElementType logic.
         let receiverBoundType = sema.bindings.exprTypes[receiverExpr]
@@ -1393,7 +1914,7 @@ extension CallLowerer {
         // boxing/unboxing must use the slot's actual element type, not the
         // operand's.
         let compoundPrimitiveElementType: TypeID? = compoundReceiverIsGenericArray
-            ? (genericArrayElementType(of: receiverBoundType, sema: sema) ?? arena.exprType(valueID))
+            ? (genericArrayElementType(of: receiverBoundType, sema: sema) ?? sema.bindings.exprTypes[valueExpr])
             : nil
 
         let rawGetResult = arena.appendTemporary(type: sema.types.anyType)
@@ -1419,14 +1940,45 @@ extension CallLowerer {
         } else {
             getResult = rawGetResult
         }
-        let opResult = arena.appendTemporary(type: sema.types.anyType)
-        guard let expr = ast.arena.expr(exprID),
-              case let .indexedCompoundAssign(op, _, _, _, _) = expr
-        else {
+        // Kotlin evaluates `a[i] += v` as receiver, index, get, value, op, set.
+        let valueID = driver.lowerExpr(
+            valueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if let elementOperator {
+            guard let newElement = emitIndexedElementOperatorCall(
+                elementOperator,
+                element: getResult,
+                valueID: valueID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ) else {
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [receiverID, indexID, newElement],
+                result: nil,
+                canThrow: false,
+                thrownResult: nil
+            ))
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
+        let opResult = arena.appendTemporary(type: sema.types.anyType)
         // Determine the runtime op stub.
         // Use __kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
@@ -1504,6 +2056,271 @@ extension CallLowerer {
         return unit
     }
 
+    /// Lowers `a[i] op= v` / `a[i]++`/`a[i]--` through the custom (or
+    /// source-backed member, e.g. MutableList) get()/set() pair resolved by
+    /// LocalDeclTypeChecker+IndexedCompoundAssignAndLocalFunctions.swift's
+    /// bindIndexedCompoundAssignSetOperator, instead of the raw array
+    /// runtime used by the fallback path in lowerIndexedCompoundAssignExpr:
+    ///   1) t = receiver.get(i...)
+    ///   2) t' = kk_op_*(t, v), or the element's own operator
+    ///      (`t.plus(v)`, `t.inc()`; an in-place `t.plusAssign(v)` stops here)
+    ///   3) receiver.set(i..., t')
+    /// emitMemberCallInstruction derives each call's own throwing ABI from
+    /// its resolved callee, so a throwing custom get()/set() propagates
+    /// correctly without special-casing here.
+    private func lowerIndexedCompoundAssignExprViaCustomOperator(
+        _ exprID: ExprID,
+        op: CompoundAssignOp,
+        receiverExpr: ExprID,
+        indices: [ExprID],
+        valueExpr: ExprID,
+        receiverID: KIRExprID,
+        getCallBinding: CallBinding,
+        operatorBinding: IndexedCompoundAssignOperatorBinding?,
+        elementOperator: IndexedCompoundAssignElementOperatorBinding?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let loweredIndices = indices.map { indexExpr in
+            let rawIndex = driver.lowerExpr(
+                indexExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            return needsEvaluationOrderFreeze(indexExpr, ast: ast, sema: sema)
+                && expressionMayMutateState(valueExpr, ast: ast)
+                ? freezeEvaluationOrderOperand(rawIndex, arena: arena, instructions: &instructions)
+                : rawIndex
+        }
+
+        let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
+        guard let elementType = operatorBinding?.elementType ?? elementOperator?.elementType else {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+
+        let getResult = arena.appendTemporary(type: elementType)
+        emitMemberCallInstruction(
+            normalized: driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: loweredIndices,
+                callBinding: getCallBinding,
+                chosenCallee: getCallBinding.chosenCallee,
+                spreadFlags: Array(repeating: false, count: loweredIndices.count),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ),
+            callBinding: getCallBinding,
+            chosenCallee: getCallBinding.chosenCallee,
+            calleeName: interner.intern("get"),
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: receiverID),
+            result: getResult,
+            isSuperCall: isSuperCall,
+            qualifiedSuperType: nil,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: [receiverID] + loweredIndices
+        )
+
+        // Kotlin evaluates `b[i] += v` as receiver, indices, get, value, op, set.
+        let valueID = driver.lowerExpr(
+            valueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let newElement: KIRExprID
+        if let elementOperator {
+            guard let operatorResult = emitIndexedElementOperatorCall(
+                elementOperator,
+                element: getResult,
+                valueID: valueID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ) else {
+                // In-place `plusAssign`: no set() write-back.
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
+            newElement = operatorResult
+        } else {
+            newElement = emitBuiltinIndexedCompoundOp(
+                op: op, elementType: elementType, current: getResult, valueID: valueID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+        }
+
+        guard let operatorBinding else {
+            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+            instructions.append(.constValue(result: unit, value: .unit))
+            return unit
+        }
+        let setCallBinding = operatorBinding.setCall
+        let setArguments = loweredIndices + [newElement]
+        let setResult = arena.appendTemporary(type: sema.types.unitType)
+        emitMemberCallInstruction(
+            normalized: driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: setArguments,
+                callBinding: setCallBinding,
+                chosenCallee: setCallBinding.chosenCallee,
+                spreadFlags: Array(repeating: false, count: setArguments.count),
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            ),
+            callBinding: setCallBinding,
+            chosenCallee: setCallBinding.chosenCallee,
+            calleeName: interner.intern("set"),
+            receiver: MemberCallReceiver(expr: receiverExpr, loweredID: receiverID),
+            result: setResult,
+            isSuperCall: isSuperCall,
+            qualifiedSuperType: nil,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions,
+            arguments: [receiverID] + setArguments
+        )
+
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    /// Builtin numeric/String arithmetic for `get() op v` on a custom get/set
+    /// receiver whose element type defines no operator of its own.
+    private func emitBuiltinIndexedCompoundOp(
+        op: CompoundAssignOp,
+        elementType: TypeID,
+        current getResult: KIRExprID,
+        valueID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        // Determine the runtime op stub from the get() result's own element
+        // type — mirroring the raw-array path below, but keyed off the
+        // custom operator's actual return type rather than the receiver's
+        // array element type (the receiver here isn't array-shaped).
+        let stringType = sema.types.stringType
+        let isStringElement = elementType == stringType
+        let isUnsignedElement = sema.types.isUnsigned(elementType)
+        let floatingPointPrefix: String? = switch sema.types.kind(of: elementType) {
+        case .primitive(.double, _): "d"
+        case .primitive(.float, _): "f"
+        default: nil
+        }
+        let opName = if op == .plusAssign, isStringElement {
+            "__kk_string_concat_flat"
+        } else if let floatingPointPrefix {
+            switch op {
+            case .plusAssign: "kk_op_\(floatingPointPrefix)add"
+            case .minusAssign: "kk_op_\(floatingPointPrefix)sub"
+            case .timesAssign: "kk_op_\(floatingPointPrefix)mul"
+            case .divAssign: "kk_op_\(floatingPointPrefix)div"
+            case .modAssign: "kk_op_\(floatingPointPrefix)mod"
+            }
+        } else {
+            switch op {
+            case .plusAssign: "kk_op_add"
+            case .minusAssign: "kk_op_sub"
+            case .timesAssign: "kk_op_mul"
+            case .divAssign: isUnsignedElement ? "kk_op_udiv" : "kk_op_div"
+            case .modAssign: isUnsignedElement ? "kk_op_urem" : "kk_op_mod"
+            }
+        }
+        let opResult = arena.appendTemporary(type: elementType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(opName),
+            arguments: [getResult, valueID],
+            result: opResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        return opResult
+    }
+
+    /// Calls the element type's own operator resolved by Sema for
+    /// `a[i] op= v` / `a[i]++` on the `get()` result. Mirrors the direct-call
+    /// pattern of lowerMemberCompoundAssignExpr: the element has no AST
+    /// receiver expression, so emitMemberCallInstruction does not apply.
+    /// Returns nil for an in-place `plusAssign`, which leaves nothing to store.
+    private func emitIndexedElementOperatorCall(
+        _ binding: IndexedCompoundAssignElementOperatorBinding,
+        element: KIRExprID,
+        valueID: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        let callee = binding.call.chosenCallee
+        var arguments = [element]
+        if binding.kind != .incrementDecrement {
+            let normalized = driver.callSupportLowerer.normalizedCallArguments(
+                providedArguments: [valueID],
+                callBinding: binding.call,
+                chosenCallee: callee,
+                spreadFlags: [false],
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            arguments.append(contentsOf: normalized.arguments)
+        }
+        let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callee),
+                                                   !externalLinkName.isEmpty
+        {
+            interner.intern(externalLinkName)
+        } else {
+            sema.symbols.symbol(callee)?.name ?? interner.intern("plus")
+        }
+        let callResult = arena.appendTemporary(type: binding.resultType)
+        instructions.append(.call(
+            symbol: callee,
+            callee: loweredCalleeName,
+            arguments: arguments,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return binding.kind == .inPlace ? nil : callResult
+    }
+
     // NOTE: isSequenceLikeType is defined once in CallLowerer+MemberCalls.swift
     // and shared across all CallLowerer extensions.
 
@@ -1536,5 +2353,63 @@ extension CallLowerer {
         case let .invariant(t), let .out(t), let .in(t): return t
         case .star: return nil
         }
+    }
+
+    /// Resolves an AST reference to its `const val` constant for compile-time
+    /// string-concat folding (KUU-1385). Deliberately narrower than
+    /// `propertyConstantInitializers`: Kotlin's constant-expression rules
+    /// admit `const val` reads only — a plain `val` holding a literal is NOT
+    /// a compile-time constant on the JVM (`"x" + s` for `val s = "ab"`
+    /// concatenates at runtime and does not intern).
+    private func compileTimeConstantRef(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> KIRExprKind? {
+        if let constant = sema.bindings.constExprValue(for: exprID) {
+            // `constExprValue` also covers `.constValue`-flagged synthetic
+            // enum entries, whose bound value is the ordinal `.intLiteral`.
+            // Their `===` identity is the enum object and a concatenation
+            // must stringify the entry — never fold the ordinal.
+            let symbol: SymbolID? = switch ast.arena.expr(exprID) {
+            case .nameRef?:
+                sema.bindings.identifierSymbols[exprID]
+            case .memberCall?:
+                sema.bindings.callBindings[exprID]?.chosenCallee
+            default:
+                nil
+            }
+            if let symbol, isEnumEntry(symbol, sema: sema) {
+                return nil
+            }
+            return constant
+        }
+        // Member-access const reads (`O.OC`) never reach `constExprValue`;
+        // resolve them the same way tryLowerObjectMemberPropertyRead does,
+        // restricted to `.constValue` symbols so a plain `val` can never fold.
+        guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
+              args.isEmpty,
+              let chosen = sema.bindings.callBindings[exprID]?.chosenCallee
+                  ?? sema.bindings.identifierSymbol(for: exprID),
+              sema.symbols.symbol(chosen)?.flags.contains(.constValue) == true,
+              !isEnumEntry(chosen, sema: sema)
+        else {
+            return nil
+        }
+        // Mirrors tryFoldConstMemberProperty: a nullable receiver goes
+        // through the safe-call path, never the constant.
+        if let receiverType = sema.bindings.exprTypes[receiver],
+           receiverType != sema.types.makeNonNullable(receiverType)
+        {
+            return nil
+        }
+        return sema.symbols.constValueExprKind(for: chosen)
+    }
+
+    private func isEnumEntry(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        guard let parent = sema.symbols.parentSymbol(for: symbol) else {
+            return false
+        }
+        return sema.symbols.symbol(parent)?.kind == .enumClass
     }
 }

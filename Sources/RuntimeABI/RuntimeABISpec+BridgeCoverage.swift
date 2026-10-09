@@ -41,18 +41,9 @@ private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
     ),
 ]
 
-private let listClosureBridgeNames = [
-    "kk_list_maxOf",
-    "kk_list_maxWith",
-    "kk_list_maxWithOrNull",
-    "kk_list_minOf",
-    "kk_list_minWith",
-    "kk_list_minWithOrNull",
-]
-
-private let listClosureBridgeFunctions = listClosureBridgeNames.map {
+private func listClosureBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("listRaw", .intptr),
@@ -63,14 +54,18 @@ private let listClosureBridgeFunctions = listClosureBridgeNames.map {
     )
 }
 
-private let listComparatorBridgeFunctions = [
-    "kk_list_maxOfWith",
-    "kk_list_maxOfWithOrNull",
-    "kk_list_minOfWith",
-    "kk_list_minOfWithOrNull",
-].map {
+private let listClosureBridgeFunctions = [
+    RuntimeABISpec.listMaxOfSpec,
+    RuntimeABISpec.listMaxWithSpec,
+    RuntimeABISpec.listMaxWithOrNullSpec,
+    RuntimeABISpec.listMinOfSpec,
+    RuntimeABISpec.listMinWithSpec,
+    RuntimeABISpec.listMinWithOrNullSpec,
+]
+
+private func listComparatorBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("listRaw", .intptr),
@@ -83,17 +78,20 @@ private let listComparatorBridgeFunctions = [
     )
 }
 
+private let listComparatorBridgeFunctions = [
+    RuntimeABISpec.listMaxOfWithSpec,
+    RuntimeABISpec.listMaxOfWithOrNullSpec,
+    RuntimeABISpec.listMinOfWithSpec,
+    RuntimeABISpec.listMinOfWithOrNullSpec,
+]
+
 private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
 private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = []
 
-private let mapBridgeFunctions = [
-    "kk_map_flatMap",
-    "kk_map_maxByOrNull",
-    "kk_map_minByOrNull",
-].map {
+private func mapBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
     bridgeSpec(
-        $0,
+        name,
         section: "Collection",
         typedParams: [
             ("mapRaw", .intptr),
@@ -104,52 +102,11 @@ private let mapBridgeFunctions = [
     )
 }
 
-private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
-    [bridgeSpec("__kk_mutable_list_sort", section: "Collection", params: ["listRaw"],
-            isThrowing: false)]
-    + [
-        "__kk_mutable_list_sort_primitive",
-        "__kk_mutable_list_sortWith",
-        "__kk_mutable_list_sortBy",
-        "__kk_mutable_list_sortBy_primitive",
-        "__kk_mutable_list_sortByDescending",
-        "__kk_mutable_list_sortByDescending_primitive",
-    ].map {
-        switch $0 {
-        case "__kk_mutable_list_sort_primitive":
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("kindRaw", .int32),
-                ]
-            )
-        case "__kk_mutable_list_sortBy_primitive", "__kk_mutable_list_sortByDescending_primitive":
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("fnPtr", .intptr),
-                    ("closureRaw", .intptr),
-                    ("kindRaw", .int32),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            )
-        default:
-            return bridgeSpec(
-                $0,
-                section: "Collection",
-                typedParams: [
-                    ("listRaw", .intptr),
-                    ("fnPtr", .intptr),
-                    ("closureRaw", .intptr),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            )
-        }
-    }
+private let mapBridgeFunctions = [
+    RuntimeABISpec.mapFlatMapSpec,
+    RuntimeABISpec.mapMaxByOrNullSpec,
+    RuntimeABISpec.mapMinByOrNullSpec,
+]
 
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
@@ -166,13 +123,29 @@ private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
             isThrowing: false),
     bridgeSpec("kk_range_for_in_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
-            isThrowing: false),
+    RuntimeABISpec.sequenceFilterNotSpec,
     bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
             isThrowing: false),
 ]
 
 public extension RuntimeABISpec {
+    static let listMaxOfSpec = listClosureBridgeSpec("kk_list_maxOf")
+    static let listMaxWithSpec = listClosureBridgeSpec("kk_list_maxWith")
+    static let listMaxWithOrNullSpec = listClosureBridgeSpec("kk_list_maxWithOrNull")
+    static let listMinOfSpec = listClosureBridgeSpec("kk_list_minOf")
+    static let listMinWithSpec = listClosureBridgeSpec("kk_list_minWith")
+    static let listMinWithOrNullSpec = listClosureBridgeSpec("kk_list_minWithOrNull")
+    static let listMaxOfWithSpec = listComparatorBridgeSpec("kk_list_maxOfWith")
+    static let listMaxOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_maxOfWithOrNull")
+    static let listMinOfWithSpec = listComparatorBridgeSpec("kk_list_minOfWith")
+    static let listMinOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_minOfWithOrNull")
+    static let mapFlatMapSpec = mapBridgeSpec("kk_map_flatMap")
+    static let mapMaxByOrNullSpec = mapBridgeSpec("kk_map_maxByOrNull")
+    static let mapMinByOrNullSpec = mapBridgeSpec("kk_map_minByOrNull")
+
+    static let sequenceFilterNotSpec: RuntimeABIFunctionSpec = bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
+            isThrowing: false)
+
     static let numericRuntimeBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
             "kk_char_category",
@@ -228,6 +201,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_ulong_to_int", section: "NumericConversion", params: ["value"],
             isThrowing: false),
+            bridgeSpec("kk_ulong_to_long", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
         ]
         + [
             "kk_op_dadd",
@@ -268,6 +243,12 @@ public extension RuntimeABISpec {
                 ]
             ),
         ]
+        + [
+            "kk_nullable_primitive_eq",
+            "kk_nullable_primitive_ne",
+        ].map {
+            bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
+        }
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase
@@ -276,17 +257,11 @@ public extension RuntimeABISpec {
         + listIndexedBridgeFunctions
         + listMiscBridgeFunctions
         + mapBridgeFunctions
-        + mutableListBridgeFunctions
         + sequenceAndSetBridgeFunctions
 
     static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
-            bridgeSpec("kk_duration_div_int", section: "Duration", params: ["durationRaw", "scale"]),
-            bridgeSpec("kk_duration_isInfinite", section: "Duration", params: ["durationRaw"]),
-            bridgeSpec("kk_duration_isNegative", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_duration_isPositive", section: "Duration", params: ["durationRaw"]),
-            bridgeSpec("kk_duration_times_int", section: "Duration", params: ["durationRaw", "scale"]),
-            bridgeSpec("kk_duration_unary_minus", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_instant_compare", section: "System", params: ["aRaw", "bRaw"],
             isThrowing: false),
             bridgeSpec("kk_instant_epoch_seconds", section: "System", params: ["instantRaw"],
@@ -310,17 +285,14 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
             isThrowing: false),
             // STDLIB-TIME-181: Native Foundation Date bridge
-            bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
-            bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),
             // STDLIB-TIME-181: Native clock_gettime bridge
-            bridgeSpec("kk_clock_gettime_monotonic_ns", section: "System"),
-            bridgeSpec("kk_clock_monotonic_mark_now", section: "System"),
             // STDLIB-TIME-181: Type-safe epoch conversion helpers
-            bridgeSpec("kk_instant_to_epoch_millis", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_instant_from_epoch_seconds", section: "System", params: ["epochSeconds", "nanoOfSecond"]),
             bridgeSpec("kk_platform_memoryModel", section: "System", params: ["platformRaw"],
             isThrowing: false),
             bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
+            isThrowing: false),
+            bridgeSpec("__kk_immutable_blob_of", section: "Native", params: ["elements", "count"],
             isThrowing: false),
             bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
             isThrowing: false),
@@ -337,6 +309,7 @@ public extension RuntimeABISpec {
                 ]
             ),
             bridgeSpec("kk_native_terminateWithUnhandledException", section: "Native", params: ["throwableRaw"],
+            returnType: .noreturn,
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_getByteAt", section: "Native", params: ["arrayRaw", "index"],
             isThrowing: false),
@@ -382,10 +355,28 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
+            // KSP-1192: ImmutableBlob.asCPointer/asUCPointer private impl bridge.
+            bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
+            isThrowing: false),
             bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
             isThrowing: false),
-            bridgeSpec("kk_with_timeout", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
-            bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
+            // withTimeout reports an expired deadline as a catchable
+            // TimeoutCancellationException, so its outThrown channel is declared
+            // explicitly (as for kk_ensure_active) rather than left implicit.
+            bridgeSpec("kk_with_timeout", section: "Coroutine", typedParams: [
+                ("timeoutMillis", .intptr),
+                ("entryPointRaw", .intptr),
+                ("continuation", .intptr),
+                ("outThrown", .nullableIntptrPointer),
+            ]),
+            bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"],
+            isThrowing: false),
+            bridgeSpec("kk_with_timeout_or_null_throwing", section: "Coroutine", typedParams: [
+                ("timeoutMillis", .intptr),
+                ("entryPointRaw", .intptr),
+                ("continuation", .intptr),
+                ("outThrown", .nullableIntptrPointer),
+            ]),
         ]
 
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [

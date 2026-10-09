@@ -1,5 +1,7 @@
 package kotlin.time
 
+import kotlin.internal.KsSymbolName
+
 // KSP-472
 // Instant member accessors, arithmetic, comparison, and elapsed().
 // Migration source: Sources/Runtime/RuntimeInstant.swift
@@ -45,12 +47,14 @@ public operator fun Instant.compareTo(other: Instant): Int =
 
 // Real kotlin.time.Instant has no until(); the duration between two instants
 // is obtained via this minus operator overload (t2 - t1), matching the real
-// stdlib's `operator fun minus(other: Instant): Duration`.
+// stdlib's `operator fun minus(other: Instant): Duration`. __kk_instant_until
+// returns the nanosecond payload as a raw Long, wrapped in Duration(...) here
+// so every Duration value stays a boxed object (KUU-1093).
 public operator fun Instant.minus(other: Instant): Duration =
-    other.__kk_instant_until(this)
+    Duration(other.__kk_instant_until(this))
 
 public fun Instant.elapsed(): Duration =
-    this.__kk_instant_until(Instant.now())
+    Duration(this.__kk_instant_until(Instant.now()))
 
 // KSP-1489: value semantics, epoch conversion, and ISO formatting.
 
@@ -81,7 +85,7 @@ public fun Instant.toString(): String = instantFormatIso(this)
 
 private fun instantLongMaxValue(): Long = 9223372036854775807L
 
-private fun instantLongMinValue(): Long = 0x8000000000000000L
+private fun instantLongMinValue(): Long = -9223372036854775807L - 1L
 
 private class InstantLocalDateTime(
     val year: Long,
@@ -192,8 +196,6 @@ private fun instantFloorDiv(value: Long, divisor: Long): Long {
 }
 
 // KSP-472: companion factories
-
-import kotlin.internal.KsSymbolName
 
 @KsSymbolName("kk_instant_now")
 private external fun __kk_instant_now(): Instant

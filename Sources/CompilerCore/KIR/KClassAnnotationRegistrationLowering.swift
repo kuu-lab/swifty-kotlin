@@ -1,4 +1,4 @@
-/// Emits calls to register annotation metadata for a nominal type.
+/// Emits calls to register annotation metadata for a reflection value.
 ///
 /// This shared helper keeps KClass annotation registration identical across
 /// metadata, class-reference, and object-literal lowering paths.
@@ -8,9 +8,11 @@ func emitKClassAnnotationRegistration(
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
+    instructions: inout [KIRInstruction],
+    registrationCallee: String = "__kk_kclass_register_single_annotation",
+    annotations selectedAnnotations: [MetadataAnnotationRecord]? = nil
 ) {
-    let annotations = sema.symbols.annotations(for: objectSymbol)
+    let annotations = selectedAnnotations ?? sema.symbols.annotations(for: objectSymbol)
     guard !annotations.isEmpty else { return }
 
     let intType = sema.types.intType
@@ -33,7 +35,7 @@ func emitKClassAnnotationRegistration(
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
-            callee: interner.intern("__kk_kclass_register_single_annotation"),
+            callee: interner.intern(registrationCallee),
             arguments: [typeTokenExpr, nameExpr, argsExpr, argCountExpr],
             result: registerResult,
             canThrow: false,

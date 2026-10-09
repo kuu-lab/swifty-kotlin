@@ -7,6 +7,28 @@
 
 package kotlinx.coroutines.flow
 
+import kotlin.internal.KsSymbolName
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ensureActive
+
+public interface Flow<out T>
+
+@KsSymbolName("kk_flow_collect")
+internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> Unit)
+
+@Suppress("UNCHECKED_CAST")
+public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
+    if (this is SharedFlow<*>) {
+        (this as SharedFlow<T>).collect(collector)
+    } else {
+        this.collectCold { value -> collector(value) }
+    }
+}
+
+public suspend fun <T> Flow<T>.collect(collector: FlowCollector<T>) {
+    this.collect { value -> collector.emit(value) }
+}
+
 // MIGRATION-FLOW-004 (KSP-499)
 // Flow operators are bundled Kotlin source. The compiler/runtime keep only the
 // cold-flow core (`flow`, `emit`, and `collect`) as coroutine bridges; the
@@ -34,15 +56,19 @@ public fun <T> Flow<T>.filter(predicate: suspend (T) -> Boolean): Flow<T> {
 }
 
 public fun <T> Flow<T>.take(count: Int): Flow<T> {
+    require(count > 0) { "Requested element count $count should be positive" }
     val source = this
     return flow {
-        if (count <= 0) return@flow
+        val collector = SendingCollector<T> { value -> emit(value) }
         var emitted = 0
-        source.collect { value ->
-            if (emitted < count) {
-                emit(value)
+        try {
+            source.collect { value ->
+                collector.emit(value)
                 emitted += 1
+                if (emitted == count) throw AbortFlowException(collector)
             }
+        } catch (e: AbortFlowException) {
+            if (e.owner !== collector) throw e
         }
     }
 }
@@ -58,11 +84,17 @@ public suspend fun <T> Flow<T>.first(): T {
     val source = this
     var found = false
     var result: Any? = null
-    source.collect { value ->
-        if (!found) {
-            result = value
-            found = true
+    val collector = SendingCollector<T> { value ->
+        result = value
+        found = true
+    }
+    try {
+        source.collect { value ->
+            collector.emit(value)
+            throw AbortFlowException(collector)
         }
+    } catch (e: AbortFlowException) {
+        if (e.owner !== collector) throw e
     }
     if (!found) throw NoSuchElementException("Flow is empty.")
     @Suppress("UNCHECKED_CAST")
@@ -122,25 +154,28 @@ public fun <T, R> Flow<T>.flatMapConcat(transform: suspend (T) -> Flow<R>): Flow
     val source = this
     return flow {
         source.collect { value ->
-            transform(value).collect { inner -> emit(inner) }
+            val inner = transform(value)
+            inner.collect { emit(it) }
         }
     }
 }
 
-public fun <T, R> Flow<T>.flatMapMerge(transform: suspend (T) -> Flow<R>): Flow<R> =
+public fun <T, R> Flow<T>.flatMapMerge(
+    concurrency: Int,
+    transform: suspend (T) -> Flow<R>
+): Flow<R> {
+    require(concurrency > 0) { "Expected positive concurrency level, but had $concurrency" }
+    return flatMapConcat(transform)
+}
+
+public fun <T, R> Flow<T>.flatMapMerge(
+    transform: suspend (T) -> Flow<R>
+): Flow<R> = flatMapMerge(DEFAULT_CONCURRENCY, transform)
+
+// Synchronous cold flows collect each inner flow to completion before the
+// next outer value arrives, so flatMapLatest reduces to flatMapConcat here.
+public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> =
     flatMapConcat(transform)
-
-public fun <T, R> Flow<T>.flatMapLatest(transform: suspend (T) -> Flow<R>): Flow<R> {
-    val source = this
-    return flow {
-        var latest: Flow<R>? = null
-        source.collect { value -> latest = transform(value) }
-        val selected = latest
-        if (selected != null) {
-            selected.collect { value -> emit(value) }
-        }
-    }
-}
 
 public fun <T, R, V> Flow<T>.zip(
     other: Flow<R>,
@@ -185,7 +220,43 @@ public fun <T> merge(vararg flows: Flow<T>): Flow<T> = flow {
     }
 }
 
+@FlowPreview
 public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
     val source = this
     return flow { source.collect { value -> emit(value) } }
+}
+
+// The operators below share the sequential-collect model: cold flows emit
+// every value synchronously, so temporal/concurrent modifiers reduce to
+// pass-throughs while the filtering and error operators preserve their
+// value-stream semantics.
+
+public fun <T> Flow<T>.buffer(capacity: Int = -2): Flow<T> {
+    require(capacity >= 0 || capacity == -2 || capacity == -1) {
+        "Buffer size should be non-negative, BUFFERED, or CONFLATED, but was $capacity"
+    }
+    return this
+}
+
+public fun <T> Flow<T>.conflate(): Flow<T> = this
+
+public fun <T> Flow<T>.flowOn(context: kotlin.coroutines.CoroutineContext): Flow<T> = this
+
+// KSwiftK compatibility surface: `flowWith` was removed from kotlinx-coroutines
+// (~1.4.x; absent in 1.10.2). In the sequential cold-flow model the context it
+// would introduce is inert, so it reduces to the same pass-through as flowOn.
+public fun <T> Flow<T>.flowWith(flowContext: kotlin.coroutines.CoroutineContext): Flow<T> = this
+
+// `cancellable` is the exception to the pass-throughs above: it composes the
+// retained collect/emit core with `ensureActive`, so a collector running in a
+// cancelled coroutine stops between elements instead of draining the upstream
+// sequence (KSP-1577).
+public fun <T> Flow<T>.cancellable(): Flow<T> {
+    val source = this
+    return flow {
+        source.collect { value ->
+            ensureActive()
+            emit(value)
+        }
+    }
 }

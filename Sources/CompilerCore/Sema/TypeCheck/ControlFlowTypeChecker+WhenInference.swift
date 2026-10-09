@@ -17,7 +17,31 @@ extension ControlFlowTypeChecker {
         let boolType = sema.types.booleanType
 
         if let subjectID {
-            let subjectType = driver.inferExpr(subjectID, ctx: ctx, locals: &locals)
+            let declaredType = ast.arena.whenSubjectTypeRef(for: id).map {
+                driver.helpers.resolveTypeRef(
+                    $0, ast: ast, sema: sema, interner: interner,
+                    scope: ctx.scope, diagnostics: ctx.semaCtx.diagnostics,
+                    inferenceContext: ctx, usageRange: range
+                )
+            }
+            if declaredType != nil {
+                sema.bindings.markSourceDeclaredExpectedType(subjectID)
+            }
+            let initializerType = driver.inferExpr(
+                subjectID, ctx: ctx, locals: &locals, expectedType: declaredType
+            )
+            if let declaredType {
+                driver.emitSubtypeConstraint(
+                    left: initializerType, right: declaredType,
+                    range: ast.arena.exprRange(subjectID), solver: ConstraintSolver(),
+                    sema: sema, diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
+            let subjectType = declaredType ?? initializerType
+            var ctx = ctx
+            if declaredType != nil {
+                ctx.whenSubjectTypes[subjectID] = subjectType
+            }
 
             // Register `when (val x = expr)` subject variable into locals so
             // that branch bodies and guards can reference it.
@@ -33,46 +57,56 @@ extension ControlFlowTypeChecker {
                     visibility: .private,
                     flags: []
                 )
+                sema.symbols.setPropertyType(subjectType, for: subjectVarSymbol)
                 locals[subjectVarName] = (subjectType, subjectVarSymbol, false, true)
                 sema.bindings.bindIdentifier(id, symbol: subjectVarSymbol)
             }
 
-            let subjectLocalBinding: (name: InternedString, type: TypeID, symbol: SymbolID, isStable: Bool, isMutable: Bool)? = {
+            let subjectLocalBinding: (name: InternedString, type: TypeID, symbol: DataFlowReference, isStable: Bool, isMutable: Bool)? = {
                 // First try the subject variable name from `when (val x = expr)`.
                 if let subjectVarName = ast.arena.whenSubjectVarName(for: id),
                    let local = locals[subjectVarName]
                 {
                     return (
-                        subjectVarName, local.type, local.symbol,
+                        subjectVarName, local.type, DataFlowReference(root: local.symbol),
                         driver.helpers.isStableLocalSymbol(local.symbol, sema: sema),
                         local.isMutable
                     )
                 }
-                // Fall back to the subject expression being a simple name reference.
-                guard let subjectExpr = ast.arena.expr(subjectID),
-                      case let .nameRef(subjectName, _) = subjectExpr,
-                      let local = locals[subjectName]
-                else {
-                    return nil
-                }
+                guard let reference = ctx.dataFlow.resolveStableReference(
+                    subjectID, locals: locals, ast: ast, sema: sema, interner: interner
+                ) else { return nil }
+                guard let name = locals.first(where: { $0.value.symbol == reference.symbol.root })?.key else { return nil }
                 return (
-                    subjectName, local.type, local.symbol,
-                    driver.helpers.isStableLocalSymbol(local.symbol, sema: sema),
-                    local.isMutable
+                    name, reference.type, reference.symbol, reference.isStable,
+                    locals[name]?.isMutable ?? false
                 )
+            }()
+            // When the subject is the implicit receiver `this`, narrowing must
+            // also update `ctx.implicitReceiverType` so bare-name member
+            // access (e.g. `v`, not just `this.v`) resolves against the
+            // narrowed type inside each branch.
+            let subjectIsImplicitReceiverThis: Bool = {
+                guard let subjectExpr = ast.arena.expr(subjectID),
+                      case let .thisRef(label, _) = subjectExpr
+                else {
+                    return false
+                }
+                return label == nil
             }()
             let hasExplicitNullBranch = branches.contains { branch in
                 branch.conditions.contains { cond in
                     guard let conditionExpr = ast.arena.expr(cond),
-                          case let .nameRef(name, _) = conditionExpr
+                          case .nullLiteral = conditionExpr
                     else {
                         return false
                     }
-                    return name == KnownCompilerNames(interner: interner).null
+                    return true
                 }
             }
             var branchTypes: [TypeID] = []
             var covered: Set<InternedString> = []
+            var coveredTypeSymbols: Set<SymbolID> = []
             var hasNullCase = false
             var hasTrueCase = false
             var hasFalseCase = false
@@ -86,11 +120,11 @@ extension ControlFlowTypeChecker {
 
             func isNullCondition(_ conditionID: ExprID) -> Bool {
                 guard let conditionExpr = ast.arena.expr(conditionID),
-                      case let .nameRef(name, _) = conditionExpr
+                      case .nullLiteral = conditionExpr
                 else {
                     return false
                 }
-                return name == KnownCompilerNames(interner: interner).null
+                return true
             }
 
             func recordCoverage(for conditionID: ExprID, conditionType: TypeID) {
@@ -107,7 +141,7 @@ extension ControlFlowTypeChecker {
                     }
                     switch conditionSymbol.kind {
                     case .field:
-                        if let ownerID = driver.helpers.enumOwnerSymbol(for: conditionSymbol, symbols: sema.symbols),
+                        if let ownerID = sema.symbols.enumOwnerSymbol(for: conditionSymbol),
                            ownerID == subjectNominalSymbol
                         {
                             covered.insert(conditionSymbol.name)
@@ -150,11 +184,10 @@ extension ControlFlowTypeChecker {
                     }
                     covered.insert(interner.intern("false"))
 
+                case .nullLiteral:
+                    hasNullCase = true
+
                 case let .nameRef(name, _):
-                    if name == KnownCompilerNames(interner: interner).null {
-                        hasNullCase = true
-                        return
-                    }
                     guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID] else {
                         covered.insert(name)
                         return
@@ -172,17 +205,23 @@ extension ControlFlowTypeChecker {
                     recordResolvedConditionSymbol(conditionSymbolID, fallbackName: calleeName)
 
                 case let .isCheck(checkedExprID, _, negated, _):
+                    // The parser desugars a bare `is Type` when-branch condition to
+                    // `.isCheck(expr: subject, ...)`, reusing the exact subject
+                    // ExprID -- so identity comparison is both equivalent to, and
+                    // (for synthetic subjects such as `this` or a lambda parameter,
+                    // which never get an `identifierSymbols` binding) more reliable
+                    // than resolving the checked expression through
+                    // `identifierSymbols` and comparing symbols. Qualified or
+                    // computed subjects do not have a local binding either, but
+                    // their `is` conditions still cover sealed subclasses.
                     guard !negated,
-                          let subjectLocalBinding,
-                          let checkedSymbolID = sema.bindings.identifierSymbols[checkedExprID],
-                          checkedSymbolID == subjectLocalBinding.symbol,
+                          checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID),
-                          let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types),
-                          let targetSymbol = sema.symbols.symbol(targetNominal)
+                          let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types)
                     else {
                         return
                     }
-                    covered.insert(targetSymbol.name)
+                    coveredTypeSymbols.insert(targetNominal)
 
                 default:
                     break
@@ -194,7 +233,7 @@ extension ControlFlowTypeChecker {
                 var branchLocals = locals
                 var branchCtx = ctx
                 var trueFlowStates: [DataFlowState] = []
-                var cumulativeFalseState = ctx.flowState
+                var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
                 // Track condition keys within this single branch for
                 // intra-branch duplicate detection.
                 var branchConditionKeys: Set<String> = []
@@ -233,6 +272,7 @@ extension ControlFlowTypeChecker {
                         let trueState = ctx.dataFlow.branchOnWhenSubject(
                             subjectSymbol: subjectLocalBinding.symbol,
                             subjectType: subjectType,
+                            subjectID: subjectID,
                             conditionID: cond,
                             base: cumulativeFalseState,
                             ast: ast,
@@ -263,7 +303,7 @@ extension ControlFlowTypeChecker {
                         if hasExplicitNullBranch, !isNullBranch,
                            ctx.dataFlow.resolvedTypeFromFlowState(
                                branchFlowState,
-                               symbol: subjectLocalBinding.symbol
+                               reference: subjectLocalBinding.symbol
                            ) == nil
                         {
                             branchFlowState = ctx.dataFlow.whenNonNullBranchState(
@@ -281,26 +321,38 @@ extension ControlFlowTypeChecker {
                             sema: sema
                         )
 
-                        if let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                        if subjectLocalBinding.symbol.properties.isEmpty,
+                           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
                             branchFlowState,
-                            symbol: subjectLocalBinding.symbol
+                            reference: subjectLocalBinding.symbol
                         ) {
                             branchLocals[subjectLocalBinding.name] = (
                                 narrowedType,
-                                subjectLocalBinding.symbol,
+                                subjectLocalBinding.symbol.root,
                                 subjectLocalBinding.isMutable,
                                 true
                             )
+                            if subjectIsImplicitReceiverThis {
+                                branchCtx = branchCtx.copying(implicitReceiverType: narrowedType)
+                            }
                         }
                     } else if hasExplicitNullBranch, !isNullBranch {
                         let nonNullState = ctx.dataFlow.whenNonNullBranchState(
                             subjectSymbol: subjectLocalBinding.symbol,
                             subjectType: subjectLocalBinding.type,
-                            base: ctx.flowState,
+                            base: ctx.flowState.includingMembers(from: locals),
                             sema: sema
                         )
                         branchCtx = ctx.copying(flowState: nonNullState)
                         driver.exprChecker.applyFlowStateToLocals(nonNullState, locals: &branchLocals, sema: sema)
+                        if subjectIsImplicitReceiverThis,
+                           let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                               nonNullState,
+                               reference: subjectLocalBinding.symbol
+                           )
+                        {
+                            branchCtx = branchCtx.copying(implicitReceiverType: narrowedType)
+                        }
                     }
                 }
 
@@ -319,7 +371,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -332,13 +384,21 @@ extension ControlFlowTypeChecker {
                         subjectSymbol: subjectLocalBinding.symbol,
                         subjectType: subjectLocalBinding.type,
                         hasExplicitNullBranch: hasExplicitNullBranch,
-                        base: ctx.flowState, sema: sema
+                        base: ctx.flowState.includingMembers(from: locals), sema: sema
                     )
                     elseCtx = ctx.copying(flowState: elseFlowState)
                     driver.exprChecker.applyFlowStateToLocals(elseFlowState, locals: &elseLocals, sema: sema)
+                    if subjectIsImplicitReceiverThis,
+                       let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
+                           elseFlowState,
+                           reference: subjectLocalBinding.symbol
+                       )
+                    {
+                        elseCtx = elseCtx.copying(implicitReceiverType: narrowedType)
+                    }
                 }
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }
@@ -346,10 +406,22 @@ extension ControlFlowTypeChecker {
             let summary = WhenBranchSummary(
                 coveredSymbols: covered, hasElse: elseExpr != nil,
                 hasNullCase: hasNullCase, hasTrueCase: hasTrueCase,
-                hasFalseCase: hasFalseCase
+                hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: subjectType, branches: summary, sema: sema)
-            if !isExhaustive {
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
+            // A subject-ful `when` used as a statement (its value discarded) only
+            // needs to be exhaustive when the subject is Boolean, enum, or sealed —
+            // for any other subject type, Kotlin requires exhaustiveness only when
+            // the when's value is actually used (see the subjectless `when` path
+            // below, which already applies this rule).
+            if !isExhaustive,
+               isStatementContext,
+               !ctx.dataFlow.subjectRequiresStatementExhaustiveness(subjectType: subjectType, sema: sema)
+            {
+                // Not exhaustive, but legal as a statement: fall through without
+                // diagnosing, matching the subjectless `when` statement behavior.
+            } else if !isExhaustive {
                 let hasQualifiedObjectCondition = branches.contains { branch in
                     branch.conditions.contains { conditionID in
                         guard let conditionExpr = ast.arena.expr(conditionID) else {
@@ -384,19 +456,39 @@ extension ControlFlowTypeChecker {
             }
 
             // Propagate definite initialization across exhaustive when branches.
-            if isExhaustive, !allBranchLocals.isEmpty {
-                for (name, local) in locals where !local.isInitialized {
-                    let allInit = allBranchLocals.allSatisfy { branchLocal in
-                        guard let bl = branchLocal[name] else { return false }
-                        return bl.isInitialized && bl.symbol == local.symbol
-                    }
-                    if allInit {
-                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+            // A branch whose body never completes normally (`return`/`throw`/
+            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
+            // initialization requirement: control can only reach the code after
+            // the `when` through a branch that does complete normally.
+            if isExhaustive {
+                let completingBranchLocals = zip(branchTypes, allBranchLocals)
+                    .filter { type, _ in type != sema.types.nothingType }
+                    .map(\.1)
+                if !completingBranchLocals.isEmpty {
+                    for (name, local) in locals where !local.isInitialized {
+                        let allInit = completingBranchLocals.allSatisfy { branchLocal in
+                            guard let bl = branchLocal[name] else { return false }
+                            return bl.isInitialized && bl.symbol == local.symbol
+                        }
+                        if allInit {
+                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                        }
                     }
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let completingLocals = zip(branchTypes, allBranchLocals)
+                .filter { $0.0 != sema.types.nothingType }.map(\.1)
+            mergeNullableBranchAssignments(
+                completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
+            )
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         } else {
@@ -404,7 +496,7 @@ extension ControlFlowTypeChecker {
             var allBranchLocals: [LocalBindings] = []
             var hasTrueCase = false
             var hasFalseCase = false
-            var cumulativeFalseState = ctx.flowState
+            var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
             for branch in branches {
                 var branchLocals = locals
                 var condCtx = ctx.copying(flowState: cumulativeFalseState)
@@ -470,7 +562,7 @@ extension ControlFlowTypeChecker {
                 }
 
                 branchTypes.append(
-                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType)
+                    driver.inferExpr(branch.body, ctx: branchCtx, locals: &branchLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(branchLocals)
             }
@@ -480,7 +572,7 @@ extension ControlFlowTypeChecker {
                 let elseCtx = ctx.copying(flowState: cumulativeFalseState)
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &elseLocals, sema: sema)
                 branchTypes.append(
-                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType)
+                    driver.inferExpr(elseExpr, ctx: elseCtx, locals: &elseLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 )
                 allBranchLocals.append(elseLocals)
             }
@@ -491,6 +583,7 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
+            sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
             // A subject-less `when` used as a statement (its value discarded) does not
             // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {
@@ -502,19 +595,39 @@ extension ControlFlowTypeChecker {
             }
 
             // Propagate definite initialization across exhaustive when branches.
-            if isExhaustive, !allBranchLocals.isEmpty {
-                for (name, local) in locals where !local.isInitialized {
-                    let allInit = allBranchLocals.allSatisfy { branchLocal in
-                        guard let bl = branchLocal[name] else { return false }
-                        return bl.isInitialized && bl.symbol == local.symbol
-                    }
-                    if allInit {
-                        locals[name] = (local.type, local.symbol, local.isMutable, true)
+            // A branch whose body never completes normally (`return`/`throw`/
+            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
+            // initialization requirement: control can only reach the code after
+            // the `when` through a branch that does complete normally.
+            if isExhaustive {
+                let completingBranchLocals = zip(branchTypes, allBranchLocals)
+                    .filter { type, _ in type != sema.types.nothingType }
+                    .map(\.1)
+                if !completingBranchLocals.isEmpty {
+                    for (name, local) in locals where !local.isInitialized {
+                        let allInit = completingBranchLocals.allSatisfy { branchLocal in
+                            guard let bl = branchLocal[name] else { return false }
+                            return bl.isInitialized && bl.symbol == local.symbol
+                        }
+                        if allInit {
+                            locals[name] = (local.type, local.symbol, local.isMutable, true)
+                        }
                     }
                 }
             }
 
-            let type = sema.types.lub(branchTypes)
+            // A non-exhaustive `when` can fall through with no value (Unit); do not let
+            // all-jump branches collapse the result to Nothing (reachability + lowering).
+            let completingLocals = zip(branchTypes, allBranchLocals)
+                .filter { $0.0 != sema.types.nothingType }.map(\.1)
+            mergeNullableBranchAssignments(
+                completingLocals + (isExhaustive ? [] : [locals]), sema: sema, locals: &locals
+            )
+            let contextualizedTypes = contextualizeLongBranchLiterals(
+                expressions: branches.map(\.body) + (elseExpr.map { [$0] } ?? []),
+                types: branchTypes, ctx: ctx
+            )
+            let type = sema.types.lub(isExhaustive || !isStatementContext ? contextualizedTypes : contextualizedTypes + [sema.types.unitType])
             sema.bindings.bindExprType(id, type: type)
             return type
         }

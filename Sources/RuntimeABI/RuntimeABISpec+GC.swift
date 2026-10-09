@@ -4,22 +4,6 @@
 public extension RuntimeABISpec {
     static let gcFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_register_global_root",
-            parameters: [
-                RuntimeABIParameter(name: "slot", type: .nullableRawPointerPointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_unregister_global_root",
-            parameters: [
-                RuntimeABIParameter(name: "slot", type: .nullableRawPointerPointer),
-            ],
-            returnType: .void,
-            section: "GC"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_register_frame_map",
             parameters: [
                 RuntimeABIParameter(name: "functionID", type: .uint32),

@@ -285,7 +285,13 @@ extension CompilerCoreTests {
             Issue.record("Expected inline do-while body to parse as local assignment.")
             return
         }
-        #expect(ctx.interner.resolve(name) == "x")
+        guard let declarationID = stmts.first,
+              case let .localDecl(declaredName, _, _, _, _, _) = ast.arena.expr(declarationID)
+        else {
+            Issue.record("Expected the local declaration before the do-while loop.")
+            return
+        }
+        #expect(name == declaredName)
 
         guard let conditionExpr = ast.arena.expr(conditionExprID),
               case let .binary(op, _, _, _) = conditionExpr
@@ -300,6 +306,32 @@ extension CompilerCoreTests {
         {
             #expect(bodyRange.end.offset <= conditionRange.start.offset)
         }
+    }
+
+    @Test func testLabeledDoWhileDoesNotConsumeFollowingLocalDeclaration() throws {
+        let source = """
+        fun main(): Int {
+            var x = 0
+            outer@ do {
+                x += 1
+                if (x == 2) break@outer
+            } while (x < 5)
+
+            var y = 0
+            cont@ do {
+                y += 1
+                if (y < 3) continue@cont
+            } while (y < 4)
+
+            var z = 0
+            do z = z + 1 while (z < 3)
+            return x + y + z
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError)
     }
 
 
@@ -320,7 +352,6 @@ extension CompilerCoreTests {
             return
         }
 
-        #expect(params.map { ctx.interner.resolve($0) } == ["x"])
         // Lambda body may be wrapped in blockExpr(statements: [], trailingExpr: expr)
         let effectiveBodyID: ExprID = if let bodyExpr = ast.arena.expr(bodyExprID),
                                          case let .blockExpr(_, trailing, _) = bodyExpr,
@@ -331,11 +362,13 @@ extension CompilerCoreTests {
             bodyExprID
         }
         guard let bodyExpr = ast.arena.expr(effectiveBodyID),
-              case .binary = bodyExpr
+              case let .binary(_, lhs, _, _) = bodyExpr,
+              case let .nameRef(parameterName, _) = ast.arena.expr(lhs)
         else {
             Issue.record("Expected parsed lambda body expression.")
             return
         }
+        #expect(params == [parameterName])
     }
 
 
@@ -359,13 +392,13 @@ extension CompilerCoreTests {
 
         #expect(superTypes.count == 1)
         let superType = try #require(ast.arena.typeRef(superTypes[0]))
-        guard case let .named(path, _, _) = superType,
-              let first = path.first
+        guard case let .named(path, _, _) = superType
         else {
             Issue.record("Expected named super type in object literal.")
             return
         }
-        #expect(ctx.interner.resolve(first) == "I")
+        let interfaceDecl = try #require(firstInterfaceDecl(named: "I", in: ast, interner: ctx.interner))
+        #expect(path == [interfaceDecl.name])
     }
 
 
@@ -388,7 +421,8 @@ extension CompilerCoreTests {
             return
         }
         #expect(unboundReceiver == nil)
-        #expect(ctx.interner.resolve(unboundMember) == "target")
+        let target = try #require(topLevelFunction(named: "target", in: ast, interner: ctx.interner))
+        #expect(unboundMember == target.name)
 
         let bound = try #require(topLevelFunction(named: "bound", in: ast, interner: ctx.interner))
         guard case let .expr(boundExprID, _) = bound.body,
@@ -398,7 +432,7 @@ extension CompilerCoreTests {
             Issue.record("Expected bound callable reference.")
             return
         }
-        #expect(ctx.interner.resolve(boundMember) == "toString")
+        #expect(boundMember == KnownCompilerNames(interner: ctx.interner).toString)
         let receiverExprID = try #require(boundReceiver)
         guard let receiverExpr = ast.arena.expr(receiverExprID),
               case let .nameRef(receiverName, _) = receiverExpr
@@ -406,7 +440,7 @@ extension CompilerCoreTests {
             Issue.record("Expected callable reference receiver expression.")
             return
         }
-        #expect(ctx.interner.resolve(receiverName) == "x")
+        #expect(receiverName == bound.valueParams.first?.name)
     }
 
 

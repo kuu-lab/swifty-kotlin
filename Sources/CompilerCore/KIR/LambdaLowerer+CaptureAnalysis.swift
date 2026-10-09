@@ -6,6 +6,9 @@ extension LambdaLowerer {
         lambdaParamCount: Int,
         sema: SemaModule
     ) -> Bool {
+        if symbol == SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID) {
+            return false
+        }
         if (0 ..< lambdaParamCount).contains(where: { index in
             symbol == syntheticLambdaParamSymbol(lambdaExprID: lambdaExprID, paramIndex: index)
         }) {
@@ -86,6 +89,54 @@ extension LambdaLowerer {
         return ordered
     }
 
+    private func collectReifiedTypeParameterSymbols(
+        in type: TypeID,
+        sema: SemaModule,
+        referenced: inout [SymbolID],
+        seen: inout Set<SymbolID>
+    ) {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case let .typeParam(typeParameter):
+            guard let symbol = sema.symbols.symbol(typeParameter.symbol),
+                  symbol.flags.contains(.reifiedTypeParameter),
+                  seen.insert(typeParameter.symbol).inserted else { return }
+            referenced.append(typeParameter.symbol)
+
+        case let .classType(classType):
+            for argument in classType.args {
+                switch argument {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    collectReifiedTypeParameterSymbols(in: inner, sema: sema, referenced: &referenced, seen: &seen)
+                case .star:
+                    continue
+                }
+            }
+
+        case let .functionType(functionType):
+            for receiver in functionType.contextReceivers {
+                collectReifiedTypeParameterSymbols(in: receiver, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            if let receiver = functionType.receiver {
+                collectReifiedTypeParameterSymbols(in: receiver, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            for parameter in functionType.params {
+                collectReifiedTypeParameterSymbols(in: parameter, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            collectReifiedTypeParameterSymbols(in: functionType.returnType, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .kClassType(kClassType):
+            collectReifiedTypeParameterSymbols(in: kClassType.argument, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .intersection(members):
+            for member in members {
+                collectReifiedTypeParameterSymbols(in: member, sema: sema, referenced: &referenced, seen: &seen)
+            }
+
+        default:
+            return
+        }
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func collectBoundIdentifierSymbols(
         in exprID: ExprID,
@@ -97,12 +148,44 @@ extension LambdaLowerer {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
         }
+        if let binding = sema.bindings.callBindings[exprID],
+           let signature = sema.symbols.functionSignature(for: binding.chosenCallee) {
+            for index in signature.reifiedTypeParameterIndices.sorted()
+                where index < binding.substitutedTypeArguments.count
+            {
+                collectReifiedTypeParameterSymbols(
+                    in: binding.substitutedTypeArguments[index],
+                    sema: sema,
+                    referenced: &referenced,
+                    seen: &seen
+                )
+            }
+        }
+        let memberSymbol = sema.bindings.callBinding(for: exprID)?.chosenCallee
+            ?? sema.bindings.identifierSymbols[exprID]
+        // An inherited member's declared owner (e.g. `Base`) has no captured
+        // receiver of its own inside a member extension; the dispatch receiver
+        // is registered under the enclosing class (`Derived`), so record the
+        // owner that actually reaches it or the lambda loses the receiver.
+        if let memberSymbol,
+           let owner = sema.symbols.memberExtensionOwnerSymbol(for: memberSymbol)
+               ?? sema.symbols.parentSymbol(for: memberSymbol),
+           let receiverOwner = driver.ctx.capturedOuterReceiverOwner(reaching: owner, sema: sema),
+           seen.insert(receiverOwner).inserted
+        {
+            referenced.append(receiverOwner)
+        }
+        if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
+           seen.insert(symbol).inserted
+        {
+            referenced.append(symbol)
+        }
         guard let expr = ast.arena.expr(exprID) else {
             return
         }
 
         switch expr {
-        case .intLiteral,
+        case .nullLiteral, .intLiteral,
              .longLiteral,
              .uintLiteral,
              .ulongLiteral,
@@ -134,6 +217,9 @@ extension LambdaLowerer {
             for arg in objectDecl.superTypeConstructorArgs {
                 collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
+            for delegateExpr in objectDecl.superTypeEntries.compactMap(\.delegateExpression) {
+                collectBoundIdentifierSymbols(in: delegateExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            }
             // KSP-CAP-018: an accessor body's captures are materialized into
             // the literal's instance fields at construction time, which happens
             // in this lambda's body — so the value has to reach the lambda
@@ -151,6 +237,88 @@ extension LambdaLowerer {
                             in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
                         )
                     }
+                }
+            }
+
+        // KUU-555: a named local nominal's captured values are stored into
+        // instance fields at its construction call site — which executes in
+        // whatever enclosing context holds this decl — so every body that can
+        // reference an outer local (member functions too, unlike an object
+        // literal: the class's captures materialize at `Local(...)`) must
+        // contribute bound identifiers here.
+        case let .localNominalDecl(declID, _):
+            guard let decl = ast.arena.decl(declID) else {
+                return
+            }
+            if let owner = sema.bindings.declSymbol(for: declID) {
+                for symbol in sema.bindings.objectLiteralCaptureSymbols(for: owner) where seen.insert(symbol).inserted {
+                    referenced.append(symbol)
+                }
+            }
+            let constructorArgExprs: [ExprID]
+            let memberFunctionDecls: [DeclID]
+            let memberPropertyDecls: [DeclID]
+            let initBlocks: [FunctionBody]
+            switch decl {
+            case let .objectDecl(objectDecl):
+                constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                memberFunctionDecls = objectDecl.memberFunctions
+                memberPropertyDecls = objectDecl.memberProperties
+                initBlocks = []
+            case let .classDecl(classDecl):
+                constructorArgExprs = classDecl.superTypeEntries
+                    .flatMap(\.constructorArgs).map(\.expr)
+                memberFunctionDecls = classDecl.memberFunctions
+                memberPropertyDecls = classDecl.memberProperties
+                initBlocks = classDecl.initBlocks
+            default:
+                constructorArgExprs = []
+                memberFunctionDecls = []
+                memberPropertyDecls = []
+                initBlocks = []
+            }
+            for argExpr in constructorArgExprs {
+                collectBoundIdentifierSymbols(
+                    in: argExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                )
+            }
+            for memberFunctionID in memberFunctionDecls {
+                guard let memberDecl = ast.arena.decl(memberFunctionID),
+                      case let .funDecl(memberFunction) = memberDecl
+                else {
+                    continue
+                }
+                for rootExprID in accessorBodyRootExprs(memberFunction.body) {
+                    collectBoundIdentifierSymbols(
+                        in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                    )
+                }
+            }
+            for propertyID in memberPropertyDecls {
+                guard let propertyDecl = ast.arena.decl(propertyID),
+                      case let .propertyDecl(property) = propertyDecl
+                else {
+                    continue
+                }
+                if let initializer = property.initializer {
+                    collectBoundIdentifierSymbols(
+                        in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                    )
+                }
+                for accessorBody in [property.getter?.body, property.setter?.body] {
+                    guard let accessorBody else { continue }
+                    for rootExprID in accessorBodyRootExprs(accessorBody) {
+                        collectBoundIdentifierSymbols(
+                            in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                        )
+                    }
+                }
+            }
+            for initBlock in initBlocks {
+                for rootExprID in accessorBodyRootExprs(initBlock) {
+                    collectBoundIdentifierSymbols(
+                        in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                    )
                 }
             }
 
@@ -196,6 +364,21 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: valueExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .call(calleeExpr, _, args, _):
+            // A call bound to an outer implicit receiver reads the captured
+            // enclosing `this`, which a nested lambda must capture to reach it.
+            if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
+            // A member-extension call whose extension receiver Sema picked
+            // from an outer tower entry reads that receiver value; a nested
+            // lambda must capture it the same way.
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: calleeExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -203,6 +386,11 @@ extension LambdaLowerer {
 
         case let .memberCall(receiverExpr, _, _, args, _),
              let .safeMemberCall(receiverExpr, _, _, args, _):
+            if case let .localValue(symbol)? = sema.bindings.callableValueCalls[exprID]?.target,
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             for argument in args {
                 collectBoundIdentifierSymbols(in: argument.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
@@ -299,11 +487,21 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: bodyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .callableRef(receiverExpr, _, _):
+            if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
+            if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
+               seen.insert(symbol).inserted
+            {
+                referenced.append(symbol)
+            }
             if let receiverExpr {
                 collectBoundIdentifierSymbols(in: receiverExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 for nestedExpr in exprIDs {
@@ -354,7 +552,7 @@ extension LambdaLowerer {
         case .thisRef, .superRef:
             return true
 
-        case .intLiteral,
+        case .nullLiteral, .intLiteral,
              .longLiteral,
              .uintLiteral,
              .ulongLiteral,
@@ -384,10 +582,88 @@ extension LambdaLowerer {
             }) {
                 return true
             }
+            if objectDecl.superTypeEntries.compactMap(\.delegateExpression).contains(where: {
+                containsImplicitReceiverReference(in: $0, ast: ast)
+            }) {
+                return true
+            }
             // KSP-CAP-018: see the accessor-body note in
             // `collectBoundIdentifierSymbols`.
             return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains {
                 containsImplicitReceiverReference(in: $0, ast: ast)
+            }
+
+        // KUU-555: every body that runs inside a local nominal's `<init>` or
+        // member functions can hold an implicit `this`/`super` reference —
+        // include member functions and init blocks beyond the object-literal
+        // set (construction happens inside this enclosing context).
+        case let .localNominalDecl(declID, _):
+            guard let decl = ast.arena.decl(declID) else {
+                return false
+            }
+            let constructorArgExprs: [ExprID]
+            let memberFunctionDecls: [DeclID]
+            let memberPropertyDecls: [DeclID]
+            let initBlocks: [FunctionBody]
+            switch decl {
+            case let .objectDecl(objectDecl):
+                constructorArgExprs = objectDecl.superTypeConstructorArgs.map(\.expr)
+                memberFunctionDecls = objectDecl.memberFunctions
+                memberPropertyDecls = objectDecl.memberProperties
+                initBlocks = []
+            case let .classDecl(classDecl):
+                constructorArgExprs = classDecl.superTypeEntries
+                    .flatMap(\.constructorArgs).map(\.expr)
+                memberFunctionDecls = classDecl.memberFunctions
+                memberPropertyDecls = classDecl.memberProperties
+                initBlocks = classDecl.initBlocks
+            default:
+                constructorArgExprs = []
+                memberFunctionDecls = []
+                memberPropertyDecls = []
+                initBlocks = []
+            }
+            if constructorArgExprs.contains(where: {
+                containsImplicitReceiverReference(in: $0, ast: ast)
+            }) {
+                return true
+            }
+            for memberFunctionID in memberFunctionDecls {
+                guard let memberDecl = ast.arena.decl(memberFunctionID),
+                      case let .funDecl(memberFunction) = memberDecl
+                else {
+                    continue
+                }
+                if accessorBodyRootExprs(memberFunction.body).contains(where: {
+                    containsImplicitReceiverReference(in: $0, ast: ast)
+                }) {
+                    return true
+                }
+            }
+            for propertyID in memberPropertyDecls {
+                guard let propertyDecl = ast.arena.decl(propertyID),
+                      case let .propertyDecl(property) = propertyDecl
+                else {
+                    continue
+                }
+                if let initializer = property.initializer,
+                   containsImplicitReceiverReference(in: initializer, ast: ast)
+                {
+                    return true
+                }
+                for accessorBody in [property.getter?.body, property.setter?.body] {
+                    guard let accessorBody else { continue }
+                    if accessorBodyRootExprs(accessorBody).contains(where: {
+                        containsImplicitReceiverReference(in: $0, ast: ast)
+                    }) {
+                        return true
+                    }
+                }
+            }
+            return initBlocks.contains { initBlock in
+                accessorBodyRootExprs(initBlock).contains {
+                    containsImplicitReceiverReference(in: $0, ast: ast)
+                }
             }
 
         case let .stringTemplate(parts, _):
@@ -529,7 +805,7 @@ extension LambdaLowerer {
             }
             return containsImplicitReceiverReference(in: receiverExpr, ast: ast)
 
-        case let .localFunDecl(_, _, _, functionBody, _, _):
+        case let .localFunDecl(_, _, _, _, functionBody, _, _):
             switch functionBody {
             case let .block(exprIDs, _):
                 return exprIDs.contains { containsImplicitReceiverReference(in: $0, ast: ast) }

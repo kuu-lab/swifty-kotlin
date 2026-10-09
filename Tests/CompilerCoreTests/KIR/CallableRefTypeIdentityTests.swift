@@ -1,9 +1,282 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
 struct CallableRefTypeIdentityTests {
+    @Test(arguments: ["Box<String>", "Box<List<String?>>", "Box<*>", "Box<out String>"])
+    func testExplicitTypeReceiverIsUnboundAndRetainsArguments(_ receiver: String) throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: Int): Int = value }
+        fun main() { val ref = \(receiver)::echo }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+        #expect(sema.bindings.captureSymbolsByExpr[ref]?.isEmpty != false)
+        guard case let .functionType(function) = sema.types.kind(of: try #require(sema.bindings.exprType(for: ref))),
+              case let .classType(owner) = sema.types.kind(of: try #require(function.params.first))
+        else {
+            Issue.record("Expected (Box<Args>, Int) -> Int.")
+            return
+        }
+        #expect(owner.args.count == 1)
+        #expect(function.params.count == 2)
+        #expect(function.params[1] == sema.types.intType)
+        #expect(function.returnType == sema.types.intType)
+    }
+
+    @Test func testExplicitTypeReceiverSpecializesGenericOwnerSignature() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: T): T = value }
+        fun main() { val ref = Box<String>::echo }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        guard case let .functionType(function) = sema.types.kind(of: try #require(sema.bindings.exprType(for: ref))) else {
+            Issue.record("Expected a function type.")
+            return
+        }
+        #expect(function.params.count == 2)
+        #expect(function.params[1] == sema.types.stringType)
+        #expect(function.returnType == sema.types.stringType)
+        #expect(sema.bindings.isUnboundCallableRef(ref))
+        #expect(sema.bindings.captureSymbolsByExpr[ref]?.isEmpty != false)
+    }
+
+    @Test(arguments: [
+        "val ref: (Box<Int>, Int) -> Int = Box<String>::echo",
+        "val ref = Box<Missing>::echo",
+        "val ref = Missing<String>::echo",
+        "val ref = Box<String>::class",
+        "val ref = Box<String, Int>::echo",
+        "val ref = Int<String>::plus",
+    ])
+    func testInvalidExplicitTypeReceiverIsRejected(_ declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> { fun echo(value: Int): Int = value }
+        fun main() { \(declaration) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [
+        "val instance = Outer.Nested<String>()",
+        "val instance: Outer.Nested<String> = Outer.Nested()",
+        "val instance = Outer.Nested<String>(1)",
+    ])
+    func testNestedGenericConstructorCanSupplyUnboundReceiver(_ declaration: String) throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            class Nested<T>(val initial: Int = 0) { fun echo(value: Int): Int = value }
+        }
+        fun main() {
+            \(declaration)
+            val ref = Outer.Nested<String>::echo
+            val result: Int = ref(instance, 42)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testExplicitTypeReceiverSelectsSpecializedOverload() throws {
+        let ctx = makeContextFromSource("""
+        class Box<T> {
+            fun echo(value: T): T = value
+            fun echo(value: Int): Int = value
+        }
+        fun main() { val ref: (Box<String>, String) -> String = Box<String>::echo }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ref = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+        let target = try #require(sema.bindings.identifierSymbol(for: ref))
+        let signature = try #require(sema.symbols.functionSignature(for: target))
+        #expect(sema.types.typeContainsAnyTypeParam(signature.returnType))
+    }
+
+    @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndLambdaIdentity() throws {
+        let ctx = makeContextFromSource("""
+        fun top(): Int = 7
+        fun main() {
+            val f = { 1 }
+            val ref = ::top
+            val anon = fun() = 2
+            println(anon())
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let descriptionCalls = kirCalls(to: .functionSetDescription, in: body, interner: ctx.interner)
+        #expect(descriptionCalls.allSatisfy { $0.arguments.count == 3 })
+        let descriptions = descriptionCalls.compactMap { call -> String? in
+            guard call.arguments.count == 3,
+                  case let .stringLiteral(text) = module.arena.expr(call.arguments[1])
+            else { return nil }
+            return ctx.interner.resolve(text)
+        }
+        #expect(descriptions.contains("fun top(): kotlin.Int"))
+        #expect(descriptions.filter { $0 == "kotlin.Function0" }.count == 2)
+    }
+
+    @Test func testInferredFunctionReferenceNameResolvesAndLowersToMetadata() throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        val topVal = 4
+        class Box { fun member(x: Int) = x }
+        fun <T> identity(value: T): T = value
+        fun main(box: Box) {
+            val fr = ::topFun
+            val alias = fr
+            val bound = box::member
+            val unbound = Box::member
+            val nullable = if (true) ::topFun else null
+            println(fr())
+            println(fr.name)
+            println(alias.name)
+            println(bound.name)
+            println(unbound.name)
+            println(identity(fr).name)
+            println(nullable?.name)
+            val vr = ::topVal
+            println(vr.get())
+            println(vr.name)
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        #expect(!kirCalls(to: .callableName, in: body, interner: ctx.interner).isEmpty)
+        let boxedValues = Set(kirFunctionCreationCalls(in: body, interner: ctx.interner).compactMap(\.result))
+        #expect(!boxedValues.isEmpty)
+        #expect(kirCalls(to: .functionCopyDescription, in: body, interner: ctx.interner).contains {
+            $0.arguments.count == 2 && boxedValues.contains($0.arguments[1])
+        })
+    }
+
+    @Test(arguments: [
+        "val f = { 3 }; println(f.name)",
+        "val f: () -> Int = ::topFun; println(f.name)",
+        "val ref = ::topFun; val f: () -> Int = ref; println(f.name)",
+    ])
+    func testPlainFunctionValuesDoNotExposeReflectionName(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        fun main() { \(body) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0024" && $0.message.contains("'name'")
+        })
+    }
+
+    @Test func testLambdaCannotBeAssignedToKFunction() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KFunction
+        fun main() {
+            val f: KFunction<Int> = { 3 }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test func testBoxedFunctionReferencesResolveInheritedReflectionMembers() throws {
+        let ctx = makeContextFromSource("""
+        fun defaultFun(x: Int = 2) = x + 1
+        class Box { fun member(x: Int) = x }
+        fun <T> identity(value: T): T = value
+        fun main(box: Box) {
+            val ref = identity(::defaultFun)
+            println(ref.parameters[0].name)
+            println(ref.callBy(emptyMap()))
+            println(listOf(::defaultFun)[0].call(7))
+            println(identity(box::member).call(3))
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val f = { 3 }; println(f.call())",
+        "val f: () -> Int = ::topFun; println(f.call())",
+    ])
+    func testPlainFunctionValuesDoNotExposeReflectionCall(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun topFun() = 3
+        fun main() { \(body) }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test(arguments: [false, true])
+    func testFunctionReferenceTypeSurvivesNullabilitySubstitutionAndMetadata(isSuspend: Bool) throws {
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        let parameter = symbols.define(
+            kind: .typeParameter, name: interner.intern("T"),
+            fqName: [interner.intern("T")], declSite: nil, visibility: .public
+        )
+        let parameterType = types.make(.typeParam(TypeParamType(symbol: parameter)))
+        let referenceType = types.make(.functionType(FunctionType(
+            params: [parameterType], returnType: parameterType,
+            isSuspend: isSuspend, isCallableReference: true
+        )))
+        let variables = types.makeTypeVarBySymbol([parameter])
+        let variable = try #require(variables[parameter])
+        let specialized = types.substituteTypeParameters(
+            in: referenceType, substitution: [variable: types.intType], typeVarBySymbol: variables
+        )
+        let nullable = types.makeNullable(specialized)
+        let token = NameMangler().encodeType(nullable, symbols: symbols, types: types, nameResolver: interner.resolve)
+        let diagnostics = DiagnosticEngine()
+        let decoded = try #require(DataFlowSemaPhase().decodeImportedTypeSignature(
+            token: token, symbols: symbols, types: types, interner: interner,
+            diagnostics: diagnostics, metadataPath: "test", ownerFQName: []
+        ))
+        #expect(decoded == nullable)
+        guard case let .functionType(function) = types.kind(of: decoded) else {
+            Issue.record("Expected function reference type")
+            return
+        }
+        #expect(function.isCallableReference)
+        #expect(function.isSuspend == isSuspend)
+        #expect(function.params == [types.intType])
+        #expect(function.returnType == types.intType)
+        #expect(function.nullability == .nullable)
+        #expect(diagnostics.diagnostics.isEmpty)
+        let plain = types.make(.functionType(FunctionType(
+            params: [types.intType], returnType: types.intType, isSuspend: isSuspend
+        )))
+        #expect(types.isSubtype(specialized, plain))
+        #expect(!types.isSubtype(plain, specialized))
+    }
 
     @Test func testSemaBindsFunctionRefKindForCallableReference() throws {
         let source = """
@@ -143,6 +416,26 @@ struct CallableRefTypeIdentityTests {
         #expect(classType.args.count == 2, "KProperty1<Counter, Int> should carry both type arguments.")
     }
 
+    @Test(arguments: 0 ... 5)
+    func testFunctionNCastUsesAritySpecificInvoke(arity: Int) throws {
+        let parameters = (0 ..< arity).map { "p\($0): Int" }.joined(separator: ", ")
+        let typeArguments = Array(repeating: "Int", count: arity + 1).joined(separator: ", ")
+        let arguments = Array(repeating: "1", count: arity).joined(separator: ", ")
+        let source = """
+        fun target(\(parameters)): Int = 42
+        fun main(): Int {
+            val erased: Any? = ::target
+            return (erased as Function\(arity)<\(typeArguments)>)(\(arguments))
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let invoke = try #require(kirCalls(to: .functionInvoke(arity: arity), in: mainBody, interner: ctx.interner).first)
+        #expect(invoke.arguments.count == arity + 1)
+    }
+
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
@@ -160,7 +453,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            !kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
             "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
         )
     }
@@ -191,7 +484,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: rBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_array_set"),
+            !kirCalls(to: .arraySet, in: rBody, interner: ctx.interner).isEmpty,
             "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
         )
     }
@@ -209,15 +502,13 @@ struct CallableRefTypeIdentityTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
-        let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-            return extractCallees(from: function.body, interner: ctx.interner)
-        }
+        let allBodies = findAllKIRFunctions(in: module).flatMap(\.body)
         #expect(
-            allCallees.contains("kk_callable_ref_tag_kproperty"),
-            "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
+            !kirCalls(to: .tagKProperty, in: allBodies, interner: ctx.interner).isEmpty,
+            "Property callable ref should be tagged as KProperty. Callees: \(kirCalls(in: allBodies))"
         )
         #expect(
-            !(allCallees.contains("kk_callable_ref_tag_kfunction")),
+            kirCalls(to: .tagKFunction, in: allBodies, interner: ctx.interner).isEmpty,
             "Property callable ref should NOT be tagged as KFunction."
         )
     }
@@ -237,26 +528,19 @@ struct CallableRefTypeIdentityTests {
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-        let tagCall = mainBody.first { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
-        }
-        guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
-            Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
-            return
-        }
+        let tagCall = try #require(kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first)
+        let arguments = tagCall.arguments
+        let target = try findKIRFunction(named: "add", in: module, interner: ctx.interner)
 
         // arguments[0] = callable value, arguments[1] = name,
         // arguments[2] = return type, arguments[3] = arity,
         // arguments[4] = isSuspend flag.
-        #expect(arguments.count == 5)
+        try #require(arguments.count == 5)
 
         if let nameExpr = module.arena.expr(arguments[1]),
            case let .stringLiteral(nameInterned) = nameExpr
         {
-            #expect(ctx.interner.resolve(nameInterned) == "add")
+            #expect(nameInterned == target.name)
         } else {
             Issue.record("Second argument to tag call should be string literal 'add'.")
         }
@@ -265,7 +549,7 @@ struct CallableRefTypeIdentityTests {
         if let returnTypeExpr = module.arena.expr(arguments[2]),
            case let .stringLiteral(returnTypeInterned) = returnTypeExpr
         {
-            #expect(ctx.interner.resolve(returnTypeInterned) == "Int")
+            #expect(returnTypeInterned == KnownCompilerNames(interner: ctx.interner).int)
         } else {
             Issue.record("Third argument to tag call should be string literal 'Int'.")
         }
@@ -288,15 +572,7 @@ struct CallableRefTypeIdentityTests {
     }
 
     @Test func testKIRKFunctionTagForBoundCallableRef() throws {
-        let source = """
-        class Box {
-            fun plus(x: Int): Int = x
-        }
-        fun main(box: Box): Int {
-            val f = box::plus
-            return f(7)
-        }
-        """
+        let source = KotlinSourceFixtures.boundCallableReferenceReceiverTypeIdentity
 
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
@@ -306,7 +582,7 @@ struct CallableRefTypeIdentityTests {
         let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
         #expect(
-            callees.contains("kk_callable_ref_tag_kfunction"),
+            !kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).isEmpty,
             "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
         )
     }
@@ -326,17 +602,8 @@ struct CallableRefTypeIdentityTests {
         let module = try #require(ctx.kir)
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-        let tagCall = mainBody.first { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
-        }
-        guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
-            Issue.record("Expected kk_callable_ref_tag_kfunction call.")
-            return
-        }
-        #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+        let tagCall = try #require(kirCalls(to: .tagKFunction, in: mainBody, interner: ctx.interner).first)
+        #expect(!tagCall.canThrow, "Callable ref tagging call should be non-throwing.")
     }
 }
 #endif

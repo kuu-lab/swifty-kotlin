@@ -4,16 +4,56 @@ private func runtimeUnicodeScalar(_ value: Int) -> UnicodeScalar? {
     UnicodeScalar(value)
 }
 
-private func runtimeFirstUnicodeScalarValue(_ string: String, fallback: Int) -> Int {
-    string.unicodeScalars.first.map { Int($0.value) } ?? fallback
-}
-
 private func runtimeSingleUnicodeScalarValue(_ string: String) -> Int? {
     var iterator = string.unicodeScalars.makeIterator()
     guard let first = iterator.next(), iterator.next() == nil else {
         return nil
     }
     return Int(first.value)
+}
+
+/// Unicode *simple* uppercase mapping (`Character.toUpperCase(char)`).
+/// Swift only exposes the full mapping, which expands ß -> "SS" and maps
+/// "ᾀ" -> "ἈΙ"; the simple mapping of the latter is its titlecase form.
+func runtimeSimpleUppercaseValue(_ value: UInt32) -> UInt32? {
+    guard let scalar = UnicodeScalar(value) else { return nil }
+    if let single = runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) {
+        return UInt32(single)
+    }
+    if let single = runtimeSingleUnicodeScalarValue(scalar.properties.titlecaseMapping) {
+        return UInt32(single)
+    }
+    return nil
+}
+
+/// Unicode *simple* lowercase mapping (`Character.toLowerCase(char)`).
+/// The only unconditional multi-scalar lowercase is U+0130 -> "i\u{307}",
+/// whose simple mapping is plain "i".
+func runtimeSimpleLowercaseValue(_ value: UInt32) -> UInt32? {
+    guard let scalar = UnicodeScalar(value) else { return nil }
+    if let single = runtimeSingleUnicodeScalarValue(scalar.properties.lowercaseMapping) {
+        return UInt32(single)
+    }
+    return value == 0x130 ? 0x69 : nil
+}
+
+/// `Char.equals(other, ignoreCase = true)`: equal, or equal after uppercasing,
+/// or equal after lowercasing the uppercased forms.
+func runtimeCharsEqualIgnoringCase(_ lhs: UInt16, _ rhs: UInt16) -> Bool {
+    if lhs == rhs { return true }
+    let upperLhs = runtimeSimpleUppercaseValue(UInt32(lhs)) ?? UInt32(lhs)
+    let upperRhs = runtimeSimpleUppercaseValue(UInt32(rhs)) ?? UInt32(rhs)
+    if upperLhs == upperRhs { return true }
+    let lowerLhs = runtimeSimpleLowercaseValue(upperLhs) ?? upperLhs
+    let lowerRhs = runtimeSimpleLowercaseValue(upperRhs) ?? upperRhs
+    return lowerLhs == lowerRhs
+}
+
+/// A lone surrogate half maps to itself; `UnicodeScalar` cannot represent it,
+/// so the result goes through the runtime's isolated-surrogate representation.
+private func charRuntimeIdentityStringForSurrogate(_ code: Int) -> Int? {
+    guard code >= 0xD800, code <= 0xDFFF else { return nil }
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)]))
 }
 
 private func charScalarIsIdentifierIgnorable(_ scalar: UnicodeScalar) -> Bool {
@@ -71,46 +111,49 @@ public func __kk_char_is_lowercase(_ code: Int) -> Int {
 /// Full Unicode uppercase mapping, including multi-scalar mappings such as ß -> "SS".
 @_cdecl("__kk_char_uppercase_string")
 public func __kk_char_uppercase_string(_ code: Int) -> Int {
+    if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(String(scalar).uppercased())
+    return runtimeMakeUTF8StringRaw(String(scalar).uppercased())
 }
 
 /// Full Unicode lowercase mapping.
 @_cdecl("__kk_char_lowercase_string")
 public func __kk_char_lowercase_string(_ code: Int) -> Int {
+    if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(String(scalar).lowercased())
+    return runtimeMakeUTF8StringRaw(String(scalar).lowercased())
 }
 
 /// Full Unicode titlecase mapping.
 @_cdecl("__kk_char_titlecase_string")
 public func __kk_char_titlecase_string(_ code: Int) -> Int {
+    if let surrogate = charRuntimeIdentityStringForSurrogate(code) { return surrogate }
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
-    return charRuntimeMakeStringRaw(scalar.properties.titlecaseMapping)
+    return runtimeMakeUTF8StringRaw(scalar.properties.titlecaseMapping)
 }
 
-/// One-to-one uppercase mapping; returns -1 for multi-scalar or undefined mappings.
+/// One-to-one (simple) uppercase mapping; returns -1 when there is none (surrogates, ß).
 @_cdecl("__kk_char_uppercase_code")
 public func __kk_char_uppercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
         return -1
     }
-    return runtimeSingleUnicodeScalarValue(scalar.properties.uppercaseMapping) ?? -1
+    return runtimeSimpleUppercaseValue(scalar.value).map(Int.init) ?? -1
 }
 
-/// One-to-one lowercase mapping; returns -1 for undefined mappings.
+/// One-to-one (simple) lowercase mapping; returns -1 when there is none (surrogates).
 @_cdecl("__kk_char_lowercase_code")
 public func __kk_char_lowercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
         return -1
     }
-    return runtimeFirstUnicodeScalarValue(String(scalar).lowercased(), fallback: -1)
+    return runtimeSimpleLowercaseValue(scalar.value).map(Int.init) ?? -1
 }
 
 /// One-to-one titlecase mapping; returns -1 for multi-scalar or undefined mappings.
@@ -125,23 +168,23 @@ public func __kk_char_titlecase_code(_ code: Int) -> Int {
 @_cdecl("__kk_char_uppercase_locale")
 public func __kk_char_uppercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return charRuntimeMakeStringRaw(String(scalar).uppercased())
+        return runtimeMakeUTF8StringRaw(String(scalar).uppercased())
     }
-    return charRuntimeMakeStringRaw(String(scalar).uppercased(with: box.locale))
+    return runtimeMakeUTF8StringRaw(String(scalar).uppercased(with: box.locale))
 }
 
 @_cdecl("__kk_char_lowercase_locale")
 public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
-        return charRuntimeMakeStringRaw("\u{FFFD}")
+        return runtimeMakeUTF8StringRaw("\u{FFFD}")
     }
     guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return charRuntimeMakeStringRaw(String(scalar).lowercased())
+        return runtimeMakeUTF8StringRaw(String(scalar).lowercased())
     }
-    return charRuntimeMakeStringRaw(String(scalar).lowercased(with: box.locale))
+    return runtimeMakeUTF8StringRaw(String(scalar).lowercased(with: box.locale))
 }
 
 /// Equivalent to `kotlin.text.digitOf` before applying the radix bound; returns -1 for non-digits.
@@ -154,7 +197,6 @@ public func __kk_char_digit_value(_ code: Int) -> Int {
 
 /// operator fun Char.minus(other: Char): Int
 /// Returns the difference of the Unicode code points of two Char values.
-@_cdecl("kk_char_minus")
 public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
@@ -166,7 +208,8 @@ public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
-    return lhs - rhs
+    if lhs == rhs { return 0 }
+    return lhs < rhs ? -1 : 1
 }
 
 // New numeric conversion functions
@@ -199,14 +242,14 @@ public func kk_char_toDoubleOrNull(_ value: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    return kk_double_to_bits(Double(digitValue))
+    // Double? slots hold box-or-sentinel (KUU-854).
+    return kk_box_double_nonnull(kk_double_to_bits(Double(digitValue)))
 }
 
 // Code point and Unicode properties
 @_cdecl("kk_char_code")
 public func kk_char_code(_ value: Int) -> Int {
-    // Return Unicode code point
-    return value
+    kk_unbox_char(value)
 }
 
 @_cdecl("kk_char_category")
@@ -289,7 +332,6 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
 // letters, combining marks, digits, connecting punctuation, non-spacing marks,
 // numeric letters, identifier-ignorable code points, and Unicode Other_ID_*
 // characters are all valid identifier-part characters.
-@_cdecl("kk_char_isUnicodeIdentifierPart")
 public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
     let props = scalar.properties
@@ -453,12 +495,4 @@ private func charDirectionalityToInt(_ scalar: UnicodeScalar) -> Int {
     default:
         return scalar.properties.isWhitespace ? 13 : 1
     }
-}
-
-private func charRuntimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
 }

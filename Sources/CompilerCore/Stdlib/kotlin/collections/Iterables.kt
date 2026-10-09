@@ -7,18 +7,22 @@
 
 package kotlin.collections
 
-import kotlin.comparisons.minOf as comparisonMinOf
-import kotlin.comparisons.compareValues
 import kotlin.comparisons.reverseOrder
+import kotlin.comparisons.naturalOrder
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 import kotlin.random.Random
 
 // Float/Double maxOf uses these existing shared numeric helpers so NaN and
 // signed-zero behavior stays identical to kotlin.comparisons.maxOf.
-private external fun kk_max_float(a: Float, b: Float): Float
-private external fun kk_max_double(a: Double, b: Double): Double
-private external fun kk_unbox_float(value: Float): Float
-private external fun kk_unbox_double(value: Double): Double
+@PublishedApi
+internal external fun kk_max_float(a: Float, b: Float): Float
+@PublishedApi
+internal external fun kk_max_double(a: Double, b: Double): Double
+@PublishedApi
+internal external fun kk_unbox_float(value: Float): Float
+@PublishedApi
+internal external fun kk_unbox_double(value: Double): Double
 
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
@@ -130,6 +134,21 @@ public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
 
 public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     val result = HashSet<T>()
+    for (element in this) result.add(element)
+    return result
+}
+
+// KUU-1361: JVM `toSortedSet` returns `java.util.SortedSet` — the concrete
+// instance is a TreeSet, which keeps ordering and deduplication inside the
+// runtime box.
+public fun <T : Comparable<T>> Iterable<T>.toSortedSet(): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>()
+    for (element in this) result.add(element)
+    return result
+}
+
+public fun <T> Iterable<T>.toSortedSet(comparator: Comparator<in T>): java.util.SortedSet<T> {
+    val result = java.util.TreeSet<T>(comparator)
     for (element in this) result.add(element)
     return result
 }
@@ -1133,75 +1152,13 @@ public fun <T : Any> List<T?>.requireNoNulls(): List<T> {
     return this as List<T>
 }
 
-// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
-// kotlin.sequences). The legacy Sequence surface only needs iterator(), so a
-// single implementation keyed on Iterator<T> covers its receiver type (KSP-621).
-internal fun <T> appendJoinToPlain(
-    iterator: Iterator<T>,
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String
-): StringBuilder {
-    buffer.append(prefix)
-    var count = 0
-    var hasMore = false
-    while (iterator.hasNext()) {
-        val element = iterator.next()
-        if (limit >= 0 && count >= limit) {
-            hasMore = true
-            break
-        }
-        if (count > 0) buffer.append(separator)
-        buffer.append(element.toString())
-        count++
-    }
-    if (hasMore) {
-        if (count > 0) buffer.append(separator)
-        buffer.append(truncated)
-    }
-    buffer.append(postfix)
-    return buffer
-}
-
-internal fun <T> appendJoinToTransform(
-    iterator: Iterator<T>,
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): StringBuilder {
-    buffer.append(prefix)
-    var count = 0
-    var hasMore = false
-    while (iterator.hasNext()) {
-        val element = iterator.next()
-        if (limit >= 0 && count >= limit) {
-            hasMore = true
-            break
-        }
-        if (count > 0) buffer.append(separator)
-        buffer.append(transform(element).toString())
-        count++
-    }
-    if (hasMore) {
-        if (count > 0) buffer.append(separator)
-        buffer.append(truncated)
-    }
-    buffer.append(postfix)
-    return buffer
-}
-
 // Kotlin 2.3.10 models joinTo's transform as a nullable function with a null
 // default. The current compiler cannot lower nullable function-typed
 // parameters, so the source-backed surface keeps the no-transform and
 // non-null-transform paths as separate overloads while preserving the same
 // defaults and behavior.
+// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
+// kotlin.sequences), which only needs iterator() (KSP-621, KSP-1350).
 internal fun <T, A : Appendable> appendJoinToAppendablePlain(
     iterator: Iterator<T>,
     buffer: A,
@@ -1356,78 +1313,28 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
 // KSP-993: Iterable sorting remains source-backed and materializes exactly
 // once before applying stable in-place sorting to the mutable result.
 public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
-    val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(result[j + 1], result[j]) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
-    return result
+    return sortedWith(naturalOrder<T>())
 }
 
 public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortBySelector(selector, false)
     return result
 }
 
 public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortBySelector(selector, true)
     return result
 }
 
 public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
-    return sortedWith(reverseOrder())
+    return sortedWith(reverseOrder<T>())
 }
 
 public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     val result = toMutableList()
-    var i = 0
-    while (i < result.size - 1) {
-        var j = 0
-        while (j < result.size - i - 1) {
-            if (comparator.compare(result[j + 1], result[j]) < 0) {
-                val tmp = result[j]
-                result[j] = result[j + 1]
-                result[j + 1] = tmp
-            }
-            j++
-        }
-        i++
-    }
+    result.stableSortWith(comparator)
     return result
 }
 

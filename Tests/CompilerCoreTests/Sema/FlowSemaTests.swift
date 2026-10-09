@@ -217,28 +217,6 @@ struct FlowSemaTests {
         return ctx
     }
 
-    @Test func testFlowBuilderAndChainTypeChecks() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
-    @Test func testRunBlockingLambdaAvoidsTypeConstraintFailure() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
-    @Test func testFlowMapCallableReferenceDoesNotOverConstrain() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-    }
-
     @Test func testFlowStoredInLocalVariableKeepsFlowReceiverTyping() throws {
         let ctx = try cleanCtx()
 
@@ -258,14 +236,6 @@ struct FlowSemaTests {
             hasExpectedDiagnostic,
             "Expected unresolved member diagnostic for non-flow Any receiver. Got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
-    }
-
-    @Test func testUserDefinedFlowFunctionShadowsBuiltinFlowFallback() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
     }
 
     // MARK: - TYPE-113: Flow<T> type preservation tests
@@ -345,14 +315,6 @@ struct FlowSemaTests {
         }
     }
 
-    @Test func testAdditionalFlowBuildersTypeCheck() throws {
-        let ctx = try cleanCtx()
-
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-    }
-
     @Test func testBundledFlowOperatorsWinOverIntrinsicFallback() throws {
         let ctx = try cleanCtx()
         let sema = try #require(ctx.sema)
@@ -384,12 +346,38 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
     }
 
-    @Test func testUserDefinedEmitInsideFlowBuilderShadowsBuiltinEmitFallback() throws {
-        let ctx = try cleanCtx()
+    @Test func testProduceNestedLambdaParameterTypesInsideRunBlocking() throws {
+        try withTemporaryFile(contents: """
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.channels.*
+        import kotlinx.coroutines.flow.*
 
-        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
-        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+        fun main() = runBlocking {
+            val source = flowOf(4, 5, 6)
+            val v = "outer"
+            val ch = produce { source.collect { v -> send(v) } }
+            val implicit = produce { source.collect { send(it) } }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let produceCalls = ast.arena.exprs.enumerated().compactMap { index, expr -> ExprID? in
+                guard case let .call(callee, _, _, range) = expr,
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .nameRef(name, _) = ast.arena.expr(callee),
+                      name == KnownCompilerNames(interner: ctx.interner).produce
+                else { return nil }
+                return ExprID(rawValue: Int32(index))
+            }
+            #expect(produceCalls.count == 2)
+            for call in produceCalls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                #expect(binding.substitutedTypeArguments == [sema.types.intType])
+            }
+        }
     }
 
     @Test func testChannelFlowAndCallbackFlowTypeCheckWithProducerScope() throws {

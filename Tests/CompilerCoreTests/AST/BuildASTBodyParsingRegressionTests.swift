@@ -260,7 +260,7 @@ struct BuildASTBodyParsingRegressionTests {
                     return
                 }
 
-                #expect(path.map(ctx.interner.resolve) == ["Function1"])
+                #expect(path == [ctx.interner.intern("Function1")])
                 #expect(args.count == 2)
                 #expect(!nullable)
             }
@@ -274,28 +274,28 @@ struct BuildASTBodyParsingRegressionTests {
                     return funDecl
                 }
                 let interner = ctx.interner
-                let funNames = Set(funDecls.map { interner.resolve($0.name) })
-                #expect(funNames.contains("host"))
-                #expect(funNames.contains("after"))
+                let funNames = Set(funDecls.map(\.name))
+                #expect(funNames.contains(interner.intern("host")))
+                #expect(funNames.contains(interner.intern("after")))
 
-                let hostDecl = try #require(funDecls.first(where: { interner.resolve($0.name) == "host" }))
+                let hostDecl = try #require(funDecls.first(where: { $0.name == interner.intern("host") }))
                 guard case let .block(bodyExprs, _) = hostDecl.body else {
                     Issue.record("host should have a block body")
                     return
                 }
 
-                let localInitializers = bodyExprs.compactMap { exprID -> (String, ExprID)? in
+                let localInitializers = bodyExprs.compactMap { exprID -> (InternedString, ExprID)? in
                     guard let expr = ast.arena.expr(exprID),
                           case let .localDecl(name, _, _, initializer, _, _) = expr,
                           let initializer
                     else {
                         return nil
                     }
-                    return (interner.resolve(name), initializer)
+                    return (name, initializer)
                 }
                 let localsByName = Dictionary(uniqueKeysWithValues: localInitializers.map { ($0.0, $0.1) })
 
-                let lambdaInit = try #require(localsByName["lambda"])
+                let lambdaInit = try #require(localsByName[interner.intern("lambda")])
                 guard let lambdaExpr = ast.arena.expr(lambdaInit),
                       case .lambdaLiteral = lambdaExpr
                 else {
@@ -303,7 +303,7 @@ struct BuildASTBodyParsingRegressionTests {
                     return
                 }
 
-                let objectInit = try #require(localsByName["instance"])
+                let objectInit = try #require(localsByName[interner.intern("instance")])
                 guard let objectExpr = ast.arena.expr(objectInit),
                       case .objectLiteral = objectExpr
                 else {
@@ -311,7 +311,7 @@ struct BuildASTBodyParsingRegressionTests {
                     return
                 }
 
-                let callableInit = try #require(localsByName["ref"])
+                let callableInit = try #require(localsByName[interner.intern("ref")])
                 guard let callableExpr = ast.arena.expr(callableInit),
                       case .callableRef = callableExpr
                 else {
@@ -325,7 +325,7 @@ struct BuildASTBodyParsingRegressionTests {
                 let function = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
                     guard let decl = ast.arena.decl(declID),
                           case let .funDecl(funDecl) = decl,
-                          ctx.interner.resolve(funDecl.name) == "suppressedCast"
+                          funDecl.name == ctx.interner.intern("suppressedCast")
                     else {
                         return nil
                     }
@@ -342,7 +342,7 @@ struct BuildASTBodyParsingRegressionTests {
                 let hostClass = try #require(file.topLevelDecls.compactMap { declID -> ClassDecl? in
                     guard let decl = ast.arena.decl(declID),
                           case let .classDecl(classDecl) = decl,
-                          ctx.interner.resolve(classDecl.name) == "Host"
+                          classDecl.name == ctx.interner.intern("Host")
                     else {
                         return nil
                     }
@@ -364,7 +364,8 @@ struct BuildASTBodyParsingRegressionTests {
                 }
 
                 #expect(function.annotations.count == 1)
-                #expect(function.annotations[0].name == "JvmStatic")
+                let annotation = try #require(function.annotations.first)
+                #expect(annotation.name == "JvmStatic")
             }
 
             do {
@@ -379,9 +380,68 @@ struct BuildASTBodyParsingRegressionTests {
                 }
 
                 #expect(functions.count == 2)
-                #expect(functions.map { ctx.interner.resolve($0.name) } == ["first", "second"])
+                #expect(functions.map(\.name) == ["first", "second"].map(ctx.interner.intern))
                 #expect(functions.map { $0.annotations.first?.name } == ["RuntimeName", "RuntimeName"])
                 #expect(functions.map { $0.annotations.first?.arguments.first } == ["\"\"first\"\"", "\"\"second\"\""])
+            }
+        }
+    }
+
+    /// A newline-leading `::` starts a new statement: `x\n::prop` parses as
+    /// `x; ::prop` (unbound callable reference), never `x::prop`. Kotlin only
+    /// continues `.`/`?.` across a newline, so the statement splitter must not
+    /// glue a `::`-led line onto the previous expression (KUU-1083).
+    @Test
+    func testLeadingCallableReferenceStartsNewStatement() throws {
+        let sources = [
+            """
+            package buildast.leadingref
+            var topVar = 9
+            fun f() {
+                println("start")
+                ::topVar.set(11)
+            }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runFrontend(ctx)
+
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "Leading `::` statement should have no errors for \(path): \(errors.map(\.message))")
+            }
+
+            let ast = try #require(ctx.ast)
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[0]))
+            let file = try #require(ast.files.first { $0.fileID == fileID })
+            let funDecl = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
+                guard let decl = ast.arena.decl(declID),
+                      case let .funDecl(funDecl) = decl,
+                      funDecl.name == ctx.interner.intern("f")
+                else {
+                    return nil
+                }
+                return funDecl
+            }.first)
+
+            guard case let .block(bodyExprs, _) = funDecl.body else {
+                Issue.record("f should have a block body")
+                return
+            }
+            #expect(bodyExprs.count == 2)
+
+            guard bodyExprs.count == 2,
+                  case let .memberCall(receiver, callee, _, _, _) = ast.arena.expr(bodyExprs[1]),
+                  callee == KnownCompilerNames(interner: ctx.interner).sbSet,
+                  let receiverExpr = ast.arena.expr(receiver),
+                  case let .callableRef(refReceiver, member, _) = receiverExpr,
+                  refReceiver == nil,
+                  member == ctx.interner.intern("topVar")
+            else {
+                Issue.record("Expected `::topVar.set(11)` as an unbound-reference member call statement")
+                return
             }
         }
     }

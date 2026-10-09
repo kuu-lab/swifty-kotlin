@@ -34,8 +34,15 @@ extension CollectionLiteralConstructionLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
+            let taggedArray = tagArrayValueIfNeeded(
+                copiedArray,
+                type: result.flatMap { module.arena.exprType($0) } ?? argumentType,
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
             if let result {
-                loweredBody.append(.copy(from: copiedArray, to: result))
+                loweredBody.append(.copy(from: taggedArray, to: result))
             }
             return true
         }
@@ -69,8 +76,15 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             }
-            if result != nil {
-                loweredBody.append(.copy(from: arrayExpr, to: result!))
+            let taggedArray = tagArrayValueIfNeeded(
+                arrayExpr,
+                type: result.flatMap { module.arena.exprType($0) },
+                module: module,
+                ctx: ctx,
+                loweredBody: &loweredBody
+            )
+            if let result {
+                loweredBody.append(.copy(from: taggedArray, to: result))
             }
             return true
         }
@@ -87,12 +101,12 @@ extension CollectionLiteralConstructionLoweringPass {
                 arguments: arguments,
                 result: result,
                 canThrow: false,
-                thrownResult: nil
+                thrownResult: thrownResult
             ))
             return true
         }
 
-        // --- Rewrite kk_range_iterator on ULong range → kk_ulong_range_iterator (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_iterator on ULong range → __kk_ulong_range_iterator (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeExprIDs.contains(argID.rawValue) {
@@ -131,7 +145,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: arguments,
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
@@ -157,7 +171,7 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_hasNext on ULong range iterator → kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_hasNext on ULong range iterator → __kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeHasNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
@@ -202,21 +216,21 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-331/564: Rewrite kk_range_hasNext on iterator builder → __kk_iterator_builder_hasNext
+            // Builder producers can throw from hasNext as well as next.
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkIteratorBuilderHasNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
                 ))
                 return true
             }
         }
 
-        // --- Rewrite kk_range_next on ULong range iterator → kk_ulong_range_next (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_next on ULong range iterator → __kk_ulong_range_next (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
@@ -254,21 +268,40 @@ extension CollectionLiteralConstructionLoweringPass {
                     callee: lookup.kkMapIteratorNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
                 ))
                 return true
             }
             // STDLIB-331/564: Rewrite kk_range_next on iterator builder → __kk_iterator_builder_next
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkIteratorBuilderNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                if callee == ctx.interner.intern("kk_iterator_next") {
+                    // kk_iterator_next accepts outThrown and already
+                    // dispatches RuntimeIteratorBuilderBox, raising
+                    // NoSuchElementException through the thrown channel.
+                    // Keep the callee so the thrown channel (and the rethrow
+                    // tail CallLowerer emits for it) stays defined — the
+                    // 1-arg __kk_iterator_builder_next cannot accept
+                    // outThrown, so rewriting to it orphaned the tail's reads
+                    // (KSWIFTK-KIR-0003) and downgraded exhaustion to a panic.
+                    loweredBody.append(.call(
+                        symbol: nil,
+                        callee: callee,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: canThrow,
+                        thrownResult: thrownResult
+                    ))
+                } else {
+                    loweredBody.append(.call(
+                        symbol: nil,
+                        callee: lookup.kkIteratorBuilderNextName,
+                        arguments: arguments,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 return true
             }
         }
@@ -284,7 +317,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: [receiverID],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
@@ -301,7 +334,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     arguments: [receiverID],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
+                    thrownResult: thrownResult
                 ))
                 return true
             }
@@ -335,6 +368,33 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         return false
+    }
+
+    private func tagArrayValueIfNeeded(
+        _ array: KIRExprID,
+        type: TypeID?,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        guard let sema = ctx.sema,
+              let typeID = runtimeArrayNominalTypeID(type, sema: sema, interner: ctx.interner)
+        else {
+            return array
+        }
+        let intType = sema.types.intType
+        let typeIDExpr = module.arena.appendExpr(.intLiteral(typeID), type: intType)
+        loweredBody.append(.constValue(result: typeIDExpr, value: .intLiteral(typeID)))
+        let taggedArray = module.arena.appendTemporary(type: module.arena.exprType(array))
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: ctx.interner.intern("kk_array_tag_type"),
+            arguments: [array, typeIDExpr],
+            result: taggedArray,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return taggedArray
     }
 
     /// Emits a `kk_list_iterator_next`-style call and, when the result expression

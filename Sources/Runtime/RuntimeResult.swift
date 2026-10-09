@@ -13,24 +13,20 @@ final class RuntimeResultBox {
 }
 
 private func resultBoxFromRaw(_ raw: Int) -> RuntimeResultBox? {
-    guard let pointer = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(pointer, to: RuntimeResultBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeResultBox.self)
 }
 
 func runtimeResultSuccess(_ value: Int) -> Int {
-    registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0))
+    registerRuntimeObject(RuntimeResultBox(isSuccess: true, value: value, exception: 0), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
 }
 
 func runtimeResultFailure(_ exception: Int) -> Int {
-    registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception))
+    registerRuntimeObject(RuntimeResultBox(isSuccess: false, value: 0, exception: exception), typeID: runtimeStableNominalTypeID(fqName: "kotlin.Result"))
+}
+
+/// Kotlin `Result.toString()`: `Success(value)` / `Failure(throwable)`.
+func runtimeResultToString(_ box: RuntimeResultBox, render: (Int) -> String) -> String {
+    box.isSuccess ? "Success(\(render(box.value)))" : "Failure(\(render(box.exception)))"
 }
 
 func runtimeResultIsSuccess(_ resultRaw: Int) -> Bool {
@@ -59,16 +55,9 @@ func runtimeResultExceptionOrNull(_ resultRaw: Int) -> Int {
     return box.exception
 }
 
-/// Invokes a Result block as either a boxed function value or a raw closure entrypoint.
 private func runtimeResultInvoke0(fnPtr: Int, closureRaw: Int) -> (result: Int, thrown: Int) {
     var thrown = 0
-    let result: Int
-    if runtimeFunctionValueBox(from: fnPtr) != nil {
-        result = kk_function_invoke_0(fnPtr, &thrown)
-    } else {
-        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-        result = lambda(closureRaw, &thrown)
-    }
+    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
     return (result, thrown)
 }
 
@@ -122,7 +111,7 @@ private func runtimeResultInvoke1(
 ) -> Int {
     var thrown = 0
     let result: Int
-    if runtimeFunctionValueBox(from: fnPtr) != nil {
+    if runtimeFunctionValueBox(from: fnPtr) != nil || runtimeCallableObjectPair(from: fnPtr) != nil {
         result = kk_function_invoke(fnPtr, value, &thrown)
     } else {
         result = runtimeInvokeCollectionLambda1(

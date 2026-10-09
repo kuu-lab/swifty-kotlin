@@ -14,6 +14,17 @@ extension BuildASTPhase {
             angle == 0 && paren == 0
         }
 
+        /// Deliberately excludes `angle`, matching `hasUnclosedStatementDelimiter`
+        /// (`BuildASTPhase+BodyParsing.swift`): an unmatched `<`/`>` from a
+        /// comparison operator (`x < 0`) is indistinguishable at this token-depth
+        /// level from a generic type-argument list, so it must not block a
+        /// statement-boundary decision — otherwise every later top-level `;` or
+        /// newline in the same body is wrongly treated as still "inside brackets"
+        /// and gets merged into the wrong statement.
+        var isBracketBraceParenTopLevel: Bool {
+            paren == 0 && bracket == 0 && brace == 0
+        }
+
         mutating func track(_ kind: TokenKind) {
             switch kind {
             case .symbol(.lessThan): angle += 1
@@ -36,21 +47,15 @@ extension BuildASTPhase {
         let diagnostics: DiagnosticEngine?
         var index: Int
 
-        /// Maximum recursion/nesting depth allowed while parsing an expression.
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a
         /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
         static let maxRecursionDepth = 64
 
-        /// Current expression-parser recursion depth. Incremented on entry to the
-        /// mutually recursive expression parsing functions and decremented on exit.
         var recursionDepth = 0
 
-        /// Ensures the depth-limit diagnostic is emitted at most once per parse.
         private var depthLimitReported = false
 
-        /// Counter used to name the temporaries introduced by the `x++` / `x--`
-        /// desugaring (see `BuildASTPhase+ExpressionParserIncDec.swift`).
         private var incDecTempCounter = 0
 
         func nextIncDecTempID() -> Int {
@@ -58,7 +63,6 @@ extension BuildASTPhase {
             return incDecTempCounter
         }
 
-        /// Increments the recursion counter and reports whether parsing may continue.
         /// Returns `false` (emitting a diagnostic once) once the maximum depth is
         /// exceeded so callers abort gracefully instead of overflowing the stack.
         /// Callers must pair this with `defer { leaveRecursion() }`.
@@ -103,7 +107,22 @@ extension BuildASTPhase {
         }
 
         func parse() -> ExprID? {
-            parseAssignmentOrExpression()
+            let expression = parseAssignmentOrExpression()
+            if expression == nil, let first = tokens.first {
+                switch first.kind {
+                case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+                     .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+                     .symbol(.lessThan), .symbol(.greaterThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+                     .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+                     .symbol(.slashAssign), .symbol(.percentAssign), .symbol(.dotDot), .symbol(.dotDotLt),
+                     .symbol(.arrow), .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.bang),
+                     .keyword(.in), .keyword(.is), .keyword(.as):
+                    diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: first.range)
+                default:
+                    break
+                }
+            }
+            return expression
         }
 
         private func parseAssignmentOrExpression() -> ExprID? {
@@ -113,7 +132,15 @@ extension BuildASTPhase {
         func parseExpression(minPrecedence: Int) -> ExprID? {
             defer { leaveRecursion() }
             guard enterRecursion() else { return nil }
-            guard var lhs = parsePrefixUnary() else { return nil }
+            guard let lhs = parsePrefixUnary() else { return nil }
+            return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
+        }
+
+        /// Call-argument lambdas re-enter here after their postfix suffixes so
+        /// that an argument that starts with `{` still parses as a full
+        /// expression (`foo({ 5 }() + { 6 }())`), matching `parseExpression`.
+        func parseInfixOperators(lhs initialLHS: ExprID, minPrecedence: Int) -> ExprID {
+            var lhs = initialLHS
             while true {
                 if let next = tryParseIsCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
                 if let next = tryParseInCheck(lhs: lhs, minPrecedence: minPrecedence) { lhs = next; continue }
@@ -136,7 +163,7 @@ extension BuildASTPhase {
             guard minPrecedence <= 85 else { return nil }
             _ = consume()
             if negated { _ = consume() }
-            guard let typeRef = parseTypeReference(token.range) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.isCheck(expr: lhs, type: typeRef, negated: negated, range: range))
         }
@@ -164,7 +191,7 @@ extension BuildASTPhase {
             guard minPrecedence <= 130 else { return nil }
             _ = consume()
             let isSafe = consumeIf(.symbol(.question)) != nil
-            guard let typeRef = parseTypeReference(token.range) else { return nil }
+            guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), nil, fallback: token.range)
             return astArena.appendExpr(.asCast(expr: lhs, type: typeRef, isSafe: isSafe, range: range))
         }
@@ -181,7 +208,6 @@ extension BuildASTPhase {
             return astArena.appendExpr(.binary(op: binOp, lhs: lhs, rhs: rhs, range: range))
         }
 
-        /// General infix function call: any identifier in infix position.
         /// Kotlin grammar: infixFunctionCall = rangeExpression (simpleIdentifier rangeExpression)*
         /// All infix functions share the same precedence level as range operators (.downTo / .step)
         private func tryParseInfixCall(lhs: ExprID, minPrecedence: Int) -> ExprID? {
@@ -189,7 +215,7 @@ extension BuildASTPhase {
             guard infixPrecedence >= minPrecedence,
                   let token = current(),
                   isInfixIdentifierToken(token),
-                  !token.leadingTrivia.contains(where: { if case .newline = $0 { return true }; return false }),
+                  newlineBeforeInfixContinuesExpression(token),
                   let nextToken = peek(1),
                   canStartExpression(nextToken)
             else { return nil }
@@ -197,13 +223,15 @@ extension BuildASTPhase {
             _ = consume()
             guard let rhs = parseExpression(minPrecedence: infixPrecedence + 1) else { return nil }
             let range = mergeRanges(astArena.exprRange(lhs), astArena.exprRange(rhs), fallback: token.range)
-            return astArena.appendExpr(.memberCall(
+            let call = astArena.appendExpr(.memberCall(
                 receiver: lhs,
                 callee: calleeName,
                 typeArgs: [],
                 args: [CallArgument(expr: rhs)],
                 range: range
             ))
+            astArena.markInfixCall(call)
+            return call
         }
 
         private func parsePrefixUnary() -> ExprID? {
@@ -222,6 +250,15 @@ extension BuildASTPhase {
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
                 return astArena.appendExpr(.unaryExpr(op: .not, operand: operand, range: range))
             case .symbol(.minus):
+                if let next = peek(1),
+                   case let .intLiteral(text) = next.kind,
+                   isIntMinMagnitudeLiteral(text)
+                {
+                    _ = consume()
+                    _ = consume()
+                    let range = mergeRanges(token.range, next.range, fallback: token.range)
+                    return astArena.appendExpr(.intLiteral(Int64(Int32.min), range))
+                }
                 _ = consume()
                 guard let operand = parsePrefixUnary() else { return nil }
                 let range = mergeRanges(token.range, astArena.exprRange(operand), fallback: token.range)
@@ -239,6 +276,19 @@ extension BuildASTPhase {
             default:
                 return parsePostfixOrPrimary()
             }
+        }
+
+        private func isIntMinMagnitudeLiteral(_ text: String) -> Bool {
+            let normalized = text.replacingOccurrences(of: "_", with: "")
+            let lower = normalized.lowercased()
+            let magnitude: UInt64? = if lower.hasPrefix("0x") {
+                UInt64(normalized.dropFirst(2), radix: 16)
+            } else if lower.hasPrefix("0b") {
+                UInt64(normalized.dropFirst(2), radix: 2)
+            } else {
+                UInt64(normalized, radix: 10)
+            }
+            return magnitude == UInt64(Int32.max) + 1
         }
 
         func mergeRanges(_ lhs: SourceRange?, _ rhs: SourceRange?, fallback: SourceRange) -> SourceRange {
@@ -352,6 +402,10 @@ extension BuildASTPhase {
             }
         }
 
+        func labelNameFromToken(_ token: Token) -> InternedString? {
+            token.kind.isLabelName ? tokenText(token) : nil
+        }
+
         func identifierFromToken(_ token: Token) -> InternedString? {
             switch token.kind {
             case let .identifier(name), let .backtickedIdentifier(name):
@@ -361,13 +415,41 @@ extension BuildASTPhase {
             }
         }
 
-        /// Returns true if the token is an identifier that can serve as an infix function name.
+        /// A leading newline normally ends the expression — at
+        /// statement level `a\nor b` is `a` followed by a new statement that
+        /// starts with `or`, matching kotlinc — but inside `(`/`[` (including
+        /// call argument lists) newlines are not statement separators, so
+        /// `or`/`and`/`shl` etc. at line start still extend the expression:
+        /// `(a\n or b)` is `a or b`. `{`/`}` deliberately do not count:
+        /// lambda and block bodies re-split their contents on newlines, so a
+        /// brace interior keeps the same line-break semantics as top level.
+        private func newlineBeforeInfixContinuesExpression(_ token: Token) -> Bool {
+            let hasLeadingNewline = token.leadingTrivia.contains { piece in
+                if case .newline = piece { return true }
+                return false
+            }
+            guard hasLeadingNewline else { return true }
+            var parenDepth = 0
+            var bracketDepth = 0
+            var cursor = tokens.startIndex
+            while cursor < index {
+                switch tokens[cursor].kind {
+                case .symbol(.lParen): parenDepth += 1
+                case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+                case .symbol(.lBracket): bracketDepth += 1
+                case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+                default: break
+                }
+                cursor = tokens.index(after: cursor)
+            }
+            return parenDepth > 0 || bracketDepth > 0
+        }
+
         /// Excludes identifiers already handled as known BinaryOp (downTo, step) by binaryOperator().
         private func isInfixIdentifierToken(_ token: Token) -> Bool {
             switch token.kind {
             case let .identifier(name):
                 let resolved = interner.resolve(name)
-                // Exclude names already handled by binaryOperator()
                 if resolved == "downTo" || resolved == "step" {
                     return false
                 }
@@ -382,7 +464,6 @@ extension BuildASTPhase {
             }
         }
 
-        /// Returns true if a token can start an expression (used for infix call lookahead).
         private func canStartExpression(_ token: Token) -> Bool {
             switch token.kind {
             case .identifier, .backtickedIdentifier,

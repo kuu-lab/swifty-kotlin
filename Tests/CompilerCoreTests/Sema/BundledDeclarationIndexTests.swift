@@ -5,6 +5,18 @@ import Testing
 @Suite
 struct BundledDeclarationIndexTests {
     @Test
+    func nameLookupRecognizesDefaultArgumentCallArities() {
+        let interner = StringInterner()
+        let owner = intern(["kotlinx", "coroutines", "flow", "Flow"], interner)
+        let retry = interner.intern("retry")
+        let index = BundledDeclarationIndex(keys: [BundledMemberKey(ownerFQName: owner, name: retry, arity: 2)])
+        #expect(index.contains(ownerFQName: owner, name: retry))
+        #expect(!index.contains(ownerFQName: owner, name: retry, arity: 1))
+        #expect(!index.contains(ownerFQName: owner, name: interner.intern("missing")))
+        #expect(!index.contains(ownerFQName: intern(["other"], interner), name: retry))
+    }
+
+    @Test
     func astBuildQualifiesSamePackageNestedReceiverPaths() throws {
         let (ast, ctx) = try buildBundledAST(
             """
@@ -155,7 +167,7 @@ struct BundledDeclarationIndexTests {
             )
         }
 
-        for (member, linkName) in [("any", "__kk_iterable_any"), ("all", "__kk_iterable_all")] {
+        for (member, linkName) in [("any", runtimeABIName(.iterableAny)), ("all", runtimeABIName(.iterableAll))] {
             let name = ctx.interner.intern(member)
             let syntheticPredicateMembers = matchingFunctions(
                 owner: iterableOwner,
@@ -187,7 +199,8 @@ struct BundledDeclarationIndexTests {
             guard let linkName = sema.symbols.externalLinkName(for: symbol.id) else {
                 return false
             }
-            return linkName == "kk_iterable_count" || linkName == "kk_list_count"
+            return hasRemovedRuntimeOperation(linkName, .iterableCount)
+                || hasRemovedRuntimeOperation(linkName, .listCount)
         }
         #expect(syntheticCountLinks.isEmpty, "Expected no synthetic collection count stub link")
 
@@ -199,8 +212,7 @@ struct BundledDeclarationIndexTests {
             arity: 3,
             sema: sema
         ).filter {
-            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
-                sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString"
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
         }
         #expect(
             listJoinDefaults.isEmpty,
@@ -227,8 +239,7 @@ struct BundledDeclarationIndexTests {
             arity: 4,
             sema: sema
         ).filter {
-            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true &&
-                sema.symbols.externalLinkName(for: $0) == "kk_list_joinToString_transform"
+            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
         }
         #expect(
             listJoinTransforms.isEmpty,
@@ -358,7 +369,7 @@ struct BundledDeclarationIndexTests {
             for: sourceSymbol
         )
         symbols.setExternalLinkName(
-            variant == "otherLink" ? "different_link_name" : "kk_sequence_toHashSet",
+            variant == "otherLink" ? "different_link_name" : runtimeABIName(.sequenceToHashSet),
             for: sourceSymbol
         )
 
@@ -372,7 +383,7 @@ struct BundledDeclarationIndexTests {
         )
         symbols.setParentSymbol(ownerSymbol, for: aliasSymbol)
         symbols.setFunctionSignature(signature, for: aliasSymbol)
-        symbols.setExternalLinkName("kk_sequence_toHashSet", for: aliasSymbol)
+        symbols.setExternalLinkName(runtimeABIName(.sequenceToHashSet), for: aliasSymbol)
 
         var bundledIndex = BundledDeclarationIndex.empty
         bundledIndex.insert(

@@ -6,6 +6,14 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+# Space-separated arguments appended to each candidate compiler invocation.
+# The shared stdlib artifact intentionally remains at the default optimization
+# level so this lane measures optimization of the case under test.
+DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
+KSWIFTC_ARGS=()
+if [[ -n "$DIFF_KSWIFTC_FLAGS" ]]; then
+  read -r -a KSWIFTC_ARGS <<< "$DIFF_KSWIFTC_FLAGS"
+fi
 KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
 JAVA_BIN="${JAVA_BIN:-java}"
@@ -15,6 +23,11 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
+KOTLINC_KOTLINX_IO_VERSION="${KOTLINC_KOTLINX_IO_VERSION:-${KOTLINX_IO_VERSION:-0.9.1}}"
+KOTLINC_KOTLINX_IO_SHA256="${KOTLINC_KOTLINX_IO_SHA256:-}"
+KOTLINC_KOTLINX_IO_JAR="${KOTLINC_KOTLINX_IO_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-core-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
+KOTLINC_KOTLINX_IO_BYTESTRING_SHA256="${KOTLINC_KOTLINX_IO_BYTESTRING_SHA256:-}"
+KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-bytestring-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
 # Reference jars are cached across runs by default. Set to empty
 # (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
 # explicitly empty value as "disabled" instead of re-applying the default.
@@ -43,7 +56,11 @@ DIFF_LOG_PASS="${DIFF_LOG_PASS:-1}"
 LAST_ARTIFACT_DIR=""
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_kotlinc}"
 DIFF_STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
+STDLIB_ARTIFACT=""
 FORCE_RUN_SKIPPED=0
+CANDIDATE_ONLY=0
+EXPECTED_OUTPUT=""
+CANDIDATE_ONLY_EXPECTED=0
 CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
@@ -92,6 +109,11 @@ Options:
                      Use an existing KSwiftKStdlib.kklib instead of building one
   --force-run-skipped
                      Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
+  --candidate-only   Run one candidate-only case without a kotlinc reference
+                     (source-only marker or expected-output sidecar)
+  --expected-output <path>
+                     Expected stdout for candidate-only mode
+                     (default: <source-base>.expected)
   --clean-runtime-cache
                      Remove .runtime-build before running diff cases
   -h, --help         Show this help
@@ -129,12 +151,47 @@ Environment:
   DIFF_STDLIB_LIBRARY
                      Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
                      the runner builds one under DIFF_ARTIFACT_ROOT
+  DIFF_KSWIFTC_FLAGS
+                     Space-separated arguments appended to the candidate
+                     kswiftc invocation (default: empty)
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
   bash Scripts/diff_kotlinc.sh path/to/program.kt
+  bash Scripts/diff_kotlinc.sh --candidate-only path/to/program.kt
   DIFF_SHARD_INDEX=0 DIFF_SHARD_COUNT=4 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 USAGE
+}
+
+is_pr_candidate_only_case() {
+  local kt_file="$1"
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|$)' "$kt_file"
+}
+
+candidate_expected_stdout_directive_count() {
+  local kt_file="$1"
+  grep -Ec '^[[:space:]]*//[[:space:]]*DIFF_EXPECT_(STDOUT|OUTPUT):' "$kt_file" || true
+}
+
+candidate_expected_stdout() {
+  local kt_file="$1"
+  sed -n \
+    -e 's/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_STDOUT:[[:space:]]*//p' \
+    -e 's/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_OUTPUT:[[:space:]]*//p' \
+    "$kt_file"
+}
+
+collect_cases() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '%s\n' "$path" | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
+  elif [[ -d "$path" ]]; then
+    find "$path" -type f -name '*.kt' | sort \
+      | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
+  else
+    echo "Target does not exist: $path" >&2
+    return 1
+  fi
 }
 
 if [[ $# -eq 0 ]]; then
@@ -264,6 +321,20 @@ while [[ $# -gt 0 ]]; do
     --force-run-skipped)
       FORCE_RUN_SKIPPED=1
       ;;
+    --candidate-only)
+      CANDIDATE_ONLY=1
+      ;;
+    --expected-output)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--expected-output requires an argument" >&2
+        exit 1
+      fi
+      EXPECTED_OUTPUT="$1"
+      ;;
+    --expected-output=*)
+      EXPECTED_OUTPUT="${1#*=}"
+      ;;
     --clean-runtime-cache)
       CLEAN_RUNTIME_CACHE=1
       ;;
@@ -287,15 +358,15 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-requires_kotlinx_coroutines() {
-  local target="$1"
-  # Plain grep (POSIX ERE) + find, not rg: this must keep working on hosts/CI
-  # jobs without ripgrep installed. A missing `rg` here previously made
-  # `rg -q` exit non-zero for "command not found" the same way it does for
-  # "no match", so this silently reported "does not need kotlinx.coroutines"
-  # and skipped downloading the jar — the reference kotlinc then failed
-  # every coroutines diff case with "unresolved reference 'kotlinx'".
-  local import_pattern='import[[:space:]]+kotlinx\.coroutines'
+# Shared by requires_kotlinx_coroutines/requires_kotlinx_io. Plain grep
+# (POSIX ERE) + find, not rg: this must keep working on hosts/CI jobs without
+# ripgrep installed. A missing `rg` here previously made `rg -q` exit
+# non-zero for "command not found" the same way it does for "no match", so
+# this silently reported "does not need <dependency>" and skipped
+# downloading the jar — the reference kotlinc then failed every case for
+# that dependency with "unresolved reference 'kotlinx'".
+target_matches_import() {
+  local target="$1" import_pattern="$2"
   if [[ -f "$target" ]]; then
     grep -Eq "$import_pattern" "$target"
     return $?
@@ -312,12 +383,45 @@ requires_kotlinx_coroutines() {
   return 1
 }
 
+requires_kotlinx_coroutines() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.coroutines'
+}
+
+# kotlinx-io-core's package is `kotlinx.io` (not a sub-package of
+# kotlinx.coroutines), so this pattern does not overlap with the coroutines
+# one above. A case needing both dependencies gets both jars (see
+# ensure_kotlinc_classpath).
+requires_kotlinx_io() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.io'
+}
+
+requires_kotlinx_io_bytestring() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.io\.bytestring'
+}
+
 # Known checksums per kotlinx-coroutines version. For other versions, set
 # KOTLINC_COROUTINES_SHA256 explicitly — otherwise the download is refused
 # rather than silently skipping verification.
 known_coroutines_sha256() {
   case "$1" in
     1.10.2) printf '5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Known checksums per kotlinx-io-core version. For other versions, set
+# KOTLINC_KOTLINX_IO_SHA256 explicitly — otherwise the download is refused
+# rather than silently skipping verification.
+known_kotlinx_io_sha256() {
+  case "$1" in
+    0.9.1) printf '765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370' ;;
+    *) printf '' ;;
+  esac
+}
+
+known_kotlinx_io_bytestring_sha256() {
+  case "$1" in
+    0.9.1) printf '8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4' ;;
     *) printf '' ;;
   esac
 }
@@ -376,74 +480,127 @@ resolve_kotlinc_lib_jar() {
   done
 }
 
-ensure_kotlinc_classpath() {
-  if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-    return 0
-  fi
-
-  if ! requires_kotlinx_coroutines "$TARGET"; then
-    return 0
-  fi
+# Downloads and checksum-verifies a single jar from Maven Central into
+# $jar_path, unless it is already present. $known_sha256_fn is the name of a
+# `known_*_sha256 <version>` function (known_coroutines_sha256,
+# known_kotlinx_io_sha256, ...) consulted when $override_sha256 is empty.
+ensure_maven_jar() {
+  local dep_label="$1" maven_path="$2" version="$3" jar_path="$4" override_sha256="$5" known_sha256_fn="$6"
 
   if ! command -v curl >/dev/null 2>&1; then
-    echo "curl is required to download kotlinx-coroutines dependency" >&2
+    echo "curl is required to download $dep_label dependency" >&2
     return 1
   fi
 
   mkdir -p "$KOTLINC_DEP_DIR"
 
-  local expected_sha256="$KOTLINC_COROUTINES_SHA256"
+  local expected_sha256="$override_sha256"
   if [[ -z "$expected_sha256" ]]; then
-    expected_sha256="$(known_coroutines_sha256 "$KOTLINC_COROUTINES_VERSION")"
+    expected_sha256="$("$known_sha256_fn" "$version")"
   fi
   if [[ -z "$expected_sha256" ]]; then
-    echo "No known checksum for kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}." >&2
-    echo "Set KOTLINC_COROUTINES_SHA256 to the expected SHA-256 of the jar." >&2
+    echo "No known checksum for $dep_label ${version}." >&2
+    echo "Set the corresponding *_SHA256 override to the expected SHA-256 of the jar." >&2
     return 1
   fi
 
-  if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
-    local artifact_path="org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
+  if [[ ! -s "$jar_path" ]]; then
     local download_url
     local downloaded=false
     # Hosted runners can intermittently receive HTTP 403 from one Maven
     # Central hostname. Retry transient failures and try the alternate
     # canonical hostname before giving up, then verify the checksum below.
     local download_urls=(
-      "https://repo.maven.apache.org/maven2/${artifact_path}"
-      "https://repo1.maven.org/maven2/${artifact_path}"
+      "https://repo.maven.apache.org/maven2/${maven_path}"
+      "https://repo1.maven.org/maven2/${maven_path}"
     )
     for download_url in "${download_urls[@]}"; do
-      echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from ${download_url}..."
-      rm -f "$KOTLINC_COROUTINES_JAR"
+      echo "Downloading $dep_label ${version} from ${download_url}..."
+      rm -f "$jar_path"
       if curl -fSL --retry 3 --retry-delay 2 --retry-max-time 120 \
         --connect-timeout 30 --max-time 120 \
-        -o "$KOTLINC_COROUTINES_JAR" "$download_url"; then
+        -o "$jar_path" "$download_url"; then
         downloaded=true
         break
       fi
       echo "Download failed from ${download_url}; trying the next Maven Central hostname." >&2
     done
     if [[ "$downloaded" != true ]]; then
-      echo "Failed to download kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from Maven Central." >&2
+      echo "Failed to download $dep_label ${version} from Maven Central." >&2
       return 1
     fi
   fi
 
   local actual_sha256
-  if ! actual_sha256="$(sha256_file "$KOTLINC_COROUTINES_JAR")"; then
+  if ! actual_sha256="$(sha256_file "$jar_path")"; then
     echo "Warning: shasum or sha256sum not found, skipping checksum verification" >&2
     actual_sha256="$expected_sha256"
   fi
   if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-    echo "Error: checksum mismatch for kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" >&2
+    echo "Error: checksum mismatch for $dep_label-${version}.jar" >&2
     echo "Expected: $expected_sha256" >&2
     echo "Actual:   $actual_sha256" >&2
-    rm -f "$KOTLINC_COROUTINES_JAR"
+    rm -f "$jar_path"
     return 1
   fi
+}
 
-  KOTLINC_CLASSPATH="$KOTLINC_COROUTINES_JAR"
+ensure_coroutines_jar() {
+  ensure_maven_jar \
+    "kotlinx-coroutines-core-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar" \
+    "$KOTLINC_COROUTINES_VERSION" "$KOTLINC_COROUTINES_JAR" "$KOTLINC_COROUTINES_SHA256" known_coroutines_sha256
+}
+
+ensure_kotlinx_io_jar() {
+  ensure_maven_jar \
+    "kotlinx-io-core-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-io-core-jvm/${KOTLINC_KOTLINX_IO_VERSION}/kotlinx-io-core-jvm-${KOTLINC_KOTLINX_IO_VERSION}.jar" \
+    "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_JAR" "$KOTLINC_KOTLINX_IO_SHA256" known_kotlinx_io_sha256
+}
+
+ensure_kotlinx_io_bytestring_jar() {
+  ensure_maven_jar \
+    "kotlinx-io-bytestring-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/${KOTLINC_KOTLINX_IO_VERSION}/kotlinx-io-bytestring-jvm-${KOTLINC_KOTLINX_IO_VERSION}.jar" \
+    "$KOTLINC_KOTLINX_IO_VERSION" "$KOTLINC_KOTLINX_IO_BYTESTRING_JAR" "$KOTLINC_KOTLINX_IO_BYTESTRING_SHA256" known_kotlinx_io_bytestring_sha256
+}
+
+ensure_kotlinc_classpath() {
+  if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+    return 0
+  fi
+
+  local jars=()
+
+  if requires_kotlinx_coroutines "$TARGET"; then
+    ensure_coroutines_jar || return 1
+    jars+=("$KOTLINC_COROUTINES_JAR")
+  fi
+
+  if requires_kotlinx_io "$TARGET"; then
+    ensure_kotlinx_io_jar || return 1
+    jars+=("$KOTLINC_KOTLINX_IO_JAR")
+  fi
+
+  if requires_kotlinx_io_bytestring "$TARGET"; then
+    ensure_kotlinx_io_bytestring_jar || return 1
+    jars+=("$KOTLINC_KOTLINX_IO_BYTESTRING_JAR")
+  fi
+
+  if [[ ${#jars[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  local joined="" jar
+  for jar in "${jars[@]}"; do
+    if [[ -z "$joined" ]]; then
+      joined="$jar"
+    else
+      joined="$joined:$jar"
+    fi
+  done
+  KOTLINC_CLASSPATH="$joined"
 }
 
 if [[ -z "$TARGET" ]]; then
@@ -451,37 +608,116 @@ if [[ -z "$TARGET" ]]; then
   exit 1
 fi
 
+# Emits this shard's cases (interleaved sharding via lib/common.sh;
+# DIFF_SHARD_COUNT == 1 emits everything).
+collect_cases() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '%s\n' "$path" | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
+  elif [[ -d "$path" ]]; then
+    find "$path" -type f -name '*.kt' | sort \
+      | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
+  else
+    echo "Target does not exist: $path" >&2
+    exit 1
+  fi
+}
+
+is_candidate_only_from_source_case() {
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE([[:space:]:]|$)' "$1"
+}
+
+is_pr_candidate_only_case() {
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY([[:space:]]|:|$)' "$1"
+}
+
+# Resolve the expected-output sidecar named by a candidate-only case. Relative
+# paths are anchored to the Kotlin source file so the case is portable across
+# callers and CI working directories.
+candidate_only_expected_output_file() {
+  local case_path="$1"
+  local expected_path
+  expected_path="$(grep -E '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path" 2>/dev/null \
+    | head -1 \
+    | sed 's/.*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:[[:space:]]*//')"
+  [[ -n "$expected_path" ]] || return 1
+
+  case "$expected_path" in
+    /*|*/*|*\\*|.|..) return 2 ;;
+  esac
+
+  local case_dir
+  case_dir="$(cd "$(dirname "$case_path")" && pwd)"
+  printf '%s/%s\n' "$case_dir" "$expected_path"
+}
+
+if [[ "$CANDIDATE_ONLY" -eq 0 && -f "$TARGET" ]] \
+  && is_pr_candidate_only_case "$TARGET" \
+  && [[ "$(candidate_expected_stdout_directive_count "$TARGET")" -eq 0 ]]; then
+  CANDIDATE_ONLY=1
+fi
+
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  if [[ ! -f "$TARGET" || "$TARGET" != *.kt ]]; then
+    echo "--candidate-only requires one .kt case file: $TARGET" >&2
+    exit 1
+  fi
+  if is_candidate_only_from_source_case "$TARGET"; then
+    if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+      echo "--candidate-only source cases compile bundled stdlib sources and cannot use --stdlib-library." >&2
+      exit 1
+    fi
+    if [[ -n "$EXPECTED_OUTPUT" ]]; then
+      echo "--expected-output cannot be used with // DIFF_CANDIDATE_ONLY_FROM_SOURCE." >&2
+      exit 1
+    fi
+  else
+    CANDIDATE_ONLY_EXPECTED=1
+    if [[ -z "$EXPECTED_OUTPUT" ]]; then
+      if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$TARGET"; then
+        EXPECTED_OUTPUT="$(candidate_only_expected_output_file "$TARGET")" || {
+          echo "Invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT in $TARGET" >&2
+          exit 1
+        }
+      else
+        EXPECTED_OUTPUT="${TARGET%.kt}.expected"
+      fi
+    fi
+    if [[ ! -f "$EXPECTED_OUTPUT" ]]; then
+      echo "--candidate-only requires an existing expected-output file: $EXPECTED_OUTPUT" >&2
+      exit 1
+    fi
+  fi
+elif [[ -n "$EXPECTED_OUTPUT" ]]; then
+  echo "--expected-output can only be used with --candidate-only" >&2
+  exit 1
+fi
+
 if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
   rm -rf "$ROOT_DIR/.runtime-build"
 fi
 
-# Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
-# warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
-# output, so this is deliberately absent from the reference-cache fingerprint.
-if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
-  export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
+# Preserve the separate master runner's stdout/stderr sidecars alongside this
+# PR's candidate-only marker and expected-output format.
+is_master_candidate_only_case() {
+  local case_path="$1"
+  is_candidate_only_case "$case_path" || return 1
+  [[ -f "${case_path%.kt}.expected.stdout" || -f "${case_path%.kt}.expected.stderr" ]]
+}
+
+# A single candidate-only target has no JVM reference by design. Delegate
+# before kotlinc/JDK discovery, cache fingerprinting, and JVM warm-up so this
+# path remains usable without any reference toolchain installed.
+if [[ -f "$TARGET" ]] && is_master_candidate_only_case "$TARGET"; then
+  export KSWIFTC DIFF_KSWIFTC_FLAGS
+  export DIFF_COMPILE_TIMEOUT="$COMPILE_TIMEOUT"
+  export DIFF_RUN_TIMEOUT="$RUN_TIMEOUT"
+  export DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT"
+  export DIFF_STDLIB_LIBRARY
+  export DIFF_CANDIDATE_ONLY_KEEP_TEMP="$KEEP_TEMP"
+  export TIMEOUT="$TIMEOUT_CMD"
+  exec bash "$SCRIPT_DIR/run_candidate_only.sh" "$TARGET"
 fi
-
-ensure_kotlinc_classpath
-
-# Runs after ensure_kotlinc_classpath (which may have just populated
-# KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
-# (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
-# --kotlinc-classpath), so it sees final values for both instead of racing
-# either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
-# is what keeps a user- or coroutines-supplied classpath intact.
-KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
-KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
-KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
-for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_JAR"; do
-  if [[ -n "$runtime_jar" ]]; then
-    if [[ -n "$KOTLINC_CLASSPATH" ]]; then
-      KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
-    else
-      KOTLINC_CLASSPATH="$runtime_jar"
-    fi
-  fi
-done
 
 # DIFF_PARALLEL is a boolean toggle: 0 = serial, 1 = parallel (default).
 # Worker count comes from DIFF_WORKERS / --jobs. Values >= 2 are deprecated
@@ -548,17 +784,89 @@ if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
 
-if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
-  echo "unzip command not found: unzip" >&2
+if [[ ! -f "$TARGET" && ! -d "$TARGET" ]]; then
+  echo "Target does not exist: $TARGET" >&2
   exit 1
 fi
 
-# The reference outputs depend on the JDK version: Double/Float.toString()
-# only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
-# Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
-# which produces spurious FAILs against kswiftc. CI pins java-version 21.
-require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
-  "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
+# Discover which toolchains and artifacts this shard needs before touching
+# kotlinc or Java. Source-only and expected-output candidate cases have no JVM
+# reference; canonical sidecar cases belong to run_candidate_only.sh.
+REFERENCE_CASES_REQUIRED=0
+STDLIB_ARTIFACT_REQUIRED=0
+CANDIDATE_EXPECTED_OUTPUT_REQUIRED=0
+while IFS= read -r test_case; do
+  [[ -z "$test_case" ]] && continue
+  if is_master_candidate_only_case "$test_case" || should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED" || is_candidate_only_from_source_case "$test_case"; then
+    continue
+  fi
+  if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] || is_pr_candidate_only_case "$test_case"; then
+    CANDIDATE_EXPECTED_OUTPUT_REQUIRED=1
+    STDLIB_ARTIFACT_REQUIRED=1
+    continue
+  fi
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$test_case"; then
+    CANDIDATE_EXPECTED_OUTPUT_REQUIRED=1
+    STDLIB_ARTIFACT_REQUIRED=1
+    continue
+  fi
+  REFERENCE_CASES_REQUIRED=1
+  STDLIB_ARTIFACT_REQUIRED=1
+  break
+done < <(collect_cases "$TARGET")
+
+if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
+  # Exported before the first kotlinc invocation (configure_kotlinc_ref_cache /
+  # warm_kotlinc / run_case all inherit it). JIT flags do not affect compiler
+  # output, so this is deliberately absent from the reference-cache fingerprint.
+  if [[ -n "$DIFF_KOTLINC_JAVA_OPTS" ]]; then
+    export JAVA_OPTS="$DIFF_KOTLINC_JAVA_OPTS${JAVA_OPTS:+ $JAVA_OPTS}"
+  fi
+
+  ensure_kotlinc_classpath
+
+  # Runs after ensure_kotlinc_classpath (which may have just populated
+  # KOTLINC_CLASSPATH with a downloaded coroutines jar) and after arg parsing
+  # (which may have set KOTLINC/KOTLINC_CLASSPATH via --kotlinc/
+  # --kotlinc-classpath), so it sees final values for both instead of racing
+  # either. Prepending here, not at KOTLINC_STDLIB_JAR's declaration above,
+  # is what keeps a user- or coroutines-supplied classpath intact.
+  KOTLINC_STDLIB_JAR="${KOTLINC_STDLIB_JAR:-$(resolve_kotlinc_lib_jar kotlin-stdlib.jar || true)}"
+  KOTLINC_REFLECT_JAR="${KOTLINC_REFLECT_JAR:-$(resolve_kotlinc_lib_jar kotlin-reflect.jar || true)}"
+  KOTLINC_TEST_JAR="${KOTLINC_TEST_JAR:-$(resolve_kotlinc_lib_jar kotlin-test.jar || true)}"
+  for runtime_jar in "$KOTLINC_REFLECT_JAR" "$KOTLINC_STDLIB_JAR" "$KOTLINC_TEST_JAR"; do
+    if [[ -n "$runtime_jar" ]]; then
+      if [[ -n "$KOTLINC_CLASSPATH" ]]; then
+        KOTLINC_CLASSPATH="$runtime_jar:$KOTLINC_CLASSPATH"
+      else
+        KOTLINC_CLASSPATH="$runtime_jar"
+      fi
+    fi
+  done
+fi
+
+if [[ "$REFERENCE_CASES_REQUIRED" -eq 0 ]]; then
+  if [[ ! -x "$KSWIFTC" ]] && ! command -v "$KSWIFTC" >/dev/null 2>&1; then
+    echo "kswiftc not found or not executable: $KSWIFTC" >&2
+    exit 1
+  fi
+  if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
+    echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+    exit 1
+  fi
+else
+  if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
+    echo "unzip command not found: unzip" >&2
+    exit 1
+  fi
+
+  # The reference outputs depend on the JDK version: Double/Float.toString()
+  # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
+  # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
+  # which produces spurious FAILs against kswiftc. CI pins java-version 21.
+  require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
+    "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
+fi
 
 warm_kotlinc() {
   local warm_timeout
@@ -702,7 +1010,9 @@ store_kotlinc_ref_cache() {
   fi
 }
 
-configure_kotlinc_ref_cache
+if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
+  configure_kotlinc_ref_cache
+fi
 
 # Worker count: serial when disabled, else explicit DIFF_WORKERS / --jobs,
 # else auto-detected CPU count (fallback 4).
@@ -781,6 +1091,8 @@ echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Script timeout: ${SCRIPT_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
+echo "Candidate-only: $CANDIDATE_ONLY"
+echo "kswiftc flags: ${DIFF_KSWIFTC_FLAGS:-<none>}"
 echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
 if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
   echo "Kotlinc reference cache: $KOTLINC_REF_CACHE_DIR"
@@ -789,39 +1101,34 @@ else
 fi
 echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
 echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
+if [[ "$CANDIDATE_EXPECTED_OUTPUT_REQUIRED" -eq 1 ]]; then
+  echo "Comparison mode: candidate-only expected output"
+fi
 if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
-else
+elif [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
   echo "Stdlib artifact: pending build under $ARTIFACT_ROOT"
+else
+  echo "Stdlib artifact: not needed for skipped candidate-only cases"
 fi
 echo "Target: $TARGET"
 echo "=================================="
 
 # Warm up the JVM/daemon once so per-case compile timeouts measure compilation,
-# not the first kotlinc startup cost.
-warm_kotlinc
+# not the first kotlinc startup cost. Candidate-only targets do not invoke the
+# reference compiler or JVM at all.
+if [[ "$REFERENCE_CASES_REQUIRED" -eq 1 ]]; then
+  warm_kotlinc
+fi
 
-# Build or resolve the precompiled stdlib artifact once per shard. Each candidate
-# compile below will reference it with --stdlib-library instead of recompiling
-# bundled stdlib sources.
-build_stdlib_artifact || exit 1
-echo "Stdlib artifact: $STDLIB_ARTIFACT"
-echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
-
-# Emits this shard's cases (interleaved sharding via lib/common.sh;
-# DIFF_SHARD_COUNT == 1 emits everything).
-collect_cases() {
-  local path="$1"
-  if [[ -f "$path" ]]; then
-    printf '%s\n' "$path" | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
-  elif [[ -d "$path" ]]; then
-    find "$path" -type f -name '*.kt' | sort \
-      | shard_interleave "$DIFF_SHARD_INDEX" "$DIFF_SHARD_COUNT"
-  else
-    echo "Target does not exist: $path" >&2
-    exit 1
-  fi
-}
+if [[ "$STDLIB_ARTIFACT_REQUIRED" -eq 1 ]]; then
+  # Build or resolve the precompiled stdlib artifact once per shard. Each candidate
+  # compile below will reference it with --stdlib-library instead of recompiling
+  # bundled stdlib sources.
+  build_stdlib_artifact || exit 1
+  echo "Stdlib artifact: $STDLIB_ARTIFACT"
+  echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
+fi
 
 # Number of cases in the target *before* sharding, so an empty shard can be
 # distinguished from a genuinely empty target.
@@ -886,6 +1193,10 @@ persist_artifacts() {
   local cand_compile_exit="$5"
   local ref_run_exit="$6"
   local cand_run_exit="$7"
+  local candidate_only=0
+  if is_pr_candidate_only_case "$case_path" || grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path"; then
+    candidate_only=1
+  fi
 
   mkdir -p "$ARTIFACT_ROOT"
 
@@ -898,8 +1209,24 @@ persist_artifacts() {
 
   cp "$case_path" "$destination/input.kt"
 
+  local escaped_kswiftc_flags
+  printf -v escaped_kswiftc_flags '%q' "$DIFF_KSWIFTC_FLAGS"
+
+  local comparison_mode="kotlinc-reference"
+  local candidate_expected_output=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$case_path"; then
+    comparison_mode="candidate-only-expected-output"
+    candidate_expected_output="$(candidate_only_expected_output_file "$case_path" 2>/dev/null || true)"
+    if [[ -n "$candidate_expected_output" && -f "$candidate_expected_output" && ! -L "$candidate_expected_output" ]]; then
+      cp "$candidate_expected_output" "$destination/expected.stdout"
+    fi
+  elif is_pr_candidate_only_case "$case_path"; then
+    comparison_mode="candidate-only-inline-output"
+    candidate_expected_stdout "$case_path" >"$destination/expected.stdout"
+  fi
+
   if [[ $cand_compile_exit -eq 0 ]]; then
-    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" --emit kir "$case_path" -o "$destination/candidate.kir" \
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" --emit kir "$case_path" -o "$destination/candidate.kir" \
       >"$destination/candidate_kir.stdout" \
       2>"$destination/candidate_kir.stderr" || true
   fi
@@ -910,6 +1237,7 @@ persist_artifacts() {
   cat >"$destination/summary.txt" <<EOF
 case: $case_path
 result: $result_label
+comparison_mode: $comparison_mode
 artifact_dir: $destination
 compile_timeout_seconds: $COMPILE_TIMEOUT
 run_timeout_seconds: $RUN_TIMEOUT
@@ -921,23 +1249,29 @@ candidate_run_exit: $cand_run_exit
 stdlib_artifact: $STDLIB_ARTIFACT
 stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
 kswiftc: $KSWIFTC
+kswiftc_flags: $DIFF_KSWIFTC_FLAGS
 kotlinc: $KOTLINC
 java: $JAVA_BIN
 force_run_skipped: $FORCE_RUN_SKIPPED
 clean_runtime_cache: $CLEAN_RUNTIME_CACHE
+candidate_only: $candidate_only
 EOF
 
   cat >"$destination/repro.sh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$ROOT_DIR"
-DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
+DIFF_STDLIB_LIBRARY="$STDLIB_ARTIFACT" DIFF_KSWIFTC_FLAGS=$escaped_kswiftc_flags DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --artifact-root "$ARTIFACT_ROOT" "$case_path"
 EOF
   chmod +x "$destination/repro.sh"
 
-  safe_diff_to_file "$destination/ref_compile_stderr.norm" "$destination/cand_compile_stderr.norm" "$destination/compile_stderr.diff"
-  safe_diff_to_file "$destination/ref_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
-  safe_diff_to_file "$destination/ref_run.stderr" "$destination/cand_run.stderr" "$destination/stderr.diff"
+  if [[ "$candidate_only" -eq 1 ]]; then
+    safe_diff_to_file "$destination/expected_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+  else
+    safe_diff_to_file "$destination/ref_compile_stderr.norm" "$destination/cand_compile_stderr.norm" "$destination/compile_stderr.diff"
+    safe_diff_to_file "$destination/ref_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+    safe_diff_to_file "$destination/ref_run.stderr" "$destination/cand_run.stderr" "$destination/stderr.diff"
+  fi
 
   LAST_ARTIFACT_DIR="$destination"
 }
@@ -1004,9 +1338,289 @@ compare_run_stdout() {
   return 1
 }
 
+should_skip_regular_diff_case() {
+  should_skip_diff_case "$1" "$FORCE_RUN_SKIPPED"
+}
+
+print_skipped_case() {
+  echo "SKIP $1 (// SKIP-DIFF)"
+}
+
+persist_source_candidate_artifacts() {
+  local kt_file="$1"
+  local expected_file="$2"
+  local tmp_dir="$3"
+  local compile_exit="$4"
+  local run_exit="$5"
+
+  mkdir -p "$ARTIFACT_ROOT"
+  local case_name destination
+  case_name="$(sanitize_case_name "$kt_file")-candidate-only"
+  destination="$(unique_artifact_destination "$ARTIFACT_ROOT" "$case_name")"
+  if [[ -f "$expected_file" ]]; then
+    cp "$expected_file" "$tmp_dir/expected.out"
+  fi
+  mv "$tmp_dir" "$destination"
+  cp "$kt_file" "$destination/input.kt"
+  safe_diff_to_file "$destination/expected.stdout.norm" "$destination/candidate.stdout.norm" "$destination/stdout.diff"
+
+  # Retain this lane's KIR, crash diagnostics, and runnable reproduction.
+  if [[ $compile_exit -eq 0 ]]; then
+    KSWIFTK_STDLIB_CACHE_DIR="$destination/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" --emit kir "$kt_file" -o "$destination/candidate.kir" \
+      >"$destination/candidate_kir.stdout" 2>"$destination/candidate_kir.stderr" || true
+    if [[ $run_exit -ge 128 ]]; then
+      save_runtime_backtrace "$destination/candidate.out" "$destination/backtrace.txt"
+    fi
+  fi
+  {
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'cd %q\n' "$ROOT_DIR"
+    printf 'KSWIFTC=%q DIFF_KSWIFTC_FLAGS=%q DIFF_ARTIFACT_ROOT=%q bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped --compile-timeout %q --run-timeout %q %q\n' \
+      "$KSWIFTC" "$DIFF_KSWIFTC_FLAGS" "$ARTIFACT_ROOT" "$COMPILE_TIMEOUT" "$RUN_TIMEOUT" "$kt_file"
+  } >"$destination/repro.sh"
+  chmod +x "$destination/repro.sh"
+
+  cat >"$destination/summary.txt" <<EOF
+case: $kt_file
+result: FAIL (candidate-only)
+artifact_dir: $destination
+compile_timeout_seconds: $COMPILE_TIMEOUT
+run_timeout_seconds: $RUN_TIMEOUT
+expected_output: $expected_file
+candidate_compile_exit: $compile_exit
+candidate_run_exit: $run_exit
+stdlib_artifact: bundled-sources
+kswiftc: $KSWIFTC
+kswiftc_flags: $DIFF_KSWIFTC_FLAGS
+EOF
+
+  LAST_ARTIFACT_DIR="$destination"
+}
+
+run_candidate_only_from_source_case() {
+  local kt_file="$1"
+  local artifact_file="${2:-}"
+  local expected_file="${kt_file%.kt}.expected"
+  local tmp_dir candidate_bin compile_exit=0 run_exit=not-run ok=1
+
+  tmp_dir="$(mktemp -d -t kswiftk-candidate-only-XXXXXX)"
+  LAST_ARTIFACT_DIR="$tmp_dir"
+  candidate_bin="$tmp_dir/candidate.out"
+
+  # Internal source-backed cases can record their oracle as a sidecar or as
+  # ordered EXPECT-STDOUT lines. Neither format belongs to the artifact lane.
+  if [[ ! -f "$expected_file" ]]; then
+    expected_file="$tmp_dir/expected.inline"
+    if grep -Eq '^[[:space:]]*//[[:space:]]*EXPECT-STDOUT:' "$kt_file"; then
+      awk '/^[[:space:]]*\/\/[[:space:]]*EXPECT-STDOUT:/ {
+        sub(/^[[:space:]]*\/\/[[:space:]]*EXPECT-STDOUT:[[:space:]]?/, "")
+        print
+      }' "$kt_file" >"$expected_file"
+    else
+      ok=0
+      echo "  source candidate-only case needs a .expected sidecar or // EXPECT-STDOUT: lines"
+      : >"$expected_file"
+    fi
+  fi
+
+  KSWIFTK_STDLIB_CACHE_DIR="$tmp_dir/stdlib-cache" "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-from-source "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+    >"$tmp_dir/candidate_compile.stdout" 2>"$tmp_dir/candidate_compile.stderr" || compile_exit=$?
+
+  if [[ $compile_exit -eq 0 ]]; then
+    run_exit=0
+    "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" \
+      >"$tmp_dir/candidate.stdout" 2>"$tmp_dir/candidate.stderr" || run_exit=$?
+  else
+    : >"$tmp_dir/candidate.stdout"
+    : >"$tmp_dir/candidate.stderr"
+  fi
+
+  normalize_text <"$tmp_dir/candidate.stdout" >"$tmp_dir/candidate.stdout.norm"
+  normalize_text <"$expected_file" >"$tmp_dir/expected.stdout.norm"
+
+  if [[ $compile_exit -ne 0 ]]; then
+    ok=0
+    echo "  candidate compile failed with exit=$compile_exit"
+    sed -n '1,120p' "$tmp_dir/candidate_compile.stderr"
+  elif [[ $run_exit -ne 0 ]]; then
+    ok=0
+    if [[ $run_exit -eq 124 ]]; then
+      echo "  candidate run timed out after ${RUN_TIMEOUT}s"
+    else
+      echo "  candidate run failed with exit=$run_exit"
+    fi
+    sed -n '1,120p' "$tmp_dir/candidate.stderr"
+  elif ! diff -u "$tmp_dir/expected.stdout.norm" "$tmp_dir/candidate.stdout.norm" >"$tmp_dir/stdout.diff"; then
+    ok=0
+    echo "  candidate stdout did not match $expected_file"
+    cat "$tmp_dir/stdout.diff"
+  fi
+
+  if [[ $ok -eq 1 ]]; then
+    if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
+      echo "PASS $kt_file (candidate-only)"
+    fi
+    if [[ $KEEP_TEMP -eq 0 ]]; then
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+    else
+      echo "  artifacts: $tmp_dir"
+    fi
+  else
+    echo "FAIL $kt_file (candidate-only)"
+    persist_source_candidate_artifacts "$kt_file" "$expected_file" "$tmp_dir" "$compile_exit" "$run_exit"
+    echo "  artifacts: $LAST_ARTIFACT_DIR"
+  fi
+
+  if [[ -n "$artifact_file" ]]; then
+    printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+  fi
+
+  return $((1 - ok))
+}
+
+run_candidate_only_case() {
+  local kt_file="$1"
+  local expected_output="$2"
+  local tmp_dir
+  tmp_dir="$(mktemp -d -t kswiftk-candidate-only-XXXXXX)"
+
+  local candidate_bin="$tmp_dir/candidate.out"
+  local compile_stdout="$tmp_dir/candidate_compile.stdout"
+  local compile_stderr="$tmp_dir/candidate_compile.stderr"
+  local run_stdout="$tmp_dir/candidate_run.stdout"
+  local run_stderr="$tmp_dir/candidate_run.stderr"
+  local candidate_output_norm="$tmp_dir/candidate_output.norm"
+  local expected_output_norm="$tmp_dir/expected_output.norm"
+  local compile_exit=0
+  local run_exit=not-run
+  local ok=1
+  local artifact=""
+  local expected_output_exists=0
+
+  : >"$compile_stdout"
+  : >"$compile_stderr"
+  : >"$run_stdout"
+  : >"$run_stderr"
+
+  if [[ -f "$expected_output" ]]; then
+    expected_output_exists=1
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$candidate_bin" \
+      >"$compile_stdout" 2>"$compile_stderr" || compile_exit=$?
+
+    if [[ "$compile_exit" -eq 0 ]]; then
+      run_exit=0
+      if needs_stdin_eof "$kt_file"; then
+        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" < /dev/null >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+      else
+        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$candidate_bin" >"$run_stdout" 2>"$run_stderr" || run_exit=$?
+      fi
+    fi
+  else
+    compile_exit=not-run
+    run_exit=not-run
+  fi
+
+  normalize_text <"$run_stdout" >"$candidate_output_norm"
+  if [[ "$expected_output_exists" -eq 1 ]]; then
+    normalize_text <"$expected_output" >"$expected_output_norm"
+  else
+    ok=0
+    echo "Candidate-only case is missing its expected output file: $expected_output" >&2
+    : >"$expected_output_norm"
+  fi
+
+  if [[ "$expected_output_exists" -eq 0 ]]; then
+    : # Missing oracles fail without executing the case.
+  elif [[ "$compile_exit" -ne 0 ]]; then
+    ok=0
+    echo "  candidate compile failed with exit=$compile_exit"
+    sed -n '1,120p' "$compile_stderr"
+  elif [[ "$run_exit" -ne 0 ]]; then
+    ok=0
+    echo "  candidate run failed with exit=$run_exit"
+    sed -n '1,120p' "$run_stderr"
+  elif ! diff -u "$expected_output_norm" "$candidate_output_norm"; then
+    ok=0
+    echo "  candidate stdout did not match expected output"
+  fi
+
+  if [[ "$ok" -eq 1 ]]; then
+    echo "PASS CANDIDATE-ONLY $kt_file"
+    if [[ "$KEEP_TEMP" -eq 0 ]]; then
+      rm -rf "$tmp_dir"
+    else
+      artifact="$tmp_dir"
+      echo "  artifacts: $artifact"
+    fi
+  else
+    mkdir -p "$ARTIFACT_ROOT"
+    artifact="$(unique_artifact_destination "$ARTIFACT_ROOT" "candidate_only_$(sanitize_case_name "$kt_file")")"
+    mv "$tmp_dir" "$artifact"
+    cp "$kt_file" "$artifact/input.kt"
+    if [[ -f "$expected_output" ]]; then
+      cp "$expected_output" "$artifact/expected_output"
+    fi
+    safe_diff_to_file "$artifact/expected_output.norm" "$artifact/candidate_output.norm" "$artifact/stdout.diff"
+    cat >"$artifact/summary.txt" <<EOF
+case: $kt_file
+result: FAIL
+artifact_dir: $artifact
+compile_timeout_seconds: $COMPILE_TIMEOUT
+run_timeout_seconds: $RUN_TIMEOUT
+candidate_compile_exit: $compile_exit
+candidate_run_exit: $run_exit
+expected_output: $expected_output
+stdlib_artifact: $STDLIB_ARTIFACT
+stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
+kswiftc: $KSWIFTC
+kswiftc_flags: $DIFF_KSWIFTC_FLAGS
+EOF
+    echo "  artifacts: $artifact"
+  fi
+
+  LAST_ARTIFACT_DIR="$artifact"
+  return $((1 - ok))
+}
+
 run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
+  if is_candidate_only_from_source_case "$kt_file"; then
+    run_candidate_only_from_source_case "$kt_file" "$artifact_file"
+    return $?
+  fi
+  if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] \
+    || grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+    local expected_output="$EXPECTED_OUTPUT"
+    if [[ -z "$expected_output" ]]; then
+      if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+        if ! expected_output="$(candidate_only_expected_output_file "$kt_file")"; then
+          echo "  invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: use a sidecar filename in the case directory" >&2
+          return 1
+        fi
+      else
+        expected_output="${kt_file%.kt}.expected"
+      fi
+    fi
+    local candidate_exit=0
+    run_candidate_only_case "$kt_file" "$expected_output" || candidate_exit=$?
+    if [[ -n "$artifact_file" ]]; then
+      printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+    fi
+    return "$candidate_exit"
+  fi
+  if is_pr_candidate_only_case "$kt_file" \
+    && [[ "$(candidate_expected_stdout_directive_count "$kt_file")" -eq 0 ]]; then
+    local expected_output="${kt_file%.kt}.expected"
+    local candidate_exit=0
+    run_candidate_only_case "$kt_file" "$expected_output" || candidate_exit=$?
+    if [[ -n "$artifact_file" ]]; then
+      printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+    fi
+    return "$candidate_exit"
+  fi
+
   local tmp_dir
   tmp_dir="$(mktemp -d -t kswiftk-diff-XXXXXX)"
   LAST_ARTIFACT_DIR="$tmp_dir"
@@ -1037,9 +1651,67 @@ run_case() {
 
   local basename
   basename="$(basename "$kt_file")"
+  local candidate_only=0
+  local candidate_expected_output=""
+  local expected_stdout_valid=1
+  local expected_stdout_path="$tmp_dir/expected_run.stdout"
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT:' "$kt_file"; then
+    candidate_only=1
+    if ! candidate_expected_output="$(candidate_only_expected_output_file "$kt_file")"; then
+      echo "  invalid DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: use a sidecar filename in the case directory" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if [[ ! -f "$candidate_expected_output" || -L "$candidate_expected_output" ]]; then
+      echo "  candidate-only expected output must be a regular sidecar file: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    if ! cp "$candidate_expected_output" "$expected_stdout_path"; then
+      echo "  failed to read candidate-only expected output: $candidate_expected_output" >&2
+      rm -rf "$tmp_dir"
+      LAST_ARTIFACT_DIR=""
+      return 1
+    fi
+    echo "  candidate-only expected-output comparison: $candidate_expected_output"
+  elif is_pr_candidate_only_case "$kt_file"; then
+    candidate_only=1
+    local expected_stdout_count
+    expected_stdout_count="$(candidate_expected_stdout_directive_count "$kt_file")"
+    if [[ "$expected_stdout_count" -gt 0 ]]; then
+      candidate_expected_stdout "$kt_file" >"$expected_stdout_path"
+    else
+      expected_stdout_valid=0
+      : >"$expected_stdout_path"
+    fi
+  fi
+
   local is_script=0
   if [[ "$basename" == script_* ]]; then
     is_script=1
+  fi
+
+  local has_expected_script_exit=0
+  local expected_script_exit_directive=""
+  local expected_ref_script_exit=""
+  local expected_candidate_script_exit=""
+  local expected_script_exit_error=""
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_EXPECT_SCRIPT_EXIT:' "$kt_file" 2>/dev/null; then
+    has_expected_script_exit=1
+    expected_script_exit_directive="$(read_case_directive_flags "$kt_file" 'DIFF_EXPECT_SCRIPT_EXIT')"
+    if [[ $is_script -ne 1 ]]; then
+      expected_script_exit_error="DIFF_EXPECT_SCRIPT_EXIT is only supported for script_*.kt cases"
+    elif [[ ! "$expected_script_exit_directive" =~ ^ref=([0-9]{1,3})[[:space:]]+candidate=([0-9]{1,3})$ ]]; then
+      expected_script_exit_error="invalid DIFF_EXPECT_SCRIPT_EXIT directive (expected 'ref=N candidate=N')"
+    else
+      expected_ref_script_exit=$((10#${BASH_REMATCH[1]}))
+      expected_candidate_script_exit=$((10#${BASH_REMATCH[2]}))
+      if (( expected_ref_script_exit > 255 || expected_candidate_script_exit > 255 || expected_ref_script_exit == 124 || expected_candidate_script_exit == 124 )); then
+        expected_script_exit_error="DIFF_EXPECT_SCRIPT_EXIT values must be process exit codes from 0 to 255, excluding timeout code 124"
+      fi
+    fi
   fi
 
   local kotlinc_extra_flags
@@ -1048,7 +1720,9 @@ run_case() {
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
-  if [[ $is_script -eq 1 ]]; then
+  if [[ "$candidate_only" -eq 1 ]]; then
+    : # The expected output is the reference; no JVM compiler or runtime is used.
+  elif [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
     # kotlinc -script bundles compile+run into a single JVM process, so there
@@ -1067,7 +1741,7 @@ run_case() {
       # shellcheck disable=SC2086
       "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
     fi
-  else
+  elif [[ $candidate_only -eq 0 ]]; then
     local cached_ref_jar=""
     local ref_cache_hit=0
     if [[ -n "$KOTLINC_REF_CACHE_FINGERPRINT" ]]; then
@@ -1121,7 +1795,7 @@ run_case() {
     fi
   fi
 
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
   if [[ $cand_compile_exit -eq 0 ]]; then
     if needs_stdin_eof "$kt_file"; then
       "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
@@ -1136,15 +1810,43 @@ run_case() {
   normalize_text <"$cand_run_stdout" >"$tmp_dir/cand_run_stdout.norm" || true
   normalize_text <"$ref_run_stderr" >"$tmp_dir/ref_run_stderr.norm" || true
   normalize_text <"$cand_run_stderr" >"$tmp_dir/cand_run_stderr.norm" || true
+  if [[ $candidate_only -eq 1 ]]; then
+    normalize_text <"$expected_stdout_path" >"$tmp_dir/expected_run_stdout.norm" || true
+  fi
 
   local ok=1
 
-  if [[ $cand_compile_exit -eq 124 ]]; then
+  if [[ $candidate_only -eq 1 ]]; then
+    if [[ "$expected_stdout_valid" -eq 0 ]]; then
+      ok=0
+      echo "  candidate-only case requires exactly one // DIFF_EXPECT_STDOUT: directive"
+    fi
+    if [[ $cand_compile_exit -eq 124 ]]; then
+      ok=0
+      echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
+    elif [[ $cand_compile_exit -ne 0 ]]; then
+      ok=0
+      echo "  candidate compile failed with exit=$cand_compile_exit"
+    fi
+    if [[ $cand_compile_exit -eq 0 ]]; then
+      if [[ $cand_run_exit -eq 124 ]]; then
+        ok=0
+        echo "  candidate run timed out after ${RUN_TIMEOUT}s"
+      elif [[ $cand_run_exit -ne 0 ]]; then
+        ok=0
+        echo "  candidate run failed with exit=$cand_run_exit"
+      elif [[ "$expected_stdout_valid" -eq 1 ]] && ! diff -u "$tmp_dir/expected_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" >/dev/null; then
+        ok=0
+        echo "  candidate-only stdout mismatch:"
+        diff -u "$tmp_dir/expected_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
+      fi
+    fi
+  elif [[ $cand_compile_exit -eq 124 ]]; then
     ok=0
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  if [[ $is_script -eq 1 ]]; then
+  if [[ $candidate_only -eq 0 && $is_script -eq 1 ]]; then
     # kotlinc -script never had a separate compile phase to compare (see the
     # is_script branch above), so this is not "ref compile exit vs candidate
     # compile exit" — it's ref's single combined exit vs whichever candidate
@@ -1157,7 +1859,18 @@ run_case() {
       cand_script_exit=$cand_run_exit
     fi
 
-    if [[ $ref_run_exit -ne $cand_script_exit ]]; then
+    if [[ $has_expected_script_exit -eq 1 ]]; then
+      if [[ -n "$expected_script_exit_error" ]]; then
+        ok=0
+        echo "  $expected_script_exit_error"
+      elif [[ $ref_run_exit -ne $expected_ref_script_exit || $cand_compile_exit -ne 0 || $cand_run_exit -ne $expected_candidate_script_exit ]]; then
+        ok=0
+        echo "  script exit expectation mismatch: expected ref=$expected_ref_script_exit candidate=$expected_candidate_script_exit, got ref=$ref_run_exit candidate=$cand_script_exit (candidate compile=$cand_compile_exit run=$cand_run_exit)"
+      fi
+      if [[ -z "$expected_script_exit_error" ]] && ! compare_run_stdout "$tmp_dir" "$kt_file"; then
+        ok=0
+      fi
+    elif [[ $ref_run_exit -ne $cand_script_exit ]]; then
       ok=0
       echo "  script exit mismatch: ref=$ref_run_exit candidate=$cand_script_exit"
     fi
@@ -1170,11 +1883,11 @@ run_case() {
       echo "  candidate run timed out after ${RUN_TIMEOUT}s"
     fi
 
-    if [[ $ref_run_exit -eq 0 && $cand_script_exit -eq 0 ]]; then
+    if [[ $has_expected_script_exit -eq 0 && $ref_run_exit -eq 0 && $cand_script_exit -eq 0 ]]; then
       if ! compare_run_stdout "$tmp_dir" "$kt_file"; then
         ok=0
       fi
-    elif [[ $ref_run_exit -ne 0 && $cand_script_exit -ne 0 && $ref_run_exit -eq $cand_script_exit && $ref_run_exit -ne 124 ]]; then
+    elif [[ $has_expected_script_exit -eq 0 && $ref_run_exit -ne 0 && $cand_script_exit -ne 0 && $ref_run_exit -eq $cand_script_exit && $ref_run_exit -ne 124 ]]; then
       # Matching non-zero exit codes do not imply the same failure reason —
       # ref's script may have failed to compile while the candidate's run
       # phase failed for an unrelated reason, or vice versa. Treat this as
@@ -1183,7 +1896,11 @@ run_case() {
       ok=0
       echo "  note: both ref script and candidate failed with exit=$ref_run_exit; matching exit codes do not verify parity — stderr is reported below; this case will FAIL"
     fi
-  else
+  elif [[ $candidate_only -eq 0 ]]; then
+    if [[ $has_expected_script_exit -eq 1 ]]; then
+      ok=0
+      echo "  $expected_script_exit_error"
+    fi
     if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
       ok=0
       echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
@@ -1227,35 +1944,59 @@ run_case() {
     fi
   fi
 
+  local artifact_ref_compile_exit="$ref_compile_exit"
+  local artifact_ref_run_exit="$ref_run_exit"
+  if [[ $candidate_only -eq 1 ]]; then
+    artifact_ref_compile_exit="n/a"
+    artifact_ref_run_exit="n/a"
+  fi
+
   if [[ $ok -eq 1 ]]; then
     if [[ "$DIFF_LOG_PASS" != "0" && "$DIFF_LOG_PASS" != "false" ]]; then
-      echo "PASS $kt_file"
+      if [[ "$candidate_only" -eq 1 ]]; then
+        echo "PASS $kt_file (candidate-only expected output)"
+      else
+        echo "PASS $kt_file"
+      fi
     fi
   else
     echo "FAIL $kt_file"
-    if [[ $is_script -eq 1 ]]; then
-      # There is no separate ref compile phase for script mode (see the
-      # is_script branch above) — kotlinc -script's only stderr output,
-      # whether from a compile diagnostic or an uncaught runtime exception,
-      # lands in ref_run_stderr.
-      echo "  ref script stderr:"
-      sed -n '1,120p' "$ref_run_stderr"
-    else
-      echo "  ref compile stderr:"
-      sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
-    fi
-    echo "  candidate compile stderr:"
-    sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
-    if [[ $is_script -eq 1 ]]; then
+    if [[ $candidate_only -eq 1 ]]; then
+      echo "  candidate-only compile stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
       if [[ $cand_compile_exit -eq 0 ]]; then
+        echo "  candidate-only expected stdout:"
+        cat "$tmp_dir/expected_run_stdout.norm"
+        echo "  candidate-only actual stdout:"
+        cat "$tmp_dir/cand_run_stdout.norm"
+        echo "  candidate-only run stderr:"
+        sed -n '1,120p' "$tmp_dir/cand_run_stderr.norm"
+      fi
+    else
+      if [[ $is_script -eq 1 ]]; then
+        # There is no separate ref compile phase for script mode (see the
+        # is_script branch above) — kotlinc -script's only stderr output,
+        # whether from a compile diagnostic or an uncaught runtime exception,
+        # lands in ref_run_stderr.
+        echo "  ref script stderr:"
+        sed -n '1,120p' "$ref_run_stderr"
+      else
+        echo "  ref compile stderr:"
+        sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
+      fi
+      echo "  candidate compile stderr:"
+      sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
+      if [[ $is_script -eq 1 ]]; then
+        if [[ $cand_compile_exit -eq 0 ]]; then
+          echo "  candidate run stderr:"
+          sed -n '1,120p' "$cand_run_stderr"
+        fi
+      elif [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
+        echo "  ref run stderr:"
+        sed -n '1,120p' "$ref_run_stderr"
         echo "  candidate run stderr:"
         sed -n '1,120p' "$cand_run_stderr"
       fi
-    elif [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
-      echo "  ref run stderr:"
-      sed -n '1,120p' "$ref_run_stderr"
-      echo "  candidate run stderr:"
-      sed -n '1,120p' "$cand_run_stderr"
     fi
   fi
 
@@ -1264,9 +2005,9 @@ run_case() {
       "$kt_file" \
       "$tmp_dir" \
       "FAIL" \
-      "$ref_compile_exit" \
+      "$artifact_ref_compile_exit" \
       "$cand_compile_exit" \
-      "$ref_run_exit" \
+      "$artifact_ref_run_exit" \
       "$cand_run_exit"
     echo "  artifacts: $LAST_ARTIFACT_DIR"
   elif [[ $KEEP_TEMP -eq 0 ]]; then
@@ -1303,14 +2044,38 @@ run_case_worker() {
   printf '%s\t%s\n' "$status" "$artifact" >"$status_path"
 }
 
+if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then
+  TOTAL=1
+  FAILED=0
+  echo "CASE 1: $TARGET"
+  status="PASS"
+  if ! run_case "$TARGET"; then
+    FAILED=1
+    status="FAIL"
+  fi
+  if [[ -n "$REPORT_PATH" ]]; then
+    printf '%s\t%s\t%s\n' "$TARGET" "$status" "$LAST_ARTIFACT_DIR" >>"$REPORT_PATH"
+  fi
+  echo "Summary: total=$TOTAL failed=$FAILED passed=$((TOTAL - FAILED)) skipped=0"
+  exit "$FAILED"
+fi
+
 TOTAL=0
 FAILED=0
 SKIPPED=0
 if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
-    if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+    if is_master_candidate_only_case "$test_case"; then
+      echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      SKIPPED=$((SKIPPED + 1))
+      if [[ -n "$REPORT_PATH" ]]; then
+        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+      fi
+      continue
+    fi
+    if should_skip_regular_diff_case "$test_case"; then
+      print_skipped_case "$test_case"
       SKIPPED=$((SKIPPED + 1))
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
@@ -1343,7 +2108,12 @@ else
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
+    if is_master_candidate_only_case "$test_case"; then
+      CASE_KIND[$i]="CANDIDATE-ONLY"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+    fi
+    if should_skip_regular_diff_case "$test_case"; then
       CASE_KIND[$i]="SKIP"
       SKIPPED=$((SKIPPED + 1))
       continue
@@ -1384,8 +2154,12 @@ else
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if [[ "${CASE_KIND[$i]:-}" == "SKIP" ]]; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+    if [[ "${CASE_KIND[$i]:-}" == "SKIP" || "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+      if [[ "${CASE_KIND[$i]:-}" == "CANDIDATE-ONLY" ]]; then
+        echo "SKIP $test_case (candidate-only; run Scripts/run_candidate_only.sh)"
+      else
+        print_skipped_case "$test_case"
+      fi
       if [[ -n "$REPORT_PATH" ]]; then
         printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
       fi

@@ -9,6 +9,60 @@ import Testing
 @Suite
 struct CodegenBackendSequenceLazyEdgeCasesTests {
 
+    // KUU-1073: infer non-null elements from nullable no-argument callbacks.
+    @Test(arguments: [false, true])
+    func testNullableGenerateSequenceLambdaInference(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun main() {
+            val b = generateSequence { if (true) 1 else null }
+            println(b.take(3).toList())
+            var i = 0
+            val c = generateSequence { i = i + 1; if (i <= 3) i else null }
+            println(c.toList())
+            println(generateSequence { 1 as Int? }.take(2).toList())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NullableGenerateSequenceLambdaInference",
+            expected: "[1, 1, 1]\n[1, 2, 3]\n[1, 1]\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
+    // KUU-1325: both stdlib modes must preserve the callback's value argument
+    // and terminate on null, including lambdas without a closure parameter.
+    @Test(arguments: [false, true])
+    func testSeededGenerateSequenceCallbackABI(allowDefaultStdlibLibrary: Bool) throws {
+        let source = """
+        fun nextValue(value: Int): Int? = if (value < 8) value * 2 else null
+
+        fun main() {
+            println(generateSequence(0) { it + 1 }.take(3).toList())
+            val iterator = generateSequence(1) { it + 1 }.iterator()
+            println(iterator.next())
+            println(iterator.next())
+            println(generateSequence(5) { null }.firstOrNull())
+            println(generateSequence(5) { null }.toList())
+            println(generateSequence(1) { if (it < 8) it * 2 else null }.toList())
+            println(generateSequence(1, ::nextValue).toList())
+            val step = 2
+            val limit = 7
+            val captured = generateSequence(1) { if (it < limit) it + step else null }
+            println(captured.toList())
+            println(captured.toList())
+            println(generateSequence { 42 }.take(2).toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SeededGenerateSequenceCallbackABI",
+            expected: "[0, 1, 2]\n1\n2\n5\n[5]\n[1, 2, 4, 8]\n[1, 2, 4, 8]\n[1, 3, 5, 7]\n[1, 3, 5, 7]\n[42, 42]\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test
     func testSequenceMapTakeEvaluatesOnlyNeededElements() throws {
         let source = """
@@ -140,6 +194,54 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "InfiniteGenerateSequenceTake", expected: "[1, 2, 3, 4, 5]\n")
+    }
+
+    @Test
+    func testGenerateSequenceTraversesBeyondFormerLimitWithForwardedCallbacks() throws {
+        let source = """
+        fun seeded(next: (Int) -> Int?): Sequence<Int> = generateSequence(0, next)
+        fun nullable(next: () -> Int?): Sequence<Int> = generateSequence(next)
+
+        fun main() {
+            println(generateSequence(0) { it + 1 }.take(150000).last())
+            println(seeded { it + 1 }.take(150000).last())
+            var next = 0
+            println(nullable {
+                val value = next
+                next += 1
+                value
+            }.take(150000).last())
+            println(next)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceUnboundedForwardedCallbacks",
+            expected: "149999\n149999\n149999\n150000\n"
+        )
+    }
+
+    @Test
+    func testGenerateSequenceIteratorPullsOnlyElementsRequestedByJoinToStringLimit() throws {
+        let source = """
+        fun main() {
+            var seen = 0
+            val tracked = generateSequence(1) { seen++; it + 1 }
+            println(tracked.joinToString(", ", "", "", 3, "..."))
+            println("seen=$seen")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceIteratorPullsLazily",
+            expected:
+                """
+                1, 2, 3, ...
+                seen=3
+                """ + "\n"
+        )
     }
 
     @Test
@@ -545,6 +647,33 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "SequenceElementAt", expected: "20\n")
+    }
+
+    @Test
+    func testSequenceElementAtOutOfBoundsThrowsCatchableIndexException() throws {
+        let source = """
+        fun main() {
+            try {
+                sequenceOf(1, 2, 3).elementAt(10)
+                println("missing-positive")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught-index")
+            }
+
+            try {
+                sequenceOf(1, 2, 3).elementAt(-1)
+                println("missing-negative")
+            } catch (e: Exception) {
+                println("caught-exception")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceElementAtOutOfBounds",
+            expected: "caught-index\ncaught-exception\n"
+        )
     }
 
     @Test
@@ -1023,6 +1152,34 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testSequenceFirstVariantsShortCircuitUnboundedGenerators() throws {
+        let source = """
+        fun main() {
+            var calls = 0
+            println(generateSequence(0) { calls++; it + 1 }.first())
+            println(calls)
+            println(generateSequence(0) { it + 1 }.first { it > 100000 })
+            println(generateSequence(0) { calls++; it + 1 }.firstOrNull())
+            println(calls)
+            println(generateSequence(0) { it + 1 }.firstOrNull { it > 100000 })
+            println(emptySequence<Int>().firstOrNull())
+            println(sequenceOf(1, 2).firstOrNull { it > 2 })
+            try {
+                emptySequence<Int>().first()
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceFirstUnbounded",
+            expected: "0\n0\n100001\n0\n0\n100001\nnull\nnull\nempty\n"
+        )
+    }
+
+    @Test
     func testSequenceOrEmptyUsesBundledSourceCall() throws {
         let source = """
         fun normalize(input: Sequence<Int>?): Sequence<Int> = input.orEmpty()
@@ -1035,8 +1192,9 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "normalize", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
+            try expectSourceBackedCall("orEmpty", in: ctx)
             #expect(callees.contains("orEmpty"), "Expected the bundled orEmpty call, got: \(callees)")
-            #expect(!callees.contains("kk_sequence_orEmpty"), "Legacy Sequence.orEmpty bridge must not be emitted: \(callees)")
         }
     }
 }

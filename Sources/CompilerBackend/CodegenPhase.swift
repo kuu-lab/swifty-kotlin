@@ -13,8 +13,14 @@ public final class CodegenPhase: CompilerPhase {
         }
         let fileFacadeNamesByFileID = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
         let backend = try makeBackend(ctx: ctx)
-        // REFL-004: Build runtime reflection metadata records from sema state.
-        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
+        // Shared by the reflection records, inline-KIR artifacts, and library
+        // metadata: the map is a pure function of module + interner + symbols.
+        let functionLinkInfo = makeFunctionLinkInfo(
+            module: kir,
+            ctx: ctx,
+            fileFacadeNamesByFileID: fileFacadeNamesByFileID
+        )
+        let reflectionRecords = buildReflectionMetadataRecords(ctx: ctx, functionLinkInfo: functionLinkInfo)
 
         do {
             switch ctx.options.emit {
@@ -69,7 +75,9 @@ public final class CodegenPhase: CompilerPhase {
                     backend: backend,
                     ctx: ctx,
                     reflectionMetadataRecords: reflectionRecords,
-                    reflectionMetadataSymbolPrefix: ctx.options.moduleName
+                    reflectionMetadataSymbolPrefix: ctx.options.moduleName,
+                    fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                    functionLinkInfo: functionLinkInfo
                 )
 
             case .kirDump:
@@ -114,7 +122,9 @@ public final class CodegenPhase: CompilerPhase {
         backend: LLVMBackend,
         ctx: CompilationContext,
         reflectionMetadataRecords: [MetadataRecord] = [],
-        reflectionMetadataSymbolPrefix: String? = nil
+        reflectionMetadataSymbolPrefix: String? = nil,
+        fileFacadeNamesByFileID: [Int32: String] = [:],
+        functionLinkInfo: FunctionLinkInfo = FunctionLinkInfo()
     ) throws {
         let fm = FileManager.default
         let outputDir = libraryOutputPath(base: ctx.options.outputPath)
@@ -151,14 +161,14 @@ public final class CodegenPhase: CompilerPhase {
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols,
             sourceManager: ctx.sourceManager,
-            fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
+            fileFacadeNamesByFileID: fileFacadeNamesByFileID,
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
             linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
-        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx)
+        try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
 
         let manifestPath = outputDir + "/manifest.json"
         let metadataPath = outputDir + "/metadata.bin"
@@ -168,7 +178,7 @@ public final class CodegenPhase: CompilerPhase {
             "formatVersion": 1,
             "moduleName": ctx.options.moduleName,
             "kotlinLanguageVersion": "2.3.10",
-            "compilerVersion": "0.1.0",
+            "compilerVersion": CompilerBuildInfo.version,
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",
@@ -178,12 +188,21 @@ public final class CodegenPhase: CompilerPhase {
             manifestDict["libraryKind"] = "stdlib"
             manifestDict["stdlibManifestHash"] = BundledStdlib.manifestHash()
         }
+        if let topLevelInitializer = module.arena.declarations.compactMap({ declaration -> KIRFunction? in
+            guard case let .function(function) = declaration,
+                  ctx.interner.resolve(function.name).hasPrefix("__kk_library_top_level_init_")
+            else { return nil }
+            return function
+        }).first,
+           let linkName = functionLinkInfo.functionLinkNamesBySymbol[topLevelInitializer.symbol] {
+            manifestDict["topLevelInitializerLinkName"] = linkName
+        }
         let manifestData = try JSONSerialization.data(withJSONObject: manifestDict, options: [.sortedKeys, .prettyPrinted])
         var manifestString = String(data: manifestData, encoding: .utf8) ?? ""
         manifestString = manifestString.replacingOccurrences(of: "\" : \"", with: "\": \"")
         try manifestString.write(to: URL(fileURLWithPath: manifestPath), atomically: true, encoding: .utf8)
 
-        let metadata = makeMetadata(ctx: ctx, module: module)
+        let metadata = makeMetadata(ctx: ctx, module: module, functionLinkInfo: functionLinkInfo)
         try metadata.write(to: URL(fileURLWithPath: metadataPath), atomically: true, encoding: .utf8)
     }
 
@@ -192,52 +211,100 @@ public final class CodegenPhase: CompilerPhase {
             target: ctx.options.target,
             optLevel: ctx.options.optLevel,
             debugInfo: ctx.options.debugInfo,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            moduleName: ctx.options.moduleName
         )
+    }
+
+    private struct FunctionLinkInfo {
+        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
+        var inlineFunctionSymbols: Set<SymbolID> = []
+        /// `isInlineOnly` declarations (e.g. lambdas carrying a non-local
+        /// return) are never emitted into an object file, so their link name
+        /// would be a dangling extern reference for a consumer of serialized
+        /// inline KIR. Codegen resolves references to them to `zeroValue`.
+        var unemittedFunctionSymbols: Set<SymbolID> = []
+    }
+
+    private func makeFunctionLinkInfo(
+        module: KIRModule,
+        ctx: CompilationContext,
+        fileFacadeNamesByFileID: [Int32: String]
+    ) -> FunctionLinkInfo {
+        var info = FunctionLinkInfo()
+        guard let sema = ctx.sema else {
+            return info
+        }
+        for decl in module.arena.declarations {
+            guard case let .function(function) = decl else {
+                continue
+            }
+            info.functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
+                for: function,
+                interner: ctx.interner,
+                moduleName: ctx.options.moduleName,
+                symbols: sema.symbols,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            )
+            if function.isInline {
+                info.inlineFunctionSymbols.insert(function.symbol)
+            }
+            if function.isInlineOnly {
+                info.unemittedFunctionSymbols.insert(function.symbol)
+            }
+        }
+        return info
     }
 
     private func emitInlineKIRArtifacts(
         module: KIRModule,
         outputDir: String,
-        ctx: CompilationContext
+        ctx: CompilationContext,
+        functionLinkInfo: FunctionLinkInfo
     ) throws {
         guard let sema = ctx.sema else {
             return
         }
         let mangler = NameMangler()
-        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                for: function,
-                interner: ctx.interner,
-                symbols: sema.symbols,
-                fileFacadeNamesByFileID: facadeNames
-            )
-        }
+        let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
         for decl in module.arena.declarations {
             guard case let .function(function) = decl, function.isInline else {
                 continue
             }
-            guard let symbol = sema.symbols.symbol(function.symbol) else {
+            let mangled: String
+            if let symbol = sema.symbols.symbol(function.symbol) {
+                mangled = mangler.mangle(
+                    moduleName: ctx.options.moduleName, symbol: symbol,
+                    symbols: sema.symbols, types: sema.types,
+                    nameResolver: { ctx.interner.resolve($0) }
+                )
+            } else if ctx.interner.resolve(function.name).hasSuffix("$default"),
+                      let linkName = functionLinkNamesBySymbol[function.symbol] {
+                // Reified default stubs also require call-site expansion. Their
+                // existing metadata link name identifies the serialized body.
+                mangled = linkName
+            } else {
                 continue
             }
-            let mangled = mangler.mangle(
-                moduleName: ctx.options.moduleName,
-                symbol: symbol,
-                symbols: sema.symbols,
-                types: sema.types,
-                nameResolver: { ctx.interner.resolve($0) }
-            )
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangled)
             let filePath = outputDir + "/\(fileName)"
             let parameterSymbols = Set(function.params.map(\.symbol))
-            let bodyLines = function.body.map { instruction in
+            let inlineBody = module.inlineBodiesBeforeFinallyLowering[function.symbol]
+                ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
+                ?? function.body
+            let readExpressions = Set(inlineBody.flatMap(inlineReadExpressions))
+            let bodyLines = inlineBody.filter { instruction in
+                // Expanded lambdas need no address, and their standalone bodies may not be exported.
+                if case let .constValue(result, .symbolRef(_)) = instruction {
+                    return readExpressions.contains(result)
+                }
+                return true
+            }.map { instruction in
                 serializeInlineInstruction(
                     instruction,
                     interner: ctx.interner,
                     functionLinkNames: functionLinkNamesBySymbol,
+                    unemittedFunctionSymbols: functionLinkInfo.unemittedFunctionSymbols,
                     parameterSymbols: parameterSymbols,
                     symbols: sema.symbols
                 )
@@ -256,10 +323,33 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
+    private func inlineReadExpressions(_ instruction: KIRInstruction) -> [KIRExprID] {
+        switch instruction {
+        case let .jumpIfEqual(lhs, rhs, _), let .returnIfEqual(lhs, rhs), let .binary(_, lhs, rhs, _):
+            [lhs, rhs]
+        case let .unary(_, operand, _), let .nullAssert(operand, _):
+            [operand]
+        case let .call(_, _, arguments, _, _, _, _, _):
+            arguments
+        case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
+            [receiver] + arguments
+        case let .jumpIfNotNull(value, _), let .copy(value, _), let .storeGlobal(value, _),
+             let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
+            [value]
+        case let .nonLocalReturn(value, _):
+            value.map { [$0] } ?? []
+        case .nop, .beginBlock, .endBlock, .label, .jump, .constValue, .loadGlobal, .returnUnit,
+             .beginNonLocalReturnScope, .endNonLocalReturnScope, .beginFinallyCleanup, .endFinallyCleanup,
+             .beginFinallyGuard, .endFinallyGuard:
+            []
+        }
+    }
+
     private func serializeInlineInstruction(
         _ instruction: KIRInstruction,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
+        unemittedFunctionSymbols: Set<SymbolID>,
         parameterSymbols: Set<SymbolID>,
         symbols: SymbolTable?
     ) -> String {
@@ -277,7 +367,7 @@ public final class CodegenPhase: CompilerPhase {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) target=\(target)"
         case let .constValue(result, value):
-            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, parameterSymbols: parameterSymbols, symbols: symbols))"
+            return "const result=\(result.rawValue) value=\(serializeInlineExprKind(value, interner: interner, functionLinkNames: functionLinkNames, unemittedFunctionSymbols: unemittedFunctionSymbols, parameterSymbols: parameterSymbols, symbols: symbols))"
         case let .binary(op, lhs, rhs, result):
             return "binary op=\(op) lhs=\(lhs.rawValue) rhs=\(rhs.rawValue) result=\(result.rawValue)"
         case .returnUnit:
@@ -354,16 +444,46 @@ public final class CodegenPhase: CompilerPhase {
             return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
         case let .rethrow(value):
             return "rethrow value=\(value.rawValue)"
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, target):
+            let targetField = target.flatMap {
+                inlineReturnTargetLink($0, interner: interner, functionLinkNames: functionLinkNames, symbols: symbols)
+            }.map { " targetB64=\(base64Encode($0))" } ?? ""
             if let value {
-                return "nonLocalReturn value=\(value.rawValue)"
+                return "nonLocalReturn value=\(value.rawValue)" + targetField
             } else {
-                return "nonLocalReturnUnit"
+                return "nonLocalReturnUnit" + targetField
             }
         case .beginFinallyGuard:
             return "beginFinallyGuard"
+        case let .beginNonLocalReturnScope(value, target, function):
+            let functionField = function.flatMap {
+                inlineReturnTargetLink($0, interner: interner, functionLinkNames: functionLinkNames, symbols: symbols)
+            }.map { " functionB64=\(base64Encode($0))" } ?? ""
+            return "beginNonLocalReturnScope value=\(value.rawValue) target=\(target)" + functionField
+        case .endNonLocalReturnScope:
+            return "endNonLocalReturnScope"
+        case let .resumeNonLocalReturn(value):
+            return "resumeNonLocalReturn value=\(value.rawValue)"
+        case let .beginFinallyCleanup(skipping):
+            return "beginFinallyCleanup skipping=\(skipping)"
+        case .endFinallyCleanup:
+            return "endFinallyCleanup"
         case .endFinallyGuard:
             return "endFinallyGuard"
+        }
+    }
+
+    private func inlineReturnTargetLink(
+        _ target: KIRReturnTarget,
+        interner: StringInterner,
+        functionLinkNames: [SymbolID: String],
+        symbols: SymbolTable?
+    ) -> String? {
+        switch target {
+        case let .function(symbol):
+            functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol)
+        case let .importedFunction(link):
+            interner.resolve(link)
         }
     }
 
@@ -371,6 +491,7 @@ public final class CodegenPhase: CompilerPhase {
         _ value: KIRExprKind,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
+        unemittedFunctionSymbols: Set<SymbolID>,
         parameterSymbols: Set<SymbolID>,
         symbols: SymbolTable?
     ) -> String {
@@ -396,6 +517,11 @@ public final class CodegenPhase: CompilerPhase {
         case let .symbolRef(symbol):
             if parameterSymbols.contains(symbol) {
                 "symbol:\(symbol.rawValue)"
+            } else if unemittedFunctionSymbols.contains(symbol) {
+                // Bodies of `isInlineOnly` functions never reach an object
+                // file, so the link name would dangle in the consumer. Match
+                // codegen, which resolves the same `.symbolRef` to zero.
+                "temp:0"
             } else if let linkName = functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
                 "externB64:\(base64Encode(linkName))"
             } else if let fQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols) {
@@ -440,40 +566,21 @@ public final class CodegenPhase: CompilerPhase {
         return base + ".kklib"
     }
 
-    private func makeMetadata(ctx: CompilationContext, module: KIRModule) -> String {
+    private func makeMetadata(
+        ctx: CompilationContext,
+        module: KIRModule,
+        functionLinkInfo: FunctionLinkInfo
+    ) -> String {
         guard let sema = ctx.sema else {
             return "symbols=0\n"
         }
-        let facadeNames = CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
-        var functionLinkNamesBySymbol: [SymbolID: String] = [:]
-        var inlineFunctionSymbols: Set<SymbolID> = []
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else {
-                continue
-            }
-            functionLinkNamesBySymbol[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                for: function,
-                interner: ctx.interner,
-                symbols: ctx.sema?.symbols,
-                fileFacadeNamesByFileID: facadeNames
-            )
-            if function.isInline {
-                inlineFunctionSymbols.insert(function.symbol)
-            }
-        }
+        let functionLinkNamesBySymbol = functionLinkInfo.functionLinkNamesBySymbol
+        let inlineFunctionSymbols = functionLinkInfo.inlineFunctionSymbols
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
             .filter { ctx.sourceManager.origin(of: $0)?.isBundledStdlib == true }
             .map(\.rawValue))
 
-        let excludeSourceFileIDs: Set<Int32>
-        let includeSynthetic: Bool
-        if ctx.options.stdlibOnly || ctx.options.stdlibLibraryPath != nil {
-            excludeSourceFileIDs = []
-            includeSynthetic = false
-        } else {
-            excludeSourceFileIDs = bundledFileIDs
-            includeSynthetic = bundledFileIDs.isEmpty
-        }
+        let excludeSourceFileIDs = ctx.options.stdlibOnly ? [] : bundledFileIDs
 
         let runtimeCallbackRawReturnSymbolIDs = NativeEmitter.collectRuntimeCallbackRawStringReturnSymbols(
             module: module,
@@ -483,6 +590,7 @@ public final class CodegenPhase: CompilerPhase {
         )
         var objectInitializerLinkNames: [SymbolID: String] = [:]
         var companionInitializerLinkNames: [SymbolID: String] = [:]
+        var objectLazyInitializerLinkNames: [SymbolID: String] = [:]
         var enumStaticInitLinkNames: [SymbolID: String] = [:]
         for decl in module.arena.declarations {
             guard case let .function(function) = decl,
@@ -495,6 +603,8 @@ public final class CodegenPhase: CompilerPhase {
                 objectInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
             } else if let ownerID = Self.companionInitializerOwnerSymbolID(from: functionName) {
                 companionInitializerLinkNames[SymbolID(rawValue: ownerID)] = linkName
+            } else if let objectID = Self.objectLazyInitializerOwnerSymbolID(from: functionName) {
+                objectLazyInitializerLinkNames[SymbolID(rawValue: objectID)] = linkName
             } else if let ownerID = Self.enumStaticInitOwnerSymbolID(
                 from: functionName,
                 symbol: function.symbol,
@@ -513,64 +623,39 @@ public final class CodegenPhase: CompilerPhase {
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeNonPublic: ctx.options.stdlibOnly,
-            includeSynthetic: includeSynthetic,
+            includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
             companionInitializerLinkNames: companionInitializerLinkNames,
+            objectLazyInitializerLinkNames: objectLazyInitializerLinkNames,
             enumStaticInitLinkNames: enumStaticInitLinkNames
         )
-        return encoder.serialize(records)
+        return encoder.serializeIndexed(records)
     }
 
     // MARK: - REFL-004: Runtime Reflection Metadata
 
-    /// Builds MetadataRecords for all declared symbols (classes, interfaces,
-    /// objects, enum classes, annotation classes, and functions) from the
-    /// semantic analysis state. These records are embedded as
-    /// runtime-accessible binary metadata in the compiled output.
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
-        fileFacadeNamesByFileID: [Int32: String]
+        functionLinkInfo: FunctionLinkInfo
     ) -> [MetadataRecord] {
         guard let sema = ctx.sema else {
             return []
         }
-        let (functionLinkNamesBySymbol, inlineFunctionSymbols): ([SymbolID: String], Set<SymbolID>) = {
-            guard let kir = ctx.kir else { return ([:], []) }
-            var linkNames: [SymbolID: String] = [:]
-            var inlineSymbols: Set<SymbolID> = []
-            for decl in kir.arena.declarations {
-                guard case let .function(function) = decl else {
-                    continue
-                }
-                linkNames[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
-                    for: function,
-                    interner: ctx.interner,
-                    symbols: ctx.sema?.symbols,
-                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                )
-                if function.isInline {
-                    inlineSymbols.insert(function.symbol)
-                }
-            }
-            return (linkNames, inlineSymbols)
-        }()
         let encoder = MetadataEncoder()
         return encoder.buildRecords(
             symbols: sema.symbols,
             types: sema.types,
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
-            functionLinkNames: functionLinkNamesBySymbol,
-            inlineFunctionSymbols: inlineFunctionSymbols,
+            functionLinkNames: functionLinkInfo.functionLinkNamesBySymbol,
+            inlineFunctionSymbols: functionLinkInfo.inlineFunctionSymbols,
             includeNonPublic: ctx.options.includeNonPublicReflectionMetadata
         )
     }
 
-    /// Parses the owner symbol ID embedded in a synthetic top-level object
-    /// initializer name (`__object_init_<objectID>_<initID>`).
     private static func objectInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__object_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -580,8 +665,6 @@ public final class CodegenPhase: CompilerPhase {
         return Int32(first)
     }
 
-    /// Parses the owner class symbol ID embedded in a synthetic companion
-    /// object initializer name (`__companion_init_<ownerID>_<companionID>_<initID>`).
     private static func companionInitializerOwnerSymbolID(from name: String) -> Int32? {
         let prefix = "__companion_init_"
         guard name.hasPrefix(prefix) else { return nil }
@@ -590,9 +673,13 @@ public final class CodegenPhase: CompilerPhase {
         guard parts.count >= 2, let ownerID = parts.first else { return nil }
         return Int32(ownerID)
     }
-    /// Returns the owner enum class symbol for a synthetic enum static
-    /// initializer (`__enum_static_init_<ClassName>`) by looking up the
-    /// function's parent FQ name in `sema.symbols`.
+
+    private static func objectLazyInitializerOwnerSymbolID(from name: String) -> Int32? {
+        for prefix in ["__object_lazy_init_", "__companion_lazy_init_"] where name.hasPrefix(prefix) {
+            return Int32(name.dropFirst(prefix.count))
+        }
+        return nil
+    }
     private static func enumStaticInitOwnerSymbolID(
         from name: String,
         symbol: SymbolID,

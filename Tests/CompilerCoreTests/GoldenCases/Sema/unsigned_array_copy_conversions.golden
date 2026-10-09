@@ -1,0 +1,137 @@
+symbol fq=__local_0.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_1.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_2.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_3.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_4.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_5.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_6.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_7.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_8.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ByteArray
+symbol fq=__local_9.checkedByte[kind=local;type=kotlin.ByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ByteArray
+symbol fq=__local_10.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ShortArray
+symbol fq=__local_11.checkedShort[kind=local;type=kotlin.ShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ShortArray
+symbol fq=__local_12.intArray[kind=local;type=kotlin.IntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.IntArray
+symbol fq=__local_13.checkedInt[kind=local;type=kotlin.IntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.IntArray
+symbol fq=__local_14.longArray[kind=local;type=kotlin.LongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.LongArray
+symbol fq=__local_15.checkedLong[kind=local;type=kotlin.LongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.LongArray
+symbol fq=__local_16.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_17.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_18.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_19.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_20.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_21.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_22.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_23.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_24.ubyteCopy[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_25.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UByteArray
+symbol fq=__local_26.ushortCopy[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_27.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=__local_28.uintCopy[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_29.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.UIntArray
+symbol fq=__local_30.ulongCopy[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=__local_31.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture] kind=local vis=private flags=_ type=kotlin.ULongArray
+symbol fq=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ubytes[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.boxedUnsignedToPrimitiveArrays.$0.uints[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ulongs[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ushorts[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.boxedUnsignedToPrimitiveArrays[kind=fun;params=kotlin.Array<out UByte>,kotlin.Array<out UShort>,kotlin.Array<out UInt>,kotlin.Array<out ULong>;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Array<out UByte>,kotlin.Array<out UShort>,kotlin.Array<out UInt>,kotlin.Array<out ULong>] ret=Unit
+symbol fq=golden.sema.sameTypeUnsignedArrayCopies.$1.ubytes[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.sameTypeUnsignedArrayCopies.$1.uints[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.sameTypeUnsignedArrayCopies.$1.ulongs[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.sameTypeUnsignedArrayCopies.$1.ushorts[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.sameTypeUnsignedArrayCopies[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray] ret=Unit
+symbol fq=golden.sema.signedToUnsignedArrays.$2.bytes[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.signedToUnsignedArrays.$2.ints[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.signedToUnsignedArrays.$2.longs[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.signedToUnsignedArrays.$2.shorts[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.signedToUnsignedArrays[kind=fun;params=kotlin.ByteArray,kotlin.ShortArray,kotlin.IntArray,kotlin.LongArray;ret=Unit;names=[bytes,shorts,ints,longs];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ByteArray,kotlin.ShortArray,kotlin.IntArray,kotlin.LongArray] ret=Unit
+symbol fq=golden.sema.unsignedToSignedArrays.$3.ubytes[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.unsignedToSignedArrays.$3.uints[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.unsignedToSignedArrays.$3.ulongs[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.unsignedToSignedArrays.$3.ushorts[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.unsignedToSignedArrays[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray] ret=Unit
+file funsigned_array_copy_conversions package=golden.sema annotations=[@file:OptIn(kotlin.ExperimentalUnsignedTypes::class)]
+  decl golden.sema.signedToUnsignedArrays[kind=fun;params=kotlin.ByteArray,kotlin.ShortArray,kotlin.IntArray,kotlin.LongArray;ret=Unit;names=[bytes,shorts,ints,longs];origin=fixture] fun signedToUnsignedArrays sym=golden.sema.signedToUnsignedArrays[kind=fun;params=kotlin.ByteArray,kotlin.ShortArray,kotlin.IntArray,kotlin.LongArray;ret=Unit;names=[bytes,shorts,ints,longs];origin=fixture]
+  decl golden.sema.unsignedToSignedArrays[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] fun unsignedToSignedArrays sym=golden.sema.unsignedToSignedArrays[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture]
+  decl golden.sema.boxedUnsignedToPrimitiveArrays[kind=fun;params=kotlin.Array<out UByte>,kotlin.Array<out UShort>,kotlin.Array<out UInt>,kotlin.Array<out ULong>;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] fun boxedUnsignedToPrimitiveArrays sym=golden.sema.boxedUnsignedToPrimitiveArrays[kind=fun;params=kotlin.Array<out UByte>,kotlin.Array<out UShort>,kotlin.Array<out UInt>,kotlin.Array<out ULong>;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture]
+  decl golden.sema.sameTypeUnsignedArrayCopies[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture] fun sameTypeUnsignedArrayCopies sym=golden.sema.sameTypeUnsignedArrayCopies[kind=fun;params=kotlin.UByteArray,kotlin.UShortArray,kotlin.UIntArray,kotlin.ULongArray;ret=Unit;names=[ubytes,ushorts,uints,ulongs];origin=fixture]
+expr e@14:22 name(bytes) type=kotlin.ByteArray ref=golden.sema.signedToUnsignedArrays.$2.bytes[kind=vparam;origin=fixture]
+expr e@14:22#1 memberCall recv=e@14:22 callee=toUByteArray args=[] type=kotlin.UByteArray call=kotlin.collections.toUByteArray[kind=fun;recv=kotlin.ByteArray;params=;ret=kotlin.UByteArray]
+expr e@14:5 localDecl ubyteArray mutable=0 type=_ init=e@14:22#1 type=Unit ref=__local_0.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@15:36 name(ubyteArray) type=kotlin.UByteArray ref=__local_0.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@15:5 localDecl checkedUByte mutable=0 type=UByteArray init=e@15:36 type=Unit ref=__local_1.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@16:23 name(shorts) type=kotlin.ShortArray ref=golden.sema.signedToUnsignedArrays.$2.shorts[kind=vparam;origin=fixture]
+expr e@16:23#1 memberCall recv=e@16:23 callee=toUShortArray args=[] type=kotlin.UShortArray call=kotlin.collections.toUShortArray[kind=fun;recv=kotlin.ShortArray;params=;ret=kotlin.UShortArray]
+expr e@16:5 localDecl ushortArray mutable=0 type=_ init=e@16:23#1 type=Unit ref=__local_2.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@17:38 name(ushortArray) type=kotlin.UShortArray ref=__local_2.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@17:5 localDecl checkedUShort mutable=0 type=UShortArray init=e@17:38 type=Unit ref=__local_3.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@18:21 name(ints) type=kotlin.IntArray ref=golden.sema.signedToUnsignedArrays.$2.ints[kind=vparam;origin=fixture]
+expr e@18:21#1 memberCall recv=e@18:21 callee=toUIntArray args=[] type=kotlin.UIntArray call=kotlin.collections.toUIntArray[kind=fun;recv=kotlin.IntArray;params=;ret=kotlin.UIntArray]
+expr e@18:5 localDecl uintArray mutable=0 type=_ init=e@18:21#1 type=Unit ref=__local_4.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@19:34 name(uintArray) type=kotlin.UIntArray ref=__local_4.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@19:5 localDecl checkedUInt mutable=0 type=UIntArray init=e@19:34 type=Unit ref=__local_5.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@20:22 name(longs) type=kotlin.LongArray ref=golden.sema.signedToUnsignedArrays.$2.longs[kind=vparam;origin=fixture]
+expr e@20:22#1 memberCall recv=e@20:22 callee=toULongArray args=[] type=kotlin.ULongArray call=kotlin.collections.toULongArray[kind=fun;recv=kotlin.LongArray;params=;ret=kotlin.ULongArray]
+expr e@20:5 localDecl ulongArray mutable=0 type=_ init=e@20:22#1 type=Unit ref=__local_6.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@21:36 name(ulongArray) type=kotlin.ULongArray ref=__local_6.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@21:5 localDecl checkedULong mutable=0 type=ULongArray init=e@21:36 type=Unit ref=__local_7.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@30:21 name(ubytes) type=kotlin.UByteArray ref=golden.sema.unsignedToSignedArrays.$3.ubytes[kind=vparam;origin=fixture]
+expr e@30:21#1 memberCall recv=e@30:21 callee=toByteArray args=[] type=kotlin.ByteArray call=kotlin.collections.toByteArray[kind=fun;recv=kotlin.UByteArray;params=;ret=kotlin.ByteArray]
+expr e@30:5 localDecl byteArray mutable=0 type=_ init=e@30:21#1 type=Unit ref=__local_8.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@31:34 name(byteArray) type=kotlin.ByteArray ref=__local_8.byteArray[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@31:5 localDecl checkedByte mutable=0 type=ByteArray init=e@31:34 type=Unit ref=__local_9.checkedByte[kind=local;type=kotlin.ByteArray;origin=fixture]
+expr e@32:22 name(ushorts) type=kotlin.UShortArray ref=golden.sema.unsignedToSignedArrays.$3.ushorts[kind=vparam;origin=fixture]
+expr e@32:22#1 memberCall recv=e@32:22 callee=toShortArray args=[] type=kotlin.ShortArray call=kotlin.collections.toShortArray[kind=fun;recv=kotlin.UShortArray;params=;ret=kotlin.ShortArray]
+expr e@32:5 localDecl shortArray mutable=0 type=_ init=e@32:22#1 type=Unit ref=__local_10.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@33:36 name(shortArray) type=kotlin.ShortArray ref=__local_10.shortArray[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@33:5 localDecl checkedShort mutable=0 type=ShortArray init=e@33:36 type=Unit ref=__local_11.checkedShort[kind=local;type=kotlin.ShortArray;origin=fixture]
+expr e@34:20 name(uints) type=kotlin.UIntArray ref=golden.sema.unsignedToSignedArrays.$3.uints[kind=vparam;origin=fixture]
+expr e@34:20#1 memberCall recv=e@34:20 callee=toIntArray args=[] type=kotlin.IntArray call=kotlin.collections.toIntArray[kind=fun;recv=kotlin.UIntArray;params=;ret=kotlin.IntArray]
+expr e@34:5 localDecl intArray mutable=0 type=_ init=e@34:20#1 type=Unit ref=__local_12.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@35:32 name(intArray) type=kotlin.IntArray ref=__local_12.intArray[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@35:5 localDecl checkedInt mutable=0 type=IntArray init=e@35:32 type=Unit ref=__local_13.checkedInt[kind=local;type=kotlin.IntArray;origin=fixture]
+expr e@36:21 name(ulongs) type=kotlin.ULongArray ref=golden.sema.unsignedToSignedArrays.$3.ulongs[kind=vparam;origin=fixture]
+expr e@36:21#1 memberCall recv=e@36:21 callee=toLongArray args=[] type=kotlin.LongArray call=kotlin.collections.toLongArray[kind=fun;recv=kotlin.ULongArray;params=;ret=kotlin.LongArray]
+expr e@36:5 localDecl longArray mutable=0 type=_ init=e@36:21#1 type=Unit ref=__local_14.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@37:34 name(longArray) type=kotlin.LongArray ref=__local_14.longArray[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@37:5 localDecl checkedLong mutable=0 type=LongArray init=e@37:34 type=Unit ref=__local_15.checkedLong[kind=local;type=kotlin.LongArray;origin=fixture]
+expr e@46:22 name(ubytes) type=kotlin.Array<out UByte> ref=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ubytes[kind=vparam;origin=fixture]
+expr e@46:22#1 memberCall recv=e@46:22 callee=toUByteArray args=[] type=kotlin.UByteArray call=kotlin.collections.toUByteArray[kind=fun;recv=kotlin.Array<out UByte>;params=;ret=kotlin.UByteArray]
+expr e@46:5 localDecl ubyteArray mutable=0 type=_ init=e@46:22#1 type=Unit ref=__local_16.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@47:36 name(ubyteArray) type=kotlin.UByteArray ref=__local_16.ubyteArray[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@47:5 localDecl checkedUByte mutable=0 type=UByteArray init=e@47:36 type=Unit ref=__local_17.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@48:23 name(ushorts) type=kotlin.Array<out UShort> ref=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ushorts[kind=vparam;origin=fixture]
+expr e@48:23#1 memberCall recv=e@48:23 callee=toUShortArray args=[] type=kotlin.UShortArray call=kotlin.collections.toUShortArray[kind=fun;recv=kotlin.Array<out UShort>;params=;ret=kotlin.UShortArray]
+expr e@48:5 localDecl ushortArray mutable=0 type=_ init=e@48:23#1 type=Unit ref=__local_18.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@49:38 name(ushortArray) type=kotlin.UShortArray ref=__local_18.ushortArray[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@49:5 localDecl checkedUShort mutable=0 type=UShortArray init=e@49:38 type=Unit ref=__local_19.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@50:21 name(uints) type=kotlin.Array<out UInt> ref=golden.sema.boxedUnsignedToPrimitiveArrays.$0.uints[kind=vparam;origin=fixture]
+expr e@50:21#1 memberCall recv=e@50:21 callee=toUIntArray args=[] type=kotlin.UIntArray call=kotlin.collections.toUIntArray[kind=fun;recv=kotlin.Array<out UInt>;params=;ret=kotlin.UIntArray]
+expr e@50:5 localDecl uintArray mutable=0 type=_ init=e@50:21#1 type=Unit ref=__local_20.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@51:34 name(uintArray) type=kotlin.UIntArray ref=__local_20.uintArray[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@51:5 localDecl checkedUInt mutable=0 type=UIntArray init=e@51:34 type=Unit ref=__local_21.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@52:22 name(ulongs) type=kotlin.Array<out ULong> ref=golden.sema.boxedUnsignedToPrimitiveArrays.$0.ulongs[kind=vparam;origin=fixture]
+expr e@52:22#1 memberCall recv=e@52:22 callee=toULongArray args=[] type=kotlin.ULongArray call=kotlin.collections.toULongArray[kind=fun;recv=kotlin.Array<out ULong>;params=;ret=kotlin.ULongArray]
+expr e@52:5 localDecl ulongArray mutable=0 type=_ init=e@52:22#1 type=Unit ref=__local_22.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@53:36 name(ulongArray) type=kotlin.ULongArray ref=__local_22.ulongArray[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@53:5 localDecl checkedULong mutable=0 type=ULongArray init=e@53:36 type=Unit ref=__local_23.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@62:21 name(ubytes) type=kotlin.UByteArray ref=golden.sema.sameTypeUnsignedArrayCopies.$1.ubytes[kind=vparam;origin=fixture]
+expr e@62:21#1 memberCall recv=e@62:21 callee=toUByteArray args=[] type=kotlin.UByteArray call=kotlin.collections.toUByteArray[kind=fun;recv=kotlin.UByteArray;params=;ret=kotlin.UByteArray]
+expr e@62:5 localDecl ubyteCopy mutable=0 type=_ init=e@62:21#1 type=Unit ref=__local_24.ubyteCopy[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@63:36 name(ubyteCopy) type=kotlin.UByteArray ref=__local_24.ubyteCopy[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@63:5 localDecl checkedUByte mutable=0 type=UByteArray init=e@63:36 type=Unit ref=__local_25.checkedUByte[kind=local;type=kotlin.UByteArray;origin=fixture]
+expr e@64:22 name(ushorts) type=kotlin.UShortArray ref=golden.sema.sameTypeUnsignedArrayCopies.$1.ushorts[kind=vparam;origin=fixture]
+expr e@64:22#1 memberCall recv=e@64:22 callee=toUShortArray args=[] type=kotlin.UShortArray call=kotlin.collections.toUShortArray[kind=fun;recv=kotlin.UShortArray;params=;ret=kotlin.UShortArray]
+expr e@64:5 localDecl ushortCopy mutable=0 type=_ init=e@64:22#1 type=Unit ref=__local_26.ushortCopy[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@65:38 name(ushortCopy) type=kotlin.UShortArray ref=__local_26.ushortCopy[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@65:5 localDecl checkedUShort mutable=0 type=UShortArray init=e@65:38 type=Unit ref=__local_27.checkedUShort[kind=local;type=kotlin.UShortArray;origin=fixture]
+expr e@66:20 name(uints) type=kotlin.UIntArray ref=golden.sema.sameTypeUnsignedArrayCopies.$1.uints[kind=vparam;origin=fixture]
+expr e@66:20#1 memberCall recv=e@66:20 callee=toUIntArray args=[] type=kotlin.UIntArray call=kotlin.collections.toUIntArray[kind=fun;recv=kotlin.UIntArray;params=;ret=kotlin.UIntArray]
+expr e@66:5 localDecl uintCopy mutable=0 type=_ init=e@66:20#1 type=Unit ref=__local_28.uintCopy[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@67:34 name(uintCopy) type=kotlin.UIntArray ref=__local_28.uintCopy[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@67:5 localDecl checkedUInt mutable=0 type=UIntArray init=e@67:34 type=Unit ref=__local_29.checkedUInt[kind=local;type=kotlin.UIntArray;origin=fixture]
+expr e@68:21 name(ulongs) type=kotlin.ULongArray ref=golden.sema.sameTypeUnsignedArrayCopies.$1.ulongs[kind=vparam;origin=fixture]
+expr e@68:21#1 memberCall recv=e@68:21 callee=toULongArray args=[] type=kotlin.ULongArray call=kotlin.collections.toULongArray[kind=fun;recv=kotlin.ULongArray;params=;ret=kotlin.ULongArray]
+expr e@68:5 localDecl ulongCopy mutable=0 type=_ init=e@68:21#1 type=Unit ref=__local_30.ulongCopy[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@69:36 name(ulongCopy) type=kotlin.ULongArray ref=__local_30.ulongCopy[kind=local;type=kotlin.ULongArray;origin=fixture]
+expr e@69:5 localDecl checkedULong mutable=0 type=ULongArray init=e@69:36 type=Unit ref=__local_31.checkedULong[kind=local;type=kotlin.ULongArray;origin=fixture]

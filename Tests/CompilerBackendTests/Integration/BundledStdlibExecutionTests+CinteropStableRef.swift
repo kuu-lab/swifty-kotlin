@@ -29,11 +29,12 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// Unlike `Pinned<T>` (a plain membership set), the same target object may
-    /// be wrapped by several independent StableRef handles at once — disposing
-    /// one must not unpin a sibling handle to the same object. This is the
-    /// reason `kk_stable_ref_create`/`_dispose` refcount per target instead of
-    /// reusing Pinned<T>'s set-based kk_pin_object/kk_unpin_object.
+    /// The same target object may be wrapped by several independent StableRef
+    /// handles at once — disposing one must not unpin a sibling handle to the
+    /// same object. This is why `kk_stable_ref_create`/`_dispose` keep their
+    /// own per-target refcount (`stableRefCounts`) rather than reusing
+    /// `Pinned<T>`'s `pinnedObjectCounts`, whose counts are driven by
+    /// per-handle `RuntimePinnedBox` unpins.
     @Test
     func testIndependentStableRefsToSameObjectSurviveSiblingDispose() throws {
         try compileAndRunKotlin(
@@ -54,10 +55,8 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-548 が未修正の間は、参照型の型引数（String等）を避けてプリミティブ
-    // 型のみで実行検証する。参照型引数のケースは下の
-    // testCallContinuationFunctionsInvokeWrappedClosuresWithReferenceTypeArguments
-    // に無効化状態で残してある。
+    // callContinuation0/1/2 のプリミティブ型引数はここで、参照型と混在型の
+    // 引数は次の KUU-548 回帰テストで実行検証する。
     @Test
     func testCallContinuationFunctionsInvokeWrappedClosures() throws {
         try compileAndRunKotlin(
@@ -95,15 +94,9 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-548: ジェネリック関数値の呼び出しは、値がジェネリッククラスの
-    // フィールド読み取り経由（Pair.second/Triple.second/third）かつ参照型
-    // （String等）に束縛される場合、コンパイルは通るが実行時にSIGBUSする
-    // 既存バグの影響を受ける。callContinuation1/2 のKotlinソース実装・Sema
-    // 解決・golden は正しく、このテストはKUU-548が直り次第 .disabled を
-    // 外して有効化する想定の回帰テスト。
-    @Test(
-        .disabled("callContinuation1/2 crash at runtime when a type argument is a reference type (KUU-548)")
-    )
+    // KUU-548 (#6866) でフィールド経由のジェネリック関数値呼び出しが修正された。
+    // 参照型（String）と混在型（Int/String）の StableRef/closure 動作を実行時に固定する。
+    @Test
     func testCallContinuationFunctionsInvokeWrappedClosuresWithReferenceTypeArguments() throws {
         try compileAndRunKotlin(
             """

@@ -11,7 +11,7 @@ struct RuntimeKClassMetadataTests {
         let entry = RuntimeKClassMetadataEntry(
             qualifiedName: "com.example.Foo",
             simpleName: "Foo",
-            supertypeName: "com.example.Base",
+            supertypeDisplayNames: ["com.example.Base"],
             isDataClass: true,
             isSealedClass: false,
             isValueClass: false,
@@ -30,7 +30,7 @@ struct RuntimeKClassMetadataTests {
         )
         #expect(entry.qualifiedName == "com.example.Foo")
         #expect(entry.simpleName == "Foo")
-        #expect(entry.supertypeName == "com.example.Base")
+        #expect(entry.supertypeDisplayNames == ["com.example.Base"])
         #expect(entry.isDataClass)
         #expect(!entry.isSealedClass)
         #expect(entry.fieldCount == 3)
@@ -48,7 +48,7 @@ struct RuntimeKClassMetadataTests {
         let entry = RuntimeKClassMetadataEntry(
             qualifiedName: "test.MyClass",
             simpleName: "MyClass",
-            supertypeName: nil,
+            supertypeDisplayNames: [],
             isDataClass: false,
             isSealedClass: false,
             isValueClass: false,
@@ -70,7 +70,7 @@ struct RuntimeKClassMetadataTests {
         #expect(result != nil)
         #expect(result?.qualifiedName == "test.MyClass")
         #expect(result?.simpleName == "MyClass")
-        #expect(result?.supertypeName == nil)
+        #expect(result?.supertypeDisplayNames == [])
         #expect(result?.fieldCount == 2)
     }
 
@@ -78,7 +78,7 @@ struct RuntimeKClassMetadataTests {
         let entry = RuntimeKClassMetadataEntry(
             qualifiedName: "test.Temp",
             simpleName: "Temp",
-            supertypeName: nil,
+            supertypeDisplayNames: [],
             isDataClass: false,
             isSealedClass: false,
             isValueClass: false,
@@ -113,7 +113,7 @@ struct RuntimeKClassMetadataTests {
         let entry = RuntimeKClassMetadataEntry(
             qualifiedName: "pkg.Widget",
             simpleName: "Widget",
-            supertypeName: "pkg.Base",
+            supertypeDisplayNames: ["pkg.Base"],
             isDataClass: true,
             isSealedClass: false,
             isValueClass: false,
@@ -138,6 +138,48 @@ struct RuntimeKClassMetadataTests {
     }
 
     // MARK: - __kk_kclass_register_metadata C API
+
+    @Test func qualifiedHintPreservesPackageWithoutMetadata() {
+        let token = Int((Int64(1303) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        let klass = __kk_kclass_create(token, makeRuntimeString("kotlin.collections.List"))
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == "kotlin.collections.List")
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(klass)) == "List")
+    }
+
+    @Test func platformExceptionMappingDoesNotAffectUserClasses() {
+        for (index, name, expected) in [
+            (0, "kotlin.RuntimeException", "java.lang.RuntimeException"),
+            (1, "sample.RuntimeException", "sample.RuntimeException"),
+        ] {
+            let token = Int((Int64(1310 + index) << RuntimeTypeTokenEncoding.payloadShift)
+                | RuntimeTypeTokenEncoding.nominalBase)
+            let hint = makeRuntimeString(name)
+            let klass = __kk_kclass_create(token, hint)
+            #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == expected)
+            _ = __kk_kclass_register_metadata(
+                token, hint, makeRuntimeString("RuntimeException"), 0, 0, 0, 0, 1
+            )
+            #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(klass)) == expected)
+        }
+    }
+
+    @Test func qualifiedNameUsesMetadataInsteadOfSimpleNameHint() {
+        let typeToken = Int((Int64(1234) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        let simpleName = makeRuntimeString("MyAnno")
+        let kclass = __kk_kclass_create(typeToken, simpleName)
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(kclass)) == "MyAnno")
+
+        _ = __kk_kclass_register_metadata(
+            typeToken, makeRuntimeString("annotations.MyAnno"), simpleName,
+            0, 1 << 6, 0, 0, 1
+        )
+
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kclass)) == "MyAnno")
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(kclass)) == "annotations.MyAnno")
+        #expect(runtimeStringFromRaw(__kk_type_token_qualified_name(typeToken, simpleName)) == "annotations.MyAnno")
+    }
 
     @Test func registerMetadataViaCABI() {
         // Create runtime strings for names.
@@ -164,7 +206,7 @@ struct RuntimeKClassMetadataTests {
         #expect(entry != nil)
         #expect(entry?.qualifiedName == "com.example.Animal")
         #expect(entry?.simpleName == "Animal")
-        #expect(entry?.supertypeName == "com.example.LivingThing")
+        #expect(entry?.supertypeDisplayNames == ["com.example.LivingThing"])
         #expect(entry?.isDataClass ?? false)
         #expect(entry?.isAbstract ?? false)
         #expect(!(entry?.isSealedClass ?? true))
@@ -186,7 +228,7 @@ struct RuntimeKClassMetadataTests {
 
         let entry = runtimeKClassMetadataRegistry.lookup(typeToken: 99)
         #expect(entry != nil)
-        #expect(entry?.supertypeName == nil)
+        #expect(entry?.supertypeDisplayNames == [])
         #expect(!(entry?.isDataClass ?? true))
     }
 
@@ -274,6 +316,157 @@ struct RuntimeKClassMetadataTests {
         #expect(__kk_kclass_is_sealed(kclass) == 1)
         #expect(__kk_kclass_is_value(kclass) == 0)
         #expect(__kk_kclass_is_abstract(kclass) == 1)
+    }
+
+    // MARK: - KUU-1357: Multi-supertype registration and supertypes list
+
+    @Test func registerMetadataSplitsJoinedSupertypes() {
+        let typeToken = 310
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("test.C"),
+            makeRuntimeString("C"),
+            makeRuntimeString("test.P|test.I1|test.I2"),
+            0, 0, 0, 0
+        )
+        let entry = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+        #expect(entry?.supertypeDisplayNames == ["test.P", "test.I1", "test.I2"])
+    }
+
+    @Test func supertypesReturnsKTypePerJoinedDisplayName() {
+        let typeToken = 311
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("test.C"),
+            makeRuntimeString("C"),
+            makeRuntimeString("test.P|test.I1"),
+            0, 0, 0, 0
+        )
+        let kclass = __kk_kclass_create(typeToken, makeRuntimeString("test.C"))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 2)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "test.P")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "test.I1")
+    }
+
+    @Test func supertypesFallsBackToBuiltinTable() {
+        let token = Int((Int64(312) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase)
+        let kclass = __kk_kclass_create(token, makeRuntimeString("kotlin.Int"))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 3)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Number")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 1, nil)) == "kotlin.Comparable<kotlin.Int>")
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 2, nil)) == "java.io.Serializable")
+    }
+
+    @Test func supertypesRendersGenericSupertypeArguments() {
+        let typeToken = 313
+        _ = __kk_kclass_register_metadata(
+            typeToken,
+            makeRuntimeString("test.G"),
+            makeRuntimeString("G"),
+            makeRuntimeString("kotlin.Comparable<test.G>"),
+            0, 0, 0, 0
+        )
+        let kclass = __kk_kclass_create(typeToken, makeRuntimeString("test.G"))
+        let list = __kk_kclass_supertypes(kclass)
+        #expect(kk_list_size(list) == 1)
+        #expect(runtimeRenderAnyForPrint(kk_list_get(list, 0, nil)) == "kotlin.Comparable<test.G>")
+    }
+
+    // MARK: - KUU-1357: Companion object and nested class registries
+
+    @Test func companionRegistryRoundTripsThroughCAPI() {
+        let typeToken = 320
+        let companionToken = 321
+        _ = __kk_kclass_register_companion(
+            typeToken, companionToken, makeRuntimeString("test.WithComp.Companion")
+        )
+        let kclass = __kk_kclass_create(typeToken, makeRuntimeString("test.WithComp"))
+        let companion = __kk_kclass_companion_object(kclass)
+        #expect(companion != runtimeNullSentinelInt)
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(companion)) == "Companion")
+    }
+
+    @Test func companionObjectReturnsNullWithoutRegistration() {
+        let kclass = __kk_kclass_create(322, makeRuntimeString("test.C"))
+        #expect(__kk_kclass_companion_object(kclass) == runtimeNullSentinelInt)
+    }
+
+    @Test func nestedClassRegistryFeedsKClassList() {
+        let typeToken = 330
+        _ = __kk_kclass_register_nested_class(
+            typeToken, 331, makeRuntimeString("test.Outer.Nested")
+        )
+        _ = __kk_kclass_register_nested_class(
+            typeToken, 332, makeRuntimeString("test.Outer.Inn")
+        )
+        let kclass = __kk_kclass_create(typeToken, makeRuntimeString("test.Outer"))
+        let list = __kk_kclass_nested_classes(kclass)
+        #expect(kk_list_size(list) == 2)
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(list, 0, nil))) == "Nested")
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(kk_list_get(list, 1, nil))) == "Inn")
+    }
+
+    @Test func nestedClassesReturnsEmptyWithoutRegistration() {
+        let kclass = __kk_kclass_create(333, makeRuntimeString("test.Empty"))
+        #expect(kk_list_size(__kk_kclass_nested_classes(kclass)) == 0)
+    }
+
+    // MARK: - KUU-1357: Packed KFunction modifier flags
+
+    @Test func kFunctionPackedFlagsSurfaceThroughAccessors() {
+        let function = __kk_kfunction_create(
+            makeRuntimeString("ix"),
+            1,
+            makeRuntimeString("kotlin.Int"),
+            (1 << 1) | (1 << 3), // inline + infix
+            0,
+            0
+        )
+        #expect(__kk_kfunction_is_suspend(function) == 0)
+        #expect(__kk_kfunction_is_inline(function) == 1)
+        #expect(__kk_kfunction_is_operator(function) == 0)
+        #expect(__kk_kfunction_is_infix(function) == 1)
+        #expect(__kk_kfunction_is_external(function) == 0)
+    }
+
+    @Test func kFunctionSuspendBitSurvivesPackedLayout() {
+        let function = __kk_kfunction_create(
+            makeRuntimeString("susp"),
+            0, 0,
+            (1 << 0) | (1 << 2), // suspend + operator
+            0, 0
+        )
+        #expect(__kk_kfunction_is_suspend(function) == 1)
+        #expect(__kk_kfunction_is_operator(function) == 1)
+        #expect(__kk_kfunction_is_inline(function) == 0)
+    }
+
+    @Test func callableRefTagCarriesPackedFlags() {
+        let tagged = kk_callable_ref_tag_kfunction(
+            0x345000,
+            makeRuntimeString("op"),
+            makeRuntimeString("kotlin.Int"),
+            1,
+            1 << 2 // operator
+        )
+        #expect(__kk_kfunction_is_operator(tagged) == 1)
+        #expect(__kk_kfunction_is_suspend(tagged) == 0)
+        #expect(__kk_kfunction_is_inline(tagged) == 0)
+    }
+
+    @Test func callableRefTagLegacySuspendFlagStillWorks() {
+        let tagged = kk_callable_ref_tag_kfunction(
+            0x346000,
+            makeRuntimeString("susp"),
+            makeRuntimeString("kotlin.Unit"),
+            0,
+            1 // legacy bare suspend flag == packed bit0
+        )
+        #expect(__kk_kfunction_is_suspend(tagged) == 1)
+        #expect(__kk_kfunction_is_inline(tagged) == 0)
     }
 
     // MARK: - Helpers

@@ -234,7 +234,8 @@ extension BuildKIRRegressionTests {
         })
     }
 
-    @Test func testDirectSafeMemberCallInvWithoutTypeBindingsFallsBackToDynamicCall() {
+    @Test func testDirectSafeMemberCallInvWithoutTypeBindingsFallsBackToDynamicCall() throws {
+        let runtime = try RuntimeNames()
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let invName = fixture.interner.intern("inv")
@@ -262,11 +263,12 @@ extension BuildKIRRegressionTests {
         )
 
         let callees = extractCallees(from: emit.instructions, interner: fixture.interner)
-        #expect(!(callees.contains("kk_op_inv")))
+        #expect(!(callees.contains(runtime[.inv])))
         #expect(callees.contains("inv"))
     }
 
-    @Test func testDirectSafeMemberCallPrimitiveInvFastPathAndFallback() {
+    @Test func testDirectSafeMemberCallPrimitiveInvFastPathAndFallback() throws {
+        let runtime = try RuntimeNames()
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let invName = fixture.interner.intern("inv")
@@ -295,7 +297,7 @@ extension BuildKIRRegressionTests {
             shared: fixture.makeShared(),
             emit: &emitFast
         )
-        #expect(extractCallees(from: emitFast.instructions, interner: fixture.interner).contains("kk_op_inv"))
+        #expect(extractCallees(from: emitFast.instructions, interner: fixture.interner).contains(runtime[.inv]))
 
         let receiverBool = appendTypedExpr(
             .nameRef(fixture.interner.intern("b"), range),
@@ -320,11 +322,67 @@ extension BuildKIRRegressionTests {
             emit: &emitFallback
         )
         let fallbackCallees = extractCallees(from: emitFallback.instructions, interner: fixture.interner)
-        #expect(!(fallbackCallees.contains("kk_op_inv")))
+        #expect(!(fallbackCallees.contains(runtime[.inv])))
         #expect(fallbackCallees.contains("inv"))
     }
 
-    @Test func testDirectSafeMemberCallUnresolvedCoroutineMemberRenames() {
+    @Test(arguments: [PrimitiveType.ubyte, .ushort, .uint, .ulong, .int, .long])
+    func testSafePrimitiveInvUnboxesNullableReceiverAfterNullCheck(primitive: PrimitiveType) throws {
+        let runtime = try RuntimeNames()
+        let fixture = makeKIRDirectLoweringFixture()
+        let nonNullType = fixture.types.make(.primitive(primitive, .nonNull))
+        let nullableType = fixture.types.makeNullable(nonNullType)
+        let receiver = appendTypedExpr(
+            .nameRef(fixture.interner.intern("value"), makeRange()),
+            type: nullableType,
+            fixture: fixture
+        )
+        let invName = fixture.interner.intern("inv")
+        let exprID = appendSafeMemberExpr(
+            receiver: receiver,
+            callee: invName,
+            args: [],
+            type: nullableType,
+            fixture: fixture
+        )
+        var emit = KIRLoweringEmitContext()
+        _ = fixture.driver.callLowerer.lowerSafeMemberCallExpr(
+            exprID,
+            receiverExpr: receiver,
+            calleeName: invName,
+            args: [],
+            shared: fixture.makeShared(),
+            emit: &emit
+        )
+
+        let invIndex = try #require(emit.instructions.firstIndex { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == fixture.interner.intern(runtime[.inv])
+        })
+        guard case let .call(_, _, arguments, _, _, _, _, _) = emit.instructions[invIndex] else {
+            Issue.record("Expected an inv call")
+            return
+        }
+        let invReceiver = try #require(arguments.first)
+        #expect(fixture.kirArena.exprType(invReceiver) == nonNullType)
+        let copyIndex = try #require(emit.instructions.firstIndex { instruction in
+            guard case let .copy(from, to) = instruction else { return false }
+            return to == invReceiver && fixture.kirArena.exprType(from) == nullableType
+        })
+        #expect(copyIndex < invIndex)
+        try #require(copyIndex > 0)
+        guard case .label = emit.instructions[copyIndex - 1] else {
+            Issue.record("Receiver unboxing must follow the non-null branch label")
+            return
+        }
+        #expect(emit.instructions[..<copyIndex].contains { instruction in
+            if case .jumpIfNotNull = instruction { return true }
+            return false
+        })
+    }
+
+    @Test func testDirectSafeMemberCallUnresolvedCoroutineMemberRenames() throws {
+        let runtime = try RuntimeNames()
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let handleClass = defineSemanticSymbol(
@@ -348,9 +406,9 @@ extension BuildKIRRegressionTests {
         )
 
         let cases: [(input: String, expected: String, expectedArgCount: Int)] = [
-            ("await", "kk_kxmini_async_await", 1),
-            ("join", "kk_job_join", 1),
-            ("cancel", "kk_job_cancel", 1),
+            ("await", runtime[.asyncAwait], 1),
+            ("join", runtime[.jobJoin], 1),
+            ("cancel", runtime[.jobCancel], 1),
             ("noop", "noop", 0),
         ]
 
@@ -396,7 +454,8 @@ extension BuildKIRRegressionTests {
         let callee = defineSemanticSymbol(in: fixture, kind: .function, fqName: ["pkg", "Vec", "call"])
         let valueParam = defineSemanticSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "Vec", "call", "x"])
         fixture.symbols.setParentSymbol(owner, for: callee)
-        fixture.symbols.setExternalLinkName("kk_vec_call", for: callee)
+        let externalLinkName = "fixture_vec_call"
+        fixture.symbols.setExternalLinkName(externalLinkName, for: callee)
 
         let receiverType = fixture.types.make(
             .classType(
@@ -463,11 +522,11 @@ extension BuildKIRRegressionTests {
             Issue.record("Expected .call payload")
             return
         }
-        #expect(fixture.interner.resolve(loweredCallee) == "kk_vec_call")
+        #expect(loweredCallee == fixture.interner.intern(externalLinkName))
         #expect(arguments.count == 2)
     }
 
-    @Test func testDirectSafeMemberCallDefaultMaskPathUsesDefaultStub() {
+    @Test func testDirectSafeMemberCallDefaultMaskPathUsesDefaultStub() throws {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let intType = fixture.types.make(.primitive(.int, .nonNull))
@@ -543,7 +602,9 @@ extension BuildKIRRegressionTests {
             Issue.record("Expected .call payload")
             return
         }
-        #expect(fixture.interner.resolve(callee) == "withDefault$default")
+        let original = try #require(fixture.symbols.symbol(chosen))
+        let stubName = fixture.interner.intern(fixture.interner.resolve(original.name) + "$default")
+        #expect(callee == stubName)
         #expect(arguments.count >= 2)
     }
 

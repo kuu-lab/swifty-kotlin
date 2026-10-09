@@ -12,43 +12,110 @@ package kotlinx.coroutines.flow
 // runtime handle (kk_mutable_state_flow_create / kk_mutable_state_flow_emit /
 // kk_mutable_state_flow_try_emit / kk_state_flow_value / kk_flow_state_in) to
 // bundled Kotlin source. MutableStateFlow keeps a single-element replay buffer
-// over a MutableList and exposes value / replayCache / collect / tryEmit / emit.
+// and conflates live collector notifications while preserving equality checks.
 
-public interface StateFlow<out T> {
+public interface StateFlow<out T> : SharedFlow<T> {
     public val value: T
-    public val replayCache: List<T>
-    public suspend fun collect(collector: suspend (T) -> Unit)
 }
 
-public class MutableStateFlow<T>(initialValue: T) : StateFlow<T> {
+public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedFlow<T> {
     private var _value: T = initialValue
-    private val _buffer: MutableList<T> = mutableListOf(initialValue)
+    private val activeCollectors: MutableList<HotFlowSubscription<T>> = mutableListOf()
+    private var subscribers: MutableStateFlow<Int>? = null
 
     override val replayCache: List<T>
-        get() = _buffer.toList()
+        get() = listOf(_value)
 
-    override val value: T
+    override var value: T
         get() = _value
+        set(value) {
+            if (_value != value) {
+                _value = value
+                for (collector in activeCollectors.toList()) {
+                    collector.emitConflated(value)
+                }
+            }
+        }
 
-    public fun tryEmit(value: T): Boolean {
-        _value = value
-        _buffer.clear()
-        _buffer.add(value)
+    override val subscriptionCount: StateFlow<Int>
+        get() = subscriptionCounter()
+
+    private fun subscriptionCounter(): MutableStateFlow<Int> {
+        val existing = subscribers
+        if (existing != null) return existing
+        val counter = MutableStateFlow(0)
+        subscribers = counter
+        return counter
+    }
+
+    override fun tryEmit(value: T): Boolean {
+        this.value = value
         return true
     }
 
-    public fun setValue(value: T) {
+    public fun compareAndSet(expect: T, update: T): Boolean {
+        if (_value != expect) return false
+        value = update
+        return true
+    }
+
+    override suspend fun emit(value: T) {
         tryEmit(value)
     }
 
-    public suspend fun emit(value: T) {
-        tryEmit(value)
+    override fun resetReplayCache() {
+        throw UnsupportedOperationException("MutableStateFlow does not support resetReplayCache")
     }
 
     override suspend fun collect(collector: suspend (T) -> Unit) {
-        for (value in _buffer) {
-            collector(value)
+        val subscription = HotFlowSubscription<T>()
+        val snapshot = value
+        val counter = subscriptionCounter()
+        activeCollectors.add(subscription)
+        counter.value = counter.value + 1
+        subscription.emitConflated(snapshot)
+        var hasPrevious = false
+        var previous: Any? = null
+        try {
+            while (true) {
+                val next = subscription.receive()
+                if (!hasPrevious || previous != next) {
+                    hasPrevious = true
+                    previous = next
+                    collector(next)
+                }
+            }
+        } finally {
+            activeCollectors.remove(subscription)
+            subscription.clear()
+            counter.value = counter.value - 1
         }
+    }
+}
+
+public fun <T> MutableStateFlow<T>.update(function: (T) -> T) {
+    while (true) {
+        val previous = value
+        if (compareAndSet(previous, function(previous))) return
+    }
+}
+
+public fun <T> MutableStateFlow<T>.setValue(value: T) {
+    this.value = value
+}
+
+public fun <T> MutableStateFlow<T>.getAndUpdate(function: (T) -> T): T {
+    while (true) {
+        val previous = value
+        if (compareAndSet(previous, function(previous))) return previous
+    }
+}
+
+public fun <T> MutableStateFlow<T>.updateAndGet(function: (T) -> T): T {
+    while (true) {
+        val previous = value
+        val next = function(previous)
+        if (compareAndSet(previous, next)) return next
     }
 }
 

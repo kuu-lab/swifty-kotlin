@@ -12,7 +12,7 @@ struct ImportedInlineKIRMaterializerTests {
         let callbackSymbol = SymbolID(rawValue: -200_001)
         let producerExpr = KIRExprID(rawValue: 4_900_000)
         let producerResult = KIRExprID(rawValue: 4_900_001)
-        let invoke = interner.intern("kk_function_invoke")
+        let invoke = KIRRuntimeFunction.functionInvoke(arity: 1).name(in: interner)
 
         let booleanCallback = types.make(.functionType(FunctionType(
             params: [types.charType],
@@ -103,7 +103,7 @@ struct ImportedInlineKIRMaterializerTests {
         let callbackSymbol = SymbolID(rawValue: -200_020)
         let callbackExpr = KIRExprID(rawValue: 4_900_200)
         let resultExpr = KIRExprID(rawValue: 4_900_201)
-        let invoke = interner.intern("kk_function_invoke")
+        let invoke = KIRRuntimeFunction.functionInvoke(arity: 1).name(in: interner)
         let callbackType = types.make(.functionType(FunctionType(
             params: [types.charType],
             returnType: types.booleanType
@@ -187,7 +187,7 @@ struct ImportedInlineKIRMaterializerTests {
         let symbol = SymbolID(rawValue: 10)
         let callbackSymbol = SymbolID(rawValue: -200_010)
         let ids = (0..<18).map { KIRExprID(rawValue: 4_900_100 + Int32($0)) }
-        let callee = interner.intern("kk_function_invoke")
+        let callee = KIRRuntimeFunction.functionInvoke(arity: 1).name(in: interner)
         let virtualCallee = interner.intern("virtual_callee")
         let callbackType = types.make(.functionType(FunctionType(
             params: [types.charType],
@@ -331,7 +331,8 @@ struct ImportedInlineKIRMaterializerTests {
     private func expressionIDs(_ instruction: KIRInstruction) -> [KIRExprID] {
         switch instruction {
         case .nop, .beginBlock, .endBlock, .label, .jump, .returnUnit,
-             .beginFinallyGuard, .endFinallyGuard:
+             .beginFinallyGuard, .endFinallyGuard, .endNonLocalReturnScope,
+             .beginFinallyCleanup, .endFinallyCleanup:
             return []
         case let .jumpIfEqual(lhs, rhs, _):
             return [lhs, rhs]
@@ -365,8 +366,10 @@ struct ImportedInlineKIRMaterializerTests {
             return [lhs, rhs]
         case let .returnValue(value):
             return [value]
-        case let .nonLocalReturn(value):
+        case let .nonLocalReturn(value, _):
             return value.map { [$0] } ?? []
+        case let .beginNonLocalReturnScope(value, _, _), let .resumeNonLocalReturn(value):
+            return [value]
         }
     }
 }

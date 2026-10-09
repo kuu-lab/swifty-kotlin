@@ -320,6 +320,24 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: true
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_byte_to_ubyte",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_short_to_ubyte",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NumericConversion",
+            isThrowing: false
+        ),
         // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_byte",
@@ -403,9 +421,10 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        // KSP-1540 / DEBT-DIFF-008: Number.toDouble/toFloat/toLong/toInt/
-        // toShort/toByte dispatch for an erased `Number`/`T : Number`
-        // receiver — see CallLowerer+NumberConversionMemberCalls.swift and
+        // KSP-1540 / DEBT-DIFF-008 / KUU-1372: Number.toDouble/toFloat/toLong/
+        // toInt/toShort/toByte/toChar dispatch for an erased `Number`/
+        // `T : Number` receiver — see
+        // CallLowerer+NumberConversionMemberCalls.swift and
         // Sources/Runtime/RuntimeNumberConversionDispatch.swift.
         RuntimeABIFunctionSpec(
             name: "kk_number_to_primitive",

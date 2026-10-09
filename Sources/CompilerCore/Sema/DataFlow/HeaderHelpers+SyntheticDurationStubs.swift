@@ -35,51 +35,29 @@ extension DataFlowSemaPhase {
         guard symbols.companionObjectSymbol(for: durationSymbol) != nil else {
             return
         }
-        let durationType = types.make(.classType(ClassType(
-            classSymbol: durationSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let intType = types.intType
-        let doubleType = types.doubleType
+        let longType = types.longType
         let stringType = types.stringType
-        let boolType = types.make(.primitive(.boolean, .nonNull))
 
         // --- STDLIB-TIME-STABLE-001: Duration companion constants ---
-        // KSP-471: ZERO/INFINITE/parse* are Kotlin source Companion extension
-        // properties/functions in Stdlib/kotlin/time/Duration.kt, delegating to
-        // the __kk_duration_* bridges registered below. These are receiver-less
-        // package-scope functions (registerDurationTopLevelBridgeFunction, not
-        // registerDurationMemberMethod): the native kk_duration_zero()-style
-        // factories take no argument, so a receiver-typed bridge would wrongly
-        // pass the Companion's internal handle as the native call's first arg.
-        // Kotlin source calls them without a `this.` prefix.
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_zero",
-            externalLinkName: "kk_duration_zero",
-            parameterTypes: [],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_infinite",
-            externalLinkName: "kk_duration_infinite",
-            parameterTypes: [],
-            returnType: durationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
+        // KUU-1093: `Duration` now implements `Comparable<Duration>`, so every
+        // Duration value is a real boxed object (interface-implementing value
+        // classes keep their boxed representation; see
+        // `effectiveValueClassUnderlyingType`). The kk_duration_* cdecls,
+        // however, speak raw Int64 nanosecond payloads — a raw `Duration`-typed
+        // bridge return would be a bogus object reference. The parse bridges
+        // therefore return `Long`/`Long?` (nanoseconds), and Kotlin source in
+        // Stdlib/kotlin/time/Duration.kt wraps them in `Duration(...)`. The
+        // former __kk_duration_zero/infinite and member bridges
+        // (absoluteValue/isNegative/isPositive/isInfinite/plus/minus/times_int/
+        // div_int/div_duration/unary_minus/compareTo) were dropped: every
+        // operation they backed is now resolved via Kotlin source, and leaving
+        // raw-Int64-typed-as-Duration stubs registered would be a latent
+        // wrong-ABI hazard.
         registerDurationTopLevelBridgeFunction(
             named: "__kk_duration_parse",
             externalLinkName: "kk_duration_parse",
             parameterTypes: [stringType],
-            returnType: durationType,
+            returnType: longType,
             canThrow: true,
             packageFQName: kotlinTimePkg,
             symbols: symbols,
@@ -90,7 +68,7 @@ extension DataFlowSemaPhase {
             named: "__kk_duration_parseOrNull",
             externalLinkName: "kk_duration_parseOrNull",
             parameterTypes: [stringType],
-            returnType: types.makeNullable(durationType),
+            returnType: types.makeNullable(longType),
             packageFQName: kotlinTimePkg,
             symbols: symbols,
             interner: interner
@@ -100,7 +78,7 @@ extension DataFlowSemaPhase {
             named: "__kk_duration_parseIsoString",
             externalLinkName: "kk_duration_parseIsoString",
             parameterTypes: [stringType],
-            returnType: durationType,
+            returnType: longType,
             canThrow: true,
             packageFQName: kotlinTimePkg,
             symbols: symbols,
@@ -111,163 +89,8 @@ extension DataFlowSemaPhase {
             named: "__kk_duration_parseIsoStringOrNull",
             externalLinkName: "kk_duration_parseIsoStringOrNull",
             parameterTypes: [stringType],
-            returnType: types.makeNullable(durationType),
+            returnType: types.makeNullable(longType),
             packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TIME-082: Duration predicate / absoluteValue ---
-        // absoluteValue, isNegative, isPositive, isInfinite are implemented in Kotlin source
-        // (Stdlib/kotlin/time/Duration.kt, auto-loaded by LoadSourcesPhase).
-        // The __kk_duration_* bridges below are called from that Kotlin source.
-        // MIGRATION-TIME-001 complete: direct compat stubs removed; dispatch via Kotlin source.
-
-        // Bridge stubs (called from Stdlib/kotlin/time/Duration.kt)
-        registerDurationMemberMethod(
-            named: "__kk_duration_absoluteValue",
-            externalLinkName: "kk_duration_absoluteValue",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_isNegative",
-            externalLinkName: "kk_duration_isNegative",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_isPositive",
-            externalLinkName: "kk_duration_isPositive",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_isInfinite",
-            externalLinkName: "kk_duration_isInfinite",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: boolType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // KSP-471: absoluteValue, isNegative, isPositive, isInfinite, isFinite are all
-        // resolved via Kotlin source extension functions/properties in
-        // Stdlib/kotlin/time/Duration.kt; isFinite delegates to isInfinite() directly
-        // with no native bridge needed.
-
-        // KSP-471: toIsoString and toComponents are Kotlin source (Duration.kt),
-        // computed directly from inWholeNanoseconds; no native bridge needed.
-
-        // --- STDLIB-TIME-082: Duration operator bridges (MIGRATION-TIME-001) ---
-        // plus, minus, times, div, unaryMinus are implemented in Kotlin source
-        // (Stdlib/kotlin/time/Duration.kt, auto-loaded by LoadSourcesPhase).
-        // MIGRATION-TIME-001 complete: direct compat stubs removed; dispatch via Kotlin source.
-
-        // Bridge stubs (called from Stdlib/kotlin/time/Duration.kt)
-        registerDurationMemberMethod(
-            named: "__kk_duration_plus",
-            externalLinkName: "kk_duration_plus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_minus",
-            externalLinkName: "kk_duration_minus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_times_int",
-            externalLinkName: "kk_duration_times_int",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [intType],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_div_int",
-            externalLinkName: "kk_duration_div_int",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [intType],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_div_duration",
-            externalLinkName: "kk_duration_div_duration",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: doubleType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationMemberMethod(
-            named: "__kk_duration_unary_minus",
-            externalLinkName: "kk_duration_unary_minus",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [],
-            returnType: durationType,
-            isOperator: false,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // KSP-471: compareTo is a Kotlin source extension operator function
-        // (Stdlib/kotlin/time/Duration.kt) delegating to this bridge.
-        registerDurationMemberMethod(
-            named: "__kk_duration_compareTo",
-            externalLinkName: "kk_duration_compareTo",
-            ownerSymbol: durationSymbol,
-            ownerType: durationType,
-            parameterTypes: [durationType],
-            returnType: intType,
-            isOperator: false,
             symbols: symbols,
             interner: interner
         )
@@ -380,102 +203,6 @@ extension DataFlowSemaPhase {
     }
 
     // MARK: - Duration member method registration (STDLIB-TIME-082)
-
-    private func registerDurationMemberMethod(
-        named name: String,
-        externalLinkName: String,
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        isOperator: Bool = true,
-        canThrow: Bool = false,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let functionName = interner.intern(name)
-        let functionFQName = ownerInfo.fqName + [functionName]
-
-        // Check for existing registration with matching parameter types
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .function,
-                  let sig = symbols.functionSignature(for: symbolID) else { return false }
-            return sig.parameterTypes == parameterTypes
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if isOperator {
-                symbols.insertFlags([.operatorFunction], for: existing)
-            }
-            if canThrow {
-                symbols.insertFlags([.throwingFunction], for: existing)
-            }
-            if let existingSignature = symbols.functionSignature(for: existing),
-               existingSignature.receiverType != ownerType
-            {
-                symbols.setFunctionSignature(
-                    existingSignature.withReceiverType(ownerType),
-                    for: existing
-                )
-            }
-            return
-        }
-
-        var flags: SymbolFlags = [.synthetic]
-        if isOperator {
-            flags.insert(.operatorFunction)
-        }
-        if canThrow {
-            flags.insert(.throwingFunction)
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        // Build parameter symbols
-        var paramSymbols: [SymbolID] = []
-        var paramDefaults: [Bool] = []
-        var paramVarargs: [Bool] = []
-        for (idx, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(idx)")
-            let paramFQName = functionFQName + [paramName]
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramName,
-                fqName: paramFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            symbols.setPropertyType(paramType, for: paramSymbol)
-            paramSymbols.append(paramSymbol)
-            paramDefaults.append(false)
-            paramVarargs.append(false)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                canThrow: canThrow,
-                valueParameterSymbols: paramSymbols,
-                valueParameterHasDefaultValues: paramDefaults,
-                valueParameterIsVararg: paramVarargs,
-                typeParameterSymbols: []
-            ),
-            for: functionSymbol
-        )
-    }
 
     private func registerDurationMemberProperty(
         named name: String,
@@ -681,71 +408,6 @@ private extension FunctionSignature {
 
 extension DataFlowSemaPhase {
 
-    func registerSyntheticDurationCompatibilityStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        // --- kotlin.time package (STDLIB-230/231/585) ---
-        let kotlinTimePkg = ensureSyntheticPackageHierarchy(
-            fqName: [interner.intern("kotlin"), interner.intern("time")],
-            symbols: symbols
-        )
-
-        // Register synthetic Duration class (STDLIB-585)
-        let durationName = interner.intern("Duration")
-        let durationFQName = kotlinTimePkg + [durationName]
-        let durationSymbol: SymbolID = if let existing = symbols.lookup(fqName: durationFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .class,
-                name: durationName,
-                fqName: durationFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let packageSymbol = symbols.lookup(fqName: kotlinTimePkg) {
-            symbols.setParentSymbol(packageSymbol, for: durationSymbol)
-        }
-
-        let durationClassType = types.make(.classType(ClassType(
-            classSymbol: durationSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(durationClassType, for: durationSymbol)
-
-        // Register Duration.inWholeNanoseconds property (returns Long)
-        registerSyntheticDurationMember(
-            named: "inWholeNanoseconds",
-            externalLinkName: "kk_duration_inWholeNanoseconds",
-            durationSymbol: durationSymbol,
-            durationFQName: durationFQName,
-            receiverType: durationClassType,
-            returnType: types.longType,
-            symbols: symbols,
-            interner: interner,
-            isProperty: true
-        )
-
-        // Register Duration.toString() (returns String)
-        registerSyntheticDurationMember(
-            named: "toString",
-            externalLinkName: "kk_duration_toString",
-            durationSymbol: durationSymbol,
-            durationFQName: durationFQName,
-            receiverType: durationClassType,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // measureTime / measureTimedValue live in bundled Kotlin source
-        // (Stdlib/kotlin/time/MeasureTime.kt).
-    }
 
     private func registerSyntheticDurationMember(
         named name: String,

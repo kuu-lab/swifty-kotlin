@@ -10,7 +10,6 @@ protocol RuntimeRangeHOFKind {
     static func traverse(_ range: RuntimeRangeBox, _ body: (_ value: Int, _ index: Int) -> Bool) -> Bool
     static func isEmpty(_ range: RuntimeRangeBox) -> Bool
     static func doubleValue(_ value: Int) -> Double
-    static func sortValues(_ values: inout [Int])
     static func firstMatch(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -40,10 +39,6 @@ enum RuntimeSignedRangeHOFKind: RuntimeRangeHOFKind {
 
     static func doubleValue(_ value: Int) -> Double {
         Double(value)
-    }
-
-    static func sortValues(_ values: inout [Int]) {
-        values.sort()
     }
 
     static func firstMatch(
@@ -91,10 +86,6 @@ enum RuntimeUnsignedRangeHOFKind: RuntimeRangeHOFKind {
         Double(UInt(bitPattern: value))
     }
 
-    static func sortValues(_ values: inout [Int]) {
-        values.sort { UInt(bitPattern: $0) < UInt(bitPattern: $1) }
-    }
-
     static func firstMatch(
         _ range: RuntimeRangeBox,
         _ fnPtr: Int,
@@ -132,6 +123,23 @@ private func runtimeRangeList(_ elements: [Int]) -> Int {
     registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
+/// Builds an erased `List<T>` from raw range elements: kinds whose scalar
+/// collides with the null sentinel or loses type identity are boxed so
+/// generic consumers recover the primitive.
+private func runtimeRangeElementList(_ elements: [Int], kind: RuntimeRangeKind) -> Int {
+    switch kind {
+    case .charRange, .charProgression,
+         .longRange, .longProgression,
+         .ulongRange, .ulongProgression:
+        return runtimeRangeList(elements.map { runtimeRangeErasedElement($0, kind: kind) })
+    case .intRange, .intProgression,
+         .uintRange, .uintProgression:
+        // `runtimeRangeErasedElement` is the identity for these kinds, so the
+        // map would only allocate a second array to copy the input.
+        return runtimeRangeList(elements)
+    }
+}
+
 private func runtimeRangeValues<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> [Int] {
     var elements: [Int] = []
     _ = Kind.traverse(range) { value, _ in
@@ -142,7 +150,7 @@ private func runtimeRangeValues<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range
 }
 
 private func runtimeRangeToList<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
-    runtimeRangeList(runtimeRangeValues(Kind.self, range))
+    runtimeRangeElementList(runtimeRangeValues(Kind.self, range), kind: range.kind)
 }
 
 private func runtimeRangeForEach<Kind: RuntimeRangeHOFKind>(
@@ -255,7 +263,7 @@ private func runtimeRangeFilter<Kind: RuntimeRangeHOFKind>(
         }
         return true
     }
-    return runtimeRangeList(filtered)
+    return runtimeRangeElementList(filtered, kind: range.kind)
 }
 
 private func runtimeRangeFilterIndexed<Kind: RuntimeRangeHOFKind>(
@@ -279,7 +287,7 @@ private func runtimeRangeFilterIndexed<Kind: RuntimeRangeHOFKind>(
         }
         return true
     }
-    return runtimeRangeList(filtered)
+    return runtimeRangeElementList(filtered, kind: range.kind)
 }
 
 private func runtimeRangeReduce<Kind: RuntimeRangeHOFKind>(
@@ -425,13 +433,13 @@ private func runtimeRangeChunked<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
     _ = Kind.traverse(range) { value, _ in
         currentChunk.append(value)
         if currentChunk.count == size {
-            chunks.append(runtimeRangeList(currentChunk))
+            chunks.append(runtimeRangeElementList(currentChunk, kind: range.kind))
             currentChunk.removeAll(keepingCapacity: true)
         }
         return true
     }
     if !currentChunk.isEmpty {
-        chunks.append(runtimeRangeList(currentChunk))
+        chunks.append(runtimeRangeElementList(currentChunk, kind: range.kind))
     }
     return runtimeRangeList(chunks)
 }
@@ -448,12 +456,14 @@ private func runtimeRangeWindowed<Kind: RuntimeRangeHOFKind>(
     var windows: [Int] = []
     var start = 0
     while start < values.count {
-        let end = Swift.min(start + size, values.count)
+        let end = start + Swift.min(size, values.count - start)
         let window = Array(values[start..<end])
         if window.count == size || (partialWindows != 0 && !window.isEmpty) {
-            windows.append(runtimeRangeList(window))
+            windows.append(runtimeRangeElementList(window, kind: range.kind))
         }
-        start += step
+        let (nextStart, overflow) = start.addingReportingOverflow(step)
+        if overflow { break }
+        start = nextStart
     }
     return runtimeRangeList(windows)
 }
@@ -468,7 +478,7 @@ private func runtimeRangeTake<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: 
         taken += 1
         return true
     }
-    return runtimeRangeList(elements)
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 private func runtimeRangeDrop<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox, _ n: Int) -> Int {
@@ -482,7 +492,7 @@ private func runtimeRangeDrop<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: 
         }
         return true
     }
-    return runtimeRangeList(elements)
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
@@ -499,8 +509,12 @@ private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
 
 private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
     var elements = runtimeRangeValues(Kind.self, range)
-    Kind.sortValues(&elements)
-    return runtimeRangeList(elements)
+    // Traversal yields the progression monotonically: ascending for a
+    // positive step, descending for a negative step.
+    if range.step < 0 {
+        elements.reverse()
+    }
+    return runtimeRangeElementList(elements, kind: range.kind)
 }
 
 extension RuntimeRangeHOFKind {
@@ -610,11 +624,24 @@ extension RuntimeRangeHOFKind {
     }
 
     static func firstOrNull(_ range: RuntimeRangeBox) -> Int {
-        isEmpty(range) ? runtimeNullSentinelInt : range.first
+        isEmpty(range) ? runtimeNullSentinelInt : runtimeRangeErasedElement(range.first, kind: range.kind)
     }
 
     static func lastOrNull(_ range: RuntimeRangeBox) -> Int {
-        isEmpty(range) ? runtimeNullSentinelInt : range.last
+        isEmpty(range) ? runtimeNullSentinelInt : runtimeRangeErasedElement(range.last, kind: range.kind)
+    }
+
+    /// `Progression.first()` / `last()`: throw on empty, unlike the `first`/`last` properties.
+    static func firstOrLastOrThrow(
+        _ range: RuntimeRangeBox,
+        wantLast: Bool,
+        _ outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        guard !isEmpty(range) else {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Progression is empty.")
+            return 0
+        }
+        return wantLast ? range.last : range.first
     }
 
     static func any(
@@ -683,6 +710,104 @@ func runtimeRangeEntry<Kind: RuntimeRangeHOFKind>(
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in \(functionName)")
     }
     return body(range)
+}
+
+func runtimeRangeChunkedEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    size: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    guard size > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "size \(size) must be greater than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.chunked(range, size)
+    }
+}
+
+func runtimeRangeWindowedEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    size: Int,
+    step: Int,
+    partialWindows: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    guard size > 0, step > 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Both size \(size) and step \(step) must be greater than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        Kind.windowed(range, size, step, partialWindows)
+    }
+}
+
+private func runtimeRangeCountEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String,
+    operation: (RuntimeRangeBox, Int) -> Int
+) -> Int {
+    outThrown?.pointee = 0
+    guard count >= 0 else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Requested element count \(count) is less than zero."
+        )
+        return runtimeRangeList([])
+    }
+    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+        operation(range, count)
+    }
+}
+
+func runtimeRangeTakeEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    runtimeRangeCountEntry(kind, rangeRaw, count: count, outThrown, functionName: functionName) {
+        Kind.take($0, $1)
+    }
+}
+
+func runtimeRangeDropEntry<Kind: RuntimeRangeHOFKind>(
+    _ kind: Kind.Type,
+    _ rangeRaw: Int,
+    count: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    runtimeRangeCountEntry(kind, rangeRaw, count: count, outThrown, functionName: functionName) {
+        Kind.drop($0, $1)
+    }
+}
+
+@inline(__always)
+func runtimeRangeFirstOrLastOrThrow<Kind: RuntimeRangeHOFKind>(
+    _: Kind.Type,
+    _ rangeRaw: Int,
+    wantLast: Bool,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> Int {
+    outThrown?.pointee = 0
+    return runtimeRangeEntry(Kind.self, rangeRaw, functionName: functionName) { range in
+        Kind.firstOrLastOrThrow(range, wantLast: wantLast, outThrown)
+    }
 }
 
 @inline(__always)

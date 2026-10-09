@@ -383,6 +383,31 @@ struct RuntimeDurationTests {
         #expect(invalid == runtimeNullSentinelInt)
     }
 
+    @Test func testNullableParsersReturnTaggedLongPayloads() {
+        let cases: [(String, Int, Int)] = [
+            ("PT5S", 10_000_000_000, 5_000_000_000),
+            ("PT1H30M", 10_800_000_000_000, 5_400_000_000_000),
+            ("PT1.5S", 3_000_000_000, 1_500_000_000),
+            ("PT0S", 0, 0),
+            ("-PT5S", -10_000_000_000, -5_000_000_000),
+            ("PT10000000000000S", 20_000_000_000_000_001, Int.max),
+            ("PT999999999999999999999H", Int.max, Int.max),
+            ("-PT999999999999999999999H", -Int.max + 2, Int.min),
+        ]
+        for parse in [kk_duration_parseOrNull, kk_duration_parseIsoStringOrNull] {
+            for (input, expectedRaw, expectedNanoseconds) in cases {
+                let parsed = parse(stringHandle(input))
+                #expect(parsed != runtimeNullSentinelInt)
+                #expect(kk_unbox_long(parsed) == expectedRaw)
+                #expect(kk_unbox_long_static(parsed) == expectedRaw)
+                #expect(kk_duration_inWholeNanoseconds(parsed) == expectedNanoseconds)
+                #expect(runtimeObjectTypeID(rawValue: parsed) ==
+                    runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
+            }
+            #expect(parse(stringHandle("bogus")) == runtimeNullSentinelInt)
+        }
+    }
+
     @Test func testParseIsoStringRejectsDefaultFormat() {
         var thrown = 0
         let parsed = kk_duration_parseIsoString(stringHandle("1h 30m"), &thrown)
@@ -396,6 +421,106 @@ struct RuntimeDurationTests {
 
         let invalid = kk_duration_parseIsoStringOrNull(stringHandle("1h 30m"))
         #expect(invalid == runtimeNullSentinelInt)
+    }
+
+    // MARK: - parse grammar (KUU-639 / kotlin-stdlib Duration.parse)
+
+    private func parseDurationOrThrown(_ input: String) -> Int? {
+        var thrown = 0
+        let handle = kk_duration_parse(stringHandle(input), &thrown)
+        if thrown != 0 {
+            return nil
+        }
+        return handle
+    }
+
+    private func parseIsoDurationOrThrown(_ input: String) -> Int? {
+        var thrown = 0
+        let handle = kk_duration_parseIsoString(stringHandle(input), &thrown)
+        if thrown != 0 {
+            return nil
+        }
+        return handle
+    }
+
+    @Test func testParseAcceptsConcatenatedDefaultComponents() throws {
+        let parsed = try #require(parseDurationOrThrown("1h30m"))
+        #expect(durationInWholeMinutes(parsed) == 90)
+        #expect(stringFromHandle(kk_duration_toString(parsed)) == "1h 30m")
+    }
+
+    @Test func testParseRejectsScientificNotationAndIncompleteDecimals() {
+        for input in ["1e3s", "1.s", ".5s", "0x10s"] {
+            #expect(parseDurationOrThrown(input) == nil, "expected rejection of \(input)")
+            #expect(kk_duration_parseOrNull(stringHandle(input)) == runtimeNullSentinelInt)
+        }
+    }
+
+    @Test func testParseRejectsSurroundingWhitespace() {
+        for input in [" 1h 30m ", "1h 30m ", " 1h30m"] {
+            #expect(parseDurationOrThrown(input) == nil, "expected rejection of \(input)")
+        }
+        #expect(parseIsoDurationOrThrown(" PT1H ") == nil)
+        #expect(parseIsoDurationOrThrown("PT1H ") == nil)
+        #expect(kk_duration_parseIsoStringOrNull(stringHandle(" PT1H ")) == runtimeNullSentinelInt)
+    }
+
+    @Test func testParseAcceptsZeroIntegerAndDoubleSpaces() throws {
+        let halfSecond = try #require(parseDurationOrThrown("0.5s"))
+        let doubleSpace = try #require(parseDurationOrThrown("1h  30m"))
+        let leadingZeros = try #require(parseDurationOrThrown("0001h"))
+        let zeroHours = try #require(parseDurationOrThrown("0h30m"))
+        #expect(durationInWholeMilliseconds(halfSecond) == 500)
+        #expect(durationInWholeMinutes(doubleSpace) == 90)
+        #expect(durationInWholeHours(leadingZeros) == 1)
+        #expect(durationInWholeMinutes(zeroHours) == 30)
+    }
+
+    @Test func testParseSignedDefaultFormatAllowsSpacesOnlyInsideParens() throws {
+        let concatenated = try #require(parseDurationOrThrown("-1h30m"))
+        let parenthesized = try #require(parseDurationOrThrown("-(1h 30m)"))
+        #expect(durationInWholeMinutes(concatenated) == -90)
+        #expect(durationInWholeMinutes(parenthesized) == -90)
+        #expect(parseDurationOrThrown("+1h 30m") == nil)
+        #expect(parseDurationOrThrown("-1h 30m") == nil)
+    }
+
+    @Test func testParseRejectsAscendingComponentOrderAndNonSpaceSeparators() {
+        #expect(parseDurationOrThrown("30m 1h") == nil)
+        #expect(parseDurationOrThrown("1m1h") == nil)
+        #expect(parseDurationOrThrown("1h\t30m") == nil)
+        #expect(parseDurationOrThrown("1µs") == nil)
+        #expect(parseDurationOrThrown("1H") == nil)
+    }
+
+    @Test func testParseInfinityIsCaseInsensitiveAndUntrimmed() throws {
+        let inf = try #require(parseDurationOrThrown("Infinity"))
+        let infLower = try #require(parseDurationOrThrown("infinity"))
+        let infPlus = try #require(parseDurationOrThrown("+Infinity"))
+        let infMinus = try #require(parseDurationOrThrown("-Infinity"))
+        #expect(kk_duration_isInfinite(inf) == 1)
+        #expect(kk_duration_isInfinite(infLower) == 1)
+        #expect(kk_duration_isInfinite(infPlus) == 1)
+        #expect(kk_duration_isInfinite(infMinus) == 1)
+        #expect(kk_duration_isNegative(infMinus) == 1)
+        #expect(parseDurationOrThrown(" Infinity") == nil)
+        #expect(parseDurationOrThrown("Infinity ") == nil)
+        #expect(parseIsoDurationOrThrown("Infinity") == nil)
+    }
+
+    @Test func testParseIsoStringAcceptsComponentSignsAndRejectsNonSecondFractions() throws {
+        let componentMinus = try #require(parseIsoDurationOrThrown("PT-1H"))
+        let componentPlus = try #require(parseIsoDurationOrThrown("PT+1H"))
+        let leadingMinus = try #require(parseIsoDurationOrThrown("-PT1H"))
+        let mixed = try #require(parseIsoDurationOrThrown("P-1DT2H"))
+        let fractionalSeconds = try #require(parseIsoDurationOrThrown("PT1.5S"))
+        #expect(durationInWholeHours(componentMinus) == -1)
+        #expect(durationInWholeHours(componentPlus) == 1)
+        #expect(durationInWholeHours(leadingMinus) == -1)
+        #expect(durationInWholeHours(mixed) == -22)
+        #expect(parseIsoDurationOrThrown("PT1.5H") == nil)
+        #expect(parseIsoDurationOrThrown("PT.5S") == nil)
+        #expect(durationInWholeMilliseconds(fractionalSeconds) == 1_500)
     }
 
     // MARK: - Multiple independent durations
@@ -617,11 +742,90 @@ struct RuntimeDurationTests {
     // MARK: - Long.MAX_VALUE saturation (TEST-TIME-020)
 
     @Test func testDurationLongMaxValueSaturatesToInfinite() {
-        // Long.MAX_VALUE = Int64.max; all factories with a multiplier > 1 overflow to INFINITE
+        // Microseconds still fit in ms storage; coarser units exceed its range.
         let longMax = Int(Int64.max)
         #expect(kk_duration_isInfinite(durationFromDaysLong(longMax)) == 1)
         #expect(kk_duration_isInfinite(durationFromHoursLong(longMax)) == 1)
         #expect(kk_duration_isInfinite(durationFromMinutesLong(longMax)) == 1)
-        #expect(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)) == 1)
+        #expect(kk_duration_isInfinite(durationFromMicrosecondsLong(longMax)) == 0)
+        #expect(durationInWholeMilliseconds(durationFromMicrosecondsLong(longMax)) == longMax / 1_000)
+    }
+
+    @Test func testLongNanosecondExtremaRemainFinite() {
+        let positive = kk_duration_toDuration_long(Int.max, 0)
+        let negative = kk_duration_toDuration_long(Int.min, 0)
+        #expect(kk_duration_isInfinite(positive) == 0)
+        #expect(kk_duration_isInfinite(negative) == 0)
+        #expect(stringFromHandle(kk_duration_toString(positive)) == "106751d 23h 47m 16.854s")
+        #expect(stringFromHandle(kk_duration_toString(negative)) == "-(106751d 23h 47m 16.854s)")
+        #expect(kk_duration_inWholeNanoseconds(positive) == 9_223_372_036_854_000_000)
+        #expect(kk_duration_inWholeNanoseconds(negative) == -9_223_372_036_854_000_000)
+        #expect(kk_duration_unary_minus(negative) == positive)
+        #expect(kk_duration_absoluteValue(negative) == positive)
+        #expect(kk_duration_compareTo(positive, kk_duration_infinite()) < 0)
+        #expect(kk_duration_isInfinite(kk_duration_toDuration_long(Int.max, 2)) == 1)
+        #expect(kk_duration_isInfinite(kk_duration_toDuration_long(Int.min, 2)) == 1)
+    }
+
+    @Test func testNanosecondStorageBoundaryAndArithmetic() {
+        let maxNanos = 4_611_686_018_426_999_999
+        let nanos = kk_duration_toDuration_long(maxNanos, 0)
+        let millis = kk_duration_toDuration_long(maxNanos + 1, 0)
+        #expect(kk_duration_inWholeNanoseconds(nanos) == maxNanos)
+        #expect(kk_duration_inWholeNanoseconds(millis) == maxNanos + 1)
+        #expect(kk_duration_toDuration_long(maxNanos + 999_999, 0) == millis)
+        #expect(kk_duration_plus(nanos, durationFromNanoseconds(1)) == millis)
+        #expect(kk_duration_minus(millis, durationFromNanoseconds(1)) == millis)
+        #expect(kk_duration_minus(millis, durationFromMilliseconds(1)) == durationFromNanoseconds(maxNanos - 999_999))
+        #expect(kk_duration_compareTo(nanos, millis) < 0)
+        #expect(kk_duration_compareTo(kk_duration_unary_minus(nanos), kk_duration_unary_minus(millis)) > 0)
+        let doubled = kk_duration_times_int(kk_duration_toDuration_long(Int.max, 0), 2)
+        #expect(kk_duration_isInfinite(doubled) == 0)
+        #expect(kk_duration_inWholeNanoseconds(doubled) == Int.max)
+        #expect(kk_duration_div_int(doubled, 2) == kk_duration_toDuration_long(Int.max, 0))
+    }
+
+    @Test func testCoroutineMillisecondConversionDecodesStorage() {
+        #expect(kk_duration_inWholeMilliseconds(durationFromNanoseconds(2_500_000)) == 2)
+        #expect(kk_duration_inWholeMilliseconds(durationFromNanoseconds(-2_500_000)) == -2)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_toDuration_long(Int.max, 0)) == 9_223_372_036_854)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_toDuration_long(10_000_000_000_000, 2)) == 10_000_000_000_000)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_infinite()) == Int.max)
+        #expect(kk_duration_inWholeMilliseconds(kk_duration_unary_minus(kk_duration_infinite())) == Int.min)
+    }
+
+    @Test func testBoxedMillisecondEqualityPreservesDistinctFiniteValues() {
+        let firstRaw = kk_duration_toDuration_long(10_000_000_000_000, 2)
+        let secondRaw = kk_duration_plus(firstRaw, durationFromMilliseconds(1))
+        let first = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(firstRaw)))
+        let equal = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(firstRaw)))
+        let second = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(secondRaw)))
+        #expect(kk_duration_inWholeNanoseconds(first) == Int.max)
+        #expect(kk_duration_inWholeNanoseconds(second) == Int.max)
+        #expect(runtimeNonNullValuesEqual(first, equal))
+        #expect(!runtimeNonNullValuesEqual(first, second))
+        #expect(kk_any_member_hashCode(first) == kk_any_member_hashCode(equal))
+        #expect(kk_any_member_hashCode(first) != kk_any_member_hashCode(second))
+        var firstHash = Hasher()
+        var equalHash = Hasher()
+        runtimeElementKeyHash(first, into: &firstHash)
+        runtimeElementKeyHash(equal, into: &equalHash)
+        #expect(firstHash.finalize() == equalHash.finalize())
+    }
+
+    @Test func testMillisecondParsingAndNullableResultPreservePayload() throws {
+        let text = "106751d 23h 47m 16.854s"
+        var thrown = 0
+        let parsed = kk_duration_parse(stringHandle(text), &thrown)
+        let nullable = kk_duration_parseOrNull(stringHandle(text))
+        #expect(thrown == 0)
+        #expect(parsed == kk_duration_toDuration_long(Int.max, 0))
+        #expect(kk_unbox_long_static(nullable) == parsed)
+        #expect(kk_duration_isInfinite(nullable) == 0)
+        #expect(stringFromHandle(kk_duration_toString(nullable)) == text)
+        let boxed = registerRuntimeObject(RuntimeDurationBox(rawValue: Int64(parsed)))
+        #expect(kk_duration_compareTo(parsed, boxed) == 0)
+        let expectedHash = Int(Int32(truncatingIfNeeded: Int64(parsed) ^ (Int64(parsed) >> 32)))
+        #expect(kk_any_member_hashCode(boxed) == expectedHash)
     }
 }

@@ -10,6 +10,8 @@
 ///   to call the wrapper symbol (receiver argument removed).
 final class JvmStaticLoweringPass: LoweringPass {
     static let name = "JvmStaticLowering"
+    static let requiredStage: KIRStage = .propertyLowered
+    static let producedStage: KIRStage = .propertyLowered
 
     private struct WrapperInfo {
         let symbol: SymbolID

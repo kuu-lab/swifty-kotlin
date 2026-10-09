@@ -32,11 +32,11 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
@@ -83,14 +83,18 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns
+                importedInlineFunctions: inlineFns
             )
-            let fn1 = symbols.allSymbols().first { interner.resolve($0.name) == "fn1" }
-            let fn2 = symbols.allSymbols().first { interner.resolve($0.name) == "fn2" }
+            let fn1 = symbols.lookupAll(fqName: ["tid", "fn1"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first
+            let fn2 = symbols.lookupAll(fqName: ["tid", "fn2"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first
             if let fn1ID = fn1?.id, let sig = symbols.functionSignature(for: fn1ID) {
                 noCacheFn1ParamType = types.kind(of: sig.parameterTypes[0])
                 noCacheFn1ReturnType = types.kind(of: sig.returnType)
@@ -111,15 +115,19 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
-            let fn1 = symbols.allSymbols().first { interner.resolve($0.name) == "fn1" }
-            let fn2 = symbols.allSymbols().first { interner.resolve($0.name) == "fn2" }
+            let fn1 = symbols.lookupAll(fqName: ["tid", "fn1"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first
+            let fn2 = symbols.lookupAll(fqName: ["tid", "fn2"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first
             if let fn1ID = fn1?.id, let sig = symbols.functionSignature(for: fn1ID) {
                 cachedFn1ParamType = types.kind(of: sig.parameterTypes[0])
                 cachedFn1ReturnType = types.kind(of: sig.returnType)
@@ -166,16 +174,20 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
-            let fetchSym = symbols.allSymbols().first { interner.resolve($0.name) == "fetch" && $0.kind == .function }
-            let processSym = symbols.allSymbols().first { interner.resolve($0.name) == "process" && $0.kind == .function }
+            let fetchSym = symbols.lookupAll(fqName: ["susp", "fetch"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .function }
+            let processSym = symbols.lookupAll(fqName: ["susp", "process"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .function }
             #expect(fetchSym != nil)
             #expect(processSym != nil)
             let fetchIsSuspend = fetchSym!.flags.contains(.suspendFunction)
@@ -225,16 +237,20 @@ extension LibraryMetadataCacheBehaviorTests {
             let types = TypeSystem()
             let diagnostics = DiagnosticEngine()
             let interner = StringInterner()
-            var inlineFns: [SymbolID: KIRFunction] = [:]
+            let inlineFns = ImportedInlineFunctionStore()
             _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
                 options: ctx.options, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
-                importedInlineFunctions: &inlineFns,
+                importedInlineFunctions: inlineFns,
                 cache: cache
             )
 
-            let xSym = symbols.allSymbols().first { interner.resolve($0.name) == "x" && $0.kind == .property }
-            let ySym = symbols.allSymbols().first { interner.resolve($0.name) == "y" && $0.kind == .property }
+            let xSym = symbols.lookupAll(fqName: ["nullable", "x"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .property }
+            let ySym = symbols.lookupAll(fqName: ["nullable", "y"].map(interner.intern))
+                .compactMap { symbols.symbol($0) }
+                .first { $0.kind == .property }
             #expect(xSym != nil)
             #expect(ySym != nil)
 

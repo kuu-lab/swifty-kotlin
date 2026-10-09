@@ -1,70 +1,64 @@
 import Foundation
+import RuntimeCAtomics
 
 // MARK: - AtomicInt
 
 /// Backing storage for kotlin.concurrent.AtomicInt.
+/// A single seq-cst hardware atomic cell instead of a mutex per box.
 final class AtomicIntBox {
-    private var storage: Int
-    private let lock = NSLock()
+    private let storage: UnsafeMutablePointer<Int32>
 
     init(initial: Int) {
-        self.storage = initial
+        storage = .allocate(capacity: 1)
+        storage.initialize(to: atomicInt32Value(initial))
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func load() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
+        Int(kkrt_atomic_i32_load(storage))
     }
 
     func store(_ value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = value
+        kkrt_atomic_i32_store(storage, atomicInt32Value(value))
     }
 
     func exchange(_ new: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        storage = new
-        return old
+        Int(kkrt_atomic_i32_exchange(storage, atomicInt32Value(new)))
     }
 
     func compareAndSet(expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if storage == expect {
-            storage = update
-            return true
-        }
-        return false
+        var exchanged = false
+        kkrt_atomic_i32_compare_exchange(
+            storage, atomicInt32Value(expect), atomicInt32Value(update), &exchanged
+        )
+        return exchanged
     }
 
     func compareAndExchange(expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        if old == expect {
-            storage = update
-        }
-        return old
+        var exchanged = false
+        let old = kkrt_atomic_i32_compare_exchange(
+            storage, atomicInt32Value(expect), atomicInt32Value(update), &exchanged
+        )
+        return Int(old)
     }
 
     func fetchAndAdd(_ delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        storage = old &+ delta
-        return old
+        Int(kkrt_atomic_i32_fetch_add(storage, atomicInt32Value(delta)))
     }
 
     func addAndFetch(_ delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = storage &+ delta
-        return storage
+        let delta32 = atomicInt32Value(delta)
+        let old = kkrt_atomic_i32_fetch_add(storage, delta32)
+        return Int(old &+ delta32)
     }
+}
+
+/// Kotlin `Int` arithmetic and storage are defined over signed 32-bit values.
+private func atomicInt32Value(_ value: Int) -> Int32 {
+    Int32(truncatingIfNeeded: value)
 }
 
 private func atomicIntBox(from raw: Int) -> AtomicIntBox? {
@@ -155,66 +149,47 @@ public func __kk_atomic_int_decrementAndFetch(_ receiver: Int) -> Int {
 
 /// Backing storage for kotlin.concurrent.AtomicLong.
 final class AtomicLongBox {
-    private var storage: Int
-    private let lock = NSLock()
+    private let storage: UnsafeMutablePointer<Int>
 
     init(initial: Int) {
-        self.storage = initial
+        storage = .allocate(capacity: 1)
+        storage.initialize(to: initial)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func load() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
+        kkrt_atomic_word_load(storage)
     }
 
     func store(_ value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = value
+        kkrt_atomic_word_store(storage, value)
     }
 
     func exchange(_ new: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        storage = new
-        return old
+        kkrt_atomic_word_exchange(storage, new)
     }
 
     func compareAndSet(expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if storage == expect {
-            storage = update
-            return true
-        }
-        return false
+        var exchanged = false
+        kkrt_atomic_word_compare_exchange(storage, expect, update, &exchanged)
+        return exchanged
     }
 
     func compareAndExchange(expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        if old == expect {
-            storage = update
-        }
-        return old
+        var exchanged = false
+        return kkrt_atomic_word_compare_exchange(storage, expect, update, &exchanged)
     }
 
     func fetchAndAdd(_ delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        storage = old &+ delta
-        return old
+        kkrt_atomic_word_fetch_add(storage, delta)
     }
 
     func addAndFetch(_ delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = storage &+ delta
-        return storage
+        let old = kkrt_atomic_word_fetch_add(storage, delta)
+        return old &+ delta
     }
 }
 
@@ -307,41 +282,35 @@ public func __kk_atomic_long_decrementAndFetch(_ receiver: Int) -> Int {
 /// Backing storage for kotlin.concurrent.AtomicBoolean.
 /// Boolean values are stored as Int: 1 = true, 0 = false.
 final class AtomicBooleanBox {
-    private var storage: Int
-    private let lock = NSLock()
+    private let storage: UnsafeMutablePointer<Int>
 
     init(initial: Bool) {
-        self.storage = initial ? 1 : 0
+        storage = .allocate(capacity: 1)
+        storage.initialize(to: initial ? 1 : 0)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func load() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage != 0
+        kkrt_atomic_word_load(storage) != 0
     }
 
     func store(_ value: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = value ? 1 : 0
+        kkrt_atomic_word_store(storage, value ? 1 : 0)
     }
 
     func exchange(_ new: Bool) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage != 0
-        storage = new ? 1 : 0
-        return old
+        kkrt_atomic_word_exchange(storage, new ? 1 : 0) != 0
     }
 
     func compareAndExchange(expect: Bool, update: Bool) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage != 0
-        if storage == (expect ? 1 : 0) {
-            storage = update ? 1 : 0
-        }
-        return old
+        var exchanged = false
+        let old = kkrt_atomic_word_compare_exchange(
+            storage, expect ? 1 : 0, update ? 1 : 0, &exchanged
+        )
+        return old != 0
     }
 }
 
@@ -392,51 +361,52 @@ public func __kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, 
 /// Backing storage for kotlin.concurrent.AtomicReference<T>.
 /// Values are stored as opaque intptr_t (object pointers or boxed values).
 final class AtomicRefBox {
-    private var storage: Int
-    private let lock = NSLock()
+    private let storage: UnsafeMutablePointer<Int>
 
     init(initial: Int) {
-        self.storage = initial
+        storage = .allocate(capacity: 1)
+        storage.initialize(to: initial)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func load() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage
+        kkrt_atomic_word_load(storage)
     }
 
     func store(_ value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        storage = value
+        kkrt_atomic_word_store(storage, value)
     }
 
     func exchange(_ new: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        storage = new
-        return old
+        kkrt_atomic_word_exchange(storage, new)
     }
 
-    /// Kotlin `AtomicReference` CAS uses reference identity, so raw handles
-    /// are compared rather than their structural values.
+    /// CAS matching `runtimeAtomicRefValuesMatch` so value-type words that
+    /// marshal differently across the erased-T boundary (bare primitive vs
+    /// fresh box) still compare equal, while strings and other object
+    /// references keep pointer identity. On success the caller's
+    /// `expect` word is returned rather than the stored word: the Kotlin-level
+    /// `compareAndSet` is `compareAndExchange(...) === expectedValue`, and
+    /// `===` is raw word equality, so returning the stored word would report
+    /// failure for a canonically-equal but differently-marshaled value.
+    /// The loop retries on the newly observed value so the swap happens iff
+    /// the cell held a matching value at the successful compare-exchange.
     func compareAndExchange(expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        let old = storage
-        if old == expect {
-            storage = update
+        var observed = kkrt_atomic_word_load(storage)
+        while runtimeAtomicRefValuesMatch(observed, expect) {
+            var exchanged = false
+            observed = kkrt_atomic_word_compare_exchange(storage, observed, update, &exchanged)
+            if exchanged { return expect }
         }
-        return old
+        return observed
     }
 }
 
 private func atomicRefBox(from raw: Int) -> AtomicRefBox? {
-    guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    return tryCast(ptr, to: AtomicRefBox.self)
+    resolveRuntimeHandle(raw, as: AtomicRefBox.self)
 }
 
 @_cdecl("kk_atomic_ref_create")
@@ -446,7 +416,9 @@ public func kk_atomic_ref_create(_ initial: Int) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
-    return Int(bitPattern: ptr)
+    let raw = Int(bitPattern: ptr)
+    runtimeRegisterObjectType(rawValue: raw, classID: runtimeStableNominalTypeID(fqName: "kotlin.concurrent.AtomicReference"))
+    return raw
 }
 
 @_cdecl("__kk_atomic_ref_load")
@@ -477,82 +449,72 @@ public func __kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _
 // MARK: - AtomicIntArray
 
 /// Backing storage for kotlin.concurrent.atomics.AtomicIntArray.
-/// All accesses are serialized through the same lock to provide
-/// consistent atomicity and acquire/release visibility between operations.
+/// Each element is an independent seq-cst atomic cell, so operations on
+/// distinct indices don't contend on a shared lock.
 final class AtomicIntArrayBox {
-    private var storage: [Int]
-    private let lock = NSLock()
+    private let storage: UnsafeMutableBufferPointer<Int32>
 
     init(size: Int) {
-        self.storage = Array(repeating: 0, count: max(0, size))
+        storage = .allocate(capacity: max(0, size))
+        storage.initialize(repeating: 0)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func size() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage.count
+        storage.count
+    }
+
+    private func cell(at index: Int) -> UnsafeMutablePointer<Int32>? {
+        guard index >= 0, index < storage.count else { return nil }
+        return storage.baseAddress?.advanced(by: index)
     }
 
     func load(at index: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        return storage[index]
+        guard let cell = cell(at: index) else { return 0 }
+        return Int(kkrt_atomic_i32_load(cell))
     }
 
     func store(at index: Int, value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return }
-        storage[index] = value
+        guard let cell = cell(at: index) else { return }
+        kkrt_atomic_i32_store(cell, atomicInt32Value(value))
     }
 
     func exchange(at index: Int, newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = newValue
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        return Int(kkrt_atomic_i32_exchange(cell, atomicInt32Value(newValue)))
     }
 
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return false }
-        if storage[index] == expect {
-            storage[index] = update
-            return true
-        }
-        return false
+        guard let cell = cell(at: index) else { return false }
+        var exchanged = false
+        kkrt_atomic_i32_compare_exchange(
+            cell, atomicInt32Value(expect), atomicInt32Value(update), &exchanged
+        )
+        return exchanged
     }
 
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        if old == expect {
-            storage[index] = update
-        }
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        var exchanged = false
+        let old = kkrt_atomic_i32_compare_exchange(
+            cell, atomicInt32Value(expect), atomicInt32Value(update), &exchanged
+        )
+        return Int(old)
     }
 
     func fetchAndAdd(at index: Int, delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = old &+ delta
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        return Int(kkrt_atomic_i32_fetch_add(cell, atomicInt32Value(delta)))
     }
 
     func addAndFetch(at index: Int, delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        storage[index] = storage[index] &+ delta
-        return storage[index]
+        guard let cell = cell(at: index) else { return 0 }
+        let delta32 = atomicInt32Value(delta)
+        let old = kkrt_atomic_i32_fetch_add(cell, delta32)
+        return Int(old &+ delta32)
     }
 }
 
@@ -627,79 +589,63 @@ public func __kk_atomic_int_array_addAndFetch(_ receiver: Int, _ index: Int, _ d
 
 /// Backing storage for kotlin.concurrent.atomics.AtomicLongArray.
 final class AtomicLongArrayBox {
-    private var storage: [Int]
-    private let lock = NSLock()
+    private let storage: UnsafeMutableBufferPointer<Int>
 
     init(size: Int) {
-        self.storage = Array(repeating: 0, count: max(0, size))
+        storage = .allocate(capacity: max(0, size))
+        storage.initialize(repeating: 0)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func size() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage.count
+        storage.count
+    }
+
+    private func cell(at index: Int) -> UnsafeMutablePointer<Int>? {
+        guard index >= 0, index < storage.count else { return nil }
+        return storage.baseAddress?.advanced(by: index)
     }
 
     func load(at index: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        return storage[index]
+        guard let cell = cell(at: index) else { return 0 }
+        return kkrt_atomic_word_load(cell)
     }
 
     func store(at index: Int, value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return }
-        storage[index] = value
+        guard let cell = cell(at: index) else { return }
+        kkrt_atomic_word_store(cell, value)
     }
 
     func exchange(at index: Int, newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = newValue
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        return kkrt_atomic_word_exchange(cell, newValue)
     }
 
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return false }
-        if storage[index] == expect {
-            storage[index] = update
-            return true
-        }
-        return false
+        guard let cell = cell(at: index) else { return false }
+        var exchanged = false
+        kkrt_atomic_word_compare_exchange(cell, expect, update, &exchanged)
+        return exchanged
     }
 
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        if old == expect {
-            storage[index] = update
-        }
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        var exchanged = false
+        return kkrt_atomic_word_compare_exchange(cell, expect, update, &exchanged)
     }
 
     func fetchAndAdd(at index: Int, delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = old &+ delta
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        return kkrt_atomic_word_fetch_add(cell, delta)
     }
 
     func addAndFetch(at index: Int, delta: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        storage[index] = storage[index] &+ delta
-        return storage[index]
+        guard let cell = cell(at: index) else { return 0 }
+        let old = kkrt_atomic_word_fetch_add(cell, delta)
+        return old &+ delta
     }
 }
 
@@ -775,73 +721,73 @@ public func __kk_atomic_long_array_addAndFetch(_ receiver: Int, _ index: Int, _ 
 /// CAS uses identity semantics: two values compare equal iff their raw Int
 /// representation is identical (i.e. pointer identity, not structural equality).
 final class AtomicRefArrayBox {
-    private var storage: [Int]
-    private let lock = NSLock()
+    private let storage: UnsafeMutableBufferPointer<Int>
 
     init(size: Int) {
-        self.storage = Array(repeating: 0, count: max(0, size))
+        storage = .allocate(capacity: max(0, size))
+        // A fresh slot is Kotlin null. Using a raw zero here is decoded as
+        // the value zero when T is a nullable primitive (KUU-933).
+        storage.initialize(repeating: runtimeNullSentinelInt)
+    }
+
+    deinit {
+        storage.deallocate()
     }
 
     func size() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storage.count
+        storage.count
+    }
+
+    private func cell(at index: Int) -> UnsafeMutablePointer<Int>? {
+        guard index >= 0, index < storage.count else { return nil }
+        return storage.baseAddress?.advanced(by: index)
     }
 
     func load(at index: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        return storage[index]
+        guard let cell = cell(at: index) else { return 0 }
+        return kkrt_atomic_word_load(cell)
     }
 
     func store(at index: Int, value: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return }
-        storage[index] = value
+        guard let cell = cell(at: index) else { return }
+        kkrt_atomic_word_store(cell, value)
     }
 
     func exchange(at index: Int, newValue: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        storage[index] = newValue
-        return old
+        guard let cell = cell(at: index) else { return 0 }
+        return kkrt_atomic_word_exchange(cell, newValue)
     }
 
-    /// Identity-based CAS, with string boxes compared structurally because aggregate
-    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
+    /// Identity-based CAS with decoded-payload matching for primitive boxes.
+    /// String bridges preserve canonical handles, so distinct strings never match.
+    /// The CAS loop retries on the newly observed value so the swap still happens
+    /// iff the cell held a matching value at the successful compare-exchange.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return false }
-        if runtimeAtomicRefValuesMatch(storage[index], expect) {
-            storage[index] = update
-            return true
+        guard let cell = cell(at: index) else { return false }
+        var observed = kkrt_atomic_word_load(cell)
+        while runtimeAtomicRefValuesMatch(observed, expect) {
+            var exchanged = false
+            observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
+            if exchanged { return true }
         }
         return false
     }
 
     /// Identity-based compareAndExchange: returns the previous value regardless of success.
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        guard storage.indices.contains(index) else { return 0 }
-        let old = storage[index]
-        if runtimeAtomicRefValuesMatch(old, expect) {
-            storage[index] = update
+        guard let cell = cell(at: index) else { return 0 }
+        var observed = kkrt_atomic_word_load(cell)
+        while runtimeAtomicRefValuesMatch(observed, expect) {
+            var exchanged = false
+            observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
+            if exchanged { break }
         }
-        return old
+        return observed
     }
 }
 
 private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
-    guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    return tryCast(ptr, to: AtomicRefArrayBox.self)
+    resolveRuntimeHandle(raw, as: AtomicRefArrayBox.self)
 }
 
 private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
@@ -852,19 +798,123 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
     return Int(bitPattern: ptr)
 }
 
+/// Comparable form of one atomic-cell word. Words for the same logical value
+/// arrive through different marshal paths at the erased-T boundary — a bare
+/// primitive payload, a fresh primitive box (possibly under a tagged static
+/// handle) — so CAS for primitive values compares the decoded payload while
+/// strings and other object references keep word identity.
+private enum AtomicRefWordValue {
+    /// Unregistered word: a bare primitive payload or sentinel stored raw.
+    case raw(Int)
+    /// Registered handle that is not a value box: identity semantics.
+    case object
+    case bool(Bool)
+    case char(Int)
+    case int(value: Int, enumClassID: Int64?)
+    case long(Int)
+    case ulong(Int)
+    case floatBits(UInt32)
+    case doubleBits(UInt64)
+    case unit
+
+    /// The payload a bare primitive word would carry for this cell's element
+    /// type, when this word is a primitive/unit box. References and strings
+    /// return nil: a raw pointer can never decode to them without a registry
+    /// hit, which `.raw` already excluded.
+    var primitivePayload: Int? {
+        switch self {
+        case .bool(let value):
+            return value ? 1 : 0
+        case .char(let value), .int(let value, _), .long(let value), .ulong(let value):
+            return value
+        case .floatBits(let bits):
+            return Int(bitPattern: UInt(bits))
+        case .doubleBits(let bits):
+            return Int(bitPattern: UInt(bits))
+        case .unit:
+            return 0
+        case .raw, .object:
+            return nil
+        }
+    }
+}
+
+private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
+    let isObject = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: word))
+    }
+    guard isObject, let ptr = UnsafeMutableRawPointer(bitPattern: word) else {
+        return .raw(word)
+    }
+    let base = runtimePrimitiveBoxBasePointer(from: word) ?? ptr
+    let object = Unmanaged<AnyObject>.fromOpaque(base).takeUnretainedValue()
+    switch object {
+    case let box as RuntimeIntBox:
+        return .int(value: box.value, enumClassID: box.enumClassID)
+    case let box as RuntimeBoolBox:
+        return .bool(box.value)
+    case let box as RuntimeLongBox:
+        return .long(box.value)
+    case let box as RuntimeULongBox:
+        return .ulong(box.value)
+    case let box as RuntimeFloatBox:
+        return .floatBits(box.value.bitPattern)
+    case let box as RuntimeDoubleBox:
+        return .doubleBits(box.value.bitPattern)
+    case let box as RuntimeCharBox:
+        return .char(box.value)
+    case is RuntimeUnitBox:
+        return .unit
+    default:
+        return .object
+    }
+}
+
+/// 0 and the raw sentinel are both null representations at this ABI edge.
+private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
+    word == 0 || word == runtimeNullSentinelInt
+}
+
+/// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
+/// words match (object identity and equal raw payloads), boxes of the same
+/// primitive kind match by payload, and a bare stored word matches a box
+/// carrying the same payload. Distinct string and other object handles never
+/// match; flat String bridges preserve their canonical box identity.
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
     }
-    guard
-        let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
-        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs),
-        let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
-        let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
-    else {
-        return false
+    let left = runtimeAtomicRefWordValue(lhs)
+    let right = runtimeAtomicRefWordValue(rhs)
+    switch (left, right) {
+    case let (.bool(l), .bool(r)):
+        return l == r
+    case let (.char(l), .char(r)),
+         let (.long(l), .long(r)),
+         let (.ulong(l), .ulong(r)):
+        return l == r
+    case let (.floatBits(l), .floatBits(r)):
+        return l == r
+    case let (.doubleBits(l), .doubleBits(r)):
+        return l == r
+    case let (.int(lv, lenum), .int(rv, renum)):
+        return lv == rv && lenum == renum
+    case (.unit, .unit):
+        return true
+    case let (.raw(l), .raw(r)):
+        // Distinct bare words differ as payloads; the two null spellings
+        // still denote the same null.
+        return runtimeAtomicRefIsNullWord(l) && runtimeAtomicRefIsNullWord(r)
+    default:
+        break
     }
-    return runtimeStringsEqual(lhsString.value, rhsString.value)
+    if case .raw(let raw) = left, let payload = right.primitivePayload {
+        return raw == payload
+    }
+    if case .raw(let raw) = right, let payload = left.primitivePayload {
+        return raw == payload
+    }
+    return false
 }
 
 @_cdecl("kk_atomic_ref_array_new")

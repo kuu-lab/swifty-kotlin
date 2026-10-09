@@ -26,6 +26,7 @@ extension BuildASTPhase {
         var angleDepth = 0
         var pendingVariance: TypeVariance = .invariant
         var pendingReified = false
+        var pendingAnnotations: [AnnotationNode] = []
         var tokenIndex = 0
 
         while tokenIndex < tokens.count {
@@ -48,6 +49,7 @@ extension BuildASTPhase {
                    allowUseSiteTarget: false
                )
             {
+                pendingAnnotations.append(annotation.annotation)
                 tokenIndex = annotation.nextIndex
                 continue
             }
@@ -66,10 +68,11 @@ extension BuildASTPhase {
                                                    interner: interner, astArena: astArena)
             result.append(TypeParamDecl(
                 name: name, variance: pendingVariance, isReified: pendingReified,
-                upperBounds: upperBound.map { [$0] } ?? []
+                upperBounds: upperBound.map { [$0] } ?? [], annotations: pendingAnnotations
             ))
             pendingVariance = .invariant
             pendingReified = false
+            pendingAnnotations = []
         }
         return result
     }
@@ -235,7 +238,8 @@ extension BuildASTPhase {
                 name: param.name,
                 variance: param.variance,
                 isReified: param.isReified,
-                upperBounds: mergedBounds
+                upperBounds: mergedBounds,
+                annotations: param.annotations
             )
         }
     }

@@ -1,19 +1,8 @@
 import Foundation
+import RuntimeABI
 
 func runtimeThrowableBox(from raw: Int) -> RuntimeThrowableBox? {
-    guard raw != runtimeNullSentinelInt,
-          raw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
-    else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeThrowableBox.self)
+    resolveRuntimeHandle(raw, as: RuntimeThrowableBox.self)
 }
 
 private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
@@ -22,11 +11,24 @@ private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMut
 private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
     __kk_throwable_rawStackFrames
 
-// Keep these slots aligned with the bundled Throwable layout. The native
-// getStackTraceAddresses extension occupies slot 2, so toString is slot 1.
+private let runtimeThrowableMessageVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_message(raw)
+}
+
+private let runtimeThrowableCauseVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return __kk_throwable_cause(raw)
+}
+
+// Keep these slots aligned with the bundled Throwable layout: methods are
+// numbered first (getStackTrace, toString), then the open property getters
+// (message, cause).
 enum RuntimeThrowableVtableSlot {
     static let getStackTrace = 0
     static let toString = 1
+    static let message = 2
+    static let cause = 3
 }
 
 func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
@@ -48,9 +50,34 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
         return unsafeBitCast(runtimeThrowableStackTraceVtableMethod, to: Int.self)
     case RuntimeThrowableVtableSlot.toString:
         return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.message:
+        return unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.cause:
+        return unsafeBitCast(runtimeThrowableCauseVtableMethod, to: Int.self)
     default:
         return nil
     }
+}
+
+/// `message` of a Kotlin-defined Throwable subclass, read through its vtable
+/// slot so an `override val message` is honoured; falls back to the stored
+/// constructor message when there is no override or the getter throws.
+func runtimeSourceThrowableMessage(_ raw: Int, object: RuntimeObjectBox) -> String? {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(raw, slot: RuntimeThrowableVtableSlot.message),
+          methodRaw != unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
+    else {
+        return object.throwableMessage
+    }
+    let method = unsafeBitCast(methodRaw, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    let messageRaw = method(raw, &thrown)
+    if thrown != 0 {
+        return object.throwableMessage
+    }
+    if messageRaw == runtimeNullSentinelInt || messageRaw == 0 {
+        return nil
+    }
+    return extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
 }
 
 func runtimeThrowableToString(_ receiver: Int) -> String? {
@@ -108,39 +135,24 @@ private let runtimeSourceThrowableNames = [
     ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
     ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
     ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("java.lang.StringIndexOutOfBoundsException", "StringIndexOutOfBoundsException"),
     ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
     ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
     ("kotlin.NotImplementedError", "NotImplementedError"),
     ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+    ("java.nio.charset.MalformedInputException", "MalformedInputException"),
+    ("java.nio.charset.CharacterCodingException", "CharacterCodingException"),
     ("kotlin.io.FileSystemException", "FileSystemException"),
     ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
     ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
     ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
 ]
 
-private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
-    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
-        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
-    })
-}()
-
 private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
     Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
         (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
     })
 }()
-
-private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
-    // Nominal type tokens use the same payload as classID, with the nominal
-    // base and nullability bit encoded around it. KClass metadata therefore
-    // provides the source name for user-defined throwable classes as well.
-    let payloadMask: UInt64 = (1 << 55) - 1
-    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
-    let typeToken = Int(truncatingIfNeeded: tokenBits)
-    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
-        ?? runtimeSourceThrowableSimpleNames[classID]
-        ?? "Throwable"
-}
 
 func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
     // Nominal type tokens use the same payload as classID, with the nominal
@@ -179,18 +191,11 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
-    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
-    guard let message = object.throwableMessage else {
-        return typeName
-    }
-    return "\(typeName): \(message)"
-}
-
-/// Raw stack-frame strings for a single throwable. The runtime only provides
-/// the class-specific header line here; Kotlin-side formatting walks cause and
-/// suppressed chains and adds prefixes (KSP-655).
-private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
+/// Header and saved native frames for a single throwable. Kotlin-side
+/// formatting walks cause and suppressed chains and adds their prefixes.
+/// Also used by the uncaught coroutine-exception reporter
+/// (`runtimeHandleUncaughtCoroutineException` in RuntimeCoroutine.swift).
+func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
     }
@@ -198,10 +203,12 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
         return []
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        return [throwable.renderedMessage]
+        let header = runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+        return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        return [runtimeSourceThrowableHeader(from: object)]
+        let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+        return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
     return []
 }
@@ -338,7 +345,7 @@ public func __kk_throwable_rawStackFrames(
         runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
     }
     for (i, frame) in frameStrings.enumerated() {
-        arrayBox.elements[i] = registerRuntimeObject(RuntimeStringBox(frame))
+        arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
     }
     return arrayRaw
 }
@@ -362,8 +369,8 @@ public func __kk_throwable_toString(
             return tryCast(ptr, to: RuntimeObjectBox.self)
         }
         if let object {
-            typeName = runtimeSourceThrowableQualifiedName(for: object.classID)
-            message = object.throwableMessage
+            typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
+            message = runtimeSourceThrowableMessage(throwableRaw, object: object)
         } else {
             typeName = "kotlin.Throwable"
             message = nil
@@ -378,19 +385,19 @@ public func __kk_throwable_toString(
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(message, terminator: "")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "")
 }
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
-    Swift.print(message, terminator: "\n")
+    Swift.print(KotlinStringSurrogateEncoding.printableString(message), terminator: "\n")
 }
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
-    FileHandle.standardError.write(Data(message.utf8))
+    FileHandle.standardError.write(Data(KotlinStringSurrogateEncoding.printableString(message).utf8))
     return 0
 }
 
@@ -467,7 +474,7 @@ public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
 
     let arrayBox = RuntimeArrayBox(length: suppressed.count)
     for (i, elem) in suppressed.enumerated() {
-        arrayBox.elements[i] = elem
+        arrayBox[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -493,7 +500,7 @@ func runtimeStructuredPanic(_ message: @autoclosure () -> String) -> Never {
     fatalError(runtimeStructuredPanicMessage(message()))
 }
 
-private enum RuntimeTypeTokenEncoding {
+enum RuntimeTypeTokenEncoding {
     static let baseMask: Int64 = 0xFF
     static let nullableBit: Int64 = 0x100
     static let payloadShift: Int64 = 9
@@ -517,17 +524,33 @@ private enum RuntimeTypeTokenEncoding {
     static let charBase: Int64 = 14
     // STDLIB-REFLECT-ABI-001: Unit::class token base.
     static let unitBase: Int64 = 15
+    // KUU-1084: Function-type token base. Payload packs the FunctionN arity
+    // in bits 0-7 and the suspend flag in bit 8.
+    static let functionBase: Int64 = 18
+
+    /// Decodes a function-type token payload into its parts.
+    static func functionPayloadParts(_ payload: Int64) -> (arity: Int, isSuspend: Bool) {
+        (Int(payload & 0xFF), (payload & 0x100) != 0)
+    }
 }
 
 func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
-private final class RuntimeFlatStringStorage: @unchecked Sendable {
+final class RuntimeFlatStringStorage: @unchecked Sendable {
     let data: UnsafeMutablePointer<UInt8>
     let length: Int
     let byteCount: Int
     let hash: Int
+    /// Canonical boxed handle for this buffer, materialized on the first
+    /// flat→raw bridge so repeated conversions share one registered box.
+    /// Only mutated under the flat-string registry lock.
+    weak var canonicalBox: RuntimeStringBox?
+    /// Kotlin UTF-16 code units decoded on first positional access; the flat
+    /// bytes never change, so the cache stays valid for the storage's lifetime.
+    private var cachedUTF16CodeUnits: [UInt16]?
+    private let utf16CodeUnitsLock = NSLock()
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
@@ -544,23 +567,135 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         }
     }
 
+    var utf16CodeUnits: [UInt16] {
+        utf16CodeUnitsLock.lock()
+        defer { utf16CodeUnitsLock.unlock() }
+        if let cachedUTF16CodeUnits {
+            return cachedUTF16CodeUnits
+        }
+        let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+        let units = runtimeKotlinStringUTF16CodeUnits(String(decoding: buffer, as: UTF8.self))
+        cachedUTF16CodeUnits = units
+        return units
+    }
+
     deinit {
         data.deallocate()
     }
 }
 
+private struct RuntimeWeakStringBox {
+    weak var box: RuntimeStringBox?
+}
+
 private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    private var storage: [RuntimeFlatStringStorage] = []
+    /// Owning registry of runtime-produced flat String buffers. Entries
+    /// retain their storage until `unregister` (the `kk_flat_string_release`
+    /// path) drops them and the buffer is freed.
+    private var storageByDataPointer: [UInt: RuntimeFlatStringStorage] = [:]
+    /// Canonical boxes deduplicating `kk_string_from_flat` on buffers the
+    /// registry does not own (string literals and other foreign pointers).
+    private var foreignBoxByDataPointer: [UInt: RuntimeWeakStringBox] = [:]
 
-    func append(_ entry: RuntimeFlatStringStorage) {
+    func register(_ storage: RuntimeFlatStringStorage, canonicalBox: RuntimeStringBox?) {
         lock.lock()
-        storage.append(entry)
+        if let canonicalBox, storage.canonicalBox == nil {
+            storage.canonicalBox = canonicalBox
+        }
+        storageByDataPointer[UInt(bitPattern: storage.data)] = storage
         lock.unlock()
+    }
+
+    /// Storage whose `data` pointer is `data`, when the flat string was
+    /// produced by this runtime and has not been released. The pointer key
+    /// stays unique among registered entries: released storages free their
+    /// buffer and are dropped from the map.
+    func storage(for data: UnsafePointer<UInt8>?) -> RuntimeFlatStringStorage? {
+        guard let data else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer[UInt(bitPattern: data)]
+    }
+
+    /// Drops the storage registered for `data` so its buffer is freed.
+    /// Returns false for foreign or already-released pointers.
+    @discardableResult
+    func unregister(data: UnsafePointer<UInt8>) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.removeValue(forKey: UInt(bitPattern: data)) != nil
+    }
+
+    /// Boxed handle that canonically represents `data`. Materializes and
+    /// registers a `RuntimeStringBox` on first use so repeated flat→raw
+    /// bridges of the same buffer share a single box instead of accumulating
+    /// one registered box per call.
+    func canonicalBoxRaw(
+        for data: UnsafePointer<UInt8>,
+        length: Int,
+        byteCount: Int,
+        hash: Int
+    ) -> Int {
+        let key = UInt(bitPattern: data)
+        lock.lock()
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            lock.unlock()
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        lock.unlock()
+
+        let string = runtimeStringFromFlatFields(
+            data: data,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
+
+        lock.lock()
+        defer { lock.unlock() }
+        if let box = storageByDataPointer[key]?.canonicalBox {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        // A foreign buffer (literal or transient caller buffer) may reuse its
+        // address for different contents, so a dedup hit is only valid when
+        // the decoded bytes still match the cached box.
+        if let box = foreignBoxByDataPointer[key]?.box, box.value == string {
+            return Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
+        }
+        let box = RuntimeStringBox(string)
+        let raw = registerRuntimeObject(box)
+        if let storage = storageByDataPointer[key] {
+            storage.canonicalBox = box
+        } else {
+            foreignBoxByDataPointer[key] = RuntimeWeakStringBox(box: box)
+        }
+        return raw
+    }
+
+    /// Number of storages retained by the registry; test support only.
+    var liveStorageCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storageByDataPointer.count
     }
 }
 
 private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+/// Lazily cached UTF-16 code units of a runtime-produced flat string, keyed by
+/// its flat `data` pointer. Returns nil when the pointer did not come from
+/// `runtimeRegisterFlatString` (string literals and other foreign buffers).
+func runtimeFlatStringRegisteredUTF16CodeUnits(
+    data: UnsafePointer<UInt8>?
+) -> [UInt16]? {
+    runtimeFlatStringStorageRegistry.storage(for: data)?.utf16CodeUnits
+}
+
+/// Live storages tracked by the flat-string index; test support only.
+func runtimeFlatStringLiveStorageCountForTesting() -> Int {
+    runtimeFlatStringStorageRegistry.liveStorageCount
+}
 
 func runtimeStringFromFlatFields(
     data: UnsafePointer<UInt8>?,
@@ -576,6 +711,17 @@ func runtimeStringFromFlatFields(
     return String(decoding: buffer, as: UTF8.self)
 }
 
+/// Publishes `storage` in the flat-string registry, which retains it until
+/// `kk_flat_string_release` unregisters and frees the buffer. `canonicalBox`
+/// (when already known, e.g. a `RuntimeStringBox` flattening itself) becomes
+/// the handle `kk_string_from_flat` resolves for this buffer.
+func runtimeRegisterFlatStringStorage(
+    _ storage: RuntimeFlatStringStorage,
+    canonicalBox: RuntimeStringBox? = nil
+) {
+    runtimeFlatStringStorageRegistry.register(storage, canonicalBox: canonicalBox)
+}
+
 func runtimeRegisterFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -583,12 +729,11 @@ func runtimeRegisterFlatString(
     outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let storage = RuntimeFlatStringStorage(value)
+    runtimeRegisterFlatStringStorage(storage)
     outLength?.pointee = storage.length
     outByteCount?.pointee = storage.byteCount
     outHash?.pointee = storage.hash
-    let data = storage.data
-    runtimeFlatStringStorageRegistry.append(storage)
-    return data
+    return storage.data
 }
 
 @_cdecl("kk_string_from_flat")
@@ -598,16 +743,17 @@ public func kk_string_from_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    guard data != nil else {
+    guard let data else {
         return 0
     }
-    let string = runtimeStringFromFlatFields(
-        data: data,
+    // Identity is preserved when `kk_string_to_flat` registered the source
+    // box as the buffer's canonicalBox (generic AtomicReference<T> ABI).
+    return runtimeFlatStringStorageRegistry.canonicalBoxRaw(
+        for: data,
         length: length,
         byteCount: byteCount,
         hash: hash
     )
-    return registerRuntimeObject(RuntimeStringBox(string))
 }
 
 @_cdecl("kk_string_to_flat")
@@ -619,26 +765,40 @@ public func kk_string_to_flat(
 ) -> UnsafeMutablePointer<UInt8>? {
     guard raw != runtimeNullSentinelInt,
           raw != 0,
-          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
+          let box = extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
     else {
         outLength?.pointee = 0
         outByteCount?.pointee = 0
         outHash?.pointee = 0
         return nil
     }
-    return runtimeRegisterFlatString(
-        string,
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
+    let storage = box.flatStringStorage()
+    outLength?.pointee = storage.length
+    outByteCount?.pointee = storage.byteCount
+    outHash?.pointee = storage.hash
+    return storage.data
+}
+
+/// Releases the retained buffer behind a runtime-produced flat `String`
+/// aggregate: the registry drops the storage and its backing allocation is
+/// freed. The `data` pointer — and every aggregate still carrying it — must
+/// not be used after a successful call.
+///
+/// Returns `1` when a registered storage was dropped, and `0` when `data` is
+/// nil, a string literal or other foreign buffer, or an already-released
+/// buffer, making the call idempotent for stale pointers.
+public func kk_flat_string_release(_ data: UnsafePointer<UInt8>?) -> Int {
+    guard let data else {
+        return 0
+    }
+    return runtimeFlatStringStorageRegistry.unregister(data: data) ? 1 : 0
 }
 
 @_cdecl("kk_string_from_utf8")
 public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> UnsafeMutableRawPointer {
     let count = max(0, Int(len))
     let buffer = UnsafeBufferPointer(start: ptr, count: count)
-    let string = String(decoding: buffer, as: UTF8.self)
+    let string = KotlinStringSurrogateEncoding.encode(String(decoding: buffer, as: UTF8.self))
     let box = RuntimeStringBox(string)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -665,13 +825,24 @@ public func __kk_string_concat_flat(
     _ outByteCount: UnsafeMutablePointer<Int>?,
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    let lhs = runtimeStringFromFlatFields(
+    // BUG-B: a nil data pointer is the flat ABI's unambiguous signal for an
+    // actually-null String -- a genuinely empty string ("") always has a
+    // non-nil (zero-length) buffer, both for literals (LLVM never returns a
+    // null pointer for a global string constant) and at runtime
+    // (`RuntimeFlatStringStorage.init` always allocates at least 1 byte).
+    // String templates and the `+`/`String?.plus` operators must render a
+    // null operand as the text "null", matching every other Kotlin
+    // reference type -- silently treating it as "" (as
+    // `runtimeStringFromFlatFields` does for every *other* caller that
+    // really does mean "absent data") hid an uninitialized-field bug behind
+    // output that merely looked wrong instead of null.
+    let lhs = lhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: lhsData,
         length: lhsLength,
         byteCount: lhsByteCount,
         hash: lhsHash
     )
-    let rhs = runtimeStringFromFlatFields(
+    let rhs = rhsData == nil ? "null" : runtimeStringFromFlatFields(
         data: rhsData,
         length: rhsLength,
         byteCount: rhsByteCount,
@@ -738,6 +909,131 @@ let runtimeStringNominalTypeID: Int64 = {
     return stringTypeID
 }()
 
+/// Stable nominal type IDs for boxed primitive Kotlin types (pure hashes of
+/// their fqNames, safe to cache once). Their `kotlin.Number`/
+/// `kotlin.Comparable` supertype edges are registered separately by
+/// `registerEdgesOnce()` below -- see that method's doc comment for why this
+/// can't reuse `runtimeStringNominalTypeID`'s "register inside a `static
+/// let` closure" pattern.
+private struct RuntimePrimitiveNominalTypeIDs {
+    let byte, short, int, long, float, double: Int64
+    let uint, ulong, ubyte, ushort, char, boolean: Int64
+
+    static let shared = RuntimePrimitiveNominalTypeIDs(
+        byte: runtimeStableNominalTypeID(fqName: "kotlin.Byte"),
+        short: runtimeStableNominalTypeID(fqName: "kotlin.Short"),
+        int: runtimeStableNominalTypeID(fqName: "kotlin.Int"),
+        long: runtimeStableNominalTypeID(fqName: "kotlin.Long"),
+        float: runtimeStableNominalTypeID(fqName: "kotlin.Float"),
+        double: runtimeStableNominalTypeID(fqName: "kotlin.Double"),
+        uint: runtimeStableNominalTypeID(fqName: "kotlin.UInt"),
+        ulong: runtimeStableNominalTypeID(fqName: "kotlin.ULong"),
+        ubyte: runtimeStableNominalTypeID(fqName: "kotlin.UByte"),
+        ushort: runtimeStableNominalTypeID(fqName: "kotlin.UShort"),
+        char: runtimeStableNominalTypeID(fqName: "kotlin.Char"),
+        boolean: runtimeStableNominalTypeID(fqName: "kotlin.Boolean")
+    )
+
+    /// Registers every ID above against `kotlin.Number`/`kotlin.Comparable`
+    /// (Kotlin's unsigned types and Char/Boolean implement Comparable but
+    /// are not Number subtypes), exactly once -- mirroring
+    /// `registerReflectionRuntimeTypeMetadata`'s `reflectionTypeEdgesRegistered`
+    /// flag (RuntimeReflectionTypeMetadata.swift), including its
+    /// resettability: `kk_runtime_reset_metadata` clears
+    /// `primitiveTypeEdgesRegistered` alongside `typeParents`, so a metadata
+    /// reset (e.g. RuntimeTests' per-test isolation) re-registers on the next
+    /// call instead of leaving these edges permanently missing after the
+    /// one-time `static let` closure that installed them has already run.
+    /// Cheap on the hot path: one lock acquisition and a flag read once the
+    /// edges are installed (the caller's own `runtimeIsAssignable` takes a
+    /// second, separate acquisition for its BFS).
+    func registerEdgesOnce() {
+        runtimeStorage.withMetadataLock { state in
+            if state.primitiveTypeEdgesRegistered {
+                return
+            }
+            let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+            let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+            for id in [byte, short, int, long, float, double] {
+                state.typeParents[id, default: []].insert(number)
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            for id in [uint, ulong, ubyte, ushort, char, boolean] {
+                state.typeParents[id, default: []].insert(comparable)
+            }
+            state.primitiveTypeEdgesRegistered = true
+        }
+    }
+}
+
+/// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
+/// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
+/// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
+/// nominal identity is its enum class, not `kotlin.Int`.
+///
+/// `RuntimeIntBox` also backs Byte/Short and the small unsigned types;
+/// `primitiveTypeBase` preserves their distinct Kotlin identities.
+///
+/// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
+/// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
+/// != nil`). This function does not re-check that itself, so a value class
+/// boxed through the same primitive box types would otherwise be misreported
+/// as its underlying primitive's Number/Comparable identity instead of its
+/// own nominal one. Kept `private` so that precondition can't be violated
+/// from another call site.
+private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) -> Int64? {
+    // `tryCast` force-unwraps `ptr` as a live Swift object via
+    // `Unmanaged.fromOpaque`; only call it once the GC registry confirms
+    // this is actually a tracked allocation, matching every other cast site
+    // in this function's callers (e.g. the throwable check below).
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    let ids = RuntimePrimitiveNominalTypeIDs.shared
+    // Registration only runs once a box actually matches below, so an `is`
+    // check on an untagged non-primitive object (a throwable, list, map, ...)
+    // never pays for it.
+    if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
+        ids.registerEdgesOnce()
+        switch intBox.primitiveTypeBase {
+        case RuntimeTypeTokenEncoding.byteBase: return ids.byte
+        case RuntimeTypeTokenEncoding.shortBase: return ids.short
+        case RuntimeTypeTokenEncoding.uintBase: return ids.uint
+        case RuntimeTypeTokenEncoding.ubyteBase: return ids.ubyte
+        case RuntimeTypeTokenEncoding.ushortBase: return ids.ushort
+        default: return ids.int
+        }
+    }
+    if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.long
+    }
+    if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.ulong
+    }
+    if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.float
+    }
+    if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.double
+    }
+    if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.char
+    }
+    if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+        ids.registerEdgesOnce()
+        return ids.boolean
+    }
+    return nil
+}
+
 /// True when `ptr` is a live runtime object pointer holding a `RuntimeStringBox`.
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
     let isObjectPointer = runtimeStorage.withGCLock { state in
@@ -790,10 +1086,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
-        // representation (through distinct boxing entry points that preserve
-        // hashCode metadata), so they remain indistinguishable from each other
-        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }
@@ -809,7 +1101,44 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeObjectTypeID(rawValue: value) != nil {
             return 0
         }
-        return tryCast(ptr, to: RuntimeIntBox.self) == nil ? 0 : 1
+        guard let box = tryCast(ptr, to: RuntimeIntBox.self), box.enumClassID == nil else {
+            return 0
+        }
+        return box.primitiveTypeBase == base ? 1 : 0
+
+    case RuntimeTypeTokenEncoding.functionBase:
+        // KUU-1084: function-type tokens encode the FunctionN arity in the
+        // low payload byte; a value matches when it is a function value of
+        // the same arity (the suspend bit does not change `is` semantics).
+        let (arity, _) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let rawArity = runtimeStorage.withDelegateLock { state -> Int? in
+            if let registeredArity = state.functionArityByPointer[value] {
+                return registeredArity
+            }
+            if let metadata = state.callableRefMetadataByValue[value], metadata.kind == .function {
+                return metadata.arity
+            }
+            return nil
+        }
+        if let rawArity {
+            return rawArity == arity ? 1 : 0
+        }
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: value),
+              runtimeStorage.withGCLock({ state in
+                  state.objectPointers.contains(UInt(bitPattern: ptr))
+              })
+        else {
+            return 0
+        }
+        if let fnBox = tryCast(ptr, to: RuntimeFunctionValueBox.self) {
+            return fnBox.arity == arity ? 1 : 0
+        }
+        // Callable references (`::foo`) also satisfy function-type checks at
+        // their declared arity.
+        if let kfnBox = tryCast(ptr, to: RuntimeKFunctionBox.self) {
+            return kfnBox.arity == arity ? 1 : 0
+        }
+        return 0
 
     case RuntimeTypeTokenEncoding.longBase:
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
@@ -897,7 +1226,22 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
+        // Raw callable references and adapted closure boxes retain reflection
+        // identity in callable metadata rather than an object allocation tag.
+        let isFunctionReference = runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[value]?.kind == .function
+        }
+        if isFunctionReference {
+            registerReflectionRuntimeTypeMetadata()
+            if runtimeIsAssignable(sourceTypeID: kFunctionRuntimeTypeID, targetTypeID: payload) {
+                return 1
+            }
+        }
+        if runtimeArrayHasType(rawValue: value, typeID: payload) {
+            return 1
+        }
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
+            registerSortedCollectionTypeEdgesOnce()
             return runtimeIsAssignable(sourceTypeID: sourceTypeID, targetTypeID: payload) ? 1 : 0
         }
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
@@ -914,6 +1258,70 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeIsStringBoxPointer(ptr) {
             return runtimeIsAssignable(
                 sourceTypeID: runtimeStringNominalTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // A Double/Float/Long/Int/... held in an Any slot boxes through the
+        // same primitive box types as `is Int`/`is Double` above, but (like
+        // String) carries no object type ID, so it needs the same recovery
+        // to answer an interface check (`is Number`, `is Comparable<*>`).
+        if let primitiveTypeID = runtimePrimitiveBoxNominalTypeID(ptr) {
+            return runtimeIsAssignable(
+                sourceTypeID: primitiveTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // Range handles carry no object type ID either: they are allocated by
+        // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
+        // Recover the nominal identity from the range kind, mirroring the
+        // primitive-box recovery above.
+        if let rangeBox = runtimeRangeBox(from: value) {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeRangeBoxNominalTypeID(rangeBox.kind),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        let isFloatingRangeBox = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeDoubleRangeBox.self) != nil
+                    || tryCast(ptr, to: RuntimeFloatRangeBox.self) != nil
+                : false
+        }
+        if isFloatingRangeBox {
+            registerRangeTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.ranges.ClosedFloatingPointRange"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // Range iterator handles (`(1..5).iterator()`) are likewise registered
+        // without object type metadata. They are typed `kotlin.collections.Iterator`
+        // only: the element-specialized XIterator classes can't be honored
+        // because `nextInt()`/`nextChar()` member calls on an XIterator receiver
+        // lower to vtable/itable dispatch that an unregistered box cannot
+        // answer, so claiming them here would turn `is IntIterator` into a
+        // reachable dispatch trap. `kotlin.collections.Iterator` answers the
+        // interface checks (`is Iterator`, `as Iterator`) like kotlinc while
+        // `is IntIterator`/`is MutableIterator` stay false.
+        if runtimeRangeIteratorBox(from: value) != nil {
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeStableNominalTypeID(
+                    fqName: "kotlin.collections.Iterator"
+                ),
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // KUU-1386: coroutine job-family handles (launch/async tasks, Job()/
+        // SupervisorJob() handles, ChildHandle boxes) are raw runtime objects
+        // with no object type ID — recover the kotlinx nominal they answer
+        // `is`/`as`/`as?` as (AbstractCoroutine/DeferredCoroutine/JobImpl/...).
+        if let jobFamilyTypeID = runtimeJobFamilyNominalTypeID(rawValue: value) {
+            registerJobFamilyTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: jobFamilyTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }
@@ -941,6 +1349,15 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     default:
         return 0
     }
+}
+
+@_cdecl("kk_array_tag_type")
+public func kk_array_tag_type(_ arrayRaw: Int, _ typeID: Int) -> Int {
+    guard runtimeArrayBox(from: arrayRaw) != nil else {
+        return arrayRaw
+    }
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: Int64(typeID))
+    return arrayRaw
 }
 
 @_cdecl("kk_op_cast")
@@ -985,28 +1402,31 @@ public func kk_op_safe_cast(_ value: Int, _ typeToken: Int) -> Int {
 public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     // Range check first
     if let range = runtimeRangeBox(from: container) {
-        if range.step > 0 {
-            guard element >= range.first, element <= range.last else { return 0 }
-            return (element - range.first) % range.step == 0 ? 1 : 0
-        } else if range.step < 0 {
-            guard element <= range.first, element >= range.last else { return 0 }
-            return (range.first - element) % (-range.step) == 0 ? 1 : 0
-        }
-        return 0
+        return runtimeRangeContains(range, element)
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return list.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
         return set.contains(rawValue: element) ? 1 : 0
     }
-    // Array check
-    guard let array = runtimeArrayBox(from: container) else {
-        return 0
+    // Array check — `RuntimeObjectBox` subclasses `RuntimeArrayBox`, so plain
+    // `runtimeArrayBox` would also match class instances (whose storage holds
+    // fields, not elements) and wrongly answer `false` for `x in obj`.
+    if let array = runtimeArrayBoxExcludingObjects(from: container) {
+        return array.values.contains(where: { runtimeValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
-    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+    // Source-defined collections (e.g. `class C : List<Int> by delegate`)
+    // are not native boxes; dispatch through the object's Collection itable.
+    return runtimeSourceInterfaceCall1(
+        container,
+        element,
+        interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection"),
+        methodSlot: 1,
+        context: "Collection.contains dispatch"
+    ) ?? 0
 }
 
 @_cdecl("kk_array_new")
@@ -1059,12 +1479,29 @@ public func kk_object_type_id(_ objectRaw: Int) -> Int {
 /// was known at compile-time after inline expansion).
 @_cdecl("__kk_type_token_simple_name")
 public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
-    // If a compiler-provided name hint is available, use it directly.
-    if nameHint != 0, nameHint != runtimeNullSentinelInt {
-        return nameHint
-    }
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
+    // KUU-1084: function-type names derive from the token payload itself so
+    // they stay stable regardless of which call site interned the KClass or
+    // what name hint it passed.
+    if base == RuntimeTypeTokenEncoding.functionBase {
+        let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+        let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
+        let name = isSuspend ? "SuspendFunction\(arity)" : "Function\(arity)"
+        let utf8 = Array(name.utf8)
+        return utf8.withUnsafeBufferPointer { buf in
+            Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+        }
+    }
+    // Class literals carry the qualified name so reflection works even when
+    // no class metadata has been registered. Keep simpleName unqualified.
+    if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
+           let name = hint.split(separator: ".").last {
+            return runtimeMakeStringRaw(String(name))
+        }
+        return nameHint
+    }
     let name = switch base {
     case RuntimeTypeTokenEncoding.anyBase:
         "Any"
@@ -1108,17 +1545,29 @@ public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> In
     }
 }
 
+private func runtimeKClassQualifiedName(_ name: String) -> String {
+    // This Kotlin platform classifier is a JVM typealias. Keep the Kotlin
+    // type identity in metadata, but expose the JVM reflection name.
+    name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+}
+
 /// Returns the qualified name of the type encoded in the given type token.
 /// For built-in Kotlin stdlib types (Any, String, Int, Boolean, etc.) this
 /// returns the fully-qualified "kotlin.X" name as Kotlin reflection specifies.
-/// For nominal (user-defined) types the compiler-supplied name hint already
-/// carries the fully-qualified name, so it is returned unchanged.
+/// For nominal (user-defined) types registered metadata takes precedence over
+/// the compiler-supplied qualified name hint.
 @_cdecl("__kk_type_token_qualified_name")
 public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // Built-in stdlib types always live in the `kotlin` package.
+    let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    let (functionArity, isSuspendFunction) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let qualifiedName: String? = switch base {
+    case RuntimeTypeTokenEncoding.functionBase:
+        isSuspendFunction
+            ? "kotlin.coroutines.intrinsics.SuspendFunction\(functionArity)"
+            : "kotlin.Function\(functionArity)"
     case RuntimeTypeTokenEncoding.anyBase:     "kotlin.Any"
     case RuntimeTypeTokenEncoding.stringBase:  "kotlin.String"
     case RuntimeTypeTokenEncoding.intBase:     "kotlin.Int"
@@ -1143,7 +1592,17 @@ public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) ->
             Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
         }
     }
-    // For nominal types the nameHint carries the fully-qualified name.
+    if base == RuntimeTypeTokenEncoding.nominalBase,
+       let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)
+    {
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
+    }
+    if nameHint != 0, nameHint != runtimeNullSentinelInt {
+        if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)) {
+            return runtimeMakeStringRaw(runtimeKClassQualifiedName(hint))
+        }
+        return nameHint
+    }
     return __kk_type_token_simple_name(typeToken, nameHint)
 }
 
@@ -1186,18 +1645,75 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
         return result
     }
     if winner != result {
-        guard let opaque = UnsafeMutableRawPointer(bitPattern: result) else {
-            return winner
-        }
-        runtimeStorage.withGCLock { state in
-            state.objectPointers.remove(UInt(bitPattern: opaque))
-        }
-        runtimeStorage.withMetadataLock { state in
-            state.objectTypeByPointer.removeValue(forKey: UInt(bitPattern: opaque))
-        }
-        Unmanaged<RuntimeKClassBox>.fromOpaque(opaque).release()
+        _ = runtimeReleaseObject(result)
     }
     return winner
+}
+
+// Metadata / memory representation: bound literals inspect the boxed value's classifier.
+@_cdecl("__kk_kclass_of")
+public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       let annotation = tryCast(ptr, to: RuntimeAnnotationBox.self) {
+        if annotation.annotationClassRaw != 0 {
+            return annotation.annotationClassRaw
+        }
+        // Reflected annotations are metadata boxes rather than nominal objects.
+        // Recover their declared class identity instead of the static Annotation bound.
+        let typeID = runtimeStableNominalTypeID(fqName: annotation.annotationFQName)
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
+    }
+    if let typeID = runtimeObjectTypeID(rawValue: value) {
+        let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
+        // Runtime-created throwables are boxes without nominal object tags.
+        // Their declared exception identity must override the catch variable's type.
+        if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+            let typeID = runtimeStableNominalTypeID(fqName: throwable.exceptionFQName)
+            let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                | RuntimeTypeTokenEncoding.nominalBase
+            let displayName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+            return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(displayName))
+        }
+        let base: Int64?
+        if let box = tryCast(ptr, to: RuntimeIntBox.self) {
+            if let enumID = box.enumClassID {
+                let token = (enumID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
+                    | RuntimeTypeTokenEncoding.nominalBase
+                return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)
+            }
+            base = box.primitiveTypeBase
+        } else if tryCast(ptr, to: RuntimeStringBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.stringBase
+        } else if tryCast(ptr, to: RuntimeLongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.longBase
+        } else if tryCast(ptr, to: RuntimeULongBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.ulongBase
+        } else if tryCast(ptr, to: RuntimeDoubleBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.doubleBase
+        } else if tryCast(ptr, to: RuntimeFloatBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.floatBase
+        } else if tryCast(ptr, to: RuntimeCharBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.charBase
+        } else if tryCast(ptr, to: RuntimeBoolBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.booleanBase
+        } else if tryCast(ptr, to: RuntimeUnitBox.self) != nil {
+            base = RuntimeTypeTokenEncoding.unitBase
+        } else {
+            base = nil
+        }
+        if let base {
+            return __kk_kclass_create(Int(base), 0)
+        }
+    }
+    return __kk_kclass_create(fallbackToken, nameHint)
 }
 
 // MARK: - KSP-496: KClass-handle-based simpleName / qualifiedName bridges
@@ -1214,6 +1730,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(metadata.simpleName)
+    }
     return __kk_type_token_simple_name(box.typeToken, box.nameHint)
 }
 
@@ -1221,6 +1740,9 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
 public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
+    }
+    if let metadata = box.metadata {
+        return runtimeMakeStringRaw(runtimeKClassQualifiedName(metadata.qualifiedName))
     }
     return __kk_type_token_qualified_name(box.typeToken, box.nameHint)
 }
@@ -1235,7 +1757,8 @@ public func __kk_kclass_qualified_name(_ kclassRaw: Int) -> Int {
 /// - typeToken: The type token identifying the type.
 /// - qualifiedNameRaw: Runtime string pointer for the qualified name.
 /// - simpleNameRaw: Runtime string pointer for the simple name.
-/// - supertypeNameRaw: Runtime string pointer for the supertype name (0 if none).
+/// - supertypeNameRaw: Runtime string pointer for the supertype display names,
+///   '|'-joined when there is more than one (0 if none).
 /// - flags: Bit-packed flags (bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///          bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
 ///          bit 7=abstract).
@@ -1280,11 +1803,16 @@ public func __kk_kclass_register_metadata_v2(
 ) -> Int {
     let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)) ?? "Unknown"
     let simpleName = extractString(from: UnsafeMutableRawPointer(bitPattern: simpleNameRaw)) ?? "Unknown"
-    let supertypeName: String?
-    if supertypeNameRaw != 0, supertypeNameRaw != runtimeNullSentinelInt {
-        supertypeName = extractString(from: UnsafeMutableRawPointer(bitPattern: supertypeNameRaw))
+    // The compiler joins all direct supertype display names with '|'; Kotlin
+    // qualified type names never contain that character.
+    let supertypeDisplayNames: [String]
+    if supertypeNameRaw != 0, supertypeNameRaw != runtimeNullSentinelInt,
+       let joined = extractString(from: UnsafeMutableRawPointer(bitPattern: supertypeNameRaw)),
+       !joined.isEmpty
+    {
+        supertypeDisplayNames = joined.split(separator: "|").map(String.init)
     } else {
-        supertypeName = nil
+        supertypeDisplayNames = []
     }
 
     let visibility: String
@@ -1299,7 +1827,7 @@ public func __kk_kclass_register_metadata_v2(
     let entry = RuntimeKClassMetadataEntry(
         qualifiedName: qualifiedName,
         simpleName: simpleName,
-        supertypeName: supertypeName,
+        supertypeDisplayNames: supertypeDisplayNames,
         isDataClass: (flags & (1 << 0)) != 0,
         isSealedClass: (flags & (1 << 1)) != 0,
         isValueClass: (flags & (1 << 2)) != 0,
@@ -1320,6 +1848,15 @@ public func __kk_kclass_register_metadata_v2(
         isFunInterface: (flags & (1 << 12)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
+    return 0
+}
+
+/// Registers a compiler-derived JVM binary name without changing qualifiedName.
+@_cdecl("__kk_kclass_register_display_name")
+public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
+    if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
+        runtimeKClassMetadataRegistry.setDisplayName(typeToken: typeToken, displayName: displayName)
+    }
     return 0
 }
 
@@ -1448,7 +1985,9 @@ public func __kk_kclass_is_open(_ kclassRaw: Int) -> Int {
     return metadata.isOpen ? 1 : 0
 }
 
-/// Returns the visibility of this KClass as a runtime string ("PUBLIC", "INTERNAL", "PRIVATE", "PROTECTED").
+/// Returns the visibility of this KClass as a `kotlin.reflect.KVisibility`
+/// enum box (PUBLIC=0, PROTECTED=1, INTERNAL=2, PRIVATE=3 — the same ordinal
+/// mapping `__kk_kcallable_get_metadata` uses for callable visibility).
 /// Returns null sentinel if unknown.
 @_cdecl("__kk_kclass_visibility")
 public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
@@ -1456,10 +1995,13 @@ public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
           let metadata = box.metadata else {
         return runtimeNullSentinelInt
     }
-    let utf8 = Array(metadata.visibility.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
+    let names = ["PUBLIC", "PROTECTED", "INTERNAL", "PRIVATE"]
+    let ordinal = names.firstIndex(of: metadata.visibility) ?? 0
+    return kk_enum_box_ordinal(
+        ordinal,
+        runtimeMakeStringRaw(names[ordinal]),
+        Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVisibility"))
+    )
 }
 
 /// Returns the type parameters of this KClass as a runtime list.
@@ -1476,20 +2018,248 @@ public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: indices))
 }
 
-/// Returns the supertypes of this KClass as a runtime list of strings.
-/// Currently returns a list with the single supertype name if present.
-@_cdecl("__kk_kclass_supertypes")
-public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
-    guard let box = runtimeKClassBox(from: kclassRaw),
-          let metadata = box.metadata,
-          let superName = metadata.supertypeName else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+// MARK: - KUU-1357: KClass.supertypes (multi-supertype KType list)
+
+/// JVM-parity supertypes for bundled builtin types. kotlin-reflect reports
+/// JVM-only supertypes (`kotlin.Number`, `java.io.Serializable`,
+/// `kotlin.Cloneable`, …) that Sema does not model, so the display-name lists
+/// are curated here keyed by qualified name. Verified against kotlinc +
+/// kotlin-reflect.
+private let runtimeBuiltinSupertypes: [String: [String]] = {
+    var table: [String: [String]] = [
+        "kotlin.Any": [],
+        "kotlin.Unit": ["kotlin.Any"],
+        "kotlin.Nothing": ["kotlin.Any"],
+        "kotlin.Byte": ["kotlin.Number", "kotlin.Comparable<kotlin.Byte>", "java.io.Serializable"],
+        "kotlin.Short": ["kotlin.Number", "kotlin.Comparable<kotlin.Short>", "java.io.Serializable"],
+        "kotlin.Int": ["kotlin.Number", "kotlin.Comparable<kotlin.Int>", "java.io.Serializable"],
+        "kotlin.Long": ["kotlin.Number", "kotlin.Comparable<kotlin.Long>", "java.io.Serializable"],
+        "kotlin.Float": ["kotlin.Number", "kotlin.Comparable<kotlin.Float>", "java.io.Serializable"],
+        "kotlin.Double": ["kotlin.Number", "kotlin.Comparable<kotlin.Double>", "java.io.Serializable"],
+        "kotlin.UByte": ["kotlin.Comparable<kotlin.UByte>", "kotlin.Any"],
+        "kotlin.UShort": ["kotlin.Comparable<kotlin.UShort>", "kotlin.Any"],
+        "kotlin.UInt": ["kotlin.Comparable<kotlin.UInt>", "kotlin.Any"],
+        "kotlin.ULong": ["kotlin.Comparable<kotlin.ULong>", "kotlin.Any"],
+        "kotlin.Char": ["kotlin.Comparable<kotlin.Char>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.Boolean": ["kotlin.Comparable<kotlin.Boolean>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.String": [
+            "kotlin.Comparable<kotlin.String>", "kotlin.CharSequence",
+            "java.io.Serializable", "kotlin.Any",
+        ],
+        "kotlin.Throwable": ["kotlin.Any", "java.io.Serializable"],
+        "kotlin.Exception": ["kotlin.Throwable"],
+        "kotlin.RuntimeException": ["java.lang.Exception"],
+        "kotlin.Error": ["kotlin.Throwable"],
+        "kotlin.Number": ["kotlin.Any", "java.io.Serializable"],
+        "kotlin.Enum": ["kotlin.Comparable<E>", "java.io.Serializable", "kotlin.Any"],
+        "kotlin.Annotation": ["kotlin.Any"],
+        "kotlin.Comparable": ["kotlin.Any"],
+        "kotlin.CharSequence": ["kotlin.Any"],
+        "kotlin.Cloneable": ["kotlin.Any"],
+        "kotlin.collections.Iterable": ["kotlin.Any"],
+        "kotlin.collections.Collection": ["kotlin.collections.Iterable<E>", "kotlin.Any"],
+        "kotlin.collections.MutableCollection": ["kotlin.collections.Iterable<E>", "kotlin.Any"],
+        "kotlin.collections.List": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.MutableList": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.Set": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.MutableSet": ["kotlin.collections.Collection<E>", "kotlin.Any"],
+        "kotlin.collections.Map": ["kotlin.Any"],
+        "kotlin.collections.MutableMap": ["kotlin.Any"],
+        "kotlin.collections.Map.Entry": ["kotlin.Any"],
+        "kotlin.collections.MutableMap.MutableEntry": ["kotlin.Any"],
+        "kotlin.collections.Iterator": ["kotlin.Any"],
+        "kotlin.collections.MutableIterator": ["kotlin.Any"],
+        "kotlin.collections.ListIterator": ["kotlin.collections.Iterator<T>", "kotlin.Any"],
+        "kotlin.collections.MutableListIterator": ["kotlin.collections.Iterator<T>", "kotlin.Any"],
+        "kotlin.Array": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.ByteArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.ShortArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.IntArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.LongArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.FloatArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.DoubleArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.CharArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.BooleanArray": ["kotlin.Any", "kotlin.Cloneable", "java.io.Serializable"],
+        "kotlin.UByteArray": ["kotlin.collections.Collection<kotlin.UByte>", "kotlin.Any"],
+        "kotlin.UShortArray": ["kotlin.collections.Collection<kotlin.UShort>", "kotlin.Any"],
+        "kotlin.UIntArray": ["kotlin.collections.Collection<kotlin.UInt>", "kotlin.Any"],
+        "kotlin.ULongArray": ["kotlin.collections.Collection<kotlin.ULong>", "kotlin.Any"],
+        "kotlin.Pair": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.Triple": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.Result": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.text.Regex": ["java.io.Serializable", "kotlin.Any"],
+        "kotlin.text.MatchResult": ["kotlin.Any"],
+        "kotlin.ranges.IntRange": [
+            "kotlin.ranges.IntProgression", "kotlin.ranges.ClosedRange<kotlin.Int>",
+            "kotlin.ranges.OpenEndRange<kotlin.Int>",
+        ],
+        "kotlin.ranges.IntProgression": ["kotlin.collections.Iterable<kotlin.Int>", "kotlin.Any"],
+        "kotlin.ranges.CharRange": [
+            "kotlin.ranges.CharProgression", "kotlin.ranges.ClosedRange<kotlin.Char>",
+            "kotlin.ranges.OpenEndRange<kotlin.Char>",
+        ],
+        "kotlin.ranges.CharProgression": ["kotlin.collections.Iterable<kotlin.Char>", "kotlin.Any"],
+        "kotlin.sequences.Sequence": ["kotlin.Any"],
+        "kotlin.reflect.KClass": [
+            "kotlin.reflect.KDeclarationContainer", "kotlin.reflect.KAnnotatedElement",
+            "kotlin.reflect.KClassifier", "kotlin.Any",
+        ],
+        "kotlin.IllegalArgumentException": ["java.lang.RuntimeException"],
+        "kotlin.IllegalStateException": ["java.lang.RuntimeException"],
+        "kotlin.NoSuchElementException": ["java.lang.RuntimeException"],
+        "kotlin.NullPointerException": ["java.lang.RuntimeException"],
+        "kotlin.ClassCastException": ["java.lang.RuntimeException"],
+        "kotlin.IndexOutOfBoundsException": ["java.lang.RuntimeException"],
+        "kotlin.ArrayIndexOutOfBoundsException": ["java.lang.IndexOutOfBoundsException"],
+        "kotlin.AssertionError": ["java.lang.Error"],
+        "kotlin.ArithmeticException": ["java.lang.RuntimeException"],
+        "kotlin.NumberFormatException": ["java.lang.IllegalArgumentException"],
+        "kotlin.ConcurrentModificationException": ["java.lang.RuntimeException"],
+        "kotlin.UnsupportedOperationException": ["java.lang.RuntimeException"],
+        "kotlin.NotImplementedError": ["java.lang.Error"],
+        "kotlin.Function": ["kotlin.Any"],
+    ]
+    for arity in 0...22 {
+        table["kotlin.Function\(arity)"] = ["kotlin.Function<R>", "kotlin.Any"]
     }
-    let utf8 = Array(superName.utf8)
-    let nameRaw = utf8.withUnsafeBufferPointer { buf in
+    return table
+}()
+
+/// Resolves a qualified type name to its runtime type token, mirroring the
+/// builtin-base table in `__kk_type_token_qualified_name` and falling back to
+/// a nominal token whose payload is the FNV name hash used by
+/// `RuntimeTypeCheckToken.stableNominalTypeID`.
+private func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
+    switch name {
+    case "kotlin.Any": return RuntimeTypeTokenEncoding.anyBase
+    case "kotlin.String": return RuntimeTypeTokenEncoding.stringBase
+    case "kotlin.Int": return RuntimeTypeTokenEncoding.intBase
+    case "kotlin.Boolean": return RuntimeTypeTokenEncoding.booleanBase
+    case "kotlin.UInt": return RuntimeTypeTokenEncoding.uintBase
+    case "kotlin.ULong": return RuntimeTypeTokenEncoding.ulongBase
+    case "kotlin.UByte": return RuntimeTypeTokenEncoding.ubyteBase
+    case "kotlin.UShort": return RuntimeTypeTokenEncoding.ushortBase
+    case "kotlin.Byte": return RuntimeTypeTokenEncoding.byteBase
+    case "kotlin.Short": return RuntimeTypeTokenEncoding.shortBase
+    case "kotlin.Long": return RuntimeTypeTokenEncoding.longBase
+    case "kotlin.Double": return RuntimeTypeTokenEncoding.doubleBase
+    case "kotlin.Float": return RuntimeTypeTokenEncoding.floatBase
+    case "kotlin.Char": return RuntimeTypeTokenEncoding.charBase
+    case "kotlin.Nothing": return RuntimeTypeTokenEncoding.nullBase
+    case "kotlin.Unit": return RuntimeTypeTokenEncoding.unitBase
+    default:
+        return RuntimeTypeTokenEncoding.nominalBase
+            | ((runtimeStableNominalTypeID(fqName: name) & RuntimeTypeTokenEncoding.payloadMask)
+                << RuntimeTypeTokenEncoding.payloadShift)
+    }
+}
+
+private func runtimeReflectionStringRaw(_ string: String) -> Int {
+    let utf8 = Array(string.utf8)
+    return utf8.withUnsafeBufferPointer { buf in
         Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: [nameRaw]))
+}
+
+/// Splits a display name such as "kotlin.Comparable<kotlin.Int>" into its
+/// classifier base name and top-level type-argument display names. Returns nil
+/// when the angle brackets are unbalanced.
+private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, args: [String])? {
+    var trimmed = display.trimmingCharacters(in: .whitespaces)
+    if trimmed.hasSuffix("?") {
+        trimmed = String(trimmed.dropLast())
+    }
+    guard let openIndex = trimmed.firstIndex(of: "<") else {
+        return trimmed.isEmpty ? nil : (trimmed, [])
+    }
+    let base = String(trimmed[..<openIndex]).trimmingCharacters(in: .whitespaces)
+    guard !base.isEmpty else { return nil }
+    let argsStart = trimmed.index(after: openIndex)
+    var depth = 0
+    var endIndex: String.Index?
+    var cursor = openIndex
+    while cursor < trimmed.endIndex {
+        let ch = trimmed[cursor]
+        if ch == "<" { depth += 1 }
+        if ch == ">" {
+            depth -= 1
+            if depth == 0 {
+                endIndex = cursor
+                break
+            }
+        }
+        cursor = trimmed.index(after: cursor)
+    }
+    guard let endIndex else { return nil }
+    let inner = trimmed[argsStart..<endIndex]
+    var args: [String] = []
+    var argDepth = 0
+    var argStart = inner.startIndex
+    var index = inner.startIndex
+    while index < inner.endIndex {
+        let ch = inner[index]
+        if ch == "<" { argDepth += 1 }
+        if ch == ">" { argDepth -= 1 }
+        if ch == ",", argDepth == 0 {
+            args.append(String(inner[argStart..<index]).trimmingCharacters(in: .whitespaces))
+            argStart = inner.index(after: index)
+        }
+        index = inner.index(after: index)
+    }
+    let last = String(inner[argStart..<inner.endIndex]).trimmingCharacters(in: .whitespaces)
+    if !last.isEmpty {
+        args.append(last)
+    }
+    return (base, args)
+}
+
+/// Builds a `RuntimeKTypeBox` for a supertype display name: an interned
+/// KClass handle for the base classifier plus parsed type-argument
+/// projections (invariant). Type-parameter display names like `E` produce a
+/// nominal classifier placeholder — there is no KTypeParameter box yet.
+private func runtimeKTypeForSupertypeDisplayName(_ display: String) -> Int {
+    guard let (base, argDisplays) = runtimeSplitTypeDisplayName(display) else {
+        return 0
+    }
+    let baseRaw = runtimeReflectionStringRaw(base)
+    let token = runtimeTypeToken(forQualifiedName: base)
+    let classifierRaw = __kk_kclass_create(Int(token), baseRaw)
+    var argumentRaws: [Int] = []
+    for argDisplay in argDisplays {
+        let argRaw = runtimeKTypeForSupertypeDisplayName(argDisplay)
+        let projection = RuntimeKTypeProjectionBox(typeRaw: argRaw, variance: .invariant)
+        argumentRaws.append(registerRuntimeObject(projection))
+    }
+    let box = RuntimeKTypeBox(
+        classifierRaw: classifierRaw,
+        argumentRaws: argumentRaws,
+        isMarkedNullable: false,
+        typeNameRaw: baseRaw
+    )
+    registerReflectionRuntimeTypeMetadata()
+    return registerRuntimeObject(box)
+}
+
+/// Returns the supertypes of this KClass as a runtime list of `KType` handles.
+/// Builtin types are answered from the JVM-parity table; user-defined types
+/// read the '|'-joined display list registered by the compiler.
+@_cdecl("__kk_kclass_supertypes")
+public func __kk_kclass_supertypes(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let qualifiedName = box.metadata?.qualifiedName ?? {
+        let raw = __kk_type_token_qualified_name(box.typeToken, box.nameHint)
+        return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+    }()
+    let displays = runtimeBuiltinSupertypes[qualifiedName]
+        ?? box.metadata?.supertypeDisplayNames
+        ?? []
+    let elements = displays.compactMap { display -> Int? in
+        let raw = runtimeKTypeForSupertypeDisplayName(display)
+        return raw == 0 ? nil : raw
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
 // MARK: - REFL-005: KClass.isInstance, members, constructors
@@ -1541,11 +2311,62 @@ public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
 }
 
 /// Returns the nested classes of this KClass as a runtime list of KClass handles.
-/// Currently returns an empty list; nested class metadata registration is not yet
-/// emitted by the compiler (MIGRATION-REFLECT-002).
+/// Nested classes are attached per parent type token via
+/// `__kk_kclass_register_nested_class` (KUU-1357 / MIGRATION-REFLECT-002).
 @_cdecl("__kk_kclass_nested_classes")
 public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
-    return registerRuntimeObject(RuntimeListBox(elements: []))
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let elements = runtimeKNestedClassRegistry.nestedClasses(for: box.typeToken).map {
+        __kk_kclass_create($0.token, $0.nameRaw)
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
+}
+
+/// Registers the companion object's (typeToken, nameHint) pair for a class's
+/// type token. Emitted during class reflection metadata setup (KUU-1357).
+@_cdecl("__kk_kclass_register_companion")
+public func __kk_kclass_register_companion(
+    _ typeToken: Int,
+    _ companionToken: Int,
+    _ companionNameRaw: Int
+) -> Int {
+    runtimeKCompanionRegistry.register(
+        typeToken: typeToken,
+        companionToken: companionToken,
+        companionNameRaw: companionNameRaw
+    )
+    return 0
+}
+
+/// Returns the companion object's `KClass` for this KClass, or the null
+/// sentinel when the class declares no companion (KUU-1357).
+@_cdecl("__kk_kclass_companion_object")
+public func __kk_kclass_companion_object(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw),
+          let entry = runtimeKCompanionRegistry.companion(for: box.typeToken)
+    else {
+        return runtimeNullSentinelInt
+    }
+    return __kk_kclass_create(entry.token, entry.nameRaw)
+}
+
+/// Registers one nested class's (typeToken, nameHint) pair for a class's
+/// type token. Emitted once per nested class during class reflection metadata
+/// setup (KUU-1357 / MIGRATION-REFLECT-002).
+@_cdecl("__kk_kclass_register_nested_class")
+public func __kk_kclass_register_nested_class(
+    _ typeToken: Int,
+    _ nestedToken: Int,
+    _ nestedNameRaw: Int
+) -> Int {
+    runtimeKNestedClassRegistry.register(
+        typeToken: typeToken,
+        nestedToken: nestedToken,
+        nestedNameRaw: nestedNameRaw
+    )
+    return 0
 }
 
 /// Returns the primary constructor of this KClass as a KConstructor box, or null sentinel if none.
@@ -1741,6 +2562,12 @@ private func runtimeKTypeCreate(_ classifierRaw: Int, _ argsRaw: Int, _ isNullab
     return registerRuntimeObject(box)
 }
 
+/// KUU-1377: backs `KClassifier.createType` / `starProjectedType`.
+@_cdecl("__kk_ktype_create")
+public func __kk_ktype_create(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
+    runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
+}
+
 /// Returns the classifier (KClass) raw handle from a KType, or null sentinel.
 @_cdecl("__kk_ktype_classifier")
 public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
@@ -1778,9 +2605,44 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     } else {
         variance = RuntimeKVariance(rawValue: varianceOrdinal) ?? .invariant
     }
+    if variance == nil {
+        return runtimeKTypeProjectionStar()
+    }
+    return runtimeKTypeProjectionCreate(typeRaw: typeRaw, variance: variance)
+}
+
+private func runtimeKTypeProjectionCreate(typeRaw: Int, variance: RuntimeKVariance?) -> Int {
     let box = RuntimeKTypeProjectionBox(typeRaw: typeRaw, variance: variance)
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
+}
+
+private func runtimeKTypeProjectionStar() -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.kTypeProjectionStarRaw }) {
+        return cached
+    }
+    registerReflectionRuntimeTypeMetadata()
+    let candidate = registerRuntimeObject(
+        RuntimeKTypeProjectionBox(typeRaw: 0, variance: nil),
+        typeID: kTypeProjectionRuntimeTypeID
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.kTypeProjectionStarRaw {
+            return cached
+        }
+        state.kTypeProjectionStarRaw = candidate
+        return candidate
+    }
+    if winner != candidate {
+        _ = runtimeReleaseObject(candidate)
+    }
+    return winner
+}
+
+/// Returns the canonical star projection used by the companion and `typeOf`.
+@_cdecl("__kk_ktypeprojection_star")
+public func __kk_ktypeprojection_star() -> Int {
+    runtimeKTypeProjectionStar()
 }
 
 /// Creates a KTypeProjection through its public constructor.
@@ -1824,7 +2686,13 @@ public func __kk_ktypeprojection_create_checked(
         return 0
     }
 
-    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, decodedVarianceOrdinal)
+    if varianceIsNull {
+        return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+    }
+    return runtimeKTypeProjectionCreate(
+        typeRaw: typeRaw,
+        variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
+    )
 }
 
 /// Returns the Kotlin declaration ordinal for a projection's variance, or null.
@@ -1985,6 +2853,22 @@ public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: 
     return 0
 }
 
+/// Registers the most-specific user implementation of `Any.hashCode` so that
+/// hashed collections, which only see an erased handle, honor it.
+@_cdecl("kk_object_register_hashcode_override")
+public func kk_object_register_hashcode_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
+    guard functionRaw != 0,
+          let objectPtr = UnsafeMutableRawPointer(bitPattern: objectRaw)
+    else {
+        return 0
+    }
+    let objectKey = UInt(bitPattern: objectPtr)
+    runtimeStorage.withMetadataLock { state in
+        state.objectHashCodeOverrides[objectKey] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_object_register_any_to_string")
 public func kk_object_register_any_to_string(
     _ objectRaw: Int,
@@ -2002,6 +2886,24 @@ public func kk_object_register_any_to_string(
     return 0
 }
 
+/// Registers the Any-erased toString bridge for a value class. Value classes
+/// are represented by boxed underlying primitives at reference boundaries, so
+/// the nominal class ID is the stable dispatch key rather than an object
+/// pointer.
+@_cdecl("kk_value_class_register_any_to_string")
+public func kk_value_class_register_any_to_string(
+    _ classID: Int,
+    _ functionRaw: Int
+) -> Int {
+    guard classID != 0, functionRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withMetadataLock { state in
+        state.valueClassAnyToStringMethods[Int64(classID)] = functionRaw
+    }
+    return 0
+}
+
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -2011,7 +2913,7 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2040,7 +2942,7 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     }
     guard index >= 0, index < array.count else {
         outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Array index \(index) out of bounds for length \(array.count)."
+            message: "Index \(index) out of bounds for length \(array.count)"
         )
         return 0
     }
@@ -2076,14 +2978,14 @@ public func kk_array_set_typed(
 public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> Int {
     guard let pairs = runtimeArrayBox(from: pairsArrayRaw),
           pairCount > 0,
-          pairs.elements.count >= pairCount * 2 else { return kk_array_new(0) }
+          pairs.count >= pairCount * 2 else { return kk_array_new(0) }
     var totalCount = 0
     for i in 0 ..< pairCount {
-        let marker = pairs.elements[i * 2]
-        let value = pairs.elements[i * 2 + 1]
+        let marker = pairs[i * 2]
+        let value = pairs[i * 2 + 1]
         if marker == -1 {
-            if let array = runtimeArrayBox(from: value) {
-                totalCount += array.elements.count
+            if let values = runtimeSpreadSourceValues(from: value) {
+                totalCount += values.count
             }
         } else {
             totalCount += 1
@@ -2093,17 +2995,25 @@ public func kk_vararg_spread_concat(_ pairsArrayRaw: Int, _ pairCount: Int) -> I
     if let box = runtimeArrayBox(from: result) {
         var writeIndex = 0
         for i in 0 ..< pairCount {
-            let marker = pairs.elements[i * 2]
-            let value = pairs.elements[i * 2 + 1]
+            let marker = pairs[i * 2]
+            let sourceValue = pairs.values[i * 2 + 1]
             if marker == -1 {
-                if let array = runtimeArrayBox(from: value) {
-                    for elem in array.elements {
-                        box.elements[writeIndex] = elem
+                if let values = runtimeSpreadSourceValues(from: sourceValue.legacyRawValue) {
+                    for element in values {
+                        box.setValue(
+                            element.legacyRawValue,
+                            at: writeIndex,
+                            anyFallbackTag: element.anyFallbackTag
+                        )
                         writeIndex += 1
                     }
                 }
             } else {
-                box.elements[writeIndex] = value
+                box.setValue(
+                    sourceValue.legacyRawValue,
+                    at: writeIndex,
+                    anyFallbackTag: sourceValue.anyFallbackTag
+                )
                 writeIndex += 1
             }
         }
@@ -2139,11 +3049,21 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard let raw = UnsafeMutableRawPointer(bitPattern: value) else {
         return String(value)
     }
+    // KUU-1352: coroutine job/task handles live in the liveness registry, not
+    // objectPointers — render kotlinx's `Name{State}@hex` before the
+    // pointer-type gate drops them into the numeric fallback.
+    if let rendered = runtimeJobHandleDebugString(value) {
+        return rendered
+    }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: raw))
     }
     guard isObjectPointer else {
         return String(value)
+    }
+    if let dispatcher = tryCast(raw, to: RuntimeDispatcher.self),
+       let name = dispatcher.displayName {
+        return name
     }
     if runtimeIsUnitBox(value) {
         return "kotlin.Unit"
@@ -2170,10 +3090,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return String(UInt(bitPattern: ulongBox.value))
     }
     if let charBox = tryCast(raw, to: RuntimeCharBox.self) {
-        if let scalar = UnicodeScalar(charBox.value) {
-            return String(Character(scalar))
-        }
-        return "?"
+        return runtimeCharacterFromRaw(charBox.value)
     }
     if let throwableString = runtimeThrowableToString(value) {
         return throwableString
@@ -2181,7 +3098,10 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)
     }
-    if let listBox = tryCast(raw, to: RuntimeListBox.self) {
+    if let localeBox = tryCast(raw, to: RuntimeLocaleBox.self) {
+        return runtimeLocaleToString(localeBox)
+    }
+    if let listBox = runtimeListBox(from: value) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
@@ -2223,10 +3143,13 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "kotlin.collections.IndexingIterable@\(hex)"
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return runtimeFloatingPointArrayToString(value, box: arrayBox) ?? runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
-        return sbBox.value
+        return sbBox.stringValue
+    }
+    if let kclassBox = tryCast(raw, to: RuntimeKClassBox.self) {
+        return runtimeKClassToString(kclassBox)
     }
     if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionToString(ktypeProjectionBox)
@@ -2236,6 +3159,14 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeKTypeToString(ktypeBox)
     }
     if let rendered = runtimeRenderIndexedValueObject(value, render: runtimeRenderAnyForPrint) {
+        return rendered
+    }
+    if let resultBox = tryCast(raw, to: RuntimeResultBox.self) {
+        return runtimeResultToString(resultBox, render: runtimeRenderAnyForPrint)
+    }
+    // KUU-1352: a bound Job wrapper box (Job()/SupervisorJob()/
+    // CompletableDeferred/JobSupport subclass) renders Name{State}@hex.
+    if let rendered = runtimeJobWrapperDebugString(value) {
         return rendered
     }
     return "<object \(raw)>"

@@ -5,6 +5,42 @@ import Testing
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {
+    @Test func testObjectBridgeIsAZeroArgumentHandleGetter() {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        class Element {
+            @KsSymbolName("get_key")
+            companion object Key : Context.Key<Element>
+            @KsSymbolName("get_name")
+            val name: String
+        }
+        """, relativePath: "element.kt")
+        #expect(declarations.map(\.linkName) == ["get_key", "get_name"])
+        let key = declarations[0]
+        #expect(!key.hasReceiver)
+        #expect(!key.isInObjectScope)
+        #expect(expectedRuntimeABIParameterTypes(for: key).isEmpty)
+        #expect(expectedRuntimeABIReturnType(for: key) == RuntimeABICType.intptr.rawValue)
+        #expect(declarations[1].hasReceiver)
+    }
+
+    @Test func testPropertyBridgeAnnotationDoesNotLeakToFollowingFunction() throws {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        interface Contract {
+            @KsSymbolName("get_context")
+
+            val context: Context
+            @KsSymbolName("resume_with")
+            fun resumeWith(result: Result<Int>)
+        }
+        @KsSymbolName("get_length") val String.length: Int
+        """, relativePath: "contract.kt")
+        #expect(declarations.map(\.linkName) == ["get_context", "resume_with", "get_length"])
+        #expect(declarations.map(\.arity) == [0, 1, 0])
+        #expect(declarations.allSatisfy { $0.hasReceiver })
+        #expect(declarations.first?.returnType == "Context")
+        #expect(declarations.last?.receiverType == "String")
+    }
+
     @Test func testRegisteredSemaExternalLinkNamesExistInRuntimeABI() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
@@ -22,6 +58,39 @@ struct RuntimeABIExternalLinkValidationTests {
             missing.isEmpty,
             Comment(rawValue: "Compiler synthetic externalLinkName values missing from RuntimeABISpec: \(missing.joined(separator: ", "))")
         )
+    }
+
+    @Test(arguments: ["suspend () -> T", "suspend CoroutineScope.() -> T"])
+    func testTimeoutLauncherUsesPackedChildContinuationABI(blockType: String) throws {
+        let declarations = bundledKsSymbolNameDeclarations(in: """
+        @KsSymbolName("\(runtimeABIName(.withTimeout))")
+        external suspend fun <T> withTimeout(timeMillis: Long, block: \(blockType)): T
+        @KsSymbolName("\(runtimeABIName(.withTimeoutOrNull))")
+        external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: \(blockType)): T?
+        @KsSymbolName("\(runtimeABIName(.withTimeoutOrNullThrowing))")
+        external suspend fun <T> withTimeoutOrNull(timeMillis: Long, block: \(blockType)): T?
+        """, relativePath: "timeout.kt")
+        #expect(declarations.count == 3)
+        for declaration in declarations {
+            #expect(declaration.arity == 2)
+            #expect(declaration.isSuspend)
+            #expect(!declaration.hasReceiver)
+            #expect(declaration.valueParameterTypes == ["Long", blockType])
+            let specs = RuntimeABISpec.allFunctions.filter { $0.name == declaration.linkName }
+            #expect(specs.count == 1)
+            let spec = try #require(specs.first)
+            let isThrowing = declaration.linkName != runtimeABIName(.withTimeoutOrNull)
+            let valueParameterTypes = Array(repeating: RuntimeABICType.intptr.rawValue, count: 3)
+            let thrownParameterTypes = isThrowing ? [RuntimeABICType.nullableIntptrPointer.rawValue] : []
+            #expect(spec.isThrowing == isThrowing)
+            #expect(spec.parameterTypeStrings == valueParameterTypes + thrownParameterTypes)
+            // The block entry point and packed continuation occupy one slot each;
+            // only throwing bridges append an outThrown slot (KUU-1218).
+            #expect(runtimeABIArityCandidates(for: declaration, specs: specs) == [2, isThrowing ? 4 : 3])
+            #expect(expectedRuntimeABIParameterTypeVariants(for: declaration) == [
+                valueParameterTypes,
+            ])
+        }
     }
 
     @Test func testKIRHardcodedRuntimeLinkNamesExistInRuntimeABI() throws {
@@ -59,7 +128,12 @@ struct RuntimeABIExternalLinkValidationTests {
                 failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
                 continue
             }
-            let expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            let expectedArities: Set<Int>
+            if let pinned = rewrittenSuspendBridgeParameterCounts[linkName] {
+                expectedArities = [pinned]
+            } else {
+                expectedArities = Set(declarations.flatMap { runtimeABIArityCandidates(for: $0, specs: specs) })
+            }
             if !specs.contains(where: { expectedArities.contains($0.parameters.count) }) {
                 let arities = specs.map { "\($0.parameters.count)" }.sorted().joined(separator: ", ")
                 let expected = expectedArities.map(String.init).sorted().joined(separator: ", ")
@@ -93,8 +167,13 @@ struct RuntimeABIExternalLinkValidationTests {
             guard !functionDeclarations.isEmpty else {
                 continue
             }
-            let expectedParameterTypeVariants = functionDeclarations.flatMap {
-                expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+            let expectedParameterTypeVariants: [[String]]
+            if let pinned = rewrittenSuspendBridgeParameterTypes[linkName] {
+                expectedParameterTypeVariants = [canonicalHandleTypes(pinned)]
+            } else {
+                expectedParameterTypeVariants = functionDeclarations.flatMap {
+                    expectedRuntimeABIParameterTypeVariants(for: $0).map(canonicalHandleTypes)
+                }
             }
             let expectedReturnTypes = Set(functionDeclarations.compactMap {
                 expectedRuntimeABIReturnType(for: $0).map(canonicalHandleType)
@@ -141,7 +220,7 @@ struct RuntimeABIExternalLinkValidationTests {
             let sema = try #require(context.sema)
 
             let annotatedSymbols = sema.symbols.allSymbols().filter { symbol in
-                guard symbol.kind == .function || symbol.kind == .constructor,
+                guard symbol.kind == .function || symbol.kind == .constructor || symbol.kind == .property || symbol.kind == .object,
                       let fileID = sema.symbols.sourceFileID(for: symbol.id),
                       context.sourceManager.origin(of: fileID)?.isBundledStdlib == true
                 else {
@@ -220,6 +299,12 @@ struct RuntimeABIExternalLinkValidationTests {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
+            // A Sema-only conversion sentinel: CallLowerer turns the bound
+            // primitive call into .copy before an external call is emitted.
+            "kk_primitive_identity",
+            // CoroutineStart.isLazy const-folds to a Boolean literal in
+            // CallRewriting and is never emitted as a call.
+            "kk_coroutine_start_is_lazy",
             "__kk_string_struct_get_length",
         ]
     }
@@ -340,6 +425,60 @@ struct RuntimeABIExternalLinkValidationTests {
                     pendingScope = scopeStack.last
                 }
                 pendingLinkNames.append(linkName)
+
+                // Primary constructors may put @KsSymbolName on the same
+                // class-header line as `constructor(`. Consume that
+                // annotation here so it does not attach to the first `fun`
+                // in the class body, while still checking the constructor's
+                // source-parameter arity against the runtime ABI.
+                if line.contains("constructor(") {
+                    if let constructorHeader = functionHeader(startingAt: index, in: lines),
+                       let signature = functionSignatureInfo(in: constructorHeader)
+                    {
+                        for constructorLinkName in pendingLinkNames {
+                            declarations.append(
+                                BundledKsSymbolNameDeclaration(
+                                    linkName: constructorLinkName,
+                                    arity: signature.valueParameterTypes.count,
+                                    functionTypedParameterCount: signature.functionTypedParameterCount,
+                                    hasReceiver: false,
+                                    isInObjectScope: false,
+                                    isSuspend: false,
+                                    receiverType: nil,
+                                    valueParameterTypes: signature.valueParameterTypes,
+                                    valueParameterIsVararg: signature.valueParameterIsVararg,
+                                    returnType: nil,
+                                    isConstructor: true,
+                                    relativePath: relativePath
+                                )
+                            )
+                        }
+                    }
+                    pendingLinkNames.removeAll()
+                    pendingScope = nil
+                }
+                if propertyFunctionHeader(in: line) == nil, kind != .objectLike { continue }
+            }
+
+            if kind == .objectLike, !pendingLinkNames.isEmpty {
+                for linkName in pendingLinkNames {
+                    declarations.append(BundledKsSymbolNameDeclaration(
+                        linkName: linkName,
+                        arity: 0,
+                        functionTypedParameterCount: 0,
+                        hasReceiver: false,
+                        isInObjectScope: false,
+                        isSuspend: false,
+                        receiverType: nil,
+                        valueParameterTypes: [],
+                        valueParameterIsVararg: [],
+                        returnType: "Any",
+                        isConstructor: false,
+                        relativePath: relativePath
+                    ))
+                }
+                pendingLinkNames.removeAll()
+                pendingScope = nil
                 continue
             }
 
@@ -353,7 +492,8 @@ struct RuntimeABIExternalLinkValidationTests {
             }
 
             guard !pendingLinkNames.isEmpty,
-                  let functionHeader = functionHeader(startingAt: index, in: lines),
+                  let functionHeader = propertyFunctionHeader(in: line)
+                    ?? functionHeader(startingAt: index, in: lines),
                   let signature = functionSignatureInfo(in: functionHeader)
             else {
                 continue
@@ -418,6 +558,10 @@ struct RuntimeABIExternalLinkValidationTests {
         var parameterParenDepth = 0
         var sawParameterParen = false
         for line in lines[index...] {
+            // A property consumes its own annotation in the outer scanner.
+            // Do not scan across it from a blank/comment line and accidentally
+            // attach that annotation to a later function declaration.
+            if propertyFunctionHeader(in: line) != nil { return nil }
             header += " " + line.trimmingCharacters(in: .whitespacesAndNewlines)
             for character in line {
                 if character == "(" {
@@ -447,6 +591,19 @@ struct RuntimeABIExternalLinkValidationTests {
     private func headerIsConstructor(_ header: String) -> Bool {
         let trimmed = header.trimmingCharacters(in: .whitespaces)
         return header.contains(" constructor(") || trimmed.hasPrefix("constructor(")
+    }
+
+    private func propertyFunctionHeader(in line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("*"),
+              let regex = try? NSRegularExpression(pattern: #"\b(?:val|var)\s+([^:]+):\s*([^={]+)"#),
+              let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+              let nameRange = Range(match.range(at: 1), in: trimmed),
+              let typeRange = Range(match.range(at: 2), in: trimmed)
+        else { return nil }
+        let name = trimmed[nameRange].trimmingCharacters(in: .whitespaces)
+        let type = trimmed[typeRange].trimmingCharacters(in: .whitespaces)
+        return "fun \(name)(): \(type)"
     }
 
     private struct FunctionSignatureInfo {
@@ -568,6 +725,35 @@ struct RuntimeABIExternalLinkValidationTests {
         return declarator.contains(".")
     }
 
+    /// Link names whose calls CoroutineLoweringPass rewrites to an emitted ABI
+    /// that does not linearize from the declared source parameters: the suspend
+    /// block lowers to a single entry-point slot and the timeout bridges' thrown
+    /// channel arrives through the call's own thrownResult. The spec records the
+    /// emitted shape; the pinned parameter types below cover only the emitted
+    /// value arguments, the part the signature check compares a throwing spec on.
+    private let rewrittenSuspendBridgeParameterCounts: [String: Int] = [
+        runtimeABIName(.withTimeout): 4,
+        runtimeABIName(.withTimeoutOrNull): 3,
+        runtimeABIName(.withTimeoutOrNullThrowing): 4,
+    ]
+    private let rewrittenSuspendBridgeParameterTypes: [String: [String]] = [
+        runtimeABIName(.withTimeout): [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        runtimeABIName(.withTimeoutOrNull): [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+        runtimeABIName(.withTimeoutOrNullThrowing): [
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+            RuntimeABICType.intptr.rawValue,
+        ],
+    ]
+
     private func runtimeABIArityCandidates(
         for declaration: BundledKsSymbolNameDeclaration,
         specs: [RuntimeABIFunctionSpec]
@@ -577,7 +763,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.hasReceiver {
             loweredArity += 1
         }
-        loweredArity += declaration.functionTypedParameterCount
+        if !usesCoroutineBlockEntryPoint(declaration) {
+            loweredArity += declaration.functionTypedParameterCount
+        }
         // A `vararg` value parameter lowers to a (packed array pointer, count)
         // pair in the runtime ABI (see CallSupportLowerer's kk_array_of path),
         // so each vararg contributes one extra count parameter.
@@ -587,7 +775,9 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.isSuspend {
             loweredArity += 1
         }
-        if specs.contains(where: \.isThrowing) {
+        if specs.contains(where: {
+            $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+        }) {
             loweredArity += 1
         }
         candidates.insert(loweredArity)
@@ -612,7 +802,9 @@ struct RuntimeABIExternalLinkValidationTests {
             if normalizedKotlinType(declaration.returnType) == "String" {
                 flatCount += 3
             }
-            if specs.contains(where: \.isThrowing) {
+            if specs.contains(where: {
+                $0.isThrowing && $0.parameterTypeStrings.last == RuntimeABICType.nullableIntptrPointer.rawValue
+            }) {
                 flatCount += 1
             }
             candidates.insert(flatCount)
@@ -626,6 +818,13 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func flatABIParameterCount(for type: String?) -> Int {
         normalizedKotlinType(type) == "String" ? 4 : (type == nil ? 0 : 1)
+    }
+
+    private func usesCoroutineBlockEntryPoint(_ declaration: BundledKsSymbolNameDeclaration) -> Bool {
+        declaration.isSuspend
+            && [runtimeABIName(.withTimeout), runtimeABIName(.withTimeoutOrNull), runtimeABIName(.withTimeoutOrNullThrowing)].contains(declaration.linkName)
+            && declaration.valueParameterTypes.count == 2
+            && isFunctionType(declaration.valueParameterTypes[1])
     }
 
     private func normalizedKotlinType(_ type: String?) -> String {
@@ -699,6 +898,12 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
         for (index, parameterType) in declaration.valueParameterTypes.enumerated() {
+            // Timeout lowering stores captures in the continuation and passes
+            // only the block entry point, not a (function, closure) pair.
+            if index == 1, usesCoroutineBlockEntryPoint(declaration) {
+                types.append(RuntimeABICType.intptr.rawValue)
+                continue
+            }
             if index < declaration.valueParameterIsVararg.count,
                declaration.valueParameterIsVararg[index] {
                 // vararg -> (packed array pointer, element count)

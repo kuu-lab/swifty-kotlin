@@ -46,6 +46,17 @@ private func appendLazySequenceOnEachIndexedTrace(_ value: Int) {
     __lazySequenceOnEachIndexedTrace.append(value)
 }
 
+private func requireSequenceThrownBox(_ raw: Int) throws -> RuntimeThrowableBox {
+    let pointer = try #require(
+        UnsafeMutableRawPointer(bitPattern: raw),
+        "thrown channel value is not a valid pointer"
+    )
+    return try #require(
+        tryCast(pointer, to: RuntimeThrowableBox.self),
+        "thrown value must be a RuntimeThrowableBox"
+    )
+}
+
 private let lazyYieldAllInnerThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
     _lazyTestYieldCounter += 1
     _ = __kk_sequence_builder_yield(builderRaw, 10)
@@ -244,18 +255,6 @@ private func runtimeTestStringHandle(_ value: String) -> Int {
         let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
         let raw = kk_string_from_utf8(baseAddress, Int32(bytes.count))
         return Int(bitPattern: raw)
-    }
-}
-
-private func runtimeTestStringBuilder(_ value: String) -> Int {
-    let bytes = Array(value.utf8)
-    return bytes.withUnsafeBufferPointer { buffer in
-        __kk_string_builder_new_from_string_flat(
-            buffer.baseAddress,
-            value.unicodeScalars.count,
-            value.utf8.count,
-            0
-        )
     }
 }
 
@@ -1115,16 +1114,22 @@ struct RuntimeSequenceTests {
         #expect(result == 42)
     }
 
-    @Test func sequenceSingleThrowsForEmptyAndMultipleElements() {
+    @Test func sequenceSingleThrowsForEmptyAndMultipleElements() throws {
         var emptyThrown = 0
         let emptyResult = kk_sequence_single(makeSequence([]), &emptyThrown)
         #expect(emptyThrown != 0)
         #expect(emptyResult == 0)
+        let emptyBox = try requireSequenceThrownBox(emptyThrown)
+        #expect(emptyBox.exceptionFQName == "kotlin.NoSuchElementException")
+        #expect(runtimeThrowableBoxHasExactType(emptyBox, RuntimeNoSuchElementExceptionBox.self))
 
         var multipleThrown = 0
         let multipleResult = kk_sequence_single(makeSequence([1, 2]), &multipleThrown)
         #expect(multipleThrown != 0)
         #expect(multipleResult == 0)
+        let multipleBox = try requireSequenceThrownBox(multipleThrown)
+        #expect(multipleBox.exceptionFQName == "kotlin.IllegalArgumentException")
+        #expect(runtimeThrowableBoxHasExactType(multipleBox, RuntimeIllegalArgumentExceptionBox.self))
     }
 
     @Test func sequenceSingleOrNullReturnsOnlyElement() {
@@ -1302,12 +1307,16 @@ struct RuntimeSequenceTests {
         #expect(result == 20)
     }
 
-    @Test func elementAtReportsOutOfBounds() {
-        var thrown = 0
-        let result = kk_sequence_elementAt(makeSequence([10]), 3, &thrown)
+    @Test func elementAtReportsIndexOutOfBoundsException() throws {
+        for index in [3, -1] {
+            var thrown = 0
+            let result = kk_sequence_elementAt(makeSequence([10]), index, &thrown)
 
-        #expect(thrown != 0)
-        #expect(result == runtimeNullSentinelInt)
+            #expect(thrown != 0)
+            #expect(result == runtimeNullSentinelInt)
+            let box = try #require(throwableBox(from: thrown))
+            #expect(box.exceptionFQName == "kotlin.IndexOutOfBoundsException")
+        }
     }
 
     @Test func filterIndexedKeepsElementsMatchingIndexedPredicate() {
