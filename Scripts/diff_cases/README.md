@@ -25,11 +25,14 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
-Cases marked `// DIFF_CANDIDATE_ONLY_FROM_SOURCE` execute automatically in
-serial and parallel `diff_kotlinc.sh` runs without a JVM reference. The runner
-compiles bundled stdlib sources with kswiftc and compares stdout with the
-adjacent `.expected` file or ordered `// EXPECT-STDOUT:` lines. A single case
-can also be run with `bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`.
+Internal stdlib cases that require bundled Kotlin sources use
+`// DIFF_CANDIDATE_ONLY_FROM_SOURCE: <reason>` with a `<name>.expected` sidecar
+or ordered `// EXPECT-STDOUT: <line>` directives. `diff_kotlinc.sh` executes
+these cases automatically in serial or parallel file and directory runs, with
+`--stdlib-from-source`. Source-only selections skip JVM discovery, reference
+warm-up, and precompiled artifact setup. A single case can also be run with
+`bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`. Failure reports
+retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
@@ -75,6 +78,7 @@ can also be run with `bash Scripts/diff_kotlinc.sh --candidate-only path/to/case
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
+- `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values
 - `list_binary_search_by.kt`: `List.binarySearchBy(key, fromIndex, toIndex, selector)` の parity
 - `stdlib_string_ops.kt`: String stdlib parity（`trim/split/replace/startsWith/endsWith/contains/toInt/toDouble/format/substring/lowercase/uppercase/toIntOrNull/toDoubleOrNull/indexOf/lastIndexOf/padStart/padEnd/repeat/reversed/toList/toCharArray/drop/take/dropLast/takeLast`）
 - `string_decode_to_string.kt`: `ByteArray.decodeToString` UTF-8, range, strict malformed input, and bounds parity
