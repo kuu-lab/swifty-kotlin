@@ -46,6 +46,28 @@ struct ExpectActualCompatibilityTests {
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
     }
 
+    @Test func testExpectActualObjectLinksWithoutDuplicateDeclaration() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect object O
+            """,
+            """
+            actual object O
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let symbols = sema.symbols.lookupAll(fqName: [ctx.interner.intern("O")])
+            .compactMap { sema.symbols.symbol($0) }
+        let expectSymbol = try #require(symbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+    }
+
     @Test func testExpectClassBodylessMembersLinkToActual() throws {
         let ctx = makeContextFromSources([
             """
