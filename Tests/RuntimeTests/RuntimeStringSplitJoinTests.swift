@@ -27,10 +27,6 @@ struct RuntimeStringSplitJoinTests {
         runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringFromRaw)
     }
 
-    private func runtimeMakeListRaw(_ elements: [Int]) -> Int {
-        registerRuntimeObject(RuntimeListBox(elements: elements))
-    }
-
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T

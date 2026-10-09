@@ -72,11 +72,33 @@ struct ReceiverClassifier {
     }
 
     func isArrayLikeType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isArrayLikeName(symbol.name)
         }
-        return knownNames.isArrayLikeName(symbol.name)
+    }
+
+    /// KIR's concrete-array dispatch predicate has the same intentionally
+    /// name-based behavior as the Sema array receiver classifier.
+    func isConcreteArrayLikeType(_ type: TypeID) -> Bool {
+        isArrayLikeType(type)
+    }
+
+    func isRegexLikeType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isRegexSymbol(symbol)
+        }
+    }
+
+    func isCoroutineHandleReceiverType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isCoroutineHandleSymbol(symbol)
+        }
+    }
+
+    func isChannelReceiverType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isChannelSymbol(symbol)
+        }
     }
 
     func isIterableLikeReceiver(receiverID: ExprID) -> Bool {
@@ -180,37 +202,51 @@ struct ReceiverClassifier {
     }
 
     func isSequenceLikeType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isSequenceSymbol(symbol)
         }
-        return knownNames.isSequenceSymbol(symbol)
     }
 
     func isCollectionLikeType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        for (_, symbol) in classTypes(of: type) {
-            if knownNames.isCollectionLikeSymbol(symbol) {
-                return true
+        classTypes(of: type).contains { _, symbol in
+            matchesKnownSymbol(symbol) { knownNames, symbol in
+                knownNames.isCollectionLikeSymbol(symbol)
             }
         }
-        return false
     }
 
     func isListLikeType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
-            return false
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isConcreteListLikeSymbol(symbol)
         }
-        return knownNames.isConcreteListLikeSymbol(symbol)
     }
 
     func isConcreteListLikeType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+        guard let (classType, _) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return knownNames.isConcreteListLikeSymbol(symbol) && classType.args.count == 1
+        return isListLikeType(type) && classType.args.count == 1
+    }
+
+    /// Exact known-name set matching used by KIR's collection fallback. This
+    /// intentionally does not impose the one-type-argument requirement that
+    /// `isConcreteListLikeType` applies for Sema overload selection.
+    func isConcreteCollectionLikeType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isCollectionLikeSymbol(symbol)
+        }
+    }
+
+    func isMutableSetLikeType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isMutableSetSymbol(symbol)
+        }
+    }
+
+    func isSetLikeType(_ type: TypeID) -> Bool {
+        matchesKnownType(type) { knownNames, symbol in
+            knownNames.isSetLikeSymbol(symbol)
+        }
     }
 
     func isMapLikeCollectionType(_ type: TypeID) -> Bool {
@@ -256,11 +292,10 @@ struct ReceiverClassifier {
     }
 
     func isMutableSetType(_ type: TypeID) -> Bool {
-        let knownNames = KnownCompilerNames(interner: interner)
-        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+        guard let (classType, _) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return knownNames.isMutableSetSymbol(symbol) && classType.args.count == 1
+        return isMutableSetLikeType(type) && classType.args.count == 1
     }
 
     func isMutableMapType(_ type: TypeID) -> Bool {
@@ -276,7 +311,7 @@ struct ReceiverClassifier {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return knownNames.isConcreteListLikeSymbol(symbol) && !knownNames.isMapLikeSymbol(symbol)
+        return isListLikeType(type) && !knownNames.isMapLikeSymbol(symbol)
     }
 
     func isSetLikeCollectionType(_ type: TypeID) -> Bool {
@@ -284,7 +319,8 @@ struct ReceiverClassifier {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return knownNames.collectionKind(of: symbol) == .set && classType.args.count == 1
+        return isSetLikeType(type) && knownNames.collectionKind(of: symbol) == .set
+            && classType.args.count == 1
     }
 
     func isListCollectionFactoryReceiver(receiverID: ExprID, ast: ASTModule) -> Bool {
@@ -337,6 +373,23 @@ struct ReceiverClassifier {
         default:
             return []
         }
+    }
+
+    private func matchesKnownType(
+        _ type: TypeID,
+        _ predicate: (KnownCompilerNames, SemanticSymbol) -> Bool
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        return matchesKnownSymbol(symbol, predicate)
+    }
+
+    private func matchesKnownSymbol(
+        _ symbol: SemanticSymbol,
+        _ predicate: (KnownCompilerNames, SemanticSymbol) -> Bool
+    ) -> Bool {
+        predicate(KnownCompilerNames(interner: interner), symbol)
     }
 }
 

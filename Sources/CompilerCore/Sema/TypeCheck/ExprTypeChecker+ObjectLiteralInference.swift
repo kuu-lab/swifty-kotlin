@@ -225,9 +225,17 @@ extension ExprTypeChecker {
             sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
         }
 
+        let inheritance = DataFlowSemaPhase()
+        inheritance.validateSupertypesAreOpen(
+            directSupertypes: directSuperSymbols,
+            declRange: objectDecl.range,
+            symbols: sema.symbols,
+            diagnostics: ctx.semaCtx.diagnostics,
+            interner: interner
+        )
+
         // Delegate expressions run in the enclosing scope, before the anonymous
         // object's receiver and members become available.
-        let inheritance = DataFlowSemaPhase()
         for entry in objectDecl.superTypeEntries {
             guard let delegateExpr = entry.delegateExpression else { continue }
             let interfaceType = driver.helpers.resolveTypeRef(
