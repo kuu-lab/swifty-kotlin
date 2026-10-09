@@ -551,19 +551,64 @@ extension ExprTypeChecker {
             sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
 
-            let declaredType = propertyDecl.type.map {
-                driver.helpers.resolveTypeRef(
-                    $0,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner,
-                    scope: ctx.scope,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: ctx,
-                    usageRange: propertyDecl.range
+            let ownerScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
+            let ownerParameters = sema.types.nominalTypeParameterSymbols(for: ownerSymbol)
+            for parameter in ownerParameters { ownerScope.insert(parameter) }
+            let propertyScope = FunctionScope(parent: ownerScope, symbols: sema.symbols)
+            var parameters: [SymbolID] = []
+            for parameter in propertyDecl.typeParams {
+                let symbol = sema.symbols.define(
+                    kind: .typeParameter, name: parameter.name,
+                    fqName: ownerFQName + [propertyDecl.name, interner.intern("$\(propertySymbol.rawValue)"), parameter.name],
+                    declSite: propertyDecl.range, visibility: .private,
+                    flags: parameter.isReified ? [.reifiedTypeParameter] : []
                 )
-            } ?? sema.types.anyType
+                parameters.append(symbol)
+                propertyScope.insert(symbol)
+            }
+            func resolvePropertyType(_ reference: TypeRefID) -> TypeID {
+                driver.helpers.resolveTypeRef(reference, ast: ast, sema: sema, interner: interner,
+                                              scope: propertyScope, diagnostics: ctx.semaCtx.diagnostics,
+                                              inferenceContext: ctx, usageRange: propertyDecl.range)
+            }
+            for (parameter, symbol) in zip(propertyDecl.typeParams, parameters) {
+                let bounds = parameter.upperBounds.map(resolvePropertyType)
+                if !bounds.isEmpty { sema.symbols.setTypeParameterUpperBounds(bounds, for: symbol) }
+                DataFlowSemaPhase.checkConflictingClassUpperBounds(
+                    typeParamName: parameter.name, bounds: bounds, declSite: propertyDecl.range,
+                    symbols: sema.symbols, types: sema.types, interner: interner,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
+            let declaredType = propertyDecl.type.map(resolvePropertyType) ?? sema.types.anyType
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
+            if let receiver = propertyDecl.receiverType.map(resolvePropertyType) {
+                sema.symbols.insertFlags(.memberExtension, for: propertySymbol)
+                sema.symbols.setExtensionPropertyReceiverType(receiver, for: propertySymbol)
+                let allParameters = ownerParameters + parameters
+                let bounds = allParameters.map { sema.symbols.typeParameterUpperBounds(for: $0) }
+                func accessor(_ name: String, parameterTypes: [TypeID], returnType: TypeID) -> SymbolID {
+                    let symbol = sema.symbols.define(
+                        kind: .function, name: interner.intern(name),
+                        fqName: ownerFQName + [propertyDecl.name, interner.intern("$" + name)],
+                        declSite: propertyDecl.range, visibility: .public, flags: [.synthetic]
+                    )
+                    sema.symbols.setParentSymbol(propertySymbol, for: symbol)
+                    sema.symbols.setFunctionSignature(FunctionSignature(
+                        receiverType: receiver, parameterTypes: parameterTypes, returnType: returnType,
+                        typeParameterSymbols: allParameters,
+                        reifiedTypeParameterIndices: Set(propertyDecl.typeParams.indices.filter { propertyDecl.typeParams[$0].isReified }.map { $0 + ownerParameters.count }),
+                        typeParameterUpperBoundsList: bounds,
+                        classTypeParameterCount: ownerParameters.count
+                    ), for: symbol)
+                    return symbol
+                }
+                sema.symbols.setExtensionPropertyGetterAccessor(accessor("get", parameterTypes: [], returnType: declaredType), for: propertySymbol)
+                if propertyDecl.isVar {
+                    sema.symbols.setExtensionPropertySetterAccessor(accessor("set", parameterTypes: [declaredType], returnType: sema.types.unitType), for: propertySymbol)
+                }
+            }
+            if propertyDecl.getter?.body != nil { sema.symbols.setPropertyHasCustomGetter(true, for: propertySymbol) }
 
             // KSP-CAP-018: mirror `MemberHeaderCollection`'s backing-field rule.
             // A property carrying accessors *and* real storage (a setter, or an
@@ -577,7 +622,7 @@ extension ExprTypeChecker {
                 && propertyDecl.initializer == nil
             let needsBackingField = !isGetterOnlyComputed
                 && (propertyDecl.getter != nil || propertyDecl.setter != nil)
-            if needsBackingField, propertyDecl.delegateExpression == nil {
+            if needsBackingField, propertyDecl.delegateExpression == nil, propertyDecl.receiverType == nil {
                 let fieldName = interner.intern("$backing_\(interner.resolve(propertyDecl.name))")
                 let backingFieldSymbol = sema.symbols.define(
                     kind: .backingField,
@@ -644,18 +689,7 @@ extension ExprTypeChecker {
                 continue
             }
 
-            let declaredType = propertyDecl.type.map {
-                driver.helpers.resolveTypeRef(
-                    $0,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner,
-                    scope: memberScope,
-                    diagnostics: ctx.semaCtx.diagnostics,
-                    inferenceContext: memberCtx,
-                    usageRange: propertyDecl.range
-                )
-            }
+            let declaredType = propertyDecl.type == nil ? nil : sema.symbols.propertyType(for: propertySymbol)
 
             var inferredType: TypeID?
             if let initializer = propertyDecl.initializer {
@@ -687,7 +721,15 @@ extension ExprTypeChecker {
             // `DeclTypeChecker` describes for delegate bodies. Ordering mirrors
             // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
             // getter can supply the property's type, the setter needs it final.
-            let accessorCtx = memberCtx.with(currentDeclSymbol: propertySymbol)
+            var accessorCtx = driver.declChecker.propertyTypeParameterContext(
+                propertyDecl, symbol: propertySymbol, ctx: memberCtx, diagnostics: ctx.semaCtx.diagnostics
+            )
+            if let receiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
+                accessorCtx = accessorCtx.copying(implicitReceiverType: receiver).withOuterReceiver(
+                    label: propertyDecl.name, type: receiver,
+                    symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: propertySymbol)
+                )
+            }
             if let getter = propertyDecl.getter, getter.body != .unit {
                 inferredType = driver.declChecker.typeCheckGetter(
                     getter,

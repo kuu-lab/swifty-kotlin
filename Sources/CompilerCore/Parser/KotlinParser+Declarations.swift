@@ -247,6 +247,11 @@ extension KotlinParser {
         var range = RangeAccumulator(value: leadingRange)
 
         _ = consumeToken(into: &children, range: &range)
+        if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
+            let parameters = parseTypeArguments()
+            children.append(.node(parameters))
+            range.append(childRange(.node(parameters)))
+        }
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         } else if case .symbol(.lParen) = stream.peek().kind {

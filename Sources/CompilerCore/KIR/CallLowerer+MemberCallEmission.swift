@@ -84,13 +84,15 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
+        var result = arguments
         if let receiver = memberExtensionDispatchReceiver(
             for: accessor, callExprID: callExprID, sema: sema, arena: arena,
             interner: interner, instructions: &instructions
-        ) {
-            return [receiver] + arguments
-        }
-        return arguments
+        ) { result.insert(receiver, at: 0) }
+        let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
+        appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,
+                                       interner: interner, arena: arena, instructions: &instructions, arguments: &result)
+        return result
     }
 
     func sequenceBuilderRuntimeCalleeName(

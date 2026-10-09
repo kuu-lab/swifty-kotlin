@@ -703,7 +703,7 @@ extension ExprTypeChecker {
         ) ?? resolveExtensionPropertyForCompoundAssignment(
             id: id,
             named: calleeName,
-            receiverType: nonNullReceiver,
+            receiverType: receiverType,
             range: range,
             ctx: ctx
         ) else {

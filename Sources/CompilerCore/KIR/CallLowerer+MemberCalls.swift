@@ -62,7 +62,7 @@ extension CallLowerer {
            sema.symbols.externalLinkName(for: chosen)?.hasPrefix("kk_function_invoke") == true {
             let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
             if let function = lowerStoredMemberPropertyReadValue(
-                propertySymbol: property, receiverExpr: receiverExpr, loweredReceiverID: receiver,
+                propertySymbol: property, callExprID: exprID, receiverExpr: receiverExpr, loweredReceiverID: receiver,
                 resultType: propertyType, ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions.instructions
             ) {
@@ -489,7 +489,7 @@ extension CallLowerer {
                     emit: &instructions
                 )
                 if let functionValue = lowerStoredMemberPropertyReadValue(
-                    propertySymbol: localSym,
+                    propertySymbol: localSym, callExprID: exprID,
                     receiverExpr: receiverExpr,
                     loweredReceiverID: loweredReceiverID,
                     resultType: callableBinding.functionType,
