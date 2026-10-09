@@ -121,6 +121,33 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
     }
 
+    @Test func testCommonModuleFlagAllowsExpectWithoutActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package common
+            expect fun platformName(): String
+            """,
+            frontendFlags: ["common-module"]
+        )
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Common modules may retain expect declarations: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("common"), ctx.interner.intern("platformName"),
+        ]).compactMap { sema.symbols.symbol($0) }.first { $0.flags.contains(.expectDeclaration) })
+        let record = MetadataEncoder().buildRecord(
+            for: expectSymbol,
+            symbols: sema.symbols,
+            types: sema.types,
+            moduleName: ctx.options.moduleName,
+            interner: ctx.interner
+        )
+        let roundTripped = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(roundTripped.isExpect)
+        #expect(!roundTripped.isActual)
+    }
+
     @Test func testExpectClassBodylessMembersLinkToActual() throws {
         let ctx = makeContextFromSources([
             """

@@ -1,11 +1,67 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
 @Suite
 struct LibraryMetadataImportIntegrationTests {
+    @Test
+    func testCommonLibraryPreservesUnresolvedExpectMetadata() throws {
+        let librarySource = """
+        package common
+        expect fun platformName(): String
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "CommonApi",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            let appSource = """
+            package consumer
+            import common.platformName
+            fun name(): String = platformName()
+            """
+            let actualSource = """
+            package common
+            actual fun platformName(): String = "native"
+            """
+            try CompilerTestSupport.withTemporaryFiles(contents: [actualSource, appSource]) { appPaths in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: appPaths,
+                    moduleName: "CommonConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                #expect(!appCtx.diagnostics.hasError, "Unexpected diagnostics: \(appCtx.diagnostics.diagnostics)")
+                let sema = try #require(appCtx.sema)
+                let importedExpect = try #require(sema.symbols.lookupAll(fqName: [
+                    appCtx.interner.intern("common"), appCtx.interner.intern("platformName"),
+                ]).compactMap { sema.symbols.symbol($0) }.first { $0.flags.contains(.importedLibrary) })
+                #expect(importedExpect.flags.contains(.expectDeclaration))
+            }
+        }
+    }
+
     @Test
     func testShortTargetMetadataSurvivesKklibImport() throws {
         let librarySource = """
