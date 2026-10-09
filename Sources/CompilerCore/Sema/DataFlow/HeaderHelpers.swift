@@ -13,33 +13,7 @@ extension DataFlowSemaPhase {
         types.nominalTypeParameterSymbols(for: ownerSymbol)
     }
 
-    func hasImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        // Imported stdlib declarations own the public Kotlin surface; synthetic
-        // fallback stubs should not reintroduce direct runtime links there.
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID) else {
-                return false
-            }
-            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
-        }
-    }
 
-    func hasSourceOrImportedLibrarySymbol(
-        fqName: [InternedString],
-        kind: SymbolKind,
-        symbols: SymbolTable
-    ) -> Bool {
-        symbols.lookupAll(fqName: fqName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
-                return false
-            }
-            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
-        }
-    }
 
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
@@ -70,7 +44,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine
     ) {
         registerAnnotations(
-            declarationAnnotations(for: decl),
+            metadataAnnotations(for: decl),
             symbol: symbol,
             declRange: declRange,
             sourceFileID: sourceFileID,
@@ -93,6 +67,20 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    private func metadataAnnotations(for decl: Decl) -> [AnnotationNode] {
+        guard case let .propertyDecl(property) = decl else {
+            return declarationAnnotations(for: decl)
+        }
+
+        var annotations = property.annotations
+        for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+            for annotation in accessor.annotations where !annotations.contains(annotation) {
+                annotations.append(annotation)
+            }
+        }
+        return annotations
     }
 
     func registerAnnotations(

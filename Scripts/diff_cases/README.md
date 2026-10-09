@@ -25,6 +25,15 @@ Cases:
 The list below is representative rather than exhaustive. The runner discovers
 all `*.kt` files under `Scripts/diff_cases` automatically.
 
+Internal stdlib cases that require bundled Kotlin sources use
+`// DIFF_CANDIDATE_ONLY_FROM_SOURCE: <reason>` with a `<name>.expected` sidecar
+or ordered `// EXPECT-STDOUT: <line>` directives. `diff_kotlinc.sh` executes
+these cases automatically in serial or parallel file and directory runs, with
+`--stdlib-from-source`. Source-only selections skip JVM discovery, reference
+warm-up, and precompiled artifact setup. A single case can also be run with
+`bash Scripts/diff_kotlinc.sh --candidate-only path/to/case.kt`. Failure reports
+retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
+
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
@@ -69,6 +78,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `comparator_basic.kt`: Comparator 合成（compareBy / compareByDescending / thenBy / thenByDescending / thenComparator / nullsFirst / nullsLast / naturalOrder / reverseOrder / reversed）の parity
 - `sequence_lazy.kt`: `Sequence<T>` lazy evaluation chain（`asSequence` → `map` → `filter` → `toList`）の parity
 - `stdlib_collection_hof.kt`: collection HOF（map/filter/flatMap/fold/reduce/any/all/none/groupBy/groupingBy.fold/sortedBy/find/count/first/last）と capture lambda の parity
+- `stdlib_kotlin_collections_n_check.kt`: `@PublishedApi internal` collection overflow checks; candidate-only expected-output coverage for negative, zero, positive, and boundary `Int` values
 - `list_binary_search_by.kt`: `List.binarySearchBy(key, fromIndex, toIndex, selector)` の parity
 - `stdlib_string_ops.kt`: String stdlib parity（`trim/split/replace/startsWith/endsWith/contains/toInt/toDouble/format/substring/lowercase/uppercase/toIntOrNull/toDoubleOrNull/indexOf/lastIndexOf/padStart/padEnd/repeat/reversed/toList/toCharArray/drop/take/dropLast/takeLast`）
 - `string_decode_to_string.kt`: `ByteArray.decodeToString` UTF-8, range, strict malformed input, and bounds parity
@@ -76,9 +86,10 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `digital_signature.kt`: `Signature` / `CertificateFactory` / `CertPathValidator` parity for signing and certificate validation
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
-- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` の bundled Kotlin source 移行後の candidate-only 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと異なるため `SKIP-DIFF`、kotlinx classpath 必須）
-- `ksp687_map_not_null.kt`: primitive array `mapNotNull` の bundled Kotlin source candidate-only coverage（JVM kotlinc に primitive-array API がないため `SKIP-DIFF`、KIR回帰テストがsource dispatchを検証）
-- `connection_validation.kt`: `java.sql` / JVM `Thread` API が未実装のため、kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
+- `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
+- `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`Scripts/run_candidate_only.sh` で `.expected.stdout` と照合）
+- `jdbc_basic.kt`: SQLite in-memory JDBC の基本操作を `jdbc_basic.expected` と照合する candidate-only output coverage（JVM kotlinc を起動しない）
+- `connection_validation.kt`: JDBC façade が提供する API を除き、残る JVM `Thread` API の未実装について kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
@@ -100,5 +111,14 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰
 
 - `callsinplace_definite_assignment.kt`: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE / AT_LEAST_ONCE) }` を持つ呼び出し（自作関数、および `run`/`with`/`let`/`apply`/`also`）のラムダ引数内で行う outer `var` への代入を、呼び出し元の definite assignment 解析が初期化済みとして扱う parity
+- `stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicInt` の candidate-only runtime parity。`DIFF_CANDIDATE_ONLY` 指定ケースは sibling `.expected` と stdout を照合し、通常の diff harness でも JVM reference を呼ばずに実行する
 
 The set intentionally includes both successful programs and compile-error cases.
+
+Run a candidate-only case directly, without kotlinc or Java:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt
+```
+
+The expected stdout is stored beside the case as `.expected`. In a regular diff run, `// DIFF_CANDIDATE_ONLY` automatically selects this path.

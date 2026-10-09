@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
@@ -7,13 +8,7 @@ struct SamLambdaUnitCoercionTests {
     @Test
     func nullableFunctionCompareAndSetInsideDisposableHandle() throws {
         // atomicfu is not bundled; preserve its generic API in a source fixture.
-        let atomicfu = """
-        package kotlinx.atomicfu
-        class AtomicRef<T>(var value: T) {
-            fun compareAndSet(expect: T, update: T): Boolean = true
-        }
-        fun <T> atomic(value: T): AtomicRef<T> = AtomicRef(value)
-        """
+        let atomicfu = KotlinSourceFixtures.atomicfuAtomicRefStub
         let source = """
         import kotlinx.atomicfu.*
         import kotlinx.coroutines.*

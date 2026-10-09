@@ -713,8 +713,20 @@ struct IncrementalCompilationCacheTests {
     func testStdlibManifestHashIsStable() {
         let hash1 = BundledStdlib.manifestHash()
         let hash2 = BundledStdlib.manifestHash()
+        var expectedHasher = StableFNV1a64.Hasher()
+        for (path, contents) in BundledStdlib.bundledStdlibSources() {
+            expectedHasher.update(bytes: path.utf8)
+            expectedHasher.update(bytes: contents)
+        }
+        expectedHasher.update(bytes: "__metadata_visibility_v2".utf8)
+        expectedHasher.update(bytes: Data())
+        expectedHasher.update(bytes: "__metadata_callback_abi_v1".utf8)
+        expectedHasher.update(bytes: Data())
+
         #expect(hash1 == hash2)
         #expect(!hash1.isEmpty)
+        #expect(hash1.count == 16)
+        #expect(hash1 == expectedHasher.hexString())
     }
 
     @Test
@@ -737,7 +749,10 @@ struct IncrementalCompilationCacheTests {
         )
 
         let cache = IncrementalCompilationCache(cachePath: tempDir)
-        #expect(cache.buildConfigurationHash(for: optionsWithStdlib) != cache.buildConfigurationHash(for: optionsWithoutStdlib))
+        let withStdlibHash = cache.buildConfigurationHash(for: optionsWithStdlib)
+        let withoutStdlibHash = cache.buildConfigurationHash(for: optionsWithoutStdlib)
+        #expect(withStdlibHash.count == 16)
+        #expect(withStdlibHash != withoutStdlibHash)
     }
 
     @Test

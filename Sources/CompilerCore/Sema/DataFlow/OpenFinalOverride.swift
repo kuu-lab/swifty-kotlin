@@ -205,17 +205,33 @@ extension DataFlowSemaPhase {
         declRange: SourceRange,
         ctx: OpenFinalOverrideContext
     ) {
-        for supertypeID in ctx.symbols.directSupertypes(for: symbol) {
-            guard let sup = ctx.symbols.symbol(supertypeID) else {
+        validateSupertypesAreOpen(
+            directSupertypes: ctx.symbols.directSupertypes(for: symbol),
+            declRange: declRange,
+            symbols: ctx.symbols,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
+    }
+
+    func validateSupertypesAreOpen(
+        directSupertypes: [SymbolID],
+        declRange: SourceRange,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for supertypeID in directSupertypes {
+            guard let sup = symbols.symbol(supertypeID) else {
                 continue
             }
 
             // STDLIB-DATA-014: Check if attempting to inherit from a data class
             if sup.flags.contains(.dataType) {
                 let name = sup.fqName
-                    .map { ctx.interner.resolve($0) }
+                    .map { interner.resolve($0) }
                     .joined(separator: ".")
-                ctx.diagnostics.error(
+                diagnostics.error(
                     "KSWIFTK-SEMA-DATA-INHERIT",
                     "Cannot inherit from data class '\(name)'. Data classes cannot be inherited from.",
                     range: declRange
@@ -223,11 +239,11 @@ extension DataFlowSemaPhase {
                 continue
             }
 
-            if isSubclassable(sup, interner: ctx.interner) { continue }
+            if isSubclassable(sup, interner: interner) { continue }
             let name = sup.fqName
-                .map { ctx.interner.resolve($0) }
+                .map { interner.resolve($0) }
                 .joined(separator: ".")
-            ctx.diagnostics.error(
+            diagnostics.error(
                 "KSWIFTK-SEMA-FINAL",
                 "Cannot inherit from final class '\(name)'. "
                     + "Mark it as 'open' to allow subclassing.",

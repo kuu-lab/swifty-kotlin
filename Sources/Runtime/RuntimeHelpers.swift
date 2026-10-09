@@ -769,6 +769,14 @@ public enum KxMiniRuntime {
     }
 
     public static func launch(workItem: DispatchWorkItem) {
+        if let scheduler = RuntimeCoroutineScope.current?.testSchedulerIfPresent() {
+            let boxedWorkItem = RuntimeWorkItemBox(workItem)
+            scheduler.schedule(after: 0) {
+                boxedWorkItem.performUnlessCancelled()
+            }
+            return
+        }
+
         // When the launching coroutine is running on a `runBlocking`
         // event loop, append to that loop's FIFO queue instead of handing the
         // work item to the concurrent global pool. Two coroutines launched in

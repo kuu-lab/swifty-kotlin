@@ -1,4 +1,5 @@
-// DIFF-CANDIDATE-ONLY: Kotlin/Native AtomicIntArray has no JVM kotlinc reference.
+// DIFF_CANDIDATE_ONLY
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: stdlib_kotlin_concurrent_AtomicIntArray_AtomicIntArray_n.kt.expected
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 
 import kotlin.concurrent.AtomicIntArray

@@ -1,16 +1,4 @@
 
-private func isConstructorVisibilityModifier(_ kind: TokenKind) -> Bool {
-    guard case .keyword(let keyword) = kind else {
-        return false
-    }
-    switch keyword {
-    case .internal, .private, .public, .protected, .external:
-        return true
-    default:
-        return false
-    }
-}
-
 extension BuildASTPhase {
     func declarationEnumEntries(
         from nodeID: NodeID,
@@ -299,9 +287,9 @@ extension BuildASTPhase {
         }
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
-        // Primary constructors may use the explicit `constructor` keyword with an
-        // optional visibility modifier and/or annotations; skip them before
-        // looking for the supertype colon.
+        // Primary constructors may use the explicit `constructor` keyword with
+        // modifiers such as `actual`, a visibility modifier, and/or annotations.
+        // Walk general modifiers here just as scanPrimaryConstructorHeader does.
         while index < tokens.count {
             let token = tokens[index]
             if token.kind == .symbol(.at) {
@@ -313,7 +301,7 @@ extension BuildASTPhase {
                 }
                 break
             }
-            if isConstructorVisibilityModifier(token.kind) {
+            if modifier(from: token) != nil {
                 index += 1
                 continue
             }

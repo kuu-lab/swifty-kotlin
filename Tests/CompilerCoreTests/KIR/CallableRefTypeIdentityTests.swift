@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite
@@ -571,15 +572,7 @@ struct CallableRefTypeIdentityTests {
     }
 
     @Test func testKIRKFunctionTagForBoundCallableRef() throws {
-        let source = """
-        class Box {
-            fun plus(x: Int): Int = x
-        }
-        fun main(box: Box): Int {
-            val f = box::plus
-            return f(7)
-        }
-        """
+        let source = KotlinSourceFixtures.boundCallableReferenceReceiverTypeIdentity
 
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)

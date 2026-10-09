@@ -1,5 +1,5 @@
-// CANDIDATE-ONLY: kswiftc lacks java.sql/JDBC and JVM Thread APIs; compare its expected compiler
-// diagnostics with connection_validation.expected.stderr without starting a JVM reference compiler.
+// CANDIDATE-ONLY: JVM Thread APIs remain unsupported; compare the expected compiler
+// diagnostics with connection_validation.expected.stderr. The JDBC calls now have a native facade.
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException

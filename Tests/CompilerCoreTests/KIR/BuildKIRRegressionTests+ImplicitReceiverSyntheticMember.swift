@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 // KUU-1451 regression: a bare `lastIndex`/`indices` read on a scope-function
@@ -9,13 +10,7 @@ import Testing
 // A member function in the same position keeps virtual dispatch (`c.m`).
 extension BuildKIRRegressionTests {
     @Test func testImplicitReceiverSyntheticMemberPropertyLowersToReceiverCall() throws {
-        let ctx = makeContextFromSource("""
-        fun main() {
-            val l = listOf(1, 2, 3)
-            println(l.run { lastIndex })
-            with(l) { println(indices) }
-        }
-        """)
+        let ctx = makeContextFromSource(KotlinSourceFixtures.implicitReceiverSyntheticMemberProperty)
         try runToKIR(ctx)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)

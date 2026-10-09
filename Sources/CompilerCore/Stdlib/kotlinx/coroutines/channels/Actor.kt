@@ -10,6 +10,7 @@ package kotlinx.coroutines.channels
 import kotlin.coroutines.CoroutineContext
 import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ObsoleteCoroutinesApi
 
 // KSP-1573: `CoroutineScope.actor` mirrors `produce` with the roles reversed:
 // the builder launches a consumer coroutine and hands the mailbox channel to
@@ -19,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 // channel-backed CoroutineScope exactly like ProducerScope.
 
 @KsSymbolName("__kk_identity")
+@OptIn(ObsoleteCoroutinesApi::class)
 private external fun <E> __kkActorScopeChannel(scope: ActorScope<E>): Channel<E>
 
 @KsSymbolName("__kk_identity")
@@ -31,6 +33,7 @@ private external fun __kkActorScopeCurrentContext(): CoroutineContext
 // dispatch: the receiver handed to the launched block is the channel handle
 // itself, which owns no Kotlin itable — an interface member getter would
 // emit a virtual call the handle cannot serve.
+@ObsoleteCoroutinesApi
 public class ActorScope<E> : CoroutineScope {
     public override val coroutineContext: CoroutineContext
         get() = __kkActorScopeCurrentContext()
@@ -42,6 +45,7 @@ public class ActorScope<E> : CoroutineScope {
 }
 
 @KsSymbolName("__kk_produce_launch")
+@OptIn(ObsoleteCoroutinesApi::class)
 private external fun <E> __kkActorLaunch(
     channel: Channel<E>,
     block: suspend ActorScope<E>.() -> Unit
@@ -54,10 +58,12 @@ private external fun <E> __kkActorLaunch(
 // `__kk_produce_launch` path has nothing to pass to the launcher thunk.
 // `actor { }` must instead bind `actor(block)` and inline-expand at the
 // call site, the same shape produce uses.
+@ObsoleteCoroutinesApi
 public fun <E> CoroutineScope.actor(
     block: suspend ActorScope<E>.() -> Unit
 ): SendChannel<E> = actor(0, block)
 
+@ObsoleteCoroutinesApi
 public fun <E> CoroutineScope.actor(
     capacity: Int,
     block: suspend ActorScope<E>.() -> Unit

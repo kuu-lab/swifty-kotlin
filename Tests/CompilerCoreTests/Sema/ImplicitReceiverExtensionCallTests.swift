@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 @Suite struct ImplicitReceiverExtensionCallTests {
@@ -53,13 +54,7 @@ import Testing
     /// a call — not the raw function symbol — so KIR materializes `this` as
     /// the callee's receiver argument.
     @Test func bareSyntheticMemberPropertyBindsImplicitReceiverCall() throws {
-        let source = """
-        fun main() {
-            val l = listOf(1, 2, 3)
-            println(l.run { lastIndex })
-            with(l) { println(indices) }
-        }
-        """
+        let source = KotlinSourceFixtures.implicitReceiverSyntheticMemberProperty
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)

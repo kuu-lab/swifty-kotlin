@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// Regression coverage for four default-argument / vararg lowering bugs whose
@@ -127,14 +128,7 @@ extension BuildKIRRegressionTests {
         "class Writer { constructor(value: Unit = kotlin.run { args = Args(null) }) {} }; Writer()",
     ])
     func localClassDefaultStubRestoresCapturedCell(_ declaration: String) throws {
-        let source = """
-        class Args(val x: String?)
-        fun probe() {
-            var args = Args("hello")
-            \(declaration)
-            println(args.x)
-        }
-        """
+        let source = KotlinSourceFixtures.localNamedNominalTypingSource(declaration: declaration)
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))")

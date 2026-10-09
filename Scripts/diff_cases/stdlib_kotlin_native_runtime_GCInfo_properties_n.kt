@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.* APIs are Kotlin/Native-only and are not available in JVM kotlinc.
+// CANDIDATE-ONLY: kotlin.native.runtime APIs are unavailable in the JVM kotlinc reference.
 import kotlin.native.runtime.GCInfo
 import kotlin.native.runtime.MemoryUsage
 import kotlin.native.runtime.RootSetStatistics

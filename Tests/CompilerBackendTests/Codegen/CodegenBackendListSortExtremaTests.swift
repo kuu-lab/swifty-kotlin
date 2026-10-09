@@ -1,6 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import Testing
 
@@ -37,41 +38,6 @@ struct CodegenBackendListSortExtremaTests {
         "@kk_list_shuffled(", "@kk_list_shuffled_random(",
     ]
 
-    private static let allFamiliesSource = """
-    import kotlin.random.Random
-
-    fun main() {
-        val nums = listOf(3, 1, 4, 1, 5)
-        println(nums.sorted())
-        println(nums.sortedDescending())
-        println(nums.sortedBy { it })
-        println(nums.sortedByDescending { it })
-        println(nums.sortedWith { a, b -> a - b })
-        println(nums.shuffled())
-        println(nums.shuffled(Random))
-        println(nums.max())
-        println(nums.min())
-        println(nums.maxOrNull())
-        println(nums.minOrNull())
-        println(nums.maxBy { it })
-        println(nums.minBy { it })
-        println(nums.maxByOrNull { it })
-        println(nums.minByOrNull { it })
-        println(nums.maxOf { it })
-        println(nums.minOf { it })
-        println(nums.maxOfOrNull { it })
-        println(nums.minOfOrNull { it })
-        println(nums.maxWith { a, b -> a - b })
-        println(nums.minWith { a, b -> a - b })
-        println(nums.maxWithOrNull(naturalOrder()))
-        println(nums.minWithOrNull(naturalOrder()))
-        println(nums.maxOfWith(naturalOrder()) { it })
-        println(nums.minOfWith(naturalOrder()) { it })
-        println(nums.maxOfWithOrNull(naturalOrder()) { it })
-        println(nums.minOfWithOrNull(naturalOrder()) { it })
-    }
-    """
-
     private func expectNoLegacySortExtremaIR(_ ir: String) {
         for legacy in Self.legacyListSortExtremaIRCallees {
             #expect(!ir.contains(legacy), "the legacy rewrite \(legacy) must not reach codegen")
@@ -92,7 +58,7 @@ struct CodegenBackendListSortExtremaTests {
     /// to name the artifact itself to exercise this path at all.
     @Test
     func listSortExtremaKeepSourceCalleesThroughStdlibArtifact() throws {
-        try withTemporaryFile(contents: Self.allFamiliesSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
@@ -113,7 +79,7 @@ struct CodegenBackendListSortExtremaTests {
     /// Source path: the bundled stdlib is compiled alongside the module.
     @Test
     func listSortExtremaKeepSourceCalleesWithStdlibFromSource() throws {
-        try withTemporaryFile(contents: Self.allFamiliesSource) { path in
+        try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
