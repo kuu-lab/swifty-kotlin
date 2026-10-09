@@ -2055,9 +2055,21 @@ final class CallTypeChecker {
             // overloaded functions of the same name. Skipped when a local
             // variable already shadows the name (resolvedFromLocalShadow).
             if !resolvedFromLocalShadow {
-                let classSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
+                // Ordinary scope lookup stops at the first scope containing
+                // any binding of this name. A companion function can therefore
+                // hide its enclosing class's nested classifier even though
+                // Kotlin keeps callable and classifier lookup in separate
+                // namespaces. Recover only the nearest lexical classifier;
+                // constructors still go through the normal visibility and
+                // hidden-deprecation handling below.
+                let classSymbols = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                     return symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass || symbol.kind == .object
+                }).filter { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.flags.contains(.expectDeclaration)
+                    else { return true }
+                    return sema.symbols.actualSymbol(for: candidate) == nil
                 }
                 if let classSym = classSymbols.first, let classSymbol = ctx.cachedSymbol(classSym) {
                     if classSymbol.flags.contains(.abstractType) {

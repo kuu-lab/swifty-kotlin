@@ -6,7 +6,8 @@
 |---|---|---|
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
-| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`, plus candidate-only output checks for target-specific cases; persists failure artifacts |
+| `run_candidate_only.sh` | ✓ | Compile one Kotlin case without a JVM reference and compare stdout with its `.expected` file |
 | `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
@@ -75,6 +76,25 @@ sudo xcode-select -s /Applications/Xcode.app
 # or per-invocation:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/swift_test.sh ...
 ```
+
+## Candidate-only diff cases
+
+Some cases have no JVM `kotlinc` reference target. Mark these in the Kotlin
+source with `// DIFF_CANDIDATE_ONLY_FROM_SOURCE`, add a sibling `.expected`
+file or ordered `// EXPECT-STDOUT:` lines containing the expected stdout,
+then run the case without kotlinc or a JDK reference. The
+candidate compiles bundled stdlib sources with the case rather than using a
+precompiled artifact, preserving internal source-backed declarations:
+
+```bash
+bash Scripts/diff_kotlinc.sh --candidate-only Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt
+```
+
+Regular differential runs execute these cases in the same source mode, in
+both serial and parallel runs. The separate `run_candidate_only.sh` lane
+continues to own `// CANDIDATE-ONLY` cases with `.expected.stdout` or
+`.expected.stderr` sidecars. Run `bash Scripts/test_diff_kotlinc_candidate_from_source.sh`
+to verify discovery, source compilation, and exclusion from that lane.
 
 ## Runtime ABI link validation
 
@@ -152,6 +172,22 @@ bash Scripts/swift_test.sh --filter Golden
 bash Scripts/swift_test.sh --filter Golden
 ```
 
+## Candidate-only Kotlin cases
+
+Cases under `Scripts/candidate_cases/` do not use the JVM `kotlinc` reference.
+The runner compiles the case and any supplied support sources into one
+candidate module, runs the native executable, and diffs stdout with the
+adjacent `.expected` file:
+
+```bash
+bash Scripts/run_candidate_only.sh \
+  Scripts/candidate_cases/logging_basic.kt \
+  Scripts/candidate_cases/support/slf4j_minimal.kt
+```
+
+The runner reuses `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` when present.
+Set `KSWIFTK_STDLIB_LIBRARY` to reuse another prebuilt artifact.
+
 ## kotlinc diff workflow
 
 Run one case:
@@ -159,6 +195,14 @@ Run one case:
 ```bash
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/hello.kt
 ```
+
+For a case without a JVM reference target, add
+`// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: <sidecar-filename>` to the `.kt` file
+and store its expected stdout in a regular sidecar file beside the source. The
+harness compiles and runs that case with `kswiftc` and compares stdout to the
+sidecar. A direct invocation of that case does not require or invoke kotlinc or
+Java; a directory run uses this
+mode only for marked cases and keeps the JVM comparison for other cases.
 
 Run all tracked regression cases:
 

@@ -976,16 +976,20 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        if let receiverType = ctx.implicitReceiverType {
-            candidates.removeAll { candidate in
-                guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
-                    return false
-                }
-                return !sema.types.isSubtype(
-                    sema.types.makeNonNullable(receiverType),
-                    sema.types.makeNonNullable(declaredReceiver)
-                )
+        candidates.removeAll { candidate in
+            guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                return false
             }
+            guard let receiverType = ctx.implicitReceiverType else {
+                // Package-scope extension properties remain in import scopes
+                // so `receiver.property` can resolve them, but a bare name in
+                // a receiver-free context must not bind as a global property.
+                return implicitReceiverLookupTypes.isEmpty
+            }
+            return !sema.types.isSubtype(
+                sema.types.makeNonNullable(receiverType),
+                sema.types.makeNonNullable(declaredReceiver)
+            )
         }
         if candidates.isEmpty {
             var implicitMemberResult: (symbol: SymbolID, type: TypeID)?
@@ -2330,7 +2334,7 @@ extension ExprTypeChecker {
                 // itself — but this could not be verified: referencing an
                 // entry with a body at all (`EnumClass.ENTRY`) hits a
                 // separate, pre-existing, unrelated bug (see
-                // docs/diff-skip-inventory.md's `enum_edge_cases.kt` entry).
+                // the `enum_edge_cases.kt` entry).
                 // `.interface` stays excluded here too: interface-owned
                 // properties have no storage of their own (always dispatched
                 // through whichever class implements them), which this

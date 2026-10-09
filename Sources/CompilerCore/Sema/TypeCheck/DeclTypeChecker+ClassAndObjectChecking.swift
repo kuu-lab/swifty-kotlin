@@ -1,4 +1,3 @@
-
 extension DeclTypeChecker {
     func typeCheckBoundPropertyDecl(
         _ property: PropertyDecl,
@@ -31,46 +30,16 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let sema = ctx.sema
         var allNestedObjects = classDecl.nestedObjects
         if let companionDeclID = classDecl.companionObject {
             allNestedObjects.append(companionDeclID)
         }
-        // Mirror the header pass: a generic class's `this` type carries its own
-        // type parameters as arguments. Member functions get this through their
-        // signature receiver type, but property accessors fall back to the
-        // context's implicit receiver, so a raw type here would make calls like
-        // `f(this)` (where `f` takes `C<T>`) fail to resolve.
-        let classTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
-            .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
-        }
-        let classType = sema.types.make(.classType(ClassType(
-            classSymbol: symbol, args: classTypeArgs, nullability: .nonNull
-        )))
-        let classScope = buildClassMemberScope(
-            ownerSymbol: symbol,
-            ownerType: classType,
-            memberFunctions: classDecl.memberFunctions,
-            memberProperties: classDecl.memberProperties,
-            nestedClasses: classDecl.nestedClasses,
+        let (classType, classCtx, primaryCtorLocals) = makeClassTypeCheckContext(
+            classDecl: classDecl,
+            symbol: symbol,
             nestedObjects: allNestedObjects,
             ctx: ctx
         )
-        let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        let classCtx = ctx.withoutSuspensionContext()
-            .withOuterReceiver(label: classLabel, type: classType)
-            .copying(
-                scope: classScope,
-                implicitReceiverType: classType,
-                currentDeclSymbol: symbol,
-                enclosingClassSymbol: symbol
-            )
-
-        // Primary constructor parameters without `val`/`var` are only in scope
-        // for property initializers and `init {}` blocks, not for member
-        // functions — so they're threaded through as `locals` rather than
-        // inserted into `classScope`.
-        let primaryCtorLocals = primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
@@ -500,6 +469,9 @@ extension DeclTypeChecker {
                 diagnostics.truncate(to: diagnosticSnapshot)
 
             case let .propertyDecl(property):
+                guard !driver.precheckedPropertyDecls.contains(declID) else {
+                    continue
+                }
                 typeCheckBoundPropertyDecl(
                     property,
                     declID: declID,

@@ -193,18 +193,6 @@ public enum GoldenHarness {
         FileHandle.standardError.write(Data(message.utf8))
     }
 
-    public static func renderInSubprocess(
-        suiteName: String,
-        sourcePath: String,
-        stdlibLibraryPath: String? = nil
-    ) throws -> String {
-        let stdoutData = try runWorker(
-            arguments: [suiteName, sourcePath],
-            timeout: subprocessTimeout,
-            stdlibLibraryPath: stdlibLibraryPath
-        )
-        return String(decoding: stdoutData, as: UTF8.self)
-    }
 
     public static func renderBatchInSubprocess(
         suiteName: String,

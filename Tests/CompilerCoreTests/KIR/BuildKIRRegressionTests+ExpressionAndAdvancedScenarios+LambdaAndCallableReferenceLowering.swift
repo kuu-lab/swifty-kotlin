@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -476,13 +477,7 @@ extension BuildKIRRegressionTests {
 
     @Test func testBuildKIRNestedEscapingFunctionTypeComparesArithmeticBeforeReturn() throws {
         let runtime = try RuntimeNames()
-        let source = """
-        fun main() {
-            val f: (Int) -> (String) -> Boolean = { m -> { s -> s.length * m > 10 } }
-            println(f(2)("hello"))
-            println(f(2)("hi"))
-        }
-        """
+        let source = KotlinSourceFixtures.nestedEscapingFunctionTypeBooleanComparison
 
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)
@@ -776,15 +771,7 @@ extension BuildKIRRegressionTests {
 
     @Test func testBuildKIRPrependsBoundCallableRefReceiverAsCaptureArgument() throws {
         let runtime = try RuntimeNames()
-        let source = """
-        class Box {
-            fun plus(x: Int): Int = x
-        }
-        fun main(box: Box): Int {
-            val f = box::plus
-            return f(7)
-        }
-        """
+        let source = KotlinSourceFixtures.boundCallableReferenceReceiverTypeIdentity
 
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)

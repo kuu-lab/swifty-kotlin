@@ -1,5 +1,4 @@
 // DIFF_CANDIDATE_ONLY
-// DIFF_EXPECT_OUTPUT: 42
 expect abstract class Pool<T : Any>(capacity: Int) {
     protected abstract fun produce(): T
     protected open fun disposeInstance(instance: T)

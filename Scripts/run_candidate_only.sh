@@ -13,7 +13,7 @@ RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
 STDLIB_COMPILE_TIMEOUT="${DIFF_STDLIB_COMPILE_TIMEOUT:-600}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/candidate_only}"
-STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-}"
+STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-${KSWIFTK_STDLIB_LIBRARY:-}}"
 KEEP_TEMP="${DIFF_CANDIDATE_ONLY_KEEP_TEMP:-0}"
 
 declare -a KSWIFTC_ARGS=()
@@ -23,11 +23,14 @@ fi
 
 usage() {
   cat <<USAGE
-Usage: $(basename "$0") [options] <file-or-dir>
+Usage: $(basename "$0") [options] <file-or-dir> [support.kt ...]
 
 Run Kotlin cases marked // CANDIDATE-ONLY without kotlinc or a JVM reference.
 Each case needs either a sibling .expected.stdout file (successful execution)
 or a sibling .expected.stderr file (expected candidate compile failure).
+A sibling .expected file is also supported for successful execution.
+Additional Kotlin support sources are compiled into the same module as a single
+case. Set KSWIFTK_STDLIB_LIBRARY or DIFF_STDLIB_LIBRARY to reuse a stdlib artifact.
 
 Options:
   --kswiftc <path>          Candidate compiler (default: .build/debug/kswiftc)
@@ -42,6 +45,7 @@ USAGE
 }
 
 TARGET=""
+declare -a SUPPORT_SOURCES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --kswiftc)
@@ -87,11 +91,11 @@ while [[ $# -gt 0 ]]; do
       exit 2
       ;;
     *)
-      if [[ -n "$TARGET" ]]; then
-        echo "Only one file-or-dir target is supported" >&2
-        exit 2
+      if [[ -z "$TARGET" ]]; then
+        TARGET="$1"
+      else
+        SUPPORT_SOURCES+=("$1")
       fi
-      TARGET="$1"
       ;;
   esac
   shift
@@ -105,6 +109,21 @@ CALLER_DIR="$(pwd)"
 if [[ "$TARGET" != /* ]]; then
   TARGET="$CALLER_DIR/$TARGET"
 fi
+if [[ ${#SUPPORT_SOURCES[@]} -gt 0 && ( "$TARGET" != *.kt || ! -f "$TARGET" ) ]]; then
+  echo "Support sources require a single Kotlin case target" >&2
+  exit 2
+fi
+for i in "${!SUPPORT_SOURCES[@]}"; do
+  support_path="${SUPPORT_SOURCES[$i]}"
+  if [[ "$support_path" != /* ]]; then
+    support_path="$CALLER_DIR/$support_path"
+  fi
+  if [[ "$support_path" != *.kt || ! -f "$support_path" ]]; then
+    echo "Kotlin support source not found: $support_path" >&2
+    exit 2
+  fi
+  SUPPORT_SOURCES[$i]="$support_path"
+done
 if [[ "$KSWIFTC" == */* && "$KSWIFTC" != /* ]]; then
   KSWIFTC="$CALLER_DIR/$KSWIFTC"
 fi
@@ -136,17 +155,25 @@ if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
 fi
 cd "$ROOT_DIR"
 
+is_runnable_candidate_case() {
+  # A .expected sidecar does not change ownership of an internal source case.
+  if grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_CANDIDATE_ONLY_FROM_SOURCE([[:space:]:]|$)' "$1"; then
+    return 1
+  fi
+  is_candidate_only_case "$1" || [[ -f "${1%.kt}.expected" ]]
+}
+
 declare -a CASES=()
 if [[ -f "$TARGET" ]]; then
-  if is_candidate_only_case "$TARGET"; then
+  if is_runnable_candidate_case "$TARGET"; then
     CASES+=("$TARGET")
   else
-    echo "Case is not marked // CANDIDATE-ONLY: $TARGET" >&2
+    echo "Case needs an artifact oracle; source-only cases use Scripts/diff_kotlinc.sh: $TARGET" >&2
     exit 2
   fi
 elif [[ -d "$TARGET" ]]; then
   while IFS= read -r case_path; do
-    if is_candidate_only_case "$case_path"; then
+    if is_runnable_candidate_case "$case_path"; then
       CASES+=("$case_path")
     fi
   done < <(find "$TARGET" -type f -name '*.kt' | sort)
@@ -156,7 +183,7 @@ else
 fi
 
 if [[ ${#CASES[@]} -eq 0 ]]; then
-  echo "No // CANDIDATE-ONLY cases found under: $TARGET" >&2
+  echo "No candidate-only cases found under: $TARGET" >&2
   exit 1
 fi
 
@@ -199,14 +226,23 @@ run_case() {
   local expected_stdout="$expected_base.stdout"
   local expected_stderr="$expected_base.stderr"
   local case_temp candidate_bin compile_stdout compile_stderr run_stdout run_stderr
-  local compile_exit=0 run_exit=0 ok=1 case_arg case_abs
+  local compile_exit=0 run_exit=0 ok=1 case_arg case_abs support_path
+  local -a compile_sources=()
+
+  if [[ -f "$expected_base" ]]; then
+    if [[ -f "$expected_stdout" || -f "$expected_stderr" ]]; then
+      echo "FAIL $case_path: choose one expected sidecar (.expected, .expected.stdout or .expected.stderr)"
+      return 1
+    fi
+    expected_stdout="$expected_base"
+  fi
 
   if [[ -f "$expected_stdout" && -f "$expected_stderr" ]]; then
     echo "FAIL $case_path: choose one expected sidecar (.expected.stdout or .expected.stderr)"
     return 1
   fi
   if [[ ! -f "$expected_stdout" && ! -f "$expected_stderr" ]]; then
-    echo "FAIL $case_path: missing .expected.stdout or .expected.stderr sidecar"
+    echo "FAIL $case_path: missing .expected, .expected.stdout or .expected.stderr sidecar"
     return 1
   fi
 
@@ -224,7 +260,16 @@ run_case() {
     case_arg="$case_abs"
   fi
 
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "$case_arg" -o "$candidate_bin" >"$compile_stdout" 2>"$compile_stderr" || compile_exit=$?
+  compile_sources+=("$case_arg")
+  for support_path in "${SUPPORT_SOURCES[@]}"; do
+    if [[ "$support_path" == "$ROOT_DIR/"* ]]; then
+      compile_sources+=("${support_path#"$ROOT_DIR"/}")
+    else
+      compile_sources+=("$support_path")
+    fi
+  done
+
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "${KSWIFTC_ARGS[@]}" "${compile_sources[@]}" -o "$candidate_bin" >"$compile_stdout" 2>"$compile_stderr" || compile_exit=$?
   normalize_text "$compile_stderr" > "$case_temp/candidate_compile.stderr.norm"
 
   if [[ -f "$expected_stderr" ]]; then

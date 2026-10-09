@@ -37,55 +37,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    func makeCollectionType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        makeStdlibShellType(
-            symbols: symbols,
-            types: types,
-            fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("Collection"),
-            ],
-            args: [.out(elementType)]
-        )
-    }
 
-    func makeSequenceType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        makeStdlibShellType(
-            symbols: symbols,
-            types: types,
-            fqName: [
-                interner.intern("kotlin"),
-                interner.intern("sequences"),
-                interner.intern("Sequence"),
-            ],
-            args: [.out(elementType)]
-        )
-    }
 
-    func makeNominalType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        fqName: [InternedString]
-    ) -> TypeID {
-        makeStdlibShellType(symbols: symbols, types: types, fqName: fqName, args: [])
-    }
 
-    func makeListOfStringType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        makeListType(symbols: symbols, types: types, interner: interner, elementType: types.stringType)
-    }
 }

@@ -1,5 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 #if canImport(Testing)
 import Testing
@@ -8,13 +9,7 @@ import Testing
 struct CodegenBackendNestedEscapingFunctionTypesTests {
     @Test
     func codegenNestedEscapingFunctionTypeBooleanComparison() throws {
-        let source = """
-        fun main() {
-            val f: (Int) -> (String) -> Boolean = { m -> { s -> s.length * m > 10 } }
-            println(f(2)("hello"))
-            println(f(2)("hi"))
-        }
-        """
+        let source = KotlinSourceFixtures.nestedEscapingFunctionTypeBooleanComparison
 
         try assertKotlinOutput(
             source,

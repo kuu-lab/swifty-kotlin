@@ -163,19 +163,6 @@ private func runtimeStringValueForHOF(_ raw: Int) -> String {
     return box.value
 }
 
-private func assertAggregateStringList(
-    _ list: RuntimeListBox?,
-    equals expected: [String]
-) {
-    guard let list else {
-        Issue.record("Expected a RuntimeListBox")
-        return
-    }
-    #expect(list.values.map(\.tag) == Array(repeating: RuntimeValue.stringTag, count: expected.count))
-    #expect(list.values.map { runtimeRenderAnyForPrint($0) } == expected)
-    #expect(list.elements.map(runtimeStringValueForHOF) == expected)
-}
-
 @Suite(.serialized)
 struct RuntimeStringHOFTests {
     // KSP-410: map/mapIndexed/mapNotNull are bundled Kotlin source
@@ -246,24 +233,6 @@ struct RuntimeStringHOFTests {
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
-    private func assertCharPairValue(
-        _ raw: Int,
-        first: Int,
-        second: Int
-    ) {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
-        else {
-            Issue.record("Expected RuntimePairBox")
-            return
-        }
-
-        #expect(pairBox.firstValue.tag == RuntimeValue.charTag)
-        #expect(pairBox.firstValue.payload0 == first)
-        #expect(pairBox.secondValue.tag == RuntimeValue.charTag)
-        #expect(pairBox.secondValue.payload0 == second)
     }
 }
 #endif

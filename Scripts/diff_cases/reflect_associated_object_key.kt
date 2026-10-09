@@ -1,5 +1,6 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.reflect.AssociatedObjectKey / ExperimentalAssociatedObjects
-// do not resolve in the JVM kotlinc reference environment.
+// CANDIDATE-ONLY: kotlin.reflect.AssociatedObjectKey / ExperimentalAssociatedObjects are not
+// available in the JVM kotlinc reference surface; this fixture only declares the key annotation.
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: reflect_associated_object_key.expected.stdout
 import kotlin.reflect.AssociatedObjectKey
 import kotlin.reflect.ExperimentalAssociatedObjects
 
