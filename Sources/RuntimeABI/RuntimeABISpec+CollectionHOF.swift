@@ -256,10 +256,6 @@ isThrowing: false
         )
     }
 
-    private static func stdlibListHOFSpec(_ memberName: String, arity: Int, fallback: String) -> RuntimeABIFunctionSpec {
-        hofSpec(stdlibListHOFName(memberName, arity: arity, fallback: fallback))
-    }
-
     static let collectionHOFFunctions: [RuntimeABIFunctionSpec] = {
         let before = [
             "kk_list_forEach",

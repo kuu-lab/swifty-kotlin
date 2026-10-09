@@ -40,7 +40,6 @@ public enum BinaryOp: Equatable, Codable {
     case shr
     case ushr
 
-    /// The Kotlin operator function name for this binary operator (e.g. "plus", "compareTo").
     public var kotlinFunctionName: String {
         switch self {
         case .add: "plus"
@@ -93,7 +92,6 @@ public enum CompoundAssignOp: Equatable, Codable {
     case divAssign
     case modAssign
 
-    /// The Kotlin operator function name for the augmented-assignment convention.
     public var kotlinFunctionName: String {
         switch self {
         case .plusAssign: "plusAssign"
@@ -193,7 +191,6 @@ public enum Expr: Equatable, Codable {
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
     case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange)
-    /// A `class`/`object` declared as a block statement (`{ class L { ... } }`).
     /// Unlike a top-level nominal decl the name is only visible to statements
     /// after it inside the same block scope, mirroring `localFunDecl`.
     case localNominalDecl(declID: DeclID, range: SourceRange)
@@ -205,8 +202,6 @@ public enum Expr: Equatable, Codable {
     case destructuringDecl(names: [InternedString?], isMutable: Bool, initializer: ExprID, range: SourceRange)
     case forDestructuringExpr(names: [InternedString?], iterable: ExprID, body: ExprID, range: SourceRange)
 
-    /// Whether this expression can serve as a collection HOF lambda argument.
-    /// Both lambda literals and callable references (`::foo`) qualify (REFL-003).
     public var isLambdaOrCallableRef: Bool {
         switch self {
         case .lambdaLiteral, .callableRef: true

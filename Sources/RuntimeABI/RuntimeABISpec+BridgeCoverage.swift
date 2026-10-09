@@ -261,12 +261,6 @@ public extension RuntimeABISpec {
 
     static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
         [
-            bridgeSpec("kk_duration_div_int", section: "Duration", params: ["durationRaw", "scale"]),
-            bridgeSpec("kk_duration_isInfinite", section: "Duration", params: ["durationRaw"]),
-            bridgeSpec("kk_duration_isNegative", section: "Duration", params: ["durationRaw"]),
-            bridgeSpec("kk_duration_isPositive", section: "Duration", params: ["durationRaw"]),
-            bridgeSpec("kk_duration_times_int", section: "Duration", params: ["durationRaw", "scale"]),
-            bridgeSpec("kk_duration_unary_minus", section: "Duration", params: ["durationRaw"]),
             bridgeSpec("kk_instant_compare", section: "System", params: ["aRaw", "bRaw"],
             isThrowing: false),
             bridgeSpec("kk_instant_epoch_seconds", section: "System", params: ["instantRaw"],
@@ -290,13 +284,8 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
             isThrowing: false),
             // STDLIB-TIME-181: Native Foundation Date bridge
-            bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
-            bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),
             // STDLIB-TIME-181: Native clock_gettime bridge
-            bridgeSpec("kk_clock_gettime_monotonic_ns", section: "System"),
-            bridgeSpec("kk_clock_monotonic_mark_now", section: "System"),
             // STDLIB-TIME-181: Type-safe epoch conversion helpers
-            bridgeSpec("kk_instant_to_epoch_millis", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_instant_from_epoch_seconds", section: "System", params: ["epochSeconds", "nanoOfSecond"]),
             bridgeSpec("kk_platform_memoryModel", section: "System", params: ["platformRaw"],
             isThrowing: false),

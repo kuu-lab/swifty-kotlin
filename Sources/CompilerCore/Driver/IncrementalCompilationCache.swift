@@ -335,26 +335,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    /// Validates and resolves a manifest-derived `relativePath` against the
-    /// cache directory. Returns `nil` if the path is invalid, traverses symlinks,
-    /// or resolves outside the cache.
-    private static func resolvedAndContainedCachePath(
-        relativePath: String,
-        cachePath: String,
-        expectedKind: CachedOutputArtifactKind = .file
-    ) -> String? {
-        guard let rootFD = CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) else {
-            return nil
-        }
-        defer { close(rootFD) }
-        return CacheSecurity.validateContainedArtifactPath(
-            cacheRootFD: rootFD,
-            cachePath: cachePath,
-            relativePath: relativePath,
-            expectedKind: expectedKind
-        )
-    }
-
     public var hasPreviousCache: Bool {
         !previousFingerprints.isEmpty
     }
@@ -537,12 +517,6 @@ public final class IncrementalCompilationCache {
     private static func writeStderr(_ message: String) {
         if let data = message.data(using: .utf8) {
             FileHandle.standardError.write(data)
-        }
-    }
-
-    private static func removeItemIfPresent(at path: String, fileManager fm: FileManager) throws {
-        if fm.fileExists(atPath: path) {
-            try fm.removeItem(atPath: path)
         }
     }
 

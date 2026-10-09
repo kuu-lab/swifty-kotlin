@@ -1670,10 +1670,6 @@ private func runtimeRangeIteratorHasNext(_ iterator: RuntimeRangeIteratorBox) ->
     iterator.hasNextValue ? 1 : 0
 }
 
-private func runtimeRangeIteratorNext(_ iterator: RuntimeRangeIteratorBox) -> Int {
-    iterator.advance()
-}
-
 private func runtimeSignedRangeForInIteratorBox(from rawValue: Int) -> RuntimeSignedRangeForInIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeSignedRangeForInIteratorBox.self)
 }

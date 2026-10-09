@@ -904,6 +904,15 @@ struct TypeCheckHelpers {
                             diagnostics: diagnostics
                         )
                     }
+                    if let diagnostics {
+                        checkDeprecation(
+                            for: symbolID,
+                            sema: sema,
+                            interner: interner,
+                            range: usageRange,
+                            diagnostics: diagnostics
+                        )
+                    }
                     let resolvedArgs = resolveTypeArgRefsForTypeCheck(
                         argRefs, ast: ast, sema: sema, interner: interner,
                         scope: scope, diagnostics: diagnostics, usageRange: usageRange

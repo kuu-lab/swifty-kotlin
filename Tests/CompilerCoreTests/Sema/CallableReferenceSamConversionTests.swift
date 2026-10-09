@@ -11,7 +11,7 @@ import Testing
 struct CallableReferenceSamConversionTests {
 
     @Test func testCallableRefPassedToFunInterfaceParameter() throws {
-        let source = KotlinSourceFixtures.callableReferenceSamConversion
+        let source = try diffCaseSource("callable_ref_sam_as_argument.kt", file: #filePath)
 
         let ctx = makeContextFromSource(source)
         try runSema(ctx)

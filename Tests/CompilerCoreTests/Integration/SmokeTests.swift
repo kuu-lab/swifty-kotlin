@@ -197,16 +197,15 @@ import Testing
         // BUG-205: reading a constructor property of an enum class instance
         // (enum class Status(val code: Int) { OK(200) }) must compile to KIR
         // instead of being lowered as an unresolved zero-argument call.
-        try assertKotlinCompilesToKIR("""
-        enum class Status(val code: Int) {
-            OK(200)
-        }
-
-        fun main() {
-            val s = Status.OK
-            println(s.code)
-        }
-        """, moduleName: "SmokeEnumCtorProp", allowDefaultStdlibLibrary: true)
+        let source = try diffCaseSource(
+            "bug205_enum_constructor_property.kt",
+            file: #filePath
+        )
+        try assertKotlinCompilesToKIR(
+            source,
+            moduleName: "SmokeEnumCtorProp",
+            allowDefaultStdlibLibrary: true
+        )
     }
 
     @Test func testSmokeUsePinnedCompilesToKIR() throws {

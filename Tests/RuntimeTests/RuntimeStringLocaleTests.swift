@@ -64,23 +64,6 @@ struct RuntimeStringLocaleTests {
         }
     }
 
-    private func makeLocale(language: String, country: String) -> Int {
-        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
-            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                __kk_locale_new_language_country_flat(
-                    languageData,
-                    languageLength,
-                    languageByteCount,
-                    languageHash,
-                    countryData,
-                    countryLength,
-                    countryByteCount,
-                    countryHash
-                )
-            }
-        }
-    }
-
     @Test
     func testLocaleLowercaseUsesTurkishRules() {
         let result = flatLocaleStringValue(
@@ -122,7 +105,7 @@ struct RuntimeStringLocaleTests {
             // Deseret uppercase and lowercase letters form valid surrogate pairs.
             ([0xD801, 0xDC00, 0, 0xD801, 0xDC28], [0xD801, 0xDC28, 0, 0xD801, 0xDC28], [0xD801, 0xDC00, 0, 0xD801, 0xDC00]),
         ]
-        let us = makeLocale(language: "en", country: "US")
+        let us = RuntimeTests.makeLocale(language: "en", country: "US")
         for testCase in cases {
             let source = runtimeKotlinStringFromUTF16CodeUnits(testCase.input)
             let raw = runtimeMakeStringRaw(source)
@@ -183,8 +166,8 @@ struct RuntimeStringLocaleTests {
 
     @Test
     func testLocaleEqualityAndHashCodeAreValueBased() {
-        let lhs = makeLocale(language: "en", country: "US")
-        let rhs = makeLocale(language: "en", country: "US")
+        let lhs = RuntimeTests.makeLocale(language: "en", country: "US")
+        let rhs = RuntimeTests.makeLocale(language: "en", country: "US")
 
         #expect(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
         #expect(kk_any_hashCode(lhs, 0) == kk_any_hashCode(rhs, 0))
@@ -200,7 +183,7 @@ struct RuntimeStringLocaleTests {
         ("en_US", "gb", "en_us_GB"),
     ])
     func testLocaleToString(language: String, country: String, expected: String) {
-        let locale = makeLocale(language: language, country: country)
+        let locale = RuntimeTests.makeLocale(language: language, country: country)
         var length = 0
         var byteCount = 0
         var hash = 0

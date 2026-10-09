@@ -46,10 +46,6 @@ struct RuntimeCharEdgeCaseTests {
         kk_box_bool(__kk_char_unicode_category(value) != 0 ? 1 : 0)
     }
 
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
-    }
-
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -65,23 +61,6 @@ struct RuntimeCharEdgeCaseTests {
         )
         let constData = data.map { UnsafePointer($0) }
         return body(constData, length, byteCount, hash)
-    }
-
-    private func makeLocale(language: String, country: String) -> Int {
-        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
-            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                __kk_locale_new_language_country_flat(
-                    languageData,
-                    languageLength,
-                    languageByteCount,
-                    languageHash,
-                    countryData,
-                    countryLength,
-                    countryByteCount,
-                    countryHash
-                )
-            }
-        }
     }
 
     // MARK: - Char.MIN_VALUE / MAX_VALUE boundaries
@@ -174,46 +153,46 @@ struct RuntimeCharEdgeCaseTests {
     @Test
     func testUppercaseOfDigitIsIdentity() {
         // '5'.uppercase() returns "5" (unchanged)
-        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeTestStringValue(__kk_char_uppercase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testLowercaseOfDigitIsIdentity() {
-        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeTestStringValue(__kk_char_lowercase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testUppercaseOfPunctuationIsIdentity() {
-        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("!" as UnicodeScalar).value))) == "!")
+        #expect(runtimeTestStringValue(__kk_char_uppercase_string(Int(("!" as UnicodeScalar).value))) == "!")
     }
 
     @Test
     func testLowercaseOfPunctuationIsIdentity() {
-        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("!" as UnicodeScalar).value))) == "!")
+        #expect(runtimeTestStringValue(__kk_char_lowercase_string(Int(("!" as UnicodeScalar).value))) == "!")
     }
 
     @Test
     func testUppercaseAscii() {
-        #expect(runtimeStringValue(__kk_char_uppercase_string(Int(("a" as UnicodeScalar).value))) == "A")
+        #expect(runtimeTestStringValue(__kk_char_uppercase_string(Int(("a" as UnicodeScalar).value))) == "A")
     }
 
     @Test
     func testUppercaseWithTurkishLocale() {
         let locale = makeLocale(language: "tr", country: "TR")
         let result = __kk_char_uppercase_locale(Int(("i" as UnicodeScalar).value), locale)
-        #expect(runtimeStringValue(result) == "\u{0130}")
+        #expect(runtimeTestStringValue(result) == "\u{0130}")
     }
 
     @Test
     func testLowercaseAscii() {
-        #expect(runtimeStringValue(__kk_char_lowercase_string(Int(("A" as UnicodeScalar).value))) == "a")
+        #expect(runtimeTestStringValue(__kk_char_lowercase_string(Int(("A" as UnicodeScalar).value))) == "a")
     }
 
     @Test
     func testLowercaseWithTurkishLocale() {
         let locale = makeLocale(language: "tr", country: "TR")
         let result = __kk_char_lowercase_locale(Int(("I" as UnicodeScalar).value), locale)
-        #expect(runtimeStringValue(result) == "\u{0131}")
+        #expect(runtimeTestStringValue(result) == "\u{0131}")
     }
 
     // MARK: - titlecase edge cases
@@ -221,26 +200,26 @@ struct RuntimeCharEdgeCaseTests {
     @Test
     func testTitlecaseOfNormalLetter() {
         // 'a' titlecase is 'A'
-        #expect(runtimeStringValue(__kk_char_titlecase_string(Int(("a" as UnicodeScalar).value))) == "A")
+        #expect(runtimeTestStringValue(__kk_char_titlecase_string(Int(("a" as UnicodeScalar).value))) == "A")
     }
 
     @Test
     func testTitlecaseOfDigitIsIdentity() {
-        #expect(runtimeStringValue(__kk_char_titlecase_string(Int(("5" as UnicodeScalar).value))) == "5")
+        #expect(runtimeTestStringValue(__kk_char_titlecase_string(Int(("5" as UnicodeScalar).value))) == "5")
     }
 
     @Test
     func testTitlecaseLigatureDzWithCaron() {
         // U+01C6 'ǆ' (lowercase DZ with caron) -> U+01C5 'ǅ' (titlecase)
         let dz = 0x01C6
-        #expect(runtimeStringValue(__kk_char_titlecase_string(dz)) == "ǅ")
+        #expect(runtimeTestStringValue(__kk_char_titlecase_string(dz)) == "ǅ")
     }
 
     @Test
     func testTitlecaseLigatureDzUpperCase() {
         // U+01C4 'Ǆ' (uppercase DZ with caron) -> U+01C5 'ǅ' (titlecase)
         let dzUpper = 0x01C4
-        #expect(runtimeStringValue(__kk_char_titlecase_string(dzUpper)) == "ǅ")
+        #expect(runtimeTestStringValue(__kk_char_titlecase_string(dzUpper)) == "ǅ")
     }
 
     // MARK: - isTitleCase

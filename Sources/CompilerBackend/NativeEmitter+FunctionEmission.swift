@@ -3184,6 +3184,7 @@ extension NativeEmitter {
                     guard !isInternalCall,
                           let effectiveSymbol,
                           let symbols,
+                          let typeSystem,
                           let signature = symbols.functionSignature(for: effectiveSymbol),
                           let linkName = symbols.externalLinkName(for: effectiveSymbol),
                           linkName.hasPrefix("kk_fn_"),
@@ -3195,7 +3196,15 @@ extension NativeEmitter {
                     else {
                         return nil
                     }
-                    let parameters = sourceReceiverTypes(for: effectiveSymbol, signature: signature) + signature.parameterTypes
+                    let receivers = sourceReceiverTypes(for: effectiveSymbol, signature: signature)
+                    let valueParameters = signature.parameterTypes.enumerated().map { index, parameter in
+                        // Metadata records a vararg's element type, but its ABI
+                        // passes one erased array handle, including for String.
+                        signature.valueParameterIsVararg.indices.contains(index)
+                            && signature.valueParameterIsVararg[index]
+                            ? typeSystem.anyType : parameter
+                    }
+                    let parameters = receivers + valueParameters
                     guard parameters.count == argumentValues.count else {
                         return nil
                     }
@@ -3370,6 +3379,20 @@ extension NativeEmitter {
                             suffix: "\(instructionIndex)_virtual_internal_arg\(index)"
                         )
                     }
+                } else if let sourceCallSignature = virtualSourceCallSignature ?? sourceExternalCallSignature {
+                    // Imported interface members use their declared source ABI.
+                    // In particular, a null argument must become a String?
+                    // aggregate before calling a generated Kotlin method.
+                    virtualCallArguments = zip(argumentValues, sourceCallSignature.parameters).enumerated().map { index, pair in
+                        let (argumentValue, parameterType) = pair
+                        let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
+                        return coerceStringValueForType(
+                            argumentValue,
+                            from: argumentType,
+                            to: parameterType,
+                            suffix: "\(instructionIndex)_virtual_source_arg\(index)"
+                        )
+                    }
                 }
 
                 let lookupFunction: LLVMFunction?
@@ -3468,15 +3491,58 @@ extension NativeEmitter {
                     fptrRaw = method
                 }
 
-                // RuntimeMapBox values have no MutableMap itable. Preserve
-                // overrides on Kotlin map implementations, but use the
-                // source-backed default when a native map box has no entry.
+                // RuntimeMapBox and RuntimeSetBox values have no mutable
+                // collection itable. Preserve overrides on Kotlin collection
+                // implementations, but use the source-backed default when a
+                // native collection box has no entry.
                 if let effectiveSymbol,
                    let symbols,
                    let member = symbols.symbol(effectiveSymbol),
-                   interner.resolve(member.name) == "asJsMapView",
                    let owner = symbols.parentSymbol(for: effectiveSymbol),
-                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "MutableMap"],
+                   let ownerName = symbols.symbol(owner)?.fqName.map(interner.resolve),
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol),
+                   (ownerName == ["kotlin", "collections", "MutableMap"] && interner.resolve(member.name) == "asJsMapView"
+                    || ownerName == ["kotlin", "collections", "MutableSet"] && interner.resolve(member.name) == "asJsSetView")
+                {
+                    let defaultFunction: LLVMFunction? = if let internalFunction = internalFunctions[effectiveSymbol] {
+                        internalFunction
+                    } else if effectiveExternalName.hasPrefix("kk_fn_") {
+                        declareExternalFunction(
+                            named: effectiveExternalName,
+                            argumentCount: argumentValues.count,
+                            appendThrownChannel: shouldAppendThrownChannel
+                        )
+                    } else {
+                        nil
+                    }
+                    if let defaultFunction,
+                       let defaultPointer = bindings.buildPtrToInt(
+                           builder, value: defaultFunction.value, type: int64Type,
+                           name: "collection_view_default_\(instructionIndex)"
+                       ),
+                       let hasOverride = bindings.buildICmpNotEqual(
+                           builder, lhs: fptrRaw, rhs: zeroValue,
+                           name: "collection_view_override_\(instructionIndex)"
+                       ),
+                       let collectionViewPointer = bindings.buildSelect(
+                           builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
+                           name: "collection_view_dispatch_\(instructionIndex)"
+                       )
+                    {
+                        fptrRaw = collectionViewPointer
+                    }
+                }
+
+                // Runtime list boxes have no generated List itable. Preserve
+                // overrides on Kotlin list implementations, but use the
+                // source-backed default when a native list box has no entry.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   interner.resolve(member.name) == "asJsReadonlyArrayView",
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
                    !member.flags.contains(.abstractType),
                    symbols.isSourceBackedSymbol(effectiveSymbol)
                 {
@@ -3494,18 +3560,18 @@ extension NativeEmitter {
                     if let defaultFunction,
                        let defaultPointer = bindings.buildPtrToInt(
                            builder, value: defaultFunction.value, type: int64Type,
-                           name: "map_view_default_\(instructionIndex)"
+                           name: "list_view_default_\(instructionIndex)"
                        ),
                        let hasOverride = bindings.buildICmpNotEqual(
                            builder, lhs: fptrRaw, rhs: zeroValue,
-                           name: "map_view_override_\(instructionIndex)"
+                           name: "list_view_override_\(instructionIndex)"
                        ),
-                       let mapViewPointer = bindings.buildSelect(
+                       let arrayViewPointer = bindings.buildSelect(
                            builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
-                           name: "map_view_dispatch_\(instructionIndex)"
+                           name: "list_view_dispatch_\(instructionIndex)"
                        )
                     {
-                        fptrRaw = mapViewPointer
+                        fptrRaw = arrayViewPointer
                     }
                 }
 

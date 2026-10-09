@@ -113,6 +113,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `callsinplace_definite_assignment.kt`: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE / AT_LEAST_ONCE) }` を持つ呼び出し（自作関数、および `run`/`with`/`let`/`apply`/`also`）のラムダ引数内で行う outer `var` への代入を、呼び出し元の definite assignment 解析が初期化済みとして扱う parity
 - `stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicInt` の candidate-only runtime parity。`DIFF_CANDIDATE_ONLY` 指定ケースは sibling `.expected` と stdout を照合し、通常の diff harness でも JVM reference を呼ばずに実行する
 - `stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt`: Kotlin/Native 専用 `IncorrectDereferenceException` のコンストラクタ、message、例外階層判定、throw/catch 順序を candidate-only の stdout と sibling sidecar で検証する
+- `stdlib_kotlin_concurrent_AtomicReference_AtomicReference_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicReference` の compare-and-exchange、get-and-set、value access、`toString()` を candidate-only stdout sidecar と照合する
 
 The set intentionally includes both successful programs and compile-error cases.
 

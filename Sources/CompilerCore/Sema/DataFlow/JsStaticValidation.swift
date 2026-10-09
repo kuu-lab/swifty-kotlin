@@ -326,7 +326,7 @@ extension DataFlowSemaPhase {
                 + (property.getter?.annotations ?? [])
                 + (property.setter?.annotations ?? [])
         default:
-            annotations = declarationAnnotations(for: decl)
+            annotations = decl.annotations
         }
 
         var reported: [AnnotationNode] = []
@@ -351,20 +351,8 @@ extension DataFlowSemaPhase {
             diagnostics.error(
                 "KSWIFTK-SEMA-JS-ANNOTATION-TOO-MANY-ARGUMENTS",
                 "Annotation '@\(annotationName)' does not accept arguments.",
-                range: declarationRange(for: decl)
+                range: decl.range
             )
-        }
-    }
-
-    private func declarationRange(for decl: Decl) -> SourceRange {
-        switch decl {
-        case let .classDecl(value): value.range
-        case let .interfaceDecl(value): value.range
-        case let .objectDecl(value): value.range
-        case let .funDecl(value): value.range
-        case let .propertyDecl(value): value.range
-        case let .typeAliasDecl(value): value.range
-        case let .enumEntryDecl(value): value.range
         }
     }
 

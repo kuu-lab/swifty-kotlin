@@ -8,9 +8,9 @@ struct RuntimeCharTests {
     // retains only Unicode case-mapping and digitOf table lookup.
 
     @Test func charCaseConversionPreservesUnicodeMappings() {
-        #expect(runtimeStringValue(__kk_char_uppercase_string(scalarValue(of: "ß"))) == "SS")
-        #expect(runtimeStringValue(__kk_char_titlecase_string(scalarValue(of: "ǆ"))) == "ǅ")
-        #expect(runtimeStringValue(__kk_char_lowercase_string(scalarValue(of: "İ"))) == "i\u{0307}")
+        #expect(runtimeTestStringValue(__kk_char_uppercase_string(scalarValue(of: "ß"))) == "SS")
+        #expect(runtimeTestStringValue(__kk_char_titlecase_string(scalarValue(of: "ǆ"))) == "ǅ")
+        #expect(runtimeTestStringValue(__kk_char_lowercase_string(scalarValue(of: "İ"))) == "i\u{0307}")
     }
 
     @Test func lowercaseCodeUsesOnlySingleScalarLowercaseMappings() {
@@ -40,9 +40,9 @@ struct RuntimeCharTests {
     }
 
     @Test func caseStringBridgesKeepLoneSurrogates() {
-        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_uppercase_string(0xD83D))) == [0xD83D])
-        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_lowercase_string(0xDE00))) == [0xDE00])
-        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeStringValue(__kk_char_titlecase_string(0xD83D))) == [0xD83D])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeTestStringValue(__kk_char_uppercase_string(0xD83D))) == [0xD83D])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeTestStringValue(__kk_char_lowercase_string(0xDE00))) == [0xDE00])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeTestStringValue(__kk_char_titlecase_string(0xD83D))) == [0xD83D])
     }
 
     @Test func caseMappingBridgesRejectUnpairedSurrogates() {
@@ -86,10 +86,6 @@ struct RuntimeCharTests {
     /// Non-Latin letters are never valid digits > 9 (doc note: only Latin letters).
     @Test func digitValue_rejectsNonLatinLetter() {
         #expect(__kk_char_digit_value(0x03B2) == -1) // Greek small beta 'β'
-    }
-
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
     private func scalarValue(of character: Character) -> Int {

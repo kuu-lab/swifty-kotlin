@@ -12,7 +12,7 @@ struct RuntimeStringBuilderTests {
         #expect(thrown == 0)
         #expect(__kk_string_builder_capacity(builder) == capacity)
         #expect(__kk_string_builder_length_prop(builder) == 0)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "")
 
         let box = RuntimeStringBuilderBox(units: [], capacity: capacity)
         #expect(box.units.capacity >= capacity)
@@ -37,7 +37,7 @@ struct RuntimeStringBuilderTests {
             #expect(__kk_string_builder_capacity(builder) == 200)
         }
         #expect(__kk_string_builder_length_prop(builder) == 3)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "abc")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "abc")
 
         let box = RuntimeStringBuilderBox("abc")
         box.ensureCapacity(200)
@@ -56,7 +56,7 @@ struct RuntimeStringBuilderTests {
         _ = __kk_string_builder_append_obj(builder, makeRuntimeString("a😀b"))
         _ = __kk_string_builder_trim_to_size(builder)
         #expect(__kk_string_builder_capacity(builder) == 4)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "a😀b")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "a😀b")
         _ = __kk_string_builder_append_char(builder, 99)
         #expect(__kk_string_builder_capacity(builder) == 10)
         _ = __kk_string_builder_clear(builder)
@@ -72,7 +72,7 @@ struct RuntimeStringBuilderTests {
         #expect(__kk_string_builder_capacity(builder) == 20)
         let copied = __kk_string_builder_new_from_char_sequence(builder)
         #expect(__kk_string_builder_capacity(copied) == 20)
-        #expect(runtimeStringValue(__kk_string_builder_toString(copied)) == "a😀b")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(copied)) == "a😀b")
     }
 
     @Test
@@ -131,7 +131,7 @@ struct RuntimeStringBuilderTests {
 
         #expect(returned == builder)
         #expect(__kk_string_builder_length_prop(builder) == 5)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "hello")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "hello")
     }
 
     // KSP-817: runtime-backed CharSequence values must expose the same method
@@ -178,7 +178,7 @@ struct RuntimeStringBuilderTests {
         var subSequenceThrown = 0
         let suffix = subSequence(builder, 1, 3, &subSequenceThrown)
         #expect(subSequenceThrown == 0)
-        #expect(runtimeStringValue(suffix) == "bc")
+        #expect(runtimeTestStringValue(suffix) == "bc")
 
         let stringSubSequence = unsafeBitCast(
             stringSubSequenceRaw,
@@ -187,7 +187,7 @@ struct RuntimeStringBuilderTests {
         var stringSubSequenceThrown = 0
         let stringSuffix = stringSubSequence(string, 1, 5, &stringSubSequenceThrown)
         #expect(stringSubSequenceThrown == 0)
-        #expect(runtimeStringValue(stringSuffix) == "ello")
+        #expect(runtimeTestStringValue(stringSuffix) == "ello")
 
         let empty = makeRuntimeString("")
         var emptyLengthThrown = 0
@@ -196,7 +196,7 @@ struct RuntimeStringBuilderTests {
         var emptySubSequenceThrown = 0
         let emptySubSequence = subSequence(empty, 0, 0, &emptySubSequenceThrown)
         #expect(emptySubSequenceThrown == 0)
-        #expect(runtimeStringValue(emptySubSequence) == "")
+        #expect(runtimeTestStringValue(emptySubSequence) == "")
 
         var invalidRangeThrown = 0
         _ = subSequence(string, 2, 1, &invalidRangeThrown)
@@ -247,7 +247,7 @@ struct RuntimeStringBuilderTests {
         }
 
         #expect(returned == builder)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "abcd")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "abcd")
     }
 
     @Test
@@ -258,7 +258,7 @@ struct RuntimeStringBuilderTests {
 
         #expect(returned == builder)
         #expect(__kk_string_builder_length_prop(builder) == 0)
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "")
     }
 
     @Test
@@ -268,7 +268,7 @@ struct RuntimeStringBuilderTests {
         _ = __kk_string_builder_append_obj(builder, makeRuntimeString("A"))
         _ = __kk_string_builder_append_obj(builder, makeRuntimeString("B"))
 
-        #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "AB")
+        #expect(runtimeTestStringValue(__kk_string_builder_toString(builder)) == "AB")
     }
 
     private func makeRuntimeString(_ value: String) -> Int {
@@ -288,10 +288,6 @@ struct RuntimeStringBuilderTests {
         Array(value.utf8).withUnsafeBufferPointer { buffer in
             body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
         }
-    }
-
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 }
 #endif

@@ -1,5 +1,20 @@
 
 extension CoroutineLoweringPass {
+    func markAmbiguousSymbolExpr(
+        _ raw: Int32,
+        symbolByExprRaw: inout [Int32: SymbolID],
+        ambiguousSymbolExprRaws: inout Set<Int32>
+    ) -> Bool {
+        var changed = false
+        if symbolByExprRaw.removeValue(forKey: raw) != nil {
+            changed = true
+        }
+        if ambiguousSymbolExprRaws.insert(raw).inserted {
+            changed = true
+        }
+        return changed
+    }
+
     struct SuspendRewriteContext {
         let module: KIRModule
         let ctx: KIRContext
@@ -486,24 +501,17 @@ extension CoroutineLoweringPass {
         var symbolByExprRaw: [Int32: SymbolID] = [:]
         var ambiguousSymbolExprRaws: Set<Int32> = []
 
-        func markAmbiguousSymbolExpr(_ raw: Int32) -> Bool {
-            var changed = false
-            if symbolByExprRaw.removeValue(forKey: raw) != nil {
-                changed = true
-            }
-            if ambiguousSymbolExprRaws.insert(raw).inserted {
-                changed = true
-            }
-            return changed
-        }
-
         for instruction in function.body {
             guard case let .constValue(result, .symbolRef(symbol)) = instruction else {
                 continue
             }
             let raw = result.rawValue
             if let existing = symbolByExprRaw[raw], existing != symbol {
-                _ = markAmbiguousSymbolExpr(raw)
+                _ = markAmbiguousSymbolExpr(
+                    raw,
+                    symbolByExprRaw: &symbolByExprRaw,
+                    ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                )
             } else if !ambiguousSymbolExprRaws.contains(raw) {
                 symbolByExprRaw[raw] = symbol
             }
@@ -513,7 +521,11 @@ extension CoroutineLoweringPass {
             let sourceRaw = source.rawValue
             let destinationRaw = destination.rawValue
             if ambiguousSymbolExprRaws.contains(sourceRaw) {
-                return markAmbiguousSymbolExpr(destinationRaw)
+                return markAmbiguousSymbolExpr(
+                    destinationRaw,
+                    symbolByExprRaw: &symbolByExprRaw,
+                    ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                )
             }
             guard let symbol = symbolByExprRaw[sourceRaw],
                   !ambiguousSymbolExprRaws.contains(destinationRaw)
@@ -522,7 +534,11 @@ extension CoroutineLoweringPass {
             }
             if let existing = symbolByExprRaw[destinationRaw] {
                 if existing != symbol {
-                    return markAmbiguousSymbolExpr(destinationRaw)
+                    return markAmbiguousSymbolExpr(
+                        destinationRaw,
+                        symbolByExprRaw: &symbolByExprRaw,
+                        ambiguousSymbolExprRaws: &ambiguousSymbolExprRaws
+                    )
                 }
                 return false
             }

@@ -81,10 +81,6 @@ final class DataFlowAnalyzer {
     var localDeclarations: [SymbolID: ExprID] = [:]
     init() {}
 
-    private func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
-        BuiltinTypeNames(interner: interner)
-    }
-
     func branchOnCondition(
         _ conditionID: ExprID,
         base: DataFlowState,
@@ -535,7 +531,7 @@ final class DataFlowAnalyzer {
         }
         switch conditionSymbol.kind {
         case .field:
-            guard let ownerID = enumOwnerSymbolID(for: conditionSymbol, symbols: sema.symbols),
+            guard let ownerID = sema.symbols.enumOwnerSymbol(for: conditionSymbol),
                   nominalSymbolID(of: subjectType, types: sema.types) == ownerID
             else {
                 return base
@@ -708,18 +704,6 @@ final class DataFlowAnalyzer {
             }
         }
         return false
-    }
-
-    private func enumOwnerSymbolID(for entrySymbol: SemanticSymbol, symbols: SymbolTable) -> SymbolID? {
-        guard entrySymbol.kind == .field,
-              entrySymbol.fqName.count >= 2
-        else {
-            return nil
-        }
-        let ownerFQName = Array(entrySymbol.fqName.dropLast())
-        return symbols.lookupAll(fqName: ownerFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .enumClass
-        })
     }
 
     func merge(_ lhs: DataFlowState, _ rhs: DataFlowState) -> DataFlowState {

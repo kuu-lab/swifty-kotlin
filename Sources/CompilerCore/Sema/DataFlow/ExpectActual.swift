@@ -6,23 +6,40 @@ import Foundation
 
 extension DataFlowSemaPhase {
     func validateExpectActualMatching(
-        ast _: ASTModule,
+        ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
-        // Only validate source declarations; imported library symbols may contain
-        // expect/actual markers without requiring local counterparts.
+        // Common libraries preserve expect markers so a platform compilation can
+        // pair them with local actual declarations. Other imported declarations
+        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
-            sym.flags.contains(.expectDeclaration) && sym.declSite != nil
+            sym.flags.contains(.expectDeclaration)
+                && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
         }
+        let membersByParent = Dictionary(grouping: symbols.allSymbols().compactMap { symbol in
+            symbols.parentSymbol(for: symbol.id).map { ($0, symbol) }
+        }, by: \.0).mapValues { entries in entries.map(\.1) }
+        let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
+            guard case let .funDecl(function) = decl else { return nil }
+            return function
+        }, by: \.range)
 
         for expectSym in expects {
+            let isOptionalExpectation = symbols.annotations(for: expectSym.id).contains {
+                KnownCompilerAnnotation.optionalExpectation.matches($0.annotationFQName)
+            }
             let candidates = symbols.lookupAll(fqName: expectSym.fqName)
                 .compactMap { symbols.symbol($0) }
                 .filter { actual in
                     guard actual.flags.contains(.actualDeclaration) else {
+                        return false
+                    }
+                    if expectSym.flags.contains(.importedLibrary),
+                       actual.flags.contains(.importedLibrary)
+                    {
                         return false
                     }
                     return actual.kind == expectSym.kind
@@ -39,6 +56,10 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                guard !isOptionalExpectation else {
+                    continue
+                }
+
                 // Enhanced diagnostic with detailed failure information
                 let candidateCount = candidates.count
                 let compatibleCount = compatibleCandidates.count
@@ -74,7 +95,86 @@ extension DataFlowSemaPhase {
             }
 
             symbols.setExpectActualLink(expect: expectSym.id, actual: actualSym.id)
+            inheritAbstractActualMemberFlags(
+                expectOwner: expectSym,
+                actualOwner: actualSym,
+                membersByParent: membersByParent,
+                functionDeclarationsByRange: functionDeclarationsByRange,
+                symbols: symbols,
+                types: types
+            )
         }
+    }
+
+    private func inheritAbstractActualMemberFlags(
+        expectOwner: SemanticSymbol,
+        actualOwner: SemanticSymbol,
+        membersByParent: [SymbolID: [SemanticSymbol]],
+        functionDeclarationsByRange: [SourceRange: [FunDecl]],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) {
+        guard expectOwner.kind == .class,
+              actualOwner.kind == .class,
+              expectOwner.flags.contains(.abstractType),
+              actualOwner.flags.contains(.abstractType)
+        else {
+            return
+        }
+
+        let expectedFunctions = (membersByParent[expectOwner.id] ?? []).filter { $0.kind == .function }
+        let actualFunctions = (membersByParent[actualOwner.id] ?? []).filter {
+            $0.kind == .function && $0.flags.contains(.actualDeclaration)
+        }
+
+        for expectFunction in expectedFunctions {
+            guard let expectDeclaration = functionDeclaration(
+                for: expectFunction,
+                in: functionDeclarationsByRange
+            ), isBodylessNonRuntimeBridge(expectDeclaration),
+                let expectSignature = symbols.functionSignature(for: expectFunction.id)
+            else {
+                continue
+            }
+
+            for actualFunction in actualFunctions where actualFunction.fqName == expectFunction.fqName {
+                guard let actualDeclaration = functionDeclaration(
+                    for: actualFunction,
+                    in: functionDeclarationsByRange
+                ), isBodylessNonRuntimeBridge(actualDeclaration),
+                    let actualSignature = symbols.functionSignature(for: actualFunction.id),
+                    expectActualFunctionSignaturesMatch(
+                        expectSig: expectSignature,
+                        expectSymbol: expectFunction,
+                        actualSig: actualSignature,
+                        actualSymbol: actualFunction,
+                        symbols: symbols,
+                        types: types
+                    )
+                else {
+                    continue
+                }
+
+                // In an abstract expect class, a bodyless member is an abstract
+                // contract even when the expect source omits the modifier. The
+                // matching actual member inherits that modality in Kotlin MPP.
+                symbols.insertFlags(.abstractType, for: actualFunction.id)
+            }
+        }
+    }
+
+    private func functionDeclaration(
+        for symbol: SemanticSymbol,
+        in declarationsByRange: [SourceRange: [FunDecl]]
+    ) -> FunDecl? {
+        guard let declSite = symbol.declSite else { return nil }
+        return declarationsByRange[declSite]?.first { $0.name == symbol.name }
+    }
+
+    private func isBodylessNonRuntimeBridge(_ function: FunDecl) -> Bool {
+        function.body == .unit
+            && !function.modifiers.contains(.external)
+            && !hasCompilerAnnotation(.ksSymbolName, on: function.annotations)
     }
 
     private func areExpectActualCompatible(

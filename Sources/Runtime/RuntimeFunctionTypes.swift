@@ -57,16 +57,7 @@ public func __kk_function_copy_description(_ source: Int, _ target: Int) {
 }
 
 func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeFunctionValueBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeFunctionValueBox.self)
 }
 
 private let runtimeFunctionInterfaceTypeIDs = (0...22).map {

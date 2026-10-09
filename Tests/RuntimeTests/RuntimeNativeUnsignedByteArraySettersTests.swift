@@ -4,9 +4,6 @@ import Testing
 
 @Suite
 struct RuntimeNativeUnsignedByteArraySettersTests {
-    private func makeByteArray(length: Int) -> Int {
-        kk_array_new(length)
-    }
 
     @Test
     func testUnsignedByteArrayStoresUseLittleEndianLayout() {

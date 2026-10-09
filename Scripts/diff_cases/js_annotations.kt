@@ -9,8 +9,8 @@
 import kotlin.js.ExperimentalJsExport
 import kotlin.js.ExperimentalJsStatic
 import kotlin.js.collections.asJsMapView
-import kotlin.js.collections.asJsReadonlyArrayView
 import kotlin.js.collections.asJsSetView
+import kotlin.js.collections.toList
 import kotlin.reflect.createInstance
 
 @ExperimentalJsExport
@@ -26,12 +26,12 @@ fun collectionSummary(): String {
     val map = mutableMapOf("a" to 1, "b" to 2)
     val set = mutableSetOf("x", "y", "z")
     val list = listOf(1, 2, 3, 4)
-    return "${map.asJsMapView().size}:${set.asJsSetView().size}:${list.asJsReadonlyArrayView().size}"
+    return "${map.asJsMapView().size}:${set.asJsSetView().size}:${list.asJsReadonlyArrayView().toList().size}"
 }
 
 @OptIn(kotlin.js.ExperimentalJsReflectionCreateInstance::class)
 fun reflectionApiToken(): String {
-    val symbolName = (::createInstance).name
+    val symbolName = ExportedBox::class::createInstance.name
     val instance = ExportedBox::class.createInstance()
     return "${ExportedBox::class.simpleName}:${symbolName}:${instance.value}"
 }
