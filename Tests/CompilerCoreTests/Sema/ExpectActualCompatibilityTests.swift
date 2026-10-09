@@ -1,9 +1,62 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testImportedExpectLinksToLocalActual() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(
+            contents: """
+            package sample.kmp
+            actual fun platformName(): Int = 7
+            fun usePlatformName(): Int = platformName()
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["sample", "kmp", "platformName"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first {
+                $0.flags.contains(.expectDeclaration) && $0.flags.contains(.importedLibrary)
+            })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == actualSymbol.id })
+        }
+    }
+
+    @Test func testImportedExpectWithoutLocalActualIsUnresolved() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.map(\.code) == ["KSWIFTK-MPP-UNRESOLVED"], "Unexpected diagnostics: \(errors)")
+        }
+    }
+
     @Test func testOptionalExpectationDoesNotRequireActual() throws {
         let ctx = makeContextFromSource(
             """
@@ -445,6 +498,28 @@ struct ExpectActualCompatibilityTests {
             try runSema(ctx)
             try testCase.assertion(ctx)
         }
+    }
+
+    private func makeImportedExpectLibrary() throws -> URL {
+        let libraryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kklib")
+        try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
+
+        let manifest = """
+        { "formatVersion": 1, "moduleName": "Common", "metadata": "metadata.bin" }
+        """
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "common_platformName",
+            fqName: "sample.kmp.platformName",
+            arity: 0,
+            typeSignature: "F0<I>",
+            isExpect: true
+        )
+        let metadata = MetadataEncoder().serialize([record])
+        try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        return libraryDirectory
     }
 }
 #endif
