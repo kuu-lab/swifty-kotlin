@@ -33,6 +33,7 @@ package enum KnownCompilerAnnotation {
     case contextFunctionTypeParams
     case unsafeVariance
     case ksSymbolName
+    case nativeThreadLocal
 
     var simpleName: String {
         switch self {
@@ -100,6 +101,8 @@ package enum KnownCompilerAnnotation {
             "UnsafeVariance"
         case .ksSymbolName:
             "KsSymbolName"
+        case .nativeThreadLocal:
+            "ThreadLocal"
         }
     }
 
@@ -169,6 +172,8 @@ package enum KnownCompilerAnnotation {
             "kotlin.UnsafeVariance"
         case .ksSymbolName:
             "kotlin.internal.KsSymbolName"
+        case .nativeThreadLocal:
+            "kotlin.native.concurrent.ThreadLocal"
         }
     }
 
