@@ -103,6 +103,9 @@ case "$(basename "$src")" in
   *expectstdout*)
     { echo '#!/usr/bin/env bash'; echo 'echo unexpected stdout'; echo 'exit 1'; } >"$out"
     ;;
+  *candidateinline*)
+    { echo '#!/usr/bin/env bash'; echo 'echo "0, 7, true"'; } >"$out"
+    ;;
   *candcompilefail*)
     echo "fake compile error: something went wrong" >&2
     exit 42
@@ -132,6 +135,7 @@ printf '// DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=2\nval x = 10 / 0\nprintln("
 printf '// DIFF_EXPECT_SCRIPT_EXIT: ref=3 candidate=1\nval x = 10 / 0\nprintln("unreachable")\n' >"$CASES_DIR/script_expectstdout.kt"
 printf 'println("ok output from script")\n' >"$CASES_DIR/script_okcase.kt"
 printf 'println("ok output from script")\n' >"$CASES_DIR/script_candcompilefail.kt"
+printf '// DIFF_CANDIDATE_ONLY\n// DIFF_EXPECT_STDOUT: 0, 7, true\nfun main() {}\n' >"$CASES_DIR/candidateinline.kt"
 
 ARTIFACT_ROOT="$TEMP_DIR/artifacts"
 OUTPUT_LOG="$TEMP_DIR/output.log"
@@ -203,6 +207,22 @@ fi
 candidate_run_stderr_sections="$(grep -c "candidate run stderr:" "$OUTPUT_LOG" || true)"
 if [[ "$candidate_run_stderr_sections" -ne 3 ]]; then
   fail "expected exactly 3 'candidate run stderr:' sections (script_mismatch.kt, script_expectedbad.kt, and script_expectstdout.kt), found $candidate_run_stderr_sections"
+fi
+
+inline_candidate_log="$TEMP_DIR/candidateinline.log"
+if KOTLINC="$FAKE_BIN_DIR/missing-kotlinc" \
+  JAVA_BIN="$FAKE_BIN_DIR/missing-java" \
+  KSWIFTC="$FAKE_BIN_DIR/fake_kswiftc" \
+  DIFF_STDLIB_LIBRARY="$FAKE_STDLIB_DIR" \
+  DIFF_REQUIRE_JDK21=1 \
+  DIFF_ARTIFACT_ROOT="$ARTIFACT_ROOT" \
+  bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" "$CASES_DIR/candidateinline.kt" >"$inline_candidate_log" 2>&1; then
+  if ! grep -qF "PASS $CASES_DIR/candidateinline.kt (candidate-only expected output)" "$inline_candidate_log"; then
+    fail "candidateinline.kt should use its inline stdout expectation without JVM tools"
+  fi
+else
+  cat "$inline_candidate_log" >&2
+  fail "candidateinline.kt should not require kotlinc/JAVA_BIN when validating inline candidate-only stdout"
 fi
 
 echo "OK: diff_kotlinc.sh script-mode exit classification behaves correctly"

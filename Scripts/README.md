@@ -210,6 +210,18 @@ Run all tracked regression cases:
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
+Cases that cannot use the JVM reference compiler can opt into candidate-only
+execution with `// DIFF_CANDIDATE_ONLY` and exactly one
+`// DIFF_EXPECT_STDOUT: <expected line>` directive. The harness compiles and runs
+the case with `kswiftc`, then compares stdout (with a trailing newline) against
+the expected line. It does not invoke `kotlinc` or `java` when every selected
+case is candidate-only; in a mixed run, those tools are used only by the other
+cases. Run a candidate-only file directly to verify it without JVM tooling:
+
+```bash
+bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_ThreadLocal_n_n.kt
+```
+
 `diff_kotlinc.sh` detects imports in the target file or recursively in a target
 directory and downloads JVM reference jars from Maven Central:
 
