@@ -474,7 +474,10 @@ struct DeclarationPositionValidator {
         let modifiers = decl.modifiers
         let isEnum = modifiers.contains(.enumModifier)
         let isAnnotation = modifiers.contains(.annotationClass)
+        // `inline class` is the deprecated spelling of `value class`, so it
+        // obeys the same position/finality constraints (SEMA-0420/0422).
         let isValue = modifiers.contains(.value)
+            || (modifiers.contains(.inline) && !isEnum && !isAnnotation)
         let kindName: String
         if site == .function {
             kindName = "local class"
@@ -490,6 +493,24 @@ struct DeclarationPositionValidator {
 
         for (modifier, name) in Self.classImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: kindName, range: decl.range)
+        }
+        // `inline class` is the deprecated spelling of `value class`: kotlinc
+        // accepts it with a deprecation warning and the class is still treated
+        // as a value class downstream (isValueClassDeclaration covers .inline).
+        // Enum and annotation classes cannot be value classes, so `inline`
+        // stays impossible there.
+        if modifiers.contains(.inline) {
+            if isEnum {
+                emitNotApplicable("inline", to: "enum class", range: decl.range)
+            } else if isAnnotation {
+                emitNotApplicable("inline", to: "annotation class", range: decl.range)
+            } else {
+                diagnostics?.warning(
+                    "KSWIFTK-SEMA-DEPRECATED",
+                    "'inline' modifier is deprecated. Use 'value' instead.",
+                    range: decl.range
+                )
+            }
         }
         if site == .function {
             for (modifier, name) in Self.localClassForbiddenModifiers where modifiers.contains(modifier) {
@@ -1004,7 +1025,7 @@ struct DeclarationPositionValidator {
 
     private static let classImpossibleModifiers: [(Modifiers, String)] = [
         (.const, "const"), (.lateinit, "lateinit"), (.suspend, "suspend"),
-        (.tailrec, "tailrec"), (.inline, "inline"), (.operator, "operator"),
+        (.tailrec, "tailrec"), (.operator, "operator"),
         (.infix, "infix"), (.vararg, "vararg"), (.crossinline, "crossinline"),
         (.noinline, "noinline"), (.funModifier, "fun"), (.external, "external"),
         (.companion, "companion"), (.override, "override"),

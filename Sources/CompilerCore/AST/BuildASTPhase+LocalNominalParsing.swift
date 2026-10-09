@@ -153,6 +153,15 @@ extension BuildASTPhase {
                 index += 1
                 continue
             }
+            // A `name@` pair is a label definition, not a declaration head —
+            // `companion` is not a modifier keyword, so `companion@ for ...`
+            // would otherwise reach the local `companion object` rejection.
+            if token.kind.isLabelName,
+               index + 1 < tokens.count,
+               tokens[index + 1].kind == .symbol(.at)
+            {
+                return nil
+            }
             return index
         }
         return nil
