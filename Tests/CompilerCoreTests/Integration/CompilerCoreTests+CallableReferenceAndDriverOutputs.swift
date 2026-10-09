@@ -186,6 +186,53 @@ extension CompilerCoreTests {
         #expect(sema.bindings.callableValueCalls[refCallExprID] != nil)
     }
 
+    @Test func testCallableReferenceFunctionTypeExtensionReceiverResolves() throws {
+        let source = """
+        package x
+        fun top() {}
+        class C {
+            fun m() {}
+            suspend fun suspendM() {}
+        }
+        suspend fun suspendMember() {}
+        fun (() -> Unit).ff2() {}
+        fun <R> (suspend () -> R).ffS() {}
+
+        fun test1() { ::top.ff2() }
+        fun test2() { val c = C(); c::m.ff2() }
+        fun test3() { val r: () -> Unit = ::top; r.ff2() }
+        fun testSuspendTop() { ::suspendMember.ffS() }
+        fun testSuspendMember(c: C) { c::suspendM.ffS() }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let ff2 = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("x"), ctx.interner.intern("ff2")]))
+        let ffS = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("x"), ctx.interner.intern("ffS")]))
+        let expectedByName = [ctx.interner.intern("ff2"): ff2, ctx.interner.intern("ffS"): ffS]
+        let extensionCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _)? = ast.arena.expr(exprID),
+                  expectedByName[callee] != nil
+            else {
+                return nil
+            }
+            return exprID
+        }
+        #expect(extensionCalls.count == 5)
+        for callID in extensionCalls {
+            guard case let .memberCall(_, callee, _, _, _)? = ast.arena.expr(callID),
+                  let expectedCallee = expectedByName[callee]
+            else {
+                continue
+            }
+            #expect(sema.bindings.callBinding(for: callID)?.chosenCallee == expectedCallee)
+        }
+    }
+
     @Test func testBoundCallableReferenceCapturesReceiverAndResolvesExtensionTarget() throws {
         let source = """
         fun Int.incByOne(): Int = this + 1
