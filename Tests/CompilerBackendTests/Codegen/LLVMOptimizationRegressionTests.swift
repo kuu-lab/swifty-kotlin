@@ -10,6 +10,15 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func annotatedSecondaryConstructorsKeepTheirDelegation(optimization: Int) throws {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/annotated_constructor_delegation.kt"), encoding: .utf8)
+        try assertOutput(source, moduleName: "AnnotatedConstructorDelegation", expected: "7\n2\n9\n",
+                         optimization: try #require(OptimizationLevel(rawValue: optimization)))
+    }
+
+    @Test(arguments: [0, 2])
     func sourceInjectedHelloUsesCoroutineMarkerABI(optimization: Int) throws {
         try assertOutput(
             "fun main() { println(\"hello\") }",

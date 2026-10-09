@@ -1,0 +1,14 @@
+{
+  "version": "1.10.0",
+  "commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "sources": [
+    {
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/SerializationExceptions.kt",
+      "git_blob": "7932e3412d9fdbca0858edac418c8f350c59443b",
+      "upstream_sha256": "87884c506b35e6b245eb77756df10985566342ff1846d26a85b91435f95b1a11",
+      "local_path": "Sources/CompilerCore/Stdlib/kotlinx/serialization/SerializationExceptions.kt",
+      "local_sha256": "24cb861fe1b9aa8bfb6cf56028841b35990facc9982d9168f12286d3eb101887",
+      "adaptation": "Remove two imports used only in documentation and the resulting redundant blank line. Preserve declarations, annotations and implementations."
+    }
+  ]
+}

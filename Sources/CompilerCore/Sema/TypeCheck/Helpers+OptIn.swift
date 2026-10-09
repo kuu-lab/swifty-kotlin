@@ -42,7 +42,15 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        var requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
+           let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
+            var markers = Set(requirements.map(\.markerSymbol))
+            for requirement in requiredOptInRequirements(for: owner, ctx: ctx)
+                where markers.insert(requirement.markerSymbol).inserted {
+                requirements.append(requirement)
+            }
+        }
         guard !requirements.isEmpty else {
             return
         }
