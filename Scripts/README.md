@@ -230,8 +230,10 @@ directory and downloads JVM reference jars from Maven Central:
 | `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.10.2 |
 | `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.1 |
 | `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
+| `kotlinx.atomicfu` | `atomicfu-jvm` | 0.33.0 |
 
-Cases importing both coroutines and io receive both dependencies. This import
+Cases using multiple libraries receive all their dependencies. Atomicfu also
+detects fully qualified calls and alias imports. This import
 detection is the equivalent of a `requires_kotlinx_io` header; no extra header
 is needed. An explicit `--kotlinc-classpath` / `KOTLINC_CLASSPATH` bypasses all
 automatic downloads, so supply every required jar in that classpath.
@@ -240,6 +242,7 @@ You can control the cached path and version with:
 ```bash
 export KOTLINC_COROUTINES_VERSION=1.10.2
 export KOTLINC_KOTLINX_IO_VERSION=0.9.1
+export KOTLINC_ATOMICFU_VERSION=0.33.0
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
 ```
 
@@ -250,12 +253,31 @@ the script, also set:
 export KOTLINC_COROUTINES_SHA256=<expected sha256 of the jar>
 export KOTLINC_KOTLINX_IO_SHA256=<expected sha256 of the io core jar>
 export KOTLINC_KOTLINX_IO_BYTESTRING_SHA256=<expected sha256 of the bytestring jar>
+export KOTLINC_ATOMICFU_SHA256=<expected sha256 of the atomicfu jar>
 ```
 
 Override individual cached paths with `KOTLINC_COROUTINES_JAR`,
-`KOTLINC_KOTLINX_IO_JAR`, and `KOTLINC_KOTLINX_IO_BYTESTRING_JAR`.
+`KOTLINC_KOTLINX_IO_JAR`, `KOTLINC_KOTLINX_IO_BYTESTRING_JAR`, and
+`KOTLINC_ATOMICFU_JAR`.
 Run `bash Scripts/test_diff_kotlinc_dependencies.sh` to check dependency
 selection without downloading jars or building the compiler.
+
+The atomicfu reference is the real Maven Central `atomicfu-jvm:0.33.0` jar,
+SHA-256 `cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e`.
+Unknown versions require an explicit checksum. Both downloaded and cached jars
+are verified before use. The scalar reference runs without the atomicfu plugin:
+
+```bash
+atomicfu_jar=/path/to/atomicfu-jvm-0.33.0.jar
+printf '%s  %s\n' cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e "$atomicfu_jar" | sha256sum -c
+kotlinc Scripts/reference_cases/atomicfu_scalar.kt -classpath "$atomicfu_jar" -include-runtime -d /tmp/atomicfu-reference.jar
+java -cp "/tmp/atomicfu-reference.jar:$atomicfu_jar" Atomicfu_scalarKt > /tmp/atomicfu-reference.out
+diff -u Scripts/reference_cases/atomicfu_scalar.expected /tmp/atomicfu-reference.out
+```
+
+This reference fixture is outside `diff_cases`: candidate-side atomicfu support
+has its own implementation tickets. A reference pass does not establish
+KSwiftK atomic behavior or Kotlin/Native compatibility.
 
 A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
 usable oracle. The runner compiles and runs only kswiftc, then compares stdout
