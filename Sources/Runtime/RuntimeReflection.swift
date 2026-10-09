@@ -68,7 +68,6 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
 
 
 // (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
-@_cdecl("__kk_kclass_get_arity")
 public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
         return 0

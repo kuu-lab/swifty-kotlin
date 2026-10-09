@@ -1172,7 +1172,6 @@ public func kk_channel_is_empty(_ handle: Int) -> Int {
 /// `close(cause:)` / `cancel(cause:)`, or 0 when the channel was closed
 /// without a cause (or is still open).  Consumed by Kotlin-side
 /// `ChannelResult` / `consume` helpers to surface `exceptionOrNull()`.
-@_cdecl("kk_channel_close_cause")
 public func kk_channel_close_cause(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_close_cause received invalid channel handle")

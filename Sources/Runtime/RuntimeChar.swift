@@ -197,7 +197,6 @@ public func __kk_char_digit_value(_ code: Int) -> Int {
 
 /// operator fun Char.minus(other: Char): Int
 /// Returns the difference of the Unicode code points of two Char values.
-@_cdecl("kk_char_minus")
 public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     let lhs = kk_unbox_char(lhsRaw)
     let rhs = kk_unbox_char(rhsRaw)
@@ -333,7 +332,6 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
 // letters, combining marks, digits, connecting punctuation, non-spacing marks,
 // numeric letters, identifier-ignorable code points, and Unicode Other_ID_*
 // characters are all valid identifier-part characters.
-@_cdecl("kk_char_isUnicodeIdentifierPart")
 public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
     let props = scalar.properties
