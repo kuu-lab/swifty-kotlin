@@ -444,6 +444,7 @@ struct ConstantCollector {
     func constantStringConcatOperandText(
         _ exprID: ExprID,
         ast: ASTModule,
+        sema: SemaModule,
         interner: StringInterner
     ) -> String? {
         if case .nullLiteral = ast.arena.expr(exprID) {
@@ -455,9 +456,13 @@ struct ConstantCollector {
         switch ast.arena.expr(exprID) {
         case .binary(.add, let lhs, let rhs, _)?:
             // Mixed-type concat (`"a" + 5`): literalConstantBinaryExpr only
-            // folds same-type pairs, so descend and fold each operand.
-            guard let lhsText = constantStringConcatOperandText(lhs, ast: ast, interner: interner),
-                  let rhsText = constantStringConcatOperandText(rhs, ast: ast, interner: interner)
+            // folds same-type pairs, so descend and fold each operand. A
+            // nested `+` bound to a user-declared operator returning String
+            // (e.g. `Int.plus(String)`) is not concat text — folding it would
+            // drop the resolved call, so the subtree is not a constant.
+            guard isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+                  let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
+                  let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
             else {
                 return nil
             }
@@ -471,7 +476,7 @@ struct ConstantCollector {
                 case let .literal(literalText):
                     text += interner.resolve(literalText)
                 case let .expression(partExpr):
-                    guard let partText = constantStringConcatOperandText(partExpr, ast: ast, interner: interner)
+                    guard let partText = constantStringConcatOperandText(partExpr, ast: ast, sema: sema, interner: interner)
                     else {
                         return nil
                     }
@@ -482,6 +487,27 @@ struct ConstantCollector {
         default:
             return nil
         }
+    }
+
+    /// Whether a `+` expression models Kotlin's built-in string
+    /// concatenation for constant-folding purposes: true only when Sema left
+    /// it unbound (the lenient built-in concat path) or bound it to the
+    /// stdlib `String.plus` member or the `kotlin.text.String?.plus` facade.
+    /// Mirrors `CallLowerer.isBuiltinStringPlusCallee`.
+    private func isBuiltinStringPlusCallee(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee)
+        else {
+            return true
+        }
+        let kotlinName = interner.intern("kotlin")
+        let plusName = interner.intern("plus")
+        return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
+            || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
     }
 
     /// `Any?.toString()` text of a folded constant for string concatenation:

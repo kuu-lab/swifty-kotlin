@@ -3,6 +3,7 @@
     import Testing
 
     struct JsStaticAnnotationTests {
+        // These Sema checks and native calls do not verify Kotlin/JS static-member emission.
         @Test
         func sourceBackedDeclarationsSeparateMarkerAndStaticMemberMetadata() throws {
             let ctx = makeContextFromSource("""
@@ -32,7 +33,6 @@
                 }
             }
 
-            @OptIn(kotlin.js.ExperimentalJsStatic::class)
             fun main() {
                 println(topLevel())
                 println(Ordinary.message())
@@ -43,6 +43,7 @@
             try runSema(ctx)
 
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-OPT-IN" }, "\(ctx.diagnostics.diagnostics)")
             #expect(!ctx.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-SEMA-JS-STATIC-NOT-IN-CLASS-COMPANION"
             }, "\(ctx.diagnostics.diagnostics)")
@@ -68,21 +69,21 @@
                 fqName: ["kotlin", "js", "ExperimentalJsStatic"].map(ctx.interner.intern)
             ))
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
+                $0.annotationFQName == "kotlin.RequiresOptIn" && $0.arguments.contains { $0.contains("WARNING") }
             })
             #expect(sema.symbols.annotations(for: marker).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
 
             let jsStatic = try #require(sema.symbols.lookup(fqName: ["kotlin", "js", "JsStatic"].map(ctx.interner.intern)))
             #expect(sema.symbols.annotations(for: jsStatic).contains {
-                $0.annotationFQName == "ExperimentalJsStatic"
+                $0.annotationFQName == "kotlin.js.ExperimentalJsStatic"
             })
             #expect(sema.symbols.annotations(for: jsStatic).contains {
-                $0.annotationFQName == "Retention" && $0.arguments.contains { $0.contains("BINARY") }
+                $0.annotationFQName == "kotlin.annotation.Retention" && $0.arguments.contains { $0.contains("BINARY") }
             })
             #expect(sema.symbols.annotations(for: jsStatic).contains { annotation in
-                annotation.annotationFQName == "Target"
+                annotation.annotationFQName == "kotlin.annotation.Target"
                     && ["FUNCTION", "PROPERTY", "PROPERTY_GETTER", "PROPERTY_SETTER"].allSatisfy { target in
                         annotation.arguments.contains { $0.contains(target) }
                     }
@@ -115,6 +116,35 @@
                 $0.annotationFQName == "kotlin.js.ExperimentalJsStatic"
             })
             #expect(!sema.symbols.annotations(for: markerOnly).contains {
+                $0.annotationFQName == "kotlin.js.JsStatic"
+            })
+
+            let scoped = makeContextFromSource("""
+            package jscontract
+
+            object JsHolder {
+                @kotlin.js.ExperimentalJsStatic
+                fun message(): String = "marker"
+            }
+
+            @OptIn(kotlin.js.ExperimentalJsStatic::class)
+            fun optedInUse(): String = JsHolder.message()
+
+            fun unoptedUse(): String = JsHolder.message()
+            """)
+            try runSema(scoped)
+            let optInWarnings = scoped.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
+            }
+            #expect(optInWarnings.count == 1, "Only the unopted marker API use should warn: \(scoped.diagnostics.diagnostics)")
+            let scopedSema = try #require(scoped.sema)
+            let scopedMarkerOnly = try #require(scopedSema.symbols.lookup(
+                fqName: ["jscontract", "JsHolder", "message"].map(scoped.interner.intern)
+            ))
+            #expect(scopedSema.symbols.annotations(for: scopedMarkerOnly).contains {
+                $0.annotationFQName == "kotlin.js.ExperimentalJsStatic"
+            })
+            #expect(!scopedSema.symbols.annotations(for: scopedMarkerOnly).contains {
                 $0.annotationFQName == "kotlin.js.JsStatic"
             })
         }
@@ -175,7 +205,7 @@
         }
 
         @Test
-        func targetArgumentsAndOptInAreChecked() throws {
+        func targetArgumentsAndOptInScopesAreChecked() throws {
             let invalid = makeContextFromSource("""
             @file:OptIn(kotlin.js.ExperimentalJsStatic::class)
 
@@ -202,18 +232,37 @@
             let missingOptIn = makeContextFromSource("""
             class Holder {
                 companion object {
+                    @OptIn(kotlin.js.ExperimentalJsStatic::class)
                     @kotlin.js.JsStatic
-                    fun message(): String = "message"
+                    fun optedMessage(): String = "opted"
+
+                    @kotlin.js.JsStatic
+                    fun unoptedMessage(): String = "unopted"
+                }
+            }
+
+            fun useMessage(): String = Holder.optedMessage() + Holder.unoptedMessage()
+            """)
+            try runSema(missingOptIn)
+            #expect(!missingOptIn.diagnostics.hasError, "\(missingOptIn.diagnostics.diagnostics)")
+            #expect(missingOptIn.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
+            }.count == 1, "Function-level opt-in should cover one annotation; using JsStatic members should not add marker warnings: \(missingOptIn.diagnostics.diagnostics)")
+
+            let enclosingClassOptIn = makeContextFromSource("""
+            @OptIn(kotlin.js.ExperimentalJsStatic::class)
+            class Holder {
+                companion object {
+                    @kotlin.js.JsStatic
+                    fun message(): String = "opted"
                 }
             }
 
             fun useMessage(): String = Holder.message()
             """)
-            try runSema(missingOptIn)
-            #expect(!missingOptIn.diagnostics.hasError, "\(missingOptIn.diagnostics.diagnostics)")
-            #expect(missingOptIn.diagnostics.diagnostics.contains {
-                $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .warning
-            }, "\(missingOptIn.diagnostics.diagnostics)")
+            try runSema(enclosingClassOptIn)
+            #expect(!enclosingClassOptIn.diagnostics.hasError, "\(enclosingClassOptIn.diagnostics.diagnostics)")
+            #expect(!enclosingClassOptIn.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-OPT-IN" }, "\(enclosingClassOptIn.diagnostics.diagnostics)")
         }
     }
 #endif

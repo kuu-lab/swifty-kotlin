@@ -932,33 +932,6 @@ public func kk_cvalues_get_pointer(_ cvaluesHandle: Int, _ scope: Int) -> Int {
 
 // MARK: - NativePtr
 
-/// `toNativePtr()` — resolves a variable, pointer, opaque pointer or CValues
-/// handle to its machine address wrapped as a NativePtr box.
-@_cdecl("kk_native_ptr_of")
-public func kk_native_ptr_of(_ value: Int) -> Int {
-    let address: UInt
-    if let box = resolveCInteropVarBox(from: value) {
-        address = box.address
-    } else if let box = resolveCPointerBox(from: value) {
-        address = box.address
-    } else if let box = resolveCOpaquePointerBox(from: value) {
-        address = box.address
-    } else if value != 0, value != runtimeNullSentinelInt,
-              let ptr = UnsafeMutableRawPointer(bitPattern: value),
-              runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
-              let box = tryCast(ptr, to: RuntimeCValuesBox.self),
-              let base = box.storage.baseAddress
-    {
-        address = UInt(bitPattern: base)
-    } else {
-        address = 0
-    }
-    return registerRuntimeObject(
-        RuntimeCInteropNativePtrBox(address: address),
-        typeID: cinteropNativePtrTypeID
-    )
-}
-
 /// `NativePtr.toLong()` — raw Long (primitive values are raw in KIR temps).
 @_cdecl("kk_native_ptr_toLong")
 public func kk_native_ptr_toLong(_ handle: Int) -> Int {

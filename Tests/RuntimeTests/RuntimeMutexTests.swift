@@ -306,14 +306,3 @@ struct RuntimeMutexTests {
         }
     }
 }
-
-private func requireThrownBox(_ thrown: Int) throws -> RuntimeThrowableBox {
-    let ptr = try #require(
-        UnsafeMutableRawPointer(bitPattern: thrown),
-        "thrown channel value is not a valid pointer"
-    )
-    return try #require(
-        tryCast(ptr, to: RuntimeThrowableBox.self),
-        "thrown value must be a RuntimeThrowableBox"
-    )
-}

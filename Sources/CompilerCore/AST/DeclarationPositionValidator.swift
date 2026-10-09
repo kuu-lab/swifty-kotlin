@@ -568,6 +568,7 @@ struct DeclarationPositionValidator {
                 (.data, "data", .abstract, "abstract"),
                 (.data, "data", .sealed, "sealed"),
                 (.data, "data", .value, "value"),
+                (.inline, "inline", .data, "data"),
                 (.sealed, "sealed", .open, "open"),
                 (.sealed, "sealed", .inner, "inner"),
             ],

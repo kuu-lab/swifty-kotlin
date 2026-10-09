@@ -532,145 +532,70 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
 /// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
 func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
     let message = "freezing of \(runtimeRenderAnyForPrint(toFreezeRaw)) has failed, first blocker is \(runtimeRenderAnyForPrint(blockerRaw))"
-    let throwable = RuntimeFreezingExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeFreezingExceptionBox(message: message))
 }
 
 /// Allocates an `AssertionError` with the given message.
 func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeAssertionErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeAssertionErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `IllegalStateException` with the given message.
 func runtimeAllocateIllegalStateException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIllegalStateExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIllegalStateExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `IllegalArgumentException` with the given message.
 func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIllegalArgumentExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIllegalArgumentExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateConcurrentModificationException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeConcurrentModificationExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeConcurrentModificationExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateInvalidMutabilityException(message: String?) -> Int {
-    let throwable = RuntimeInvalidMutabilityExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeInvalidMutabilityExceptionBox(message: message))
 }
 
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String?) -> Int {
-    let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeArrayIndexOutOfBoundsExceptionBox(message: message))
 }
 
 func runtimeAllocateStringIndexOutOfBoundsException(message: String?) -> Int {
-    let throwable = RuntimeStringIndexOutOfBoundsExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeStringIndexOutOfBoundsExceptionBox(message: message))
 }
 
 func runtimeAllocateNumberFormatException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNumberFormatExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNumberFormatExceptionBox(message: message, cause: cause))
 }
 
 func runtimeAllocateArithmeticException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeArithmeticExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeArithmeticExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NegativeArraySizeException` with the given message.
 func runtimeAllocateNegativeArraySizeException(message: String?) -> Int {
-    let throwable = RuntimeNegativeArraySizeExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNegativeArraySizeExceptionBox(message: message))
 }
 
 /// Allocates an `Exception` with the given message.
 func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `java.io.IOException` with the given message and cause.
 func runtimeAllocateIOException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIOExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIOExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `CharacterCodingException` with the given message.
 func runtimeAllocateCharacterCodingException(message: String?) -> Int {
-    let throwable = RuntimeCharacterCodingExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeCharacterCodingExceptionBox(message: message))
 }
 
 /// Message used by `MalformedInputException` for a one-byte invalid sequence.
@@ -680,52 +605,27 @@ let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
 func runtimeAllocateMalformedInputException(
     message: String? = runtimeMalformedInputExceptionDefaultMessage
 ) -> Int {
-    let throwable = RuntimeMalformedInputExceptionBox(message: message)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeMalformedInputExceptionBox(message: message))
 }
 
 /// Allocates a `KotlinNothingValueException` with the given message.
 func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `Error` with the given message.
 func runtimeAllocateError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `OutOfMemoryError` with the given message.
 func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeOutOfMemoryErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeOutOfMemoryErrorBox(message: message, cause: cause))
 }
 
 /// Allocates a `StackOverflowError` with the given message.
 func runtimeAllocateStackOverflowError(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeStackOverflowErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeStackOverflowErrorBox(message: message, cause: cause))
 }
 
 /// Message used by `NotImplementedError()` when no reason is supplied.
@@ -733,72 +633,37 @@ let runtimeNotImplementedDefaultMessage = "An operation is not implemented."
 
 /// Allocates a `NotImplementedError` with the given message.
 func runtimeAllocateNotImplementedError(message: String, cause: Int = 0) -> Int {
-    let throwable = RuntimeNotImplementedErrorBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNotImplementedErrorBox(message: message, cause: cause))
 }
 
 /// Allocates an `IndexOutOfBoundsException` with the given message.
 func runtimeAllocateIndexOutOfBoundsException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeIndexOutOfBoundsExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates an `UnsupportedOperationException` with the given message.
 func runtimeAllocateUnsupportedOperationException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeUnsupportedOperationExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NoSuchElementException` with the given message.
 func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNoSuchElementExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNoSuchElementExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `ClassCastException` with the given message.
 func runtimeAllocateClassCastException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeClassCastExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeClassCastExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `TypeCastException` with the given message.
 func runtimeAllocateTypeCastException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeTypeCastExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeTypeCastExceptionBox(message: message, cause: cause))
 }
 
 /// Allocates a `NullPointerException` with the given message.
 func runtimeAllocateNullPointerException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeNullPointerExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    return runtimeRegisterThrowable(RuntimeNullPointerExceptionBox(message: message, cause: cause))
 }
 
 private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> String? {

@@ -1227,33 +1227,6 @@ public func __kk_string_format_flat(
     }
 }
 
-@_cdecl("__kk_string_format_locale")
-public func __kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let locale: Locale?
-    if localeRaw == runtimeNullSentinelInt {
-        locale = nil
-    } else {
-        guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale received invalid Locale handle")
-        }
-        locale = box.locale
-    }
-
-    let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    outThrown?.pointee = 0
-    do {
-        return runtimeMakeStringRaw(try runtimeFormatString(template, values: arguments, locale: locale))
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        return runtimeNullSentinelInt
-    } catch {
-        preconditionFailure("Unexpected format error")
-    }
-}
-
 @_cdecl("__kk_string_format_locale_flat")
 public func __kk_string_format_locale_flat(
     _ localeRaw: Int,

@@ -737,7 +737,6 @@ public func __kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
-@_cdecl("__kk_string_toBigDecimalOrNull_flat")
 public func __kk_string_toBigDecimalOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,

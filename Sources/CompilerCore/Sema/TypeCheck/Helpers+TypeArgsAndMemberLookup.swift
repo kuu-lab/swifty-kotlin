@@ -21,7 +21,7 @@ extension TypeCheckHelpers {
                let replacement = argSubstitution[tp.symbol]
             {
                 if tp.nullability == .nullable {
-                    return applyNullabilityToTypeArg(replacement, types: sema.types)
+                    return replacement.mapTypes { applyNullabilityForTypeCheck($0, types: sema.types) }
                 }
                 return replacement
             }
@@ -76,19 +76,6 @@ extension TypeCheckHelpers {
             return nullable
         default:
             return types.nullableAnyType
-        }
-    }
-
-    func applyNullabilityToTypeArg(_ arg: TypeArg, types: TypeSystem) -> TypeArg {
-        switch arg {
-        case let .invariant(inner):
-            .invariant(applyNullabilityForTypeCheck(inner, types: types))
-        case let .out(inner):
-            .out(applyNullabilityForTypeCheck(inner, types: types))
-        case let .in(inner):
-            .in(applyNullabilityForTypeCheck(inner, types: types))
-        case .star:
-            .star
         }
     }
 
@@ -777,15 +764,4 @@ extension TypeCheckHelpers {
         )
     }
 
-    func enumOwnerSymbol(for entrySymbol: SemanticSymbol, symbols: SymbolTable) -> SymbolID? {
-        guard entrySymbol.kind == .field,
-              entrySymbol.fqName.count >= 2
-        else {
-            return nil
-        }
-        let ownerFQName = Array(entrySymbol.fqName.dropLast())
-        return symbols.lookupAll(fqName: ownerFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .enumClass
-        })
-    }
 }

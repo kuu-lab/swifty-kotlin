@@ -12,12 +12,22 @@ extension TypeCheckDriver {
                     in: file,
                     symbols: sema.symbols,
                     interner: interner
-                ),
-                sema.symbols.symbol(annotationSymbol)?.fqName.map(interner.resolve)
-                    == ["kotlin", "js", "JsFileName"]
+                ), let fqName = sema.symbols.symbol(annotationSymbol)?.fqName.map(interner.resolve)
                 else {
                     continue
                 }
+
+                if fqName == ["kotlin", "js", "ExperimentalJsFileName"] {
+                    if !annotation.arguments.isEmpty {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY",
+                            "Annotation 'ExperimentalJsFileName' does not accept arguments.",
+                            range: file.range
+                        )
+                    }
+                    continue
+                }
+                guard fqName == ["kotlin", "js", "JsFileName"] else { continue }
 
                 guard annotation.arguments.count == 1 else {
                     diagnostics.error(
@@ -28,7 +38,7 @@ extension TypeCheckDriver {
                     continue
                 }
 
-                let rawArgument = annotationArgumentValue(annotation.arguments[0], parameterName: "name")
+                let rawArgument = SemaAnnotationArgument.value(annotation.arguments[0], parameterName: "name")
                 if extractKotlinStringLiteralContent(rawArgument) != nil {
                     continue
                 }
@@ -117,16 +127,6 @@ extension TypeCheckDriver {
             }
         }
         return nil
-    }
-
-    private func annotationArgumentValue(_ raw: String, parameterName: String) -> String {
-        let pieces = raw.split(separator: "=", maxSplits: 1).map(String.init)
-        guard pieces.count == 2,
-              pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == parameterName
-        else {
-            return raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return pieces[1].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func isNonStringLiteral(_ raw: String) -> Bool {

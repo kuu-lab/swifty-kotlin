@@ -22,7 +22,5 @@ private final class RuntimeFormatExceptionBox: RuntimeThrowableBox {
 }
 
 func runtimeAllocateFormatException(_ error: RuntimeFormatError) -> Int {
-    let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(RuntimeFormatExceptionBox(error)).toOpaque())
-    runtimeStorage.withGCLock { $0.objectPointers.insert(UInt(bitPattern: pointer)) }
-    return Int(bitPattern: pointer)
+    runtimeRegisterThrowable(RuntimeFormatExceptionBox(error))
 }

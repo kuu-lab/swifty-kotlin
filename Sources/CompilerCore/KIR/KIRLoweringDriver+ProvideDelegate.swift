@@ -2,28 +2,6 @@
 // MARK: - provideDelegate operator support (PROP-007)
 
 extension KIRLoweringDriver {
-    func checkHasProvideDelegate(
-        delegateExprType: TypeID?,
-        shared: KIRLoweringSharedContext
-    ) -> Bool {
-        let sema = shared.sema
-        let interner = shared.interner
-        let provideDelegateName = interner.intern("provideDelegate")
-        guard let delType = delegateExprType else { return false }
-        let typeKind = sema.types.kind(of: delType)
-        switch typeKind {
-        case let .classType(classType):
-            guard let sym = sema.symbols.symbol(classType.classSymbol) else { return false }
-            let memberSymbols = sema.symbols.children(ofFQName: sym.fqName)
-            return memberSymbols.contains { memberID in
-                guard let member = sema.symbols.symbol(memberID) else { return false }
-                return member.name == provideDelegateName && member.kind == .function
-            }
-        default:
-            return false
-        }
-    }
-
     /// Emits a `__kk_kproperty_stub_create(name, returnType)` call and returns the result expression ID.
     func emitKPropertyStubCreate(
         propertyName: InternedString,

@@ -850,15 +850,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    func isCoroutineHandleReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        ReceiverClassifier(sema: sema, interner: interner)
-            .isCoroutineHandleReceiverType(receiverType)
-    }
-
     /// Returns true when the receiver type is java.io.File.
     func isFileType(
         _ receiverType: TypeID,
@@ -891,15 +882,6 @@ extension CallTypeChecker {
         return symbol.fqName.count >= 2
             && interner.resolve(symbol.fqName.last!) == "BufferedReader"
             && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
-    }
-
-    func isChannelReceiverType(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        ReceiverClassifier(sema: sema, interner: interner)
-            .isChannelReceiverType(receiverType)
     }
 
     func kClassReceiverArgumentType(

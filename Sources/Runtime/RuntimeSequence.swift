@@ -1744,7 +1744,6 @@ private func evaluateSequenceValues(
 
 // MARK: - Sequence Factory Functions
 
-@_cdecl("kk_sequence_from_list")
 public func kk_sequence_from_list(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_from_list received invalid list handle")

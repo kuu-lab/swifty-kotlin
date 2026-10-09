@@ -1816,6 +1816,7 @@ final class CallTypeChecker {
         }
 
         var candidates: [SymbolID]
+        var implicitReceiverScopeCandidates: [SymbolID] = []
         var callImplicitReceiverType = ctx.implicitReceiverType
         /// Member-extension candidates -> the receiver-tower symbol Sema
         /// picked to supply their declared extension receiver. Recorded into
@@ -1858,6 +1859,7 @@ final class CallTypeChecker {
             let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
             let (vis, invis) = ctx.filterByVisibility(dslFiltered)
             candidates = vis
+            implicitReceiverScopeCandidates = vis
             callInvisible = invis
             if locals[calleeName] == nil,
                let receiverType = ctx.implicitReceiverType
@@ -2103,7 +2105,12 @@ final class CallTypeChecker {
                     } else {
                         let initName = interner.intern("<init>")
                         let ctorFQName = classSymbol.fqName + [initName]
-                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
+                        // Constructors share an FQName across expect/actual
+                        // classes, but only the selected classifier owns the
+                        // constructor candidates for this call.
+                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
+                            sema.symbols.parentSymbol(for: $0) == classSym
+                        }
                         if !ctorSymbols.isEmpty {
                             let (ctorVis, ctorInvis) = ctx.filterByVisibility(ctorSymbols)
                             // Some synthetic stdlib types register a class
@@ -2187,16 +2194,21 @@ final class CallTypeChecker {
                         depth: 0,
                         diagnostics: ctx.semaCtx.diagnostics
                     ),
-                       case let .classType(classType) = sema.types.kind(of: expanded),
-                       let underlyingSymbol = ctx.cachedSymbol(classType.classSymbol)
+                       case let .classType(classType) = sema.types.kind(of: expanded)
                     {
-                        let initName = interner.intern("<init>")
-                        let ctorFQName = underlyingSymbol.fqName + [initName]
-                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                        if !ctorSymbols.isEmpty {
-                            let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
-                            candidates = vis
-                            callInvisible.append(contentsOf: invis)
+                        let constructorOwner = sema.symbols.actualSymbol(for: classType.classSymbol)
+                            ?? classType.classSymbol
+                        if let underlyingSymbol = ctx.cachedSymbol(constructorOwner) {
+                            let initName = interner.intern("<init>")
+                            let ctorFQName = underlyingSymbol.fqName + [initName]
+                            let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName).filter {
+                                sema.symbols.parentSymbol(for: $0) == constructorOwner
+                            }
+                            if !ctorSymbols.isEmpty {
+                                let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
+                                candidates = vis
+                                callInvisible.append(contentsOf: invis)
+                            }
                         }
                     }
                 }
@@ -2348,6 +2360,7 @@ final class CallTypeChecker {
         {
             let preferredCandidates = preferImplicitReceiverPredicateCandidates(
                 candidates,
+                fallbackCandidates: implicitReceiverScopeCandidates,
                 args: args,
                 receiverType: implicitReceiverType,
                 ctx: ctx

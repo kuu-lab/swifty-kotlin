@@ -1,9 +1,88 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testImportedExpectLinksToLocalActual() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(
+            contents: """
+            package sample.kmp
+            actual fun platformName(): Int = 7
+            fun usePlatformName(): Int = platformName()
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["sample", "kmp", "platformName"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first {
+                $0.flags.contains(.expectDeclaration) && $0.flags.contains(.importedLibrary)
+            })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == actualSymbol.id })
+        }
+    }
+
+    @Test func testImportedExpectWithoutLocalActualIsUnresolved() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.map(\.code) == ["KSWIFTK-MPP-UNRESOLVED"], "Unexpected diagnostics: \(errors)")
+        }
+    }
+
+    @Test func testOptionalExpectationDoesNotRequireActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package sample.kmp
+            @OptIn(ExperimentalMultiplatform::class)
+            @OptionalExpectation
+            expect annotation class JsName(val name: String)
+            """
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-MPP-UNRESOLVED" },
+            "Optional expect annotation classes may omit an actual declaration: \(errors)"
+        )
+
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("kmp"),
+            ctx.interner.intern("JsName"),
+        ]).first { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol) == nil)
+    }
+
     @Test func testExpectClassBodylessMembersOnlyReportMissingActual() throws {
         let ctx = makeContextFromSource(
             """
@@ -18,6 +97,55 @@ struct ExpectActualCompatibilityTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(!errors.isEmpty)
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-MPP-UNRESOLVED" }, "Unexpected diagnostics: \(errors)")
+    }
+
+    @Test func testExpectActualObjectLinksWithoutDuplicateDeclaration() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect object O
+            """,
+            """
+            actual object O
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let symbols = sema.symbols.lookupAll(fqName: [ctx.interner.intern("O")])
+            .compactMap { sema.symbols.symbol($0) }
+        let expectSymbol = try #require(symbols.first { $0.flags.contains(.expectDeclaration) })
+        let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+    }
+
+    @Test func testCommonModuleFlagAllowsExpectWithoutActual() throws {
+        let ctx = makeContextFromSource(
+            """
+            package common
+            expect fun platformName(): String
+            """,
+            frontendFlags: ["common-module"]
+        )
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Common modules may retain expect declarations: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let expectSymbol = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("common"), ctx.interner.intern("platformName"),
+        ]).compactMap { sema.symbols.symbol($0) }.first { $0.flags.contains(.expectDeclaration) })
+        let record = MetadataEncoder().buildRecord(
+            for: expectSymbol,
+            symbols: sema.symbols,
+            types: sema.types,
+            moduleName: ctx.options.moduleName,
+            interner: ctx.interner
+        )
+        let roundTripped = try #require(MetadataDecoder().decode(MetadataEncoder().serialize([record])).first)
+        #expect(roundTripped.isExpect)
+        #expect(!roundTripped.isActual)
     }
 
     @Test func testExpectClassBodylessMembersLinkToActual() throws {
@@ -39,6 +167,97 @@ struct ExpectActualCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for memberName in ["newEncoder", "equals"] {
+            let fqName = [ctx.interner.intern("Charset"), ctx.interner.intern(memberName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.expectDeclaration) })
+            let actualMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectMember.id) == actualMember.id)
+        }
+    }
+
+    @Test func testExpectClassMemberPropertiesLinkToActualProperties() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            interface IP { val cap: Int }
+            expect class F1 { val p: Int }
+            expect class F2 : IP { override val cap: Int }
+            expect class F3(override val cap: Int) : IP
+            expect abstract class F4 { abstract val p: Int }
+            """,
+            """
+            package x
+            actual class F1 { actual val p: Int = 0 }
+            actual class F2 : IP { actual override val cap: Int = 0 }
+            actual class F3 actual constructor(actual override val cap: Int) : IP
+            actual abstract class F4 { actual val p: Int get() = 0 }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected expect/actual member properties to pair, got: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for (className, propertyName) in [("F1", "p"), ("F2", "cap"), ("F3", "cap"), ("F4", "p")] {
+            let fqName = [ctx.interner.intern("x"), ctx.interner.intern(className), ctx.interner.intern(propertyName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.expectDeclaration) })
+            let actualProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectProperty.id) == actualProperty.id)
+        }
+    }
+
+    @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual abstract fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let acName = [ctx.interner.intern("AC")]
+        let classes = sema.symbols.lookupAll(fqName: acName).compactMap { sema.symbols.symbol($0) }
+        let expectClass = try #require(classes.first { $0.flags.contains(.expectDeclaration) })
+        let actualClass = try #require(classes.first { $0.flags.contains(.actualDeclaration) })
+        #expect(sema.symbols.actualSymbol(for: expectClass.id) == actualClass.id)
+
+        let methodName = acName + [ctx.interner.intern("name")]
+        let methods = sema.symbols.lookupAll(fqName: methodName).compactMap { sema.symbols.symbol($0) }
+        let actualMethod = try #require(methods.first { $0.flags.contains(.actualDeclaration) })
+        #expect(actualMethod.flags.contains(.abstractType))
+    }
+
+    @Test func testActualFunctionInheritsAbstractnessFromExpectMember() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect abstract class AC { fun name(): String }
+            """,
+            """
+            actual abstract class AC { actual fun name(): String }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let methodName = [ctx.interner.intern("AC"), ctx.interner.intern("name")]
+        let actualMethod = try #require(sema.symbols.lookupAll(fqName: methodName).first {
+            sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true
+        })
+        #expect(sema.symbols.symbol(actualMethod)?.flags.contains(.abstractType) == true)
     }
 
     @Test func testNonExpectClassBodylessMembersStillRequireBodies() throws {
@@ -104,6 +323,56 @@ struct ExpectActualCompatibilityTests {
             ctx.interner.intern("sample"), ctx.interner.intern("kmp"), ctx.interner.intern("reverseByteOrder"),
         ]).first { sema.symbols.symbol($0)?.flags.contains(.actualDeclaration) == true })
         #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
+    }
+
+    @Test func testClassConstructorCallsPreferLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            expect open class S()
+            expect open class M(message: String): Exception
+            fun use() { val s = S(); val m = M("x") }
+            fun useQualified() { val s = x.S(); val m = x.M("x") }
+            """,
+            """
+            package x
+            actual open class S actual constructor()
+            actual open class M(message: String): Exception(message)
+            typealias AliasS = S
+            fun useAlias() { val s = AliasS() }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Paired class constructors should not be ambiguous: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let constructorName = ctx.interner.intern("<init>")
+        let classNames = [ctx.interner.intern("S"), ctx.interner.intern("M")]
+        var expectConstructors: Set<SymbolID> = []
+        var actualConstructors: Set<SymbolID> = []
+        for className in classNames {
+            let classFQName = [ctx.interner.intern("x"), className]
+            let classSymbols = sema.symbols.lookupAll(fqName: classFQName).compactMap { sema.symbols.symbol($0) }
+            let expectClass = try #require(classSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualClass = try #require(classSymbols.first { $0.flags.contains(.actualDeclaration) })
+            let constructorSymbols = sema.symbols.lookupAll(fqName: classFQName + [constructorName])
+            expectConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == expectClass.id
+            })
+            actualConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == actualClass.id
+            })
+        }
+
+        let chosenConstructorCalls = sema.bindings.callBindings.values.map(\.chosenCallee).filter {
+            expectConstructors.contains($0) || actualConstructors.contains($0)
+        }
+        #expect(expectConstructors.count == 2)
+        #expect(actualConstructors.count == 2)
+        #expect(chosenConstructorCalls.count == 5, "All constructor call forms should resolve: \(chosenConstructorCalls)")
+        #expect(Set(chosenConstructorCalls) == actualConstructors, "Calls should bind only actual constructors: \(chosenConstructorCalls)")
     }
 
     @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {
@@ -298,6 +567,28 @@ struct ExpectActualCompatibilityTests {
             try runSema(ctx)
             try testCase.assertion(ctx)
         }
+    }
+
+    private func makeImportedExpectLibrary() throws -> URL {
+        let libraryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kklib")
+        try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
+
+        let manifest = """
+        { "formatVersion": 1, "moduleName": "Common", "metadata": "metadata.bin" }
+        """
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "common_platformName",
+            fqName: "sample.kmp.platformName",
+            arity: 0,
+            typeSignature: "F0<I>",
+            isExpect: true
+        )
+        let metadata = MetadataEncoder().serialize([record])
+        try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        return libraryDirectory
     }
 }
 #endif

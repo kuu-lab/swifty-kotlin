@@ -173,9 +173,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_channel_is_empty", parameters: [
             p("handle", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_channel_close_cause", parameters: [
-            p("handle", .intptr),
-        ], isThrowing: false),
         abiParitySpec("__kk_channel_close_cause", parameters: [
             p("handle", .intptr),
             p("cause", .intptr),
@@ -204,13 +201,6 @@ public extension RuntimeABISpec {
             p("value", .intptr),
         ]),
 
-        abiParitySpec("kk_cname_lookup", parameters: [
-            p("externNameRaw", .intptr),
-        ]),
-        abiParitySpec("kk_cname_register", parameters: [
-            p("externNameRaw", .intptr),
-            p("fnPtr", .intptr),
-        ]),
         abiParitySpec("kk_copaque_pointer_address", parameters: [
             p("handle", .intptr),
         ]),
@@ -457,9 +447,6 @@ public extension RuntimeABISpec {
             p("cvaluesHandle", .intptr),
             p("scope", .intptr),
         ], isThrowing: false),
-        abiParitySpec("kk_native_ptr_of", parameters: [
-            p("value", .intptr),
-        ], isThrowing: false),
         abiParitySpec("kk_native_ptr_toLong", parameters: [
             p("handle", .intptr),
         ], isThrowing: false),
@@ -471,12 +458,6 @@ public extension RuntimeABISpec {
             p("typeToken", .intptr),
         ], isThrowing: false),
         flowCatchSpec,
-        abiParitySpec("__kk_flow_emit_with_timestamp", parameters: [
-            p("flowHandle", .intptr),
-            p("value", .intptr),
-            p("tag", .intptr),
-            p("timestamp", .uint64),
-        ]),
         flowOnCompletionSpec,
         flowOnErrorResumeSpec,
         flowOnErrorReturnSpec,
@@ -493,75 +474,12 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_future_consume", parameters: [
             p("futureHandle", .intptr),
         ]),
-        abiParitySpec("kk_future_is_ready", parameters: [
-            p("futureHandle", .intptr),
-        ]),
         abiParitySpec("kk_future_new"),
         abiParitySpec("kk_future_result", parameters: [
             p("futureHandle", .intptr),
         ]),
-        abiParitySpec("kk_http_body_handlers_ofString", parameters: [
-            p("bodyHandlersRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_http_body_publishers_noBody", parameters: [
             p("bodyPublishersRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_body_publishers_ofString", parameters: [
-            p("bodyPublishersRaw", .intptr),
-            p("bodyRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_client_newHttpClient",
-            isThrowing: false),
-        abiParitySpec("kk_http_client_send", parameters: [
-            p("clientRaw", .intptr),
-            p("requestRaw", .intptr),
-            p("bodyHandlerRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_http_headers_firstValue", parameters: [
-            p("headersRaw", .intptr),
-            p("nameRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_headers_map", parameters: [
-            p("headersRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_request_builder_build", parameters: [
-            p("builderRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_http_request_builder_GET", parameters: [
-            p("builderRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_request_builder_header", parameters: [
-            p("builderRaw", .intptr),
-            p("nameRaw", .intptr),
-            p("valueRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_request_builder_POST", parameters: [
-            p("builderRaw", .intptr),
-            p("publisherRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_request_builder_uri", parameters: [
-            p("builderRaw", .intptr),
-            p("uriRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_request_newBuilder",
-            isThrowing: false),
-        abiParitySpec("kk_http_request_newBuilder_uri", parameters: [
-            p("uriRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_http_response_headers", parameters: [
-            p("responseRaw", .intptr),
         ],
             isThrowing: false),
         abiParitySpec("__kk_input_stream_mark", parameters: [
@@ -613,9 +531,6 @@ public extension RuntimeABISpec {
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_is_frozen", parameters: [
-            p("objectRaw", .intptr),
         ]),
         abiParitySpec("kk_iterator_hasNext", parameters: [
             p("iterRaw", .intptr),

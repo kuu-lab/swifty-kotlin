@@ -237,6 +237,9 @@ extension TypeCheckHelpers {
         var requirements: [OptInRequirement] = []
         var seenMarkers: Set<SymbolID> = []
 
+        // A marker annotation on an API propagates to its callers. Kotlin/JS
+        // @JsExport and @JsStatic consume their marker at the annotation site,
+        // so their annotated declarations do not require opt-in at call sites.
         for annotation in annotations {
             guard let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.annotationFQName,
@@ -250,6 +253,13 @@ extension TypeCheckHelpers {
                seenMarkers.insert(requirement.markerSymbol).inserted
             {
                 requirements.append(requirement)
+            }
+
+            let annotationFQName = ctx.sema.symbols.symbol(annotationSymbol)?.fqName
+                .map(ctx.interner.resolve)
+                .joined(separator: ".")
+            if annotationFQName == "kotlin.js.JsExport" || annotationFQName == "kotlin.js.JsStatic" {
+                continue
             }
 
             for metaAnnotation in ctx.sema.symbols.annotations(for: annotationSymbol) {
@@ -509,7 +519,7 @@ extension TypeCheckHelpers {
         let regex = OptInMarkerClassParser.classReferenceRegex
 
         for argument in arguments {
-            let value = optInArgumentValue(argument)
+            let value = SemaAnnotationArgument.value(argument)
             let nsValue = value as NSString
             let matches = regex.matches(
                 in: value,
@@ -540,7 +550,7 @@ extension TypeCheckHelpers {
     }
 
     private func normalizeOptInMarkerName(_ raw: String) -> String? {
-        let trimmed = optInArgumentValue(raw)
+        let trimmed = SemaAnnotationArgument.value(raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]()"))
         guard !trimmed.isEmpty else {
@@ -554,14 +564,6 @@ extension TypeCheckHelpers {
         }
 
         return nil
-    }
-
-    private func optInArgumentValue(_ argument: String) -> String {
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let equalIndex = trimmed.firstIndex(of: "=") else {
-            return trimmed
-        }
-        return String(trimmed[trimmed.index(after: equalIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func splitOptInNamedArgument(_ argument: String) -> (String, String)? {

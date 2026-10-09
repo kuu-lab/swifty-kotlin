@@ -166,6 +166,12 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [funDecl.name]
             var memberFlags = flags(from: funDecl.modifiers)
+            if symbols.symbol(ownerSymbol)?.flags.contains(.expectDeclaration) == true,
+               !memberFlags.contains(.actualDeclaration)
+            {
+                // Members of an expect class or interface are implicitly expect.
+                memberFlags.insert(.expectDeclaration)
+            }
             if funDecl.receiverType != nil {
                 memberFlags.insert(.memberExtension)
             }
@@ -265,7 +271,9 @@ extension DataFlowSemaPhase {
                 symbol: memberSymbol,
                 declRange: funDecl.range,
                 sourceFileID: sourceFileID,
+                sourceFile: sourceFile,
                 sourceManager: sourceManager,
+                interner: interner,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -418,6 +426,12 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
             var propertyFlags = flags(from: propertyDecl.modifiers)
+            if symbols.symbol(ownerSymbol)?.flags.contains(.expectDeclaration) == true,
+               !propertyFlags.contains(.actualDeclaration)
+            {
+                // Members of an expect class or interface are implicitly expect.
+                propertyFlags.insert(.expectDeclaration)
+            }
             let isExtensionProperty = propertyDecl.receiverType != nil
             let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
@@ -546,7 +560,9 @@ extension DataFlowSemaPhase {
                 symbol: memberSymbol,
                 declRange: propertyDecl.range,
                 sourceFileID: sourceFileID,
+                sourceFile: sourceFile,
                 sourceManager: sourceManager,
+                interner: interner,
                 symbols: symbols,
                 diagnostics: diagnostics
             )
@@ -821,7 +837,9 @@ extension DataFlowSemaPhase {
             symbol: nestedSymbol,
             declRange: declSite,
             sourceFileID: sourceFileID,
+            sourceFile: ast.file(for: sourceFileID),
             sourceManager: sourceManager,
+            interner: interner,
             symbols: symbols,
             diagnostics: diagnostics
         )
@@ -1020,7 +1038,9 @@ extension DataFlowSemaPhase {
                         symbol: nestedPrimaryCtorSymbol,
                         declRange: nestedClass.range,
                         sourceFileID: sourceFileID,
+                        sourceFile: ast.file(for: sourceFileID),
                         sourceManager: ctx.sourceManager,
+                        interner: interner,
                         symbols: symbols,
                         diagnostics: diagnostics
                     )

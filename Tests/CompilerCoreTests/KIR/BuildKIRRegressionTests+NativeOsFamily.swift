@@ -5,17 +5,10 @@ import Testing
 extension BuildKIRRegressionTests {
     @Test
     func testNativeOsFamilyUsesSourceOrderAndGeneratedEnumAPIs() throws {
-        let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-
-        import kotlin.native.OsFamily
-
-        fun main() {
-            println(OsFamily.entries.size)
-            println(OsFamily.values().size)
-            println(OsFamily.valueOf("TVOS"))
-        }
-        """
+        let source = try repositoryFileSource(
+            "Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_OsFamily_OsFamily_n.kt",
+            file: #filePath
+        )
 
         let ctx = makeContextFromSource(source)
         try runToLowering(ctx)

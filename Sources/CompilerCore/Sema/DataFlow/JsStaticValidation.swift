@@ -8,9 +8,27 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        globalOptInMarkerNames: [String]
     ) {
         for file in ast.sortedFiles {
+            for annotation in file.annotations where isJsStaticAnnotation(
+                annotation,
+                in: file,
+                symbols: symbols,
+                interner: interner
+            ) {
+                validateExperimentalAnnotationOptIn(
+                    for: annotation,
+                    in: file,
+                    scopeSymbol: nil,
+                    range: file.range,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
+                )
+            }
             for declID in file.topLevelDecls {
                 validateJsStaticDeclaration(
                     declID,
@@ -21,7 +39,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
         }
@@ -36,10 +55,33 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        globalOptInMarkerNames: [String]
     ) {
         guard let decl = ast.arena.decl(declID) else {
             return
+        }
+        var annotations = decl.annotations
+        if case let .propertyDecl(property) = decl {
+            annotations.append(contentsOf: property.getter?.annotations ?? [])
+            annotations.append(contentsOf: property.setter?.annotations ?? [])
+        }
+        for annotation in annotations where isJsStaticAnnotation(
+            annotation,
+            in: file,
+            symbols: symbols,
+            interner: interner
+        ) {
+            validateExperimentalAnnotationOptIn(
+                for: annotation,
+                in: file,
+                scopeSymbol: bindings.declSymbols[declID],
+                range: decl.range,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
+            )
         }
         validateJsStaticAnnotationArguments(
             in: decl,
@@ -155,7 +197,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
             )
             let companion = classDecl.companionObject
             for nestedID in classDecl.nestedClasses + classDecl.nestedObjects where nestedID != companion {
@@ -168,7 +211,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
             if let companion {
@@ -181,7 +225,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
 
@@ -194,7 +239,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
             )
             let companion = interfaceDecl.companionObject
             for nestedID in interfaceDecl.nestedClasses + interfaceDecl.nestedObjects where nestedID != companion {
@@ -207,7 +253,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
             if let companion {
@@ -220,7 +267,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
 
@@ -233,7 +281,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
             )
             for nestedID in objectDecl.nestedClasses + objectDecl.nestedObjects {
                 validateJsStaticDeclaration(
@@ -245,7 +294,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     bindings: bindings,
                     diagnostics: diagnostics,
-                    interner: interner
+                    interner: interner,
+                    globalOptInMarkerNames: globalOptInMarkerNames
                 )
             }
 
@@ -262,7 +312,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        globalOptInMarkerNames: [String]
     ) {
         for memberID in members {
             validateJsStaticDeclaration(
@@ -274,7 +325,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 bindings: bindings,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                globalOptInMarkerNames: globalOptInMarkerNames
             )
         }
     }
@@ -326,7 +378,7 @@ extension DataFlowSemaPhase {
                 + (property.getter?.annotations ?? [])
                 + (property.setter?.annotations ?? [])
         default:
-            annotations = declarationAnnotations(for: decl)
+            annotations = decl.annotations
         }
 
         var reported: [AnnotationNode] = []
@@ -351,20 +403,8 @@ extension DataFlowSemaPhase {
             diagnostics.error(
                 "KSWIFTK-SEMA-JS-ANNOTATION-TOO-MANY-ARGUMENTS",
                 "Annotation '@\(annotationName)' does not accept arguments.",
-                range: declarationRange(for: decl)
+                range: decl.range
             )
-        }
-    }
-
-    private func declarationRange(for decl: Decl) -> SourceRange {
-        switch decl {
-        case let .classDecl(value): value.range
-        case let .interfaceDecl(value): value.range
-        case let .objectDecl(value): value.range
-        case let .funDecl(value): value.range
-        case let .propertyDecl(value): value.range
-        case let .typeAliasDecl(value): value.range
-        case let .enumEntryDecl(value): value.range
         }
     }
 

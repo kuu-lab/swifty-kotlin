@@ -4094,7 +4094,6 @@ final class RuntimeExceptionHandlerBox: @unchecked Sendable {
 
 /// Create a CoroutineExceptionHandler that prints the exception message.
 /// Returns an opaque handle to a RuntimeExceptionHandlerBox.
-@_cdecl("kk_exception_handler_new")
 public func kk_exception_handler_new() -> Int {
     let box = RuntimeExceptionHandlerBox { _, throwableRaw in
         // Default handler: print the exception to stderr
@@ -4264,7 +4263,6 @@ private func runtimeCompleteLaunchJobExceptionally(
 /// Launch a coroutine with a CoroutineExceptionHandler.
 /// If the coroutine throws an uncaught exception, the handler is invoked.
 /// handlerRaw is an opaque RuntimeExceptionHandlerBox handle (or 0 for no handler).
-@_cdecl("kk_kxmini_launch_with_exception_handler")
 public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ functionID: Int, _ handlerRaw: Int) -> Int {
     let job = RuntimeJobHandle()
     job.debugName = "StandaloneCoroutine"
@@ -4579,7 +4577,6 @@ public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
 
 /// Returns 1 if the scope has been cancelled, 0 otherwise.
 /// This is the ABI backing for checking `scope.coroutineContext[Job]?.isCancelled`.
-@_cdecl("kk_coroutine_scope_is_cancelled")
 public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         return 1 // invalid handle → treat as cancelled
@@ -4588,7 +4585,6 @@ public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
 }
 
 /// Registers a child job/deferred handle with the given scope.
-@_cdecl("kk_coroutine_scope_register_child")
 public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_scope_register_child received invalid scope handle")
@@ -6196,7 +6192,6 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
 
 /// Returns 1 if the job has failed with an exception.
 /// ABI backing for `job.isFailed` in Kotlin (kswiftc extension).
-@_cdecl("kk_job_is_failed")
 public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
         return 0 // invalid handle → treat as not failed
@@ -6733,7 +6728,6 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
 }
 
 /// Directly cancel a continuation (sets isCancelled on its linked job handle).
-@_cdecl("kk_coroutine_cancel")
 public func kk_coroutine_cancel(_ continuation: Int) {
     guard let state = runtimeContinuationState(from: continuation),
           let job = state.jobHandle

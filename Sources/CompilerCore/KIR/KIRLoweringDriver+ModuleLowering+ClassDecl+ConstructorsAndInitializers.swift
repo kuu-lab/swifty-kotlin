@@ -863,10 +863,7 @@ extension KIRLoweringDriver {
         }
 
         let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
-        let delegateExprType = sema.bindings.exprType(for: delegateExpr)
-        let hasProvideDelegate = checkHasProvideDelegate(
-            delegateExprType: delegateExprType, shared: shared
-        )
+        let hasProvideDelegate = sema.symbols.hasProvideDelegate(for: propSymbol)
         let valueToStore: KIRExprID = if hasProvideDelegate, let storageSym = delegateStorageSym {
             emitProvideDelegateCall(
                 delegateValue: delegateValue, storageSym: storageSym,

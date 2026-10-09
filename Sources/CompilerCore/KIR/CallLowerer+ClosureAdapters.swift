@@ -319,66 +319,6 @@ extension CallLowerer {
         return [fnPtrExpr, envPtrExpr]
     }
 
-    private func makeCollectionHOFSelectorArgument(
-        loweredArgID: KIRExprID,
-        argExprID: ExprID,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) -> (loweredArgID: KIRExprID, callableInfo: KIRCallableValueInfo?) {
-        let loweredSelectorID = loweredArgID
-        var selectorCallableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
-        if selectorCallableInfo == nil,
-           case let .symbolRef(symbol)? = arena.expr(loweredSelectorID),
-           let function = arena.function(for: symbol)
-        {
-            selectorCallableInfo = KIRCallableValueInfo(
-                symbol: function.symbol,
-                callee: function.name,
-                captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
-                hasClosureParam: function.params.count >= 2
-            )
-        }
-        if let callableInfo = selectorCallableInfo,
-           !callableInfo.hasClosureParam,
-           let adaptedInfo = makeCollectionHOFCallableAdapter(
-                callableInfo: callableInfo,
-                loweredArgID: loweredSelectorID,
-                argExprID: argExprID,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                namePrefix: "kk_compare_values_hof_adapter",
-                symbolIDOffsetBase: -710_000
-           )
-        {
-            selectorCallableInfo = adaptedInfo
-        }
-        // callableInfo.symbol is always the raw function pointer to invoke through.
-        // loweredArgID may instead be a boxed/materialized callable value (e.g. a
-        // selector read from a local variable rather than an inline lambda literal),
-        // so re-point the selector at a fresh reference to the resolved symbol
-        // instead of reusing loweredArgID, which would pass the boxed object where
-        // a function pointer is expected.
-        guard let callableInfo = selectorCallableInfo else {
-            return (loweredSelectorID, nil)
-        }
-        let fnPtrExpr = arena.appendExpr(
-            .symbolRef(callableInfo.symbol),
-            type: arena.exprType(loweredSelectorID) ?? sema.types.anyType
-        )
-        instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-        driver.ctx.registerCallableValue(
-            fnPtrExpr,
-            symbol: callableInfo.symbol,
-            callee: callableInfo.callee,
-            captureArguments: callableInfo.captureArguments,
-            hasClosureParam: callableInfo.hasClosureParam
-        )
-        return (fnPtrExpr, callableInfo)
-    }
-
     private func makeClosureRawArgument(
         callableInfo: KIRCallableValueInfo?,
         sema: SemaModule,
@@ -780,47 +720,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-    }
-
-    private func appendCollectionHOFSelectorPair(
-        _ selector: (loweredArgID: KIRExprID, callableInfo: KIRCallableValueInfo?),
-        to arrayExpr: KIRExprID,
-        selectorOffset: Int,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction]
-    ) {
-        let fnIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2)), type: sema.types.intType)
-        instructions.append(.constValue(result: fnIndexExpr, value: .intLiteral(Int64(selectorOffset * 2))))
-        let fnSetResult = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_set"),
-            arguments: [arrayExpr, fnIndexExpr, selector.loweredArgID],
-            result: fnSetResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
-
-        let closureRaw = makeClosureRawOrBoxedArgument(
-            callableInfo: selector.callableInfo,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
-        let closureIndexExpr = arena.appendExpr(.intLiteral(Int64(selectorOffset * 2 + 1)), type: sema.types.intType)
-        instructions.append(.constValue(result: closureIndexExpr, value: .intLiteral(Int64(selectorOffset * 2 + 1))))
-        let closureSetResult = arena.appendTemporary(type: sema.types.anyType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_array_set"),
-            arguments: [arrayExpr, closureIndexExpr, closureRaw],
-            result: closureSetResult,
-            canThrow: false,
-            thrownResult: nil
-        ))
     }
 
     /// KSP-500: Wrap a generateSequence nextFunction closure so its returned

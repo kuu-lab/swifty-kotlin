@@ -1,5 +1,145 @@
 # Dead Code Audit（2026-06-12）
 
+> **現行結果（KUU-1658、2026-10-09）**: Runtime `@_cdecl` export 1,918 件、compiler-unreachable 96 件（A=39 / B=11 / runtime-internal-only=46）。B の意図的 test hook 11 件は理由コード付きで保持し、残り 96 export は C ABI と `RuntimeABISpec` から除去した。元の Issue 基準コミット `99684db9d88f` では B=105。現 HEAD では `kk_duration_toString` と `kk_is_frozen` が追加され B=107 になっていたため、107 件すべてを分類して処置した。
+
+## 継続監査（KUU-1658、2026-10-09）
+
+Issue 作成時点の `99684db9d88f` で `bash Scripts/dead_code_audit.sh --self-test` を再実行し、B=105 を再現した。監査を開始した HEAD `2eb589e33c` では B=107 で、追加分は `kk_duration_toString` と `kk_is_frozen`。両方を含む現行 107 件を次の 3 区分で全件分類した。
+
+### 意図的 test hook — 11 件、C export を保持
+
+これらは Runtime のグローバル状態、GC フレーム、転送状態を Swift RuntimeTests から直接操作・検査するための hook。宣言に `DEAD-CDECL-TEST-HOOK` と理由コードを記した。
+
+```
+kk_assertions_reset
+kk_assertions_set_enabled
+kk_debugging_gc_suspend_count
+kk_debugging_global_object_count
+kk_debugging_thread_count
+kk_pop_frame
+kk_push_frame
+kk_register_frame_map
+kk_runtime_force_reset
+kk_runtime_heap_object_count
+kk_transfer_object
+```
+
+### 削除可能 — source-backed または emitter の置換経路がある 46 件
+
+Kotlin 側の処理は Kotlin source / intrinsic / 現行の別 link name が所有しており、次の旧 C export は不要。関数本体は Swift RuntimeTests の直接テスト用に残し、`@_cdecl` と `RuntimeABISpec` 登録を削除した。
+
+```
+__kk_flow_count
+__kk_flow_fold
+__kk_flow_reduce
+__kk_mutable_collection_addAll_checked
+__kk_mutable_collection_clear
+__kk_mutable_collection_clear_checked
+__kk_mutable_collection_remove
+__kk_mutable_collection_removeAll
+__kk_mutable_collection_removeAll_checked
+__kk_mutable_collection_remove_checked
+__kk_mutable_collection_retainAll
+__kk_mutable_collection_retainAll_checked
+__kk_string_toBigDecimalOrNull_flat
+__kk_time_mark_from_reading_nanos
+__kk_time_mark_reading_nanos
+kk_byte_to_char
+kk_byte_to_uint
+kk_byte_to_ulong
+kk_channel_close_cause
+kk_dispatcher_default
+kk_dispatcher_io
+kk_double_max_value
+kk_double_min_value
+kk_double_nan
+kk_double_negative_infinity
+kk_double_positive_infinity
+kk_duration_absoluteValue
+kk_duration_compareTo
+kk_duration_div_duration
+kk_duration_div_int
+kk_duration_infinite
+kk_duration_isInfinite
+kk_duration_isNegative
+kk_duration_minus
+kk_duration_times_int
+kk_duration_toDuration_double
+kk_duration_toDuration_int
+kk_duration_toString
+kk_duration_unary_minus
+kk_sequence_from_list
+kk_short_to_char
+kk_short_to_uint
+kk_short_to_ulong
+kk_string_equals
+kk_string_get
+kk_string_getOrNull
+```
+
+判定根拠: `kotlinx.coroutines.flow/Flow.kt` は count/fold/reduce を含む Flow operator を Kotlin source で合成する。`kotlin.collections/MutableCollection.kt` は `_throwing` bridge を使い、旧 collection bridge を呼ばない。`kotlin.time/Duration.kt` は演算・変換・文字列化・定数を Kotlin source で実装し、TimeMark の算術も source に移行済み。Channel close cause は `__kk_channel_close_cause`、Dispatcher default/io は `__kk_dispatcher_named`、String の equals/get/getOrNull は `__kk_string_*_flat`、BigDecimal nullable parse は非 flat ABI を使う。数値変換と Double 定数は compiler の変換・定数経路が所有する。
+
+### 未配線 export — 50 件、C ABI を削除
+
+現行の bundled Kotlin source / CompilerCore / CompilerBackend に emit 経路がなく、RuntimeTests の Swift 直接呼び出しだけが参照していた。HTTP bridge 群を含め、C export と `RuntimeABISpec` 登録を外した。Swift 関数本体と RuntimeTests は残し、Kotlin 側 consumer を追加する際に必要な ABI だけ再導入できる状態にした。
+
+```
+__kk_flow_emit_with_timestamp
+__kk_kclass_get_arity
+__kk_select_receive_value
+kk_any_to_string_nullable
+kk_char_isUnicodeIdentifierPart
+kk_char_minus
+kk_cleaner_clean
+kk_cleaner_dispose
+kk_clock_gettime_monotonic_ns
+kk_clock_monotonic_mark_now
+kk_cname_lookup
+kk_cname_register
+kk_context_get_name
+kk_context_release
+kk_coroutine_cancel
+kk_coroutine_scope_is_cancelled
+kk_coroutine_scope_register_child
+kk_exception_handler_invoke
+kk_exception_handler_new
+kk_flat_string_release
+kk_foundation_date_to_kotlin_instant
+kk_future_is_ready
+kk_http_body_handlers_ofString
+kk_http_body_publishers_ofString
+kk_http_client_addTrustedRedirectOrigin
+kk_http_client_newHttpClient
+kk_http_client_send
+kk_http_client_setBearerToken
+kk_http_client_setFollowRedirects
+kk_http_client_setMaxResponseBodyBytes
+kk_http_headers_firstValue
+kk_http_headers_map
+kk_http_request_builder_GET
+kk_http_request_builder_POST
+kk_http_request_builder_build
+kk_http_request_builder_header
+kk_http_request_builder_uri
+kk_http_request_newBuilder
+kk_http_request_newBuilder_uri
+kk_http_response_body
+kk_http_response_headers
+kk_http_response_statusCode
+kk_instant_to_epoch_millis
+kk_instant_to_foundation_date
+kk_is_frozen
+kk_job_is_failed
+kk_kxmini_launch_with_exception_handler
+kk_object_release
+kk_register_global_root
+kk_unregister_global_root
+```
+
+`RuntimeABISpec` 登録だけでは production use の根拠にならない。RuntimeABISpec は export の型・ABI ミラーなので、consumer が無いものは本線接続済みとはみなさない。`kk_register_global_root` / `kk_unregister_global_root` は将来の Kotlin global-root emission 用として以前は export されていたが、現行 emitter に呼び出しが無いため、Swift test helper として本体を残して C export を外した。
+
+検証: `swift build` は成功。`ABIMismatchRuntimeExportParityTests`（5件）、`RuntimeABISpecVersionTests`、`RuntimeABISyntheticStubTests`、`RuntimeABIExternalLinkValidationTests`（8件）、監査 self-test（5/5）は PASS。処置後は Runtime export 1,918、compiler-unreachable 96、A=39、B=11。残った B は上記 test hook だけ。`kk_exception_handler_invoke` のコメントだけの Runtime 参照を検証する self-test fixture は、同じ分類条件を確認する retained hook `kk_transfer_object` に置き換えた。`--filter RuntimeTests --no-parallel` は `RuntimeCoroutineStateTests.testPlainFunctionInvokeDrivesSuspendingBoxToCompletion` の RuntimeEventLoop 待ちで進まず中断した。別に `--filter RuntimeCoroutineStateTests --no-parallel` を走らせた際も `testJobJoinWithinScopeAndScopeWaitsForChild` の job join 待ちで停止した。両ケースは単独実行では PASS したが、RuntimeTests 全体は未完了。
+
 > **ステータス**: Section A（完全到達不能 102 個）と Section C（参照ゼロ Swift 関数 6 個）は **削除済み**。
 > 参照元ファイル（`RuntimeLogging.swift`, `RuntimeFlowErrorHandling.swift` 等）も既に存在しない。
 > Section B（テストのみ参照 120 個）はトリアージ完了（2026-06-23 実施）。RF-DEAD-002 結果参照。
@@ -180,6 +320,76 @@ StringBuilder / Job completion の Runtime 19 件が PASS。
 既存不具合として [KUU-1194](https://linear.app/kuu/issue/KUU-1194/jobinvokeoncompletion-の捕捉付き-callback-が-mutable-cell-を失い-native)
 で追跡する。失敗ケースは無効化しておらず、Job の diff 比較は未通過。
 全 Swift test / Golden / diff corpus はローカルでは未実行。
+
+## 継続監査（KUU-1657、2026-10-09）
+
+現行 HEAD（`2eb589e33`）で `Scripts/dead_code_audit.sh --self-test` を実行し、
+Category A の39候補を全件照合した。監査スクリプトの動的リンク認識を補正し、
+source-backed 化済み ABI 3 件と、現行 consumer がない ABI 1 件を実装と `RuntimeABISpec` から削除した。
+
+| 指標 | 修正前 | 修正後 |
+|---|---:|---:|
+| Runtime `@_cdecl` export | 2,014 | 2,010 |
+| compiler-unreachable | 192 | 167 |
+| A: 完全到達不能候補 | 39 | 14 |
+| B: テストのみ | 107 | 107 |
+| runtime-internal のみ | 46 | 46 |
+
+**CVariable の誤検知 21 件** — 以下の全シンボルはコンパイラ到達可能で、Runtime ABI からは削除しない。
+
+```
+kk_cvar_bool_store kk_cvar_byte_store kk_cvar_cpointer_store
+kk_cvar_double_load kk_cvar_double_store kk_cvar_float_load kk_cvar_float_store
+kk_cvar_int_load kk_cvar_int_store kk_cvar_long_load kk_cvar_long_store
+kk_cvar_short_load kk_cvar_short_store kk_cvar_ubyte_load kk_cvar_ubyte_store
+kk_cvar_uint_load kk_cvar_uint_store kk_cvar_ulong_load kk_cvar_ulong_store
+kk_cvar_ushort_load kk_cvar_ushort_store
+```
+
+`HeaderHelpers+SyntheticCInteropStubs.swift` の `primitiveVarKinds` が link prefix を
+タプル値として保持し、`registerAtomicValueProperty` が prefix + `_load` を getter link
+として登録する。`CallLowerer+MemberPropertyReads.swift` はその getter を呼び出し、
+`CallLowerer+MemberAssignment.swift` は同じ synthetic property の代入を `_load` から
+`_store` へ導出する。旧監査はタプル内の prefix 値とこの導出規則を関連付けず、これらを
+A に誤分類していた。prefix を明示したタプルラベルと、導出 store link の監査・self-test
+を追加した。実行時の self-test は 8/8 PASS。
+
+**実装と spec を削除した ABI 4 件（source-backed 3 件、現行 consumer のない ABI 1 件）**:
+
+- `__kk_comparable_time_mark_from_reading_nanos` — 現行 `TimeSource.kt` / `TimeSources.kt`
+  は `ValueTimeMark` / `AbstractLongTimeMark` / `AbstractDoubleTimeMark` を Kotlin 側で
+  構築する。専用 Runtime factory と、その factory だけが使っていた itable 登録 helper を削除。
+- `__kk_string_format_locale` — 旧 boxed-string ABI。bundled `StringFormat.kt` は
+  `__kk_string_format_locale_flat` を指定しており、Runtime の flat-return 実装だけを保持。
+- `kk_duration_isPositive` — bundled `Duration.isPositive()` は `rawValue > 0L` を
+  Kotlin ソースで評価する。Runtime bridge と BridgeCoverage spec を削除。
+- `kk_native_ptr_of` — 現行 Kotlin source / Sema / KIR に宣言・emit 経路も consumer もない。
+  他の NativePtr 操作には別々の経路があるため、この孤立 factory だけを Runtime bridge と
+  ABI parity spec から削除。
+
+**理由コードを付けて保持する14件**:
+
+| 理由コード | シンボル | 根拠 |
+|---|---|---|
+| `MIGRATION-PROP-001` | `__kk_kproperty_stub_create_full`, `__kk_kproperty_stub_visibility` | KProperty 完全メタデータの Kotlin consumer はまだない。 |
+| `STDLIB-CINTEROP-FN-046` | `kk_cinterop_writeBits` | writeBits の Runtime 実装はあるが bundled Kotlin consumer が未実装。 |
+| `HTTP-SURFACE-PENDING-001` | `kk_http_body_publishers_noBody`, `kk_http_client_setConnectTimeoutMillis`, `kk_http_client_setReadTimeoutMillis`, `kk_http_response_errorMessage`, `kk_http_response_header`, `kk_http_response_isSuccessful`, `kk_http_response_timedOut`, `kk_http_response_url` | Kotlin HTTP facade がなく未配線。KUU-805 / KUU-817 は Done・archived で現 owner ではないため、HTTP surface の後続 owner は未割当として明記する。 |
+| `CORO-004-PHASE-2` | `__kk_iterator_builder_hasNext_coro`, `__kk_iterator_builder_next_coro`, `kk_sequence_completed_sentinel` | suspension-aware sequence consumer が未配線。Runtime のコメントと ABI spec が Phase 2 用途を明記。 |
+
+最終 A=14 は前回ベースライン16以下。監査結果の再現は
+`bash Scripts/dead_code_audit.sh --self-test --output-dir <audit-dir>`。
+
+検証: `swift build` PASS、`bash Scripts/validate_runtime_abi_links.sh --no-parallel`
+8/8 PASS、`RuntimeExperimentalTimeTests` PASS、`RuntimeStringArrayTests` PASS。
+`RuntimeDurationTests` は `testNullableParsersReturnTaggedLongPayloads` の16 assertion
+が失敗した。このテストは nullable `Long` を返す parse bridge の直値に
+`kotlin.time.Duration` type ID を期待するが、bundled `Duration.kt` はその `Long?` を
+`Duration(it)` で包む。今回削除した `kk_duration_isPositive` とは別経路。
+
+完了条件の `RuntimeTests` 全体は未通過。直列実行は
+`RuntimeCoroutineStateTests.testCoroutineScopeLaunchWithContForwardsCaptureArgs` の
+`kk_job_join` semaphore wait から進まず、スタックサンプルで停止を確認して中断した。
+並列実行でも Runtime isolation timeout と関連のない失敗が出たため、green とは扱わない。
 
 ## 検出手法
 

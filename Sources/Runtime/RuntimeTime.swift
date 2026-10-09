@@ -34,50 +34,6 @@ private func runtimeTimeMarkBox(from raw: Int) -> RuntimeTimeMarkBox? {
     return tryCast(ptr, to: RuntimeTimeMarkBox.self)
 }
 
-private let runtimeComparableTimeMarkInterfaceTypeID = runtimeStableNominalTypeID(
-    fqName: "kotlin.time.ComparableTimeMark"
-)
-
-private let runtimeComparableTimeMarkEqualsThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    receiver, other, outThrown in
-    outThrown?.pointee = 0
-    return kk_any_member_equals(receiver, other)
-}
-
-private let runtimeComparableTimeMarkHashCodeThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
-    receiver, outThrown in
-    outThrown?.pointee = 0
-    return kk_any_member_hashCode(receiver)
-}
-
-private func runtimeRegisterComparableTimeMarkItable(_ raw: Int) {
-    // Runtime-created shifted marks have no compiler-generated class metadata,
-    // so register the two source-backed interface members explicitly.
-    _ = kk_object_register_itable_iface(
-        raw,
-        Int(runtimeComparableTimeMarkInterfaceTypeID),
-        1
-    )
-    _ = kk_object_register_itable_method(
-        raw,
-        1,
-        0,
-        unsafeBitCast(runtimeComparableTimeMarkEqualsThunk, to: Int.self)
-    )
-    _ = kk_object_register_itable_method(
-        raw,
-        1,
-        1,
-        unsafeBitCast(runtimeComparableTimeMarkHashCodeThunk, to: Int.self)
-    )
-}
-
-private func registerRuntimeComparableTimeMark(_ box: RuntimeTimeMarkBox) -> Int {
-    let raw = registerRuntimeObject(box as AnyObject)
-    runtimeRegisterComparableTimeMarkItable(raw)
-    return raw
-}
-
 
 private func runtimeEpochMilliseconds(
     epochSeconds: Int64,
@@ -251,7 +207,6 @@ private func runtimeAbstractDoubleTimeMarkReadingNanos(_ markRaw: Int) -> Int? {
     return Int(runtimeTimeSaturatingAdd(startedAtNanos, offset))
 }
 
-@_cdecl("__kk_time_mark_reading_nanos")
 public func __kk_time_mark_reading_nanos(_ markRaw: Int) -> Int {
     if let mark = runtimeTimeMarkBox(from: markRaw) {
         return Int(mark.uptimeNanoseconds)
@@ -284,27 +239,15 @@ public func __kk_time_mark_now_reading_nanos() -> Int {
     Int(runtimeMonotonicNowNanoseconds())
 }
 
-@_cdecl("__kk_time_mark_from_reading_nanos")
 public func __kk_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
     registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos)))
 }
-
-/// ComparableTimeMark shares RuntimeTimeMarkBox with TimeMark; the two factories exist only
-/// because the Kotlin declarations differ in return type and cannot be overloads.
-@_cdecl("__kk_comparable_time_mark_from_reading_nanos")
-public func __kk_comparable_time_mark_from_reading_nanos(_ readingNanos: Int) -> Int {
-    registerRuntimeComparableTimeMark(
-        RuntimeTimeMarkBox(uptimeNanoseconds: Int64(readingNanos))
-    )
-}
-
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
 
 /// Converts a kotlin.time.Instant to a Foundation.Date (Native/macOS bridge).
 ///
 /// Kotlin/Native: instant.toNSDate()
-@_cdecl("kk_instant_to_foundation_date")
 public func kk_instant_to_foundation_date(_ instantRaw: Int) -> Int {
     guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_foundation_date received invalid Instant handle")
@@ -317,7 +260,6 @@ public func kk_instant_to_foundation_date(_ instantRaw: Int) -> Int {
 /// Converts a Foundation.Date (represented as epoch-millisecond JS box) to a kotlin.time.Instant.
 ///
 /// Kotlin/Native: nsDate.toKotlinInstant()
-@_cdecl("kk_foundation_date_to_kotlin_instant")
 public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
     guard let jsDate = runtimeJSDateBox(from: dateRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_foundation_date_to_kotlin_instant received invalid NSDate handle")
@@ -330,7 +272,6 @@ public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
 /// Returns monotonic time in nanoseconds using POSIX clock_gettime(CLOCK_MONOTONIC).
 ///
 /// Kotlin/Native: TimeSource.Monotonic.markNow() lower-level primitive.
-@_cdecl("kk_clock_gettime_monotonic_ns")
 public func kk_clock_gettime_monotonic_ns() -> Int {
     var ts = timespec()
     clock_gettime(CLOCK_MONOTONIC, &ts)
@@ -347,7 +288,6 @@ public func kk_clock_gettime_monotonic_ns() -> Int {
 /// Returns a TimeMark backed by POSIX CLOCK_MONOTONIC instead of DispatchTime.
 ///
 /// Kotlin/Native: TimeSource.Monotonic.markNow() (native clock variant)
-@_cdecl("kk_clock_monotonic_mark_now")
 public func kk_clock_monotonic_mark_now() -> Int {
     var ts = timespec()
     clock_gettime(CLOCK_MONOTONIC, &ts)
@@ -363,7 +303,6 @@ public func kk_clock_monotonic_mark_now() -> Int {
 /// Returns the epoch-millisecond representation of a kotlin.time.Instant as a Long.
 ///
 /// Kotlin: instant.toEpochMilliseconds()
-@_cdecl("kk_instant_to_epoch_millis")
 public func kk_instant_to_epoch_millis(_ instantRaw: Int) -> Int {
     guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_epoch_millis received invalid Instant handle")
