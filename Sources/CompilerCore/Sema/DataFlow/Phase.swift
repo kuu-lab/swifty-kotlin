@@ -650,14 +650,16 @@ final class DataFlowSemaPhase: CompilerPhase {
             bindings: bindings,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            globalOptInMarkerNames: ctx.options.optInMarkerNames
         )
         validateJsStaticDeclarations(
             ast: ast,
             symbols: symbols,
             bindings: bindings,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            globalOptInMarkerNames: ctx.options.optInMarkerNames
         )
         validateExperimentalTypeInferenceOptIn(
             ast: ast,

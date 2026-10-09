@@ -12,12 +12,22 @@ extension TypeCheckDriver {
                     in: file,
                     symbols: sema.symbols,
                     interner: interner
-                ),
-                sema.symbols.symbol(annotationSymbol)?.fqName.map(interner.resolve)
-                    == ["kotlin", "js", "JsFileName"]
+                ), let fqName = sema.symbols.symbol(annotationSymbol)?.fqName.map(interner.resolve)
                 else {
                     continue
                 }
+
+                if fqName == ["kotlin", "js", "ExperimentalJsFileName"] {
+                    if !annotation.arguments.isEmpty {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY",
+                            "Annotation 'ExperimentalJsFileName' does not accept arguments.",
+                            range: file.range
+                        )
+                    }
+                    continue
+                }
+                guard fqName == ["kotlin", "js", "JsFileName"] else { continue }
 
                 guard annotation.arguments.count == 1 else {
                     diagnostics.error(
