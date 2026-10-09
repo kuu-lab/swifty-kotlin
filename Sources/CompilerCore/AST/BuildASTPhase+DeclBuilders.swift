@@ -829,6 +829,7 @@ extension BuildASTPhase {
             isMutableProperty: isVarProperty,
             isOverrideProperty: isOverrideProperty,
             isOpenProperty: isOpenProperty,
+            isActualProperty: candidateModifiers.contains(.actual),
             propertyVisibilityModifiers: candidateModifiers.intersection([.public, .private, .internal, .protected]),
             hasDefaultValue: hasDefaultValue,
             isVararg: isVararg,
@@ -866,6 +867,9 @@ extension BuildASTPhase {
             }
             if param.isOpenProperty {
                 propertyModifiers.insert(.open)
+            }
+            if param.isActualProperty {
+                propertyModifiers.insert(.actual)
             }
             let property = PropertyDecl(
                 range: classRange,
