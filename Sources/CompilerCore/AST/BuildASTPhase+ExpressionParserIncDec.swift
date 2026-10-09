@@ -13,10 +13,8 @@ extension BuildASTPhase.ExpressionParser {
     ///   `x++`  ->  `{ val tmp = x; x += 1; tmp }`
     ///   `++x`  ->  `{ x += 1; x }`
     ///
-    /// Name and member targets reuse marked compound assignments. Postfix
-    /// member mutations cache the loaded property value so its getter runs once.
-    /// Indexed targets call `inc()` / `dec()` explicitly and cache the receiver,
-    /// indices and (for postfix) the loaded element.
+    /// Postfix member mutations cache the loaded property value so its getter
+    /// runs once.
     func tryParseIncrementDecrement(operand: ExprID) -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
@@ -33,7 +31,6 @@ extension BuildASTPhase.ExpressionParser {
         return desugared
     }
 
-    /// Prefix `++x` / `--x`. Returns the value *after* the mutation.
     func tryParsePrefixIncrementDecrement() -> ExprID? {
         guard let opToken = current(), let op = compoundAssignOp(for: opToken.kind) else {
             return nil
@@ -72,8 +69,6 @@ extension BuildASTPhase.ExpressionParser {
         let operandRange = astArena.exprRange(operand) ?? opRange
         let range = SourceRange(start: operandRange.start, end: opRange.end)
 
-        // Builds a fresh read of the mutated storage plus the augmented
-        // assignment that performs the mutation.
         let readExpr: ExprID
         let assignExpr: ExprID
         var statements: [ExprID] = []
@@ -164,8 +159,7 @@ extension BuildASTPhase.ExpressionParser {
         ))
     }
 
-    /// `a[i]++` / `++a[i]` in expression position. Kotlin evaluates the
-    /// receiver and indices once, so non-trivial operands are hoisted into
+    /// Kotlin evaluates the receiver and indices once, so non-trivial operands are hoisted into
     /// temporaries and the element's `inc()` / `dec()` is called explicitly.
     /// Postfix reads the element once; prefix follows `a[i] = a[i].inc(); a[i]`
     /// and re-reads it after the write, exactly like kotlinc:
@@ -182,8 +176,6 @@ extension BuildASTPhase.ExpressionParser {
     ) -> ExprID {
         var statements: [ExprID] = []
 
-        // Returns a factory producing a fresh AST node that re-reads `expr`'s
-        // value each time it is called.
         func stabilized(_ expr: ExprID) -> () -> ExprID {
             switch astArena.expr(expr) {
             case let .nameRef(name, nameRange):
