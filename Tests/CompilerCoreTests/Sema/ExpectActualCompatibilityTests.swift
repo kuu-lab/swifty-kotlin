@@ -1,9 +1,62 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
 struct ExpectActualCompatibilityTests {
+    @Test func testImportedExpectLinksToLocalActual() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(
+            contents: """
+            package sample.kmp
+            actual fun platformName(): Int = 7
+            fun usePlatformName(): Int = platformName()
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["sample", "kmp", "platformName"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first {
+                $0.flags.contains(.expectDeclaration) && $0.flags.contains(.importedLibrary)
+            })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == actualSymbol.id })
+        }
+    }
+
+    @Test func testImportedExpectWithoutLocalActualIsUnresolved() throws {
+        let libraryDirectory = try makeImportedExpectLibrary()
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.map(\.code) == ["KSWIFTK-MPP-UNRESOLVED"], "Unexpected diagnostics: \(errors)")
+        }
+    }
+
     @Test func testOptionalExpectationDoesNotRequireActual() throws {
         let ctx = makeContextFromSource(
             """
@@ -114,6 +167,48 @@ struct ExpectActualCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for memberName in ["newEncoder", "equals"] {
+            let fqName = [ctx.interner.intern("Charset"), ctx.interner.intern(memberName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.expectDeclaration) })
+            let actualMember = try #require(symbols.first { $0.kind == .function && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectMember.id) == actualMember.id)
+        }
+    }
+
+    @Test func testExpectClassMemberPropertiesLinkToActualProperties() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            interface IP { val cap: Int }
+            expect class F1 { val p: Int }
+            expect class F2 : IP { override val cap: Int }
+            expect class F3(override val cap: Int) : IP
+            expect abstract class F4 { abstract val p: Int }
+            """,
+            """
+            package x
+            actual class F1 { actual val p: Int = 0 }
+            actual class F2 : IP { actual override val cap: Int = 0 }
+            actual class F3 actual constructor(actual override val cap: Int) : IP
+            actual abstract class F4 { actual val p: Int get() = 0 }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected expect/actual member properties to pair, got: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        for (className, propertyName) in [("F1", "p"), ("F2", "cap"), ("F3", "cap"), ("F4", "p")] {
+            let fqName = [ctx.interner.intern("x"), ctx.interner.intern(className), ctx.interner.intern(propertyName)]
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.expectDeclaration) })
+            let actualProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectProperty.id) == actualProperty.id)
+        }
     }
 
     @Test func testActualAbstractFunctionMatchesExpectClassMember() throws {
@@ -472,6 +567,28 @@ struct ExpectActualCompatibilityTests {
             try runSema(ctx)
             try testCase.assertion(ctx)
         }
+    }
+
+    private func makeImportedExpectLibrary() throws -> URL {
+        let libraryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kklib")
+        try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
+
+        let manifest = """
+        { "formatVersion": 1, "moduleName": "Common", "metadata": "metadata.bin" }
+        """
+        let record = MetadataRecord(
+            kind: .function,
+            mangledName: "common_platformName",
+            fqName: "sample.kmp.platformName",
+            arity: 0,
+            typeSignature: "F0<I>",
+            isExpect: true
+        )
+        let metadata = MetadataEncoder().serialize([record])
+        try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        return libraryDirectory
     }
 }
 #endif

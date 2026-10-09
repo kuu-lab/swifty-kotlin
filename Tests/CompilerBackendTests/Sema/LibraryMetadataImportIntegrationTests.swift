@@ -37,9 +37,13 @@ struct LibraryMetadataImportIntegrationTests {
             import common.platformName
             fun name(): String = platformName()
             """
-            try withTemporaryFile(contents: appSource) { appPath in
+            let actualSource = """
+            package common
+            actual fun platformName(): String = "native"
+            """
+            try CompilerTestSupport.withTemporaryFiles(contents: [actualSource, appSource]) { appPaths in
                 let appCtx = CompilerTestSupport.makeCompilationContext(
-                    inputs: [appPath],
+                    inputs: appPaths,
                     moduleName: "CommonConsumer",
                     emit: .kirDump,
                     searchPaths: [libraryPath],

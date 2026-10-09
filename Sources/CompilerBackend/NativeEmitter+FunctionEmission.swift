@@ -3534,6 +3534,47 @@ extension NativeEmitter {
                     }
                 }
 
+                // Runtime list boxes have no generated List itable. Preserve
+                // overrides on Kotlin list implementations, but use the
+                // source-backed default when a native list box has no entry.
+                if let effectiveSymbol,
+                   let symbols,
+                   let member = symbols.symbol(effectiveSymbol),
+                   interner.resolve(member.name) == "asJsReadonlyArrayView",
+                   let owner = symbols.parentSymbol(for: effectiveSymbol),
+                   symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+                   !member.flags.contains(.abstractType),
+                   symbols.isSourceBackedSymbol(effectiveSymbol)
+                {
+                    let defaultFunction: LLVMFunction? = if let internalFunction = internalFunctions[effectiveSymbol] {
+                        internalFunction
+                    } else if effectiveExternalName.hasPrefix("kk_fn_") {
+                        declareExternalFunction(
+                            named: effectiveExternalName,
+                            argumentCount: argumentValues.count,
+                            appendThrownChannel: shouldAppendThrownChannel
+                        )
+                    } else {
+                        nil
+                    }
+                    if let defaultFunction,
+                       let defaultPointer = bindings.buildPtrToInt(
+                           builder, value: defaultFunction.value, type: int64Type,
+                           name: "list_view_default_\(instructionIndex)"
+                       ),
+                       let hasOverride = bindings.buildICmpNotEqual(
+                           builder, lhs: fptrRaw, rhs: zeroValue,
+                           name: "list_view_override_\(instructionIndex)"
+                       ),
+                       let arrayViewPointer = bindings.buildSelect(
+                           builder, condition: hasOverride, thenValue: fptrRaw, elseValue: defaultPointer,
+                           name: "list_view_dispatch_\(instructionIndex)"
+                       )
+                    {
+                        fptrRaw = arrayViewPointer
+                    }
+                }
+
                 // Guard against null vtable/itable lookup: if fptrRaw == 0
                 // call kk_dispatch_error runtime trap instead of falling back
                 // to direct dispatch (GEN-002).

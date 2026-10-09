@@ -166,6 +166,12 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [funDecl.name]
             var memberFlags = flags(from: funDecl.modifiers)
+            if symbols.symbol(ownerSymbol)?.flags.contains(.expectDeclaration) == true,
+               !memberFlags.contains(.actualDeclaration)
+            {
+                // Members of an expect class or interface are implicitly expect.
+                memberFlags.insert(.expectDeclaration)
+            }
             if funDecl.receiverType != nil {
                 memberFlags.insert(.memberExtension)
             }
@@ -420,6 +426,12 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
             var propertyFlags = flags(from: propertyDecl.modifiers)
+            if symbols.symbol(ownerSymbol)?.flags.contains(.expectDeclaration) == true,
+               !propertyFlags.contains(.actualDeclaration)
+            {
+                // Members of an expect class or interface are implicitly expect.
+                propertyFlags.insert(.expectDeclaration)
+            }
             let isExtensionProperty = propertyDecl.receiverType != nil
             let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
