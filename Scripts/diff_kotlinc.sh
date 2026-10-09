@@ -170,12 +170,15 @@ is_pr_candidate_only_case() {
 
 candidate_expected_stdout_directive_count() {
   local kt_file="$1"
-  grep -Ec '^[[:space:]]*//[[:space:]]*DIFF_EXPECT_STDOUT:' "$kt_file" || true
+  grep -Ec '^[[:space:]]*//[[:space:]]*DIFF_EXPECT_(STDOUT|OUTPUT):' "$kt_file" || true
 }
 
 candidate_expected_stdout() {
   local kt_file="$1"
-  sed -n 's/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_STDOUT:[[:space:]]*//p' "$kt_file" | head -n 1
+  sed -n \
+    -e 's/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_STDOUT:[[:space:]]*//p' \
+    -e 's/^[[:space:]]*\/\/[[:space:]]*DIFF_EXPECT_OUTPUT:[[:space:]]*//p' \
+    "$kt_file"
 }
 
 collect_cases() {
@@ -1607,6 +1610,16 @@ run_case() {
     fi
     return "$candidate_exit"
   fi
+  if is_pr_candidate_only_case "$kt_file" \
+    && [[ "$(candidate_expected_stdout_directive_count "$kt_file")" -eq 0 ]]; then
+    local expected_output="${kt_file%.kt}.expected"
+    local candidate_exit=0
+    run_candidate_only_case "$kt_file" "$expected_output" || candidate_exit=$?
+    if [[ -n "$artifact_file" ]]; then
+      printf '%s\n' "$LAST_ARTIFACT_DIR" >"$artifact_file"
+    fi
+    return "$candidate_exit"
+  fi
 
   local tmp_dir
   tmp_dir="$(mktemp -d -t kswiftk-diff-XXXXXX)"
@@ -1667,7 +1680,7 @@ run_case() {
     candidate_only=1
     local expected_stdout_count
     expected_stdout_count="$(candidate_expected_stdout_directive_count "$kt_file")"
-    if [[ "$expected_stdout_count" == "1" ]]; then
+    if [[ "$expected_stdout_count" -gt 0 ]]; then
       candidate_expected_stdout "$kt_file" >"$expected_stdout_path"
     else
       expected_stdout_valid=0
@@ -1824,7 +1837,7 @@ run_case() {
         echo "  candidate run failed with exit=$cand_run_exit"
       elif [[ "$expected_stdout_valid" -eq 1 ]] && ! diff -u "$tmp_dir/expected_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" >/dev/null; then
         ok=0
-        echo "  candidate stdout did not match // DIFF_EXPECT_STDOUT:"
+        echo "  candidate-only stdout mismatch:"
         diff -u "$tmp_dir/expected_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
       fi
     fi

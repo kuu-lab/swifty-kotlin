@@ -106,13 +106,13 @@ fail() {
 if [[ $diff_exit -eq 0 ]]; then
   fail "the expected-output mismatch fixture should make the diff run fail"
 fi
-if ! grep -qF "PASS $CASES_DIR/candidate_only_pass.kt (candidate-only)" "$OUTPUT_LOG"; then
+if ! grep -qF "PASS $CASES_DIR/candidate_only_pass.kt (candidate-only expected output)" "$OUTPUT_LOG"; then
   fail "candidate-only case with matching multiline stdout should PASS"
 fi
-if ! grep -qF "FAIL $CASES_DIR/candidate_only_mismatch.kt (candidate-only)" "$OUTPUT_LOG"; then
+if ! grep -qF "FAIL $CASES_DIR/candidate_only_mismatch.kt" "$OUTPUT_LOG"; then
   fail "candidate-only case with mismatching stdout should FAIL"
 fi
-if ! grep -q "candidate-only stdout mismatch" "$OUTPUT_LOG"; then
+if ! grep -qF "candidate-only stdout mismatch:" "$OUTPUT_LOG"; then
   fail "candidate-only failure should explain the expected-output mismatch"
 fi
 if grep -Eq '\.kt([[:space:]]|$)' "$KOTLINC_LOG"; then
