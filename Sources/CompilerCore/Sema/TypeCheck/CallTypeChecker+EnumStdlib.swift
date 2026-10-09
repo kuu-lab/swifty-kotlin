@@ -13,9 +13,23 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: LocalBindings,
         interner: StringInterner,
+        knownNames: KnownCompilerNames,
         sema: SemaModule,
         range: SourceRange
     ) -> EnumStdlibSpecialCallResult? {
+        // Cheap interned-ID bail: only the four enum intrinsic spellings —
+        // or a file-local import alias of one (`import kotlin.enumValueOf as
+        // evo` binds the same SymbolID) — can resolve to a well-known enum
+        // intrinsic, so every other unqualified call exits before the scope
+        // lookup below.
+        guard calleeName == knownNames.enumValues
+            || calleeName == knownNames.enumValueOf
+            || calleeName == knownNames.enumEntries
+            || calleeName == knownNames.enumEntriesIntrinsic
+            || isEnumIntrinsicImportAlias(calleeName, ctx: ctx, knownNames: knownNames)
+        else {
+            return nil
+        }
         let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
         guard let intrinsic = visibleCandidates.compactMap({
             sema.wellKnownSymbols.enumIntrinsic(for: $0)
@@ -120,5 +134,32 @@ extension CallTypeChecker {
             )))
             return .enumEntries(enumType: enumType, entriesType: entriesType, stubSymbol: stubSymbol)
         }
+    }
+
+    /// Whether `calleeName` is an import alias in the current file for one of
+    /// the enum intrinsic FQ names. The alias resolves to the intrinsic's
+    /// SymbolID, so aliased calls must reach the scope lookup above. The
+    /// alias-name set is computed once per file and memoized on `SemaModule`.
+    private func isEnumIntrinsicImportAlias(
+        _ calleeName: InternedString,
+        ctx: TypeInferenceContext,
+        knownNames: KnownCompilerNames
+    ) -> Bool {
+        let fileID = ctx.currentFileID
+        let aliasNames: Set<InternedString>
+        if let cached = ctx.sema.enumIntrinsicAliasNamesByFile[fileID] {
+            aliasNames = cached
+        } else {
+            var names = Set<InternedString>()
+            for importDecl in ctx.currentASTFile?.imports ?? [] {
+                guard let alias = importDecl.alias,
+                      knownNames.enumIntrinsicFQNames.contains(importDecl.path)
+                else { continue }
+                names.insert(alias)
+            }
+            ctx.sema.enumIntrinsicAliasNamesByFile[fileID] = names
+            aliasNames = names
+        }
+        return aliasNames.contains(calleeName)
     }
 }

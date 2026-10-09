@@ -65,5 +65,38 @@ struct WellKnownSymbolsTests {
             "enumValues() should bind to the user declaration"
         )
     }
+
+    @Test
+    func importAliasesOfEnumIntrinsicsStayOnIntrinsicPath() throws {
+        let source = """
+        import kotlin.enumValueOf as evo
+        import kotlin.enums.enumEntries as ee
+        enum class Direction { NORTH, SOUTH }
+        fun south(): Direction = evo<Direction>("SOUTH")
+        fun entries() = ee<Direction>()
+        """
+        let (sema, interner) = try Self.fixture.make(source: source)
+
+        let valueOfSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("enumValueOf"),
+        ]))
+        let entriesSymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("enums"), interner.intern("enumEntries"),
+        ]))
+        #expect(
+            sema.bindings.callBindings.contains {
+                sema.bindings.stdlibSpecialCallKind(for: $0.key) == .enumValueOf
+                    && $0.value.chosenCallee == valueOfSymbol
+            },
+            "evo<Direction>(...) must take the enumValueOf intrinsic path"
+        )
+        #expect(
+            sema.bindings.callBindings.contains {
+                sema.bindings.stdlibSpecialCallKind(for: $0.key) == .enumEntries
+                    && $0.value.chosenCallee == entriesSymbol
+            },
+            "ee<Direction>() must take the enumEntries intrinsic path"
+        )
+    }
 }
 #endif
