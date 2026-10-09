@@ -106,6 +106,56 @@ struct ExpectActualCompatibilityTests {
         #expect(sema.bindings.callBindings.values.filter { $0.chosenCallee == actualSymbol }.count == 2)
     }
 
+    @Test func testClassConstructorCallsPreferLinkedActualOverExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package x
+            expect open class S()
+            expect open class M(message: String): Exception
+            fun use() { val s = S(); val m = M("x") }
+            fun useQualified() { val s = x.S(); val m = x.M("x") }
+            """,
+            """
+            package x
+            actual open class S actual constructor()
+            actual open class M(message: String): Exception(message)
+            typealias AliasS = S
+            fun useAlias() { val s = AliasS() }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Paired class constructors should not be ambiguous: \(errors)")
+
+        let sema = try #require(ctx.sema)
+        let constructorName = ctx.interner.intern("<init>")
+        let classNames = [ctx.interner.intern("S"), ctx.interner.intern("M")]
+        var expectConstructors: Set<SymbolID> = []
+        var actualConstructors: Set<SymbolID> = []
+        for className in classNames {
+            let classFQName = [ctx.interner.intern("x"), className]
+            let classSymbols = sema.symbols.lookupAll(fqName: classFQName).compactMap { sema.symbols.symbol($0) }
+            let expectClass = try #require(classSymbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualClass = try #require(classSymbols.first { $0.flags.contains(.actualDeclaration) })
+            let constructorSymbols = sema.symbols.lookupAll(fqName: classFQName + [constructorName])
+            expectConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == expectClass.id
+            })
+            actualConstructors.formUnion(constructorSymbols.filter {
+                sema.symbols.parentSymbol(for: $0) == actualClass.id
+            })
+        }
+
+        let chosenConstructorCalls = sema.bindings.callBindings.values.map(\.chosenCallee).filter {
+            expectConstructors.contains($0) || actualConstructors.contains($0)
+        }
+        #expect(expectConstructors.count == 2)
+        #expect(actualConstructors.count == 2)
+        #expect(chosenConstructorCalls.count == 5, "All constructor call forms should resolve: \(chosenConstructorCalls)")
+        #expect(Set(chosenConstructorCalls) == actualConstructors, "Calls should bind only actual constructors: \(chosenConstructorCalls)")
+    }
+
     @Test func testSubclassInheritsActualClassLayoutWhenExpectAndActualShareModule() throws {
         let ctx = makeContextFromSource(
             """
