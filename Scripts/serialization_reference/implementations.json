@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "mappings": [
+    {
+      "declaration_id": "d81ad7f023357bab1f30c41b01683182688ee16bb95ac112049fffbd9e8b8da4",
+      "ticket": "KUU-1745",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/PrimitiveSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/PrimitiveSerialDescriptor.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_primitive_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_primitive_descriptor.expected",
+      "test_suite": "SerializationPrimitiveDescriptorTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPrimitiveDescriptorTests.swift",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    },
+    {
+      "declaration_id": "af39248f6de2bb4635115ec3f03c0391e7baf67baecc2afdd639e8d45d7f3f34",
+      "ticket": "KUU-1745",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/PrimitiveSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/PrimitiveSerialDescriptor.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_primitive_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_primitive_descriptor.expected",
+      "test_suite": "SerializationPrimitiveDescriptorTests",
+      "implementation": "bundled-source",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPrimitiveDescriptorTests.swift",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ]
+    }
+  ]
+}
