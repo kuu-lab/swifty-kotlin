@@ -43,14 +43,6 @@ final class CallLowerer {
         self.driver = driver
     }
 
-    /// True when the resolved callee is a bundled Kotlin source declaration
-    /// (is a bundled/user source declaration or an imported library symbol),
-    /// meaning the lowering path should not rewrite it to a `kk_*` runtime helper.
-    private func isSourceBacked(_ symbol: SymbolID?, sema: SemaModule) -> Bool {
-        guard let symbol else { return false }
-        return sema.symbols.isSourceBackedSymbol(symbol)
-    }
-
     /// Returns whether a direct lambda argument may use a label-free return to
     /// leave the caller. Kotlin permits this only for function-type parameters
     /// of inline functions that are neither `crossinline` nor `noinline`.
