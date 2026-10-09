@@ -281,6 +281,10 @@ This reference fixture is outside `diff_cases`: candidate-side atomicfu support
 has its own implementation tickets. A reference pass does not establish
 KSwiftK atomic behavior or Kotlin/Native compatibility.
 
+For the separately pinned Kotlin/Native 2.3.10 / atomicfu 0.33.0 Linux/x64
+reference, including Native Trace no-op, lock aliases, parking and exception
+differences, see [atomicfu_native_reference/README.md](atomicfu_native_reference/README.md).
+
 A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
 usable oracle. The runner compiles and runs only kswiftc, then compares stdout
 to that fixture. When the target is this single case, JVM tooling is not
