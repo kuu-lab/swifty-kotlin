@@ -10,13 +10,10 @@ import kotlin.internal.KsSymbolName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 // KSP-1583: TestCoroutineScheduler is an opaque runtime-handle type (see
-// HeaderHelpers+SyntheticCoroutineRegistry.swift): the clock lives in
-// `RuntimeTestScheduler` because scheduler state must be reachable through
-// a TestScope handle, and extension properties cannot carry per-receiver
-// state. Phase 1 is only a virtual `currentTime` counter — there is no
-// task queue, so `advanceUntilIdle`/`runCurrent` are degraded no-ops and
-// children launched inside `runTest` run on the real event loop (virtual
-// time is rounded to real time).
+// HeaderHelpers+SyntheticCoroutineRegistry.swift): the clock and scheduled
+// task queue live in `RuntimeTestScheduler` because scheduler state must be
+// reachable through a TestScope handle, and extension properties cannot
+// carry per-receiver state.
 
 @KsSymbolName("kk_test_scheduler_current_time")
 private external fun kkTestSchedulerCurrentTime(scheduler: TestCoroutineScheduler): Long
@@ -38,8 +35,8 @@ public val TestCoroutineScheduler.currentTime: Long
 /**
  * Advances the virtual clock by [delayTimeMillis] milliseconds.
  *
- * Degraded (KSP-1583): with no virtual-time task queue this is a pure clock
- * advance; nothing is scheduled to run at the new time.
+ * Runs scheduled work before the target time while advancing the virtual
+ * clock. Work scheduled exactly at the target time remains queued.
  */
 @ExperimentalCoroutinesApi
 public fun TestCoroutineScheduler.advanceTimeBy(delayTimeMillis: Long) {
@@ -49,10 +46,10 @@ public fun TestCoroutineScheduler.advanceTimeBy(delayTimeMillis: Long) {
     kkTestSchedulerAdvanceTimeBy(this, delayTimeMillis)
 }
 
-/** Degraded (KSP-1583): no scheduled task queue exists yet, so this is a no-op. */
+/** Runs all queued work, advancing virtual time until no work remains. */
 @ExperimentalCoroutinesApi
 public fun TestCoroutineScheduler.advanceUntilIdle() = kkTestSchedulerAdvanceUntilIdle(this)
 
-/** Degraded (KSP-1583): no scheduled task queue exists yet, so this is a no-op. */
+/** Runs the work scheduled for the current virtual time. */
 @ExperimentalCoroutinesApi
 public fun TestCoroutineScheduler.runCurrent() = kkTestSchedulerRunCurrent(this)

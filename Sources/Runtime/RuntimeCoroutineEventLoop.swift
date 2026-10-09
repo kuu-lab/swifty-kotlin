@@ -106,6 +106,25 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.unlock()
     }
 
+    /// Run work that is already queued without waiting for new work.
+    ///
+    /// `TestCoroutineScheduler` uses this after releasing virtual-time
+    /// continuations so child coroutines make progress before the scheduler
+    /// reports itself idle. This is also safe when called re-entrantly from a
+    /// coroutine that is already running on this loop.
+    func runReadyTasks() {
+        let saved = RuntimeEventLoop.current
+        RuntimeEventLoop.current = self
+        defer { RuntimeEventLoop.current = saved }
+        while true {
+            condition.lock()
+            let work = popLocked()
+            condition.unlock()
+            guard let work else { return }
+            work()
+        }
+    }
+
     /// Pop the head of the queue. Caller must hold `condition`.
     private func popLocked() -> (@Sendable () -> Void)? {
         guard nextIndex < pending.count else {
