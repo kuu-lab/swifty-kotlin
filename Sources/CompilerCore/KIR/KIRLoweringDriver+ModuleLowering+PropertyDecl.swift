@@ -551,8 +551,7 @@ extension KIRLoweringDriver {
             return
         }
         let delegateObjExpr = lowerExpr(delegateExpr, shared: shared, emit: &initInstructions)
-        let delegateExprType = sema.bindings.exprType(for: delegateExpr)
-        if checkHasProvideDelegate(delegateExprType: delegateExprType, shared: shared) {
+        if sema.symbols.hasProvideDelegate(for: symbol) {
             emitProvideDelegateInit(
                 delegateObjExpr: delegateObjExpr, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol, delegateType: delegateType,
