@@ -302,8 +302,8 @@ public enum StdlibArtifactCache {
             return .invalid("artifact directory does not exist")
         }
 
-        guard let manifestURL = containedURL(relativePath: "manifest.json", under: rootURL),
-              isRegularFile(at: manifestURL, fileManager: fileManager)
+        guard let manifestURL = CompilerFileSystem.containedURL(relativePath: "manifest.json", under: rootURL),
+              CompilerFileSystem.isRegularFile(at: manifestURL, fileManager: fileManager)
         else {
             return .invalid("manifest.json is missing, not a regular file, or escapes the artifact")
         }
@@ -343,13 +343,13 @@ public enum StdlibArtifactCache {
         }
 
         guard let metadata = manifest["metadata"] as? String,
-              let metadataURL = containedURL(relativePath: metadata, under: rootURL),
-              isRegularFile(at: metadataURL, fileManager: fileManager)
+              let metadataURL = CompilerFileSystem.containedURL(relativePath: metadata, under: rootURL),
+              CompilerFileSystem.isRegularFile(at: metadataURL, fileManager: fileManager)
         else {
             return .invalid("metadata file is missing or escapes the artifact")
         }
         guard let inlineKIRDir = manifest["inlineKIRDir"] as? String,
-              let inlineURL = containedURL(relativePath: inlineKIRDir, under: rootURL)
+              let inlineURL = CompilerFileSystem.containedURL(relativePath: inlineKIRDir, under: rootURL)
         else {
             return .invalid("inlineKIRDir is missing or escapes the artifact")
         }
@@ -362,8 +362,8 @@ public enum StdlibArtifactCache {
             return .invalid("manifest objects are missing")
         }
         for objectPath in objects {
-            guard let objectURL = containedURL(relativePath: objectPath, under: rootURL),
-                  isRegularFile(at: objectURL, fileManager: fileManager)
+            guard let objectURL = CompilerFileSystem.containedURL(relativePath: objectPath, under: rootURL),
+                  CompilerFileSystem.isRegularFile(at: objectURL, fileManager: fileManager)
             else {
                 return .invalid("an object path is missing or escapes the artifact")
             }
@@ -380,8 +380,8 @@ public enum StdlibArtifactCache {
         }
         for mangledName in inlineKIRMangledNames(metadataText: metadataText) {
             let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
-            guard let blobURL = containedURL(relativePath: blobRelativePath, under: rootURL),
-                  isRegularFile(at: blobURL, fileManager: fileManager)
+            guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
+                  CompilerFileSystem.isRegularFile(at: blobURL, fileManager: fileManager)
             else {
                 return .invalid(
                     "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
@@ -405,19 +405,6 @@ public enum StdlibArtifactCache {
             names.insert(String(fields[1]))
         }
         return names
-    }
-
-    private static func containedURL(relativePath: String, under rootURL: URL) -> URL? {
-        guard !relativePath.isEmpty else { return nil }
-        let candidate = rootURL.appendingPathComponent(relativePath).resolvingSymlinksInPath().standardizedFileURL
-        let rootPath = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
-        guard candidate.path.hasPrefix(rootPath) else { return nil }
-        return candidate
-    }
-
-    private static func isRegularFile(at url: URL, fileManager: FileManager) -> Bool {
-        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
-        return attributes[.type] as? FileAttributeType == .typeRegular
     }
 
     private static func currentCompilerFingerprint() -> String? {

@@ -1439,11 +1439,8 @@ extension CallTypeChecker {
             }
         }
 
-        let isCoroutineHandleReceiver = isCoroutineHandleReceiverType(
-            lookupReceiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isCoroutineHandleReceiver = ReceiverClassifier(sema: sema, interner: interner)
+            .isCoroutineHandleReceiverType(lookupReceiverType)
         if !isClassNameReceiver, args.isEmpty, isCoroutineHandleReceiver {
             let memberName = calleeStr
             switch memberName {

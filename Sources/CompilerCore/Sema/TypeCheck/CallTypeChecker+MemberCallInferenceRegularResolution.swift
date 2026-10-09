@@ -1473,11 +1473,8 @@ extension CallTypeChecker {
             false
         }
 
-        let isChannelReceiver = isChannelReceiverType(
-            lookupReceiverType,
-            sema: sema,
-            interner: interner
-        )
+        let isChannelReceiver = ReceiverClassifier(sema: sema, interner: interner)
+            .isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = interner.resolve(calleeName)
             // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
