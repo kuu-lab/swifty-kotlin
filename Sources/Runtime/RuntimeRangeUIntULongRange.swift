@@ -240,58 +240,48 @@ public func kk_uint_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("__kk_uint_range_chunked")
 public func __kk_uint_range_chunked(_ rangeRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if size <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size \(size) must be greater than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_uint_range_chunked") { range in
-        RuntimeUnsignedRangeHOFKind.chunked(range, size)
-    }
+    runtimeRangeChunkedEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        size: size,
+        outThrown,
+        functionName: "__kk_uint_range_chunked"
+    )
 }
 
 @_cdecl("__kk_uint_range_windowed")
 public func __kk_uint_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if size <= 0 || step <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Both size \(size) and step \(step) must be greater than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_uint_range_windowed") { range in
-        RuntimeUnsignedRangeHOFKind.windowed(range, size, step, partialWindows)
-    }
+    runtimeRangeWindowedEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        size: size,
+        step: step,
+        partialWindows: partialWindows,
+        outThrown,
+        functionName: "__kk_uint_range_windowed"
+    )
 }
 
 @_cdecl("__kk_uint_range_take")
 public func __kk_uint_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_uint_range_take") { range in
-        RuntimeUnsignedRangeHOFKind.take(range, n)
-    }
+    runtimeRangeTakeEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "__kk_uint_range_take"
+    )
 }
 
 @_cdecl("__kk_uint_range_drop")
 public func __kk_uint_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_uint_range_drop") { range in
-        RuntimeUnsignedRangeHOFKind.drop(range, n)
-    }
+    runtimeRangeDropEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "__kk_uint_range_drop"
+    )
 }
 
 // MARK: - ULong HOFs (STDLIB-RANGE-037/039)
@@ -322,58 +312,48 @@ public func __kk_ulong_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ 
 
 @_cdecl("__kk_ulong_range_chunked")
 public func __kk_ulong_range_chunked(_ rangeRaw: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if size <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size \(size) must be greater than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_ulong_range_chunked") { range in
-        RuntimeUnsignedRangeHOFKind.chunked(range, size)
-    }
+    runtimeRangeChunkedEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        size: size,
+        outThrown,
+        functionName: "__kk_ulong_range_chunked"
+    )
 }
 
 @_cdecl("__kk_ulong_range_windowed")
 public func __kk_ulong_range_windowed(_ rangeRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if size <= 0 || step <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Both size \(size) and step \(step) must be greater than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_ulong_range_windowed") { range in
-        RuntimeUnsignedRangeHOFKind.windowed(range, size, step, partialWindows)
-    }
+    runtimeRangeWindowedEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        size: size,
+        step: step,
+        partialWindows: partialWindows,
+        outThrown,
+        functionName: "__kk_ulong_range_windowed"
+    )
 }
 
 @_cdecl("__kk_ulong_range_take")
 public func __kk_ulong_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_ulong_range_take") { range in
-        RuntimeUnsignedRangeHOFKind.take(range, n)
-    }
+    runtimeRangeTakeEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "__kk_ulong_range_take"
+    )
 }
 
 @_cdecl("__kk_ulong_range_drop")
 public func __kk_ulong_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "__kk_ulong_range_drop") { range in
-        RuntimeUnsignedRangeHOFKind.drop(range, n)
-    }
+    runtimeRangeDropEntry(
+        RuntimeUnsignedRangeHOFKind.self,
+        rangeRaw,
+        count: n,
+        outThrown,
+        functionName: "__kk_ulong_range_drop"
+    )
 }
 
 // MARK: - ULongProgression operations (STDLIB-RANGE-039)

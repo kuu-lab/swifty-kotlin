@@ -775,13 +775,7 @@ func runtimeIsMapEntry(rawValue: Int) -> Bool {
 }
 
 func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
     }
     if let box = tryCast(ptr, to: RuntimeListBox.self) {
@@ -809,13 +803,7 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
 }
 
 func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
     }
     if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
@@ -844,13 +832,7 @@ func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
 }
 
 func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), runtimeIsObjectPointer(ptr) else {
         return nil
     }
     if let setBox = tryCast(ptr, to: RuntimeSetBox.self) {
@@ -887,16 +869,7 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
 }
 
 func runtimeArrayDequeBox(from rawValue: Int) -> RuntimeArrayDequeBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeArrayDequeBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeArrayDequeBox.self)
 }
 
 func runtimeCollectionElements(from rawValue: Int) -> [Int]? {
@@ -1029,55 +1002,19 @@ func runtimeIterableElements(from rawValue: Int) -> [Int]? {
 }
 
 func runtimeListIteratorBox(from rawValue: Int) -> RuntimeListIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeListIteratorBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeListIteratorBox.self)
 }
 
 func runtimeIndexingIterableBox(from rawValue: Int) -> RuntimeIndexingIterableBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeIndexingIterableBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeIndexingIterableBox.self)
 }
 
 func runtimeMapIteratorBox(from rawValue: Int) -> RuntimeMapIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeMapIteratorBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeMapIteratorBox.self)
 }
 
 func runtimeMutableMapIteratorBox(from rawValue: Int) -> RuntimeMutableMapIteratorBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeMutableMapIteratorBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeMutableMapIteratorBox.self)
 }
 
 
@@ -1112,6 +1049,17 @@ func registerRuntimeObject(_ box: AnyObject, typeID: Int64) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: typeID)
     runtimeRegisterKCallableItableIfNeeded(rawValue: raw, typeID: typeID)
     return raw
+}
+
+func runtimeRegisterViewOrEmpty<Source: AnyObject, View: AnyObject>(
+    from rawValue: Int,
+    resolve: (Int) -> Source?,
+    makeEmpty: () -> View,
+    makeView: (Source) -> View,
+    typeID: Int64
+) -> Int {
+    let box = resolve(rawValue).map(makeView) ?? makeEmpty()
+    return registerRuntimeObject(box, typeID: typeID)
 }
 
 /// Registers a primitive-domain box (`RuntimeIntBox` & friends) under its

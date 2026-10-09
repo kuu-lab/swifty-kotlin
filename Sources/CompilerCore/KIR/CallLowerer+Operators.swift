@@ -96,13 +96,17 @@ extension CallLowerer {
         // Emit the pooled string literal directly instead of the runtime
         // concat. Anything non-constant (a var, a plain `val`, a call)
         // falls through to `__kk_string_concat_flat` unchanged.
-        if op == .add, sema.bindings.exprTypes[exprID] == stringType {
+        // A `+` Sema bound to a callee that is not Kotlin's built-in string
+        // concatenation — e.g. `operator fun Int.plus(s: String)` — must keep
+        // that call instead of folding as `"2" + "x"` text.
+        if op == .add, sema.bindings.exprTypes[exprID] == stringType,
+           isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner) {
             var collector = driver.constantCollector
             collector.resolvedConstant = { constExprID in
                 self.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
             }
             if let foldedText = collector.constantStringConcatOperandText(
-                exprID, ast: ast, interner: interner
+                exprID, ast: ast, sema: sema, interner: interner
             ) {
                 let foldedSymbol = interner.intern(foldedText)
                 let literalID = arena.appendExpr(.stringLiteral(foldedSymbol), type: stringType)
@@ -1266,6 +1270,28 @@ extension CallLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+    }
+
+    /// Whether a String-typed `+` lowerer may treat the expression as Kotlin's
+    /// built-in concatenation (constant folding and `__kk_string_concat_flat`).
+    /// Only true when Sema left the operator unbound (the lenient built-in
+    /// concat path) or bound it to the stdlib `String.plus` member or the
+    /// `kotlin.text.String?.plus` facade; a user-declared operator that merely
+    /// returns String must keep its resolved call.
+    private func isBuiltinStringPlusCallee(
+        _ exprID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee)
+        else {
+            return true
+        }
+        let kotlinName = interner.intern("kotlin")
+        let plusName = interner.intern("plus")
+        return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
+            || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
     }
 
     private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {

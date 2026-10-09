@@ -405,8 +405,8 @@ func runtimeComparableOperandsAreCompatible(
     }
 }
 
-func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeThrowableBox(message: message, cause: cause)
+@inline(__always)
+func runtimeRegisterThrowable(_ throwable: RuntimeThrowableBox) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -414,13 +414,12 @@ func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
+func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
+    runtimeRegisterThrowable(RuntimeThrowableBox(message: message, cause: cause))
+}
+
 func runtimeAllocateUninitializedPropertyAccessException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeUninitializedPropertyAccessExceptionBox(message: message, cause: cause))
 }
 
 func runtimeStableNominalTypeID(fqName: String) -> Int64 {
@@ -444,26 +443,16 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
 /// The returned opaque pointer can be stored in `outThrown` and later detected via
 /// `kk_is_cancellation_exception`.
 func runtimeAllocateCancellationException(message: String? = "CancellationException", cause: Int = 0) -> Int {
-    let cancellation = RuntimeCancellationBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(cancellation).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    runtimeRegisterThrowable(RuntimeCancellationBox(message: message, cause: cause))
 }
 
 /// Allocates a `kotlinx.coroutines.TimeoutCancellationException` for an expired
 /// `withTimeout` deadline. The message matches kotlinx.coroutines verbatim so
 /// `e.message` agrees with Kotlin/JVM.
 func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
-    let timeout = RuntimeTimeoutCancellationBox(
+    runtimeRegisterThrowable(RuntimeTimeoutCancellationBox(
         message: "Timed out waiting for \(timeoutMillis) ms"
-    )
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(timeout).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
+    ))
 }
 
 func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {

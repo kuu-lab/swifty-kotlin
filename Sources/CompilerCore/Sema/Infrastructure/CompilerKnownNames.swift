@@ -323,6 +323,14 @@ package struct KnownCompilerNames {
     let atomicIntArray: InternedString
     let atomicLongArray: InternedString
     let collections: InternedString
+    let enumValues: InternedString
+    let enumValueOf: InternedString
+    let enumEntries: InternedString
+    let enumEntriesIntrinsic: InternedString
+    /// FQ names of the four enum intrinsics; used to recognize file-local
+    /// import-alias spellings (`import kotlin.enumValueOf as evo`) that must
+    /// stay on the intrinsic path in `enumStdlibSpecialCallKind`.
+    let enumIntrinsicFQNames: Set<[InternedString]>
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
@@ -741,6 +749,10 @@ package struct KnownCompilerNames {
         atomicIntArray = interner.intern("AtomicIntArray")
         atomicLongArray = interner.intern("AtomicLongArray")
         collections = interner.intern("collections")
+        enumValues = interner.intern("enumValues")
+        enumValueOf = interner.intern("enumValueOf")
+        enumEntries = interner.intern("enumEntries")
+        enumEntriesIntrinsic = interner.intern("enumEntriesIntrinsic")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
@@ -1013,6 +1025,13 @@ package struct KnownCompilerNames {
         sequenceScope = interner.intern("SequenceScope")
         closedFloatingPointRange = interner.intern("ClosedFloatingPointRange")
         self.kotlin = kotlin
+        let kotlinEnums = interner.intern("enums")
+        enumIntrinsicFQNames = [
+            [kotlin, enumValues],
+            [kotlin, enumValueOf],
+            [kotlin, kotlinEnums, enumEntries],
+            [kotlin, kotlinEnums, enumEntriesIntrinsic],
+        ]
         sequences = interner.intern("sequences")
         initName = interner.intern("<init>")
         invoke = interner.intern("invoke")

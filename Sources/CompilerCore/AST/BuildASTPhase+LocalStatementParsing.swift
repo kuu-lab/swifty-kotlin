@@ -32,7 +32,6 @@ extension BuildASTPhase {
         }
         validateLocalVariableModifiers(leadingModifiers, isMutable: isMutable)
 
-        // Check for destructuring declaration: val (a, b) = expr
         if let destructuringResult = Self.parseDestructuringDeclarationExpr(
             from: statementTokens,
             startIndex: startIndex,
@@ -92,9 +91,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Parse destructuring declaration: `val (a, b, _) = expr` from a whole
-    /// statement token group, skipping any leading declaration modifiers.
-    /// Returns nil if the tokens don't match the destructuring pattern.
     /// `suppressesLocalModifierDiagnostics` is set when the same token group is
     /// re-parsed as an anonymous-object member prefix, where visibility
     /// modifiers are legal and handled by the member-property builder.
@@ -139,8 +135,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Parse destructuring declaration: `val (a, b, _) = expr`
-    /// Returns nil if the tokens don't match the destructuring pattern.
     static func parseDestructuringDeclarationExpr(
         from statementTokens: [Token],
         startIndex: Int,
@@ -152,7 +146,6 @@ extension BuildASTPhase {
         // After val/var keyword, expect `(` — but the CST parser may insert
         // a `missing(identifier)` token before it when it expects a property name.
         var afterKeyword = startIndex + 1
-        // Skip any missing tokens inserted by the CST parser
         while afterKeyword < statementTokens.count,
               case .missing = statementTokens[afterKeyword].kind
         {
@@ -164,7 +157,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Find the matching closing paren
         var depth = 0
         var closeParenIndex: Int?
         for i in afterKeyword ..< statementTokens.count {
@@ -186,8 +178,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Parse names between parens, separated by commas
-        // Supports: identifiers and `_` (underscore)
         let innerTokens = Array(statementTokens[(afterKeyword + 1) ..< closeParenIndex])
         var names: [InternedString?] = []
         var idx = 0
@@ -219,10 +209,8 @@ extension BuildASTPhase {
                 names.append(interner.intern(soft.rawValue))
                 idx += 1
             default:
-                // Skip type annotations (`: Type`) after variable names
                 if token.kind == .symbol(.colon) {
                     idx += 1
-                    // Skip type tokens until comma or end
                     var typeDepth = BracketDepth()
                     while idx < innerTokens.count {
                         let t = innerTokens[idx]
@@ -242,7 +230,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // After closing paren, expect `=`
         var assignIndex: Int?
         for i in (closeParenIndex + 1) ..< statementTokens.count where statementTokens[i].kind == .symbol(.assign) {
             assignIndex = i
@@ -252,7 +239,6 @@ extension BuildASTPhase {
             return nil
         }
 
-        // Parse the initializer expression
         let initializerTokens = statementTokens[(assignIndex + 1)...].filter { token in
             token.kind != .symbol(.semicolon)
         }

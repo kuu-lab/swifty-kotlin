@@ -22,27 +22,22 @@ public func kk_mutable_collection_add_checked(_ raw: Int, _ argument: Int, _ out
     kk_mutable_collection_add_throwing(raw, argument, outThrown)
 }
 
-@_cdecl("__kk_mutable_collection_addAll_checked")
 public func kk_mutable_collection_addAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_mutable_collection_addAll_throwing(raw, argument, outThrown)
 }
 
-@_cdecl("__kk_mutable_collection_clear_checked")
 public func kk_mutable_collection_clear_checked(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_mutable_collection_clear_throwing(raw, outThrown)
 }
 
-@_cdecl("__kk_mutable_collection_remove_checked")
 public func kk_mutable_collection_remove_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_mutable_collection_remove_throwing(raw, argument, outThrown)
 }
 
-@_cdecl("__kk_mutable_collection_removeAll_checked")
 public func kk_mutable_collection_removeAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_mutable_collection_removeAll_throwing(raw, argument, outThrown)
 }
 
-@_cdecl("__kk_mutable_collection_retainAll_checked")
 public func kk_mutable_collection_retainAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_mutable_collection_retainAll_throwing(raw, argument, outThrown)
 }

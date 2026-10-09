@@ -69,8 +69,8 @@ extension BuildASTPhase.ExpressionParser {
                let varName = whenSubjectVariableName(from: identToken)
             {
                 subjectVarName = varName
-                _ = consume() // val
-                _ = consume() // identifier
+                _ = consume()
+                _ = consume()
                 if let colon = consumeIf(.symbol(.colon)) {
                     guard let typeRef = parseTypeReference(colon.range, allowFunctionType: true) else {
                         return nil
@@ -107,13 +107,11 @@ extension BuildASTPhase.ExpressionParser {
                 _ = consume()
                 isElseBranch = true
             } else {
-                // Parse first condition
                 if let firstCond = parseWhenBranchCondition(subject: subject) {
                     conditions.append(firstCond)
                 }
-                // Parse additional comma-separated conditions (before ->)
                 while matches(.symbol(.comma)) {
-                    _ = consume() // consume comma
+                    _ = consume()
                     // If we see '->' after comma, it was a trailing comma; stop
                     if matches(.symbol(.arrow)) {
                         break
@@ -126,10 +124,9 @@ extension BuildASTPhase.ExpressionParser {
                 }
             }
 
-            // Parse optional guard condition: `if <expr>` before `->`
             var guardExpr: ExprID?
             if !isElseBranch, !conditions.isEmpty, matches(.keyword(.if)) {
-                _ = consume() // consume `if`
+                _ = consume()
                 guardExpr = parseExpression(minPrecedence: 0)
             }
 
@@ -194,15 +191,14 @@ extension BuildASTPhase.ExpressionParser {
                let isToken = peek(1),
                isToken.kind == .keyword(.is)
             {
-                _ = consume() // !
-                _ = consume() // is
+                _ = consume()
+                _ = consume()
                 guard let typeRef = parseTypeReference(token.range, allowFunctionType: true) else {
                     return nil
                 }
                 let conditionRange = mergeRanges(astArena.exprRange(subject), nil, fallback: token.range)
                 return astArena.appendExpr(.isCheck(expr: subject, type: typeRef, negated: true, range: conditionRange))
             }
-            // Range / collection membership conditions: `in a..b ->`, `!in xs ->`.
             let negatedIn: Bool? = if token.kind == .keyword(.in) {
                 false
             } else if token.kind == .symbol(.bang), let inToken = peek(1), inToken.kind == .keyword(.in) {
@@ -211,8 +207,8 @@ extension BuildASTPhase.ExpressionParser {
                 nil
             }
             if let negatedIn {
-                _ = consume() // `in` or `!`
-                if negatedIn { _ = consume() } // `in`
+                _ = consume()
+                if negatedIn { _ = consume() }
                 guard let rangeExpr = parseExpression(minPrecedence: 0) else {
                     return nil
                 }
@@ -279,9 +275,6 @@ extension BuildASTPhase.ExpressionParser {
         return body
     }
 
-    /// Attempts to parse `branchTokens` as a local assignment statement
-    /// (`.localAssign`, `.memberAssign`, `.indexedAssign`, or a compound-assign
-    /// form), succeeding only if the whole span is consumed.
     private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
@@ -459,12 +452,10 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        // Check for destructuring: for ((a, b) in iterable)
         if matches(.symbol(.lParen)) {
             let savedIndex = index
-            _ = consume() // consume inner `(`
+            _ = consume()
 
-            // Collect names inside parens
             var destructuringNames: [InternedString?] = []
             var foundCloseParen = false
             while let token = current() {
@@ -485,7 +476,6 @@ extension BuildASTPhase.ExpressionParser {
                         destructuringNames.append(name)
                     }
                     _ = consume()
-                    // Skip optional type annotation
                     if matches(.symbol(.colon)) {
                         _ = consume()
                         while let t = current(),
@@ -626,8 +616,6 @@ extension BuildASTPhase.ExpressionParser {
         return astArena.appendExpr(.doWhileExpr(body: body, condition: condition, label: label, range: range))
     }
 
-    /// Parses a do-while body from the consumed token slice, preferring local
-    /// declaration/assignment forms before falling back to expression parsing.
     private func parseDoWhileBodyExpression(from bodyTokens: ArraySlice<Token>) -> ExprID? {
         // When the body is a braced block, parse it as-is so that semicolons
         // are preserved for intra-block statement splitting.
@@ -653,8 +641,6 @@ extension BuildASTPhase.ExpressionParser {
         ).parse()
     }
 
-    /// Finds the top-level `while` keyword that starts the condition part of
-    /// a do-while expression.
     private func findDoWhileConditionKeyword(startingAt startIndex: Int) -> Int? {
         var scan = startIndex
         var depth = BuildASTPhase.BracketDepth()

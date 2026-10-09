@@ -213,10 +213,13 @@ public func kk_sorted_set_poll_last(_ setRaw: Int) -> Int {
 /// descendingSet, which is not itself a TreeSet).
 @_cdecl("__kk_sorted_set_descending")
 public func kk_sorted_set_descending(_ setRaw: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw) else {
-        return registerRuntimeObject(RuntimeSetBox(elements: []), typeID: navigableSetRuntimeTypeID)
-    }
-    return registerRuntimeObject(RuntimeSetBox(descendingViewOf: set), typeID: navigableSetRuntimeTypeID)
+    runtimeRegisterViewOrEmpty(
+        from: setRaw,
+        resolve: runtimeSetBox,
+        makeEmpty: { RuntimeSetBox(elements: []) },
+        makeView: { RuntimeSetBox(descendingViewOf: $0) },
+        typeID: navigableSetRuntimeTypeID
+    )
 }
 
 /// `NavigableSet.descendingIterator()` — a MutableIterator over the reversed

@@ -1189,6 +1189,7 @@ final class CallTypeChecker {
                ctx: ctx,
                locals: locals,
                interner: interner,
+               knownNames: knownNames,
                sema: sema,
                range: range
            )

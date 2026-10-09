@@ -9,6 +9,11 @@ The derived Kotlin Standard Library code is located under
 Sources/CompilerCore/Stdlib/kotlin/ and is marked with an attribution
 header in each file.
 
+This project also includes code derived from the Kotlin Test Library under
+Sources/CompilerCore/Stdlib/kotlin/test/, licensed under the Apache License,
+Version 2.0.
+Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+
 This project also includes a selected subset of Kotlin compiler test data
 under Tests/ARCH-025/fixtures/. The files are imported from the JetBrains
 Kotlin repository at revision
