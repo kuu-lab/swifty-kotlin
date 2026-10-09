@@ -584,14 +584,28 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Use class type parameters for resolving member property types
+            let typeParamResult = collectFunctionTypeParameters(
+                propertyDecl.typeParams,
+                localNamespaceFQName: memberFQName + [interner.intern("$\(memberSymbol.rawValue)")],
+                declSite: propertyDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner, isInline: propertyDecl.allAccessorsAreInline,
+                diagnostics: diagnostics, enclosingTypeParameters: classLocalTypeParameters,
+                relativeOwnerFQName: ownerFQName, currentPackageFQName: sourcePackageFQName,
+                imports: sourceImports
+            )
+            let propertyTypeParameters = classLocalTypeParameters.merging(typeParamResult.localTypeParameters) { _, local in local }
+            let allPropertyParameters = classTypeParameterSymbols + typeParamResult.typeParameterSymbols
+            let upperBounds = allPropertyParameters.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            }
             let resolvedType = resolveTypeRef(
                 propertyDecl.type,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                localTypeParameters: classLocalTypeParameters,
+                localTypeParameters: propertyTypeParameters,
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
@@ -611,7 +625,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                localTypeParameters: classLocalTypeParameters,
+                localTypeParameters: propertyTypeParameters,
                 relativeOwnerFQName: ownerFQName,
                 currentPackageFQName: sourcePackageFQName,
                 imports: sourceImports,
@@ -633,7 +647,11 @@ extension DataFlowSemaPhase {
                     FunctionSignature(
                         receiverType: receiverType,
                         parameterTypes: [],
-                        returnType: resolvedType
+                        returnType: resolvedType,
+                        typeParameterSymbols: allPropertyParameters,
+                        reifiedTypeParameterIndices: Set(typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }),
+                        typeParameterUpperBoundsList: upperBounds,
+                        classTypeParameterCount: classTypeParameterSymbols.count
                     ),
                     for: getterSymbol
                 )
@@ -653,7 +671,11 @@ extension DataFlowSemaPhase {
                         FunctionSignature(
                             receiverType: receiverType,
                             parameterTypes: [resolvedType],
-                            returnType: unitType
+                            returnType: unitType,
+                            typeParameterSymbols: allPropertyParameters,
+                            reifiedTypeParameterIndices: Set(typeParamResult.reifiedIndices.map { $0 + classTypeParameterSymbols.count }),
+                            typeParameterUpperBoundsList: upperBounds,
+                            classTypeParameterCount: classTypeParameterSymbols.count
                         ),
                         for: setterSymbol
                     )

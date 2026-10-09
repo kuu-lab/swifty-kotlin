@@ -1750,6 +1750,11 @@ public final class BindingTable {
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
+    public private(set) var extensionPropertyGetterCalls: [ExprID: CallBinding] = [:]
+    public func bindExtensionPropertyGetterCall(_ expression: ExprID, binding: CallBinding) {
+        extensionPropertyGetterCalls[expression] = binding
+    }
+
     public private(set) var invokeOperatorPropertyCalls: [ExprID: InvokeOperatorPropertyBinding] = [:]
     public private(set) var collectionExprIDs: Set<ExprID> = []
     public private(set) var rangeExprIDs: Set<ExprID> = []

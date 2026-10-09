@@ -29,12 +29,43 @@ extension CallTypeChecker {
         _ property: SymbolID,
         request: MemberCallInferenceRequest,
         argTypes: [TypeID],
+        receiverType: TypeID,
         typeOverride: TypeID? = nil,
         locals: LocalBindings
     ) -> Bool {
         let ctx = request.ctx
         let sema = ctx.sema
-        guard let type = typeOverride ?? sema.symbols.propertyType(for: property) else { return false }
+        guard var type = typeOverride ?? sema.symbols.propertyType(for: property) else { return false }
+        if typeOverride == nil,
+           let owner = sema.symbols.parentSymbol(for: property),
+           let info = sema.symbols.symbol(owner),
+           info.kind == .class || info.kind == .interface || info.kind == .object {
+            let ownerType = sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            if let dispatch = ctx.implicitReceiverMemberLookupEntries().map(\.type).first(where: {
+                if sema.types.isSubtype($0, ownerType) { return true }
+                guard case let .classType(receiver) = sema.types.kind(of: sema.types.makeNonNullable($0)) else { return false }
+                return sema.types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner)
+            }) {
+                type = driver.helpers.resolveMemberPropertyType(type, receiverType: dispatch, ownerSymbol: owner, sema: sema)
+            }
+        }
+        if typeOverride == nil,
+           let getter = sema.symbols.extensionPropertyGetterAccessor(for: property),
+           let signature = sema.symbols.functionSignature(for: getter),
+           !signature.typeParameterSymbols.isEmpty {
+            let resolution = ctx.resolver.resolveCall(
+                candidates: [getter],
+                call: CallExpr(range: request.range, calleeName: request.calleeName, args: [],
+                               dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)),
+                expectedType: nil, implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+            guard resolution.chosenCallee != nil else { return false }
+            type = sema.types.substituteTypeParameters(
+                in: type, substitution: resolution.substitutedTypeArguments,
+                typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            )
+        }
         guard case let .functionType(function) = sema.types.kind(of: type) else {
             return nominalCallablePropertyAcceptsArgumentShape(type, request: request, argTypes: argTypes, locals: locals)
         }

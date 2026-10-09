@@ -369,6 +369,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
     public let visibility: Visibility?
+    public let isInline: Bool
     public let parameterName: InternedString?
     public let body: FunctionBody
 
@@ -377,6 +378,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         kind: PropertyAccessorKind,
         annotations: [AnnotationNode] = [],
         visibility: Visibility? = nil,
+        isInline: Bool = false,
         parameterName: InternedString? = nil,
         body: FunctionBody = .unit
     ) {
@@ -384,6 +386,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
         self.kind = kind
         self.annotations = annotations
         self.visibility = visibility
+        self.isInline = isInline
         self.parameterName = parameterName
         self.body = body
     }
@@ -404,6 +407,7 @@ public struct PropertyDecl: Codable {
     public let name: InternedString
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
+    public let typeParams: [TypeParamDecl]
     public let type: TypeRefID?
     public let isVar: Bool
     public let initializer: ExprID?
@@ -418,11 +422,16 @@ public struct PropertyDecl: Codable {
     public let isSynthesizedPrimaryConstructorProperty: Bool
     public let explicitBackingField: ExplicitBackingField?
 
+    public var allAccessorsAreInline: Bool {
+        modifiers.contains(.inline) || (getter?.isInline == true && (!isVar || setter?.isInline == true))
+    }
+
     public init(
         range: SourceRange,
         name: InternedString,
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
+        typeParams: [TypeParamDecl] = [],
         type: TypeRefID?,
         isVar: Bool = false,
         initializer: ExprID? = nil,
@@ -439,6 +448,7 @@ public struct PropertyDecl: Codable {
         self.name = name
         self.modifiers = modifiers
         self.annotations = annotations
+        self.typeParams = typeParams
         self.type = type
         self.isVar = isVar
         self.initializer = initializer

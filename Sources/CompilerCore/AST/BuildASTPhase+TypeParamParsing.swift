@@ -148,12 +148,15 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> [(name: InternedString, bound: TypeRefID)] {
-        let tokens = collectTokens(from: nodeID, in: arena)
+        let tokens = arena.node(nodeID).kind == .propertyDecl
+            ? propertyHeadTokens(from: nodeID, in: arena)
+            : collectTokens(from: nodeID, in: arena)
         guard let startIndex = findWhereKeywordIndex(in: tokens) else {
             return []
         }
         return parseWhereClauseEntries(tokens: tokens, startIndex: startIndex,
-                                       interner: interner, astArena: astArena)
+                                       interner: interner, astArena: astArena,
+                                       propertyAccessors: arena.node(nodeID).kind == .propertyDecl)
     }
 
     private func findWhereKeywordIndex(in tokens: [Token]) -> Int? {
@@ -169,7 +172,7 @@ extension BuildASTPhase {
 
     private func parseWhereClauseEntries(
         tokens: [Token], startIndex: Int,
-        interner: StringInterner, astArena: ASTArena
+        interner: StringInterner, astArena: ASTArena, propertyAccessors: Bool
     ) -> [(name: InternedString, bound: TypeRefID)] {
         var result: [(name: InternedString, bound: TypeRefID)] = []
         var index = startIndex + 1
@@ -190,14 +193,39 @@ extension BuildASTPhase {
             }
             index += 1
             let boundTokens = collectBoundTokens(tokens: tokens, index: &index)
-            if let boundRef = parseTypeRef(from: boundTokens, interner: interner, astArena: astArena) {
-                result.append((name: name, bound: boundRef))
+            if let parsed = TypeRefParserCore.parseTypeRefPrefix(
+                boundTokens[...], interner: interner, astArena: astArena,
+                options: .declaration, diagnostics: diagnostics
+            ), parsed.consumed == boundTokens.count
+                || (propertyAccessors && isAccessorModifierSuffix(
+                    Array(boundTokens.dropFirst(parsed.consumed)), interner: interner
+                ))
+            {
+                result.append((name: name, bound: parsed.ref))
             }
             if index < tokens.count, tokens[index].kind == .symbol(.comma) {
                 index += 1
             }
         }
         return result
+    }
+
+    private func isAccessorModifierSuffix(_ tokens: [Token], interner: StringInterner) -> Bool {
+        var index = 0
+        while index < tokens.count {
+            switch tokens[index].kind {
+            case .keyword(.inline), .keyword(.public), .keyword(.private), .keyword(.protected), .keyword(.internal):
+                index += 1
+            case .symbol(.at):
+                guard let annotation = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+                ) else { return false }
+                index = annotation.nextIndex
+            default:
+                return false
+            }
+        }
+        return !tokens.isEmpty
     }
 
     private func collectBoundTokens(tokens: [Token], index: inout Int) -> [Token] {

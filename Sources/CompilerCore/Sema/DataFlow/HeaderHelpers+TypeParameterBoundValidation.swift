@@ -25,7 +25,7 @@ extension DataFlowSemaPhase {
             guard let typeParamInfo = symbols.symbol(pending.symbol) else {
                 continue
             }
-            checkConflictingClassUpperBounds(
+            Self.checkConflictingClassUpperBounds(
                 typeParamName: typeParamInfo.name,
                 bounds: symbols.typeParameterUpperBounds(for: pending.symbol),
                 declSite: pending.declSite,
@@ -37,7 +37,7 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func checkConflictingClassUpperBounds(
+    static func checkConflictingClassUpperBounds(
         typeParamName: InternedString,
         bounds: [TypeID],
         declSite: SourceRange?,

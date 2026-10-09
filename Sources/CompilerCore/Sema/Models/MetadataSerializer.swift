@@ -1115,6 +1115,16 @@ package final class MetadataEncoder {
             let getterSymbol = enumEntriesGetterSymbol
                 ?? symbols.extensionPropertyGetterAccessor(for: symbol.id)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id)
+            if let getter = symbols.functionSignature(for: getterSymbol) {
+                reifiedTypeParameterIndices = getter.reifiedTypeParameterIndices
+                callableTypeParameterSignatures = getter.typeParameterSymbols.map { "T\($0.rawValue)" }
+                typeParameterUpperBoundsSignatures = getter.typeParameterUpperBoundsList.map { bounds in
+                    bounds.map {
+                        metadataTypeSignature($0, symbols: symbols, types: types, mangler: mangler,
+                                              nameResolver: { interner.resolve($0) })
+                    }
+                }
+            }
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
                 || enumEntriesGetterSymbol != nil
@@ -1612,6 +1622,16 @@ package final class MetadataEncoder {
                 fields.append("link=\(linkName)")
             }
             if record.kind == .property || record.kind == .field {
+                if !record.reifiedTypeParameterIndices.isEmpty {
+                    fields.append("reified=\(record.reifiedTypeParameterIndices.sorted().map(String.init).joined(separator: ","))")
+                }
+                if !record.callableTypeParameterSignatures.isEmpty {
+                    fields.append("callTParams=\(record.callableTypeParameterSignatures.joined(separator: ","))")
+                }
+                if record.typeParameterUpperBoundsSignatures.contains(where: { !$0.isEmpty }),
+                   let encodedBounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures) {
+                    fields.append("typeBounds=\(encodedBounds)")
+                }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
                 }
