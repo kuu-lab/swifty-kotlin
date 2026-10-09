@@ -33,3 +33,31 @@ public annotation class ExperimentalJsExport
 )
 @SinceKotlin("1.3")
 public annotation class JsExport
+
+/**
+ * Marks the experimental JsStatic annotation.
+ *
+ * Opting in allows source-compatible use of @JsStatic; the marker alone does
+ * not create a JavaScript static member.
+ */
+@RequiresOptIn(level = RequiresOptIn.Level.WARNING)
+@MustBeDocumented
+@Retention(AnnotationRetention.BINARY)
+@SinceKotlin("2.0")
+public annotation class ExperimentalJsStatic
+
+/**
+ * Records JavaScript static-member intent for a companion function or property.
+ * JavaScript static entry emission is provided by the Kotlin/JS backend.
+ */
+@ExperimentalJsStatic
+@Retention(AnnotationRetention.BINARY)
+@Target(
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.PROPERTY_GETTER,
+    AnnotationTarget.PROPERTY_SETTER
+)
+@MustBeDocumented
+@SinceKotlin("2.0")
+public annotation class JsStatic

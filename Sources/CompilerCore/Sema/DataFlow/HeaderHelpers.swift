@@ -70,7 +70,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine
     ) {
         registerAnnotations(
-            declarationAnnotations(for: decl),
+            metadataAnnotations(for: decl),
             symbol: symbol,
             declRange: declRange,
             sourceFileID: sourceFileID,
@@ -93,6 +93,20 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    private func metadataAnnotations(for decl: Decl) -> [AnnotationNode] {
+        guard case let .propertyDecl(property) = decl else {
+            return declarationAnnotations(for: decl)
+        }
+
+        var annotations = property.annotations
+        for accessor in [property.getter, property.setter].compactMap({ $0 }) {
+            for annotation in accessor.annotations where !annotations.contains(annotation) {
+                annotations.append(annotation)
+            }
+        }
+        return annotations
     }
 
     func registerAnnotations(
