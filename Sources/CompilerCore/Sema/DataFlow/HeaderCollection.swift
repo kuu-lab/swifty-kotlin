@@ -1485,12 +1485,19 @@ extension DataFlowSemaPhase {
             if declaration.kind == .enumClass {
                 for entry in classDecl.enumEntries {
                     let entryFQName = fqName + [entry.name]
+                    let entryFlags = inheritedExpectActualFlags(
+                        [],
+                        from: symbol,
+                        symbols: symbols,
+                        includingActual: true
+                    )
                     checkAndReportDuplicateDeclaration(
                         newKind: .field,
                         fqName: entryFQName,
                         range: entry.range,
                         symbols: symbols,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        newFlags: entryFlags
                     )
                     let entrySymbol = symbols.define(
                         kind: .field,
@@ -1498,7 +1505,7 @@ extension DataFlowSemaPhase {
                         fqName: entryFQName,
                         declSite: entry.range,
                         visibility: .public,
-                        flags: []
+                        flags: entryFlags
                     )
                     symbols.setParentSymbol(symbol, for: entrySymbol)
                     symbols.setPropertyType(classType, for: entrySymbol)
