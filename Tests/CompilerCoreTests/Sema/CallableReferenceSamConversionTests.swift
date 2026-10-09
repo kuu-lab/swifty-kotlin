@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 /// BUG-164: A callable reference passed to a parameter whose type is a
@@ -10,17 +11,7 @@ import Testing
 struct CallableReferenceSamConversionTests {
 
     @Test func testCallableRefPassedToFunInterfaceParameter() throws {
-        let source = """
-        fun interface IntOp { fun apply(a: Int, b: Int): Int }
-
-        fun useOp(o: IntOp): Int = o.apply(10, 4)
-
-        fun myCompare(a: Int, b: Int): Int = a - b
-
-        fun main() {
-            println(useOp(::myCompare))
-        }
-        """
+        let source = KotlinSourceFixtures.callableReferenceSamConversion
 
         let ctx = makeContextFromSource(source)
         try runSema(ctx)

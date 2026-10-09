@@ -192,29 +192,6 @@ extension DataFlowSemaPhase {
         appendNativeConcurrentMetadataAnnotations(annotations, to: constructorSymbol, symbols: symbols)
     }
 
-    func nativeConcurrentClassType(
-        packagePath: [String],
-        name: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let classSymbol = nativeConcurrentClassSymbol(
-            packagePath: packagePath,
-            name: name,
-            symbols: symbols,
-            interner: interner
-        )
-        let classType = types.make(.classType(ClassType(
-            classSymbol: classSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        if symbols.propertyType(for: classSymbol) == nil {
-            symbols.setPropertyType(classType, for: classSymbol)
-        }
-        return classType
-    }
 
     func nativeConcurrentCOpaquePointerType(
         symbols: SymbolTable,
@@ -280,65 +257,8 @@ extension DataFlowSemaPhase {
         return classSymbol
     }
 
-    func nativeConcurrentSyntheticTypeParameter(
-        named name: String,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> SymbolID {
-        let typeParamName = interner.intern(name)
-        let typeParamFQName = ownerFQName + [typeParamName]
-        if let existing = symbols.lookup(fqName: typeParamFQName) {
-            return existing
-        }
-        return symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-    }
 
-    func nativeConcurrentFutureType(
-        elementType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let futureSymbol = nativeConcurrentClassSymbol(
-            packagePath: ["kotlin", "native", "concurrent"],
-            name: "Future",
-            symbols: symbols,
-            interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: futureSymbol,
-            args: [.invariant(elementType)],
-            nullability: .nonNull
-        )))
-    }
 
-    func nativeConcurrentCollectionType(
-        named name: String,
-        elementType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let collectionSymbol = nativeConcurrentClassSymbol(
-            packagePath: ["kotlin", "collections"],
-            name: name,
-            symbols: symbols,
-            interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: collectionSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
 
     func nativeConcurrentCPointerType(
         pointeeType: TypeID,
@@ -571,50 +491,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    func nativeConcurrentLazyType(
-        elementType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
-        let kotlinPkg = ensurePackage(
-            path: ["kotlin"],
-            symbols: symbols,
-            interner: interner
-        )
-        let lazySymbol = ensureInterfaceSymbol(
-            named: "Lazy",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(packageSymbol, for: lazySymbol)
-        }
-        let lazyTypeParamName = interner.intern("T")
-        let lazyTypeParamFQName = kotlinPkg + [interner.intern("Lazy"), lazyTypeParamName]
-        let lazyTypeParamSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: lazyTypeParamFQName) {
-            lazyTypeParamSymbol = existing
-        } else {
-            lazyTypeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: lazyTypeParamName,
-                fqName: lazyTypeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(lazySymbol, for: lazyTypeParamSymbol)
-        }
-        types.setNominalTypeParameterSymbols([lazyTypeParamSymbol], for: lazySymbol)
-        types.setNominalTypeParameterVariances([.out], for: lazySymbol)
-        return types.make(.classType(ClassType(
-            classSymbol: lazySymbol,
-            args: [.invariant(elementType)],
-            nullability: .nonNull
-        )))
-    }
 
     func appendNativeConcurrentMetadataAnnotations(
         _ records: [MetadataAnnotationRecord],
@@ -666,40 +542,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerNativeConcurrentMutableProperty(
-        ownerSymbol: SymbolID,
-        name: String,
-        propertyType: TypeID,
-        getterLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let propName = interner.intern(name)
-        let propFQName = ownerInfo.fqName + [propName]
-        if let existing = symbols.lookup(fqName: propFQName) {
-            symbols.insertFlags([.synthetic, .mutable], for: existing)
-            symbols.setPropertyType(propertyType, for: existing)
-            if let getterLinkName {
-                symbols.setExternalLinkName(getterLinkName, for: existing)
-            }
-            return
-        }
-
-        let propSymbol = symbols.define(
-            kind: .property,
-            name: propName,
-            fqName: propFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .mutable]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propSymbol)
-        symbols.setPropertyType(propertyType, for: propSymbol)
-        if let getterLinkName {
-            symbols.setExternalLinkName(getterLinkName, for: propSymbol)
-        }
-    }
 
     func appendNativeConcurrentAnnotationMetadata(
         to symbol: SymbolID,

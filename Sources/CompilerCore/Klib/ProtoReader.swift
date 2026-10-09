@@ -133,9 +133,6 @@ package struct ProtoFields {
         try varintList(field).map { Int64(bitPattern: $0) }
     }
 
-    package func uint64List(_ field: Int) throws -> [UInt64] {
-        try varintList(field)
-    }
 
     /// Collects `field` accepting both unpacked varints and packed
     /// length-delimited runs (proto2 allows a mix on the wire).

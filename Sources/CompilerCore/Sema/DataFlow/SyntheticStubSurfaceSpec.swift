@@ -231,25 +231,6 @@ extension DataFlowSemaPhase {
     }
 
     @discardableResult
-    func registerSyntheticPropertyStubs(
-        _ specs: [SyntheticPropertyStubSpec],
-        context: SyntheticStubRegistrationContext,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> [SymbolID] {
-        specs.compactMap { spec in
-            registerSyntheticPropertyStub(
-                spec,
-                context: context,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-    }
-
-    @discardableResult
     private func registerSyntheticConstructorStub(
         _ spec: SyntheticConstructorStubSpec,
         ownerType ownerTypeRef: SyntheticStubTypeRef,

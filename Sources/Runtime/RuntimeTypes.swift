@@ -2547,14 +2547,6 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         }
     }
 
-    /// Reset the consumption index so re-iteration over the same coroutine
-    /// replays from the beginning (using cached elements first, then resuming
-    /// the producer if needed).
-    func resetIteration() {
-        stateLock.lock()
-        consumptionIndex = 0
-        stateLock.unlock()
-    }
 
     /// Materialize all elements from the coroutine and return them.
     func materializeAll() -> [Int] {

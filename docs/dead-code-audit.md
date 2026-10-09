@@ -164,7 +164,7 @@ prefix、fatalError 自己言及、Swift 名別名）はいずれも再発して
 - active `SKIP-DIFF`: 122 タグ / 122 ファイル。DEBT-DIFF-001 は 117、007 は 2、
   009 / 010 / 011 は各 1。KSP-959 の internal `@PublishedApi` helper ケースは
   skip を維持したまま DEBT-DIFF-001 へ正規化した。全 skipped ケースの
-  `--force-run-skipped` 再実行は今回行わず、詳細は `diff-skip-inventory.md` に同期。
+  `--force-run-skipped` 再実行は今回行わず、skip 理由と debt ID は各ケースの directive に記録されている。
 
 再現: `bash Scripts/dead_code_audit.sh --self-test --output-dir <audit-dir>`。
 5/5 fixture が PASS。比較時は `59dd246ff` の worktree にも同じコメント除外を

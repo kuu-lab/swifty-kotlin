@@ -571,6 +571,14 @@ jobs:
             bash Scripts/diff_kotlinc.sh \
               --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
               --report "$DIFF_REPORT" Scripts/diff_cases
+      - name: Run candidate-only Kotlin cases
+        if: matrix.shard_index == 0 && matrix.optimization == 'O0'
+        env:
+          KSWIFTK_STDLIB_LIBRARY: ${{ runner.temp }}/diff_kotlinc_artifacts/KSwiftKStdlib.kklib
+        run: |
+          bash Scripts/run_candidate_only.sh \
+            Scripts/candidate_cases/logging_basic.kt \
+            Scripts/candidate_cases/support/slf4j_minimal.kt
       - name: Summarize kotlinc diff artifacts
         if: always() && steps.diff_kotlinc.outcome != 'cancelled'
         env:

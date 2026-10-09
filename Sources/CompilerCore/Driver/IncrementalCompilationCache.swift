@@ -618,21 +618,13 @@ public final class IncrementalCompilationCache {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = (try? encoder.encode(config)) ?? Data()
-        return stableFNV1a64Hex(String(decoding: data, as: UTF8.self))
+        return StableFNV1a64.hex(String(decoding: data, as: UTF8.self))
     }
 
     private static func isOutputAffectingFrontendFlag(_ flag: String) -> Bool {
         flag != "incremental" && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
-    private static func stableFNV1a64Hex(_ value: String) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01B3
-        }
-        return String(format: "%016llx", hash)
-    }
 }
 
 // MARK: - Cache manifest model
@@ -780,35 +772,6 @@ enum CacheSecurity {
         return fd
     }
 
-    /// Reads data from a regular file inside parentFD using O_NOFOLLOW.
-    static func readData(in parentFD: Int32, filename: String) -> Data? {
-        guard !filename.isEmpty, filename != ".", filename != "..", !filename.contains("/") else {
-            return nil
-        }
-        let fd = openat(parentFD, filename, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { return nil }
-        defer { close(fd) }
-
-        var st = stat()
-        guard fstat(fd, &st) == 0 else { return nil }
-        guard (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { return nil }
-        guard isOwnerAndModeSecure(st: st) else { return nil }
-
-        var data = Data()
-        let bufferSize = 8192
-        var buffer = [UInt8](repeating: 0, count: bufferSize)
-        while true {
-            let bytesRead = read(fd, &buffer, bufferSize)
-            if bytesRead < 0 {
-                return nil
-            }
-            if bytesRead == 0 {
-                break
-            }
-            data.append(buffer, count: bytesRead)
-        }
-        return data
-    }
 
     /// Writes data atomically into parentFD using a temporary file and renameat.
     static func writeAtomicFile(in parentFD: Int32, filename: String, data: Data) -> Bool {

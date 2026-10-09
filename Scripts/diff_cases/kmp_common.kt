@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlinc rejects expect/actual unless split across common/platform files with -Xcommon-sources, which this single-file harness cannot express; kswiftc also has independent expect/actual bugs. See docs/diff-skip-inventory.md.
+// SKIP-DIFF (DEBT-DIFF-001): kotlinc rejects expect/actual unless split across common/platform files with -Xcommon-sources, which this single-file harness cannot express; kswiftc also has independent expect/actual bugs.
 package diff.kmp
 
 expect fun <T> identity(value: T): T

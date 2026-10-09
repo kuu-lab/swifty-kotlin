@@ -123,7 +123,6 @@ let package = Package(
             path: "Tests/CompilerCoreTests",
             exclude: [
                 "GoldenCases",
-                "Integration/ClassDelegationSmokeTest.kt",
                 "Klib/Fixtures",
             ]
         ),

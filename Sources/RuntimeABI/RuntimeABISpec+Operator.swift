@@ -539,6 +539,18 @@ public extension RuntimeABISpec {
             section: "TypeCheck",
             isThrowing: false
         ),
+        // KUU-1377: KClassifier.createType / starProjectedType
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktype_create",
+            parameters: [
+                RuntimeABIParameter(name: "classifierRaw", type: .intptr),
+                RuntimeABIParameter(name: "argsRaw", type: .intptr),
+                RuntimeABIParameter(name: "isNullable", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_ktypeprojection_create",
             parameters: [

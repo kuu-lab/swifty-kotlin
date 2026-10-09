@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.concurrent APIs are only available on Kotlin/Native targets.
+// CANDIDATE-ONLY: JVM kotlinc has no Kotlin/Native AtomicInt oracle (DEBT-DIFF-001).
 @file:Suppress("DEPRECATION_ERROR")
 
 import kotlin.native.concurrent.AtomicInt

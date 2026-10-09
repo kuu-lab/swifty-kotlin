@@ -1,4 +1,4 @@
-// DIFF_EXPECTED_OUTPUT: jdbc_basic.expected
+// DIFF_CANDIDATE_ONLY_EXPECTED_OUTPUT: jdbc_basic.expected
 import java.sql.DriverManager
 import java.sql.SQLException
 

@@ -1,6 +1,10 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
+import kotlin.js.ExperimentalJsCollectionsApi
+import kotlin.js.ExperimentalJsExport
+import kotlin.js.collections.JsMap
+import kotlin.js.collections.createJsMapViewFrom
 
 public interface MutableMap<K, V> : Map<K, V> {
     public interface MutableEntry<K, V> : Map.Entry<K, V> {
@@ -26,4 +30,10 @@ public interface MutableMap<K, V> : Map<K, V> {
 
     @KsSymbolName("__kk_mutable_map_clear")
     public fun clear()
+
+    /** Returns a typed view that keeps this map as its shared backing state. */
+    @ExperimentalJsExport
+    @ExperimentalJsCollectionsApi
+    @SinceKotlin("2.0")
+    public fun asJsMapView(): JsMap<K, V> = createJsMapViewFrom(this)
 }

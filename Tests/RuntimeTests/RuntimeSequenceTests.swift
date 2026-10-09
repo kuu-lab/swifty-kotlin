@@ -258,18 +258,6 @@ private func runtimeTestStringHandle(_ value: String) -> Int {
     }
 }
 
-private func runtimeTestStringBuilder(_ value: String) -> Int {
-    let bytes = Array(value.utf8)
-    return bytes.withUnsafeBufferPointer { buffer in
-        __kk_string_builder_new_from_string_flat(
-            buffer.baseAddress,
-            value.unicodeScalars.count,
-            value.utf8.count,
-            0
-        )
-    }
-}
-
 private func resetRuntimeSequenceTestState() {
     _lazyTestYieldCounter = 0
     _lazySequenceOnEachIndexedTrace = []
