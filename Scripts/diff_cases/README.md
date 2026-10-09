@@ -87,6 +87,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity
 - `flow_cold.kt`: `Flow<T>` cold stream chain（`flow { emit(...) }.map { ... }.collect { ... }`）の parity（kotlinx classpath 必須）
 - `stdlib_kotlin_concurrent_AtomicIntArray_n_n.kt`: Kotlin/Native-only `AtomicIntArray` constructor and copied-array behavior, checked by the candidate-only runner against its `.expected` output
+- `stdlib_kotlin_native_concurrent_TransferMode_TransferMode_n.kt`: Kotlin/Native-only `TransferMode` enum accessors (`entries` / `SAFE.value` / `valueOf` / `values`) run by `Scripts/run_candidate_only.sh` and compared with the adjacent `.expected.stdout` sidecar
 - `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`Scripts/run_candidate_only.sh` で `.expected.stdout` と照合）
 - `jdbc_basic.kt`: SQLite in-memory JDBC の基本操作を `jdbc_basic.expected` と照合する candidate-only output coverage（JVM kotlinc を起動しない）
 - `connection_validation.kt`: JDBC façade が提供する API を除き、残る JVM `Thread` API の未実装について kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）

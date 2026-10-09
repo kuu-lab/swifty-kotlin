@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlin.native.concurrent APIs are only available on Kotlin/Native targets.
+// CANDIDATE-ONLY: kotlin.native.concurrent APIs are unavailable in JVM kotlinc; compare the candidate output with the adjacent expected stdout.
 @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
 
 import kotlin.native.concurrent.TransferMode
