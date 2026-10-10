@@ -77,7 +77,8 @@ class ImportInventoryTests(unittest.TestCase):
                 cases["core/common/test/samples/Samples.kt#readSample"]["test_kind"],
                 "sample",
             )
-            self.assertEqual(cases["core/apple/test/AppleTest.kt#streamSource"]["disposition"], "unsupported")
+            self.assertEqual(cases["core/apple/test/AppleTest.kt#streamSource"]["disposition"], "unmapped")
+            self.assertFalse(cases["core/apple/test/AppleTest.kt#streamSource"]["mapping"]["verified_assertion_mapping"])
             self.assertEqual(cases["core/js/test/JsBufferTest.kt#readByte"]["platform"], "js")
             self.assertEqual(cases["core/js/test/JsBufferTest.kt#readByte"]["disposition"], "unsupported")
             self.assertEqual(

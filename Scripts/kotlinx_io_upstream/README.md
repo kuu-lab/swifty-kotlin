@@ -135,8 +135,9 @@ python3 Scripts/kotlinx_io_upstream/import_inventory.py \
   --output Scripts/kotlinx_io_upstream/coverage-map.seed.json
 ```
 
-Apple tests require the macOS CI execution. The seed paired matrix still marks
-platform cases without a candidate adapter as unsupported, with explicit reasons.
+Apple tests require the macOS CI execution. The seed paired matrix includes all
+680 applicable common/Apple/JVM function IDs as unmapped until assertion-preserving
+candidate adapters exist. Four Windows-only IDs are explicitly unsupported.
 No Apple reference success is claimed by the JVM or Linux result.
 
 KSwiftK ports preserving every original upstream assertion body and their
