@@ -1,0 +1,63 @@
+channel-value: 1
+channel-caught: channel
+channel-done
+callback-value: 2
+callback-caught: callback
+callback-done
+catch-value: 3
+catch: caught
+catch-value: 4
+catch-done
+map-value: 10
+completion: mapped
+map-caught: mapped
+map-done
+retry-value: 1
+retry: retry
+retry-value: 2
+retry-done
+success-value: 6
+success-done
+child-value: 7
+child-caught: child
+child-done
+close-caught: after-close
+close-done
+manual-close-done
+take-value: 1
+take-caught: cleanup
+take-done
+infinite-value: 0
+infinite-done
+before-take-value: 8
+before-take-cancelled: true
+after-take-value: 9
+after-take-success: true
+nested-value: 10
+predicate-value: 42
+predicate-caught: predicate
+transform-value: 11
+transform-done
+catch-take-value: 12
+catch-take-done
+closed-take-value: 13
+closed-take-done
+close-priority: close-first
+cancelled-child-done
+explicit-caught: explicit
+explicit-value: 99
+explicit-retry: retry-explicit
+explicit-retry-value: 100
+buffered-failure: buffered
+downstream-caught: downstream
+child-take-value: 25
+child-take-cleaned: 1
+long-delay-caught: long-delay
+parent-cancel-done
+cleanup-handshake-caught: cleanup-handshake
+scoped-child-done: true
+scoped-child-caught: scoped-child
+scoped-parent-cancel-done
+scoped-delay-cancel-done: true
+scoped-async-caught: scoped-async
+done

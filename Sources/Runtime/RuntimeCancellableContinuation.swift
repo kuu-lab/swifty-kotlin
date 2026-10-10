@@ -40,8 +40,10 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     func initParent() {
         let context = __kk_coroutine_continuation_context(delegate, nil)
         let jobRaw = kk_context_get_job(context)
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: jobRaw),
-              let job = tryCast(ptr, to: RuntimeJobHandle.self) else { return }
+        // A launch/async Job is represented by its task identity in the
+        // coroutine context. Its cancellation state lives on completionJob.
+        guard let job = runtimeJobHandle(from: jobRaw)
+            ?? runtimeAsyncTask(from: jobRaw)?.completionJob else { return }
         parent = job
         parentHandlerID = job.addCompletionHandler(onCancelling: true) { [weak self] cause in
             if cause != 0, cause != runtimeNullSentinelInt { self?.cancelFromParent(cause) }

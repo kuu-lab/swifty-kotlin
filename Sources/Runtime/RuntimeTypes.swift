@@ -248,6 +248,10 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
 /// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
 /// without further wiring, matching kotlinx.coroutines' subclass relationship.
 class RuntimeCancellationBox: RuntimeThrowableBox {
+    // Job-generated wrappers identify cancellation without confusing a user-
+    // thrown CancellationException (even one with the same underlying cause).
+    weak var cancellationJob: RuntimeJobHandle?
+
     override var exceptionFQName: String {
         "kotlin.CancellationException"
     }

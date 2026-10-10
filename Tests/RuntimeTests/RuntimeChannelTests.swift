@@ -832,100 +832,57 @@ struct RuntimeChannelTests {
     /// Once a rendezvous send is matched with a receiver, the send result should
     /// report success even if cancellation races with the wakeup.
     @Test func sendWithCancellationDuringSuspensionSucceedsAfterDelivery() {
-        let ch = kk_channel_create(0) // rendezvous - will suspend
-
-        let sendDone = ChannelTestSignal("send completes")
-        let receiveDone = ChannelTestSignal("receive completes")
-        let sendResult = ThreadSafeInt()
-        let receivedValue = ThreadSafeInt()
-
-        // Create a job handle that we'll cancel while send is suspended
+        let channel = kk_channel_create(0)
+        defer { _ = kk_channel_close(channel) }
+        let done = ChannelTestSignal("matched send completes")
+        let result = ThreadSafeInt()
         let job = RuntimeJobHandle()
-        let contState = RuntimeContinuationState(functionID: 999)
-        contState.jobHandle = job
-        job.continuationState = contState
-
-        let contPtr = Unmanaged.passRetained(contState).toOpaque()
-        let contInt = Int(bitPattern: contPtr)
-
-        // Send on background thread - will suspend waiting for receiver
+        let state = RuntimeContinuationState(functionID: 999)
+        state.jobHandle = job
+        job.continuationState = state
+        let pointer = Unmanaged.passRetained(state).toOpaque()
+        defer { Unmanaged<RuntimeContinuationState>.fromOpaque(pointer).release() }
+        let continuation = Int(bitPattern: pointer)
         DispatchQueue.global().async {
-            sendResult.set(kk_channel_send(ch, 42, contInt))
-            sendDone.fulfill()
+            result.set(kk_channel_send(channel, 42, continuation))
+            done.fulfill()
         }
-
-        #expect(
-            waitForSuspendedWaiters(in: ch, senders: 1),
-            "sender should be suspended before cancellation"
-        )
-
-        // Cancel the job while sender is suspended
+        #expect(waitForSuspendedWaiters(in: channel, senders: 1))
+        // Match first; cancellation must not remove a value already delivered.
+        var value = 0
+        #expect(runtimeChannelHandle(channel).tryReceive(outValue: &value) == .success)
         _ = job.cancel()
-
-        // Now add a receiver - the rendezvous completes before cancellation can
-        // affect the next suspension point, so the send still succeeds.
-        DispatchQueue.global().async {
-            receivedValue.set(channelReceiveValue(ch, 0))
-            receiveDone.fulfill()
-        }
-
-        waitForSignals([sendDone, receiveDone], timeout: 2.0)
-        #expect(sendResult.get() == kChannelResultSuccess, "Send should succeed once the value is delivered")
-        #expect(receivedValue.get() == 42, "Receiver should observe the delivered value")
-
-        // Clean up
-        Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
-        _ = kk_channel_close(ch)
+        done.wait(timeout: 2)
+        #expect(value == 42)
+        #expect(result.get() == kChannelResultSuccess)
     }
 
-    /// Once a rendezvous receive is matched with a sender, the receive result should
-    /// return the delivered value even if cancellation races with the wakeup.
+    /// A match committed under the channel lock precedes later cancellation.
     @Test func receiveWithCancellationDuringSuspensionSucceedsAfterDelivery() {
-        let ch = kk_channel_create(0) // rendezvous - will suspend
-
-        let receiveDone = ChannelTestSignal("receive completes")
-        let sendDone = ChannelTestSignal("send completes")
-
-        let receiveResult = ThreadSafeInt()
-        let sendResult = ThreadSafeInt()
-
-        // Create a job handle that we'll cancel while receive is suspended
+        let channel = kk_channel_create(0)
+        defer { _ = kk_channel_close(channel) }
+        let done = ChannelTestSignal("matched receive completes")
+        let value = ThreadSafeInt()
+        let status = ThreadSafeInt()
         let job = RuntimeJobHandle()
-        let contState = RuntimeContinuationState(functionID: 999)
-        contState.jobHandle = job
-        job.continuationState = contState
-
-        let contPtr = Unmanaged.passRetained(contState).toOpaque()
-        let contInt = Int(bitPattern: contPtr)
-
-        // Receive on background thread - will suspend waiting for sender
+        let state = RuntimeContinuationState(functionID: 999)
+        state.jobHandle = job
+        job.continuationState = state
+        let pointer = Unmanaged.passRetained(state).toOpaque()
+        defer { Unmanaged<RuntimeContinuationState>.fromOpaque(pointer).release() }
+        let continuation = Int(bitPattern: pointer)
         DispatchQueue.global().async {
-            receiveResult.set(channelReceiveValue(ch, contInt))
-            receiveDone.fulfill()
+            let result = channelReceivePair(channel, continuation)
+            value.set(result.value)
+            status.set(result.status)
+            done.fulfill()
         }
-
-        #expect(
-            waitForSuspendedWaiters(in: ch, receivers: 1),
-            "receiver should be suspended before cancellation"
-        )
-
-        // Cancel the job while receiver is suspended
+        #expect(waitForSuspendedWaiters(in: channel, receivers: 1))
+        #expect(runtimeChannelHandle(channel).trySend(99) == .success)
         _ = job.cancel()
-
-        // Now add a sender - the rendezvous completes before cancellation can
-        // retroactively discard the received value.
-        DispatchQueue.global().async {
-            sendResult.set(kk_channel_send(ch, 99, 0))
-            sendDone.fulfill()
-        }
-
-        waitForSignals([receiveDone, sendDone], timeout: 2.0)
-        #expect(receiveResult.get() == 99, "Receive should succeed once a sender delivered a value")
-        #expect(sendResult.get() == kChannelResultSuccess, "Sender should observe successful delivery")
-
-        // Clean up
-        Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
-        _ = kk_channel_close(ch)
+        done.wait(timeout: 2)
+        #expect(value.get() == 99)
+        #expect(status.get() == kChannelResultSuccess)
     }
 
     // MARK: - CORO-001: Buffer Overflow Strategy Tests

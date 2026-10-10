@@ -775,7 +775,10 @@ final class CallTypeChecker {
         // FlowCollector.emit argument as a constraint on the enclosing type
         // variables. The regular member-call path cannot resolve `R` until
         // these emissions have contributed evidence for it.
+        // The final pass must bind the concrete collector member, including
+        // when explicit type arguments supplied all inference evidence.
         if let builderInference = ctx.builderInference,
+           !builderInference.isFinalized,
            let calleeName,
            calleeName == knownNames.emit,
            args.count == 1,

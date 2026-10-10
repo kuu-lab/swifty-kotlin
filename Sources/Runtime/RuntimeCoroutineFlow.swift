@@ -79,7 +79,7 @@ private final class RuntimeChannelProducer {
         }
     }
 
-    func start() -> Int {
+    func start(collectorJob: RuntimeJobHandle? = nil) -> Int {
         let continuation = kk_coroutine_continuation_new(functionID)
         if let templateState,
            let state = runtimeContinuationState(from: continuation)
@@ -89,9 +89,65 @@ private final class RuntimeChannelProducer {
         return runtimeKxMiniProduceWithCont(
             emitterFnPtr,
             continuation,
-            channelCapacity: 64
+            channelCapacity: 64,
+            failureDeliveredByCollector: true, collectorJob: collectorJob
         )
     }
+}
+
+/// Settle the producer before leaving collect, including early termination.
+/// A normal manual close can precede a body failure, so the Job's terminal
+/// exception is authoritative even when the channel's first close had no cause.
+private func runtimeFlowFinishChannelProducer(
+    _ channelHandle: Int,
+    stopped: Bool,
+    downstreamFailure: Int = 0,
+    collectorJob: RuntimeJobHandle? = nil
+) -> Int {
+    let channelCause = runtimeChannelHandleObject(from: channelHandle)?.closeCauseSnapshot() ?? 0
+    guard let scope = runtimeProducerScopeForChannelHandle(channelHandle), let job = scope.job else {
+        return downstreamFailure != 0 ? downstreamFailure : channelCause
+    }
+    let initialCompletion = job.completionSnapshot()
+    let observedRoot = downstreamFailure != 0 && kk_is_cancellation_exception(downstreamFailure) == 0
+        ? downstreamFailure
+        : (initialCompletion.exception != 0 && kk_is_cancellation_exception(initialCompletion.exception) == 0
+            ? initialCompletion.exception : (!stopped ? channelCause : 0))
+    if observedRoot != 0, kk_is_cancellation_exception(observedRoot) == 0 {
+        // Fix the collecting Job's first cause before producer finally blocks
+        // can fail with a later cleanup exception.
+        _ = collectorJob?.cancel(cause: observedRoot)
+    }
+    let cancelledByCollector = !initialCompletion.completed && !job.isFinalizingProducerChannelSnapshot()
+    if cancelledByCollector {
+        // Wake blocked sends before joining; plain close would synthesize a
+        // ClosedSendChannelException during successful take/takeWhile cleanup.
+        _ = kk_channel_cancel(channelHandle)
+        scope.cancel(message: "Flow collection finished", cause: 0)
+    }
+    _ = job.join()
+    let producerFailure = job.completionSnapshot().exception
+    if downstreamFailure != 0, kk_is_cancellation_exception(downstreamFailure) == 0 {
+        return downstreamFailure
+    }
+    if initialCompletion.exception != 0, kk_is_cancellation_exception(initialCompletion.exception) == 0 {
+        return initialCompletion.exception
+    }
+    if !stopped, channelCause != 0, kk_is_cancellation_exception(channelCause) == 0 {
+        return channelCause
+    }
+    if producerFailure != 0, kk_is_cancellation_exception(producerFailure) == 0 {
+        return producerFailure
+    }
+    if downstreamFailure != 0 { return downstreamFailure }
+    if !stopped, !cancelledByCollector, producerFailure != 0 { return producerFailure }
+    return stopped ? 0 : channelCause
+}
+
+/// Buffer/flowOn preserve event order in this runtime. They need not drain
+/// the producer before take/takeWhile can observe their stopping condition.
+private func runtimeFlowChannelNeedsEventBatch(_ ops: [RuntimeFlowOp]) -> Bool {
+    ops.contains { $0.kind == .conflate || $0.kind == .debounce || $0.kind == .sample }
 }
 
 private enum RuntimeFlowSource {
@@ -740,26 +796,49 @@ private func runtimeFlowRunSourceStage(
 
     if case let .channelProducer(producer) = flow.source {
         let channelHandle = producer.start()
-        defer { _ = kk_channel_close(channelHandle) }
-
-        var events: [RuntimeFlowEvent] = []
-        while true {
-            var value = 0
-            let status = kk_channel_receive(channelHandle, 0, &value)
-            guard status == kChannelResultSuccess else { break }
-            events.append(RuntimeFlowEvent(
-                value: runtimeFlowMaybeUnbox(value),
-                timestamp: DispatchTime.now().uptimeNanoseconds
-            ))
-        }
-
-        let processedEvents = runtimeFlowApplyStreamOps(events, ops: ops) ?? events
-        for event in processedEvents {
-            if processValue(event.value) == runtimeFlowStopSentinel {
-                break
+        var stopped = false
+        var receiveFailure = 0
+        if runtimeFlowChannelNeedsEventBatch(ops) {
+            var events: [RuntimeFlowEvent] = []
+            while true {
+                var value = 0
+                var thrown = 0
+                let status = kk_channel_receive(channelHandle, 0, &value, &thrown)
+                guard status == kChannelResultSuccess else {
+                    if status == kChannelResultCancelled { receiveFailure = thrown }
+                    break
+                }
+                events.append(RuntimeFlowEvent(
+                    value: runtimeFlowMaybeUnbox(value),
+                    timestamp: DispatchTime.now().uptimeNanoseconds
+                ))
+            }
+            let processedEvents = runtimeFlowApplyStreamOps(events, ops: ops) ?? events
+            for event in processedEvents {
+                if processValue(event.value) == runtimeFlowStopSentinel {
+                    stopped = true
+                    break
+                }
+            }
+        } else {
+            while true {
+                var value = 0
+                var thrown = 0
+                let status = kk_channel_receive(channelHandle, 0, &value, &thrown)
+                guard status == kChannelResultSuccess else {
+                    if status == kChannelResultCancelled { receiveFailure = thrown }
+                    break
+                }
+                if processValue(runtimeFlowMaybeUnbox(value)) == runtimeFlowStopSentinel {
+                    stopped = true
+                    break
+                }
             }
         }
-        return RuntimeFlowExecutionResult(values: emitted, failure: failure)
+        let terminalFailure = runtimeFlowFinishChannelProducer(
+            channelHandle, stopped: stopped, downstreamFailure: failure ?? receiveFailure
+        )
+        return RuntimeFlowExecutionResult(values: emitted, failure: terminalFailure == 0 ? nil : terminalFailure)
     }
 
     guard flow.emitterFnPtr != 0 else {
@@ -982,6 +1061,271 @@ private func runtimeFlowHasAdvancedSource(_ flow: RuntimeFlowHandle) -> Bool {
     }
 }
 
+private enum RuntimeChannelFlowDelivery {
+    case more
+    case stopped(Int)
+    case failed(Int)
+
+    var completionCause: Int {
+        switch self {
+        case .more: return 0
+        case .stopped(let cause), .failed(let cause): return cause
+        }
+    }
+
+    var failure: Int {
+        if case let .failed(failure) = self { return failure }
+        return 0
+    }
+}
+
+/// Keep channel-backed error handlers at their operator boundary: deliver
+/// values before handling an upstream exception, and never catch a failure
+/// raised by an operator or collector downstream of that boundary.
+private func runtimeFlowCollectChannelProducer(
+    _ producer: RuntimeChannelProducer,
+    ops: [RuntimeFlowOp],
+    collectorFnPtr: Int,
+    collectorEnvPtr: Int,
+    continuation: Int
+) -> Int {
+    let collectorContext = RuntimeFlowCollectContext()
+
+    func isCollectorCancellation(_ failure: Int) -> Bool {
+        let job = runtimeContinuationState(from: continuation)?.jobHandle
+            ?? RuntimeJobHandle.current ?? RuntimeCoroutineScope.current?.job
+        guard let job, job.cancellationSnapshot(), kk_is_cancellation_exception(failure) != 0 else { return false }
+        return failure == job.cancellationCauseSnapshot()
+            || (runtimeThrowableBox(from: failure) as? RuntimeCancellationBox)?.cancellationJob === job
+    }
+
+    func invokeEmittingHandler(
+        emit: @escaping (Int) -> RuntimeChannelFlowDelivery,
+        failure: Int = 0,
+        body: () -> Int?
+    ) -> RuntimeChannelFlowDelivery {
+        let context = RuntimeFlowCollectContext()
+        var delivery = RuntimeChannelFlowDelivery.more
+        context.emitHandler = { value in
+            // While handing a value downstream, emit() inside that collector
+            // belongs to its enclosing builder, not to this handler context.
+            let wasInvokingCollector = context.invokingCollector
+            context.invokingCollector = true
+            defer { context.invokingCollector = wasInvokingCollector }
+            delivery = failure == 0 ? emit(value) : .failed(failure)
+            context.failure = delivery.completionCause
+            switch delivery {
+            case .more: return value
+            case .stopped, .failed: return runtimeFlowStopSentinel
+            }
+        }
+        runtimeFlowPushCollectContext(context)
+        let thrown = runtimeFlowWithContinuationContext(context) { body() }
+        runtimeFlowPopCollectContext()
+        if let thrown, thrown != 0 {
+            if case .stopped = delivery, thrown == delivery.completionCause { return delivery }
+            return .failed(thrown)
+        }
+        return delivery
+    }
+
+    func collect(_ count: Int, emit: @escaping (Int) -> RuntimeChannelFlowDelivery) -> RuntimeChannelFlowDelivery {
+        if count == 0 {
+            // channelFlow collects inside coroutineScope: producer failure may
+            // interrupt a suspended collector, while catch/retry execute after
+            // this Job has settled and the caller's Job has been restored.
+            let previousScope = RuntimeCoroutineScope.current
+            let previousJob = RuntimeJobHandle.current
+            let currentState = RuntimeContinuationState.current
+            let previousStateScope = currentState?.scope
+            let previousStateJob = currentState?.jobHandle
+            let collectionScope = RuntimeCoroutineScope(context: previousScope?.context ?? RuntimeCoroutineContext())
+            let collectionJob = collectionScope.installJob(defaultCancellationMessage: "ScopeCoroutine was cancelled")
+            RuntimeCoroutineScope.current = collectionScope
+            RuntimeJobHandle.current = collectionJob
+            currentState?.scope = collectionScope
+            currentState?.jobHandle = collectionJob
+            func callerCancellation(_ failure: Int) -> Int {
+                let caller = previousStateJob ?? previousJob ?? previousScope?.job
+                guard let caller, caller.cancellationSnapshot(), kk_is_cancellation_exception(failure) != 0,
+                      failure == collectionJob.cancellationCauseSnapshot()
+                        || (runtimeThrowableBox(from: failure) as? RuntimeCancellationBox)?.cancellationJob === collectionJob
+                else { return failure }
+                return runtimeAllocateCancellationException(
+                    message: caller.cancellationMessageSnapshot(forSuspensionPoint: true),
+                    cause: caller.cancellationCauseSnapshot(), cancellationJob: caller
+                )
+            }
+            defer {
+                previousJob?.detachChild(collectionJob.identityHandle)
+                currentState?.scope = previousStateScope
+                currentState?.jobHandle = previousStateJob
+                RuntimeCoroutineScope.current = previousScope
+                RuntimeJobHandle.current = previousJob
+            }
+            func collectValues() -> RuntimeChannelFlowDelivery {
+                let channel = producer.start(collectorJob: collectionJob)
+                while true {
+                    var value = 0
+                    var thrown = 0
+                    let status = kk_channel_receive(channel, 0, &value, &thrown)
+                    if status != kChannelResultSuccess {
+                        let failure = runtimeFlowFinishChannelProducer(
+                            channel, stopped: false,
+                            downstreamFailure: status == kChannelResultCancelled ? thrown : 0, collectorJob: collectionJob
+                        )
+                        return failure == 0 ? .more : .failed(failure)
+                    }
+                    let delivery = emit(runtimeFlowMaybeUnbox(value))
+                    switch delivery {
+                    case .more: continue
+                    case .stopped, .failed:
+                        let failure = runtimeFlowFinishChannelProducer(
+                            channel, stopped: true, downstreamFailure: delivery.failure, collectorJob: collectionJob
+                        )
+                        return failure == 0 ? delivery : .failed(failure)
+                    }
+                }
+            }
+            let delivery = collectValues()
+            if delivery.completionCause != 0 {
+                collectionScope.recordBodyFailure(delivery.failure)
+                collectionScope.cancel(message: "Flow collection finished", cause: delivery.completionCause)
+            }
+            _ = collectionScope.waitForChildren(releaseOriginalHandles: false)
+            // CoroutineScope(currentCoroutineContext()) owns another Scope's
+            // child list but registers its launches with this same Job. Drain
+            // the Job hierarchy too, including descendants added while joining.
+            var joinedChildren: Set<Int> = []
+            while true {
+                let children = collectionJob.registeredChildrenSnapshot().filter { !joinedChildren.contains($0) }
+                if children.isEmpty { break }
+                for child in children {
+                    joinedChildren.insert(child)
+                    guard let childJob = runtimeJobHandle(from: child) ?? runtimeAsyncTask(from: child)?.completionJob else { continue }
+                    _ = childJob.join()
+                    let failure = childJob.completionSnapshot().exception
+                    if failure != 0, kk_is_cancellation_exception(failure) == 0 {
+                        collectionScope.recordBodyFailure(failure)
+                        collectionScope.cancel(message: "Flow child failed", cause: failure)
+                    }
+                }
+            }
+            let childFailure = collectionScope.childFailureSnapshot()
+            var finalFailure = childFailure != 0 ? childFailure : delivery.failure
+            if finalFailure == 0, collectionJob.cancellationSnapshot() {
+                let caller = previousStateJob ?? previousJob ?? previousScope?.job
+                let ownStop: Bool
+                if case .stopped = delivery {
+                    ownStop = delivery.completionCause == collectionJob.cancellationCauseSnapshot()
+                        && caller?.cancellationSnapshot() != true
+                } else { ownStop = false }
+                if !ownStop { finalFailure = collectionJob.cancellationCauseSnapshot() }
+            }
+            if finalFailure != 0 { _ = collectionJob.completeExceptionally(with: finalFailure) }
+            else { _ = collectionJob.complete(with: 0) }
+            // Completion and parent cancellation race under the Job lock. Use
+            // the state that actually won, rather than a pre-completion guess.
+            let settledCause = collectionJob.completionSnapshot().exception
+            if settledCause != 0 {
+                let caller = previousStateJob ?? previousJob ?? previousScope?.job
+                if case .stopped = delivery, settledCause == delivery.completionCause,
+                   caller?.cancellationSnapshot() != true { return delivery }
+                return .failed(callerCancellation(settledCause))
+            }
+            return delivery
+        }
+        let op = ops[count - 1]
+        if let handler = runtimeFlowErrorHandler(for: op) {
+            var downstreamFailure = 0
+            var downstreamStopped = false
+            let checkedEmit: (Int) -> RuntimeChannelFlowDelivery = { value in
+                let delivery = emit(value)
+                downstreamFailure = delivery.failure
+                if case .stopped = delivery { downstreamStopped = true }
+                return delivery
+            }
+            var delivery = collect(count - 1, emit: checkedEmit)
+            var attempt = 0
+            while case let .failed(failure) = delivery {
+                guard downstreamFailure == 0, !downstreamStopped, !isCollectorCancellation(failure) else { return delivery }
+                switch handler {
+                case .catchHandler(let fn):
+                    return invokeEmittingHandler(emit: checkedEmit) {
+                        runtimeFlowInvokeCatchHandler(fn, failure: failure)
+                    }
+                case .retry(let retries):
+                    guard attempt < max(0, runtimeFlowMaybeUnbox(retries)) else { return delivery }
+                case .retryWhen(let predicate):
+                    var shouldRetry = false
+                    let predicateDelivery = invokeEmittingHandler(emit: checkedEmit) {
+                        let decision = runtimeFlowInvokeRetryWhenPredicate(predicate, failure: failure, attempt: attempt)
+                        shouldRetry = decision.shouldRetry
+                        return decision.failure
+                    }
+                    switch predicateDelivery {
+                    case .failed, .stopped: return predicateDelivery
+                    case .more: break
+                    }
+                    guard shouldRetry else { return delivery }
+                }
+                attempt += 1
+                delivery = collect(count - 1, emit: checkedEmit)
+            }
+            return delivery
+        }
+        if op.kind == .onCompletion {
+            let delivery = collect(count - 1, emit: emit)
+            let completion = invokeEmittingHandler(emit: emit, failure: delivery.completionCause) {
+                runtimeFlowFireCompletionHandlers([op], failure: delivery.completionCause == 0 ? nil : delivery.completionCause)
+            }
+            return completion.failure != 0 ? completion : delivery
+        }
+        var takeCounters = runtimeFlowInitTakeCounters([op])
+        var lastValues: [Int: Int] = [:]
+        if runtimeFlowTakeExhausted(ops: [op], takeCounters: takeCounters) { return .more }
+        var ownStopCause = 0
+        func stopHere() -> RuntimeChannelFlowDelivery {
+            if ownStopCause == 0 {
+                ownStopCause = runtimeAllocateCancellationException(message: "Flow was aborted, no more elements needed")
+            }
+            return .stopped(ownStopCause)
+        }
+        let delivery = collect(count - 1) { value in
+            if op.kind == .transform {
+                guard op.argument != 0 else { return .more }
+                return invokeEmittingHandler(emit: emit) {
+                    let transform = unsafeBitCast(op.argument, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+                    var thrown = 0
+                    _ = transform(value, &thrown)
+                    return thrown == 0 ? nil : thrown
+                }
+            }
+            switch runtimeFlowApplyOpsLazy(value, ops: [op], takeCounters: &takeCounters, lastValues: &lastValues) {
+            case .emit(let value):
+                let delivery = emit(value)
+                if case .more = delivery, runtimeFlowTakeExhausted(ops: [op], takeCounters: takeCounters) {
+                    return stopHere()
+                }
+                return delivery
+            case .filtered: return .more
+            case .done: return stopHere()
+            case .thrown(let failure): return .failed(failure)
+            }
+        }
+        if ownStopCause != 0, delivery.completionCause == ownStopCause { return .more }
+        return delivery
+    }
+
+    let delivery = collect(ops.count) { value in
+        runtimeFlowDeliverValue(
+            value, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr,
+            continuation: continuation, owningContext: collectorContext
+        ) ? .more : .failed(collectorContext.failure)
+    }
+    return delivery.failure
+}
+
 /// Cold-stream collect: re-execute the source emitter, apply the operator chain,
 /// then deliver the resulting values to the collector.
 private func runtimeFlowCollectLazy(
@@ -991,6 +1335,14 @@ private func runtimeFlowCollectLazy(
     continuation: Int
 ) -> Int {
     let hasOnCompletion = flow.opChain.contains { $0.kind == .onCompletion }
+    if case let .channelProducer(producer) = flow.source,
+       !runtimeFlowChannelNeedsEventBatch(flow.opChain)
+    {
+        return runtimeFlowCollectChannelProducer(
+            producer, ops: flow.opChain, collectorFnPtr: collectorFnPtr,
+            collectorEnvPtr: collectorEnvPtr, continuation: continuation
+        )
+    }
     // Advanced sources (flatMapConcat, flatMapMerge, merge, zip, combine, etc.)
     // are not handled by runtimeFlowCollectStreaming which only processes
     // .emitter and .fixed sources.  Route them through runtimeFlowEvaluate so
@@ -1119,14 +1471,20 @@ private func runtimeFlowCollectStreaming(
 
     if case let .channelProducer(producer) = flow.source {
         let channelHandle = producer.start()
-        defer { _ = kk_channel_close(channelHandle) }
-
-        if hasStreamLevelOps {
+        let finish: (Bool, Int) -> Int = { stopped, failure in
+            runtimeFlowFinishChannelProducer(channelHandle, stopped: stopped, downstreamFailure: failure)
+        }
+        var receiveFailure = 0
+        if runtimeFlowChannelNeedsEventBatch(ops) {
             var events: [RuntimeFlowEvent] = []
             while true {
                 var value = 0
-                let status = kk_channel_receive(channelHandle, 0, &value)
-                guard status == kChannelResultSuccess else { break }
+                var thrown = 0
+                let status = kk_channel_receive(channelHandle, 0, &value, &thrown)
+                guard status == kChannelResultSuccess else {
+                    if status == kChannelResultCancelled { receiveFailure = thrown }
+                    break
+                }
                 events.append(RuntimeFlowEvent(
                     value: runtimeFlowMaybeUnbox(value),
                     timestamp: DispatchTime.now().uptimeNanoseconds
@@ -1142,22 +1500,26 @@ private func runtimeFlowCollectStreaming(
                 )
                 switch result {
                 case .emit(let value):
-                    if !deliverValue(value) { return context.failure }
+                    if !deliverValue(value) { return finish(true, context.failure) }
                 case .filtered:
                     continue
                 case let .thrown(failure):
-                    return failure
+                    return finish(true, failure)
                 case .done:
-                    return 0
+                    return finish(true, 0)
                 }
             }
-            return 0
+            return finish(false, receiveFailure)
         }
 
         while true {
             var value = 0
-            let status = kk_channel_receive(channelHandle, 0, &value)
-            guard status == kChannelResultSuccess else { break }
+            var thrown = 0
+            let status = kk_channel_receive(channelHandle, 0, &value, &thrown)
+            guard status == kChannelResultSuccess else {
+                if status == kChannelResultCancelled { receiveFailure = thrown }
+                break
+            }
             switch runtimeFlowApplyOpsLazy(
                 runtimeFlowMaybeUnbox(value),
                 ops: ops,
@@ -1165,16 +1527,16 @@ private func runtimeFlowCollectStreaming(
                 lastValues: &lastValues
             ) {
             case .emit(let value):
-                if !deliverValue(value) { return context.failure }
+                if !deliverValue(value) { return finish(true, context.failure) }
             case .filtered:
                 continue
             case let .thrown(failure):
-                return failure
+                return finish(true, failure)
             case .done:
-                return 0
+                return finish(true, 0)
             }
         }
-        return 0
+        return finish(false, receiveFailure)
     }
 
     guard flow.emitterFnPtr != 0 else {
@@ -1472,7 +1834,10 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
     outThrown?.pointee = 0
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
-        if context?.cancelled == true { return runtimeFlowStopSentinel }
+        if context?.cancelled == true {
+            outThrown?.pointee = context?.failure ?? 0
+            return runtimeFlowStopSentinel
+        }
         if let context, !context.cancelled {
             let unboxed = runtimeFlowMaybeUnbox(value)
             let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
