@@ -485,6 +485,49 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
+    func testResumedSuspendFunctionValueKeepsThrowableHandleAfterABI() throws {
+        let source = """
+        import kotlinx.coroutines.delay
+
+        suspend fun invokeSuspending(block: suspend () -> Unit) {
+            try { block() } catch (failure: Throwable) { throw failure }
+        }
+
+        suspend fun probe(failure: Throwable) {
+            invokeSuspending { delay(1); throw failure }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let types = try #require(ctx.sema).types
+            let functions = findAllKIRFunctions(in: module)
+            var resumedExceptions: [KIRExprID] = []
+            for function in functions {
+                for instruction in function.body {
+                    guard case let .call(_, callee, _, result?, _, _, _, _) = instruction,
+                          callee == ctx.interner.intern(RuntimeCall.coroutineStateGetThrownException.name)
+                    else { continue }
+                    resumedExceptions.append(result)
+                    #expect(module.arena.exprType(result) == types.nullableAnyType)
+                }
+            }
+            #expect(!resumedExceptions.isEmpty)
+            for function in functions {
+                for instruction in function.body {
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_box_int_static"
+                    else { continue }
+                    #expect(arguments.allSatisfy { !resumedExceptions.contains($0) },
+                            "Resumed throwable handles must retain their identity across the ABI")
+                }
+            }
+        }
+    }
+
+    @Test
     func testSuspendCoroutineLoweringEmitsRuntimeSuspendHelper() throws {
         let source = """
         import kotlin.coroutines.*

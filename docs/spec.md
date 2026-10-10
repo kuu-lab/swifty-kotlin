@@ -1369,6 +1369,8 @@ lock and is disposed after the operation settles. Already-committed matches keep
 the existing Channel ABI delivery behavior.
 Generated resume labels consume a delivered exception once, so a caught producer
 failure is not raised again when the caller next resumes from delay or join.
+Resumed exceptions retain their Throwable handle type instead of passing through
+integer boxing; catch clauses and cancellation causes preserve object identity.
 Cancellation classification accepts both Runtime boxes and source nominal
 subclasses, including AbortFlowException, through the runtime type hierarchy.
 Cancellable continuations resolve task-backed Job identities to their completion
@@ -1393,11 +1395,27 @@ into a stopped downstream interrupts the handler through its throw path.
 The provisional FlowCollector.emit inference shortcut runs only before builder
 inference is finalized; the final pass binds the concrete collector member.
 
-The bundled public sample waits for upstream EOF before emitting; take cannot
-stop a callback producer parked in awaitClose through that implementation
-(KUU-1759). Public conflate and debounce currently pass through. The legacy
+The bundled public sample uses a conflated value producer and a rendezvous
+ticker inside coroutineScope. Biased select receives upstream values before
+ticks, emits the latest pending value on a tick, and drops the pending tail on
+normal EOF. take and collector failure cancel and join both producers, including
+awaitClose cleanup. Upstream cancellation wakes the sampling scope before
+producer cleanup finishes; a later cleanup failure retains its original cause.
+Positive fractional Duration periods round up to milliseconds, with saturation
+for Long.MAX_VALUE and infinite periods. Empty flows stop even with an enormous
+ticker delay. The collector context can emit through the enclosing select
+handler without recursively invoking that handler (KUU-1759).
+
+CoroutineScope, ProducerScope and ActorScope context reads use the actual
+receiver's context and Job. withContext retains a dedicated child scope even
+for EmptyCoroutineContext; receiver-created children settle before return, and
+escaped receivers retain their completed Job. withContext/coroutineScope/
+supervisorScope detach their completed child Job so a failure caught by their
+caller is not observed again while draining the parent. Synchronous withContext
+entry points and resumed calls share the explicit Throwable output channel.
+Public conflate and debounce currently pass through. The legacy
 Runtime tagged conflate/debounce/sample operators retain their finite-batch
-event model. Their timing semantics are not implemented by this change.
+event model. Their timing semantics are not implemented by KUU-1759.
 
 ### Producer flow receiver builder inference (KUU-1378)
 
