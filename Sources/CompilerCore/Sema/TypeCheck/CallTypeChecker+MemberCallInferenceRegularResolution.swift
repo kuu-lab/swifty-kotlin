@@ -184,13 +184,16 @@ extension CallTypeChecker {
         // A non-safe `x.invoke` on a nullable function value is left for
         // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
         // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
+        // Callable references also retain their structural function type here.
+        // The reflective KFunction lookup view above is for metadata/extensions;
+        // it must not hide the parameter types needed for explicit invocation.
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           case let .functionType(invokeFunctionType) = sema.types.kind(of: lookupReceiverType),
+           case let .functionType(invokeFunctionType) = sema.types.kind(of: baseLookupReceiverType),
            invokeFunctionType.nullability != .nullable,
            let result = inferCallableValueInvocation(
                id,
-               calleeType: lookupReceiverType,
+               calleeType: baseLookupReceiverType,
                callableTarget: driver.helpers.callableTargetForCalleeExpr(receiverID, sema: sema),
                args: args,
                argTypes: argTypes,

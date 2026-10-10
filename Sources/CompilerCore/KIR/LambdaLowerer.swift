@@ -1648,6 +1648,34 @@ final class LambdaLowerer {
         // itself uses a plain ABI (value) -> result, so we cannot pass its
         // pointer directly to the runtime HOF implementation.
         let needsHOFWrapper = sema.bindings.isCollectionHOFLambdaExpr(exprID)
+        // Imported inline bodies and local auto-inline HOFs may have no native
+        // entry point. A reference must point at an emitted thunk whose call
+        // can be expanded by InlineLowering, including forward declarations.
+        let needsInlineWrapper: Bool = {
+            guard let callTargetSymbol else { return false }
+            let targetFlags = sema.symbols.symbol(callTargetSymbol)?.flags
+            if targetFlags?.contains(.importedLibrary) == true && targetFlags?.contains(.inlineFunction) == true
+                || sema.importedInlineFunctions.descriptors[callTargetSymbol] != nil
+                || sema.importedInlineFunctions.functions[callTargetSymbol] != nil
+            {
+                return true
+            } else if let declaration = sema.bindings.declSymbols.first(where: { $0.value == callTargetSymbol })?.key,
+                      case let .funDecl(function) = ast.arena.decl(declaration),
+                      !function.isInline, !function.modifiers.contains(.external),
+                      sema.symbols.externalLinkName(for: callTargetSymbol) == nil,
+                      let signature = sema.symbols.functionSignature(for: callTargetSymbol)
+            {
+                // Varargs are arrays/lists in the emitted signature, rather
+                // than a single function parameter even for function elements.
+                let parameterTypes = signature.receiverType.map { [$0] } ?? []
+                let valueTypes = signature.parameterTypes.enumerated().compactMap { index, type in
+                    index < signature.valueParameterIsVararg.count && signature.valueParameterIsVararg[index] ? nil : type
+                }
+                return shouldAutoInlineFunction(function, parameterTypes: parameterTypes + valueTypes, types: sema.types)
+            } else {
+                return false
+            }
+        }()
 
         // REFL-CTOR: a constructor reference (`::Foo`) must never call the
         // constructor's own body function directly -- that function only
@@ -1821,8 +1849,9 @@ final class LambdaLowerer {
                 isInline: false
             )))
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
-        } else if let callTargetSymbol, needsHOFWrapper {
-            // Generate a HOF-ABI wrapper that delegates to the target function.
+        } else if let callTargetSymbol, needsHOFWrapper || needsInlineWrapper {
+            // HOF callbacks use a closure parameter. Ordinary inline references
+            // keep the Kotlin signature and pass each bound capture directly.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
             callableName = syntheticLambdaName(for: exprID, interner: interner)
 
@@ -1832,7 +1861,7 @@ final class LambdaLowerer {
                 guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
                 return ft
             }
-            let valueParamTypes = functionType?.params ?? []
+            let valueParamTypes = (functionType?.receiver.map { [$0] } ?? []) + (functionType?.params ?? [])
             let returnType = functionType?.returnType ?? sema.types.anyType
 
             // Build wrapper params: (closureRaw, value0, ..., valueN)
@@ -1846,25 +1875,32 @@ final class LambdaLowerer {
                     type: type
                 )
             }
-            let wrapperParams = [closureParam] + valueParams
+            let captureParams = captureArguments.enumerated().map { index, capture in
+                KIRParameter(
+                    symbol: syntheticLambdaCaptureParamSymbol(lambdaExprID: exprID, captureIndex: index),
+                    type: arena.exprType(capture) ?? sema.types.anyType
+                )
+            }
+            let wrapperParams = (needsHOFWrapper ? [closureParam] : captureParams) + valueParams
 
             // Build wrapper body: call the target function with the value params,
             // then return its result.
             var body: [KIRInstruction] = [.beginBlock]
             var callArgExprs: [KIRExprID] = []
             // If the callable ref has a bound receiver, pass capture args first.
-            for _ in captureArguments {
+            for index in captureArguments.indices {
+                let parameter = needsHOFWrapper ? closureParam : captureParams[index]
                 let captureRef = arena.appendExpr(
-                    .symbolRef(closureParam.symbol),
-                    type: closureParam.type
+                    .symbolRef(parameter.symbol),
+                    type: parameter.type
                 )
-                body.append(.constValue(result: captureRef, value: .symbolRef(closureParam.symbol)))
+                body.append(.constValue(result: captureRef, value: .symbolRef(parameter.symbol)))
                 callArgExprs.append(captureRef)
             }
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
                 body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
-                let normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                let normalizedParamExpr = needsHOFWrapper ? normalizeHOFPrimitiveParameter(
                     paramExpr,
                     type: valueParam.type,
                     sema: sema,
@@ -1872,7 +1908,7 @@ final class LambdaLowerer {
                     interner: interner,
                     instructions: &body,
                     isRawCallbackParameter: true
-                )
+                ) : paramExpr
                 callArgExprs.append(normalizedParamExpr)
             }
             let callResult = arena.appendTemporary(type: returnType
@@ -1882,7 +1918,7 @@ final class LambdaLowerer {
                 callee: targetName,
                 arguments: callArgExprs,
                 result: callResult,
-                canThrow: false,
+                canThrow: !needsHOFWrapper,
                 thrownResult: nil
             ))
             switch sema.types.kind(of: returnType) {

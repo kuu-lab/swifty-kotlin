@@ -1142,6 +1142,10 @@ public func kk_coroutine_suspended() -> UnsafeMutableRawPointer
 
 Sema は overload 解決とラムダ型推論の完了後、suspend 関数・suspend 関数値の呼び出し文脈を検査する。非 suspend 文脈からの呼び出しは `KSWIFTK-SEMA-0307` で拒否する。suspend 関数・suspend ラムダは呼び出しを許可し、通常のラムダは inline 引数（noinline / crossinline を除く）の場合だけ外側の文脈を継承する。名前付き関数、デフォルト引数、クラス・object の初期化処理はそれぞれ独立した文脈を持つ。関数参照の取得自体は suspension point ではない。
 
+関数参照を変数に保存した `val r = ::add; r.invoke(3, 4)` は、元の structural function type で引数・戻り値を検査し、通常の `r(3, 4)` と同じ callable-value 経路へ束縛する（KUU-1723）。反射メンバーや extension の解決用に作る `KFunction<R>` lookup view は `.invoke` の署名を置き換えない。束縛 receiver は参照に保持し、非束縛 receiver は第一引数として受け取る。safe-call は nullable receiver を unwrap して nullable の結果を返し、unsafe nullable 呼び出し、不正な引数数・型・named/spread 引数は従来どおり拒否する。通常の nominal `operator fun invoke` は member dispatch を維持する。
+
+自動インライン化で native entry point を出力しない HOF と、別ライブラリから読み込んだ inline 関数への参照は、実体を持つ callable-reference wrapper を作る。その wrapper 内の呼び出しを InlineLowering で展開し、存在しない関数アドレスへのリンクを避ける。indexed import は inline body の遅延読込前に symbol flags で判定し、receiver function type の receiver は第一引数として渡す。通常の参照は型付き capture・Kotlin signature・例外経路・reflection を保持し、collection HOF の callback だけが既存の closureRaw ABI を使う。source の後方宣言への参照も、宣言と同じ自動インライン化方針で判定する。reified callable reference の hidden type token 保存・capture は未対応の別 ABI bug（KUU-1756）として追跡する。
+
 ### 入力
 
 KIR で `isSuspend = true` の関数。
