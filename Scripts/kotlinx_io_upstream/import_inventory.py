@@ -64,8 +64,8 @@ def platform_for(path: str) -> str:
 def disposition_for(path: str, platform: str) -> tuple[str, str]:
     if "Windows" in Path(path).name:
         return "unsupported", "Upstream file is Windows-specific and this run target is macOS."
-    if platform not in {"common", "jvm"}:
-        return "unsupported", f"Upstream target {platform!r} is outside this macOS common/JVM harness scope."
+    if platform not in {"common", "jvm", "apple"}:
+        return "unsupported", f"Upstream target {platform!r} is outside this macOS common/Apple/JVM harness scope."
     return "unmapped", "No upstream-test runner pair is configured for this case yet."
 
 
