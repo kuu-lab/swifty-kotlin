@@ -143,9 +143,37 @@ No Apple reference success is claimed by the JVM or Linux result.
 KSwiftK ports preserving every original upstream assertion body and their
 paired observation adapters remain unfinished. Existing `kotlinx_io_*` diff cases
 and Swift integration tests provide local coverage, but do not yet establish
-that mapping. KUU-1727 remains incomplete until those adapters and macOS
-reference execution are verified. Run the focused harness checks with:
+that mapping. KUU-1727 remains incomplete until those candidate adapters are verified.
+The macOS arm64 reference CI has passed all 1,217 locked executions (JVM CI:
+1,403); this remains reference-only. Run the focused harness checks with:
 
 ```sh
 python3 -m unittest discover -s Scripts/kotlinx_io_upstream/tests -v
 ```
+
+## Candidate direct-suite execution
+
+`run_candidate_subset.py` executes a locked, direct, parameterless suite against
+an explicitly supplied compiler and stdlib artifact. It prepends only the
+compiler's existing internal-access suppression; the complete original source
+bytes remain an exact suffix. Each test gets a fresh original class instance.
+Original assertions, method bodies and parameters are retained. A modified
+source, inherited factory, lifecycle hook or parameterized method is rejected
+until a driver preserving that contract exists.
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_candidate_subset.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --compiler /path/to/kswiftc --stdlib-library /path/to/KSwiftKStdlib.kklib \
+  --package-root /path/to/swifty-kotlin \
+  --suite kotlinx.io.bytestring.ByteStringBase64Test \
+  --optimization O0 --output /tmp/kio-candidate-base64
+```
+
+The compiler requires the existing assertion prerequisite PRs #8272/#8274 and
+the bundled default-index fix KUU-1766. Compile/run commands, raw streams,
+per-test stdout/failure types and input hashes are retained. A missing,
+duplicate, failed or unfinished execution cannot pass. This adapter reports
+**candidate assertion execution only**; the seven paired observations remain
+UNMAPPED and paired PASS is always zero. It does not complete KUU-1727 or map
+other suites implicitly.
