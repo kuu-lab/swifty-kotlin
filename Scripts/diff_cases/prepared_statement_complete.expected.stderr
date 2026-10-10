@@ -1,0 +1,165 @@
+Scripts/diff_cases/prepared_statement_complete.kt:28:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getParameterCount'.
+    println(insert.getParameterCount() == 6)
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:32:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(2, "Alice")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:35:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    insert.setBoolean(5, true)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:36:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(6, "2023-01-01")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:43:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(2, "Bob")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:44:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setLong'.
+    insert.setLong(3, 30L.toInt())
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:45:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setFloat'.
+    insert.setFloat(4, 88.5f)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:46:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    insert.setBoolean(5, false)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:47:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    insert.setString(6, "2023-02-01")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:52:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(1, 4) // INTEGER
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:53:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(2, 12) // VARCHAR
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:54:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(3, 4) // INTEGER
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:55:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(4, 8) // DOUBLE
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:56:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(5, 16) // BOOLEAN
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:57:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    insert.setNull(6, 12) // VARCHAR
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:64:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    select.setBoolean(2, true)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:68:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(resultSet.getInt("id") == 1)
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:69:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(resultSet.getString("name") == "Alice")
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:70:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(resultSet.getInt("age") == 25)
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:71:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(resultSet.getDouble("score") == 95.5)
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:72:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+    println(resultSet.getBoolean("active"))
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:73:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(resultSet.getString("created_at") == "2023-01-01")
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:81:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(2, "Batch1")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:84:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    batchInsert.setBoolean(5, true)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:85:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(6, "2023-03-01")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:86:5: error KSWIFTK-SEMA-0024: Unresolved member function 'addBatch'.
+    batchInsert.addBatch()
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:89:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(2, "Batch2")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:92:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    batchInsert.setBoolean(5, false)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:93:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(6, "2023-03-02")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:94:5: error KSWIFTK-SEMA-0024: Unresolved member function 'addBatch'.
+    batchInsert.addBatch()
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:97:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(2, "Batch3")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:98:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    batchInsert.setNull(3, 4)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:99:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    batchInsert.setNull(4, 8)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:100:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setNull'.
+    batchInsert.setNull(5, 16)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:101:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(6, "2023-03-03")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:102:5: error KSWIFTK-SEMA-0024: Unresolved member function 'addBatch'.
+    batchInsert.addBatch()
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:105:24: error KSWIFTK-SEMA-0024: Unresolved member function 'executeBatch'.
+    val batchResults = batchInsert.executeBatch()
+                       ^
+Scripts/diff_cases/prepared_statement_complete.kt:107:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(batchResults.all { it == 1 }) // All should return 1 (1 row affected)
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:107:32: error KSWIFTK-SEMA-0022: Unresolved reference 'it'.
+    println(batchResults.all { it == 1 }) // All should return 1 (1 row affected)
+                               ^
+Scripts/diff_cases/prepared_statement_complete.kt:110:5: error KSWIFTK-SEMA-0024: Unresolved member function 'clearBatch'.
+    batchInsert.clearBatch()
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:112:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    batchInsert.setString(2, "AfterClear")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:113:5: error KSWIFTK-SEMA-0024: Unresolved member function 'addBatch'.
+    batchInsert.addBatch()
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:115:29: error KSWIFTK-SEMA-0024: Unresolved member function 'executeBatch'.
+    val afterClearResults = batchInsert.executeBatch()
+                            ^
+Scripts/diff_cases/prepared_statement_complete.kt:119:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getParameterCount'.
+    val paramCount = batchInsert.getParameterCount()
+                     ^
+Scripts/diff_cases/prepared_statement_complete.kt:145:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    println(countResult.getInt("total") >= 8) // Should have at least 8 rows
+            ^
+Scripts/diff_cases/prepared_statement_complete.kt:158:19: error KSWIFTK-SEMA-0002: No viable overload found for call.
+        val age = typeResult.getInt("age")
+                  ^
+Scripts/diff_cases/prepared_statement_complete.kt:159:21: error KSWIFTK-SEMA-0002: No viable overload found for call.
+        val score = typeResult.getDouble("score")
+                    ^
+Scripts/diff_cases/prepared_statement_complete.kt:169:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    boolTest.setBoolean(1, true)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:174:17: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+        println(trueResult.getBoolean("active"))
+                ^
+Scripts/diff_cases/prepared_statement_complete.kt:178:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
+    boolTest.setBoolean(1, false)
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:183:18: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
+        println(!falseResult.getBoolean("active"))
+                 ^
+Scripts/diff_cases/prepared_statement_complete.kt:193:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setLong'.
+    longTest.setLong(1, 999999999L.toInt())
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:194:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    longTest.setString(2, "LongTest")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:200:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
+    verifyLong.setString(1, "LongTest")
+    ^
+Scripts/diff_cases/prepared_statement_complete.kt:203:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getLong'.
+    println(longResult.getLong("id") == 999999999L)
+            ^
