@@ -1,6 +1,8 @@
 
 final class DeclTypeChecker {
     unowned let driver: TypeCheckDriver
+    var annotationConstantEvaluator: ConstPropertyEvaluator?
+    var pendingAnnotationConstants: [(ExprID, TypeInferenceContext, Bool)] = []
 
     init(driver: TypeCheckDriver) {
         self.driver = driver
@@ -141,6 +143,7 @@ final class DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        typeCheckAnnotationFactories(property.annotations, symbol: symbol, ctx: ctx)
         let sema = ctx.sema
         var inferredPropertyType: TypeID? = property.type != nil
             ? sema.symbols.propertyType(for: symbol)

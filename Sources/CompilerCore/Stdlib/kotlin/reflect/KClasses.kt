@@ -209,7 +209,7 @@ private external fun __kk_kclass_visibility(kclass: KClass<*>): KVisibility?
 @KsSymbolName("__kk_kclass_type_parameters")
 private external fun __kk_kclass_type_parameters(kclass: KClass<*>): List<Any?>
 
-@KsSymbolName("__kk_kclass_get_annotations")
+@KsSymbolName("__kk_kclass_get_annotations_typed")
 private external fun __kk_kclass_get_annotations(kclass: KClass<*>): List<Annotation>
 
 @KsSymbolName("__kk_kclass_members")

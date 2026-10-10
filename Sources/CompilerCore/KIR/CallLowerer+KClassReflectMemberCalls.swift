@@ -184,17 +184,22 @@ extension CallLowerer {
             // no value parameters — the annotation class to search for comes from
             // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
             // `bindKClassFindAnnotationCall`), not from the argument list.
-            let searchNameExpr = lowerReifiedTypeNameHint(
-                typeArg: sema.bindings.findAnnotationSearchType(for: exprID),
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
+            let searchType = sema.bindings.findAnnotationSearchType(for: exprID)
+                .map { sema.types.makeNonNullable($0) }
+            let token: KIRExprKind
+            if let searchType, case let .typeParam(parameter) = sema.types.kind(of: searchType) {
+                token = .symbolRef(SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter.symbol))
+            } else {
+                token = .intLiteral(searchType.map {
+                    RuntimeTypeCheckToken.encode(type: $0, sema: sema, interner: interner)
+                } ?? 0)
+            }
+            let searchToken = arena.appendExpr(token, type: sema.types.intType)
+            instructions.append(.constValue(result: searchToken, value: token))
             return emitRuntimeCall(
-                callee: "__kk_kclass_find_annotation",
-                arguments: [kclassExpr, searchNameExpr],
-                fallbackType: sema.types.anyType
+                callee: "__kk_kclass_find_annotation_typed",
+                arguments: [kclassExpr, searchToken],
+                fallbackType: sema.types.anyType, canThrow: true
             )
 
         case "findAssociatedObject":

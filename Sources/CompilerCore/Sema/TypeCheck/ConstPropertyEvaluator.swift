@@ -57,6 +57,20 @@ final class ConstPropertyEvaluator {
         }
     }
 
+    /// Share the language's primitive/String constant rules with annotation values.
+    func constantExpression(_ expression: ExprID) -> KIRExprKind? {
+        let collector = ConstantCollector(
+            resolvedConstant: { [self] expr in resolvedConstant(for: expr) },
+            canFoldMemberCall: { [self] expr in canFoldMemberCall(expr) }
+        )
+        if let value = collector.literalConstantExpr(expression, ast: ast, interner: interner) { return value }
+        if sema.bindings.exprType(for: expression) == sema.types.stringType,
+           let text = collector.constantStringConcatOperandText(expression, ast: ast, sema: sema, interner: interner) {
+            return .stringLiteral(interner.intern(text))
+        }
+        return nil
+    }
+
     private func constant(for symbol: SymbolID) -> KIRExprKind? {
         if properties[symbol] == nil || evaluated.contains(symbol),
            let value = sema.symbols.constValueExprKind(for: symbol) { return value }

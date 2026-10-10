@@ -111,6 +111,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     let globalOptInMarkerNames: [String]
     /// Opt-ins granted only inside the current accessor body.
     var accessorOptInMarkers: Set<SymbolID> = []
+    /// Only the outer annotation constructor can reuse earlier application checks.
+    /// Nested expressions and constructor-specific markers still need checking.
+    var annotationOptInValidation: (owner: SymbolID, range: SourceRange?, markers: Set<SymbolID>)?
     /// Set of DslMarker annotation FQ names active on the current implicit receiver.
     /// When a nested lambda introduces a receiver whose class carries the same
     /// DslMarker annotation as an outer receiver, the outer receiver is hidden

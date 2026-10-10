@@ -94,6 +94,18 @@ public extension RuntimeABISpec {
     /// KFunction, KProperty, and KConstructor reflection runtime functions.
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_register_annotation_factory",
+            parameters: ["callableRaw", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
+                RuntimeABIParameter(name: $0, type: .intptr)
+            }, returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kcallable_get_annotations_typed",
+            parameters: [RuntimeABIParameter(name: "callableRaw", type: .intptr),
+                         RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kcallable_register_single_annotation",
             parameters: ["callableRaw", "fqNameRaw", "argsEncodedRaw", "argCount"].map {
                 RuntimeABIParameter(name: $0, type: .intptr)

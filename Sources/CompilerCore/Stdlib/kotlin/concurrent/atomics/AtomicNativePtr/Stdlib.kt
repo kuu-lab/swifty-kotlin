@@ -6,6 +6,7 @@
 package kotlin.concurrent.atomics
 
 import kotlinx.cinterop.NativePtr
+import kotlin.concurrent.Volatile
 
 /** Stores the native pointer used by the atomic receiver APIs. */
 @SinceKotlin("2.1")

@@ -585,6 +585,7 @@ extension BuildASTPhase {
     ) -> [ValueParamDecl] {
         let tokens = collectTokens(from: nodeID, in: arena)
         let nodeKind = arena.node(nodeID).kind
+        let allowsAnnotationArrays = declarationModifiers(from: nodeID, in: arena).contains(.annotationClass)
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
@@ -605,7 +606,8 @@ extension BuildASTPhase {
             }
             depth.track(token.kind)
             if token.kind == .symbol(.comma), depth.isAtTopLevel {
-                appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena)
+                appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
+                                     allowAnnotationArrays: allowsAnnotationArrays)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
                 paramTokens.append(token)
@@ -613,7 +615,8 @@ extension BuildASTPhase {
             index += 1
         }
         if !paramTokens.isEmpty {
-            appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena)
+            appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena,
+                                 allowAnnotationArrays: allowsAnnotationArrays)
         }
         return arguments
     }
@@ -727,7 +730,8 @@ extension BuildASTPhase {
         from tokens: [Token],
         into parameters: inout [ValueParamDecl],
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        allowAnnotationArrays: Bool = false
     ) {
         let split = splitDefaultValue(tokens)
         let withoutDefault = split.withoutDefault
@@ -815,6 +819,7 @@ extension BuildASTPhase {
             let parser = ExpressionParser(
                 tokens: defaultTokens, interner: interner, astArena: astArena, diagnostics: diagnostics
             )
+            parser.allowAnnotationArrayLiterals = allowAnnotationArrays
             defaultValueExpr = parser.parse()
         } else {
             defaultValueExpr = nil
@@ -848,7 +853,8 @@ extension BuildASTPhase {
                 return nil
             }
             // A vararg parameter is lowered as an element-typed parameter for
-            // call resolution, but its constructor property is Array<out T>.
+            // call resolution, but its constructor property is an array.
+            // Header resolution selects primitive arrays after resolving aliases.
             let propertyType: TypeRefID? = if param.isVararg, let elementType = param.type {
                 astArena.appendTypeRef(.named(
                     path: [interner.intern("Array")],

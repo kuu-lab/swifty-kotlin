@@ -157,6 +157,7 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: orderedTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
+        emitAnnotationFactories(shared: shared, compilationCtx: compilationCtx)
         insertEnumLazyInitTriggers(arena: arena, sema: sema)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
@@ -219,7 +220,7 @@ extension KIRLoweringDriver {
         }
     }
 
-    private func shouldSkipBundledFileForOutput(
+    func shouldSkipBundledFileForOutput(
         _ file: ASTFile,
         compilationCtx: CompilationContext
     ) -> Bool {

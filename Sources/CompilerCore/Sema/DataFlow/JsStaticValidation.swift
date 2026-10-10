@@ -24,6 +24,7 @@ extension DataFlowSemaPhase {
                     scopeSymbol: nil,
                     range: file.range,
                     symbols: symbols,
+                    bindings: bindings,
                     diagnostics: diagnostics,
                     interner: interner,
                     globalOptInMarkerNames: globalOptInMarkerNames
@@ -78,6 +79,7 @@ extension DataFlowSemaPhase {
                 scopeSymbol: bindings.declSymbols[declID],
                 range: decl.range,
                 symbols: symbols,
+                bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
                 globalOptInMarkerNames: globalOptInMarkerNames

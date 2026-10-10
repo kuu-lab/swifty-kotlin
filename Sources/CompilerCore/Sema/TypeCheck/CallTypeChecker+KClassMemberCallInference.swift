@@ -24,6 +24,7 @@ extension CallTypeChecker {
         calleeName: InternedString,
         args: [CallArgument],
         explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -110,6 +111,7 @@ extension CallTypeChecker {
                 id,
                 args: args,
                 explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
                 ctx: ctx,
                 locals: &locals
             )
@@ -139,6 +141,7 @@ extension CallTypeChecker {
         calleeName: InternedString,
         args: [CallArgument],
         explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -207,6 +210,7 @@ extension CallTypeChecker {
                 id,
                 args: args,
                 explicitTypeArgs: explicitTypeArgs,
+                expectedType: expectedType,
                 ctx: ctx,
                 locals: &locals
             )

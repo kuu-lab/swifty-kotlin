@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.experimental.ExperimentalTypeInference
+
 // KUU-941: a primitive `vararg` parameter is a primitive array in the callee, so
 // the aggregate that used to work only because it was typed as List<T> lives here.
 

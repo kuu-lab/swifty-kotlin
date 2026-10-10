@@ -286,6 +286,7 @@ private final class TypeCheckWork: @unchecked Sendable {
         driver.typeCheckModule(fileScopes: fileScopes, files: files)
         ConstPropertyEvaluator(ast: driver.ast, sema: driver.sema, interner: driver.interner)
             .evaluate(diagnostics: driver.diagnostics)
+        driver.declChecker.validatePendingAnnotationConstants()
         driver.validateJsFileNameAnnotationArguments(in: files)
     }
 }

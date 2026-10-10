@@ -1109,8 +1109,11 @@ extension CallLowerer {
         if let index = metadataMembers.firstIndex(of: member) {
             let ordinal = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
             instructions.append(.constValue(result: ordinal, value: .intLiteral(Int64(index))))
-            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kcallable_get_metadata"),
-                                      arguments: [loweredReceiverID, ordinal], result: result, canThrow: false, thrownResult: nil))
+            instructions.append(.call(symbol: nil,
+                                      callee: interner.intern(member == "annotations"
+                                          ? "__kk_kcallable_get_annotations_typed" : "__kk_kcallable_get_metadata"),
+                                      arguments: member == "annotations" ? [loweredReceiverID] : [loweredReceiverID, ordinal],
+                                      result: result, canThrow: member == "annotations", thrownResult: nil))
         } else {
             emitNonThrowingCall(callee: getNameCallee, arg: loweredReceiverID, result: result, into: &instructions)
         }
