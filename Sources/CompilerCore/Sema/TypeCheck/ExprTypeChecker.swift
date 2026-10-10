@@ -185,6 +185,19 @@ final class ExprTypeChecker {
                 sema: sema
             ) {
                 sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+                driver.helpers.checkDeprecation(
+                    for: propResult.symbol,
+                    sema: sema,
+                    interner: interner,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+                driver.helpers.checkOptIn(
+                    for: propResult.symbol,
+                    ctx: ctx,
+                    range: range,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
             } else {
                 // Extension `var` properties (e.g. the bundled
                 // kotlin.native.concurrent.AtomicInt.value) are not members —

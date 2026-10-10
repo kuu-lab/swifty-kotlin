@@ -514,6 +514,14 @@ extension ExprTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
+            driver.helpers.checkDeprecation(
+                for: propSymbol.id, sema: sema, interner: interner,
+                range: range, diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: propSymbol.id, ctx: ctx, range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
             if implicitReceiverMember != nil {
                 sema.bindings.markImplicitReceiverMember(id, name: name)
             }
@@ -696,11 +704,12 @@ extension ExprTypeChecker {
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        guard let propResult = driver.helpers.lookupMemberProperty(
+        let memberProperty = driver.helpers.lookupMemberProperty(
             named: calleeName,
             receiverType: nonNullReceiver,
             sema: sema
-        ) ?? resolveExtensionPropertyForCompoundAssignment(
+        )
+        guard let propResult = memberProperty ?? resolveExtensionPropertyForCompoundAssignment(
             id: id,
             named: calleeName,
             receiverType: receiverType,
@@ -733,6 +742,22 @@ extension ExprTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+        if memberProperty != nil {
+            // The extension fallback already checks its selected getter.
+            driver.helpers.checkDeprecation(
+                for: propResult.symbol,
+                sema: sema,
+                interner: interner,
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: propResult.symbol,
+                ctx: ctx,
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
         }
         if let cachedValue = ctx.ast.arena.incrementDecrementCachedValue(for: id) {
             _ = driver.inferExpr(cachedValue, ctx: ctx, locals: &locals, expectedType: propType)
