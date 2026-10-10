@@ -1327,3 +1327,39 @@ Primary-property `@Suppress` ranges cover only the same parameter's annotations
 and default initializer, rather than the synthesized property's class-wide range.
 General target validation still omits declarations inside function bodies;
 local class/parameter target violations are tracked separately in KUU-1757.
+
+### Producer flow receiver builder inference (KUU-1378)
+
+Postponed receiver-lambda constraints include monomorphic members and members
+whose type parameters belong only to their declaring class. Generic constructors
+and methods with their own type parameters retain their independent inference.
+Before collecting member argument constraints, the actual receiver is lifted to
+the generic owner. Explicit ordinary receivers use their own arguments; member
+extensions use their dispatch receiver, and unrelated receivers provide no
+evidence for the builder's variables. Existing monomorphic constructor constraints
+remain available to infer a builder variable used in the constructor argument.
+Class-only reads preserve provisional owner arguments so their result can provide
+outer constraints. Spread and named varargs compare whole arrays with the
+contextual array parameter. Explicit and expected type seeds contextualize
+ordinary builder arguments; only concrete numeric member arguments receive a
+receiver-specialized literal expectation. Constructors keep independent inference.
+The final lambda pass re-infers nested member arguments rather than reusing their
+provisional type. Single-member recovery checks the actual receiver's parameter
+types and rejects invalid method type arguments. Fully concrete member constraints
+also remain in the builder session, so a fixed expected element cannot be widened
+from an incompatible send value. Speculative diagnostics use `truncate(to:)` to
+restore deduplication and per-file counts before final diagnostics are emitted.
+
+The generic builder success path preserves the selected bundled producer's
+receiver/continuation launcher convention, just as regular call resolution does.
+Package-qualified top-level calls use the same postponed builder constraints and
+contextual lambda argument preparation as imported calls. The qualifier remains
+a namespace for lowering; a local variable matching only the final function name
+does not shadow that qualified declaration. Explicit type arguments also preserve
+the producer's launcher convention.
+Bundled source origin or validated stdlib import provenance identifies producers;
+same-package user overloads retain the ordinary callable ABI. Inferred
+channelFlow/callbackFlow element types and transformLatest result types
+are checked through source/cache and separate library boundaries. Empty builders
+without type evidence and incompatible explicit/expected types remain errors.
+Producer exception propagation remains a separate runtime issue, KUU-1457.

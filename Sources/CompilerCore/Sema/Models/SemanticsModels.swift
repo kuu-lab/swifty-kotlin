@@ -619,6 +619,9 @@ public final class SymbolTable {
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    /// Selected symbols imported from the validated stdlib artifact, including
+    /// indexed declarations whose bodies have not been materialized yet.
+    private var importedStdlibSymbolIDs: Set<SymbolID> = []
     private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
@@ -1459,6 +1462,14 @@ public final class SymbolTable {
 
     public func typeParametersPendingBoundConflictCheck() -> [(symbol: SymbolID, declSite: SourceRange?)] {
         pendingTypeParameterBoundConflictChecks
+    }
+
+    func markImportedStdlibSymbol(_ symbol: SymbolID) {
+        importedStdlibSymbolIDs.insert(symbol)
+    }
+
+    func isImportedStdlibSymbol(_ symbol: SymbolID) -> Bool {
+        importedStdlibSymbolIDs.contains(symbol)
     }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {

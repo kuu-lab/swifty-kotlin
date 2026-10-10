@@ -346,7 +346,24 @@ extension CallTypeChecker {
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
         guard !vis.isEmpty else { return nil }
 
-        let argTypes = args.map { arg -> TypeID in
+        if let builderResult = inferReceiverBuilderCall(
+            id, calleeName: calleeName, args: args, range: range,
+            ctx: ctx, locals: &locals, expectedType: request.expectedType,
+            explicitTypeArgs: explicitTypeArgs, candidateOverride: vis
+        ) {
+            sema.bindings.markFQNTopLevelCallExpr(id)
+            return builderResult
+        }
+        // A package qualifier is not a value receiver, but its lambda arguments
+        // need the same signature context as an imported top-level call. This
+        // also contextualizes builders with explicit element type arguments.
+        let preparedArgs = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+            ? prepareCallArguments(
+                args: args, callRange: range, candidates: vis,
+                contextualCallResultType: request.expectedType,
+                explicitTypeArgs: explicitTypeArgs, ctx: ctx, locals: &locals
+            ) : nil
+        let argTypes = preparedArgs?.argTypes ?? args.map { arg -> TypeID in
             sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
         }
         let callArgs = zip(args, argTypes).map { arg, type in
@@ -358,12 +375,23 @@ extension CallTypeChecker {
             args: callArgs,
             explicitTypeArgs: explicitTypeArgs
         )
-        let resolved = ctx.resolver.resolveCall(
-            candidates: vis,
-            call: call,
-            expectedType: request.expectedType,
-            ctx: sema
-        )
+        let resolved: ResolvedCall
+        if let preparedArgs {
+            resolved = resolveCallRespectingLambdaReturnType(
+                candidates: vis, args: args, argTypes: argTypes, range: range,
+                calleeName: calleeName, explicitTypeArgs: explicitTypeArgs,
+                expectedType: request.expectedType, implicitReceiverType: nil,
+                lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
+                inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
+                blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
+                hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
+                ctx: ctx
+            )
+        } else {
+            resolved = ctx.resolver.resolveCall(
+                candidates: vis, call: call, expectedType: request.expectedType, ctx: sema
+            )
+        }
         guard let chosen = resolved.chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosen)
         else { return nil }
@@ -386,6 +414,7 @@ extension CallTypeChecker {
             range: range,
             diagnostics: ctx.semaCtx.diagnostics
         )
+        markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
         // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
         // namespace path, never type-checked above, so KIR lowering must not
         // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.

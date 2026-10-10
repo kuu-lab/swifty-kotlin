@@ -112,7 +112,10 @@ extension CallTypeChecker {
             // Speculative declaration checks can leave a name reference bound
             // to a placeholder type. Read its current local/member type again.
             let inferredType: TypeID
-            if case .nameRef = ast.arena.expr(arg.expr) {
+            if ctx.builderInference != nil || {
+                if case .nameRef = ast.arena.expr(arg.expr) { return true }
+                return false
+            }() {
                 inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
             } else {
                 inferredType = sema.bindings.exprType(for: arg.expr)
