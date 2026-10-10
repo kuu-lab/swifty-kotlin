@@ -52,15 +52,7 @@ extension KIRLoweringDriver {
         // parameter and then branches (try/catch, conditional throw) corrupts the CPS
         // state machine at the call site. Such functions compile as standalone CPS
         // coroutines instead, which handle post-suspension control flow correctly.
-        let hasLambdaParam = params.contains { param in
-            if case .functionType = sema.types.kind(of: param.type) { return true }
-            return false
-        }
-        let hasNoInlineAnnotation = function.annotations.contains { ann in
-            ann.name == "NoInline" || ann.name == "kotlin.native.NoInline"
-                || ann.name == "KsNoInline" || ann.name == "kotlin.internal.KsNoInline"
-        }
-        let autoInline = hasLambdaParam && !function.isSuspend && !hasNoInlineAnnotation
+        let autoInline = shouldAutoInlineFunction(function, parameterTypes: params.map(\.type), types: sema.types)
         let effectiveInline: Bool = function.isInline || autoInline
         let isInlineOnly = !function.isInline && autoInline
         let kirID = arena.appendDecl(.function(KIRFunction(
