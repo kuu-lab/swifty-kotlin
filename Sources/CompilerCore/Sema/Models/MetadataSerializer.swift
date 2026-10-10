@@ -406,6 +406,20 @@ package final class MetadataEncoder {
                 if !includeNonPublic && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
                 }
+                if !includeNonPublic {
+                    // A public member of a hidden class is not a module API.
+                    // Exporting it without its nominal owner makes the decoder
+                    // erase its receiver and creates spurious overloads.
+                    var parentID = symbols.parentSymbol(for: symbol.id)
+                    while let parent = parentID, let owner = symbols.symbol(parent) {
+                        if Self.nominalKinds.contains(owner.kind),
+                           owner.visibility != .public, owner.visibility != .protected
+                        {
+                            return false
+                        }
+                        parentID = symbols.parentSymbol(for: parent)
+                    }
+                }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
                 // source-backed data class are synthesized symbols, but they are part of
                 // the class's public surface and are compiled into the artifact. Without

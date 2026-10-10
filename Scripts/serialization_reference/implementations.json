@@ -223,6 +223,88 @@
         "@OptIn(ExperimentalSerializationApi::class)"
       ],
       "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "4bf45cd97920b022ebce9310dbc92f30b26c30fec3cd862c5b61ecde357c2e82",
+      "ticket": "KUU-1747",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/WrappedSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/DescriptorDisplay.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_wrapped_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_wrapped_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationWrappedDescriptorTests.swift",
+      "test_suite": "SerializationWrappedDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@Suppress(\"FunctionName\")",
+        "@OptIn(ExperimentalSerializationApi::class, SealedSerializationApi::class)"
+      ],
+      "requires_caller_opt_in": false,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+          "sha256": "9c7c3535950d63c3a6cbab61ffdb535939749ab2d943079e7e50788d72622498",
+          "git_blob": "f8ba4728244991f447cf31dcfa290a0bdc68419c"
+        }
+      ]
+    },
+    {
+      "declaration_id": "8d215c9197d5f6779e3b53a31da9df0266f5f89e66be7d650c615a1cf0dcc12e",
+      "ticket": "KUU-1747",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/WrappedSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/DescriptorDisplay.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_wrapped_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_wrapped_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationWrappedDescriptorTests.swift",
+      "test_suite": "SerializationWrappedDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@Suppress(\"FunctionName\")",
+        "@OptIn(ExperimentalSerializationApi::class, SealedSerializationApi::class)"
+      ],
+      "requires_caller_opt_in": false,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+          "sha256": "9c7c3535950d63c3a6cbab61ffdb535939749ab2d943079e7e50788d72622498",
+          "git_blob": "f8ba4728244991f447cf31dcfa290a0bdc68419c"
+        }
+      ]
     }
   ]
 }

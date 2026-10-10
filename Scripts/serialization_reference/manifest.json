@@ -180,6 +180,14 @@
       "sha256": "276892d5cbe5225a80e905319701ca01fe6e197cc95927303a2388e2fa875e35",
       "git_blob": "4bba9a6cfe6ac9d6b3c1ecee55839da8fd0b1aba",
       "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/Platform.common.kt"
+    },
+    {
+      "module": "core",
+      "platform": "common",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/PluginGeneratedSerialDescriptor.kt",
+      "sha256": "9c7c3535950d63c3a6cbab61ffdb535939749ab2d943079e7e50788d72622498",
+      "git_blob": "f8ba4728244991f447cf31dcfa290a0bdc68419c"
     }
   ],
   "artifacts": [

@@ -93,3 +93,13 @@ Kotlin 2.3.10. For the full eight-module suite, Native/macOS backend and distrib
 KSwiftK source/prebuilt/separate-library consumers, and O0/O2 compatibility remain
 work for other children of KUU-1724. HOCON's Java dependencies require a real native
 implementation or explicit bridge; this JVM reference does not settle that choice.
+
+`KUU-1747` の stable `SerialDescriptor(serialName, original)` factory は
+`SerialDescriptors.kt` の原本と `PluginGeneratedSerialDescriptor.kt` の表示 helper を
+別々の path/hash で固定し、JVM/KLIB の2公開宣言 IDを対応 overlay に記録します。
+`--case wrapped-descriptor` は published 1.10.0 に対する改名、全11 APIへの委譲、
+名前検証の順序、equality/hash/表示と整数 overflow の実測 fixture です。
+`SerializationWrappedDescriptorTests` は source/cache と producer-generated wrapper の
+別 `.kklib` consumer を O0/O2 で確認し、stable factory の annotation と internal
+wrapper/helper の境界、null 引数の対象呼び出しでの拒否も検査します。
+他の builders、reified serializer と format module の全対応は親 `KUU-1724` に残ります。
