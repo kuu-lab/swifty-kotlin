@@ -54,7 +54,7 @@ extension CallTypeChecker {
               explicitTypeArgs.isEmpty,
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
-                  callArgs: args.map { CallArg(label: $0.label, isSpread: $0.isSpread, type: ctx.sema.types.anyType) },
+                  callArgs: args.map { CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast) },
                   symbols: ctx.sema.symbols,
                   typeSystem: ctx.sema.types,
                   isCallableArgument: { ctx.ast.arena.expr(args[$0].expr)?.isLambdaOrCallableRef == true }
@@ -174,7 +174,7 @@ extension CallTypeChecker {
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(range: range, calleeName: calleeName, args: zip(args, argumentTypes).map {
-                CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast)
             }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
                 variables[symbol].flatMap { solution.substitution[$0] }
             }),
@@ -198,6 +198,7 @@ extension CallTypeChecker {
 
     func collectPostponedArgumentConstraints(
         args: [CallArgument],
+        range: SourceRange,
         argTypes: [TypeID],
         candidates: [SymbolID],
         ctx: TypeInferenceContext
@@ -210,7 +211,7 @@ extension CallTypeChecker {
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
                   callArgs: zip(args, argTypes).map {
-                      CallArg(label: $0.0.label, isSpread: $0.0.isSpread, type: $0.1)
+                      CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast)
                   },
                   symbols: ctx.sema.symbols, typeSystem: ctx.sema.types
               )

@@ -252,6 +252,7 @@ extension CallTypeChecker {
 
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             explicitTypeArgs: explicitTypeArgs,
             receiverType: nonNullReceiver,
@@ -381,7 +382,7 @@ extension CallTypeChecker {
             driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
         }
         let resolvedArgs = zip(args, argTypes).map { argument, type in
-            CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+            CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
         }
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
@@ -513,7 +514,7 @@ extension CallTypeChecker {
                 }
             )
             let resolvedArgs = zip(args, argTypes).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
             }
             for group in orderedGroups {
                 let resolved = ctx.resolver.resolveCall(

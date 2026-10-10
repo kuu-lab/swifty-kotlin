@@ -67,7 +67,7 @@ extension CallTypeChecker {
                     locals: &locals,
                     expectedType: parameterExpectedType
                 )
-                argTypes.append(CallArg(label: argument.label, isSpread: argument.isSpread, type: inferredType))
+                argTypes.append(CallArg.source(argument, type: inferredType, callRange: range, ast: ctx.ast))
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: narrowedSamCandidates,
