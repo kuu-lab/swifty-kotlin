@@ -305,6 +305,246 @@
           "git_blob": "f8ba4728244991f447cf31dcfa290a0bdc68419c"
         }
       ]
+    },
+    {
+      "declaration_id": "3f94bc5e1fa30be2ae6da1aa914d0ef63e834886a80ad6bb647112e552205327",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
+    },
+    {
+      "declaration_id": "6fb8794dc4bbc9130a53125b664fc110d8c06c754f74fc14df48c338de47a2ff",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
+    },
+    {
+      "declaration_id": "7dd96036b90090627b2bf04d7e4be710564a803acba7df849c4e671dff1b32f8",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
+    },
+    {
+      "declaration_id": "a5d653c70dadff948cfa977349bf6fc9e8b038b80f6793dec9cdf92f6f4a02d4",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
+    },
+    {
+      "declaration_id": "b2f0e352216580d0a0bb8c44b517ff591974f1fd7d57bbf3c5f1ddc9722cfe94",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
+    },
+    {
+      "declaration_id": "f40b85fc1fd6330c82dcd0cd8e765834e29cf4e55a2b5f667b489aa7acc8c224",
+      "ticket": "KUU-1748",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/CollectionSerialDescriptors.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CollectionDescriptors.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_collection_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_collection_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationCollectionDescriptorTests.swift",
+      "test_suite": "SerializationCollectionDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true,
+      "upstream_contracts": [
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/descriptors/SerialDescriptors.kt",
+          "sha256": "196304f40461d3ce87f9d1ed2e7aa9e39182c044e71cedeb87a743f33a62a897",
+          "git_blob": "afb1ee840785cab844e7ef53f102d8f56562dec3"
+        },
+        {
+          "path": "upstream/core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
+          "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
+          "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+        }
+      ]
     }
   ]
 }
