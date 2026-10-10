@@ -5,17 +5,18 @@ Kotlin compiler baseline: `2.3.10`.
 
 ## Generated counts
 
-- Kotlin/KLIB source declaration rows: **280**.
-- JVM ABI dump rows: **369**, including **119** generated/accessor rows kept separate from Kotlin source callables.
-- KLIB rows backed by non-public implementation declarations: **35**; these are separate from public source APIs.
-- `@PublishedApi internal` implementation ABI rows: **18**.
-- Rows marked missing because no same-kind, same-name local candidate was found: **27**.
-- Rows with a same-kind, same-name local candidate but without semantic verification: **675**.
-- Source exception contracts documented with `@throws`/`@Throws`: **280** rows.
-- Source deprecation levels found: ERROR=2
+- Kotlin/KLIB source declaration rows: **281**.
+- JVM ABI dump rows: **369**, including **124** generated/accessor rows kept separate from Kotlin source callables.
+- KLIB rows backed by non-public implementation declarations: **34**; these are separate from public source APIs.
+- `@PublishedApi internal` implementation ABI rows: **19**.
+- Rows marked missing because no exact owner/receiver/parameter local declaration was found: **57**.
+- Rows with exact local declarations or generated ABI entries, without semantic verification: **649**.
+- Public JVM exception typealiases tracked separately: **3**.
+- Source exception contracts documented with `@throws`/`@Throws`: **241** rows.
+- Source deprecation levels found: ERROR=4
 - No row is marked `verified` by this inventory generator; the test harness and behavior work own semantic verification.
 
-`api-inventory.tsv` includes the authoritative KLIB source declaration and the JVM ABI entries as separate representations. KLIB records whose source declaration is internal/private are retained in their own implementation-ABI representation. The API dump cannot prove implementation semantics; the conservative local scan reports `unverified` when a candidate declaration exists and `missing` when none is found.
+`api-inventory.tsv` includes the authoritative KLIB source declaration and the JVM ABI entries as separate representations. KLIB records whose source declaration is internal/private are retained in their own implementation-ABI representation. The API dump cannot prove implementation semantics; Kotlin PSI and JVM metadata establish declaration identity, with `unverified` for exact local declarations and `missing` when none exists. `local_contract_differences` preserves parameter/default/visibility differences and `local_implementation_refs` points to source bodies or declared runtime bridges.
 
 ## Surface and exclusions
 
@@ -29,19 +30,19 @@ Kotlin compiler baseline: `2.3.10`.
 ## Reproducibility
 
 The checked-in upstream snapshot is verified against both Git blob SHA-1 and SHA-256 from `upstream-lock.json`. The test catalog is pinned by Git blob SHA and file size at the same commit.
-The JVM artifacts are fixed by Maven coordinate and SHA-256 in the lock; use `python3 Scripts/io_api_inventory/generate.py --verify-jars /path/to/jars` with files named by artifact or `--download-jars` to check them.
+The JVM artifacts are fixed by Maven coordinate and SHA-256 in the lock; use `python3 Scripts/io_api_inventory/generate.py --check --verify-jars /path/to/jars` with files named by artifact or `--download-jars` to check them.
 
 ```sh
 python3 Scripts/io_api_inventory/generate.py --write
 python3 Scripts/io_api_inventory/generate.py --check
-python3 Scripts/io_api_inventory/generate.py --verify-jars /tmp
+python3 Scripts/io_api_inventory/generate.py --check --verify-jars /tmp
 ```
 
 ## Owner routing
 
-Rows route to existing KUU-1729 (Buffer/Segment), KUU-1730 (buffered source/sink lifecycle), or KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), and KUU-1725 otherwise. ByteString, Filesystem, JVM interop, and Apple-specific families have no dedicated child ticket in the current Linear child list and are therefore left with parent KUU-1725 for triage/splitting; they are not silently marked out of scope.
+Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.
 
 ## JVM ABI classification
 
-Generated JVM-only entries are classified separately: `54` default/synthetic entries, `35` property/internal accessors, `1` bridge entries, `22` file facades, `1` companion classes, and `6` fields.
+Generated JVM-only entries are classified separately: `48` default/synthetic entries, `35` property/internal accessors, `1` bridge entries, `22` file facades, `1` companion classes, and `6` fields.
 Getter/setter rows are marked as ABI accessors only when an upstream Kotlin property with the matching name exists; methods such as `getByteString` remain source callables.

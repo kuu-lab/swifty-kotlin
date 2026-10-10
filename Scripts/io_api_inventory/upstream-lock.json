@@ -912,5 +912,7 @@
       "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
     }
   ],
-  "upstreamTestsIndexSha256": "8b7be63016fee650c4f10d1e20241cf76de1b4100ceff70bae8abfe80967d219"
+  "upstreamTestsIndexSha256": "8b7be63016fee650c4f10d1e20241cf76de1b4100ceff70bae8abfe80967d219",
+  "sourceDeclarationsSha256": "da12efc38393b24ce431d8362bb3d16da4d8fa372aa618312a7f2e311deefa9c",
+  "jvmDeclarationsSha256": "430abec2143506801dde63151b2895b983a6e7fcc80571398b42ebc5af94c64c"
 }

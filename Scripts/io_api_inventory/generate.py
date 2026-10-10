@@ -17,6 +17,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
+sys.path.insert(0, str(HERE))
+from source_index import SourceIndex, api_key
+
 UPSTREAM = HERE / "upstream" / "kotlinx-io-0.9.1"
 LOCK_PATH = HERE / "upstream-lock.json"
 TEST_INDEX_PATH = HERE / "upstream-tests-index.json"
@@ -37,12 +40,15 @@ LEDGER_COLUMNS = [
     "signature",
     "default_parameter_count",
     "annotations",
+    "platform_metadata",
     "deprecation",
     "exception_contract",
     "upstream_source_refs",
     "jvm_abi_refs",
     "upstream_test_refs",
     "local_candidate_refs",
+    "local_implementation_refs",
+    "local_contract_differences",
     "local_test_refs",
     "status",
     "owner_issue",
@@ -898,6 +904,9 @@ def parse_jvm_api(path: Path, module: str, sources: list[Path]) -> list[dict]:
             "_candidate_name": source_name,
             "_candidate_kind": candidate_kind,
             "_api_id": f"{entry['class']}.{name}",
+            "_jvm_key": (module, entry["class"],
+                (re.search(r"\b(?:fun|field)\s+(\S+)", entry["signature"]).group(1) if kind in {"function", "constructor", "field"} else "<class>"),
+                (re.search(r"\b(?:fun|field)\s+\S+\s+(\S+)", entry["signature"]).group(1) if kind in {"function", "constructor", "field"} else "")),
         }
         rows.append(row)
     return rows
@@ -907,8 +916,15 @@ def owner_for(row: dict) -> str:
     text = " ".join(
         [row["module"], row["owner_fqn"], row["name"], row["signature"], row["upstream_source_refs"]]
     ).lower()
+    if row["platform_scope"] == "apple-only" or "platform.foundation" in text:
+        return "KUU-1763"
+    key = repr(row.get("_source_key", "")).lower()
+    if row["representation"] == "Kotlin platform typealias" or "java." in key or (row["representation"] == "JVM public ABI dump" and "_source_key" not in row):
+        return "KUU-1762"
+    if "kotlinx.io.files" in text.replace("/", "."):
+        return "KUU-1761"
     if row["module"] == "bytestring":
-        return "KUU-1725"
+        return "KUU-1760"
     if any(x in text for x in ("utf8", "readline", "readcodepoint", "writecodepoint")):
         return "KUU-1733"
     if any(x in text for x in ("buffer", "segment", "snapshot", "indexof")):
@@ -948,10 +964,12 @@ def owner_for(row: dict) -> str:
         )
     ):
         return "KUU-1731"
-    return "KUU-1725"
+    return "KUU-1730"
 
 
 def local_candidates(row: dict) -> list[str]:
+    if "_typed_local_refs" in row:
+        return row["_typed_local_refs"]
     name = row["_candidate_name"]
     kind = row["_candidate_kind"]
     if not name or name.startswith("<"):
@@ -965,6 +983,218 @@ def local_candidates(row: dict) -> list[str]:
     return matches
 
 
+def declaration_metadata(declaration: dict) -> tuple[str, str, str]:
+    entries = declaration["annotations"]
+    annotations = ",".join(sorted({entry["name"] for entry in entries if entry["name"]})) or "none"
+    deprecated = "none"
+    exceptions = []
+    for entry in entries:
+        name = (entry["name"] or "").rsplit(".", 1)[-1]
+        if name == "Deprecated":
+            arguments = entry["arguments"]
+            level = next((argument["expression"].rsplit(".", 1)[-1] for argument in arguments if argument["name"] == "level"), "WARNING")
+            message = next((argument["expression"] for argument in arguments if argument["name"] == "message"), arguments[0]["expression"] if arguments else "")
+            deprecated = level + (": " + message if message else "")
+        if name == "Throws":
+            exceptions.append(entry["source"])
+    doc = declaration["doc"] or ""
+    exceptions.extend("@throws " + clean(" ".join(thrown)) for thrown in re.findall(r"@throws\s+([\w.]+)([^\n]*)", doc))
+    return annotations, deprecated, "; ".join(dict.fromkeys(exceptions)) or "not-declared-in-source"
+
+
+def attach_platform_metadata(row: dict, declarations: list[dict]) -> None:
+    details = []
+    names = set()
+    for declaration in declarations:
+        annotations, deprecation, exceptions = declaration_metadata(declaration)
+        names.update(annotations.split(",") if annotations != "none" else [])
+        details.append({
+            "reference": "%s:%d" % (declaration["path"], declaration["line"]),
+            "visibility": declaration["visibility"], "annotations": declaration["annotations"],
+            "deprecation": deprecation, "exceptionContract": exceptions,
+            "defaults": {parameter["name"]: parameter["default"] for parameter in declaration["parameters"] if parameter["default"] is not None},
+        })
+    row["platform_metadata"] = json.dumps(details, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    row["annotations"] = ",".join(sorted(names)) or ("none" if declarations else "unmapped")
+
+
+def apply_typed_correspondence(rows: list[dict], index: SourceIndex) -> None:
+    for row in rows:
+        if "/ KLIB dump" not in row["representation"]:
+            continue
+        kind, _ = declaration_kind(row["signature"], row["_api_id"])
+        key = api_key(row["_api_id"], kind)
+        matching = index.match("upstream", key)
+        matching = sorted(matching, key=lambda declaration: (
+            0 if ("/apple/src/" in declaration["path"] if row["platform_scope"] == "apple-only" else "/common/src/" in declaration["path"]) else 1,
+            declaration["path"], declaration["line"]
+        ))
+        row["_source_key"] = key
+        row["_source_declarations"] = matching
+        row["_accessor_role"] = "getter" if ".<get-" in row["_api_id"] else "setter" if ".<set-" in row["_api_id"] else None
+        row["_typed_local_refs"] = sorted({
+            "%s:%d" % (declaration["path"], declaration["line"])
+            for declaration in index.match("local", key)
+        })
+        row["_source_paths"] = [UPSTREAM / declaration["path"] for declaration in matching]
+        row["upstream_source_refs"] = ";".join("%s:%d" % (declaration["path"], declaration["line"]) for declaration in matching) or "unmapped: no exact source declaration"
+        row["annotations"], row["deprecation"], row["exception_contract"] = declaration_metadata(matching[0]) if matching else ("unmapped", "unmapped", "unmapped")
+        attach_platform_metadata(row, matching)
+        visibility = matching[0]["visibility"] if matching else "unmapped"
+        internal = visibility in {"internal", "private", "protected"}
+        row["source_api"] = "no" if internal or kind == "source accessor" else "yes"
+        row["api_kind"] = (visibility + " " if internal else "") + ("source-property-accessor" if kind == "source accessor" else kind)
+        row["representation"] = "Internal implementation ABI / KLIB dump" if internal else "Kotlin source API / KLIB dump"
+        row["notes"] = "KLIB declaration key: %s; exact owner/receiver/parameter source match; visibility: %s" % (row["_api_id"], visibility)
+        if matching:
+            row["notes"] += "; source declaration: " + matching[0]["signature"]
+        if internal:
+            row["scope_decision"] = "in-scope internal implementation ABI; not a public Kotlin source API"
+
+
+def apply_jvm_correspondence(rows: list[dict], index: SourceIndex, lock: dict) -> None:
+    path = HERE / "jvm-declarations.json"
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != lock["jvmDeclarationsSha256"]:
+        fail("JVM declaration catalog lock mismatch")
+    catalog = json.loads(data.decode("utf-8"))
+    adapter = HERE / "ExtractJvmDeclarations.kt"
+    if catalog["schemaVersion"] != 1 or hashlib.sha256(adapter.read_bytes()).hexdigest() != catalog["toolchain"]["jvmExtractorSha256"]:
+        fail("JVM metadata adapter changed; refresh the declaration catalogs")
+    expected = {artifact["url"].rsplit("/", 1)[-1]: artifact["sha256"] for artifact in lock["mavenArtifacts"]}
+    if {jar["file"]: jar["sha256"] for jar in catalog["jars"]} != expected:
+        fail("JVM metadata catalog does not match the pinned artifact hashes")
+    declarations = {}
+    for declaration in catalog["declarations"]:
+        key = (declaration["module"], declaration["jvmOwner"], declaration["jvmName"], declaration["descriptor"])
+        if key in declarations:
+            fail("duplicate JVM metadata signature: " + repr(key))
+        declarations[key] = declaration
+    for row in rows:
+        if row["representation"] != "JVM public ABI dump":
+            continue
+        declaration = declarations.get(row["_jvm_key"])
+        if declaration is None:
+            row["_typed_local_refs"] = []
+            row["_source_paths"] = []
+            row["upstream_source_refs"] = "no direct Kotlin metadata declaration (generated ABI)"
+            row["annotations"], row["deprecation"], row["exception_contract"] = "n/a", "n/a", "n/a"
+            row["notes"] = "JVM ABI signature: " + repr(row["_jvm_key"]) + "; no direct Kotlin metadata declaration"
+            if row["source_api"] == "yes":
+                row["source_api"] = "no"
+                row["api_kind"] = "JVM ABI without direct Kotlin metadata declaration"
+            continue
+        key = (declaration["kind"], declaration["fqName"], declaration["receiver"], tuple(declaration["parameters"]))
+        row["_source_key"] = key
+        matching = sorted(index.match("upstream", key), key=lambda entry: (
+            0 if "/common/src/" in entry["path"] else 1 if "/jvm/src/" in entry["path"] else 2,
+            entry["path"], entry["line"]
+        ))
+        row["_source_declarations"] = matching
+        row["_accessor_role"] = ("field" if row["api_kind"] == "JVM field ABI" else "setter" if declaration["descriptor"].endswith("V") else "getter") if declaration["kind"] == "property" else None
+        row["_source_paths"] = [UPSTREAM / entry["path"] for entry in matching]
+        row["upstream_source_refs"] = ";".join("%s:%d" % (entry["path"], entry["line"]) for entry in matching) or "unmapped: no exact Kotlin source declaration"
+        row["_typed_local_refs"] = sorted({"%s:%d" % (entry["path"], entry["line"]) for entry in index.match("local", key)})
+        row["_candidate_kind"], row["_candidate_name"] = declaration["kind"], declaration["fqName"].rsplit(".", 1)[-1]
+        row["annotations"], row["deprecation"], row["exception_contract"] = declaration_metadata(matching[0]) if matching else ("unmapped", "unmapped", "unmapped")
+        attach_platform_metadata(row, matching)
+        internal = declaration["visibility"] not in {"public", "protected"}
+        if declaration["kind"] == "property":
+            row["api_kind"] = "JVM field ABI" if row["api_kind"] == "JVM field ABI" else "published internal accessor" if internal else "Kotlin property getter/setter"
+            row["source_api"] = "no"
+        elif internal:
+            row["api_kind"] = declaration["visibility"] + " " + declaration["kind"]
+            row["source_api"] = "no"
+        elif row["api_kind"] not in {"JVM companion ABI class", "JVM file facade", "JVM field ABI"}:
+            row["api_kind"] = declaration["kind"]
+            row["source_api"] = "yes"
+        row["default_parameter_count"] = str(sum(declaration["defaults"]))
+        row["notes"] = "Exact Kotlin metadata JVM signature: " + repr(row["_jvm_key"]) + "; Kotlin source key: " + repr(key) + "; visibility: " + declaration["visibility"]
+
+
+def typed_published_internals(index: SourceIndex) -> list[dict]:
+    rows = []
+    for declaration in index.declarations:
+        if declaration["origin"] != "upstream" or declaration["visibility"] != "internal":
+            continue
+        if not any((annotation["name"] or "").rsplit(".", 1)[-1] == "PublishedApi" for annotation in declaration["annotations"]):
+            continue
+        annotations, deprecated, exceptions = declaration_metadata(declaration)
+        key = declaration["_key"]
+        reference = "%s:%d" % (declaration["path"], declaration["line"])
+        rows.append({
+            "row_id": "internal-" + stable_id(reference, repr(key)),
+            "module": declaration["path"].split("/", 1)[0],
+            "representation": "@PublishedApi internal source declaration",
+            "platform_scope": source_platform(declaration["path"]),
+            "api_kind": "internal-" + declaration["kind"], "source_api": "no",
+            "owner_fqn": declaration["owner"], "name": declaration["name"],
+            "signature": declaration["signature"],
+            "default_parameter_count": str(sum(parameter["default"] is not None for parameter in declaration["parameters"])),
+            "annotations": annotations, "deprecation": deprecated, "exception_contract": exceptions,
+            "upstream_source_refs": reference, "jvm_abi_refs": "", "upstream_test_refs": "",
+            "local_candidate_refs": "", "local_test_refs": "", "status": "unverified",
+            "owner_issue": "KUU-1725", "scope_decision": "in-scope internal implementation ABI",
+            "notes": "PSI declaration identity: " + repr(key),
+            "_source_key": key, "_api_id": "internal:" + reference,
+            "_source_declarations": [declaration],
+            "_source_paths": [UPSTREAM / declaration["path"]],
+            "_candidate_name": declaration["name"], "_candidate_kind": declaration["kind"],
+            "_typed_local_refs": sorted({"%s:%d" % (local["path"], local["line"]) for local in index.match("local", key)}),
+        })
+    return rows
+
+
+def platform_typealiases(index: SourceIndex) -> list[dict]:
+    rows = []
+    for declaration in index.declarations:
+        if declaration["origin"] != "upstream" or declaration["kind"] != "typealias" or declaration["visibility"] != "public":
+            continue
+        key = declaration["_key"]
+        reference = "%s:%d" % (declaration["path"], declaration["line"])
+        row = {
+            "row_id": "alias-" + stable_id(reference, declaration["fqName"]),
+            "module": declaration["path"].split("/", 1)[0],
+            "representation": "Kotlin platform typealias", "platform_scope": source_platform(declaration["path"]),
+            "api_kind": "typealias", "source_api": "yes", "owner_fqn": declaration["owner"],
+            "name": declaration["name"], "signature": "typealias " + declaration["fqName"] + " = " + declaration["aliasTarget"],
+            "default_parameter_count": "0", "annotations": "none", "deprecation": "none", "exception_contract": "not-declared-in-source",
+            "upstream_source_refs": reference, "jvm_abi_refs": "", "upstream_test_refs": "", "local_test_refs": "",
+            "status": "unverified", "owner_issue": "KUU-1762", "scope_decision": "in-scope JVM exception typealias; no separate generated JVM class",
+            "notes": "Actual typealias representation retained separately from the common/native class API",
+            "_source_key": key, "_source_declarations": [declaration], "_api_id": "alias:" + reference,
+            "_source_paths": [UPSTREAM / declaration["path"]], "_candidate_name": declaration["name"], "_candidate_kind": "typealias",
+            "_typed_local_refs": sorted({"%s:%d" % (local["path"], local["line"]) for local in index.match("local", key)}),
+        }
+        attach_platform_metadata(row, [declaration])
+        rows.append(row)
+    return rows
+
+
+def local_contract_differences(row: dict, index: SourceIndex) -> str:
+    declarations = row.get("_source_declarations", [])
+    key = row.get("_source_key")
+    if not declarations or key is None:
+        return "not-applicable"
+    local = index.match("local", key)
+    if not local:
+        return "missing exact local declaration"
+    expected = declarations[0]
+    differences = []
+    for candidate in local:
+        mismatches = []
+        for upstream, parameter in zip(expected["parameters"], candidate["parameters"]):
+            if upstream["name"] != parameter["name"]:
+                mismatches.append("parameter name: %s vs %s" % (upstream["name"], parameter["name"]))
+            if (upstream["default"] is None) != (parameter["default"] is None):
+                mismatches.append("default presence: %s upstream=%s local=%s" % (upstream["name"], upstream["default"] is not None, parameter["default"] is not None))
+        if expected["visibility"] != candidate["visibility"]:
+            mismatches.append("visibility: %s vs %s" % (expected["visibility"], candidate["visibility"]))
+        if mismatches:
+            differences.append({"reference": "%s:%d" % (candidate["path"], candidate["line"]), "differences": mismatches})
+    return json.dumps(differences, sort_keys=True, separators=(",", ":")) if differences else "none detected (semantics unverified)"
+
+
 def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     name = row["_candidate_name"].lower()
     owner = row["owner_fqn"].rsplit("/", 1)[-1].lower()
@@ -976,6 +1206,23 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
     return list(dict.fromkeys(refs))
+
+
+def local_implementation_refs(row: dict, index: SourceIndex, runtime_symbols: dict) -> list[str]:
+    key = row.get("_source_key")
+    if key is None:
+        return []
+    references = []
+    for declaration in index.match("local", key):
+        if declaration["hasBody"]:
+            references.append("%s:%d" % (declaration["path"], declaration["line"]))
+        for annotation in declaration["annotations"]:
+            if (annotation["name"] or "").rsplit(".", 1)[-1] != "KsSymbolName":
+                continue
+            for argument in annotation["arguments"]:
+                name = argument["expression"].strip('"')
+                references.extend(runtime_symbols.get(name, []))
+    return sorted(set(references))
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
@@ -999,51 +1246,27 @@ def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
             continue
         matched = [test for test in entry.get("testNames", []) if name and name in test.lower()]
         if matched:
-            refs.extend(f"{hint}#{test}" for test in matched[:8])
+            refs.extend(f"{hint}#{test}" for test in matched)
         else:
             refs.append(f"{hint}#suite-reference")
     return refs
 
 
 def pair_rows(rows: list[dict]) -> None:
-    klib_rows = [
-        row
-        for row in rows
-        if row["representation"]
-        in {"Kotlin source API / KLIB dump", "Internal implementation ABI / KLIB dump"}
-    ]
-    jvm_rows = [row for row in rows if row["representation"] == "JVM public ABI dump"]
-    for source in klib_rows:
-        name = source["_candidate_name"]
-        owner = source["owner_fqn"].rsplit("/", 1)[-1]
-        source_facades = {path.stem + "Kt" for path in source.get("_source_paths", [])}
-        match = [
-            row["row_id"]
-            for row in jvm_rows
-            if row["_candidate_name"] == name
-            and (
-                not owner
-                or row["owner_fqn"].rsplit("/", 1)[-1] == owner
-                or row["owner_fqn"] == "core"
-                or row["owner_fqn"].rsplit("/", 1)[-1] in source_facades
-            )
-        ]
-        source["jvm_abi_refs"] = ";".join(match)
-    for binary in jvm_rows:
-        name = binary["_candidate_name"]
-        owner = binary["owner_fqn"].rsplit("/", 1)[-1]
-        source_facades = {path.stem + "Kt" for path in binary.get("_source_paths", [])}
-        match = [
-            row["row_id"]
-            for row in klib_rows
-            if row["_candidate_name"] == name
-            and (
-                not owner
-                or row["owner_fqn"].rsplit("/", 1)[-1] == owner
-                or row["owner_fqn"].rsplit("/", 1)[-1] in source_facades
-            )
-        ]
-        binary["jvm_abi_refs"] = ";".join(match)
+    source_rows = [row for row in rows if "/ KLIB dump" in row["representation"]]
+    binary_rows = [row for row in rows if row["representation"] == "JVM public ABI dump"]
+    for group, opposite in ((source_rows, binary_rows), (binary_rows, source_rows)):
+        by_key = defaultdict(list)
+        for row in opposite:
+            if "_source_key" in row:
+                by_key[row["_source_key"]].append(row["row_id"])
+        for row in group:
+            key = row.get("_source_key")
+            role = row.get("_accessor_role")
+            row["jvm_abi_refs"] = ";".join(sorted(
+                other["row_id"] for other in opposite if key is not None and other.get("_source_key") == key
+                and (role is None or other.get("_accessor_role") is None or role == other["_accessor_role"])
+            ))
 
 
 def parse_published_internals(sources: list[Path]) -> list[dict]:
@@ -1096,7 +1319,7 @@ def parse_published_internals(sources: list[Path]) -> list[dict]:
     return rows
 
 
-def parse_platform_public_declarations(sources: list[Path], api_rows: list[dict]) -> list[dict]:
+def parse_platform_public_declarations(sources: list[Path], api_rows: list[dict], source_index: SourceIndex) -> list[dict]:
     results = []
     source_by_root = {root: [] for roots in PLATFORM_ROOTS.values() for root in roots}
     for source in sources:
@@ -1158,6 +1381,13 @@ def parse_platform_public_declarations(sources: list[Path], api_rows: list[dict]
                 depth += code_text.count("{") - code_text.count("}")
                 if depth < 0:
                     depth = 0
+        file_paths = {path.relative_to(UPSTREAM).as_posix() for path in files}
+        public_count = sum(
+            declaration["origin"] == "upstream" and declaration["path"] in file_paths
+            and declaration["visibility"] == "public" and not declaration["actual"] and not declaration["expect"]
+            and declaration["owner"] == source_index.files[("upstream", declaration["path"])]["package"]
+            for declaration in source_index.declarations
+        )
         if group == "Native shared implementation":
             decision = "in-scope when implementing a common/native API"
             reason = "These actuals implement the shared Native contract; they do not create a new public API or justify target-out."
@@ -1220,9 +1450,9 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
     deprecation_counts = Counter(
         row["deprecation"].split(":", 1)[0]
         for row in rows
-        if row["deprecation"] != "none"
+        if row["deprecation"] not in {"none", "n/a"}
     )
-    exception_rows = [row for row in rows if row["exception_contract"] != "not-declared-in-source"]
+    exception_rows = [row for row in rows if row["exception_contract"] not in {"not-declared-in-source", "n/a"}]
     lines = [
         "# kotlinx-io 0.9.1 API inventory",
         "",
@@ -1235,8 +1465,9 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         f"- JVM ABI dump rows: **{len(abi_rows)}**, including **{len(generated)}** generated/accessor rows kept separate from Kotlin source callables.",
         f"- KLIB rows backed by non-public implementation declarations: **{len(klib_internal_rows)}**; these are separate from public source APIs.",
         f"- `@PublishedApi internal` implementation ABI rows: **{len(internal_rows)}**.",
-        f"- Rows marked missing because no same-kind, same-name local candidate was found: **{len(missing)}**.",
-        f"- Rows with a same-kind, same-name local candidate but without semantic verification: **{len(unverified)}**.",
+        f"- Rows marked missing because no exact owner/receiver/parameter local declaration was found: **{len(missing)}**.",
+        f"- Rows with exact local declarations or generated ABI entries, without semantic verification: **{len(unverified)}**.",
+        f"- Public JVM exception typealiases tracked separately: **{sum(row['representation'] == 'Kotlin platform typealias' for row in rows)}**.",
         f"- Source exception contracts documented with `@throws`/`@Throws`: **{len(exception_rows)}** rows.",
         "- Source deprecation levels found: "
         + (", ".join(f"{level}={count}" for level, count in sorted(deprecation_counts.items())) or "none"),
@@ -1244,7 +1475,7 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "",
         "`api-inventory.tsv` includes the authoritative KLIB source declaration and the JVM ABI entries as separate representations. "
         "KLIB records whose source declaration is internal/private are retained in their own implementation-ABI representation. "
-        "The API dump cannot prove implementation semantics; the conservative local scan reports `unverified` when a candidate declaration exists and `missing` when none is found.",
+        "The API dump cannot prove implementation semantics; Kotlin PSI and JVM metadata establish declaration identity, with `unverified` for exact local declarations and `missing` when none exists. `local_contract_differences` preserves parameter/default/visibility differences and `local_implementation_refs` points to source bodies or declared runtime bridges.",
         "",
         "## Surface and exclusions",
         "",
@@ -1258,17 +1489,17 @@ def make_summary(lock: dict, rows: list[dict], scope_rows: list[dict]) -> str:
         "## Reproducibility",
         "",
         "The checked-in upstream snapshot is verified against both Git blob SHA-1 and SHA-256 from `upstream-lock.json`. The test catalog is pinned by Git blob SHA and file size at the same commit.",
-        "The JVM artifacts are fixed by Maven coordinate and SHA-256 in the lock; use `python3 Scripts/io_api_inventory/generate.py --verify-jars /path/to/jars` with files named by artifact or `--download-jars` to check them.",
+        "The JVM artifacts are fixed by Maven coordinate and SHA-256 in the lock; use `python3 Scripts/io_api_inventory/generate.py --check --verify-jars /path/to/jars` with files named by artifact or `--download-jars` to check them.",
         "",
         "```sh",
         "python3 Scripts/io_api_inventory/generate.py --write",
         "python3 Scripts/io_api_inventory/generate.py --check",
-        "python3 Scripts/io_api_inventory/generate.py --verify-jars /tmp",
+        "python3 Scripts/io_api_inventory/generate.py --check --verify-jars /tmp",
         "```",
         "",
         "## Owner routing",
         "",
-        "Rows route to existing KUU-1729 (Buffer/Segment), KUU-1730 (buffered source/sink lifecycle), or KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), and KUU-1725 otherwise. ByteString, Filesystem, JVM interop, and Apple-specific families have no dedicated child ticket in the current Linear child list and are therefore left with parent KUU-1725 for triage/splitting; they are not silently marked out of scope.",
+        "Rows route to KUU-1729 (Buffer/Segment), KUU-1730 (source/sink lifecycle and common helpers), KUU-1731 (primitive/ByteArray I/O), KUU-1733 (UTF-8), KUU-1760 (ByteString), KUU-1761 (Filesystem), KUU-1762 (JVM interop/ABI/typealiases), or KUU-1763 (Apple). All are children of KUU-1725; missing declarations stay in scope.",
         "",
         "## JVM ABI classification",
         "",
@@ -1323,6 +1554,7 @@ def verify_jars(lock: dict, directory: Path | None, download: bool) -> None:
 
 def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     lock, test_index, files, _ = load_inputs()
+    index = SourceIndex(HERE / "source-declarations.json", REPO, UPSTREAM)
     sources = source_paths(files)
     api_rows = []
     for module, path in (
@@ -1330,12 +1562,15 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         ("bytestring", UPSTREAM / "bytestring/api/kotlinx-io-bytestring.klib.api"),
     ):
         api_rows.extend(parse_klib(path, module, sources))
+    apply_typed_correspondence(api_rows, index)
     for module, path in (
         ("core", UPSTREAM / "core/api/kotlinx-io-core.api"),
         ("bytestring", UPSTREAM / "bytestring/api/kotlinx-io-bytestring.api"),
     ):
         api_rows.extend(parse_jvm_api(path, module, sources))
-    api_rows.extend(parse_published_internals(sources))
+    api_rows.extend(typed_published_internals(index))
+    api_rows.extend(platform_typealiases(index))
+    apply_jvm_correspondence(api_rows, index, lock)
 
     local_tests = []
     local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
@@ -1349,9 +1584,16 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
                 local_tests.append((rel, content))
 
     tests = {entry["path"]: entry for entry in test_index["files"]}
+    runtime_symbols = defaultdict(list)
+    for path in sorted((REPO / "Sources/Runtime").rglob("*.swift")):
+        content = path.read_text(encoding="utf-8")
+        for match in re.finditer(r'@_cdecl\("([^"]+)"\)', content):
+            runtime_symbols[match.group(1)].append("%s:%d" % (path.relative_to(REPO).as_posix(), content[:match.start()].count("\n") + 1))
     for row in api_rows:
         candidates = local_candidates(row)
         row["local_candidate_refs"] = ";".join(candidates) or "none"
+        row["local_implementation_refs"] = ";".join(local_implementation_refs(row, index, runtime_symbols)) or "none (interface/abstract/generated or no implementation mapped)"
+        row["local_contract_differences"] = local_contract_differences(row, index)
         row["status"] = "unverified" if candidates else "missing"
         if row["representation"] == "JVM public ABI dump" and row["source_api"] == "no":
             row["status"] = "unverified"
@@ -1361,8 +1603,6 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
         row["local_test_refs"] = ";".join(local_test_refs(row, local_tests)) or "none"
         if row["representation"] == "JVM public ABI dump":
             row["scope_decision"] = "in-scope JVM ABI and Java interoperability"
-        if row["module"] == "bytestring":
-            row["notes"] += "; no dedicated ByteString child issue exists in the current KUU-1725 child set"
         for test_ref in row["upstream_test_refs"].split(";"):
             test_path = test_ref.split("#", 1)[0]
             if test_path not in tests:
@@ -1371,7 +1611,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     pair_rows(api_rows)
     api_rows.sort(key=lambda row: (row["module"], row["representation"], row["row_id"]))
     check_negative_guards(api_rows)
-    scope_rows = parse_platform_public_declarations(sources, api_rows)
+    scope_rows = parse_platform_public_declarations(sources, api_rows, index)
     return lock, api_rows, scope_rows
 
 
