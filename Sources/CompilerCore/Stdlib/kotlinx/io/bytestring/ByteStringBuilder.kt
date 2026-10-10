@@ -15,12 +15,10 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
 
     public fun toByteString(): ByteString {
         if (size == 0) return ByteString()
-        // Copy even at full capacity: further append calls must not change
-        // an already returned immutable value.
+        // A subsequent append must grow this full buffer before writing to it.
+        if (buffer.size == size) return ByteString.wrap(buffer)
         return ByteString(buffer, 0, size)
     }
-
-    public fun toByteArray(): ByteArray = buffer.copyOfRange(0, size)
 
     public fun append(byte: Byte) {
         ensureCapacity(offset + 1)
@@ -28,20 +26,7 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         offset++
     }
 
-    // Keep the one- and two-argument overloads explicit. The compiler also
-    // sees the extension append(vararg Byte), and the defaulted array member
-    // can otherwise leave append(ByteArray) without a viable overload.
-    public fun append(array: ByteArray) {
-        append(array, 0, array.size)
-    }
-
-    public fun append(array: ByteArray, startIndex: Int) {
-        append(array, startIndex, array.size)
-    }
-
-    // No defaults here: combined with the explicit overloads above, a defaulted
-    // 3-arg form would make append(array) ambiguous for this compiler.
-    public fun append(array: ByteArray, startIndex: Int, endIndex: Int) {
+    public fun append(array: ByteArray, startIndex: Int = 0, endIndex: Int = array.size) {
         require(startIndex <= endIndex) { "startIndex ($startIndex) > endIndex ($endIndex)" }
         if (startIndex < 0 || endIndex > array.size) {
             throw IndexOutOfBoundsException("startIndex ($startIndex) and endIndex ($endIndex) out of bounds")
@@ -49,19 +34,6 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         ensureCapacity(offset + endIndex - startIndex)
         array.copyInto(buffer, offset, startIndex, endIndex)
         offset += endIndex - startIndex
-    }
-
-    // Upstream kotlinx-io declares the append overloads below as top-level
-    // extensions on ByteStringBuilder. This compiler does not yet consider an
-    // extension when a same-named member exists but none of the members apply,
-    // so they are members here; call sites see the same signatures.
-    public fun append(byte: UByte): Unit = append(byte.toByte())
-
-    public fun append(byteString: ByteString): Unit =
-        append(byteString.getBackingArrayReference())
-
-    public fun append(vararg bytes: Byte) {
-        for (byte in bytes) append(byte)
     }
 
     private fun ensureCapacity(requiredCapacity: Int) {
@@ -73,6 +45,13 @@ public class ByteStringBuilder(initialCapacity: Int = 0) {
         buffer = enlarged
     }
 }
+
+public fun ByteStringBuilder.append(byte: UByte): Unit = append(byte.toByte())
+
+public fun ByteStringBuilder.append(byteString: ByteString): Unit =
+    append(byteString.getBackingArrayReference())
+
+public fun ByteStringBuilder.append(vararg bytes: Byte): Unit = append(bytes)
 
 public inline fun buildByteString(
     capacity: Int = 0,
