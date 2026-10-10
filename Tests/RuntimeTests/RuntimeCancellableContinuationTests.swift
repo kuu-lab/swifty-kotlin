@@ -99,8 +99,12 @@ struct RuntimeCancellableContinuationTests {
         #expect(thrown == cause)
     }
 
-    @Test func parentCancellationDiscardsUndeliveredSuccess() {
-        let parent = RuntimeJobHandle()
+    @Test(arguments: [false, true])
+    func parentCancellationDiscardsUndeliveredSuccess(taskHandle: Bool) {
+        let task = RuntimeAsyncTask()
+        let taskRaw = runtimeRegisterObject(task)
+        defer { _ = runtimeReleaseObject(taskRaw) }
+        let parent = taskHandle ? task.completionJob : RuntimeJobHandle()
         let handle = makeHandle(parent: parent)
         let handlerProbe = CancellationProbe()
         let discardProbe = CancellationProbe()

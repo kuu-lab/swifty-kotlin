@@ -315,6 +315,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         senderQueue.enqueue(entry)
         lock.unlock()
 
+        let job = callingJob(continuation: continuation)
+        let cancellationHandler = job?.addCompletionHandler(onCancelling: true) { [weak self, weak entry, weak job] _ in
+            guard job?.cancellationSnapshot() == true, let self, let entry else { return }
+            self.lock.lock()
+            let removed = self.senderQueue.removeFirst { $0 === entry }
+            if removed { entry.cancelledWakeup = true }
+            self.lock.unlock()
+            if removed { self.resumeSender(entry) }
+        }
+        defer {
+            if let cancellationHandler { job?.removeCompletionHandler(id: cancellationHandler) }
+        }
+
         // Channel send is not yet lowered as a true suspend point, so the
         // runtime must block here until a receiver or close/cancellation wakes it.
         // BUG-041 interaction: flush undispatched launch{} work before blocking
@@ -456,6 +469,19 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         receiverQueue.enqueue(receiverEntry)
         lock.unlock()
+
+        let job = callingJob(continuation: continuation)
+        let cancellationHandler = job?.addCompletionHandler(onCancelling: true) { [weak self, weak receiverEntry, weak job] _ in
+            guard job?.cancellationSnapshot() == true, let self, let receiverEntry else { return }
+            self.lock.lock()
+            let removed = self.receiverQueue.removeFirst { $0 === receiverEntry }
+            if removed { receiverEntry.cancelledWakeup = true }
+            self.lock.unlock()
+            if removed { self.resumeReceiver(receiverEntry) }
+        }
+        defer {
+            if let cancellationHandler { job?.removeCompletionHandler(id: cancellationHandler) }
+        }
 
         // Channel receive is not yet lowered as a true suspend point, so the
         // runtime must block here until a sender, close, or cancellation wakes it.
@@ -831,17 +857,15 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
     }
 
-    /// Check whether the coroutine associated with `continuation` has been cancelled.
+    /// Some channel bridges run before a call is lowered to a suspend point.
+    /// They use the running coroutine's job when no continuation was supplied.
+    private func callingJob(continuation: Int) -> RuntimeJobHandle? {
+        if continuation != 0 { return runtimeContinuationState(from: continuation)?.jobHandle }
+        return RuntimeJobHandle.current
+    }
+
     private func isCancelled(continuation: Int) -> Bool {
-        guard continuation != 0 else {
-            return false
-        }
-        guard let state = runtimeContinuationState(from: continuation),
-              let job = state.jobHandle
-        else {
-            return false
-        }
-        return job.cancellationSnapshot()
+        callingJob(continuation: continuation)?.cancellationSnapshot() ?? false
     }
 
     /// Thread-safe snapshot of the closed flag.
@@ -977,7 +1001,8 @@ public func kk_channel_send(_ handle: Int, _ value: Int) -> Int {
 private func channelStatusThrowable(
     _ status: ChannelOperationStatus,
     isReceive: Bool,
-    channel: RuntimeChannelHandle
+    channel: RuntimeChannelHandle,
+    continuation: Int
 ) -> Int {
     switch status {
     case .closed:
@@ -985,6 +1010,16 @@ private func channelStatusThrowable(
             ? runtimeAllocateClosedReceiveChannelException(message: "Channel was closed")
             : runtimeAllocateClosedSendChannelException(message: "Channel was closed")
     case .cancelled:
+        let job = continuation == 0 ? RuntimeJobHandle.current
+            : runtimeContinuationState(from: continuation)?.jobHandle
+        if let job, job.cancellationSnapshot() {
+            let cause = job.cancellationCauseSnapshot()
+            if kk_is_cancellation_exception(cause) != 0 { return cause }
+            return runtimeAllocateCancellationException(
+                message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
+                cause: cause, cancellationJob: job
+            )
+        }
         return channel.cancellationThrowable()
     case .success, .failed:
         return 0
@@ -1027,7 +1062,7 @@ public func kk_channel_send(
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
     let status = channel.send(resolvedValue, continuation: continuation)
-    let thrown = channelStatusThrowable(status, isReceive: false, channel: channel)
+    let thrown = channelStatusThrowable(status, isReceive: false, channel: channel, continuation: continuation)
     if thrown != 0 {
         outThrown?.pointee = thrown
     }
@@ -1060,7 +1095,7 @@ public func kk_channel_receive(
         var scratch = 0
         status = channel.receive(continuation: continuation, outValue: &scratch)
     }
-    let thrown = channelStatusThrowable(status, isReceive: true, channel: channel)
+    let thrown = channelStatusThrowable(status, isReceive: true, channel: channel, continuation: continuation)
     if thrown != 0 {
         outThrown?.pointee = thrown
     }

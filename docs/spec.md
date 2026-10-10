@@ -1342,6 +1342,63 @@ annotations from the constructor's own annotation list (KUU-1757).
 Annotations on general local variables/expressions remain outside this nominal
 declaration traversal.
 
+### Producer Flow failures and cancellation (KUU-1457, KUU-1758)
+
+Each channelFlow/callbackFlow collection owns a fresh producer continuation,
+channel, and structured producer scope. Producer body and child failures settle
+that Job exceptionally and fail the collection Job. A suspended collector is
+interrupted, so pending buffered values need not be delivered after failure.
+Each collection attempt settles its Job and restores the caller before catch or
+retry handles the upstream cause. The ambient scope is not failed a second time;
+ordinary produce keeps its parent ownership.
+A manual close without cause cannot erase a later producer Job failure. At a
+terminal receive, an already-observed producer failure precedes the close cause;
+a close cause observed before cancellation precedes a later cleanup failure.
+Early take/takeWhile termination ignores an unobserved channel close cause, but
+preserves independent non-cancellation failures from producer cleanup.
+
+Producer close callbacks finish before the Job publishes completion to joiners,
+completion snapshots, or concurrently registered completion handlers. Collection
+cancels and joins unfinished producers and their children, including a producer
+parked after manual close. Collector-created children attached to the collection
+Job also settle before it returns; their exceptions and parent cancellation are
+included even if the producer had already completed normally. Cancelling a suspended Channel send/receive removes
+only that operation's queued waiter and wakes it; other jobs sharing the channel
+retain their FIFO ordering. Cancellation registration occurs outside the channel
+lock and is disposed after the operation settles. Already-committed matches keep
+the existing Channel ABI delivery behavior.
+Generated resume labels consume a delivered exception once, so a caught producer
+failure is not raised again when the caller next resumes from delay or join.
+Cancellation classification accepts both Runtime boxes and source nominal
+subclasses, including AbortFlowException, through the runtime type hierarchy.
+Cancellable continuations resolve task-backed Job identities to their completion
+Job. Borrowed suspend-value loops register their own cancellation wakeup even
+when driven asynchronously by an event loop; the launcher's primary continuation
+is not replaced, and the handler is disposed when the borrowed loop settles.
+The supplemental wake excludes continuations already reachable through the
+primary continuation's suspended-call chain, preserving a later non-cancellable
+suspension after the child catches cancellation.
+Every resumed suspend-loop burst restores the worker's displaced task key and
+Job even when it suspends again. Inline nested resumes restore burst-local
+snapshots, so a parked cancelled child cannot leave its Job on a reused worker.
+
+Channel-backed pipelines without conflate/debounce/sample process error handlers
+at their operator boundary while values stream downstream. Catch/retry do not
+handle downstream failures or the collecting job's cancellation cause. A user-
+thrown CancellationException remains catchable while that job is active. Handler and retryWhen emissions use
+the appropriate downstream collect context. A take/takeWhile boundary owns its
+abort cause and normalizes only its own stop; upstream onCompletion observes the
+abort while downstream onCompletion observes normal completion. Emitting a value
+into a stopped downstream interrupts the handler through its throw path.
+The provisional FlowCollector.emit inference shortcut runs only before builder
+inference is finalized; the final pass binds the concrete collector member.
+
+The bundled public sample waits for upstream EOF before emitting; take cannot
+stop a callback producer parked in awaitClose through that implementation
+(KUU-1759). Public conflate and debounce currently pass through. The legacy
+Runtime tagged conflate/debounce/sample operators retain their finite-batch
+event model. Their timing semantics are not implemented by this change.
+
 ### Producer flow receiver builder inference (KUU-1378)
 
 Postponed receiver-lambda constraints include monomorphic members and members
@@ -1376,4 +1433,4 @@ same-package user overloads retain the ordinary callable ABI. Inferred
 channelFlow/callbackFlow element types and transformLatest result types
 are checked through source/cache and separate library boundaries. Empty builders
 without type evidence and incompatible explicit/expected types remain errors.
-Producer exception propagation remains a separate runtime issue, KUU-1457.
+Producer exception propagation follows the runtime collection boundary above (KUU-1457).

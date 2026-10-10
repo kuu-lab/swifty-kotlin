@@ -273,9 +273,60 @@ struct RuntimeCoroutineStateTests {
         #expect(kk_coroutine_state_get_thrown_exception(callerContinuation) == 0)
     }
 
+    @Test(arguments: [false, true])
+    func testSourceCancellationSubclassClassification(cancellation: Bool) {
+        let base = runtimeStableNominalTypeID(fqName: cancellation
+            ? "kotlin.coroutines.cancellation.CancellationException" : "kotlin.Throwable")
+        let middle = runtimeStableNominalTypeID(fqName: cancellation
+            ? "runtime.tests.SourceCancellation" : "runtime.tests.SourceFailure")
+        let leaf = runtimeStableNominalTypeID(fqName: cancellation
+            ? "runtime.tests.SourceCancellationChild" : "runtime.tests.SourceFailureChild")
+        runtimeRegisterTypeEdge(childTypeID: middle, parentTypeID: base)
+        runtimeRegisterTypeEdge(childTypeID: leaf, parentTypeID: middle)
+        let instance = kk_object_new(0, Int(leaf))
+        #expect(kk_is_cancellation_exception(instance) == (cancellation ? 1 : 0))
+        _ = runtimeReleaseObject(instance)
+    }
+
+    @Test func testCaughtSuspendFailureDoesNotEscapeNextDelay() {
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            guard let state = runtimeContinuationState(from: continuation) else { return 0 }
+            switch state.label {
+            case 0:
+                let child: RuntimeTestSuspendEntry = { _, thrown in
+                    thrown?.pointee = runtimeAllocateThrowable(message: "caught child")
+                    return 0
+                }
+                state.label = 1
+                return kk_coroutine_call_direct_suspend(
+                    unsafeBitCast(child, to: Int.self),
+                    kk_coroutine_continuation_new(9121), continuation
+                )
+            case 1:
+                guard kk_coroutine_state_get_thrown_exception(continuation) != 0 else {
+                    outThrown?.pointee = runtimeAllocateThrowable(message: "missing child failure")
+                    return 0
+                }
+                state.label = 2
+                return kk_kxmini_delay(1, continuation)
+            default:
+                outThrown?.pointee = kk_coroutine_state_get_thrown_exception(continuation)
+                return 42
+            }
+        }
+        var thrown = 0
+        let result = runSuspendEntryLoop(
+            entryPointRaw: unsafeBitCast(entry, to: Int.self), functionID: 9120, outThrown: &thrown
+        )
+        #expect(result == 42)
+        #expect(thrown == 0)
+    }
+
     @Test func testSchedulerWordABITracksLongClockValues() {
         let scope = kk_coroutine_scope_new()
-        defer { _ = runtimeReleaseObject(scope) }
+        // Pop the entered scope as well as releasing its handle. Leaving its
+        // test scheduler ambient strands later launches in the virtual queue.
+        defer { _ = kk_coroutine_scope_wait(scope) }
         let scheduler = kk_test_scope_scheduler(scope)
         let currentTime: (Int) -> Int = kk_test_scheduler_current_time
         let scopeTime: (Int) -> Int = kk_test_scope_current_time
@@ -353,6 +404,135 @@ struct RuntimeCoroutineStateTests {
         )
         let result = kk_kxmini_run_blocking_with_cont(entryRaw, continuation, nil)
         #expect(result == 42)
+    }
+
+    @Test func testBorrowedJobCancellationWakesAsyncDelayLoop() throws {
+        let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousJob = RuntimeJobHandle.current
+        let previousState = RuntimeContinuationState.current
+        let previousScope = RuntimeCoroutineScope.current
+        let previousLoop = RuntimeEventLoop.current
+        RuntimeEventLoop.current = nil
+        defer {
+            RuntimeCoroutineScopeTaskKey.installKey(taskKey)
+            RuntimeJobHandle.current = previousJob
+            RuntimeContinuationState.current = previousState
+            RuntimeCoroutineScope.current = previousScope
+            RuntimeEventLoop.current = previousLoop
+        }
+        let continuation = kk_coroutine_continuation_new(9240)
+        let state = try #require(runtimeContinuationState(from: continuation))
+        let job = RuntimeJobHandle()
+        job.markStarted()
+        state.jobHandle = job
+        // Boxed launcher thunks borrow the Job without replacing its primary
+        // continuation. Their event-loop driver uses an asynchronous callback.
+        #expect(job.continuationState == nil)
+        let entry: RuntimeTestSuspendEntry = { continuation, outThrown in
+            if kk_coroutine_state_enter(continuation, 9240) == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(60_000, continuation)
+            }
+            if kk_coroutine_check_cancellation(continuation, outThrown) != 0 {
+                return 0
+            }
+            return kk_coroutine_state_exit(continuation, 42)
+        }
+        let completed = DispatchSemaphore(value: 0)
+        let probe = ResumerProbe()
+        _ = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: unsafeBitCast(entry, to: Int.self),
+            continuation: continuation,
+            onCompletion: { result, thrown in
+                probe.record(result: result, thrown: thrown)
+                completed.signal()
+            }
+        )
+        #expect(!probe.fired)
+        _ = job.cancel()
+        let woke = completed.wait(timeout: .now() + 2.0) == .success
+        #expect(woke, "the borrowed continuation must wake before its delay expires")
+        if !woke {
+            // Release the suspended test body even when the regression fails.
+            state.signalResume(isCancellation: true)
+            #expect(completed.wait(timeout: .now() + 2.0) == .success)
+        }
+        #expect(probe.result == 0)
+        #expect(kk_is_cancellation_exception(probe.thrown) == 1)
+        #expect(job.continuationState == nil)
+        _ = job.complete(with: 0)
+    }
+
+    @Test(arguments: [false, true])
+    func testPrimaryChildCancellationDoesNotResumeFollowingNonCancellableSuspend(inlineResume: Bool) throws {
+        let taskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
+        let previousJob = RuntimeJobHandle.current
+        let previousState = RuntimeContinuationState.current
+        let previousScope = RuntimeCoroutineScope.current
+        let previousLoop = RuntimeEventLoop.current
+        RuntimeEventLoop.current = nil
+        defer {
+            RuntimeCoroutineScopeTaskKey.installKey(taskKey)
+            RuntimeJobHandle.current = previousJob
+            RuntimeContinuationState.current = previousState
+            RuntimeCoroutineScope.current = previousScope
+            RuntimeEventLoop.current = previousLoop
+        }
+        let continuation = kk_coroutine_continuation_new(9242)
+        let child = try #require(runtimeContinuationState(from: continuation))
+        child.resumesInline = inlineResume
+        let primary = RuntimeContinuationState(functionID: 9243)
+        let job = RuntimeJobHandle()
+        job.markStarted()
+        job.continuationState = primary
+        child.jobHandle = job
+        primary.bindSuspendedCallChild(child)
+        defer { primary.unbindSuspendedCallChild(child) }
+        let parked = DispatchSemaphore(value: 0)
+        let parkedRaw = runtimeRegisterObject(parked)
+        defer { _ = runtimeReleaseObject(parkedRaw) }
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, Int64(parkedRaw))
+        // Delay the supplemental handler until the primary wake has already
+        // reached the child's next, deliberately non-cancellable suspension.
+        _ = job.addCompletionHandler(onCancelling: true) { _ in
+            #expect(parked.wait(timeout: .now() + 2.0) == .success)
+        }
+        let entry: RuntimeTestSuspendEntry = { continuation, _ in
+            let label = kk_coroutine_state_enter(continuation, 9242)
+            if label == 0 {
+                _ = kk_coroutine_state_set_label(continuation, 1)
+                return kk_kxmini_delay(60_000, continuation)
+            }
+            if label == 1 {
+                _ = kk_coroutine_state_set_label(continuation, 2)
+                let raw = kk_coroutine_launcher_arg_get(continuation, 0)
+                Unmanaged<DispatchSemaphore>.fromOpaque(UnsafeRawPointer(bitPattern: Int(raw))!)
+                    .takeUnretainedValue().signal()
+                return Int(bitPattern: kk_coroutine_suspended())
+            }
+            return kk_coroutine_state_exit(continuation, 42)
+        }
+        let completed = DispatchSemaphore(value: 0)
+        let probe = ResumerProbe()
+        _ = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: unsafeBitCast(entry, to: Int.self), continuation: continuation,
+            onCompletion: { result, thrown in
+                probe.record(result: result, thrown: thrown)
+                completed.signal()
+            }
+        )
+        _ = job.cancel()
+        #expect(RuntimeCoroutineScopeTaskKey.currentTaskKey == taskKey)
+        #expect(RuntimeJobHandle.current === previousJob)
+        #expect(RuntimeContinuationState.current === previousState)
+        #expect(RuntimeCoroutineScope.current === previousScope)
+        #expect(completed.wait(timeout: .now() + 0.1) == .timedOut,
+            "one cancellation must not resume the child's next suspension")
+        child.signalResume()
+        #expect(completed.wait(timeout: .now() + 2.0) == .success)
+        #expect(probe.result == 42)
+        #expect(probe.thrown == 0)
+        _ = job.complete(with: 0)
     }
 
     @Test func testSuspendFunctionValuePreservesClosureReceiverAndArgument() throws {
@@ -655,6 +835,7 @@ struct RuntimeCoroutineStateTests {
     }
 
     @Test func testCoroutineScopeRegisterChildManualRegistration() {
+        let parentScope = RuntimeCoroutineScope.current
         let scopeHandle = kk_coroutine_scope_new()
 
         // Create an async task and manually register it
@@ -662,15 +843,13 @@ struct RuntimeCoroutineStateTests {
             runtime_test_suspend_async as RuntimeTestSuspendEntry,
             to: Int.self
         )
-        // Temporarily pop the scope to prevent auto-registration
-        let savedScope = RuntimeCoroutineScope.current
-        RuntimeCoroutineScope.current = nil
-        defer { RuntimeCoroutineScope.current = savedScope }
-
-        let asyncHandle = kk_kxmini_async(entryRaw, runtimeKxMiniAsyncFunctionID)
-
-        // Restore scope before manual registration
-        RuntimeCoroutineScope.current = savedScope
+        // Restore the temporary pop before scope_wait completes and removes this scope.
+        let asyncHandle: Int = {
+            let savedScope = RuntimeCoroutineScope.current
+            RuntimeCoroutineScope.current = nil
+            defer { RuntimeCoroutineScope.current = savedScope }
+            return kk_kxmini_async(entryRaw, runtimeKxMiniAsyncFunctionID)
+        }()
         _ = kk_coroutine_scope_register_child(scopeHandle, asyncHandle)
 
         // Await the async result BEFORE scope_wait, since scope_wait releases the handle.
@@ -680,6 +859,7 @@ struct RuntimeCoroutineStateTests {
 
         // Wait for children — scope releases remaining retains for the child
         #expect(kk_coroutine_scope_wait(scopeHandle) == runtimeNullSentinelInt)
+        #expect(RuntimeCoroutineScope.current === parentScope)
     }
 
     @Test func testJobJoinWithinScopeAndScopeWaitsForChild() {
