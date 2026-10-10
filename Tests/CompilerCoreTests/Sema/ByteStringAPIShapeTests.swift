@@ -112,7 +112,7 @@ struct ByteStringAPIShapeTests {
         func normalize(_ encoded: String, _ parameters: [SymbolID]) -> String {
             // Tokens are matched as complete numbers: T12 must never rewrite T123.
             let replacements = Dictionary(uniqueKeysWithValues: parameters.enumerated().map { ("T\($0.element.rawValue)", "T\($0.offset)") })
-            let regex = try! NSRegularExpression(pattern: "T[0-9]+")
+            let regex = try! NSRegularExpression(pattern: "T-?[0-9]+")
             let range = NSRange(encoded.startIndex..., in: encoded)
             var result = encoded
             for match in regex.matches(in: encoded, range: range).reversed() {
