@@ -23,6 +23,16 @@ indirect coverage. A row's state describes the listed checks, rather than
 every possible input. Prepared mappings and failed or unexecuted lanes remain
 UNVERIFIED until their required execution and API checks pass.
 
+The 2026-10-10 final audit verified all 65 rows for these listed checks, with
+56 direct and 9 indirect/container relationships retained. `validation.json`
+records the compiler/artifact identity, gate counts and evidence hashes.
+The fresh API/startup/label gate passed 6 methods / 9 cases / 4 suites. All six
+original-test lanes passed the same 76 IDs (456 assertion executions), and the
+74-line JVM supplement/ABI reference matched Native source/library O2 exactly.
+The 7-method / 14-case negative Sema gate is retained from the previous
+compiler: all 216 Sema files and relevant helpers are unchanged, and all 1756
+old/new stdlib artifact files are byte-identical. It is not a fresh rerun.
+
 The six original common suites contain 76 execution IDs. Their bodies and
 constructors remain unchanged; the candidate port only prepends the existing
 internal-access suppression. Each ID uses a fresh original class instance.
@@ -38,7 +48,7 @@ versus library behavior.
 After `swift build`, run the focused tests with a fresh test build:
 
 ```sh
-bash Scripts/swift_test.sh --no-parallel --filter 'ByteStringAPIShapeTests|ByteStringBuilderContractTests|ImplicitReceiverLiteralExtensionTests|scalarUnsignedAndSignedArraysRemainStable|testByteStringImplicitBuilderLiteralContracts|testByteStringConstructorUnsafeAndAppendableContracts|testByteStringBuilderDefaultsExtensionsAndUnsafeContract|testByteStringCodecBoundsPaddingAndHexContracts|testByteStringDecodeDestinationAndHexLengthContracts|constructorReflectionPreservesPackedVarargArrays|channelCloseCallbacksPreserveCallableClosureABI'
+bash Scripts/swift_test.sh --no-parallel --filter 'ByteStringAPIShapeTests|ByteStringBuilderContractTests|ImplicitReceiverLiteralExtensionTests|scalarUnsignedAndSignedArraysRemainStable|testByteStringImplicitBuilderLiteralContracts|testByteStringConstructorUnsafeAndAppendableContracts|testByteStringBuilderDefaultsExtensionsAndUnsafeContract|testByteStringCodecBoundsPaddingAndHexContracts|testByteStringDecodeDestinationAndHexLengthContracts|constructorReflectionPreservesPackedVarargArrays|channelCloseCallbacksPreserveCallableClosureABI|TopLevelStartupIsolationTests|TopLevelInitializerLabelKIRTests|callingOtherMainAndReenteringEntryPreservesModuleState'
 ```
 
 The combined driver is provided by the parent harness PR #8301. For each O0/O2
@@ -70,3 +80,9 @@ general seven-observation comparison and full core/JVM/Apple coverage remain
 owned by KUU-1727/KUU-1725. General paired PASS is not inferred from these
 assertion results. HexFormat builder setter validation is tracked separately
 in KUU-1767.
+
+Startup initialization belongs only to the selected executable file-level
+entry and runs once, including recursive entry calls. Other package `main`
+functions and library functions preserve singleton state. Core selection and
+label checks plus source/library execution cover this regression. Argument
+passing to `main(args)` remains a separate KUU-1770 entry ABI issue.
