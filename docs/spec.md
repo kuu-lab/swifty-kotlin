@@ -87,6 +87,7 @@ public struct CompilerOptions: Equatable {
     public var stdlibSearchPaths: [String]
     public var includeStdlib: Bool
     public var incrementalCachePath: String?
+    public var entryPointFQName: String?     // exact file-level executable entry
 
     /// When true, compile only the bundled/residual stdlib into a .kklib.
     public var stdlibOnly: Bool
@@ -104,6 +105,15 @@ public struct CompilerOptions: Equatable {
 * **CompilationSession**: 1回の `kswiftc` 実行
 * **Module**: Kotlin の “名前空間 + 生成物” 単位（`moduleName`）
 * **Library**: 別 Module を import 可能にする配布形態（Doc J12）
+
+`kswiftc --test`（別名 `-generate-test-runner`）は `generate-test-runner`
+frontend flag を有効にする。Driver は Sema で元の入力にある `kotlin.test`
+注釈を解決し、元ファイルのメモリ内コピーへ wrapper を挿入して通常のパイプラインを
+再実行する。元の `main` は保持し、`entryPointFQName` で生成 entry を Link と
+top-level initializer 注入の対象に指定する。指定 entry がない場合は通常 main へ
+fallback しない。overlay の incremental cache は無効にする。
+発見対象、ライフサイクル、失敗レポートと終了コードは
+[`kotlin-test-runner.md`](kotlin-test-runner.md) を参照。
 
 ## J1.3 パイプライン API（固定）
 

@@ -9,6 +9,12 @@ import Testing
 // suite's tests concurrently races on that global.
 @Suite("CLI.Parser", .serialized)
 struct CLIParserTests {
+    @Test(arguments: ["--test", "-generate-test-runner"])
+    func parsesTestRunnerFlag(flag: String) throws {
+        let options = try CLIParser.parse(args: [flag, "tests.kt"])
+        #expect(options.frontendFlags.contains("generate-test-runner"))
+        #expect(options.emit == .executable)
+    }
     @Test
     func parsesMinimalInput() throws {
         let options = try CLIParser.parse(args: ["input.kt"])
