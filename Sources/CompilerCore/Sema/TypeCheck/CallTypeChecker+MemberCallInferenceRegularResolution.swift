@@ -848,6 +848,19 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
             sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
+            driver.helpers.checkDeprecation(
+                for: propResult.symbol,
+                sema: sema,
+                interner: interner,
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: propResult.symbol,
+                ctx: ctx,
+                range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
             sema.bindings.bindExprType(id, type: propResult.type)
             let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
                 id, locals: locals, ast: ast, sema: sema, interner: interner

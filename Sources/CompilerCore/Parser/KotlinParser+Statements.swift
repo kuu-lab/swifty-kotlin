@@ -940,7 +940,7 @@ extension KotlinParser {
         return startsGenuineDeclaration(at: 0)
     }
 
-    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false) {
+    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator, allowsDeclarationAssignment: Bool = false, allowsSupertypeContinuation: Bool = false) {
         var progress = false
         var sawAssignment = false
         var sawTryKeyword = false
@@ -1044,6 +1044,7 @@ extension KotlinParser {
                 // branch body starts on the next line.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
+                    || (allowsSupertypeContinuation && stream.peek().kind == .symbol(.colon))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
                 {

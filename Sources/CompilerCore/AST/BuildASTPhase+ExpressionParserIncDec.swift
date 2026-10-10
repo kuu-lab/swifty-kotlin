@@ -80,7 +80,7 @@ extension BuildASTPhase.ExpressionParser {
                 op: op,
                 name: name,
                 value: one,
-                range: range
+                range: operandRange
             ))
             astArena.markIncrementDecrement(assignment)
             assignExpr = assignment
@@ -115,7 +115,9 @@ extension BuildASTPhase.ExpressionParser {
                 receiver: cachedReceiver,
                 callee: callee,
                 value: one,
-                range: range
+                // This synthetic mutation and its read represent one property
+                // use. Share the operand range so annotation diagnostics dedup.
+                range: operandRange
             ))
             astArena.markIncrementDecrement(assignment)
             assignExpr = assignment
