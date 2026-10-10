@@ -183,6 +183,10 @@ struct TypeCheckScopeBuilder {
             symbols: sema.symbols, sourceManager: sourceManager,
             invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
         )
+        // Bundled stdlib source contains platform-specific imports (for
+        // example, Java interop types) that are intentionally absent from the
+        // compiler's symbol graph. Import validation is for user source only.
+        let validatesImports = sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true
         func isAccessibleWildcardSymbol(_ id: SymbolID) -> Bool {
             guard let symbol = sema.symbols.symbol(id) else { return false }
             return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
@@ -247,6 +251,13 @@ struct TypeCheckScopeBuilder {
                 : resolveExplicitImport(importDecl.path, sema: sema)
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
+                if packageSymbols.isEmpty, !importDecl.isWildcard, validatesImports {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "Unresolved import path.",
+                        range: importDecl.range
+                    )
+                }
                 if !packageSymbols.isEmpty {
                     for packageSymbol in packageSymbols {
                         if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
