@@ -48,6 +48,19 @@ extension CallTypeChecker {
         return !hasRealCandidate
     }
 
+    /// Preserve the bundled launcher's receiver/continuation slots even when
+    /// postponed builder inference resolves the call before the regular path.
+    func markSourceBackedCoroutineLauncherArguments(
+        _ chosen: SymbolID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) {
+        guard isSourceBackedProducerFlowBuilder(chosen, ctx: ctx) else { return }
+        for argument in args where isLambdaLiteralArg(argument.expr, ast: ctx.ast) {
+            ctx.sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+        }
+    }
+
     /// Returns true only for the bundled source-backed producer-flow builders.
     /// A same-named user declaration must keep the regular callable ABI.
     func isSourceBackedProducerFlowBuilder(
@@ -60,6 +73,11 @@ extension CallTypeChecker {
         else {
             return false
         }
+        if let file = ctx.sema.symbols.sourceFileID(for: symbolID) ?? symbol.declSite?.start.file {
+            guard ctx.visibilityChecker.sourceManager?.origin(of: file)?.isBundledStdlib == true else { return false }
+        } else {
+            guard ctx.sema.symbols.isImportedStdlibSymbol(symbolID) else { return false }
+        }
         let interner = ctx.interner
         let channelFlow = interner.intern("channelFlow")
         let callbackFlow = interner.intern("callbackFlow")
@@ -69,7 +87,9 @@ extension CallTypeChecker {
                 interner.intern("coroutines"),
                 interner.intern("flow"),
             ]
+            let expectedLink = symbol.name == channelFlow ? "kk_channel_flow_create" : "kk_callback_flow_create"
             return symbol.fqName == flowPackage + [symbol.name]
+                && ctx.sema.symbols.externalLinkName(for: symbolID) == expectedLink
         }
         // KSP-1573: the bundled CoroutineScope.produce/actor extensions use the
         // same launcher-continuation convention for their suspend
@@ -95,6 +115,7 @@ extension CallTypeChecker {
                 interner.intern("test"),
             ]
             return symbol.fqName == testPackage + [symbol.name]
+                && ctx.sema.symbols.externalLinkName(for: symbolID) == "kk_test_run_blocking"
         }
         return false
     }
