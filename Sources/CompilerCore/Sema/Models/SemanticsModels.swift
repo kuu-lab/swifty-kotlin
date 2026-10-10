@@ -1714,6 +1714,10 @@ public final class BindingTable {
 
     public private(set) var annotationFactoryExpressions: [SymbolID: ExprID] = [:]
 
+    /// Primary-constructor annotations selected for the synthesized property
+    /// after annotation targets are resolved. Preserve tokens for factories.
+    var primaryConstructorPropertyAnnotations: [SymbolID: [AnnotationNode]] = [:]
+
     public func bindAnnotationFactory(_ symbol: SymbolID, expression: ExprID) {
         annotationFactoryExpressions[symbol] = expression
     }

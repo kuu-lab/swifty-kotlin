@@ -165,7 +165,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let checksExprTypes: Bool
     }
 
-    /// Makes referenced bundled coroutine, native, and reflection
+    /// Makes referenced bundled coroutine, native, reflection, and serialization
     /// enum nominals visible to the shared enum synthesis pass when a consumer
     /// KIR references one of their generated APIs or the enum type itself.
     /// Bundled source declarations are omitted from consumer KIR, but their
@@ -178,6 +178,15 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         interner: StringInterner
     ) {
         let specs: [BundledEnumSpec] = [
+            // An annotation's nested enum still needs ordinary name/entries
+            // helpers when its bundled source file is omitted from consumer KIR.
+            BundledEnumSpec(
+                pathSegments: ["kotlinx", "serialization", "EncodeDefault", "Mode"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
             BundledEnumSpec(
                 pathSegments: ["kotlin", "coroutines", "intrinsics", "CoroutineSingletons"],
                 requiresSourceBacked: true,
