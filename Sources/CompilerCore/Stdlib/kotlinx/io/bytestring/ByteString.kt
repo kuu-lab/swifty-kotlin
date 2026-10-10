@@ -9,7 +9,7 @@ package kotlinx.io.bytestring
 /** An immutable sequence of bytes. Public construction and extraction copy the array. */
 public class ByteString private constructor(private val data: ByteArray, unused: Boolean) : Comparable<ByteString> {
     public constructor(data: ByteArray, startIndex: Int = 0, endIndex: Int = data.size) :
-        this(data.copyOfRange(startIndex, endIndex), true)
+        this(copyByteStringData(data, startIndex, endIndex), true)
 
     public companion object {
         internal val EMPTY: ByteString = ByteString(ByteArray(0), true)
@@ -85,6 +85,22 @@ public class ByteString private constructor(private val data: ByteArray, unused:
     internal fun getBackingArrayReference(): ByteArray = data
 }
 
+private fun copyByteStringData(data: ByteArray, startIndex: Int, endIndex: Int): ByteArray {
+    // Kotlin copyOfRange checks an excessive end before a reversed range,
+    // and checks a negative start after the reversed-range check.
+    if (endIndex > data.size) {
+        throw IndexOutOfBoundsException("endIndex ($endIndex) exceeds size (${data.size})")
+    }
+    if (startIndex > endIndex) {
+        throw IllegalArgumentException("startIndex ($startIndex) > endIndex ($endIndex)")
+    }
+    if (startIndex < 0) {
+        throw IndexOutOfBoundsException("startIndex ($startIndex) is negative")
+    }
+    return data.copyOfRange(startIndex, endIndex)
+}
+
+@kotlin.js.JsName("EmptyByteString")
 public fun ByteString(): ByteString = ByteString.EMPTY
 
 public fun ByteString(vararg bytes: Byte): ByteString {

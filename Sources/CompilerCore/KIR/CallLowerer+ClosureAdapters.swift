@@ -1053,6 +1053,28 @@ extension CallLowerer {
             return Array(loweredArguments.prefix(3)) + [fnPtr, closureRaw]
         }
 
+        if externalLinkName == "__kk_channel_invoke_on_close", loweredArguments.count == 2 {
+            let handler = loweredArguments[1]
+            if driver.ctx.callableValueInfo(for: handler) != nil {
+                return [loweredArguments[0]] + makeCollectionHOFExpandedArguments(
+                    loweredArgID: handler,
+                    argExprID: originalArgs[1].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let (fnPtr, closureRaw) = splitCallableLambdaArgument(
+                handler,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return [loweredArguments[0], fnPtr, closureRaw]
+        }
+
         if externalLinkName == "kk_suspend_coroutine", loweredArguments.count == 1 {
             return makeClosureThunkExpandedArguments(
                 loweredArgID: loweredArguments[0],

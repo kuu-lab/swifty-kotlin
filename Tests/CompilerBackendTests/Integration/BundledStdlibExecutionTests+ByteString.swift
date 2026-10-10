@@ -6,6 +6,7 @@ extension BundledStdlibExecutionTests {
             """
             import kotlinx.io.bytestring.ByteString
             import kotlinx.io.bytestring.ByteStringBuilder
+            import kotlinx.io.bytestring.append
             import kotlinx.io.bytestring.encodeToByteString
             import kotlinx.io.bytestring.decodeToString
             import kotlinx.io.bytestring.indexOf

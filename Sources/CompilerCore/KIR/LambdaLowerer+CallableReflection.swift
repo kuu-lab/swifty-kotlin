@@ -10,6 +10,7 @@ extension LambdaLowerer {
         returnType: TypeID,
         captures: [KIRExprID],
         receiverCount: Int,
+        packedConstructorVarargs: Bool = false,
         setterSymbol: SymbolID? = nil,
         includeInvocation: Bool = true,
         ast: ASTModule,
@@ -81,6 +82,7 @@ extension LambdaLowerer {
             invoker = callableReflectionInvoker(
                 callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
                 parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
+                packedConstructorVarargs: packedConstructorVarargs,
                 sema: sema, arena: arena, interner: interner
             )
             if let reference = arena.expr(invoker) {
@@ -219,6 +221,7 @@ extension LambdaLowerer {
     private func callableReflectionInvoker(
         callableSymbol: SymbolID, callableName: InternedString, targetSymbol: SymbolID?,
         parameterTypes: [TypeID], captureTypes: [TypeID], returnType: TypeID,
+        packedConstructorVarargs: Bool = false,
         sema: SemaModule, arena: KIRArena, interner: StringInterner
     ) -> KIRExprID {
         let name = interner.intern("kk_reflect_invoke_\(callableSymbol.rawValue)_\(arena.declarations.count)")
@@ -236,20 +239,44 @@ extension LambdaLowerer {
             body.append(.constValue(result: expr, value: .symbolRef(param.symbol)))
             return expr
         }
-        func unpack(_ list: KIRExprID, types: [TypeID]) -> [KIRExprID] {
+        let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        func unpack(
+            _ list: KIRExprID, types: [TypeID], constructorParameters: Bool = false
+        ) -> [KIRExprID] {
             types.enumerated().map { index, type in
                 let offset = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
                 body.append(.constValue(result: offset, value: .intLiteral(Int64(index))))
                 let raw = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.call(symbol: nil, callee: interner.intern("__kk_list_get"), arguments: [list, offset],
                                   result: raw, canThrow: true, thrownResult: nil))
+                if constructorParameters, let signature,
+                   signature.valueParameterIsVararg.indices.contains(index),
+                   signature.valueParameterIsVararg[index] {
+                    let storageType = driver.constructorParameterStorageType(
+                        at: index, signature: signature, sema: sema, interner: interner
+                    )
+                    let packed = arena.appendTemporary(type: storageType)
+                    if primitiveVarargArrayType(elementType: type, sema: sema, interner: interner) != nil {
+                        // Reflection receives the whole primitive array, not a
+                        // boxed scalar of the signature's element type.
+                        body.append(.copy(from: raw, to: packed))
+                    } else {
+                        // Kotlin reflection accepts Array<out T>; the existing
+                        // source constructor ABI consumes a packed List<T>.
+                        body.append(.call(
+                            symbol: nil, callee: interner.intern("__kk_array_toList"),
+                            arguments: [raw], result: packed, canThrow: false, thrownResult: nil
+                        ))
+                    }
+                    return packed
+                }
                 return normalizeHOFPrimitiveParameter(raw, type: type, sema: sema, arena: arena,
                                                        interner: interner, instructions: &body)
             }
         }
-        let arguments = unpack(refs[0], types: captureTypes) + unpack(refs[1], types: parameterTypes)
+        let arguments = unpack(refs[0], types: captureTypes)
+            + unpack(refs[1], types: parameterTypes, constructorParameters: packedConstructorVarargs)
         let result = arena.appendTemporary(type: returnType)
-        let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
         if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
            sema.symbols.symbol(targetSymbol)?.kind == .constructor,
            let wrapper = driver.ctx.pendingGeneratedCallableDeclIDs.compactMap({ declID -> KIRFunction? in
