@@ -3044,6 +3044,28 @@ struct RuntimeAnnotationRecord {
     let annotationFQName: String
     /// Argument values serialized as strings (e.g. ["hello"]).
     let arguments: [String]
+    let factory: Int
+
+    init(annotationFQName: String, arguments: [String], factory: Int = 0) {
+        self.annotationFQName = annotationFQName
+        self.arguments = arguments
+        self.factory = factory
+    }
+}
+
+/// Merge new/legacy metadata without turning the same occurrence into two values.
+func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to records: inout [RuntimeAnnotationRecord]) {
+    let sameValue: (RuntimeAnnotationRecord) -> Bool = {
+        $0.annotationFQName == annotation.annotationFQName && $0.arguments == annotation.arguments
+    }
+    if annotation.factory == 0, records.contains(where: { $0.factory != 0 && sameValue($0) }) { return }
+    if annotation.factory != 0, records.contains(where: {
+        $0.factory == annotation.factory && $0.annotationFQName == annotation.annotationFQName
+    }) { return }
+    if annotation.factory != 0, let legacyIndex = records.firstIndex(where: { $0.factory == 0 && sameValue($0) }) {
+        records.remove(at: legacyIndex)
+    }
+    records.append(annotation)
 }
 
 /// Global registry mapping type tokens to runtime metadata entries.
@@ -3055,7 +3077,13 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     func register(typeToken: Int, entry: RuntimeKClassMetadataEntry) {
         lock.lock()
         defer { lock.unlock() }
-        entries[typeToken] = entry
+        var registered = entry
+        if registered.annotations.isEmpty {
+            // Legacy callers re-attach their complete record list after every
+            // metadata registration. Keep lazy factories, reset legacy records.
+            registered.annotations = entries[typeToken]?.annotations.filter { $0.factory != 0 } ?? []
+        }
+        entries[typeToken] = registered
     }
 
     func lookup(typeToken: Int) -> RuntimeKClassMetadataEntry? {
@@ -3074,7 +3102,7 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         if var entry = entries[typeToken] {
-            entry.annotations.append(contentsOf: annotations)
+            for annotation in annotations { runtimeAppendAnnotationRecord(annotation, to: &entry.annotations) }
             entries[typeToken] = entry
         }
     }

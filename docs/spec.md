@@ -1235,3 +1235,37 @@ swift test --show-codecov-path
   * `Sources/CompilerCore/Lexer/TokenModel.swift`
   * `Sources/CompilerCore/AST/ASTModels.swift`
 * しきい値を CI gate 化する場合は、`--show-codecov-path` が出力する JSON を parse する tracked script を追加してから、この節へ script 名と環境変数を戻す。
+
+### Annotation construction metadata (KUU-1753)
+
+`AnnotationNode.constructionTokens` preserves constructor tokens (including aliases,
+escaped strings, array literals, named arguments and defaults) through frontend
+snapshots. `IncrementalFrontendState.supportedVersion = 4` rejects older snapshots.
+After headers, annotation construction is resolved in the declaration's lexical
+scope. After all declaration bodies are bound, all retention kinds require constant arguments/defaults; only RUNTIME
+records receive a private producer-owned constructor factory. Constant primitive
+and String expressions share `ConstPropertyEvaluator`/`ConstantCollector` rules.
+
+Metadata records optionally store the factory's actual backend `factoryLinkName`.
+Missing fields decode as legacy records. A consumer registers a symbol reference
+with the normal zero-argument function-value ABI (`outThrown`); it does not rebuild
+private producer constructors. Typed class/callable reads invoke factories outside
+registry locks and root intermediate results until the returned list owns them.
+Matching factory/legacy records share one occurrence; differing repeatable values
+remain separate. Old read entry points retain their serialized record boxes.
+`findAnnotation<T>()` returns `T?`, checks the Annotation bound, and can infer T
+from the expected result type. Typed lookup uses the runtime type token (including hidden reified tokens), so
+Annotation-bound searches and inferred upper result types use ordinary instance
+checks without simple-name collisions. Annotation construction retains lexical
+visibility while excluding inline-body call visibility rules.
+Earlier application validators record checked marker IDs per annotation occurrence.
+Only matching markers on that occurrence's outer constructor reuse those checks;
+unvalidated markers, constructor-specific markers and nested expressions retain
+normal opt-in validation.
+Nested annotation declarations collect the same synthetic `equals`, `hashCode`
+and `toString` members as top-level annotations. A type-qualified nested
+annotation constructor has no enclosing-instance receiver.
+Synthetic annotation methods and their signature parameters survive library
+metadata filtering just like data-class members, preserving vtable slots and
+producer link names. Existing hidden-owner and excluded-source filters remain
+in effect.

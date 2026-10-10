@@ -50,6 +50,10 @@ extension TypeCheckHelpers {
                 where markers.insert(requirement.markerSymbol).inserted {
                 requirements.append(requirement)
             }
+            if let validated = ctx.annotationOptInValidation,
+               validated.owner == owner, validated.range == range {
+                requirements.removeAll { validated.markers.contains($0.markerSymbol) }
+            }
         }
         guard !requirements.isEmpty else {
             return

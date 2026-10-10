@@ -37,6 +37,7 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 /// recursive calls (e.g. `inferExpr` → `inferCallExpr` → `inferExpr`) can be
 /// dispatched through the driver rather than sharing a single fat class instance.
 final class TypeCheckDriver {
+    var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
     /// Properties whose types were inferred in a safe module pre-pass so earlier
@@ -127,7 +128,8 @@ final class TypeCheckDriver {
     }
 
     private func checkInlineCallVisibility(_ id: ExprID, ctx: TypeInferenceContext) {
-        guard let callerID = ctx.currentDeclSymbol,
+        guard !isCheckingAnnotationConstruction,
+              let callerID = ctx.currentDeclSymbol,
               let caller = sema.symbols.symbol(callerID),
               caller.flags.contains(.inlineFunction),
               ctx.visibilityChecker.isPublicAPI(caller),

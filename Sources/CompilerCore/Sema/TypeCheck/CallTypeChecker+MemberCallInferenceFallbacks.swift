@@ -1283,6 +1283,7 @@ extension CallTypeChecker {
         _ id: ExprID,
         args: [CallArgument],
         explicitTypeArgs: [TypeID],
+        expectedType: TypeID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> TypeID {
@@ -1292,12 +1293,30 @@ extension CallTypeChecker {
             _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
         }
 
-        if let searchType = explicitTypeArgs.first {
-            sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+        let annotationSymbol = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")])
+        let annotationBound = annotationSymbol.map {
+            sema.types.make(.classType(ClassType(classSymbol: $0, args: [], nullability: .nonNull)))
         }
-
-        let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-        sema.bindings.bindExprType(id, type: nullableAnyType)
-        return nullableAnyType
+        let inferredType = expectedType.map { sema.types.makeNonNullable($0) }.map {
+            if let annotationBound, sema.types.isSubtype(annotationBound, $0) { return annotationBound }
+            return $0
+        }
+        guard args.isEmpty, explicitTypeArgs.count <= 1, let searchType = explicitTypeArgs.first ?? inferredType else {
+            sema.diagnostics.error("KSWIFTK-SEMA-0002", "findAnnotation requires one annotation type and no value arguments.",
+                                   range: ctx.ast.arena.exprRange(id))
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+        if let annotation = sema.symbols.lookup(fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Annotation")]) {
+            let bound = sema.types.make(.classType(ClassType(classSymbol: annotation, args: [], nullability: .nonNull)))
+            if !sema.types.isSubtype(searchType, bound) {
+                sema.diagnostics.error("KSWIFTK-SEMA-0002", "findAnnotation type argument must be an Annotation.",
+                                       range: ctx.ast.arena.exprRange(id))
+            }
+        }
+        let resultType = sema.types.makeNullable(searchType)
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 }

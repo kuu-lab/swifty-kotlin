@@ -2,11 +2,22 @@ public struct AnnotationNode: Equatable, Codable {
     public let name: String
     public let arguments: [String]
     public let useSiteTarget: String?
+    /// Original constructor tokens retain escapes, backticks and lexical scope.
+    public let constructionTokens: [Token]?
 
-    public init(name: String, arguments: [String] = [], useSiteTarget: String? = nil) {
+    public var usageID: String? {
+        constructionTokens?.first.map { "\($0.range.start.file.rawValue):\($0.range.start.offset)" }
+    }
+
+    public init(name: String, arguments: [String] = [], useSiteTarget: String? = nil, constructionTokens: [Token]? = nil) {
         self.name = name
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
+        self.constructionTokens = constructionTokens
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.name == rhs.name && lhs.arguments == rhs.arguments && lhs.useSiteTarget == rhs.useSiteTarget
     }
 }
 

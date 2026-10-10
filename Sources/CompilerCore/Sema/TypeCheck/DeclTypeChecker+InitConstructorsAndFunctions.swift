@@ -695,6 +695,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        typeCheckAnnotationFactories(function.annotations, symbol: symbol, ctx: ctx)
         let sema = ctx.sema
         guard let signature = sema.symbols.functionSignature(for: symbol) else {
             return

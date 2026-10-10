@@ -7,6 +7,7 @@ extension DataFlowSemaPhase {
         scopeSymbol: SymbolID?,
         range: SourceRange?,
         symbols: SymbolTable,
+        bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         globalOptInMarkerNames: [String]
@@ -45,6 +46,7 @@ extension DataFlowSemaPhase {
         guard !requiredMarkers.isEmpty else {
             return
         }
+        bindings.recordValidatedAnnotationOptIn(usageID: annotation.usageID, markers: Set(requiredMarkers))
 
         var optedInMarkers = Set<SymbolID>()
         for markerName in globalOptInMarkerNames {

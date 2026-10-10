@@ -42,6 +42,7 @@ enum AnnotationParsingSupport {
             return nil
         }
 
+        let constructionStart = index
         guard var name = tokenText(tokens[index], interner: interner) else {
             return nil
         }
@@ -96,7 +97,8 @@ enum AnnotationParsingSupport {
             annotation: AnnotationNode(
                 name: name,
                 arguments: arguments,
-                useSiteTarget: useSiteTarget
+                useSiteTarget: useSiteTarget,
+                constructionTokens: Array(tokens[constructionStart..<index])
             ),
             nextIndex: index,
             invalidUseSiteTargetRange: invalidUseSiteTargetRange

@@ -50,14 +50,20 @@ func primitiveVarargArrayType(
     sema: SemaModule,
     interner: StringInterner
 ) -> TypeID? {
-    guard case let .primitive(primitive, .nonNull) = sema.types.kind(of: elementType) else {
+    primitiveVarargArrayType(elementType: elementType, symbols: sema.symbols, types: sema.types, interner: interner)
+}
+
+func primitiveVarargArrayType(
+    elementType: TypeID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner
+) -> TypeID? {
+    guard case let .primitive(primitive, .nonNull) = types.kind(of: elementType) else {
         return nil
     }
     let arrayName = interner.intern(primitive.kotlinName + "Array")
-    guard let arraySymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), arrayName]) else {
+    guard let arraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), arrayName]) else {
         return nil
     }
-    return sema.types.make(.classType(ClassType(
+    return types.make(.classType(ClassType(
         classSymbol: arraySymbol,
         args: [],
         nullability: .nonNull

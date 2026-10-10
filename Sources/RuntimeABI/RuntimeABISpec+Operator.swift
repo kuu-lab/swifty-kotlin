@@ -325,6 +325,24 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-REFLECT-065: Annotation reflection
         RuntimeABIFunctionSpec(
+            name: "__kk_kclass_get_annotations_typed",
+            parameters: [RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+                         RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_find_annotation_typed",
+            parameters: ["kclassRaw", "typeToken"].map { RuntimeABIParameter(name: $0, type: .intptr) }
+                + [RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
+            returnType: .intptr, section: "Reflection", isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kclass_register_annotation_factory",
+            parameters: ["typeToken", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
+                RuntimeABIParameter(name: $0, type: .intptr)
+            }, returnType: .intptr, section: "Reflection", isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_kclass_get_annotations",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),

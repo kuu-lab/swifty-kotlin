@@ -285,17 +285,26 @@ public struct MetadataAnnotationRecord: Equatable {
     /// Producer-side retention survives when the annotation class is non-public.
     /// Older metadata without this field is classified from its declaration.
     public let retention: AnnotationRetentionKind?
+    public let usageID: String?
+    public let factorySymbol: SymbolID?
+    public let factoryLinkName: String?
 
     public init(
         annotationFQName: String,
         arguments: [String] = [],
         useSiteTarget: String? = nil,
-        retention: AnnotationRetentionKind? = nil
+        retention: AnnotationRetentionKind? = nil,
+        usageID: String? = nil,
+        factorySymbol: SymbolID? = nil,
+        factoryLinkName: String? = nil
     ) {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
         self.retention = retention
+        self.usageID = usageID
+        self.factorySymbol = factorySymbol
+        self.factoryLinkName = factoryLinkName
     }
 }
 
@@ -426,11 +435,11 @@ package final class MetadataEncoder {
                     }
                 }
                 // KSP-626: `componentN`/`copy`/`equals`/`hashCode`/`toString` of a
-                // source-backed data class are synthesized symbols, but they are part of
-                // the class's public surface and are compiled into the artifact. Without
-                // them consumers cannot destructure or compare an imported data class.
-                let keepAsDataClassMember = !includeSynthetic
-                    && Self.isSourceBackedDataClassMember(
+                // source-backed data class, and `equals`/`hashCode`/`toString` of an
+                // annotation class, are synthesized but compiled public members. Keep
+                // them so consumers restore the vtable and annotation value semantics.
+                let keepAsDataOrAnnotationClassMember = !includeSynthetic
+                    && Self.isSourceBackedDataOrAnnotationClassMember(
                         symbol.id,
                         symbols: symbols,
                         excludedSourceFileIDs: excludeSourceFileIDs
@@ -469,7 +478,7 @@ package final class MetadataEncoder {
                     || symbol.kind == .function
                     && symbols.classDelegationForwardingMethodInfo(for: symbol.id) != nil)
                     && symbol.declSite.map { !excludeSourceFileIDs.contains($0.start.file.rawValue) } == true
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember {
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataOrAnnotationClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -489,7 +498,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember, !keepAsEnumClassMember {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataOrAnnotationClassMember, !keepAsEnumClassMember {
                     var parentID = symbols.parentSymbol(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -1325,7 +1334,9 @@ package final class MetadataEncoder {
             return MetadataAnnotationRecord(
                 annotationFQName: annotation.annotationFQName, arguments: annotation.arguments,
                 useSiteTarget: annotation.useSiteTarget,
-                retention: retention == .binary ? retention : annotation.retention
+                retention: retention == .binary ? retention : annotation.retention,
+                factoryLinkName: annotation.factorySymbol.flatMap { functionLinkNames[$0] }
+                    ?? annotation.factoryLinkName
             )
         }
 
@@ -1447,8 +1458,8 @@ package final class MetadataEncoder {
     private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     /// True when `symbolID` is (or belongs to) a compiler-generated member of a
-    /// source-backed data class (KSP-626).
-    private static func isSourceBackedDataClassMember(
+    /// source-backed data or annotation class (KSP-626, KUU-1753).
+    private static func isSourceBackedDataOrAnnotationClassMember(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
         excludedSourceFileIDs: Set<Int32>
@@ -1456,7 +1467,7 @@ package final class MetadataEncoder {
         var currentID = symbols.parentSymbol(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if nominalKinds.contains(parent.kind) {
-                guard parent.flags.contains(.dataType),
+                guard parent.flags.contains(.dataType) || parent.kind == .annotationClass,
                       !parent.flags.contains(.synthetic),
                       parent.declSite != nil
                 else {
@@ -2060,6 +2071,9 @@ package final class MetadataEncoder {
         if let retention = annotation.retention {
             parts.append("retention:\(retention.rawValue)")
         }
+        if let factory = annotation.factoryLinkName {
+            parts.append("factory:\(Data(factory.utf8).base64EncodedString())")
+        }
         if let target = annotation.useSiteTarget {
             parts.append("target:\(target)")
         }
@@ -2439,12 +2453,16 @@ final class MetadataDecoder {
         }
         var useSiteTarget: String?
         var retention: AnnotationRetentionKind?
+        var factoryLinkName: String?
         var arguments: [String] = []
         for part in parts.dropFirst() {
             if part.hasPrefix("target:") {
                 useSiteTarget = String(part.dropFirst("target:".count))
             } else if part.hasPrefix("retention:") {
                 retention = AnnotationRetentionKind(rawValue: String(part.dropFirst("retention:".count)))
+            } else if part.hasPrefix("factory:"),
+                      let data = Data(base64Encoded: String(part.dropFirst("factory:".count))) {
+                factoryLinkName = String(data: data, encoding: .utf8)
             } else if part.hasPrefix("args:") {
                 let argsStr = String(part.dropFirst("args:".count))
                 arguments = argsStr.split(separator: ",", omittingEmptySubsequences: false).compactMap { b64 in
@@ -2459,7 +2477,8 @@ final class MetadataDecoder {
             annotationFQName: annotationFQName,
             arguments: arguments,
             useSiteTarget: useSiteTarget,
-            retention: retention
+            retention: retention,
+            factoryLinkName: factoryLinkName
         )
     }
 

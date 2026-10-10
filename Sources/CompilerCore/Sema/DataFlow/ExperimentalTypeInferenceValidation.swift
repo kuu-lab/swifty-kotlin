@@ -157,6 +157,7 @@ extension DataFlowSemaPhase {
                 symbol: symbol,
                 file: file,
                 symbols: symbols,
+                bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
                 options: options
@@ -182,20 +183,28 @@ extension DataFlowSemaPhase {
         symbol: SymbolID,
         file: ASTFile,
         symbols: SymbolTable,
+        bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         options: CompilerOptions
     ) {
         let annotations = symbols.annotations(for: symbol)
-        guard annotations.contains(where: {
+        let checkedAnnotations = annotations.filter {
             annotationCarriesExperimentalVersionOverloading(
                 $0,
                 file: file,
                 symbols: symbols,
                 interner: interner
             )
-        }) else {
-            return
+        }
+        guard !checkedAnnotations.isEmpty else { return }
+        if let marker = resolveAnnotationClassSymbol(
+            named: KnownCompilerAnnotation.experimentalVersionOverloading.qualifiedName,
+            in: file, symbols: symbols, interner: interner
+        ) {
+            for annotation in checkedAnnotations {
+                bindings.recordValidatedAnnotationOptIn(usageID: annotation.usageID, markers: [marker])
+            }
         }
 
         guard !isExperimentalVersionOverloadingOptedIn(
