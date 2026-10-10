@@ -189,12 +189,9 @@ final class LambdaClosureConversionPass: LoweringPass {
                     _ = module.arena.appendDecl(decl)
                 }
 
-                // Register both the invoke wrapper and its internal lambda target
-                // as non-throwing callees so ABILoweringPass can consult
-                // module.nonThrowingClosureCallees instead of relying on
-                // string-prefix conventions.
-                module.registerNonThrowingClosureCallee(invokeWrapperName)
-                module.registerNonThrowingClosureCallee(info.function.name)
+                // A source call in the lambda can acquire a thrown channel in
+                // ABI lowering even when its current canThrow bit is false.
+                // Keep both the wrapper and its target eligible for that channel.
             }
 
             invokeWrapperNames = Set(invokeWrapperByLambdaSymbol.values.map(\.name))
@@ -418,7 +415,7 @@ final class LambdaClosureConversionPass: LoweringPass {
             callee: lambdaInfo.function.name,
             arguments: loadedCaptureExprs + valueParamExprs,
             result: callResultExpr,
-            canThrow: false,
+            canThrow: true,
             thrownResult: nil
         ))
         invokeBody.append(.returnValue(callResultExpr))

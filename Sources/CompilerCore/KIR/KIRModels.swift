@@ -496,9 +496,9 @@ public final class KIRModule {
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
     package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
-    /// Callee names that are known non-throwing, registered by earlier passes
-    /// (e.g. LambdaClosureConversionPass).  ABILoweringPass consults this set
-    /// instead of relying solely on string-prefix conventions.
+    /// Callee names with a proven non-throwing contract. Closure conversion must
+    /// not register source lambdas based on their pre-ABI call metadata.
+    /// ABILoweringPass consults this set without using string-prefix conventions.
     public private(set) var nonThrowingClosureCallees: Set<InternedString> = []
 
     public private(set) var features: KIRModuleFeatures = []

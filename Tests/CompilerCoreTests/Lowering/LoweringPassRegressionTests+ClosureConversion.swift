@@ -426,7 +426,7 @@ extension LoweringPassRegressionTests {
             }
             return (callee: interner.resolve(callee), canThrow: canThrow)
         }
-        #expect(wrapperCalls.first(where: { $0.callee == interner.resolve(lambdaName) })?.canThrow == false)
+        #expect(wrapperCalls.first(where: { $0.callee == interner.resolve(lambdaName) })?.canThrow == true)
 
         // Wrapper body should call the original lambda.
         #expect(wrapperCallees.contains(interner.resolve(lambdaName)),
@@ -774,8 +774,8 @@ extension LoweringPassRegressionTests {
             "Expected invoke wrapper to have 2 params (closureObj + 1 value)")
     }
 
-    @Test
-    func testClosureConversionRegistersNonThrowingCallees() throws {
+    @Test(arguments: [false, true])
+    func testClosureConversionPreservesThrownChannel(hasSourceCall: Bool) throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -791,6 +791,23 @@ extension LoweringPassRegressionTests {
         let captureExpr = arena.appendExpr(.symbolRef(captureParamSym), type: intType)
         let valueExpr = arena.appendExpr(.symbolRef(valueParamSym), type: intType)
 
+        var lambdaBody: [KIRInstruction] = [
+            .beginBlock,
+            .constValue(result: captureExpr, value: .symbolRef(captureParamSym)),
+            .constValue(result: valueExpr, value: .symbolRef(valueParamSym)),
+        ]
+        let sourceCallee = interner.intern("sourceMethodWithDefaultArguments")
+        if hasSourceCall {
+            // Source calls can look non-throwing before ABI lowering classifies
+            // their default bridges and callees. Closure conversion must not use
+            // this pre-ABI bit as proof that the lambda cannot throw.
+            lambdaBody.append(.call(
+                symbol: nil, callee: sourceCallee, arguments: [captureExpr],
+                result: nil, canThrow: false, thrownResult: nil
+            ))
+        }
+        lambdaBody.append(.returnValue(captureExpr))
+        lambdaBody.append(.endBlock)
         let lambdaFn = KIRFunction(
             symbol: lambdaSym,
             name: lambdaName,
@@ -799,13 +816,7 @@ extension LoweringPassRegressionTests {
                 KIRParameter(symbol: valueParamSym, type: intType),
             ],
             returnType: intType,
-            body: [
-                .beginBlock,
-                .constValue(result: captureExpr, value: .symbolRef(captureParamSym)),
-                .constValue(result: valueExpr, value: .symbolRef(valueParamSym)),
-                .returnValue(captureExpr),
-                .endBlock,
-            ],
+            body: lambdaBody,
             isSuspend: false,
             isInline: false
         )
@@ -853,13 +864,40 @@ extension LoweringPassRegressionTests {
 
         try pass.run(module: module, ctx: ctx)
 
-        // Verify that both the invoke wrapper and the lambda target are registered
-        // as non-throwing closure callees on the module.
         let invokeWrapperName = try closureWrapper(for: lambdaSym, in: module).name
-        #expect(module.nonThrowingClosureCallees.contains(invokeWrapperName),
-            "Expected invoke wrapper to be registered as non-throwing callee")
-        #expect(module.nonThrowingClosureCallees.contains(lambdaName),
-            "Expected lambda target to be registered as non-throwing callee")
+        #expect(!module.nonThrowingClosureCallees.contains(invokeWrapperName))
+        #expect(!module.nonThrowingClosureCallees.contains(lambdaName))
+
+        try ABILoweringPass().run(module: module, ctx: ctx)
+        let wrapper = try closureWrapper(for: lambdaSym, in: module)
+        let wrapperCall = try #require(wrapper.body.first {
+            if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == lambdaName }
+            return false
+        })
+        if case let .call(_, _, _, _, canThrow, thrownResult, _, _) = wrapperCall {
+            #expect(canThrow)
+            #expect(thrownResult == nil, "The wrapper must propagate the exception to its caller")
+        }
+        let caller = try #require(module.arena.declarations.compactMap {
+            if case let .function(function) = $0, function.symbol == mainSym { return function }
+            return nil
+        }.first)
+        let callerCall = try #require(caller.body.first {
+            if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == invokeWrapperName }
+            return false
+        })
+        if case let .call(_, _, _, _, canThrow, _, _, _) = callerCall { #expect(canThrow) }
+        if hasSourceCall {
+            let loweredLambda = try #require(module.arena.declarations.compactMap {
+                if case let .function(function) = $0, function.symbol == lambdaSym { return function }
+                return nil
+            }.first)
+            let sourceCall = try #require(loweredLambda.body.first {
+                if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == sourceCallee }
+                return false
+            })
+            if case let .call(_, _, _, _, canThrow, _, _, _) = sourceCall { #expect(canThrow) }
+        }
     }
 
     @Test

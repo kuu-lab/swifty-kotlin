@@ -1,0 +1,8 @@
+captured:source:default:require
+captured:empty-vararg
+captured:explicit-method
+noncaptured:source:require
+captured:plain
+captured:unary:source
+captured:collection:source
+normal:captured:side-effects:collections
