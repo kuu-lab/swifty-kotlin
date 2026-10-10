@@ -171,6 +171,16 @@ extension ExprTypeChecker {
             flags: [.synthetic]
         )
         sema.bindings.bindDecl(declID, symbol: objectSymbol)
+        var lexicalEnclosingFQNames: [[InternedString]] = []
+        var lexicalScope: Scope? = ctx.scope
+        while let scope = lexicalScope as? BaseScope {
+            if let memberScope = scope as? ClassMemberScope,
+               let owner = sema.symbols.symbol(memberScope.owner) {
+                lexicalEnclosingFQNames.append(owner.fqName)
+            }
+            lexicalScope = scope.parent
+        }
+        sema.bindings.deferLocalAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
         // A literal declared inside a class shares its lexical private scope.
         // Keep that nesting in the symbol graph so its members can read the
         // enclosing class's private constructor properties.

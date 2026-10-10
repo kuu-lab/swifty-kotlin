@@ -1,5 +1,18 @@
 import Foundation
 
+private struct AnnotationTargetResolutionContext {
+    let types: TypeSystem
+    var enclosingFQName: [InternedString] = []
+    var lexicalEnclosingFQNames: [[InternedString]] = []
+
+    func within(_ owner: [InternedString]) -> Self {
+        var nested = self
+        nested.enclosingFQName = owner
+        if !owner.isEmpty { nested.lexicalEnclosingFQNames.insert(owner, at: 0) }
+        return nested
+    }
+}
+
 extension DataFlowSemaPhase {
     func registerPrimaryConstructorPropertyAnnotations(
         for classDecl: ClassDecl,
@@ -69,13 +82,37 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Called after body inference so speculative diagnostics cannot discard
+    /// target errors from a nominal that was already registered in that probe.
+    func validateDeferredLocalAnnotationTargets(
+        ast: ASTModule, symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
+        diagnostics: DiagnosticEngine, interner: StringInterner
+    ) {
+        let pending = bindings.takePendingLocalAnnotationTargets()
+        guard !pending.isEmpty else { return }
+        let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
+        for declID in pending.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let decl = ast.arena.decl(declID), let file = ast.file(for: decl.range.start.file) else { continue }
+            let resolutionContext = AnnotationTargetResolutionContext(
+                types: types, lexicalEnclosingFQNames: pending[declID] ?? []
+            )
+            validateAnnotationTargets(
+                declID: declID, file: file, ast: ast, symbols: symbols, bindings: bindings,
+                diagnostics: diagnostics, interner: interner, filesByID: filesByID,
+                resolutionContext: resolutionContext
+            )
+        }
+    }
+
     func validateAnnotationTargets(
         ast: ASTModule,
         symbols: SymbolTable,
+        types: TypeSystem,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
+        let resolutionContext = AnnotationTargetResolutionContext(types: types)
         let filesByID = Dictionary(uniqueKeysWithValues: ast.sortedFiles.map { ($0.fileID.rawValue, $0) })
 
         for file in ast.sortedFiles {
@@ -84,7 +121,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: resolutionContext
             )
 
             for declID in file.topLevelDecls {
@@ -97,6 +135,7 @@ extension DataFlowSemaPhase {
                     diagnostics: diagnostics,
                     interner: interner,
                     filesByID: filesByID,
+                    resolutionContext: resolutionContext,
                     isTopLevel: true
                 )
             }
@@ -108,7 +147,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext
     ) {
         guard !file.annotations.isEmpty else {
             return
@@ -125,7 +165,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: resolutionContext
             )
         }
     }
@@ -139,6 +180,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext,
         isTopLevel: Bool = false
     ) {
         guard let decl = ast.arena.decl(declID) else {
@@ -146,6 +188,11 @@ extension DataFlowSemaPhase {
         }
         let symbolID = bindings.declSymbols[declID]
         let ownerSymbol = symbolID.flatMap { symbols.symbol($0) }
+        var resolutionContext = resolutionContext
+        if let ownerSymbol {
+            resolutionContext.enclosingFQName = Array(ownerSymbol.fqName.dropLast())
+        }
+        let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
 
         for annotation in decl.annotations {
             guard let site = annotationUsageSite(for: annotation, on: decl, ownerSymbol: ownerSymbol) else {
@@ -162,6 +209,7 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 filesByID: filesByID,
+                resolutionContext: resolutionContext,
                 isTopLevel: isTopLevel
             )
         }
@@ -173,7 +221,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             diagnostics: diagnostics,
             interner: interner,
-            filesByID: filesByID
+            filesByID: filesByID,
+            resolutionContext: memberResolutionContext
         )
 
         switch decl {
@@ -186,7 +235,8 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: memberResolutionContext
             )
             if let companion = classDecl.companionObject {
                 validateAnnotationTargets(
@@ -197,7 +247,8 @@ extension DataFlowSemaPhase {
                     bindings: bindings,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    resolutionContext: memberResolutionContext
                 )
             }
             // Validate primary constructor annotations
@@ -212,7 +263,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    resolutionContext: memberResolutionContext
                 )
             }
             // Validate primary constructor value parameter annotations
@@ -220,7 +272,7 @@ extension DataFlowSemaPhase {
                 validateValueParamAnnotations(
                     param: param, ownerDecl: decl, file: file,
                     symbols: symbols, diagnostics: diagnostics,
-                    interner: interner, filesByID: filesByID
+                    interner: interner, filesByID: filesByID, resolutionContext: memberResolutionContext
                 )
             }
             // Validate secondary constructor annotations and their parameters
@@ -236,14 +288,15 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         diagnostics: diagnostics,
                         interner: interner,
-                        filesByID: filesByID
+                        filesByID: filesByID,
+                        resolutionContext: memberResolutionContext
                     )
                 }
                 for param in ctor.valueParams {
                     validateValueParamAnnotations(
                         param: param, ownerDecl: decl, file: file,
                         symbols: symbols, diagnostics: diagnostics,
-                        interner: interner, filesByID: filesByID
+                        interner: interner, filesByID: filesByID, resolutionContext: memberResolutionContext
                     )
                 }
             }
@@ -260,7 +313,8 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         diagnostics: diagnostics,
                         interner: interner,
-                        filesByID: filesByID
+                        filesByID: filesByID,
+                        resolutionContext: memberResolutionContext
                     )
                 }
             }
@@ -273,7 +327,8 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: memberResolutionContext
             )
             if let companion = interfaceDecl.companionObject {
                 validateAnnotationTargets(
@@ -284,7 +339,8 @@ extension DataFlowSemaPhase {
                     bindings: bindings,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    resolutionContext: memberResolutionContext
                 )
             }
         case let .objectDecl(objectDecl):
@@ -296,14 +352,15 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: memberResolutionContext
             )
         case let .funDecl(funDecl):
             for param in funDecl.valueParams {
                 validateValueParamAnnotations(
                     param: param, ownerDecl: decl, file: file,
                     symbols: symbols, diagnostics: diagnostics,
-                    interner: interner, filesByID: filesByID
+                    interner: interner, filesByID: filesByID, resolutionContext: resolutionContext
                 )
             }
         case let .propertyDecl(property):
@@ -315,7 +372,8 @@ extension DataFlowSemaPhase {
                         ownerRange: accessor.range, decl: decl, file: file,
                         propertySymbol: symbolID, symbols: symbols,
                         diagnostics: diagnostics, interner: interner,
-                        filesByID: filesByID
+                        filesByID: filesByID,
+                        resolutionContext: resolutionContext
                     )
                 }
             }
@@ -337,7 +395,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext
     ) {
         for annotation in param.annotations {
             let site: AnnotationUsageSite
@@ -369,7 +428,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: resolutionContext
             )
         }
     }
@@ -382,7 +442,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext
     ) {
         for declID in declIDs {
             validateAnnotationTargets(
@@ -393,7 +454,8 @@ extension DataFlowSemaPhase {
                 bindings: bindings,
                 diagnostics: diagnostics,
                 interner: interner,
-                filesByID: filesByID
+                filesByID: filesByID,
+                resolutionContext: resolutionContext
             )
         }
     }
@@ -409,13 +471,17 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext,
         isTopLevel: Bool = false
     ) {
         guard let annotationSymbolID = resolveAnnotationSymbol(
             named: annotation.name,
             in: file,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            types: resolutionContext.types,
+            enclosingFQName: resolutionContext.enclosingFQName,
+            lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames
         ), let annotationSymbol = symbols.symbol(annotationSymbolID),
               annotationSymbol.kind == .annotationClass
         else {
@@ -851,7 +917,8 @@ private extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext
     ) {
         switch decl {
         case let .classDecl(classDecl):
@@ -864,45 +931,56 @@ private extension DataFlowSemaPhase {
                     symbols: symbols,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    resolutionContext: resolutionContext
                 )
             }
-            for param in classDecl.primaryConstructorParams {
+            let constructorParameters = classDecl.primaryConstructorParams
+                + classDecl.secondaryConstructors.flatMap(\.valueParams)
+            for param in constructorParameters {
                 if let type = param.type {
-                    validateTypeAnnotationTargets(typeRefID: type, ownerRange: classDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                    validateTypeAnnotationTargets(typeRefID: type, ownerRange: classDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
                 }
             }
         case let .interfaceDecl(interfaceDecl):
             for superType in interfaceDecl.superTypes {
-                validateTypeAnnotationTargets(typeRefID: superType, ownerRange: interfaceDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: superType, ownerRange: interfaceDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .funDecl(funDecl):
             if let receiverType = funDecl.receiverType {
-                validateTypeAnnotationTargets(typeRefID: receiverType, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: receiverType, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
             for param in funDecl.valueParams {
                 if let type = param.type {
-                    validateTypeAnnotationTargets(typeRefID: type, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                    validateTypeAnnotationTargets(typeRefID: type, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
                 }
             }
             if let returnType = funDecl.returnType {
-                validateTypeAnnotationTargets(typeRefID: returnType, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: returnType, ownerRange: funDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .propertyDecl(propertyDecl):
             if let receiverType = propertyDecl.receiverType {
-                validateTypeAnnotationTargets(typeRefID: receiverType, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: receiverType, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
             if let type = propertyDecl.type {
-                validateTypeAnnotationTargets(typeRefID: type, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: type, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
             if let fieldType = propertyDecl.explicitBackingField?.type {
-                validateTypeAnnotationTargets(typeRefID: fieldType, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: fieldType, ownerRange: propertyDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .typeAliasDecl(typeAliasDecl):
             if let underlyingType = typeAliasDecl.underlyingType {
-                validateTypeAnnotationTargets(typeRefID: underlyingType, ownerRange: typeAliasDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: underlyingType, ownerRange: typeAliasDecl.range, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
-        case .objectDecl, .enumEntryDecl:
+        case let .objectDecl(objectDecl):
+            for entry in objectDecl.superTypeEntries {
+                validateTypeAnnotationTargets(
+                    typeRefID: entry.typeRef, ownerRange: objectDecl.range,
+                    file: file, ast: ast, symbols: symbols, diagnostics: diagnostics,
+                    interner: interner, filesByID: filesByID, resolutionContext: resolutionContext
+                )
+            }
+        case .enumEntryDecl:
             break
         }
     }
@@ -915,7 +993,8 @@ private extension DataFlowSemaPhase {
         symbols: SymbolTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        filesByID: [Int32: ASTFile]
+        filesByID: [Int32: ASTFile],
+        resolutionContext: AnnotationTargetResolutionContext
     ) {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return
@@ -926,22 +1005,22 @@ private extension DataFlowSemaPhase {
             for arg in args {
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
-                    validateTypeAnnotationTargets(typeRefID: inner, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                    validateTypeAnnotationTargets(typeRefID: inner, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
                 case .star:
                     break
                 }
             }
         case let .functionType(_, receiver, params, returnType, _, _):
             if let receiver {
-                validateTypeAnnotationTargets(typeRefID: receiver, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: receiver, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
             for param in params {
-                validateTypeAnnotationTargets(typeRefID: param, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: param, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
-            validateTypeAnnotationTargets(typeRefID: returnType, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+            validateTypeAnnotationTargets(typeRefID: returnType, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
         case let .intersection(parts):
             for part in parts {
-                validateTypeAnnotationTargets(typeRefID: part, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+                validateTypeAnnotationTargets(typeRefID: part, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
             }
         case let .annotated(base, annotations):
             for annotation in annotations {
@@ -955,10 +1034,11 @@ private extension DataFlowSemaPhase {
                     symbols: symbols,
                     diagnostics: diagnostics,
                     interner: interner,
-                    filesByID: filesByID
+                    filesByID: filesByID,
+                    resolutionContext: resolutionContext
                 )
             }
-            validateTypeAnnotationTargets(typeRefID: base, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID)
+            validateTypeAnnotationTargets(typeRefID: base, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)
         }
     }
 }
