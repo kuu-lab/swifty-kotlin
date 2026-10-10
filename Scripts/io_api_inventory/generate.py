@@ -957,7 +957,7 @@ def local_candidates(row: dict) -> list[str]:
         return []
     local_root = REPO / "Sources/CompilerCore/Stdlib/kotlinx/io"
     matches = []
-    for path in local_root.rglob("*.kt"):
+    for path in sorted(local_root.rglob("*.kt")):
         found = declaration_lines(path, kind, name)
         for line_number, _ in found:
             matches.append(f"{path.relative_to(REPO).as_posix()}:{line_number}")
@@ -1064,7 +1064,7 @@ def parse_published_internals(sources: list[Path]) -> list[dict]:
                 continue
             kind, name = declaration.group(1), declaration.group(2)
             row = {
-                "row_id": "internal-" + stable_id(path.as_posix(), str(index + 2), name),
+                "row_id": "internal-" + stable_id(path.relative_to(UPSTREAM).as_posix(), str(index + 2), name),
                 "module": path.relative_to(UPSTREAM).parts[0],
                 "representation": "@PublishedApi internal source declaration",
                 "platform_scope": source_platform(path.relative_to(UPSTREAM).as_posix()),
@@ -1089,7 +1089,7 @@ def parse_published_internals(sources: list[Path]) -> list[dict]:
                 "_source_paths": [path],
                 "_candidate_name": name,
                 "_candidate_kind": "function" if kind == "fun" else "property",
-                "_api_id": f"internal:{path}:{index + 2}:{name}",
+                "_api_id": f"internal:{path.relative_to(UPSTREAM).as_posix()}:{index + 2}:{name}",
             }
             rows.append(row)
     return rows
@@ -1337,7 +1337,7 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(parse_published_internals(sources))
 
     local_tests = []
-    for path in REPO.joinpath("Tests").rglob("*.swift"):
+    for path in sorted(REPO.joinpath("Tests").rglob("*.swift")):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")

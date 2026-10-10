@@ -68,6 +68,7 @@ Requires Python 3.9+ and no third-party Python package:
 python3 Scripts/io_api_inventory/generate.py --write
 python3 Scripts/io_api_inventory/generate.py --check
 python3 Scripts/io_api_inventory/generate.py --check --verify-jars /path/to/jar-directory
+python3 Scripts/io_api_inventory/test_reproducibility.py
 ```
 
 The final command expects the two pinned jars named either as full Maven file
@@ -78,3 +79,20 @@ available; every downloaded artifact is SHA-256 checked before success.
 `--write` changes only the three generated output files in this directory.
 `--check` verifies all upstream snapshot hashes, the test index lock, negative
 guards, and byte-for-byte deterministic output without modifying files.
+
+The relocation regression copies inputs into a different checkout root in
+reverse filesystem creation order and compares all three generated outputs.
+PublishedApi row identities use upstream-relative paths, and local references
+are sorted before selecting their bounded candidate lists.
+
+## Remaining inventory audit work
+
+KUU-1726 remains in progress. The current name-based matcher does not distinguish
+receivers, owners and parameter types, so its `missing`/`unverified` counts are
+provisional. For example, Apple and ByteBuffer declarations can be linked to
+different existing overloads; overload-specific exception contracts can be
+borrowed from the first same-name declaration. JVM `@JvmName` correspondence,
+internal visibility and extension PublishedApi signatures also need correction.
+The local test scan currently covers Swift tests only; Kotlin golden and diff
+fixtures still need indexing. Gap families routed to KUU-1725 need dedicated
+child issues. Reproducible generation does not establish these audit criteria.
