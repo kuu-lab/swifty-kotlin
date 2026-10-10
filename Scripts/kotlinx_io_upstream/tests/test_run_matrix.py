@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -25,7 +26,7 @@ def run_case(case_id: str, reference: str = "same", candidate: str = "same", **e
         "test_kind": "test",
         "platform": "common",
         "mapping": "synthetic fixture only",
-        "timeout_seconds": 0.15,
+        "timeout_seconds": 1.0,
         "reference": {"command": [sys.executable, str(FAKE)], "env": {"KIO_FIXTURE": reference}},
         "candidate": {"command": [sys.executable, str(FAKE)], "env": {"KIO_FIXTURE": candidate}},
     }
@@ -34,6 +35,17 @@ def run_case(case_id: str, reference: str = "same", candidate: str = "same", **e
 
 
 class MatrixRunnerTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "process groups require POSIX")
+    def test_timeout_terminates_compiler_child_processes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="kio-descendant-test-") as tmp:
+            completed, summary, run_dir = self.invoke(Path(tmp),
+                [run_case("child-timeout", reference="hang-child", timeout_seconds=0.5)], "descendant")
+            self.assertEqual(completed.returncode, 1, completed.stderr)
+            self.assertEqual(summary["counts"]["hang"], 1)
+            pid = int((run_dir / "cases/child-timeout/reference/child.pid").read_text())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+
     def invoke(self, temp: Path, cases: list[dict[str, object]], run_id: str) -> tuple[subprocess.CompletedProcess[str], dict[str, object], Path]:
         manifest_path = temp / f"{run_id}.json"
         manifest_path.write_text(

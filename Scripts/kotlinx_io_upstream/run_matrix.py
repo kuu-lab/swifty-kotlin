@@ -15,6 +15,7 @@ import json
 import os
 import platform
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -179,25 +180,47 @@ def run_side(
     )
     started = time.monotonic()
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=root,
             env=environment,
-            capture_output=True,
-            text=False,
-            timeout=timeout_seconds,
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=os.name == "posix",
         )
+        try:
+            raw_stdout, raw_stderr = process.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as timeout:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
+            try:
+                raw_stdout, raw_stderr = process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                if os.name == "posix":
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+                raw_stdout, raw_stderr = process.communicate()
+            if os.name == "posix":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            timeout.stdout = raw_stdout
+            timeout.stderr = raw_stderr
+            raise
         elapsed = round(time.monotonic() - started, 6)
-        stdout = normalize_output(completed.stdout)
-        stderr = normalize_output(completed.stderr)
+        stdout = normalize_output(raw_stdout)
+        stderr = normalize_output(raw_stderr)
         (side_artifacts / "stdout.txt").write_text(stdout, encoding="utf-8")
         (side_artifacts / "stderr.txt").write_text(stderr, encoding="utf-8")
-        if completed.returncode != 0:
+        if process.returncode != 0:
             return {
                 "status": "CRASH",
                 "command": command,
-                "exit_code": completed.returncode,
+                "exit_code": process.returncode,
                 "elapsed_seconds": elapsed,
                 "stdout_path": "stdout.txt",
                 "stderr_path": "stderr.txt",
