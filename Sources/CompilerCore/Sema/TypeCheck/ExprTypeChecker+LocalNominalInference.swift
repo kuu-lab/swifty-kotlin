@@ -280,6 +280,22 @@ extension ExprTypeChecker {
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)
         }
+        // Synthetic local owners do not encode lexical nesting in their FQ
+        // names. Preserve every surrounding class, including other locals.
+        var lexicalEnclosingFQNames: [[InternedString]] = []
+        var lexicalScope: Scope? = ctx.scope
+        while let scope = lexicalScope as? BaseScope {
+            if let memberScope = scope as? ClassMemberScope,
+               let owner = sema.symbols.symbol(memberScope.owner) {
+                lexicalEnclosingFQNames.append(owner.fqName)
+            }
+            lexicalScope = scope.parent
+        }
+        DataFlowSemaPhase().registerPrimaryConstructorPropertyAnnotations(
+            for: classDecl, ast: ast, symbols: sema.symbols, types: sema.types, bindings: sema.bindings,
+            sourceManager: ctx.visibilityChecker.sourceManager, diagnostics: ctx.semaCtx.diagnostics, interner: interner,
+            lexicalEnclosingFQNames: lexicalEnclosingFQNames
+        )
         if classDecl.modifiers.contains(.data) {
             DataFlowSemaPhase().collectSyntheticDataClassMethods(
                 classDecl: classDecl, ast: ast, ownerSymbol: classSymbol,

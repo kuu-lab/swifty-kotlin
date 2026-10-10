@@ -154,3 +154,22 @@ The fixture deliberately keeps the manually supplied descriptor and element
 names unchanged. Automatic `SerialName` wire names, generated serializers,
 inherited descriptor annotations and inheritance-conflict validation remain
 work in KUU-1724, along with the other annotations and serialization modules.
+
+## Property annotation API compatibility (KUU-1755)
+
+`--case property-annotations` runs the actual `Required`, `Transient`, and
+`EncodeDefault` constructors against the locked 1.10.0 JVM artifacts. It checks
+annotation equality/hash/type, `EncodeDefault.Mode` default/named values,
+`entries` order, independent `values()` arrays and `valueOf` success/failure.
+The explicit descriptor fixture keeps actual annotation instances in element
+metadata and verifies identity/order without changing builder optionality.
+
+The existing pinned `Annotations.kt` source anchors the public PROPERTY target,
+MustBeDocumented, default RUNTIME retention and stable API contracts. The separate
+implementation overlay adds 25 JVM/KLIB IDs, keeping annotation declarations,
+constructor/property/getter records and compiler-generated enum facilities distinct.
+Source/cache/library O0/O2 and metadata/target/argument checks cover this API unit.
+Generated serializer behavior for Required/Transient/EncodeDefault remains tracked
+in KUU-1724; declaration availability alone does not establish wire compatibility.
+
+Compiler support for the nested Mode enum includes annotation-class nested type validation and the existing bundled enum nominal registration for generated helpers. Instance-member prohibitions remain covered by declaration-position regressions.

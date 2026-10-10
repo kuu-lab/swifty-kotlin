@@ -118,6 +118,32 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0419", in: ctx)
     }
 
+    @Test func annotationNestedTypesAreAllowed() throws {
+        let ctx = try semaContext(for: """
+            annotation class Tag(val mode: Mode = Mode.FIRST) {
+                enum class Mode { FIRST, SECOND }
+                class Nested(val value: Int)
+                interface Marker
+                object Named { val value: Int = 2 }
+                companion object { const val DEFAULT: Int = 3 }
+            }
+            """)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val value: Int = 1", "init {}", "constructor(value: Int) : this()", "typealias Value = String",
+    ])
+    func annotationInstanceMembersRemainRejected(member: String) throws {
+        let ctx = try semaContext(for: "annotation class A { \(member) }")
+        assertHasDiagnostic("KSWIFTK-SEMA-0419", in: ctx)
+    }
+
+    @Test func annotationNestedInnerClassIsRejected() throws {
+        let ctx = try semaContext(for: "annotation class A { inner class Inner }")
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
     @Test func annotationVarParameterIsRejected() throws {
         let ctx = try semaContext(for: """
             annotation class A(var x: Int)
