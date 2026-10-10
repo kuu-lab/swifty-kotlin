@@ -54,6 +54,14 @@ extension BuildASTPhase.ExpressionParser {
     private func parsePostfixSuffixes(_ initialExpr: ExprID, receiverStartIndex: Int) -> ExprID {
         var expr = initialExpr
         while true {
+            if matches(.symbol(.question)),
+               let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
+                guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {
+                    break
+                }
+                expr = reference
+                continue
+            }
             if matches(.symbol(.lessThan)) {
                 if let typeReceiver = tryParseCallableReferenceTypeReceiver(from: receiverStartIndex) {
                     guard let reference = parseCallableReference(receiver: typeReceiver.expr, receiverTypeRef: typeReceiver.typeRef) else {

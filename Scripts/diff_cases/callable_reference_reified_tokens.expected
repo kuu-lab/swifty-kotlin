@@ -1,0 +1,29 @@
+String
+Int
+String
+true
+false
+String
+Int
+String
+String
+Int
+String
+String:3
+[String, String]
+String
+String:Int
+true
+String
+[String:3, String:3]
+String:3
+String
+String
+String
+true
+true
+true
+typeName
+true
+1
+UnsupportedOperationException

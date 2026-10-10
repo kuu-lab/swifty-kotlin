@@ -132,6 +132,7 @@ extension TypeCheckHelpers {
         expectedType: TypeID?,
         bindReceiver: Bool,
         boundReceiverType: TypeID? = nil,
+        postponedReturnTypeParameter: SymbolID? = nil,
         sema: SemaModule
     ) -> SymbolID? {
         let sorted = candidates.sorted(by: { $0.rawValue < $1.rawValue })
@@ -156,11 +157,12 @@ extension TypeCheckHelpers {
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            return contextualCallableFunctionType(
+            return contextualCallableReferenceBinding(
                 for: signature,
                 bindReceiver: bindReceiver,
                 boundReceiver: boundReceiverType.map { (symbolID, $0) },
                 expectedFunctionType: expectedFunctionType,
+                postponedReturnTypeParameter: postponedReturnTypeParameter,
                 sema: sema
             ) != nil
         }
@@ -179,6 +181,20 @@ extension TypeCheckHelpers {
         expectedFunctionType: TypeID,
         sema: SemaModule
     ) -> TypeID? {
+        contextualCallableReferenceBinding(
+            for: signature, bindReceiver: bindReceiver, boundReceiver: boundReceiver,
+            expectedFunctionType: expectedFunctionType, sema: sema
+        )?.functionType
+    }
+
+    func contextualCallableReferenceBinding(
+        for signature: FunctionSignature,
+        bindReceiver: Bool,
+        boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        expectedFunctionType: TypeID?,
+        postponedReturnTypeParameter: SymbolID? = nil,
+        sema: SemaModule
+    ) -> (functionType: TypeID, typeArguments: [TypeID])? {
         let inferredType = callableFunctionType(
             for: signature,
             bindReceiver: bindReceiver,
@@ -188,16 +204,43 @@ extension TypeCheckHelpers {
         let types = sema.types
         let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         guard !typeVars.isEmpty else {
-            return types.isSubtype(inferredType, expectedFunctionType) ? inferredType : nil
+            guard callableReferenceTypeMatches(
+                inferredType, expected: expectedFunctionType, postponedReturn: postponedReturnTypeParameter, sema: sema
+            ) else { return nil }
+            return (inferredType, [])
         }
         let resolver = OverloadResolver()
-        var constraints = resolver.decomposeSubtypeConstraint(
-            subtype: inferredType,
-            supertype: expectedFunctionType,
-            typeVarBySymbol: typeVars,
-            typeSystem: types,
-            blameRange: nil
-        )
+        var constraints: [VariableConstraint]
+        if let postponedReturnTypeParameter {
+            guard let expectedFunctionType,
+                  case let .functionType(actual) = types.kind(of: inferredType),
+                  case let .functionType(expected) = types.kind(of: expectedFunctionType),
+                  case let .typeParam(resultParameter) = types.kind(of: expected.returnType),
+                  resultParameter.symbol == postponedReturnTypeParameter else { return nil }
+            let actualInputs = (actual.receiver.map { [$0] } ?? []) + actual.params
+            let expectedInputs = (expected.receiver.map { [$0] } ?? []) + expected.params
+            guard actualInputs.count == expectedInputs.count,
+                  actual.contextReceivers.count == expected.contextReceivers.count,
+                  expected.isSuspend || !actual.isSuspend,
+                  actual.nullability == expected.nullability || expected.nullability == .nullable,
+                  !(expectedInputs + expected.contextReceivers).contains(where: {
+                      types.typeContainsTypeParam($0, symbol: postponedReturnTypeParameter)
+                  }) else { return nil }
+            // Only the caller's direct return leaf is postponed. Preserve all
+            // known shape/input constraints and do not invent return evidence.
+            constraints = zip(expectedInputs + expected.contextReceivers,
+                              actualInputs + actual.contextReceivers).flatMap {
+                resolver.decomposeSubtypeConstraint(
+                    subtype: $0.0, supertype: $0.1, typeVarBySymbol: typeVars,
+                    typeSystem: types, blameRange: nil
+                )
+            }
+        } else if let expectedFunctionType {
+            constraints = resolver.decomposeSubtypeConstraint(
+                subtype: inferredType, supertype: expectedFunctionType,
+                typeVarBySymbol: typeVars, typeSystem: types, blameRange: nil
+            )
+        } else { constraints = [] }
         if let boundReceiver, let receiverType = signature.receiverType {
             constraints += resolver.decomposeSubtypeConstraint(
                 subtype: boundReceiver.receiverType,
@@ -206,6 +249,20 @@ extension TypeCheckHelpers {
                 typeSystem: types,
                 blameRange: nil
             )
+        }
+        // A bound generic owner is specialized before function constraints are
+        // built, so seed its declaration-order slots explicitly as well.
+        if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol) {
+            for symbol in signature.typeParameterSymbols.prefix(signature.classTypeParameterCount) {
+                guard let variable = typeVars[symbol] else { continue }
+                let parameterType = types.make(.typeParam(TypeParamType(symbol: symbol)))
+                let argument = resolveMemberPropertyType(
+                    parameterType, receiverType: boundReceiver.receiverType, ownerSymbol: owner, sema: sema
+                )
+                if argument != parameterType {
+                    constraints.append(VariableConstraint(kind: .equal, left: .variable(variable), right: .type(argument)))
+                }
+            }
         }
         func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
             let declared = index < signature.typeParameterUpperBoundsList.count
@@ -266,8 +323,6 @@ extension TypeCheckHelpers {
                   let argument = solution.substitution[variable],
                   argument != types.errorType
             else {
-                // A bound generic owner's parameters may already be specialized.
-                if boundReceiver != nil, index < signature.classTypeParameterCount { continue }
                 return nil
             }
             for bound in upperBounds(index, symbol) {
@@ -280,6 +335,40 @@ extension TypeCheckHelpers {
         let specializedType = types.substituteTypeParameters(
             in: inferredType, substitution: solution.substitution, typeVarBySymbol: typeVars
         )
-        return types.isSubtype(specializedType, expectedFunctionType) ? specializedType : nil
+        guard callableReferenceTypeMatches(
+            specializedType, expected: expectedFunctionType,
+            postponedReturn: postponedReturnTypeParameter, sema: sema
+        ) else { return nil }
+        var arguments: [TypeID] = []
+        for symbol in signature.typeParameterSymbols {
+            guard let variable = typeVars[symbol], let argument = solution.substitution[variable] else { return nil }
+            arguments.append(argument)
+        }
+        return (specializedType, arguments)
     }
+
+    private func callableReferenceTypeMatches(
+        _ actualType: TypeID, expected: TypeID?, postponedReturn: SymbolID?, sema: SemaModule
+    ) -> Bool {
+        guard let expected else { return true }
+        guard let postponedReturn,
+              case let .functionType(actual) = sema.types.kind(of: actualType),
+              case let .functionType(context) = sema.types.kind(of: expected),
+              case let .typeParam(parameter) = sema.types.kind(of: context.returnType),
+              parameter.symbol == postponedReturn
+        else { return sema.types.isSubtype(actualType, expected) }
+        for bound in sema.symbols.typeParameterUpperBounds(for: postponedReturn)
+            where !sema.types.typeContainsAnyTypeParam(bound) {
+            let resultBound = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
+            guard sema.types.isSubtype(actual.returnType, resultBound) else { return false }
+        }
+        let comparison = sema.types.make(.functionType(FunctionType(
+            contextReceivers: context.contextReceivers, receiver: context.receiver,
+            params: context.params, returnType: actual.returnType,
+            isSuspend: context.isSuspend, isCallableReference: context.isCallableReference,
+            nullability: context.nullability, throws: context.throws
+        )))
+        return sema.types.isSubtype(actualType, comparison)
+    }
+
 }

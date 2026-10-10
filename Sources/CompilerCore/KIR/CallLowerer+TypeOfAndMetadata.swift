@@ -50,6 +50,7 @@ extension CallLowerer {
         func makeTypeTokenExpr(for type: TypeID) -> KIRExprID {
             if case let .typeParam(typeParam) = sema.types.kind(of: type) {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParam.symbol)
+                if let captured = driver.ctx.localValue(for: tokenSymbol) { return captured }
                 let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
                 instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
                 return tokenExpr
@@ -73,6 +74,21 @@ extension CallLowerer {
         }
 
         func makeNullabilityExpr(for type: TypeID) -> KIRExprID {
+            // A rigid T can represent String? even when the occurrence is T,
+            // so its hidden token, rather than syntax alone, carries the flag.
+            if case let .typeParam(parameter) = sema.types.kind(of: type),
+               parameter.nullability != .nullable,
+               sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
+                let token = makeTypeTokenExpr(for: type)
+                let mask = arena.appendExpr(.intLiteral(RuntimeTypeCheckToken.nullableFlag), type: intType)
+                instructions.append(.constValue(result: mask, value: .intLiteral(RuntimeTypeCheckToken.nullableFlag)))
+                let nullable = arena.appendTemporary(type: intType)
+                instructions.append(.call(
+                    symbol: nil, callee: interner.intern("kk_bitwise_and"), arguments: [token, mask],
+                    result: nullable, canThrow: false, thrownResult: nil
+                ))
+                return nullable
+            }
             let isNullable: Int64 = {
                 switch sema.types.kind(of: type) {
                 case .nullableUnit:

@@ -153,7 +153,7 @@ extension LambdaLowerer {
         {
             referenced.append(receiverSymbol)
         }
-        for binding in [sema.bindings.callBindings[exprID], sema.bindings.extensionPropertyGetterCalls[exprID]].compactMap({ $0 }) {
+        for binding in [sema.bindings.callBindings[exprID], sema.bindings.extensionPropertyGetterCalls[exprID], sema.bindings.callableReferenceBinding(for: exprID)].compactMap({ $0 }) {
             guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { continue }
             for index in signature.reifiedTypeParameterIndices.sorted()
                 where index < binding.substitutedTypeArguments.count
@@ -221,6 +221,11 @@ extension LambdaLowerer {
                   case let .objectDecl(objectDecl) = decl
             else {
                 return
+            }
+            if let owner = sema.bindings.declSymbol(for: declID) {
+                for symbol in sema.bindings.objectLiteralCaptureSymbols(for: owner) where seen.insert(symbol).inserted {
+                    referenced.append(symbol)
+                }
             }
             for arg in objectDecl.superTypeConstructorArgs {
                 collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)

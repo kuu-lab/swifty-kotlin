@@ -150,6 +150,9 @@ extension ExprTypeChecker {
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
             .union(ctx.implicitReceiverStack.map(\.symbol))
+            .union(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
+                sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
+            })
         // An unqualified call to an enclosing class member still needs that
         // receiver after the object literal's own receiver becomes active.
         // Capture the enclosing receiver symbol as a value just like a local.
@@ -906,6 +909,10 @@ extension ExprTypeChecker {
             typesBySymbol[receiver.symbol] = receiver.type
         }
         for capturedSymbol in capturedSymbols {
+            if sema.symbols.symbol(capturedSymbol)?.flags.contains(.reifiedTypeParameter) == true {
+                sema.bindings.bindCapturedLocalType(capturedSymbol, type: sema.types.intType)
+                continue
+            }
             if let type = typesBySymbol[capturedSymbol]
                 ?? sema.symbols.propertyType(for: capturedSymbol)
             {
