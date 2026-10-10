@@ -2142,7 +2142,7 @@ extension DataFlowSemaPhase {
                     ),
                     for: stubSymbol
                 )
-                if reifiedCount > 0, let inlineDir = binding.inlineKIRDir {
+                if record.isInline, let inlineDir = binding.inlineKIRDir {
                     let directory = URL(fileURLWithPath: inlineDir).resolvingSymlinksInPath().standardizedFileURL
                     let path = directory.appendingPathComponent(
                         MetadataEncoder.inlineKIRFileName(for: defaultStubLink)
