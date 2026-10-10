@@ -1,17 +1,48 @@
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerTestSupport
+import Foundation
 import Testing
 import TestStdlibCache
 
 @Suite
 struct ExplicitImportResolutionTests {
-    @Test
-    func unusedUnresolvedExplicitImportsAreDiagnosed() throws {
+    private func context(inputs: [String], useArtifact: Bool) throws -> CompilationContext {
+        let artifact: String?
+        if useArtifact {
+            TestStdlibCache.shared.prepare()
+            artifact = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        } else {
+            artifact = nil
+        }
+        let ctx = makeCompilationContext(
+            inputs: inputs,
+            stdlibLibraryPath: artifact,
+            allowDefaultStdlibLibrary: false
+        )
+        if useArtifact {
+            #expect(ctx.options.stdlibLibraryPath == artifact)
+            #expect(!ctx.options.includeStdlib)
+        } else {
+            #expect(ctx.options.stdlibLibraryPath == nil)
+            #expect(ctx.options.includeStdlib)
+        }
+        return ctx
+    }
+
+    private func context(source: String, useArtifact: Bool) throws -> CompilationContext {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = try context(inputs: [path], useArtifact: useArtifact)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        return ctx
+    }
+
+    @Test(arguments: [false, true])
+    func unusedUnresolvedExplicitImportsAreDiagnosed(useArtifact: Bool) throws {
         let source = try repositoryFileSource(
             "docs/fixtures/js_annotations/diagnostics/collection_imports.kt"
         )
-        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: false)
+        let ctx = try context(source: source, useArtifact: useArtifact)
         try runSema(ctx)
 
         let unresolvedImports = ctx.diagnostics.diagnostics.filter {
@@ -20,8 +51,8 @@ struct ExplicitImportResolutionTests {
         #expect(unresolvedImports.count == 3, "Expected all three unused imports to be rejected: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test
-    func unresolvedMemberImportIsDiagnosedEvenWhenMemberIsUsed() throws {
+    @Test(arguments: [false, true])
+    func unresolvedMemberImportIsDiagnosedEvenWhenMemberIsUsed(useArtifact: Bool) throws {
         let source = """
         @file:OptIn(kotlin.js.ExperimentalJsExport::class, kotlin.js.ExperimentalJsCollectionsApi::class)
         import kotlin.js.collections.asJsMapView
@@ -29,7 +60,7 @@ struct ExplicitImportResolutionTests {
             values.asJsMapView()
         }
         """
-        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: false)
+        let ctx = try context(source: source, useArtifact: useArtifact)
         try runSema(ctx)
 
         let importErrors = ctx.diagnostics.diagnostics.filter {
@@ -40,10 +71,6 @@ struct ExplicitImportResolutionTests {
 
     @Test(arguments: [false, true])
     func nestedMemberAndExtensionImportsResolve(useArtifact: Bool) throws {
-        if useArtifact {
-            TestStdlibCache.shared.prepare()
-        }
-
         let source = """
         import kotlin.collections.Map.Entry
         import kotlin.collections.Map.Entry as MapEntry
@@ -54,10 +81,7 @@ struct ExplicitImportResolutionTests {
         fun isEmpty(range: IntRange): Boolean = range.isEmpty()
         """
         try withTemporaryFiles(contents: [source]) { paths in
-            let ctx = makeCompilationContext(
-                inputs: paths,
-                allowDefaultStdlibLibrary: useArtifact
-            )
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
         }
@@ -86,15 +110,11 @@ struct ExplicitImportResolutionTests {
 
     @Test
     func wildcardImportResolvesPrecompiledLibraryPackage() throws {
-        TestStdlibCache.shared.prepare()
         let source = """
         import kotlin.ranges.*
         fun isEmpty(range: IntRange): Boolean = range.isEmpty()
         """
-        let ctx = makeContextFromSource(
-            source,
-            allowDefaultStdlibLibrary: true
-        )
+        let ctx = try context(source: source, useArtifact: true)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
     }
