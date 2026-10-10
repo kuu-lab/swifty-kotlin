@@ -208,6 +208,15 @@ extension CallLowerer {
             // bundled Kotlin source on their source body. The table-driven
             // runtime path below is retained for compatibility-only builds
             // where the source declaration is absent.
+            // KUU-1766: a range call with one omitted index must retain its
+            // selected Kotlin overload/default stub. The name/arity table
+            // otherwise treats that Int argument as a Charset tag.
+            if calleeNameStr == "encodeToByteArray",
+               sema.symbols.functionSignature(for: chosenCallee)?.parameterTypes
+                    == [sema.types.intType, sema.types.intType]
+            {
+                return true
+            }
             return Self.sourceBackedStringMemberNames.contains(calleeNameStr)
         }()
         // KSP-435: the generic Iterable/Collection surface is bundled Kotlin source

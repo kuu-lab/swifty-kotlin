@@ -168,10 +168,15 @@ func compileAndRunKotlinSources(
         try assertCompilationSucceeded(result)
 
         let runResult = try CommandRunner.run(executable: outputBase, arguments: [])
+        guard runResult.exitCode == 0 else {
+            throw TestCompilationFailure(
+                description: "Execution failed with exit \(runResult.exitCode): \(runResult.stderr)"
+            )
+        }
         let normalized = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
         guard normalized == expectedOutput else {
             throw TestCompilationFailure(
-                description: "Expected stdout '\(expectedOutput)' but got '\(normalized)'"
+                description: "Expected stdout \(String(reflecting: expectedOutput)) but got \(String(reflecting: normalized))"
             )
         }
     }
