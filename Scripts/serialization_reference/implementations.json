@@ -43,6 +43,186 @@
         "library-O0",
         "library-O2"
       ]
+    },
+    {
+      "declaration_id": "5f207f44b51036ff5210603c59f899ad2928b02d5e6f928a47aa46bbcb23f3eb",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "6696968af2b7018c7c9305002c26036759e4dec70fe5a607ba2e2e1f89011052",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@OptIn(ExperimentalSerializationApi::class)"
+      ],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "8c63991f5a626796fc2c640dacab829bb22befe06837435a8a6e46acd4456085",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "bea9fa0f5d5381c36407b1a601aa865da8e0f78f9e60ef7874f4cd86680ed12b",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@ExperimentalSerializationApi"
+      ],
+      "requires_caller_opt_in": true
+    },
+    {
+      "declaration_id": "4e70330642441bcbf09a55705a045952f613147b84eda05217e0e95be9d3da9c",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@OptIn(ExperimentalSerializationApi::class)"
+      ],
+      "requires_caller_opt_in": false
+    },
+    {
+      "declaration_id": "23c9427f911f1b07415477bb8042c7ca5630f684c11528c23dcc66b6133d7ac9",
+      "ticket": "KUU-1746",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/NullableSerialDescriptor.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/SerialDescriptorForNullable.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedNames.kt",
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/internal/CachedSerialNames.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_nullable_descriptor.kt",
+      "expected": "Scripts/reference_cases/serialization_nullable_descriptor.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationNullableDescriptorTests.swift",
+      "test_suite": "SerializationNullableDescriptorTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "internal-cache-O0",
+        "internal-cache-O2"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@OptIn(ExperimentalSerializationApi::class)"
+      ],
+      "requires_caller_opt_in": false
     }
   ]
 }

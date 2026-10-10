@@ -442,7 +442,15 @@ package final class MetadataEncoder {
                         excludedSourceFileIDs: excludeSourceFileIDs,
                         allowShellBackedEnum: true
                     )
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper {
+                // Source classes' delegated members have compiled bodies and
+                // occupy the vtable. Consumers need their declarations to
+                // restore those slots and inherit the forwarding members.
+                let keepAsDelegatedMember = (symbol.kind == .property
+                    && symbols.classDelegationForwardingPropertyInfo(for: symbol.id) != nil
+                    || symbol.kind == .function
+                    && symbols.classDelegationForwardingMethodInfo(for: symbol.id) != nil)
+                    && symbol.declSite.map { !excludeSourceFileIDs.contains($0.start.file.rawValue) } == true
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {

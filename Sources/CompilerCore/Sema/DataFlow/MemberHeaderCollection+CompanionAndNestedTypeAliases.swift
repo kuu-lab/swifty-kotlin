@@ -183,7 +183,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         for alias in aliases {
             let aliasFQName = ownerFQName + [alias.name]
@@ -224,8 +225,10 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                usageRange: alias.range
             ) {
                 symbols.setTypeAliasUnderlyingType(resolvedUnderlying, for: aliasSymbol)
             }

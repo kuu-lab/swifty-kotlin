@@ -931,7 +931,22 @@ extension ExprTypeChecker {
         // dispatch receivers, enclosing class) — a member extension body's
         // `this` is the extension receiver, but the dispatch owner's members,
         // inherited ones included, still resolve unqualified.
-        let implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
+        var implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
+        // In an extension body, flow analysis narrows the stable `this` local
+        // in `if` branches and after an early return. Keep the original type
+        // available too when narrowing to an unrelated interface. Match the
+        // declaration's receiver first: object initializers retain an outer
+        // `this` local while their active receiver is the new object.
+        if let receiverType = ctx.implicitReceiverType,
+           let declaration = ctx.currentDeclSymbol,
+           (sema.symbols.functionSignature(for: declaration)?.receiverType
+               ?? sema.symbols.extensionPropertyReceiverType(for: declaration)) == receiverType,
+           let thisLocal = locals[knownNames.thisName],
+           thisLocal.symbol == SyntheticSymbolScheme.receiverParameterSymbol(for: declaration),
+           thisLocal.type != receiverType
+        {
+            implicitReceiverLookupEntries.insert((thisLocal.type, nil), at: 0)
+        }
         if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
             for (index, receiver) in implicitReceiverLookupEntries.enumerated() {

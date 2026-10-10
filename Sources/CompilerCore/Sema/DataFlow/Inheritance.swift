@@ -1201,7 +1201,9 @@ extension DataFlowSemaPhase {
 
         var paramSymbols: [SymbolID] = []
         for (index, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(index)")
+            let paramName = index < ifaceSig.valueParameterSymbols.count
+                ? symbols.symbol(ifaceSig.valueParameterSymbols[index])?.name ?? interner.intern("p\(index)")
+                : interner.intern("p\(index)")
             let paramFQName = forwardingFQName + [paramName]
             let paramSymbol = symbols.define(
                 kind: .valueParameter,
