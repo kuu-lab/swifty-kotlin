@@ -493,10 +493,9 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     }
                     return nonThrowingCalleeSet.contains(ctx.interner.intern(linkName))
                 }()
-                // Closure-related callees (kk_closure_invoke_* wrappers and their
-                // internal kk_lambda_* targets) are registered as non-throwing by
-                // LambdaClosureConversionPass via module.nonThrowingClosureCallees.
-                // This avoids brittle string-prefix coupling between passes.
+                // Only explicitly proven non-throwing callees may bypass the
+                // channel. Closure conversion does not prove source lambda bodies
+                // non-throwing before their calls have undergone ABI lowering.
                 let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(effectiveCallee)
                 let canThrow = isExplicitlyThrowing
                     || isDelegatedAccessor
