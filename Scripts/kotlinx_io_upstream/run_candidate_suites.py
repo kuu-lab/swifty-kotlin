@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run locked direct suites together, from source or a separate test library.
+"""Run locked original suites together, from source or a separate test library.
 
-Original assertions and constructors are preserved. This remains assertion-only
-candidate coverage: factories/hooks need other drivers, and paired PASS is zero.
+Original assertions and constructors are preserved. The audited Native catalog
+driver supports its concrete factories and cleanup hook; paired PASS is zero.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import platform
 import sys
 
 from run_candidate_subset import parse_events, prepare_port, tree_hash
+from prepare_candidate_catalog import prepare_catalog
 from run_jvm_reference import HERE, execute, sha256, verify_file
 
 
@@ -80,7 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--package-root", type=Path, required=True)
     parser.add_argument("--compiler-resource-bundle", type=Path,
                         help="actual Bundle.module directory; defaults to the compiler's sibling resources/bundle")
-    parser.add_argument("--suite", action="append", required=True)
+    parser.add_argument("--suite", action="append")
+    parser.add_argument("--native-catalog", choices=["linux", "macos"],
+                        help="use the audited factory/lifecycle driver; without --suite selects the full target catalog")
     parser.add_argument("--output", type=Path, required=True)
     stdlib = parser.add_mutually_exclusive_group(required=True)
     stdlib.add_argument("--stdlib-library", type=Path)
@@ -96,14 +99,20 @@ def main(argv: list[str] | None = None) -> int:
     root = args.package_root.resolve()
     lock_path = HERE / "reference-lock.json"
     catalog_path = HERE / "native-executions.expected.json"
+    declaration_path = HERE / "candidate-declarations.json"
     summary = {"kind": "candidate-assertion-direct-suites", "paired_pass_count": 0,
                "paired_disposition": "UNMAPPED", "seven_observations_exported": False,
                "host": platform.platform(), "python_version": sys.version,
                "optimization": args.optimization, "package_root": str(root),
                "stdlib_mode": "source" if args.stdlib_from_source else "library",
                "test_body_mode": "library-consumer" if args.test_library else "source",
-               "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof"}
+               "runtime_cache_provenance": "Runtime source hashes only; cached object bytes are outside this proof",
+               "native_catalog_target": args.native_catalog}
     try:
+        if not args.native_catalog and not args.suite:
+            raise ValueError("direct mode requires --suite")
+        if args.native_catalog and platform.system() != {"linux": "Linux", "macos": "Darwin"}[args.native_catalog]:
+            raise ValueError("Native catalog must execute on its target host")
         if any(not math.isfinite(value) or value <= 0 for value in [args.compile_timeout, args.run_timeout]):
             raise ValueError("timeouts must be finite and positive")
         if args.stdlib_library and (not args.stdlib_library.is_dir() or
@@ -121,8 +130,17 @@ def main(argv: list[str] | None = None) -> int:
         for record in lock["upstream_files"]:
             verify_file(args.upstream / record["path"], record)
         verify_file(catalog_path, {"sha256": lock["native_execution_catalog_sha256"]})
-        ports = prepare_suites(args.upstream, json.loads(catalog_path.read_text()), lock, args.suite, args.output)
+        catalog = json.loads(catalog_path.read_text())
+        if args.native_catalog:
+            ports = prepare_catalog(args.upstream, catalog, lock, args.suite, args.output,
+                                    args.native_catalog, json.loads(declaration_path.read_text()))
+            summary["kind"] = "candidate-assertion-native-catalog"
+        else:
+            ports = prepare_suites(args.upstream, catalog, lock, args.suite, args.output)
         driver = args.output / "CombinedDriver.kt"
+        source_paths = [path for port in ports for path in port.get("source_ports", [port.get("port_path")])]
+        if len(set(source_paths)) != len(source_paths):
+            raise ValueError("each original source must compile only once")
 
         def inputs() -> dict:
             return {
@@ -138,7 +156,9 @@ def main(argv: list[str] | None = None) -> int:
                 "direct_runner_sha256": sha256(HERE / "run_candidate_subset.py"),
                 "helper_sha256": sha256(HERE / "run_jvm_reference.py"),
                 "driver_sha256": sha256(driver),
-                "port_sha256": {port["port_path"]: sha256(Path(port["port_path"])) for port in ports},
+                "port_sha256": {path: sha256(Path(path)) for path in source_paths},
+                "catalog_preparer_sha256": sha256(HERE / "prepare_candidate_catalog.py") if args.native_catalog else None,
+                "declaration_index_sha256": sha256(declaration_path) if args.native_catalog else None,
             }
 
         before = inputs()
@@ -148,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         base += ["--stdlib-from-source"] if args.stdlib_from_source else ["--stdlib-library", str(args.stdlib_library.resolve())]
         environment = {"KSWIFTK_PACKAGE_ROOT": str(root)}
         binary = args.output / "candidate"
-        sources = [port["port_path"] for port in ports]
+        sources = source_paths
         results = [{"execution_id": identifier, "status": "NOT_RUN"}
                    for port in ports for identifier in port["execution_ids"]]
         library = None
