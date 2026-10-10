@@ -12,7 +12,9 @@ func emitKClassAnnotationRegistration(
     registrationCallee: String = "__kk_kclass_register_single_annotation",
     annotations selectedAnnotations: [MetadataAnnotationRecord]? = nil
 ) {
-    let annotations = selectedAnnotations ?? sema.symbols.annotations(for: objectSymbol)
+    let annotations = (selectedAnnotations ?? sema.symbols.annotations(for: objectSymbol)).filter {
+        resolvedAnnotationRetention($0, symbols: sema.symbols, interner: interner) == .runtime
+    }
     guard !annotations.isEmpty else { return }
 
     let intType = sema.types.intType

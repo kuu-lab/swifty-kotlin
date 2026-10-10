@@ -574,6 +574,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         ast: ASTModule, symbols: SymbolTable, bindings: BindingTable,
         types: TypeSystem, ctx: CompilationContext
     ) {
+        canonicalizeDeclarationAnnotations(ast: ast, bindings: bindings, symbols: symbols, types: types, interner: ctx.interner)
         bindInheritanceEdges(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
             diagnostics: ctx.diagnostics, interner: ctx.interner
