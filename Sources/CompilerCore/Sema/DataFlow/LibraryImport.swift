@@ -241,6 +241,7 @@ extension DataFlowSemaPhase {
                 return symbol
             }
             boundSymbolOrigins[symbol] = (origin: origin, metadataPath: metadataPath)
+            if isStdlibArtifact { symbols.markImportedStdlibSymbol(symbol) }
             if let moduleFQN {
                 symbols.setModuleFQN(moduleFQN, for: symbol)
             }
