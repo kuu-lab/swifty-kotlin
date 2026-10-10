@@ -859,6 +859,16 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    so `__kk_*` increases by one. Scope is limited to mutable reversed-view creation;
    `RuntimeABISpec.collectionHOFFunctions` registers the ABI and its canonical hash
    automatically updates `specVersion`.
+   KUU-1759 adds one private bridge, `__kk_coroutine_scope_context` (reason:
+   GC・continuation / メモリ表現). Coroutine builder, producer and actor receivers
+   are native scope/task handles; Kotlin cannot read their captured context and
+   retained Job. This bridge returns that receiver's canonical context while
+   the public sample selection/timing contract remains in bundled Kotlin.
+   `RuntimeABISpec.coroutineFunctions` registers the bridge; withContext entry
+   points also declare their existing throwing contract's explicit `outThrown`
+   parameter. The canonical hash updates `specVersion`, and `__kk_*` increases
+   by one because the legacy ambient-context entry point cannot implement
+   receiver-specific context reads.
    KUU-1217 adds one private bridge, `__kk_locale_toString_flat` (reason: memory
    representation). `Locale` constructor fields reside in `RuntimeLocaleBox`,
    not Kotlin object slots; the bridge returns their JVM-style text as a flat

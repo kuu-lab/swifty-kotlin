@@ -163,7 +163,10 @@ extension CoroutineLoweringPass {
                     lowered.append(.copy(from: completionTokenExpr, to: callResultExpr))
                 }
 
-                let thrownExceptionExpr = module.arena.appendTemporary(type: intType
+                // The runtime returns a Throwable handle, including the null
+                // sentinel. An Int type here would box the handle when copied
+                // into an adapter's nullable exception slot during ABI lowering.
+                let thrownExceptionExpr = module.arena.appendTemporary(type: anyType
                 )
                 lowered.append(
                     .call(

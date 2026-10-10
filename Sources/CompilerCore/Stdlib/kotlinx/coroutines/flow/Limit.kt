@@ -13,7 +13,17 @@ import kotlin.time.TimeSource
 import kotlin.time.inWholeMilliseconds
 import kotlin.time.toDuration
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.produce
+import kotlinx.coroutines.selects.select
 
 public fun <T> Flow<T>.drop(count: Int): Flow<T> {
     require(count >= 0) { "Drop count should be non-negative, but had $count" }
@@ -30,21 +40,65 @@ public fun <T> Flow<T>.drop(count: Int): Flow<T> {
     }
 }
 
-// KSP-1581: no ticker in the sequential cold-flow model; sample emits only
-// the last upstream value on completion, including a null value.
 @FlowPreview
+@OptIn(ExperimentalCoroutinesApi::class, InternalCoroutinesApi::class)
 @Suppress("UNCHECKED_CAST")
 public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
     require(periodMillis > 0L) { "Sample period should be positive" }
     val source = this
     return flow {
-        var seen = false
-        var last: Any? = null
-        source.collect { value ->
-            seen = true
-            last = value
+        coroutineScope {
+            val sampleJob = currentCoroutineContext().job
+            val values = produce<T>(capacity = Channel.CONFLATED) {
+                // Upstream scopedFlow propagates a producer's cancellation.
+                // Observe cancellation start so suspended downstream cleanup
+                // can run before the producer's finally block finishes.
+                val registration = currentCoroutineContext().job.invokeOnCompletion(onCancelling = true) { cause ->
+                    if (cause is CancellationException) sampleJob.cancel(cause)
+                }
+                try { source.collect { send(it) } }
+                catch (failure: Throwable) {
+                    if (failure is CancellationException) sampleJob.cancel(failure)
+                    throw failure
+                }
+                finally { registration.dispose() }
+            }
+            val ticks = produce<Unit>(capacity = 0) {
+                delay(periodMillis)
+                while (true) {
+                    send(Unit)
+                    delay(periodMillis)
+                }
+            }
+            var open = true
+            var pending = false
+            var last: T? = null
+            while (open) {
+                select<Unit> {
+                    values.onReceiveCatching { result ->
+                        if (result.isSuccess) {
+                            last = result.getOrNull()
+                            pending = true
+                        } else {
+                            val failure = result.exceptionOrNull()
+                            if (failure != null) throw failure
+                            open = false
+                            // Normal completion drops the pending tail. Stop
+                            // the ticker Job even when its delay is enormous.
+                            ticks.cancel()
+                        }
+                    }
+                    ticks.onReceive {
+                        if (pending) {
+                            pending = false
+                            val value = last as T
+                            last = null
+                            emit(value)
+                        }
+                    }
+                }
+            }
         }
-        if (seen) emit(last as T)
     }
 }
 
@@ -53,7 +107,10 @@ public fun <T> Flow<T>.sample(periodMillis: Long): Flow<T> {
 public fun <T> Flow<T>.sample(period: Duration): Flow<T> {
     require(period > 0L.toDuration(DurationUnit.MILLISECONDS)) { "Sample period should be positive" }
     val millis = period.inWholeMilliseconds
-    return sample(if (millis > 0L) millis else 1L)
+    val rounded = if (millis == Long.MAX_VALUE) millis
+        else if (period > millis.toDuration(DurationUnit.MILLISECONDS)) millis + 1L
+        else millis
+    return sample(rounded)
 }
 
 // Sequential cold-flow approximation of upstream `timeout` (operators/Delay.kt):

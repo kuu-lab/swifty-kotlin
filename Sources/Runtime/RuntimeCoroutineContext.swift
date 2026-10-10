@@ -1101,7 +1101,8 @@ public func kk_context_release(_ contextRaw: Int) {
 /// aware withContext, while installing the child context (name, handler,
 /// dispatcher and a fresh child Job) the block's ambient context exposes.
 @_cdecl("kk_with_context_full")
-public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
+public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     let resolvedCtx = resolveToCoroutineContext(contextRaw)
     let dispatcherTag = resolvedCtx.dispatcher != 0
         ? resolvedCtx.dispatcher
@@ -1112,7 +1113,7 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
         continuation: continuation
     )
 
-    return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, restoreJobHandle: restoreJobHandle)
+    return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, outThrown: outThrown, restoreJobHandle: restoreJobHandle)
 }
 
 /// KUU-1398: kotlinx's `withContext` runs its block under a child context —
@@ -1127,17 +1128,8 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
 private func runtimeInstallWithContextChildContext(
     overrideContext resolvedCtx: RuntimeCoroutineContext,
     continuation: Int
-) -> (@Sendable (Int) -> Void)? {
+) -> (@Sendable (Int) -> Int)? {
     guard let contState = runtimeContinuationState(from: continuation) else {
-        return nil
-    }
-
-    // `withContext(EmptyCoroutineContext)` is a no-op on the JVM: the merged
-    // context is the same instance, so no child coroutine or Job is created.
-    if resolvedCtx.dispatcher == 0, resolvedCtx.name == nil,
-       resolvedCtx.exceptionHandler == nil, resolvedCtx.jobHandleRaw == 0,
-       resolvedCtx.extras.isEmpty
-    {
         return nil
     }
 
@@ -1146,17 +1138,11 @@ private func runtimeInstallWithContextChildContext(
     // override's elements (right-hand side wins per `+`).
     let savedBuilderContext = contState.builderContext
     let savedJobHandle = contState.jobHandle
+    let savedScope = contState.scope
     let parentContext = RuntimeContinuationState.current?.makeContinuationContext()
         ?? RuntimeCoroutineScope.current?.context
         ?? RuntimeCoroutineContext()
     let mergedContext = parentContext.plus(resolvedCtx)
-    contState.builderContext = mergedContext
-    // The block runs under the merged child context (kotlinx's ScopeCoroutine):
-    // mirror its CoroutineName onto the ambient scope for the block's duration
-    // so `RuntimeCoroutineScope.current.name` observes the override.
-    let blockScope = contState.scope
-    let savedScopeName = blockScope?.name
-    blockScope?.name = mergedContext.name
 
     // The block's ambient Job is always a fresh child. It is parented to the
     // override's own Job element when the context carries one — except
@@ -1167,6 +1153,7 @@ private func runtimeInstallWithContextChildContext(
         : (resolvedCtx.extraElement(for: runtimeJobKeyRaw)
             .flatMap { runtimeExtraElementGet($0, key: runtimeJobKeyRaw) } ?? 0)
     let overrideJob = runtimeJobHandle(from: overrideJobHandle)
+        ?? runtimeAsyncTask(from: overrideJobHandle)?.completionJob
     let isNonCancellable = overrideJobHandle == kk_non_cancellable_instance()
     let blockJobRaw = kk_job_new()
     let blockJob = runtimeJobHandle(from: blockJobRaw)
@@ -1174,28 +1161,67 @@ private func runtimeInstallWithContextChildContext(
     // failing the parent job here would surface a CancellationException that
     // swallows the block's real error.
     blockJob?.propagatesFailureToParent = false
+    blockJob?.debugName = mergedContext.dispatcherElementHandle == parentContext.dispatcherElementHandle
+        ? "UndispatchedCoroutine" : "DispatchedCoroutine"
     blockJob?.continuationState = contState
-    if !isNonCancellable, blockJob != nil {
-        let parentJob = overrideJob
-            ?? runtimeJobHandle(from: parentContext.jobHandleRaw)
-            ?? runtimeAsyncTask(from: parentContext.jobHandleRaw)?.completionJob
-            ?? RuntimeJobHandle.current
-        parentJob?.registerChild(blockJobRaw)
-    }
+    let blockParent: RuntimeJobHandle? = isNonCancellable ? nil : (overrideJob
+        ?? runtimeJobHandle(from: parentContext.jobHandleRaw)
+        ?? runtimeAsyncTask(from: parentContext.jobHandleRaw)?.completionJob
+        ?? RuntimeJobHandle.current)
+    if blockJob != nil { blockParent?.registerChild(blockJobRaw) }
     contState.jobHandle = blockJob
+    // Even an empty override receives a fresh ScopeCoroutine. Its receiver
+    // keeps this context after the block returns or another coroutine runs.
+    let childContext = mergedContext.plus(RuntimeCoroutineContext(jobHandleRaw: blockJobRaw))
+    let blockScope = RuntimeCoroutineScope(context: childContext)
+    if let blockJob { blockScope.adoptJob(blockJob) }
+    _ = runtimeRegisterObject(blockScope)
+    contState.scope = blockScope
+    contState.builderContext = childContext
 
     let shieldedCaller = isNonCancellable ? RuntimeContinuationState.current : nil
     shieldedCaller?.beginCancellationShield()
     return { [weak contState] thrown in
         if thrown != 0 {
-            _ = blockJob?.completeExceptionally(with: thrown)
-        } else {
-            _ = blockJob?.complete(with: 0)
+            blockScope.recordBodyFailure(thrown)
+            blockScope.cancel(message: "withContext failed", cause: thrown)
         }
+        _ = blockScope.waitForChildren()
+        // A ContextScope constructed around this Job owns another child list.
+        // Join those children through the shared Job hierarchy as well.
+        var joined: Set<Int> = []
+        while let blockJob {
+            let children = blockJob.registeredChildrenSnapshot().filter { !joined.contains($0) }
+            if children.isEmpty { break }
+            for child in children {
+                joined.insert(child)
+                guard let childJob = runtimeJobHandle(from: child)
+                    ?? runtimeAsyncTask(from: child)?.completionJob else { continue }
+                _ = childJob.join()
+                let failure = childJob.completionSnapshot().exception
+                if failure != 0, kk_is_cancellation_exception(failure) == 0 {
+                    blockScope.recordBodyFailure(failure)
+                    blockScope.cancel(message: "withContext child failed", cause: failure)
+                }
+            }
+        }
+        let childFailure = blockScope.childFailureSnapshot()
+        var failure = childFailure != 0 ? childFailure : thrown
+        if failure == 0, blockJob?.cancellationSnapshot() == true,
+           let blockJob {
+            failure = runtimeJobCancellationException(blockJob)
+        }
+        if failure != 0 { _ = blockJob?.completeExceptionally(with: failure) }
+        else { _ = blockJob?.complete(with: 0) }
+        let settledCause = blockJob?.completionSnapshot().exception ?? failure
+        // A scoped failure is delivered through its caller. Once caught it
+        // must not remain in the parent's hierarchy as an unhandled child.
+        blockParent?.detachChild(blockJobRaw)
         contState?.jobHandle = savedJobHandle
         contState?.builderContext = savedBuilderContext
-        contState?.scope?.name = savedScopeName
+        contState?.scope = savedScope
         shieldedCaller?.endCancellationShield()
+        return settledCause
     }
 }
 
@@ -1556,6 +1582,7 @@ public func kk_dispatcher_immediate(
 /// Synchronization is provided externally by a `DispatchSemaphore`.
 private final class WithContextResultBox: @unchecked Sendable {
     var value: Int = 0
+    var failure: Int = 0
 }
 
 /// Kotlin `withContext(dispatcher) { block }` — switches coroutine execution
@@ -1568,11 +1595,11 @@ private final class WithContextResultBox: @unchecked Sendable {
 /// is a pointer to a RuntimeCoroutineContext, the dispatcher is extracted from it
 /// and context elements (name, exception handler) are propagated.
 @_cdecl("kk_with_context")
-public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
+public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     // A bare dispatcher tag still gets the child-context treatment: on JVM
     // every `withContext` installs a fresh child Job and exposes the
     // dispatcher element in the ambient context, not just reschedules.
-    kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
+    kk_with_context_full(dispatcherRaw, blockFnPtr, continuation, outThrown)
 }
 
 /// Shared implementation behind the `kk_with_context` ABI entry point.
@@ -1585,7 +1612,8 @@ func kk_with_context_impl(
     _ dispatcherRaw: Int,
     _ blockFnPtr: Int,
     _ continuation: Int,
-    restoreJobHandle: (@Sendable (Int) -> Void)?
+    outThrown: UnsafeMutablePointer<Int>? = nil,
+    restoreJobHandle: (@Sendable (Int) -> Int)?
 ) -> Int {
     // `kk_with_context_full` resolves the context argument first, so this
     // always receives a dispatcher tag (0/unknown values fall to Default).
@@ -1602,13 +1630,13 @@ func kk_with_context_impl(
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
         // Clean up the continuation to avoid leaking coroutine state.
         _ = kk_coroutine_state_exit(continuation, 0)
-        restoreJobHandle?(0)
+        outThrown?.pointee = restoreJobHandle?(0) ?? 0
         return 0
     }
 
     // Capture the current coroutine scope so child launches inside the block
     // are registered with the correct scope on the target queue's thread.
-    let parentScope = RuntimeCoroutineScope.current
+    let parentScope = runtimeContinuationState(from: continuation)?.scope ?? RuntimeCoroutineScope.current
 
     // Propagate caller's scope to continuation context so that
     // runSuspendEntryLoopWithContinuation installs it under the fresh task key.
@@ -1616,7 +1644,7 @@ func kk_with_context_impl(
     // continuation and child coroutines launched inside the withContext block
     // would lose the parent scope — breaking structured concurrency.
     if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = parentScope
+        if contState.scope == nil { contState.scope = parentScope }
         // KUU-964: propagate the caller's Job the same way — withContext(context)
         // without a Job element keeps the ambient Job, so `coroutineContext.job`
         // resolves inside the block (kotlinx's contract). A Job element the
@@ -1649,7 +1677,7 @@ func kk_with_context_impl(
             continuation: continuation,
             outThrown: &thrown
         )
-        restoreJobHandle?(thrown)
+        outThrown?.pointee = restoreJobHandle?(thrown) ?? thrown
         return result
     }
 
@@ -1673,9 +1701,9 @@ func kk_with_context_impl(
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
                 onCompletion: { result, thrown in
-                    restoreJobHandle?(thrown)
-                    if thrown != 0 {
-                        callerState.resume(withException: thrown)
+                    let failure = restoreJobHandle?(thrown) ?? thrown
+                    if failure != 0 {
+                        callerState.resume(withException: failure)
                     } else {
                         callerState.resume(with: result)
                     }
@@ -1701,7 +1729,7 @@ func kk_with_context_impl(
             continuation: continuation,
             outThrown: &thrown
         )
-        restoreJobHandle?(thrown)
+        resultBox.failure = restoreJobHandle?(thrown) ?? thrown
         semaphore.signal()
     }
 
@@ -1709,5 +1737,6 @@ func kk_with_context_impl(
     // queued on any runBlocking event loop -- but this thread may be draining
     // one, and the block can join work that is. Drain rather than park.
     runtimeWaitDrainingEventLoop(semaphore)
+    outThrown?.pointee = resultBox.failure
     return resultBox.value
 }
