@@ -1,9 +1,46 @@
 #if canImport(Testing)
 @testable import CompilerCore
 import Testing
+import TestStdlibCache
 
 @Suite
 struct FlowBuilderInferenceTests {
+    @Test(arguments: [false, true], [false, true])
+    func explicitTransformBindsEmitAfterBuilderInference(fromSource: Bool, throwsAfterEmit: Bool) throws {
+        let source = """
+        import kotlinx.coroutines.flow.*
+        fun demo(source: Flow<Int>): Flow<Int> = source.transform<Int, Int> {
+            emit(it)
+            \(throwsAfterEmit ? "throw RuntimeException(\"after-emit\")" : "Unit")
+        }
+        """
+        if !fromSource { TestStdlibCache.shared.prepare() }
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                stdlibLibraryPath: fromSource ? nil : CompilerOptions.defaultStdlibLibraryPath,
+                allowDefaultStdlibLibrary: !fromSource
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let emits = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return ctx.interner.resolve(name) == "emit"
+            }
+            #expect(emits.count == 1)
+            let emit = try #require(emits.first)
+            let binding = try #require(sema.bindings.callBinding(for: emit))
+            let symbol = try #require(sema.symbols.symbol(binding.chosenCallee))
+            #expect(symbol.fqName.map(ctx.interner.resolve) == [
+                "kotlinx", "coroutines", "flow", "FlowCollector", "emit",
+            ])
+        }
+    }
+
     @Test
     func transformInfersOutputTypeFromCollectorEmit() throws {
         let ctx = makeContextFromSource("""

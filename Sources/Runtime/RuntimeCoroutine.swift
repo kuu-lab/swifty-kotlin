@@ -589,6 +589,16 @@ final class RuntimeContinuationState: @unchecked Sendable {
         return true
     }
 
+    /// Generated resume labels receive an exception once. A surrounding catch
+    /// may handle it and then suspend again without a child call clearing it.
+    func takeThrownException() -> Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        let thrown = thrownException
+        thrownException = 0
+        return thrown
+    }
+
     func installCancellableDelivery(_ continuation: RuntimeCancellableContinuation) {
         stateLock.lock()
         cancellableDelivery = continuation
@@ -824,6 +834,17 @@ final class RuntimeContinuationState: @unchecked Sendable {
         if pending {
             child.signalResume()
         }
+    }
+
+    /// Job cancellation already forwards through this chain. A driver's
+    /// supplemental handler must not wake the same child a second time after
+    /// it has caught cancellation and entered another suspension.
+    func containsSuspendedContinuation(_ target: RuntimeContinuationState) -> Bool {
+        if self === target { return true }
+        stateLock.lock()
+        let child = suspendedCallChild
+        stateLock.unlock()
+        return child?.containsSuspendedContinuation(target) ?? false
     }
 
     func unbindSuspendedCallChild(_ child: RuntimeContinuationState) {
@@ -1393,6 +1414,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private let defaultCancellationMessageFallback: String
     weak var continuationState: RuntimeContinuationState?
     var producerChannel: Int?
+    private var producerCompletionPending = false
     private var childJobHandles: [Int] = []
     private weak var parentJob: RuntimeJobHandle?
     /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
@@ -1620,6 +1642,15 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
     }
 
+    /// Structured completion also needs terminal children's exceptions: a
+    /// child can publish its value/state just before notifying its parent.
+    func registeredChildrenSnapshot() -> [Int] {
+        lock.lock()
+        let children = childJobHandles
+        lock.unlock()
+        return children.filter { runtimeJobHandle(from: $0) != nil || runtimeAsyncTask(from: $0) != nil }
+    }
+
     func markConsumedByUserCode() {
         lock.lock()
         isConsumedByUserCode = true
@@ -1637,7 +1668,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     /// already complete, the resumer runs immediately on the calling thread.
     func addJoinResumer(_ resumer: @escaping @Sendable (Int) -> Void) {
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted, !producerCompletionPending {
             let value = terminalValueLocked()
             lock.unlock()
             resumer(value)
@@ -1656,7 +1687,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         handler: @escaping @Sendable (Int) -> Void
     ) -> Int {
         lock.lock()
-        if state.isCompleted || (onCancelling && state == .cancelling) {
+        if (state.isCompleted && !producerCompletionPending) || (onCancelling && state == .cancelling) {
             let cause = completionCauseLocked()
             lock.unlock()
             if invokeImmediately {
@@ -1697,7 +1728,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         let cause = completionCauseLocked()
-        return (state.isCompleted, result, cause == runtimeNullSentinelInt ? 0 : cause)
+        return (state.isCompleted && !producerCompletionPending, result, cause == runtimeNullSentinelInt ? 0 : cause)
     }
 
     /// KUU-CORO-101: the value `invokeOnCompletion` handlers receive as
@@ -1756,53 +1787,53 @@ final class RuntimeJobHandle: @unchecked Sendable {
     func complete(with value: Int) -> Bool {
         lock.lock()
         let shouldSignal = completeLocked(successState: .completed, value: value)
-        let resumers = shouldSignal ? joinResumers : []
-        let handlers = shouldSignal ? completionHandlers : []
-        if shouldSignal {
-            joinResumers = []
-            completionHandlers = []
-        }
-        let terminal = shouldSignal ? terminalValueLocked() : 0
+        if shouldSignal { producerCompletionPending = producerChannel != nil }
         let cause = shouldSignal ? completionCauseLocked() : 0
         lock.unlock()
-        if shouldSignal {
-            completionSemaphore.signal()
-            for resumer in resumers {
-                resumer(terminal)
-            }
-            for entry in handlers {
-                entry.handler(cause)
-            }
-        }
+        if shouldSignal { publishCompletion(cause: cause) }
         return shouldSignal
     }
 
     func completeExceptionally(with exception: Int) -> Bool {
         lock.lock()
         let shouldSignal = completeLocked(successState: .failed, value: 0, failureValue: exception)
-        let resumers = shouldSignal ? joinResumers : []
-        let handlers = shouldSignal ? completionHandlers : []
-        if shouldSignal {
-            joinResumers = []
-            completionHandlers = []
-        }
-        let terminal = shouldSignal ? terminalValueLocked() : 0
+        if shouldSignal { producerCompletionPending = producerChannel != nil }
         let cause = shouldSignal ? completionCauseLocked() : 0
         let parent = shouldSignal && propagatesFailureToParent ? parentJob : nil
         lock.unlock()
         if shouldSignal {
-            if exception != 0, kk_is_cancellation_exception(exception) == 0 {
-                parent?.childFailed(with: exception)
-            }
-            completionSemaphore.signal()
-            for resumer in resumers {
-                resumer(terminal)
-            }
-            for entry in handlers {
-                entry.handler(cause)
+            publishCompletion(cause: cause) {
+                if exception != 0, kk_is_cancellation_exception(exception) == 0 {
+                    parent?.childFailed(with: exception)
+                }
             }
         }
         return shouldSignal
+    }
+
+    /// Producer close callbacks must finish before joiners, snapshots, or a
+    /// concurrently registered completion handler can observe completion.
+    private func publishCompletion(cause: Int, beforeNotification: () -> Void = {}) {
+        closeProducerChannel(cause: cause)
+        beforeNotification()
+        lock.lock()
+        producerCompletionPending = false
+        let terminal = terminalValueLocked()
+        let resumers = joinResumers
+        let handlers = completionHandlers
+        joinResumers = []
+        completionHandlers = []
+        lock.unlock()
+        completionSemaphore.signal()
+        for resumer in resumers { resumer(terminal) }
+        for entry in handlers { entry.handler(cause) }
+    }
+
+    private func closeProducerChannel(cause: Int) {
+        guard let producerChannel else { return }
+        _ = runtimeChannelHandleObject(from: producerChannel)?.close(
+            cause: cause == runtimeNullSentinelInt ? 0 : cause
+        )
     }
 
     /// Notify ancestors before waking awaiters, so caught await failures still
@@ -1853,7 +1884,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
     @discardableResult
     private func cancel(message: String, cause: Int, usesDefaultMessage: Bool) -> Bool {
         let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
-            ? cause : runtimeAllocateCancellationException(message: message)
+            ? cause : runtimeAllocateCancellationException(message: message, cancellationJob: self)
         // If the dispatch work item has not begun executing, cancel it now so
         // the body never runs. The state update below is the authoritative
         // completion signal if cancellation already lost the race.
@@ -1894,6 +1925,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
             if state == .new || (state == .active && !hasStartedExecuting) {
                 state = .cancelled
                 shouldSignalCompletion = true
+                producerCompletionPending = producerChannel != nil
                 joinResumersToRun = joinResumers
                 joinResumers = []
                 terminalForJoin = terminalValueLocked()
@@ -1921,6 +1953,14 @@ final class RuntimeJobHandle: @unchecked Sendable {
             entry.handler(resolvedCause)
         }
         if shouldSignalCompletion {
+            closeProducerChannel(cause: resolvedCause)
+            lock.lock()
+            producerCompletionPending = false
+            joinResumersToRun.append(contentsOf: joinResumers)
+            allHandlersToRun.append(contentsOf: completionHandlers)
+            joinResumers = []
+            completionHandlers = []
+            lock.unlock()
             completionSemaphore.signal()
             for resumer in joinResumersToRun {
                 resumer(terminalForJoin)
@@ -1944,7 +1984,7 @@ final class RuntimeJobHandle: @unchecked Sendable {
         // never signal completionSemaphore.
         RuntimePendingLaunchQueue.flush()
         lock.lock()
-        if state.isCompleted {
+        if state.isCompleted, !producerCompletionPending {
             let value = terminalValueLocked()
             lock.unlock()
             return value
@@ -2000,11 +2040,17 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return state.isCancelled
     }
 
+    func isFinalizingProducerChannelSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return producerCompletionPending
+    }
+
     /// Thread-safe snapshot of the completion flag.
     func completedSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return state.isCompleted
+        return state.isCompleted && !producerCompletionPending
     }
 
     /// Thread-safe snapshot of the active state.
@@ -2458,16 +2504,7 @@ private func runtimeCoroutineIsThrowableResult(_ result: Int) -> Bool {
 }
 
 private func runtimeCoroutineIsCancellationResult(_ result: Int) -> Bool {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: result) else {
-        return false
-    }
-    let isRegistered = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: pointer))
-    }
-    guard isRegistered else {
-        return false
-    }
-    return tryCast(pointer, to: RuntimeCancellationBox.self) != nil
+    kk_is_cancellation_exception(result) != 0
 }
 
 /// CORO-003: Per-thread task key used to index into the task-scope map.
@@ -2954,7 +2991,7 @@ public func kk_coroutine_state_get_thrown_exception(_ continuation: Int) -> Int 
     guard let state = runtimeContinuationState(from: continuation) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_state_get_thrown_exception received invalid continuation handle")
     }
-    return state.thrownException
+    return state.takeThrownException()
 }
 
 @_cdecl("kk_coroutine_continuation_context")
@@ -3881,10 +3918,13 @@ private func runtimeProducerContext(
 func runtimeKxMiniProduceWithCont(
     _ entryPointRaw: Int,
     _ continuation: Int,
-    channelCapacity: Int
+    channelCapacity: Int,
+    failureDeliveredByCollector: Bool = false,
+    collectorJob: RuntimeJobHandle? = nil
 ) -> Int {
     let channelHandle = kk_channel_create(channelCapacity)
     let job = RuntimeJobHandle()
+    job.propagatesFailureToParent = !failureDeliveredByCollector || collectorJob != nil
     job.producerChannel = channelHandle
     job.debugName = "ProducerCoroutine"
     let jobPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(job).toOpaque())
@@ -3905,8 +3945,14 @@ func runtimeKxMiniProduceWithCont(
     }
 
     let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: jobPtr))
+    if failureDeliveredByCollector {
+        // Like coroutineScope, a Flow collect boundary reports its failure
+        // through its caller rather than failing the ambient scope again.
+        // Retain the runtime job for escaped coroutineContext.job values,
+        // following RuntimeCoroutineScope.installJob's lifetime convention.
+        (collectorJob ?? RuntimeJobHandle.current ?? callerScope?.job)?.registerChild(Int(bitPattern: jobPtr))
+    } else {
+        callerScope?.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
@@ -3918,23 +3964,52 @@ func runtimeKxMiniProduceWithCont(
         )
     }
 
+    let producerScope = runtimeProducerScopeForChannelHandle(channelHandle)
+    let executionScope = failureDeliveredByCollector ? producerScope : callerScope
+    if failureDeliveredByCollector {
+        runtimeContinuationState(from: continuation)?.scope = executionScope
+    }
+
     KxMiniRuntime.launch {
         // Same cancel-before-start guard as `__kk_produce_launch*`: a cancel()
         // racing ahead of the dispatched body already moved the job to
         // cancelling/cancelled, so skip the body and settle the channel.
         if job.cancellationSnapshot() {
-            _ = kk_channel_close(channelHandle)
             _ = job.complete(with: 0)
             return
         }
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
-            scope: callerScope,
+            scope: executionScope,
             job: nil
-        ) { result, _ in
-            _ = kk_channel_close(channelHandle)
-            _ = job.complete(with: result)
+        ) { result, thrown in
+            var failure = thrown
+            if failureDeliveredByCollector, let producerScope {
+                let priorChildFailure = producerScope.childFailureSnapshot()
+                if thrown != 0 {
+                    producerScope.recordBodyFailure(thrown)
+                    let rootCause = priorChildFailure != 0 ? priorChildFailure : thrown
+                    if kk_is_cancellation_exception(rootCause) == 0 {
+                        // Interrupt a collector before waiting for child finally
+                        // blocks that may themselves await collector cleanup.
+                        _ = collectorJob?.cancel(cause: rootCause)
+                    }
+                    // Cancelling each child's Job wakes its own pending send.
+                    // The enclosing collection Job receives non-cancellation
+                    // failure after this structured producer finishes.
+                    producerScope.cancel(message: "Flow producer failed", cause: thrown)
+                }
+                let childFailure = producerScope.waitForChildren(releaseOriginalHandles: false)
+                failure = priorChildFailure != 0 ? priorChildFailure
+                    : (childFailure != 0 && (thrown == 0 || runtimeCoroutineIsCancellationResult(thrown))
+                        ? childFailure : thrown)
+            }
+            if failure != 0 {
+                _ = job.completeExceptionally(with: failure)
+            } else {
+                _ = job.complete(with: result)
+            }
         }
     }
     return channelHandle
@@ -5452,7 +5527,6 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
-            _ = kk_channel_close(channelHandle)
             _ = job.complete(with: 0)
             return
         }
@@ -5473,7 +5547,6 @@ public func __kk_produce_launch(_ channelHandle: Int, _ entryPointRaw: Int, _ en
             captures: captures,
             outThrown: &thrown
         )
-        _ = kk_channel_close(channelHandle)
         if thrown != 0 {
             _ = job.completeExceptionally(with: thrown)
         } else {
@@ -5551,7 +5624,6 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
 
     KxMiniRuntime.launch {
         if job.cancellationSnapshot() {
-            _ = kk_channel_close(channelHandle)
             _ = job.complete(with: 0)
             return
         }
@@ -5561,7 +5633,6 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
             scope: callerScope,
             job: nil
         ) { result, thrown in
-            _ = kk_channel_close(channelHandle)
             if thrown != 0 {
                 _ = job.completeExceptionally(with: thrown)
             } else {
@@ -6710,7 +6781,7 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
     if let job = state.jobHandle, job.cancellationSnapshot() {
         let cancellation = runtimeAllocateCancellationException(
             message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot()
+            cause: job.cancellationCauseSnapshot(), cancellationJob: job
         )
         outThrown?.pointee = cancellation
         return 1
@@ -6766,7 +6837,14 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
         return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    return obj is RuntimeCancellationBox ? 1 : 0
+    if obj is RuntimeCancellationBox { return 1 }
+    // Bundled/user subclasses (including Flow's AbortFlowException) use
+    // ordinary source objects rather than the runtime cancellation box.
+    guard let object = obj as? RuntimeObjectBox else { return 0 }
+    return runtimeIsAssignable(
+        sourceTypeID: object.classID,
+        targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.coroutines.cancellation.CancellationException")
+    ) ? 1 : 0
 }
 
 /// Throws a CancellationException if the ambient job/scope has been cancelled.
@@ -6779,7 +6857,7 @@ public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if let job = RuntimeJobHandle.current, job.cancellationSnapshot() {
         outThrown?.pointee = runtimeAllocateCancellationException(
             message: job.cancellationMessageSnapshot(forSuspensionPoint: true),
-            cause: job.cancellationCauseSnapshot()
+            cause: job.cancellationCauseSnapshot(), cancellationJob: job
         )
         return 0
     }
@@ -7026,6 +7104,16 @@ func runSuspendEntryLoopWithContinuation(
     // task-scope map so that child launches dispatched on this thread can
     // discover their parent scope without TLS.
     let contState = runtimeContinuationState(from: continuation)
+    let cancellationJob = contState?.jobHandle
+    let cancellationHandler = cancellationJob?.addCompletionHandler(onCancelling: true) { [weak contState, weak cancellationJob] _ in
+        guard let contState, let cancellationJob, cancellationJob.cancellationSnapshot() else { return }
+        // The launcher's primary state is already signalled by Job.cancel.
+        // A borrowed suspend-value loop has its own suspended continuation,
+        // including event-loop drivers that use an asynchronous callback.
+        if cancellationJob.continuationState?.containsSuspendedContinuation(contState) != true {
+            contState.signalResume(isCancellation: true)
+        }
+    } ?? 0
     // Bind this coroutine to the runBlocking event loop draining the current
     // thread, if any, so every later resumption hop is queued on it. A body
     // dispatched onto a real dispatcher queue (`withContext(Dispatchers.IO)`,
@@ -7095,6 +7183,7 @@ func runSuspendEntryLoopWithContinuation(
             // code on this thread can race a cancel() against them.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -7122,6 +7211,7 @@ func runSuspendEntryLoopWithContinuation(
             // signalling completion for the same reason as the thrown path.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -7143,6 +7233,7 @@ func runSuspendEntryLoopWithContinuation(
             // the other exit paths above.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
+            cancellationJob?.removeCompletionHandler(id: cancellationHandler)
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.restoreKey(taskKeyBox.outerKey)
@@ -7184,8 +7275,18 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeContinuationState.removeCurrent(forTask: taskKeyBox.key)
             // Resumed on a (possibly different) thread — capture that thread's
             // displaced ambient bindings so a burst ending here restores them.
-            taskKeyBox.outerKey = RuntimeCoroutineScopeTaskKey.installedKey
-            taskKeyBox.outerJob = RuntimeJobHandle.current
+            let displacedKey = RuntimeCoroutineScopeTaskKey.installedKey
+            let displacedJob = RuntimeJobHandle.current
+            taskKeyBox.outerKey = displacedKey
+            taskKeyBox.outerJob = displacedJob
+            // A resumed burst can suspend again without entering a terminal
+            // branch. Restore this worker's ambient bindings on that path too,
+            // using burst-local snapshots so nested inline resumes cannot
+            // replace the values this invocation must restore.
+            defer {
+                RuntimeCoroutineScopeTaskKey.restoreKey(displacedKey)
+                RuntimeJobHandle.current = displacedJob
+            }
             let freshKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
             taskKeyBox.key = freshKey
             RuntimeCoroutineScope.installScope(state.scope, forTask: freshKey)
