@@ -51,10 +51,13 @@ public suspend fun currentCoroutineContext(): CoroutineContext = __kkCurrentCoro
 @KsSymbolName("__kk_coroutine_scope_is_runtime")
 internal external fun __kkScopeIsRuntime(scope: Any): Boolean
 
+@KsSymbolName("__kk_coroutine_scope_context")
+internal external fun __kkRuntimeScopeContext(scope: Any): CoroutineContext
+
 // Runtime builder receivers are opaque handles. Source scope objects retain
 // their declared (possibly custom) coroutineContext getter.
 internal fun CoroutineScope.__kkScopeContext(): CoroutineContext {
-    if (__kkScopeIsRuntime(this)) return __kkCurrentCoroutineContext()
+    if (__kkScopeIsRuntime(this)) return __kkRuntimeScopeContext(this)
     return coroutineContext
 }
 
@@ -116,8 +119,9 @@ public suspend fun supervisorScope(block: suspend CoroutineScope.() -> Any?): An
     try {
         result = block(scope)
     } catch (e: Throwable) {
-        kkCoroutineScopeCancel(scope)
-        kkCoroutineScopeWait(scope)
+        kkCoroutineScopeFail(scope, e)
+        val failure = kkCoroutineScopeWait(scope)
+        if (failure != null && failure !is CancellationException) throw failure
         throw e
     }
     // Supervisor semantics: wait for children but do not propagate their

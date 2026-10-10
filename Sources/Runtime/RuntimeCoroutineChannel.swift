@@ -684,6 +684,9 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     func cancel(cause: Int = 0) -> Bool {
         lock.lock()
         if closed {
+            // cancel also discards elements after close. The first close cause
+            // and its waiter/handler publication remain authoritative.
+            _ = buffer.drain()
             lock.unlock()
             return false
         }
@@ -1006,6 +1009,8 @@ private func channelStatusThrowable(
 ) -> Int {
     switch status {
     case .closed:
+        let cause = channel.closeCauseSnapshot()
+        if cause != 0, cause != runtimeNullSentinelInt { return cause }
         return isReceive
             ? runtimeAllocateClosedReceiveChannelException(message: "Channel was closed")
             : runtimeAllocateClosedSendChannelException(message: "Channel was closed")
@@ -1107,11 +1112,7 @@ public func kk_channel_receive(
 /// Returns 1 if this call cancelled the channel, 0 if it was already closed.
 @_cdecl("kk_channel_cancel")
 public func kk_channel_cancel(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_cancel received invalid channel handle")
-    }
-    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    return channel.cancel() ? 1 : 0
+    __kk_channel_cancel(handle, 0)
 }
 
 @_cdecl("kk_channel_close")
@@ -1236,7 +1237,14 @@ public func __kk_channel_cancel(_ handle: Int, _ cause: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_cancel received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    return channel.cancel(cause: cause) ? 1 : 0
+    let didCancel = channel.cancel(cause: cause)
+    // ProducerCoroutine.cancel cancels its Job even when the underlying
+    // channel was already closed normally by the producer body.
+    channel.producerScope?.cancel(
+        message: "ProducerCoroutine was cancelled",
+        cause: cause == runtimeNullSentinelInt ? 0 : cause
+    )
+    return didCancel ? 1 : 0
 }
 
 // MARK: - ChannelResult Box (KSP-1572; close-cause extension KSP-1571)
