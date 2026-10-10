@@ -52,10 +52,37 @@ extension TypeCheckHelpers {
         for signature: FunctionSignature,
         bindReceiver: Bool,
         boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = nil,
+        specializeGenericReceiver: Bool = true,
         sema: SemaModule
     ) -> TypeID {
         var params = signature.parameterTypes
         var returnType = signature.returnType
+        // A top-level generic extension's own type parameters are inferred
+        // from the explicit receiver, even when the surrounding expected
+        // function type still contains the caller's type parameters.
+        if specializeGenericReceiver,
+           let boundReceiver, let declaredReceiver = signature.receiverType,
+           !signature.typeParameterSymbols.isEmpty
+        {
+            let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let resolver = OverloadResolver()
+            let constraints = resolver.decomposeSubtypeConstraint(
+                subtype: boundReceiver.receiverType, supertype: declaredReceiver,
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil
+            )
+            let solution = ConstraintSolver().solve(
+                vars: resolver.usedTypeVariables(from: constraints), constraints: constraints,
+                typeSystem: sema.types
+            )
+            if solution.isSuccess {
+                params = params.map {
+                    sema.types.substituteTypeParameters(in: $0, substitution: solution.substitution, typeVarBySymbol: variables)
+                }
+                returnType = sema.types.substituteTypeParameters(
+                    in: returnType, substitution: solution.substitution, typeVarBySymbol: variables
+                )
+            }
+        }
         if let boundReceiver,
            let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol),
            sema.symbols.symbol(owner)?.kind == .class || sema.symbols.symbol(owner)?.kind == .interface
@@ -183,6 +210,7 @@ extension TypeCheckHelpers {
             for: signature,
             bindReceiver: bindReceiver,
             boundReceiver: boundReceiver,
+            specializeGenericReceiver: false,
             sema: sema
         )
         let types = sema.types

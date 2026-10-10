@@ -182,7 +182,7 @@ final class InlineLoweringPass: LoweringPass {
                 }
                 let captureArgs = lambdaCaptureArguments(
                     for: callableExpr, symbol: lambdaFunction.symbol,
-                    aliases: aliases, arena: module.arena
+                    aliases: aliases, arena: module.arena, ctx: ctx, into: &loweredBody
                 )
                 guard budget.permitsAdditional(
                     captureArgs.count + resolvedArguments.count,

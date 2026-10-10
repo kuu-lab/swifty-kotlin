@@ -1,0 +1,8 @@
+Double. Expected <1.0> with absolute tolerance <0.25>, actual <1.5>.
+Expected <1.0> with absolute tolerance <0.25>, actual <1.25>.
+Illegal negative absolute tolerance <-1.0>.
+Illegal negative absolute tolerance <NaN>.
+Float. Expected <1.0> with absolute tolerance <0.25>, actual <1.5>.
+Expected <1.0> with absolute tolerance <0.25>, actual <1.25>.
+Illegal negative absolute tolerance <-1.0>.
+Illegal negative absolute tolerance <NaN>.

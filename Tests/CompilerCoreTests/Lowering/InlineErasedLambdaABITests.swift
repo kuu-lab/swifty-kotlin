@@ -4,6 +4,35 @@ import Testing
 
 struct InlineErasedLambdaABITests {
     @Test
+    func nestedCallbackDoesNotBorrowTheOuterMessageReturnType() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let diagnostics = DiagnosticEngine()
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diagnostics).ctx
+        let ctx = makeKIRContext(
+            moduleName: "NestedCallback", interner: interner, sema: sema, diagnostics: diagnostics
+        )
+        let message = SymbolID(rawValue: 31)
+        let nestedContains = SymbolID(rawValue: 32)
+        let target = KIRFunction(
+            symbol: SymbolID(rawValue: 30), name: interner.intern("outer"),
+            params: [KIRParameter(symbol: message, type: types.make(.functionType(FunctionType(
+                params: [], returnType: types.stringType
+            ))))],
+            returnType: types.unitType, body: [], isSuspend: false, isInline: true
+        )
+        // A nested inline helper's Boolean callback retains its own symbol
+        // after expansion. It is distinct from outer's sole String callback.
+        #expect(InlineErasedLambdaABI.importedLambdaInvokeReturnType(
+            inlineTarget: target, invokedParameter: nestedContains, typeSubstitution: nil, ctx: ctx
+        ) == nil)
+        #expect(InlineErasedLambdaABI.importedLambdaInvokeReturnType(
+            inlineTarget: target, invokedParameter: message, typeSubstitution: nil, ctx: ctx
+        ) == types.stringType)
+    }
+
+    @Test
     func detectsOnlyImportedHigherOrderInlineBodies() {
         let interner = StringInterner()
         let symbols = SymbolTable()

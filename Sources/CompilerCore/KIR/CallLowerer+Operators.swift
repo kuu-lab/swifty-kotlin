@@ -1392,15 +1392,39 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let callBinding = recoverMemberCallBinding(
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        let receiverIsIntrinsicArray: Bool = if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
+            symbol.fqName == [interner.intern("kotlin"), symbol.name]
+                && KnownCompilerNames(interner: interner).isArrayLikeName(symbol.name)
+        } else {
+            false
+        }
+        let resolvedCallBinding = recoverMemberCallBinding(
             exprID: exprID,
             receiverExpr: receiverExpr,
             calleeName: interner.intern("get"),
             argumentExprs: indices,
             sema: sema
         ) ?? sema.bindings.callBindings[exprID]
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        let chosenGetIsIntrinsic: Bool = if receiverIsIntrinsicArray,
+            indices.count == 1,
+            let chosenGet = resolvedCallBinding?.chosenCallee,
+            let symbol = sema.symbols.symbol(chosenGet),
+            symbol.fqName.count == 3,
+            symbol.fqName[0] == interner.intern("kotlin"),
+            KnownCompilerNames(interner: interner).isArrayLikeName(symbol.fqName[1]),
+            symbol.fqName[2] == interner.intern("get"),
+            let signature = sema.symbols.functionSignature(for: chosenGet)
+        {
+            signature.parameterTypes == [sema.types.intType]
+        } else {
+            false
+        }
+        // Only the canonical Int-indexed member uses the intrinsic. Its body
+        // is this[index], so member dispatch would recurse. Other operator get
+        // overloads still dispatch normally, including multi-index extensions.
+        let callBinding: CallBinding? = chosenGetIsIntrinsic ? nil : resolvedCallBinding
         let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         let chosenGetIsSourceBacked = if let chosenGet = callBinding?.chosenCallee {
             sema.symbols.isSourceBackedSymbol(chosenGet)
