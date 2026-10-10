@@ -68,7 +68,7 @@ extension CallTypeChecker {
 
         if let result = tryInferClassRefMemberCall(
             id, receiverID: receiverID, calleeName: calleeName, args: args,
-            explicitTypeArgs: explicitTypeArgs, range: range, ctx: ctx, locals: &locals
+            explicitTypeArgs: explicitTypeArgs, expectedType: request.expectedType, range: range, ctx: ctx, locals: &locals
         ) {
             return result
         }

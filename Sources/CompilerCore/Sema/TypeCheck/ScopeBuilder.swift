@@ -245,6 +245,16 @@ struct TypeCheckScopeBuilder {
             let resolved = importDecl.isWildcard
                 ? sema.symbols.lookupAll(fqName: importDecl.path)
                 : resolveExplicitImport(importDecl.path, sema: sema)
+            if importDecl.isWildcard, resolved.contains(where: {
+                sema.symbols.symbol($0)?.kind == .enumClass
+            }) {
+                // Enum entries belong to the enum, not a package. Source entries
+                // are deliberately absent from the package-only symbol index.
+                for entry in sema.symbols.children(ofFQName: importDecl.path)
+                    where sema.symbols.symbol(entry)?.kind == .field && isAccessibleWildcardSymbol(entry) {
+                    wildcardImportScope.insert(entry)
+                }
+            }
             if resolved.isEmpty {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
                 if !packageSymbols.isEmpty {

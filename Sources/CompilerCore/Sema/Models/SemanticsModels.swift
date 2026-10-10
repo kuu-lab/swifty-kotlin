@@ -1704,6 +1704,20 @@ public final class SymbolTable {
 }
 
 public final class BindingTable {
+    /// Marker checks already performed for one source annotation occurrence.
+    public private(set) var validatedAnnotationOptInMarkers: [String: Set<SymbolID>] = [:]
+
+    public func recordValidatedAnnotationOptIn(usageID: String?, markers: Set<SymbolID>) {
+        guard let usageID else { return }
+        validatedAnnotationOptInMarkers[usageID, default: []].formUnion(markers)
+    }
+
+    public private(set) var annotationFactoryExpressions: [SymbolID: ExprID] = [:]
+
+    public func bindAnnotationFactory(_ symbol: SymbolID, expression: ExprID) {
+        annotationFactoryExpressions[symbol] = expression
+    }
+
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]

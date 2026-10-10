@@ -46,6 +46,7 @@ extension BuildASTPhase {
         let astArena: ASTArena
         let diagnostics: DiagnosticEngine?
         var index: Int
+        var allowAnnotationArrayLiterals = false
 
         /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
         /// unbounded native stack growth on deeply nested untrusted source (a

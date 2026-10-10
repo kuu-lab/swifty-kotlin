@@ -93,17 +93,68 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     return runtimeAnnotationList(metadata.annotations)
 }
 
-func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord]) -> Int {
+@_cdecl("__kk_kclass_get_annotations_typed")
+public func __kk_kclass_get_annotations_typed(_ kclassRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let records = runtimeReflectionKClassBox(from: kclassRaw)?.metadata?.annotations ?? []
+    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+}
+
+func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactory: Bool,
+                            outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if materializeFactory, record.factory != 0 {
+        return kk_function_invoke_0(record.factory, outThrown)
+    }
+    return registerRuntimeObject(RuntimeAnnotationBox(
+        annotationFQName: record.annotationFQName, arguments: record.arguments, annotationClassRaw: 0
+    ))
+}
+
+func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord], materializeFactories: Bool = false,
+                           outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     var annotationHandles: [Int] = []
+    // Stable slots keep earlier results rooted while a later factory executes.
+    let roots = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: max(1, records.count))
+    roots.initialize(repeating: nil, count: max(1, records.count))
+    defer {
+        for index in annotationHandles.indices { kk_unregister_global_root(roots.advanced(by: index)) }
+        roots.deinitialize(count: max(1, records.count))
+        roots.deallocate()
+    }
     for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
-        let box = RuntimeAnnotationBox(
-            annotationFQName: record.annotationFQName,
-            arguments: record.arguments,
-            annotationClassRaw: 0
-        )
-        annotationHandles.append(registerRuntimeObject(box))
+        var thrown = 0
+        let handle = runtimeAnnotationValue(record, materializeFactory: materializeFactories, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        roots[annotationHandles.count] = UnsafeMutableRawPointer(bitPattern: handle)
+        kk_register_global_root(roots.advanced(by: annotationHandles.count))
+        annotationHandles.append(handle)
     }
     return registerRuntimeObject(RuntimeListBox(elements: annotationHandles))
+}
+
+@_cdecl("__kk_kcallable_get_annotations_typed")
+public func __kk_kcallable_get_annotations_typed(_ callableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let records = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[callableRaw]?.annotations ?? [] }
+    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+}
+
+@_cdecl("__kk_kcallable_register_annotation_factory")
+public func __kk_kcallable_register_annotation_factory(
+    _ callableRaw: Int, _ fqNameRaw: Int, _ argsEncodedRaw: Int, _ argCount: Int, _ factory: Int
+) -> Int {
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    guard runtimeShouldExposeAnnotation(fqName: fqName) else { return 0 }
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let record = RuntimeAnnotationRecord(annotationFQName: fqName,
+        arguments: argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : [], factory: factory)
+    runtimeStorage.withDelegateLock { state in
+        guard var metadata = state.callableRefMetadataByValue[callableRaw] else { return }
+        runtimeAppendAnnotationRecord(record, to: &metadata.annotations)
+        state.callableRefMetadataByValue[callableRaw] = metadata
+    }
+    return 0
 }
 
 /// Attaches declaration annotation metadata to a compiler-generated callable.
@@ -117,7 +168,9 @@ public func __kk_kcallable_register_single_annotation(
     let arguments = argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : []
     let record = RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments)
     runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[callableRaw]?.annotations.append(record)
+        guard var metadata = state.callableRefMetadataByValue[callableRaw] else { return }
+        runtimeAppendAnnotationRecord(record, to: &metadata.annotations)
+        state.callableRefMetadataByValue[callableRaw] = metadata
     }
     return 0
 }
@@ -148,6 +201,25 @@ public func __kk_kclass_find_annotation(_ kclassRaw: Int, _ nameRaw: Int) -> Int
             )
             return registerRuntimeObject(box)
         }
+    }
+    return runtimeNullSentinelInt
+}
+
+@_cdecl("__kk_kclass_find_annotation_typed")
+public func __kk_kclass_find_annotation_typed(
+    _ kclassRaw: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let records = runtimeReflectionKClassBox(from: kclassRaw)?.metadata?.annotations else {
+        return runtimeNullSentinelInt
+    }
+    for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
+        var thrown = 0
+        let value = runtimeAnnotationValue(record, materializeFactory: true, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        if kk_op_is(value, typeToken) != 0 { return value }
     }
     return runtimeNullSentinelInt
 }
@@ -214,6 +286,19 @@ public func __kk_kclass_register_single_annotation(
     }
 
     let record = RuntimeAnnotationRecord(annotationFQName: fqName, arguments: arguments)
+    runtimeKClassMetadataRegistry.appendAnnotations(typeToken: typeToken, annotations: [record])
+    return 0
+}
+
+@_cdecl("__kk_kclass_register_annotation_factory")
+public func __kk_kclass_register_annotation_factory(
+    _ typeToken: Int, _ fqNameRaw: Int, _ argsEncodedRaw: Int, _ argCount: Int, _ factory: Int
+) -> Int {
+    let fqName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw)) ?? "Unknown"
+    guard runtimeShouldExposeAnnotation(fqName: fqName) else { return 0 }
+    let encoded = extractString(from: UnsafeMutableRawPointer(bitPattern: argsEncodedRaw)) ?? ""
+    let record = RuntimeAnnotationRecord(annotationFQName: fqName,
+        arguments: argCount > 0 && !encoded.isEmpty ? encoded.components(separatedBy: "|") : [], factory: factory)
     runtimeKClassMetadataRegistry.appendAnnotations(typeToken: typeToken, annotations: [record])
     return 0
 }

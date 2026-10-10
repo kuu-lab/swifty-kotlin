@@ -867,6 +867,20 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    `RuntimeABISpec.localeFunctions` registers the ABI and automatically changes
    the computed `specVersion`. The `__kk_*` export count increases by one.
 
+   KUU-1753 adds five private annotation bridges (reason: メタデータ):
+   `__kk_kclass_register_annotation_factory`, `__kk_kcallable_register_annotation_factory`,
+   `__kk_kclass_get_annotations_typed`, `__kk_kclass_find_annotation_typed`, and
+   `__kk_kcallable_get_annotations_typed`. Native metadata retains producer-owned
+   constructor entry points so reflection returns actual Kotlin annotation objects,
+   including private types/defaults from a separately compiled library. The three
+   typed read operations use the explicit `outThrown` channel. Legacy registration
+   and read signatures remain for existing artifacts; their record representation
+   does not provide typed Kotlin objects. `RuntimeABISpec.operatorFunctions` and
+   `kFunctionFunctions` register all five; the canonical hash updates `specVersion`.
+   The `__kk_*` count increases by five because typed reads and factory registration
+   require a versioned metadata boundary. Rebuild old stdlib/library artifacts to
+   obtain typed getters and factories.
+
 3. **性能エスケープハッチは実測必須**: ベンチ数値（KSP-INF-007 の基盤）を添付できない限り、
    性能を理由とした Swift 残留・(c) 分類を認めない。
 

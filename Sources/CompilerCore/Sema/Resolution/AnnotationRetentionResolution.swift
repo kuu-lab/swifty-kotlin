@@ -81,10 +81,14 @@ extension DataFlowSemaPhase {
             guard !annotations.isEmpty else { continue }
             let sourceAnnotations = declarations[symbol.id].flatMap { ast.arena.decl($0) }
                 .map { metadataAnnotations(for: $0) } ?? []
-            let canonical = annotations.enumerated().map { index, annotation in
+            let sourceByUsage = Dictionary(sourceAnnotations.compactMap { annotation in
+                annotation.usageID.map { ($0, annotation) }
+            }, uniquingKeysWith: { first, _ in first })
+            let canonical = annotations.map { annotation in
                 // Re-resolve the original AST spelling after all headers exist.
                 // An early name match must not override a later nested declaration.
-                let rawName = index < sourceAnnotations.count ? sourceAnnotations[index].name : annotation.annotationFQName
+                let sourceAnnotation = annotation.usageID.flatMap { sourceByUsage[$0] }
+                let rawName = sourceAnnotation?.name ?? annotation.annotationFQName
                 let resolved = resolveAnnotationSymbol(
                     named: rawName, in: file, symbols: symbols,
                     interner: interner, types: types, enclosingFQName: Array(symbol.fqName.dropLast())
@@ -95,11 +99,13 @@ extension DataFlowSemaPhase {
                     annotationFQName: name,
                     arguments: name == "kotlin.annotation.Retention"
                         ? canonicalRetentionArguments(
-                            index < sourceAnnotations.count ? sourceAnnotations[index].arguments : annotation.arguments,
+                            sourceAnnotation?.arguments ?? annotation.arguments,
                             file: file, interner: interner
                         )
                         : annotation.arguments,
-                    useSiteTarget: annotation.useSiteTarget, retention: annotation.retention
+                    useSiteTarget: annotation.useSiteTarget, retention: annotation.retention,
+                    usageID: annotation.usageID, factorySymbol: annotation.factorySymbol,
+                    factoryLinkName: annotation.factoryLinkName
                 )
             }
             symbols.setAnnotations(canonical, for: symbol.id)

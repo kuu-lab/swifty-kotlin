@@ -33,6 +33,23 @@ final class CallTypeChecker {
             nil
         }
         let calleePath = qualifiedCalleePath(for: calleeID, ast: ast)
+        if calleeName.map(interner.resolve) == "$annotationArrayLiteral" {
+            if expectedType == nil, let boundType = sema.bindings.exprTypes[id],
+               sema.bindings.callBindings[id] != nil { return boundType }
+            var factoryName = "arrayOf"
+            if let expectedType,
+               case let .classType(array) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+               let name = sema.symbols.symbol(array.classSymbol)?.name,
+               primitiveArrayElementType(className: name, sema: sema, interner: interner) != nil {
+                let text = interner.resolve(name)
+                factoryName = text.prefix(1).lowercased() + text.dropFirst() + "Of"
+            }
+            let kotlin = ast.arena.appendExpr(.nameRef(interner.intern("kotlin"), range))
+            let factory = ast.arena.appendExpr(.memberCall(receiver: kotlin, callee: interner.intern(factoryName),
+                                                           typeArgs: [], args: [], range: range))
+            return inferCallExpr(id, calleeID: factory, args: args, range: range,
+                                 ctx: ctx, locals: &locals, expectedType: expectedType)
+        }
         if let calleeName,
            calleeName == knownNames.contextOf,
            args.isEmpty,

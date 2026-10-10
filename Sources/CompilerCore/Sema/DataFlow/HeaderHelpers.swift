@@ -104,7 +104,8 @@ extension DataFlowSemaPhase {
                 annotationFQName: name,
                 arguments: name == "kotlin.annotation.Retention"
                     ? canonicalRetentionArguments(ann.arguments, file: sourceFile, interner: interner) : ann.arguments,
-                useSiteTarget: ann.useSiteTarget
+                useSiteTarget: ann.useSiteTarget,
+                usageID: ann.usageID
             )
         }
         symbols.setAnnotations(records, for: symbol)

@@ -106,7 +106,7 @@ public final class StringInterner: @unchecked Sendable {
     }
 }
 
-public enum Keyword: String, CaseIterable, Sendable {
+public enum Keyword: String, CaseIterable, Sendable, Codable {
     case `as`
     case `break`
     case `class`
@@ -170,7 +170,7 @@ public enum Keyword: String, CaseIterable, Sendable {
     case value
 }
 
-public enum SoftKeyword: String, CaseIterable, Sendable {
+public enum SoftKeyword: String, CaseIterable, Sendable, Codable {
     case by
     case get
     case set
@@ -196,7 +196,7 @@ public enum SoftKeyword: String, CaseIterable, Sendable {
     public static let useSiteTargetNames: Set<String> = Set(useSiteTargets.map(\.rawValue))
 }
 
-public enum Symbol: String, CaseIterable, Sendable {
+public enum Symbol: String, CaseIterable, Sendable, Codable {
     case plus = "+"
     case minus = "-"
     case star = "*"
@@ -246,7 +246,7 @@ public enum Symbol: String, CaseIterable, Sendable {
     case hash = "#"
 }
 
-public enum TriviaPiece: Equatable, Sendable {
+public enum TriviaPiece: Equatable, Sendable, Codable {
     case spaces(Int)
     case tabs(Int)
     case newline
@@ -255,7 +255,7 @@ public enum TriviaPiece: Equatable, Sendable {
     case shebang(String)
 }
 
-public enum TokenKind: Equatable, Sendable {
+public enum TokenKind: Equatable, Sendable, Codable {
     case identifier(InternedString)
     case backtickedIdentifier(InternedString)
     case keyword(Keyword)
@@ -280,7 +280,7 @@ public enum TokenKind: Equatable, Sendable {
     indirect case missing(expected: TokenKind)
 }
 
-public struct Token: Equatable, Sendable {
+public struct Token: Equatable, Sendable, Codable {
     public let kind: TokenKind
     public let range: SourceRange
     public let leadingTrivia: [TriviaPiece]
