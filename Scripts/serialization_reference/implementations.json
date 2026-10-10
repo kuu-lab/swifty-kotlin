@@ -1565,6 +1565,815 @@
       "source_declaration_kind": "generated-property-getter",
       "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationAnnotationMetadataTests.swift",
       "metadata_test_suite": "SerializationAnnotationMetadataTests"
+    },
+    {
+      "declaration_id": "3de13e14e6a10a49e8f9e74394737b7ad862c32f67f740cce48ffcc4d64ccfde",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "d3f8e42c01becc5587613f96a83fde5f74d6c3870816a629064445e0646348f9",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-property-getter",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "afb6bb26740336e1a54309a3ed0b51adb90532635e15344a29b8e65c03f87038",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "cb548215d5f9b7370c39778e68fe3109a1d94c631208db38bca5e8323eea75de",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-entry",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "b16b40843052c9fb5d7398f507ed70a089a233860e9ce4b8dbe7f48f35e9c93f",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-entry",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "f51f6beb9465dfe747025b1948b5beffaf69a1f39b6e4fb28d657cd6d835dfbc",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-property-getter",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "fc302c0a195857a4b168da170c669651f8b2bfbc369aec490f90ecdded3d0e40",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-function",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "d650e7229a1542c41e4ee79f9bd2f711b50d7a90308f522a4f19cb81ba851ef2",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-function",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "630ee8e378e6f2e9c00995749f25e207848928502cec597b95ff81b801132689",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "8e36b494bb5f769c904dbe45c4b1f1a5ab91d89f92bb98b3e574813e44cae47e",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "378604171475667269ecc638f31ac23822e1f36b404c456bb06d224345fd1d84",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "40f8c93773e15d4a6a13c3524884bb64f8ce5954e9ac16bc764e4c5d622c0ce7",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "constructor",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "abdb873729fa63a8e97d5c73b53ddf13d39427f77ad405573f3fdfd367f5dfa7",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "annotation-property",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "8092126f5db5ddc0e075efe2ccdf89d8e938e198def229241d63da8dcb03a629",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-property-getter",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "65861f6b2c49ca9f35da584e8879a916f7abc9b01c33ffe2c8213acc33858f3a",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "1bb9c0faecb1ba7fa745b44e6de1901588c1f41b62621d30b498f5f868a92636",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-entry",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "0398eb9c80683d5ccc7be02edb1c381fb0e92b3351fc93bb601b0b1c72bc2367",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "enum-entry",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "dd86328eae4067d44ac732594ca9e282d75c8ae1baf76a8d2a8c9c9d5374ff00",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-property",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "c3eae4d61031bfdaba72a09f5a836ec8695bd3fc2953929a9d8997f75cbe65ff",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-property-getter",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "344e9a266cddeab998902fbce4d9db74fe6e98720c3ea5297d197e6796801aed",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-function",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "71bd1bc428bae8d07629f50deaaa77761e349530a447be1d8e193824f37e2a62",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "generated-enum-function",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
+    },
+    {
+      "declaration_id": "f641739e4905b30714417d3f00070b7f0c75daa536162c32f9f02a67722039c7",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "0aa075d57706f53b93d3342de529ffaf29763de4663c3742d97b5857fdf9b3d6",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "constructor",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
+    },
+    {
+      "declaration_id": "11517b552d05706c5a3d3a89ab77c279d5c9e932a9482bcd87904af359fd7b44",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ],
+      "source_declaration_kind": "annotation-class",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "source_retention": "RUNTIME"
+    },
+    {
+      "declaration_id": "0e02a056b01a865cfdcf1de548aa8bb8aa085fedddd1e72891ae3d2298692427",
+      "ticket": "KUU-1755",
+      "source": [
+        "Sources/CompilerCore/Stdlib/kotlinx/serialization/Annotations.kt"
+      ],
+      "fixture": "Scripts/reference_cases/serialization_property_annotations.kt",
+      "expected": "Scripts/reference_cases/serialization_property_annotations.expected",
+      "test": "Tests/CompilerBackendTests/Integration/SerializationPropertyAnnotationTests.swift",
+      "test_suite": "SerializationPropertyAnnotationTests",
+      "metadata_test": "Tests/CompilerCoreTests/Sema/SerializationPropertyAnnotationMetadataTests.swift",
+      "metadata_test_suite": "SerializationPropertyAnnotationMetadataTests",
+      "implementation": "bundled-source",
+      "required_validation": [
+        "source-O0",
+        "source-O2",
+        "cache-O0",
+        "cache-O2",
+        "library-O0",
+        "library-O2",
+        "target-and-constructor-negative",
+        "source-cache-metadata"
+      ],
+      "source_visibility": "public",
+      "source_annotations": [],
+      "source_declaration_kind": "constructor",
+      "requires_caller_opt_in": false,
+      "upstream_source": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8",
+      "declaring_annotation_class_retention": "RUNTIME (default)",
+      "declaring_class_annotations": [
+        "@MustBeDocumented",
+        "@Target(AnnotationTarget.PROPERTY)"
+      ]
     }
   ]
 }

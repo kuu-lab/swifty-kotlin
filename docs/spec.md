@@ -1292,3 +1292,38 @@ without special annotation-name exceptions and survives producer metadata.
 Explicit descriptor annotation lists preserve the supplied objects and order.
 These APIs do not implement serializer generation, automatic wire-name changes,
 annotation inheritance or its conflict checks; those remain in KUU-1724.
+
+### Serialization property annotation APIs (KUU-1755)
+
+Bundled `kotlinx.serialization.Annotations.kt` declares stable public `Required`,
+`Transient` and `EncodeDefault` annotations with PROPERTY targets,
+MustBeDocumented and default RUNTIME retention. `EncodeDefault.mode` is non-null,
+accepts named/ordinary constructor arguments and defaults to `Mode.ALWAYS`.
+Its nested public `Mode` enum has ALWAYS then NEVER, ordinary enum
+`entries`/`values`/`valueOf` behavior and no ExperimentalSerializationApi requirement.
+Actual annotation instances use the normal constructor/equality/hash/type paths and
+can be stored in explicit descriptor element annotation lists. A builder's explicit
+name/count/optional flags do not change merely because these annotations are present.
+The API unit covers source/cache/library and declaration metadata, not generated
+Required decode rules, Transient default/wire filtering or EncodeDefault encoding;
+those remain in the serializer-generation scope of KUU-1724.
+
+Annotation class bodies allow nested enum/class/interface/object declarations and companion objects; instance functions/properties, init blocks, secondary constructors and nested type aliases remain prohibited. Nested declarations still undergo declaration-position/modifier validation, including rejection of inner classes (KUU-1755).
+
+Referenced EncodeDefault.Mode uses the existing bundled enum nominal registration to synthesize name/entries/values/valueOf helpers when bundled source is omitted from consumer KIR (KUU-1755).
+
+After annotation targets are resolved, synthesized primary-constructor properties
+retain explicit `@property` annotations and untargeted annotations whose default
+site is PROPERTY (VALUE_PARAMETER takes precedence when applicable). Their exact
+classifier, occurrence ID and constructor tokens feed both metadata registration
+and the ordinary annotation factory/type/constant checks. Nested and local classes
+use the same idempotent routing. Other use-site annotations are not copied to the
+property. Metadata may omit default RUNTIME retention; consumers resolve it from
+the annotation declaration while BINARY retention remains explicit (KUU-1755).
+
+Local annotation classifiers search the full surrounding class-scope chain
+before file imports, even when synthetic local FQ names omit lexical nesting.
+Primary-property `@Suppress` ranges cover only the same parameter's annotations
+and default initializer, rather than the synthesized property's class-wide range.
+General target validation still omits declarations inside function bodies;
+local class/parameter target violations are tracked separately in KUU-1757.

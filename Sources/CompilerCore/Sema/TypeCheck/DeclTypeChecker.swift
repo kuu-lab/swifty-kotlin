@@ -143,7 +143,8 @@ final class DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        typeCheckAnnotationFactories(property.annotations, symbol: symbol, ctx: ctx)
+        let annotations = property.annotations + (ctx.sema.bindings.primaryConstructorPropertyAnnotations[symbol] ?? [])
+        typeCheckAnnotationFactories(annotations, symbol: symbol, ctx: ctx)
         let sema = ctx.sema
         var inferredPropertyType: TypeID? = property.type != nil
             ? sema.symbols.propertyType(for: symbol)

@@ -5,7 +5,8 @@ func resolveAnnotationSymbol(
     symbols: SymbolTable,
     interner: StringInterner,
     types: TypeSystem? = nil,
-    enclosingFQName: [InternedString] = []
+    enclosingFQName: [InternedString] = [],
+    lexicalEnclosingFQNames: [[InternedString]] = []
 ) -> SymbolID? {
     let parts = rawName.split(separator: ".").map(String.init)
 
@@ -23,10 +24,12 @@ func resolveAnnotationSymbol(
 
     if parts.count > 1 {
         let fqName = parts.map { interner.intern($0) }
-        var owner = enclosingFQName
-        while owner.count > file.packageFQName.count {
-            if let symbol = annotationClass(at: owner + fqName) { return symbol }
-            owner.removeLast()
+        for enclosing in [enclosingFQName] + lexicalEnclosingFQNames {
+            var owner = enclosing
+            while owner.count > file.packageFQName.count {
+                if let symbol = annotationClass(at: owner + fqName) { return symbol }
+                owner.removeLast()
+            }
         }
         let root = fqName[0]
         for imported in file.imports where !imported.isWildcard {
@@ -48,10 +51,12 @@ func resolveAnnotationSymbol(
     let shortName = interner.intern(parts.last ?? rawName)
 
     // Classifier members in lexical class scopes precede file imports.
-    var owner = enclosingFQName
-    while owner.count > file.packageFQName.count {
-        if let symbol = annotationClass(at: owner + [shortName]) { return symbol }
-        owner.removeLast()
+    for enclosing in [enclosingFQName] + lexicalEnclosingFQNames {
+        var owner = enclosing
+        while owner.count > file.packageFQName.count {
+            if let symbol = annotationClass(at: owner + [shortName]) { return symbol }
+            owner.removeLast()
+        }
     }
 
     // Kotlin ranks explicit (single-type and alias) imports above same-package

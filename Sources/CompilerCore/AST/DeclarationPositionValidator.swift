@@ -289,7 +289,7 @@ struct DeclarationPositionValidator {
             if nominal.ownerModifiers.contains(.expect) {
                 return
             }
-            // Members of annotation classes are rejected wholesale elsewhere.
+            // Instance members of annotation classes are rejected elsewhere.
             if nominal.kind == .annotationClass {
                 return
             }
@@ -626,12 +626,9 @@ struct DeclarationPositionValidator {
                     }
                     return !prop.isSynthesizedPrimaryConstructorProperty
                 }.count
-                + decl.nestedClasses.count
-                + decl.nestedObjects.count
                 + decl.nestedTypeAliases.count
                 + decl.initBlocks.count
                 + decl.secondaryConstructors.count
-                + (decl.companionObject == nil ? 0 : 1)
             if memberCount > 0 {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0419",
@@ -651,16 +648,16 @@ struct DeclarationPositionValidator {
     }
 
     private func validateClassMembers(_ decl: ClassDecl, site: NominalSite) {
-        // Annotation-class members are already reported wholesale.
-        guard site.kind != .annotationClass else {
-            return
-        }
         let memberSite = OwnerSite.nominal(site)
-        for declID in decl.memberFunctions {
-            validate(declID: declID, site: memberSite)
-        }
-        for declID in decl.memberProperties {
-            validate(declID: declID, site: memberSite)
+        // Annotation instance members are reported wholesale above. Nested
+        // types and companion objects are legal and still need validation.
+        if site.kind != .annotationClass {
+            for declID in decl.memberFunctions {
+                validate(declID: declID, site: memberSite)
+            }
+            for declID in decl.memberProperties {
+                validate(declID: declID, site: memberSite)
+            }
         }
         for declID in decl.nestedClasses {
             validate(declID: declID, site: memberSite)
@@ -788,7 +785,8 @@ struct DeclarationPositionValidator {
             let allowed: Bool = switch site {
             case .nominal(let nominal):
                 !nominal.isLocal
-                    && (nominal.kind == .class || nominal.kind == .enum || nominal.kind == .interface)
+                    && (nominal.kind == .class || nominal.kind == .enum || nominal.kind == .interface
+                        || nominal.kind == .annotationClass)
             case .file, .function:
                 false
             }
