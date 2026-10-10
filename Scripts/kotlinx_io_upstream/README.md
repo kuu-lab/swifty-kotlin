@@ -177,3 +177,39 @@ duplicate, failed or unfinished execution cannot pass. This adapter reports
 **candidate assertion execution only**; the seven paired observations remain
 UNMAPPED and paired PASS is always zero. It does not complete KUU-1727 or map
 other suites implicitly.
+
+### Multiple direct suites and a test library consumer
+
+`run_candidate_suites.py` combines verified direct suites into one executable,
+keeping each complete original file and creating a fresh class for every test.
+Pass `--suite` for each selected concrete class. Selection must be unique;
+shared-source classes, factories, parameters and hooks still require another
+verified driver. Every selected ID must finish and pass, and the executable
+must exit zero. Missing or unfinished suites cannot be hidden by another suite.
+
+```sh
+python3 Scripts/kotlinx_io_upstream/run_candidate_suites.py \
+  --upstream /tmp/kio-reference-environment/upstream \
+  --compiler /path/to/kswiftc --stdlib-library /path/to/KSwiftKStdlib.kklib \
+  --package-root /path/to/swifty-kotlin \
+  --suite kotlinx.io.bytestring.ByteStringBase64Test \
+  --suite kotlinx.io.bytestring.ByteStringBuilderTest \
+  --optimization O2 --compile-timeout 240 --run-timeout 30 \
+  --output /tmp/kio-candidate-direct-suites
+```
+
+Use `--stdlib-from-source` in place of `--stdlib-library` to check bundled source
+injection. Add `--test-library` to compile the untouched test bodies to a separate
+`.kklib`, then compile and run a consumer containing only the generated driver.
+Each compile stage has its own finite deadline; a caller may also bound the whole
+invocation. Compiler, stdlib/source, driver, original ports, test library and
+executable hashes accompany commands, exits, raw streams and per-ID results.
+The compiler's sibling `KSwiftK_CompilerCore.resources` or `.bundle` is hashed
+separately from checkout sources. If `Bundle.module` loads a different directory,
+pass its actual path with `--compiler-resource-bundle`; source mode requires a
+resource bundle. A failed test-library compile retains every ID as `NOT_RUN`
+and verifies inputs before returning, without starting a consumer.
+Runtime source hashes are checked; cached Runtime object bytes are outside this
+provenance proof. This also remains **assertion-only candidate execution**:
+seven-observation mappings are unfinished, paired PASS stays zero, and KUU-1727
+remains partial even if selected assertions pass.
