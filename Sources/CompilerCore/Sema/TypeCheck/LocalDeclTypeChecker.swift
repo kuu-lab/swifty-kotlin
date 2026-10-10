@@ -300,6 +300,14 @@ final class LocalDeclTypeChecker {
             }
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: member.type)
             ctx.sema.bindings.bindIdentifier(id, symbol: member.symbol)
+            driver.helpers.checkDeprecation(
+                for: member.symbol, sema: ctx.sema, interner: interner,
+                range: range, diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: member.symbol, ctx: ctx, range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
             let propSymbol = ctx.sema.symbols.symbol(member.symbol)
             if let propSymbol,
                !propSymbol.flags.contains(.mutable),
@@ -343,6 +351,14 @@ final class LocalDeclTypeChecker {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
             ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
+            driver.helpers.checkDeprecation(
+                for: propSymbol.id, sema: ctx.sema, interner: interner,
+                range: range, diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: propSymbol.id, ctx: ctx, range: range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
             if !propSymbol.flags.contains(.mutable), !ctx.allowsValPropertyInitialization {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
