@@ -4,6 +4,26 @@ import Testing
 
 @Suite
 struct KIRBuildClassLoweringTests {
+    @Test func testDelegatedGetterPreservesAccessorOnlyRuntimeBridge() throws {
+        let ctx = makeContextFromSource("""
+        interface View { val size: Int get() = 0 }
+        class Wrapped(delegate: View) : View by delegate
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let property = try #require(sema.symbols.lookup(fqName: ["View", "size"].map(ctx.interner.intern)))
+        let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
+        sema.symbols.setExternalLinkName("__kk_list_size", for: getter)
+        try BuildKIRPhase().run(ctx)
+        let module = try #require(ctx.kir)
+        let wrapped = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Wrapped")]))
+        let forwardingProperty = try #require(sema.symbols.classDelegationForwardingPropertySymbols(forClass: wrapped).first)
+        let forwardingGetter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: forwardingProperty)
+        let function = try #require(findAllKIRFunctions(in: module).first { $0.symbol == forwardingGetter })
+        #expect(kirCalls(in: function.body).contains { $0.symbol == getter }, "\(function.body)")
+    }
+
     @Test func testNestedGenericOverrideMatchingPreservesUnrelatedOverloads() throws {
         let ctx = makeContextFromSource("""
         class Box<T>
@@ -367,9 +387,13 @@ struct KIRBuildClassLoweringTests {
         #expect(forwardingFunctions.count == 1, "Expected one delegation forwarder with no dispatch target match")
 
         let forwardingBody = forwardingFunctions[0].body
-        let abortCallArgumentCounts = kirCalls(to: .abortUnreachable, in: forwardingBody, interner: ctx.interner)
-            .map { $0.arguments.count }
-        #expect(abortCallArgumentCounts == [0], "The backend supplies kk_abort_unreachable's outThrown channel.")
+        #expect(kirCalls(to: .abortUnreachable, in: forwardingBody, interner: ctx.interner).isEmpty)
+        #expect(forwardingBody.contains { instruction in
+            guard case let .virtualCall(_, callee, _, arguments, _, _, _, dispatch) = instruction,
+                  case .itableDynamic = dispatch
+            else { return false }
+            return ctx.interner.resolve(callee) == "send" && arguments.count == 1
+        }, "A downstream implementation must remain callable without a compile-time dispatch target.")
     }
 
     @Test func testClassLoweringResolvesDelegationDispatchByExactSignature() throws {

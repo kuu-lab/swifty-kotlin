@@ -1266,6 +1266,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 diagnostics: diagnostics
             )
             let classTypeParamSymbols = classTypeParamResult.symbols
@@ -1290,7 +1291,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: sourceManager
             )
 
             // Nested class/object headers must be collected before the primary
@@ -1353,6 +1355,7 @@ extension DataFlowSemaPhase {
                         declSite: classDecl.range,
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: classLocalTypeParameters,
                         relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
@@ -1412,6 +1415,7 @@ extension DataFlowSemaPhase {
                     declSite: secondaryCtor.range,
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: classLocalTypeParameters,
                     relativeOwnerFQName: fqName,
                     currentPackageFQName: package,
@@ -1464,6 +1468,7 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: classLocalTypeParameters,
                         relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
@@ -1690,6 +1695,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 diagnostics: diagnostics
             )
             let ifaceTypeParamSymbols = ifaceTypeParamResult.symbols
@@ -1713,7 +1719,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: sourceManager
             )
             collectMemberHeaders(
                 members: MemberDeclarations(
@@ -1783,7 +1790,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
-                interner: interner
+                interner: interner,
+                sourceManager: sourceManager
             )
             collectMemberHeaders(
                 members: MemberDeclarations(
@@ -1833,7 +1841,7 @@ extension DataFlowSemaPhase {
                 localNamespaceFQName: localNamespaceFQName,
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
-                interner: interner, isInline: funDecl.isInline,
+                interner: interner, sourceManager: sourceManager, isInline: funDecl.isInline,
                 diagnostics: diagnostics,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -1846,6 +1854,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: typeParamResult.localTypeParameters,
                     relativeOwnerFQName: package,
                     currentPackageFQName: package,
@@ -1860,6 +1869,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -1877,6 +1887,7 @@ extension DataFlowSemaPhase {
                 declSite: funDecl.range,
                 ast: ast, symbols: symbols, types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -1890,6 +1901,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -2007,7 +2019,7 @@ extension DataFlowSemaPhase {
                 localNamespaceFQName: fqName + [interner.intern("$\(symbol.rawValue)")],
                 declSite: propertyDecl.range,
                 ast: ast, symbols: symbols, types: types,
-                interner: interner, isInline: propertyDecl.allAccessorsAreInline,
+                interner: interner, sourceManager: sourceManager, isInline: propertyDecl.allAccessorsAreInline,
                 diagnostics: diagnostics,
                 relativeOwnerFQName: package, currentPackageFQName: package,
                 imports: file.imports
@@ -2021,6 +2033,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -2040,6 +2053,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
@@ -2133,6 +2147,7 @@ extension DataFlowSemaPhase {
                         symbols: symbols,
                         types: types,
                         interner: interner,
+                        sourceManager: sourceManager,
                         localTypeParameters: [:],
                         relativeOwnerFQName: package,
                         currentPackageFQName: package,
@@ -2179,6 +2194,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                sourceManager: sourceManager,
                 localTypeParameters: localTypeParameters,
                 currentPackageFQName: package,
                 imports: file.imports,
@@ -2317,6 +2333,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         diagnostics: DiagnosticEngine,
         enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
@@ -2375,11 +2392,13 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: fqName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    usageRange: declSite
                 )
             }
             if !resolvedBounds.isEmpty {

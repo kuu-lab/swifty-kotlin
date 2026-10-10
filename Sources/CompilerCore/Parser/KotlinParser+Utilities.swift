@@ -757,6 +757,10 @@ enum ParserBoundaryPolicy {
     /// Whether a newline following the just-consumed token continues the current
     /// expression instead of ending the declaration.
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
+        // Both class and property delegation require an expression after `by`.
+        if kind == .softKeyword(.by) {
+            return true
+        }
         if case let .symbol(symbol) = kind {
             return danglingContinuationSymbols.contains(symbol)
         }
