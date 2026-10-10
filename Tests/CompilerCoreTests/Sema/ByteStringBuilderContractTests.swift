@@ -11,10 +11,45 @@ struct ByteStringBuilderContractTests {
             + "Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API."
     }
 
+
+    /// Sema tests use kirDump, whose process-default artifact lookup is intentionally disabled.
+    /// Pass the published path explicitly and verify the actual imported declarations afterward.
+    private func makeContractContext(_ source: String, allowDefaultStdlibLibrary: Bool) throws -> CompilationContext {
+        let selectedLibrary = allowDefaultStdlibLibrary
+            ? try #require(CompilerOptions.defaultStdlibLibraryPath, "Shared stdlib artifact must be published") : nil
+        let inputPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [inputPath], stdlibLibraryPath: selectedLibrary,
+                                         allowDefaultStdlibLibrary: false)
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        #expect(ctx.options.stdlibLibraryPath == selectedLibrary)
+        #expect(ctx.options.includeStdlib == !allowDefaultStdlibLibrary)
+        if let selectedLibrary {
+            let directory = URL(fileURLWithPath: selectedLibrary, isDirectory: true)
+            let data = try Data(contentsOf: directory.appendingPathComponent("manifest.json"))
+            let manifest = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
+            #expect(manifest["formatVersion"] as? Int == 1)
+            #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
+        }
+        return ctx
+    }
+
+    private func checkContractProvenance(_ ctx: CompilationContext, library: Bool) throws {
+        let sema = try #require(ctx.sema)
+        for name in ["kotlinx.io.bytestring.ByteStringBuilder", "kotlinx.io.bytestring.unsafe.UnsafeByteStringApi"] {
+            let id = try #require(sema.symbols.lookupAll(fqName: name.split(separator: ".").map {
+                ctx.interner.intern(String($0))
+            }).first { sema.symbols.symbol($0)?.kind == .class || sema.symbols.symbol($0)?.kind == .annotationClass })
+            #expect(sema.symbols.symbol(id)?.flags.contains(.importedLibrary) == library,
+                    "\(name) must come from the requested source/library mode")
+        }
+    }
+
     @Test(arguments: [true, false])
     func builderExtensionsRequireImport(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.ByteStringBuilder
         import kotlinx.io.bytestring.ByteString
         fun use(builder: ByteStringBuilder) {
@@ -22,13 +57,14 @@ struct ByteStringBuilderContractTests {
         }
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-0002" })
     }
 
     @Test(arguments: [true, false])
     func implicitBuilderExtensionsRequireImport(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.ByteStringBuilder
         fun ByteStringBuilder.use() {
             append(128U)
@@ -36,6 +72,7 @@ struct ByteStringBuilderContractTests {
         }
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.count == 2,
                 "Both unimported extensions must fail: \(ctx.diagnostics.diagnostics)")
     }
@@ -43,22 +80,24 @@ struct ByteStringBuilderContractTests {
     @Test(arguments: [true, false])
     func builderHasNoExtraToByteArrayMember(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.ByteStringBuilder
         fun use(builder: ByteStringBuilder) = builder.toByteArray()
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-0024" })
     }
 
     @Test(arguments: [true, false])
     func unsafeAccessRequiresErrorLevelOptIn(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
         fun use() = UnsafeByteStringOperations.wrapUnsafe(byteArrayOf(1))
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try? runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         let diagnostics = ctx.diagnostics.diagnostics.filter {
             $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.message.contains("UnsafeByteStringApi")
         }
@@ -70,19 +109,21 @@ struct ByteStringBuilderContractTests {
     @Test(arguments: [true, false])
     func publishedBackingArrayRemainsInternal(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.ByteString
         fun use(bytes: ByteString) = bytes.getBackingArrayReference()
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try? runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         #expect(ctx.diagnostics.hasError)
     }
 
     @Test(arguments: [true, false])
     func byteStringAnnotationsSurviveSourceAndLibraryImport(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("fun main() = 0", allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+        let ctx = try makeContractContext("fun main() = 0", allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         let sema = try #require(ctx.sema)
         func symbols(_ name: String) -> [SymbolID] {
             sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })
@@ -118,7 +159,7 @@ struct ByteStringBuilderContractTests {
     @Test(arguments: [true, false])
     func unsignedFactoryAndDirectUnsafeCallbackKeepClientContracts(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("""
+        let ctx = try makeContractContext("""
         import kotlinx.io.bytestring.ByteString
         import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
         fun use(first: UByte, second: UByte) {
@@ -127,6 +168,7 @@ struct ByteStringBuilderContractTests {
         }
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
+        try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
         let diagnostics = ctx.diagnostics.diagnostics
         let optIn = diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.message.contains("UnsafeByteStringApi") }
         #expect(!optIn.isEmpty)

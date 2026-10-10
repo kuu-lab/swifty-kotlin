@@ -71,7 +71,13 @@ struct ByteStringAPIShapeTests {
         #expect(index.canonicalRecordCount == 60)
 
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
-        let ctx = makeContextFromSource("fun main() = 0", allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+        let selectedLibrary = allowDefaultStdlibLibrary
+            ? try #require(CompilerOptions.defaultStdlibLibraryPath, "Shared stdlib artifact must be published") : nil
+        let inputPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(inputs: [inputPath], stdlibLibraryPath: selectedLibrary,
+                                         allowDefaultStdlibLibrary: false)
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data("fun main() = 0".utf8))
+        #expect(ctx.options.stdlibLibraryPath == selectedLibrary)
         var importedRecords: [MetadataRecord] = []
         if allowDefaultStdlibLibrary {
             let path = try #require(ctx.options.stdlibLibraryPath, "Library mode cannot fall back to bundled source")
@@ -80,7 +86,9 @@ struct ByteStringAPIShapeTests {
             let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
             #expect(manifest["moduleName"] as? String == "KSwiftKStdlib")
             #expect(manifest["formatVersion"] as? Int == 1)
-            #expect(manifest["kotlinVersion"] as? String == "2.3.10")
+            #expect(manifest["kotlinLanguageVersion"] as? String == "2.3.10")
+            #expect(manifest["stdlibManifestHash"] as? String == BundledStdlib.manifestHash())
+            #expect(!ctx.options.includeStdlib, "Library mode cannot inject bundled source")
             let metadata = try String(contentsOf: directory.appendingPathComponent("metadata.bin"), encoding: .utf8)
             importedRecords = MetadataDecoder().decode(metadata)
             #expect(!importedRecords.isEmpty, "Cached artifact must contain decodable metadata")
@@ -96,6 +104,7 @@ struct ByteStringAPIShapeTests {
         let resolve: (InternedString) -> String = { ctx.interner.resolve($0) }
         let importedGroups = Dictionary(grouping: importedRecords, by: \.fqName)
         var matched = Set<SymbolID>()
+        var canonicalAccessorViews = Set<SymbolID>()
 
         func encode(_ type: TypeID) -> String {
             mangler.encodeType(type, symbols: symbols, types: sema.types, nameResolver: resolve, unboxValueClasses: false)
@@ -190,6 +199,17 @@ struct ByteStringAPIShapeTests {
                 let type = try #require(symbols.propertyType(for: symbol.id))
                 let getter = "F0<" + (row.receiverTypeSignature.map { "R" + $0 + "," } ?? "") + encode(type) + ">"
                 #expect(getter == row.getterSignature, "\(row.rowID) getter contract represented by property")
+                if row.receiverKind == "PACKAGE_EXTENSION" {
+                    let accessorID = try #require(symbols.extensionPropertyGetterAccessor(for: symbol.id))
+                    let accessor = try #require(symbols.symbol(accessorID))
+                    #expect(symbols.parentSymbol(for: accessorID) == symbol.id, "\(row.rowID) getter owner")
+                    #expect(accessor.visibility == symbol.visibility, "\(row.rowID) getter visibility")
+                    #expect(accessor.flags.contains(.synthetic), "\(row.rowID) synthetic property getter")
+                    #expect(accessor.flags.contains(.importedLibrary) == allowDefaultStdlibLibrary)
+                    #expect(signature(accessor) == row.getterSignature, "\(row.rowID) actual getter signature")
+                    #expect(symbols.extensionPropertySetterAccessor(for: symbol.id) == nil, "\(row.rowID) no setter")
+                    canonicalAccessorViews.insert(accessorID)
+                }
             }
             if !row.superFQNames.isEmpty {
                 #expect(!symbol.flags.contains(.openType), "\(row.rowID) nominal finality")
@@ -229,6 +249,7 @@ struct ByteStringAPIShapeTests {
                   symbol.visibility == .public || symbol.visibility == .protected || fq == "kotlinx.io.bytestring.ByteString.getBackingArrayReference",
                   [.function, .constructor, .property, .class, .interface, .annotationClass, .object, .enumClass, .typeAlias].contains(symbol.kind),
                   !symbol.flags.contains(.extensionMemberAlias),
+                  !canonicalAccessorViews.contains(symbol.id),
                   symbols.propertySymbol(forAccessor: symbol.id) == nil,
                   symbols.accessorOwnerProperty(for: symbol.id) == nil else { return false }
             // Annotation Any members are inherited compiler-generated surface, not upstream declarations.
