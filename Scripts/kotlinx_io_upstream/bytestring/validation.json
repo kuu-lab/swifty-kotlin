@@ -1,0 +1,103 @@
+{
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "Kotlin": "2.3.10",
+  "kotlinx_io": "0.9.1",
+  "common_native_rows": 65,
+  "canonical_declarations": 60,
+  "row_state": "VERIFIED",
+  "relation_split": "56 direct / 9 indirect-or-container, existing exact relationships retained",
+  "source_library_API65": "tests8 1method/2 source-library cases PASS; full gate6methods9cases4suites",
+  "original_assertions": "76 unique IDs, 6 source/library/test-library-consumer O0/O2 lanes =456 PASS",
+  "supplements": "five B05 fixtures54 + ABI20 =74 byte-exact lines in source/library O2; startup minimal2 lines PASS",
+  "negative_semantic_evidence": "tests6 Core7/14 retained, unchanged216 Sema/helper and identical old/new1756 artifact; not a fresh55b3 rerun",
+  "compilerSHA256": "55b3c17068d7831926a047ab30e462a62c214106a646cad8a6e953d43da371cd",
+  "artifact_files": 1756,
+  "source_manifest_FNV64": "5f649fecf3c3afa2",
+  "paired_PASS": 0,
+  "full1188": "NOT_RUN, saved earlier compile failure; parent task remains separate",
+  "separate_issues": [
+    "KUU-1727",
+    "KUU-1725",
+    "KUU-1762",
+    "interop",
+    "KUU-1767",
+    "KUU-1768",
+    "KUU-1770"
+  ],
+  "recorded_utc": "2026-10-10T22:42:16.435547+00:00",
+  "tested_source_tree_sha256": "268281ce9523ea55001d21ec541b06f79129ebd2ced63cd1ed2158028f3e2ba2",
+  "fresh_stdlib_manifest_sha256": "2efd67760c635c74223ee557497235534f4adffbbc046de68ba1b66f32bd5af0",
+  "final_independent_audit_sha256": "98689a8f9a7bbac7f02840624cbb4a37c6d95f8a171509b2d554265201524aaa",
+  "evidence_receipts_sha256": {
+    "audit.json": "a8a30d95fbfd002ec2caa95552136ca79a9e9e17e9fdd945a8530ec1b3696317",
+    "bytestring-contracts-1760-final8.provenance.json": "27195d59eaf353ad01f7f333f3d2f28c3ccacf0680f967e0a3e917eab754dd70",
+    "final-scoped-regression.summary.json": "83be158da27ca3a53aa407d1dd3361bda36744af3b6304dc3d8f08eafa6fecb0",
+    "grid4-receipt.json": "30bd4941a8ef25b850105e9c30aa6f5571ce29d2a2eec91bf7fa9cb18bb940b3",
+    "postexecution-independent-receipt.json": "2015dbea6652f3712631bc408bd65da88ef52a13eebb3359c54c8b64cb1d0398"
+  },
+  "native_lanes": [
+    {
+      "mode": "source-O0",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0
+      ],
+      "executable_sha256": "6330118469339d46399f43e9eef8a7b239558f2d75e9208327849a0dd59003c6"
+    },
+    {
+      "mode": "source-O2",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0
+      ],
+      "executable_sha256": "895c131e7d0063cd9aee283aa16808ace40df6d4594f64e5b2e4875705264757"
+    },
+    {
+      "mode": "library-O0",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0
+      ],
+      "executable_sha256": "784d9625959c627634fe01377fd159ae607c2a63a085bc6ded580ee4c4d84f11"
+    },
+    {
+      "mode": "library-O2",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0
+      ],
+      "executable_sha256": "a8942136c9ba2ac43757d8dbcaf2d36f3f757fcd3520830ceb07ed81195fca5a"
+    },
+    {
+      "mode": "library-test-library-O0",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "executable_sha256": "4258ac51755ee2ea80a0a7d8cc26b83b2ea784808cfb8fe204e843f6b013c024"
+    },
+    {
+      "mode": "library-test-library-O2",
+      "passed_ids": 76,
+      "stage_exit_codes": [
+        0,
+        0,
+        0
+      ],
+      "executable_sha256": "f4485c25c89967d01bc57fc39393e9f0ba4fdd2e83835e9c3b142edc5e53dc70"
+    }
+  ],
+  "all_owned_gate_processes_reaped": true,
+  "limitations": [
+    "Listed checks only; coverage relations are retained, including indirect/type-reference checks.",
+    "Full Swift suites and Intel macOS were not run locally.",
+    "Seven-observation general paired comparison remains incomplete.",
+    "Shared Runtime cache object contents were checked during focused tests; Native grid proof records Runtime sources and linked executable hashes."
+  ]
+}

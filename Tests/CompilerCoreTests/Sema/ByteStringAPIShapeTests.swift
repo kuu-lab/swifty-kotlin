@@ -243,12 +243,42 @@ struct ByteStringAPIShapeTests {
             }
         }
         #expect(matched.count == 60, "The 65 ledger views map to exactly 60 semantic declarations")
+        func isImportedInitializer(_ symbol: SemanticSymbol) -> Bool {
+            // LibraryImport reconstructs these ABI helpers from owner metadata links.
+            // Imported public APIs are also synthetic, so flags/names alone cannot exclude them.
+            guard symbol.kind == .function,
+                  symbol.flags == [.synthetic, .importedLibrary],
+                  symbol.declSite == nil,
+                  let ownerID = symbols.parentSymbol(for: symbol.id),
+                  matched.contains(ownerID),
+                  let owner = symbols.symbol(ownerID),
+                  Array(symbol.fqName.dropLast()) == owner.fqName,
+                  let linkName = symbols.externalLinkName(for: symbol.id), !linkName.isEmpty,
+                  let fn = symbols.functionSignature(for: symbol.id),
+                  fn.receiverType == nil, fn.contextReceiverTypes.isEmpty,
+                  fn.parameterTypes.isEmpty, fn.typeParameterSymbols.isEmpty,
+                  !fn.isSuspend, fn.returnType == sema.types.unitType else { return false }
+            // Lazy initializer symbol.name is the external link; its FQ suffix is reserved.
+            switch symbol.fqName.last.map(resolve) {
+            case "__object_init":
+                return owner.kind == .object && symbols.objectInitializerSymbol(for: ownerID) == symbol.id
+            case "__object_lazy_init":
+                return owner.kind == .object && symbols.objectLazyInitializerSymbol(for: ownerID) == symbol.id
+            case "__companion_init":
+                return [.class, .interface, .enumClass, .annotationClass].contains(owner.kind)
+                    && symbols.companionObjectSymbol(for: ownerID) != nil
+                    && symbols.companionObjectInitializerSymbol(for: ownerID) == symbol.id
+            default:
+                return false
+            }
+        }
         let declaredAPIs = symbols.allSymbols().filter { symbol in
             let fq = symbol.fqName.map(resolve).joined(separator: ".")
             guard fq.hasPrefix("kotlinx.io.bytestring."),
                   symbol.visibility == .public || symbol.visibility == .protected || fq == "kotlinx.io.bytestring.ByteString.getBackingArrayReference",
                   [.function, .constructor, .property, .class, .interface, .annotationClass, .object, .enumClass, .typeAlias].contains(symbol.kind),
                   !symbol.flags.contains(.extensionMemberAlias),
+                  !isImportedInitializer(symbol),
                   !canonicalAccessorViews.contains(symbol.id),
                   symbols.propertySymbol(forAccessor: symbol.id) == nil,
                   symbols.accessorOwnerProperty(for: symbol.id) == nil else { return false }
