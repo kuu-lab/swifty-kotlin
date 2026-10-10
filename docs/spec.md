@@ -1269,3 +1269,22 @@ Synthetic annotation methods and their signature parameters survive library
 metadata filtering just like data-class members, preserving vtable slots and
 producer link names. Existing hidden-owner and excluded-source filters remain
 in effect.
+
+### Serialization source annotations (KUU-1752)
+
+The bundled `kotlinx.serialization` source exposes the upstream 1.10.0
+`SerialName(value: String)`, `SerialInfo` and `InheritableSerialInfo` annotation
+classes. Targets, public visibility, `MustBeDocumented` and retention follow the
+pinned source. `SerialName` uses default RUNTIME retention; the two experimental
+meta-annotations use BINARY retention. Constructors create ordinary typed
+annotation objects, including value access and annotation equality/hash.
+
+Opt-in propagates from a direct `RequiresOptIn` marker on an API, with constructor
+owner and referenced types checked normally. An experimental annotation consumes
+its marker at the annotation application site; that marker does not propagate
+a second time to callers of declarations annotated with it. This rule applies
+without special annotation-name exceptions and survives producer metadata.
+
+Explicit descriptor annotation lists preserve the supplied objects and order.
+These APIs do not implement serializer generation, automatic wire-name changes,
+annotation inheritance or its conflict checks; those remain in KUU-1724.
