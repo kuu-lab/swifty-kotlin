@@ -83,7 +83,9 @@ guards, and byte-for-byte deterministic output without modifying files.
 The relocation regression copies inputs into a different checkout root in
 reverse filesystem creation order and compares all three generated outputs.
 PublishedApi row identities use upstream-relative paths, and local references
-are sorted before selecting their bounded candidate lists.
+are sorted. Kotlin golden and diff fixtures participate in the test index,
+alongside Swift tests; references match complete symbol tokens and are candidate
+coverage, not evidence of passing tests or overload-specific assertions.
 
 ## Remaining inventory audit work
 
@@ -93,6 +95,5 @@ provisional. For example, Apple and ByteBuffer declarations can be linked to
 different existing overloads; overload-specific exception contracts can be
 borrowed from the first same-name declaration. JVM `@JvmName` correspondence,
 internal visibility and extension PublishedApi signatures also need correction.
-The local test scan currently covers Swift tests only; Kotlin golden and diff
-fixtures still need indexing. Gap families routed to KUU-1725 need dedicated
-child issues. Reproducible generation does not establish these audit criteria.
+Gap families routed to KUU-1725 need dedicated child issues. Reproducible
+generation does not establish these audit criteria.

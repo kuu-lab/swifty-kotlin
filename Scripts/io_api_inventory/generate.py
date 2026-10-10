@@ -181,6 +181,7 @@ TEST_HINTS = {
 }
 
 LOCAL_IO_TEST_PREFIXES = (
+    "Scripts/diff_cases/kotlinx_io_",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+ByteString",
     "Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+KtorIOCoverage.swift",
     "Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_",
@@ -970,11 +971,11 @@ def local_test_refs(row: dict, local_tests: list[tuple[str, str]]) -> list[str]:
     refs = []
     for path, content in local_tests:
         haystack = content.lower()
-        if name and name in haystack:
+        if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", haystack):
             refs.append(path)
         elif owner and owner in haystack and row["module"] == "bytestring":
             refs.append(path)
-    return list(dict.fromkeys(refs))[:6]
+    return list(dict.fromkeys(refs))
 
 
 def upstream_test_refs(row: dict, test_index: dict) -> list[str]:
@@ -1337,7 +1338,10 @@ def build_outputs() -> tuple[dict, list[dict], list[dict]]:
     api_rows.extend(parse_published_internals(sources))
 
     local_tests = []
-    for path in sorted(REPO.joinpath("Tests").rglob("*.swift")):
+    local_paths = list(REPO.joinpath("Tests").rglob("*.swift"))
+    local_paths.extend(REPO.joinpath("Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
+    local_paths.extend(REPO.joinpath("Scripts/diff_cases").glob("*.kt"))
+    for path in sorted(local_paths):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(LOCAL_IO_TEST_PREFIXES):
             content = path.read_text(encoding="utf-8")

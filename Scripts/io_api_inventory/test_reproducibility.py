@@ -36,8 +36,11 @@ class ReproducibilityTests(unittest.TestCase):
             relocated = Path(temporary) / "checkout"
             inputs = list(HERE.rglob("*"))
             inputs.extend((REPO / "Sources/CompilerCore/Stdlib/kotlinx/io").rglob("*.kt"))
+            test_inputs = list((REPO / "Tests").rglob("*.swift"))
+            test_inputs.extend((REPO / "Tests/CompilerCoreTests/GoldenCases/Sema").glob("*.kt"))
+            test_inputs.extend((REPO / "Scripts/diff_cases").glob("*.kt"))
             inputs.extend(
-                path for path in (REPO / "Tests").rglob("*.swift")
+                path for path in test_inputs
                 if path.relative_to(REPO).as_posix().startswith(original.LOCAL_IO_TEST_PREFIXES)
             )
             for source in sorted(set(inputs), reverse=True):
@@ -48,6 +51,17 @@ class ReproducibilityTests(unittest.TestCase):
                 shutil.copyfile(source, destination)
             generator = relocated / "Scripts/io_api_inventory/generate.py"
             self.assertEqual(rendered_outputs(load_generator(generator)), expected)
+
+    def test_source_array_inventory_links_existing_kotlin_regressions(self):
+        generator = load_generator(HERE / "generate.py")
+        _, rows, _ = generator.build_outputs()
+        declaration = next(
+            row for row in rows
+            if row.get("_api_id") == "kotlinx.io/readByteArray|readByteArray@kotlinx.io.Source(kotlin.Int){}"
+        )
+        references = declaration["local_test_refs"].split(";")
+        self.assertIn("Tests/CompilerCoreTests/GoldenCases/Sema/kotlinx_io_sources_surface.kt", references)
+        self.assertIn("Scripts/diff_cases/kotlinx_io_sources_arrays.kt", references)
 
 
 if __name__ == "__main__":
