@@ -32,6 +32,8 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Receiver values in lexical order, including shadowed lambda receivers.
     var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
     var builderInference: BuilderInferenceSession?
+    /// Formal parameters of the surrounding call, not rigid lexical parameters.
+    var callableReferenceInferenceParameters: Set<SymbolID> = []
     var loopDepth: Int
     var loopLabelStack: [InternedString]
     /// Stack of labels attached to enclosing lambda literals, paired with

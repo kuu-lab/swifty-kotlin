@@ -653,6 +653,11 @@ final class ObjectLiteralLowerer {
                 driver.ctx.setLocalValue(loadedExpr, for: capturedSymbol)
             }
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
+            if sema.symbols.symbol(capturedSymbol)?.flags.contains(.reifiedTypeParameter) == true {
+                let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capturedSymbol)
+                driver.ctx.setLocalValue(loadedExpr, for: tokenSymbol)
+                driver.ctx.setLocalDeclaredType(intType, for: tokenSymbol)
+            }
             if let capturedOwner = sema.symbols.symbol(capturedSymbol),
                [.class, .interface, .enumClass, .object].contains(capturedOwner.kind)
             {

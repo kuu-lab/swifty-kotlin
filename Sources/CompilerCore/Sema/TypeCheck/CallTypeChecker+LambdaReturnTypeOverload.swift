@@ -214,13 +214,29 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
-                    contextualArgExpectedTypes[index] = callableReferenceExpectedType(
+                    let expectation = lambdaLiteralExpectedType(
+                        at: index, args: args, callRange: callRange, candidates: expectedTypeCandidates,
+                        explicitTypeArgs: explicitTypeArgs, receiverType: receiverType,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        resolver: ctx.resolver, sema: sema, ctx: ctx
+                    ).type ?? callableReferenceExpectedType(
                         at: index,
                         argumentLabel: argument.label,
                         candidates: expectedTypeCandidates,
                         explicitTypeArgs: explicitTypeArgs,
                         sema: sema
                     )
+                    let contextualType = contextualCallableArgumentType(
+                        expectation, callResultType: contextualCallResultType,
+                        candidates: candidates, sema: sema
+                    )
+                    if let contextualType, expectedTypeCandidates.count == 1,
+                       let candidate = expectedTypeCandidates.first,
+                       let signature = sema.symbols.functionSignature(for: candidate) {
+                        contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
+                            to: contextualType, signature: signature, candidate: candidate, ctx: ctx
+                        )
+                    } else { contextualArgExpectedTypes[index] = contextualType }
                 case let .lambdaLiteral(lambdaParams, _, _, _):
                     // Prove non-escaping invocation before checking the lambda body.
                     if !expectedTypeCandidates.isEmpty, expectedTypeCandidates.allSatisfy({ candidate in
@@ -252,37 +268,10 @@ extension CallTypeChecker {
                     // the expected call result fixes R before the lambda body is
                     // inferred. Keep the receiver-derived T in the expected lambda
                     // while replacing only its matching return type parameter.
-                    let contextualLambdaType: TypeID? = {
-                        // Only a definitely non-null expected result can fix R: for `R?` returns
-                        // and safe calls (`x?.let {}` expected `Int?`) the expectation says
-                        // nothing certain about the lambda's own result type.
-                        guard let contextualCallResultType,
-                              sema.types.makeNonNullable(contextualCallResultType) == contextualCallResultType,
-                              candidates.count == 1,
-                              let signature = sema.symbols.functionSignature(for: candidates[0]),
-                              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
-                              case let .typeParam(resultParam) = sema.types.kind(of: signature.returnType),
-                              let expectedLambdaType = expectation.type,
-                              case let .functionType(fn) = sema.types.kind(of: expectedLambdaType),
-                              case let .typeParam(lambdaResultParam) = sema.types.kind(of: fn.returnType),
-                              lambdaResultParam.symbol == resultParam.symbol,
-                              // `reduce<S, T : S>` also feeds S back into the lambda
-                              // parameters; fixing it early conflicts with T's bound.
-                              !fn.params.contains(where: { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) }),
-                              !(fn.receiver.map { sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol) } ?? false)
-                        else { return expectation.type }
-                        return sema.types.make(.functionType(FunctionType(
-                            contextReceivers: fn.contextReceivers,
-                            receiver: fn.receiver,
-                            params: fn.params,
-                            returnType: lambdaResultParam.nullability == .nullable
-                                ? sema.types.makeNullable(contextualCallResultType)
-                                : contextualCallResultType,
-                            isSuspend: fn.isSuspend,
-                            nullability: fn.nullability,
-                            throws: fn.throws
-                        )))
-                    }()
+                    let contextualLambdaType = contextualCallableArgumentType(
+                        expectation.type, callResultType: contextualCallResultType,
+                        candidates: candidates, sema: sema
+                    )
                     contextualArgExpectedTypes[index] = contextualLambdaType
                     if let contextualLambdaType, expectedTypeCandidates.count == 1,
                        let candidate = expectedTypeCandidates.first,
@@ -325,7 +314,17 @@ extension CallTypeChecker {
             }
 
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
-                let inferenceContext = lambdaContextOverrides[index] ?? ctx
+                var inferenceContext = lambdaContextOverrides[index] ?? ctx
+                if case .callableRef = ast.arena.expr(argument.expr) {
+                    let parameters = candidates.flatMap { candidate -> [SymbolID] in
+                        guard let signature = sema.symbols.functionSignature(for: candidate) else { return [] }
+                        return Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+                    }
+                    inferenceContext.callableReferenceInferenceParameters.formUnion(parameters)
+                    inferenceContext.callableReferenceInferenceParameters.subtract(
+                        driver.helpers.lexicalTypeParameterSymbols(in: ctx)
+                    )
+                }
                 let inferredType = driver.inferExpr(
                     argument.expr,
                     ctx: inferenceContext,
@@ -2102,4 +2101,43 @@ extension CallTypeChecker {
             )
         )
     }
+
+    /// Share the known call-result evidence between lambdas and references.
+    private func contextualCallableArgumentType(
+        _ expectation: TypeID?, callResultType: TypeID?, candidates: [SymbolID], sema: SemaModule
+    ) -> TypeID? {
+        guard let callResultType,
+              sema.types.makeNonNullable(callResultType) == callResultType,
+              candidates.count == 1,
+              let signature = sema.symbols.functionSignature(for: candidates[0]),
+              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
+              case let .typeParam(resultParameter) = sema.types.kind(of: signature.returnType),
+              let expectation, case let .functionType(function) = sema.types.kind(of: expectation),
+              case let .typeParam(returnParameter) = sema.types.kind(of: function.returnType),
+              returnParameter.symbol == resultParameter.symbol,
+              !(function.params + function.contextReceivers + (function.receiver.map { [$0] } ?? [])).contains(where: {
+                  sema.types.typeContainsTypeParam($0, symbol: resultParameter.symbol)
+              })
+        else { return expectation }
+        // The call result is an upper constraint, not an equality. A broad
+        // expected result must not replace a stricter declaration bound.
+        var contextualResult = callResultType
+        let parameterIndex = signature.typeParameterSymbols.firstIndex(of: resultParameter.symbol)
+        let declaredBounds = parameterIndex.flatMap {
+            $0 < signature.typeParameterUpperBoundsList.count ? signature.typeParameterUpperBoundsList[$0] : nil
+        } ?? []
+        let bounds = declaredBounds + sema.symbols.typeParameterUpperBounds(for: resultParameter.symbol)
+            .filter { !declaredBounds.contains($0) }
+        for bound in bounds where !sema.types.isSubtype(contextualResult, bound) {
+            guard !sema.types.typeContainsAnyTypeParam(bound),
+                  sema.types.isSubtype(bound, contextualResult) else { return expectation }
+            contextualResult = bound
+        }
+        return sema.types.make(.functionType(FunctionType(
+            contextReceivers: function.contextReceivers, receiver: function.receiver, params: function.params,
+            returnType: returnParameter.nullability == .nullable ? sema.types.makeNullable(contextualResult) : contextualResult,
+            isSuspend: function.isSuspend, nullability: function.nullability, throws: function.throws
+        )))
+    }
+
 }

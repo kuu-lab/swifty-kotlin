@@ -51,17 +51,22 @@ extension CallLowerer {
         for (loweredArgID, argExprID) in zip(loweredArgIDs, argExprIDs) {
             let callableInfo: KIRCallableValueInfo? = {
                 if sema.bindings.isCollectionHOFLambdaExpr(argExprID) {
-                    return driver.ctx.callableValueInfo(for: loweredArgID) ?? {
-                        guard case let .symbolRef(symbol)? = arena.expr(loweredArgID) else {
-                            return nil
-                        }
-                        return KIRCallableValueInfo(
-                            symbol: symbol,
-                            callee: interner.intern(""),
-                            captureArguments: arena.lambdaCaptureArgsBySymbol[symbol] ?? [],
-                            hasClosureParam: true
-                        )
-                    }()
+                    if let info = driver.ctx.callableValueInfo(for: loweredArgID) {
+                        if info.hasClosureParam { return info }
+                        // Typed reified thunks still need the closure decoder.
+                    } else {
+                        return {
+                            guard case let .symbolRef(symbol)? = arena.expr(loweredArgID) else {
+                                return nil
+                            }
+                            return KIRCallableValueInfo(
+                                symbol: symbol,
+                                callee: interner.intern(""),
+                                captureArguments: arena.lambdaCaptureArgsBySymbol[symbol] ?? [],
+                                hasClosureParam: true
+                            )
+                        }()
+                    }
                 }
                 guard let loweredCallable = driver.ctx.callableValueInfo(for: loweredArgID),
                       !loweredCallable.hasClosureParam,
