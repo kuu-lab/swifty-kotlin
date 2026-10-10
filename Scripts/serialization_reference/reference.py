@@ -181,9 +181,14 @@ def run_reference(root, manifest, cache, kotlin_home, output, case="modules"):
     if sha256(plugin.read_bytes()) != manifest["compiler_plugin_sha256"]:
         raise ValueError("Serialization compiler plugin hash mismatch")
     output.mkdir(parents=True, exist_ok=True)
-    source = root / "serialization_modules.kt" if case == "modules" else root.parent / "reference_cases/serialization_primitive_descriptor.kt"
-    expected = root / "expected.stdout" if case == "modules" else root.parent / "reference_cases/serialization_primitive_descriptor.expected"
-    main_class = "Serialization_modulesKt" if case == "modules" else "Serialization_primitive_descriptorKt"
+    fixtures = root.parent / "reference_cases"
+    source, expected, main_class = {
+        "modules": (root / "serialization_modules.kt", root / "expected.stdout", "Serialization_modulesKt"),
+        "primitive-descriptor": (fixtures / "serialization_primitive_descriptor.kt",
+                                 fixtures / "serialization_primitive_descriptor.expected", "Serialization_primitive_descriptorKt"),
+        "nullable-descriptor": (fixtures / "serialization_nullable_descriptor.kt",
+                                fixtures / "serialization_nullable_descriptor.expected", "Serialization_nullable_descriptorKt"),
+    }[case]
     jar = output / "reference.jar"
     jar.unlink(missing_ok=True)
     classpath = os.pathsep.join(str(path.resolve()) for path in jars)
@@ -216,7 +221,7 @@ def main():
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/kswiftk/serialization-1.10.0")
     parser.add_argument("--kotlin-home", type=Path, default=os.environ.get("KOTLIN_HOME"))
     parser.add_argument("--output", type=Path, default=Path("serialization-reference-output"))
-    parser.add_argument("--case", choices=["modules", "primitive-descriptor"], default="modules")
+    parser.add_argument("--case", choices=["modules", "primitive-descriptor", "nullable-descriptor"], default="modules")
     args = parser.parse_args()
     manifest = read_manifest()
     verify_files(ROOT, manifest)
