@@ -34,37 +34,13 @@ extension KIRLoweringDriver {
             symbol: receiverSymbol,
             exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: signature.returnType)
         )
-        let varargFlags = callSupportLowerer.normalizeBoolFlags(
-            signature.valueParameterIsVararg,
-            count: signature.parameterTypes.count
-        )
-        for (index, (parameterSymbol, parameterType)) in zip(
-            signature.valueParameterSymbols, signature.parameterTypes
-        ).enumerated() {
-            var storageType = parameterType
-            if varargFlags[index],
-               let arrayType = primitiveVarargArrayType(
-                   elementType: parameterType, sema: sema, interner: shared.interner
-               )
-            {
-                storageType = arrayType
-            } else if varargFlags[index],
-                      let listSymbol = sema.symbols.lookup(fqName: [
-                          shared.interner.intern("kotlin"),
-                          shared.interner.intern("collections"),
-                          shared.interner.intern("List"),
-                      ])
-            {
-                // CallSupportLowerer packs varargs as lists, including
-                // constructor arguments. A String element type must not turn
-                // the packed list handle into a flat String LLVM parameter.
-                storageType = sema.types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.invariant(parameterType)],
-                    nullability: .nonNull
-                )))
-            }
-            params.append(KIRParameter(symbol: parameterSymbol, type: storageType))
+        for (index, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
+            params.append(KIRParameter(
+                symbol: parameterSymbol,
+                type: constructorParameterStorageType(
+                    at: index, signature: signature, sema: sema, interner: shared.interner
+                )
+            ))
         }
 
         let body = buildConstructorBody(
@@ -80,6 +56,35 @@ extension KIRLoweringDriver {
         )
         ctx.setCurrentFunctionSymbol(nil)
         return decls
+    }
+
+    /// The semantic signature records vararg element types; constructor bodies
+    /// and synthetic reflection wrappers receive one packed array/list instead.
+    func constructorParameterStorageType(
+        at index: Int,
+        signature: FunctionSignature,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let parameterType = signature.parameterTypes[index]
+        guard signature.valueParameterIsVararg.indices.contains(index),
+              signature.valueParameterIsVararg[index]
+        else {
+            return parameterType
+        }
+        if let arrayType = primitiveVarargArrayType(
+            elementType: parameterType, sema: sema, interner: interner
+        ) {
+            return arrayType
+        }
+        guard let listSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
+        ]) else {
+            return parameterType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: listSymbol, args: [.invariant(parameterType)], nullability: .nonNull
+        )))
     }
 
     /// Builds the constructor body instructions for a primary or secondary constructor.
@@ -435,13 +440,33 @@ extension KIRLoweringDriver {
 
             let parameterSymbol = ctorSignature.valueParameterSymbols[index]
             let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-            let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: propertyType)
+            let storageType = constructorParameterStorageType(
+                at: index, signature: ctorSignature, sema: sema, interner: shared.interner
+            )
+            let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: storageType)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)))
+            let propertyValue: KIRExprID
+            if ctorSignature.valueParameterIsVararg.indices.contains(index),
+               ctorSignature.valueParameterIsVararg[index],
+               primitiveVarargArrayType(
+                   elementType: ctorSignature.parameterTypes[index], sema: sema, interner: shared.interner
+               ) == nil {
+                // A reference vararg local uses the existing List ABI, while
+                // its public constructor property has the source Array type.
+                propertyValue = arena.appendTemporary(type: propertyType)
+                body.append(.call(
+                    symbol: nil, callee: shared.interner.intern("__kk_collection_toTypedArray"),
+                    arguments: [parameterExpr], result: propertyValue,
+                    canThrow: false, thrownResult: nil
+                ))
+            } else {
+                propertyValue = parameterExpr
+            }
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
 
-            var arguments = [receiverID, offsetExpr, parameterExpr]
+            var arguments = [receiverID, offsetExpr, propertyValue]
             let callee: InternedString
             let resultType: TypeID
             if isDataClass {
@@ -1094,7 +1119,7 @@ extension KIRLoweringDriver {
                 // instance and enters its body with the reflected arguments.
                 callableSymbol = ctx.allocateSyntheticGeneratedSymbol()
                 callableName = interner.intern("__kconstructor_callable_\(ctorSymbol.rawValue)")
-                let callableParams = signature.parameterTypes.enumerated().map { index, type in
+                let callableParams = signature.parameterTypes.enumerated().map { index, _ in
                     let paramName = interner.intern("arg\(index)")
                     let paramSymbol = sema.symbols.define(
                         kind: .valueParameter,
@@ -1104,7 +1129,12 @@ extension KIRLoweringDriver {
                         visibility: .private,
                         flags: [.synthetic]
                     )
-                    return KIRParameter(symbol: paramSymbol, type: type)
+                    return KIRParameter(
+                        symbol: paramSymbol,
+                        type: constructorParameterStorageType(
+                            at: index, signature: signature, sema: sema, interner: interner
+                        )
+                    )
                 }
                 let callableBody: [KIRInstruction] = ctx.withNewScope {
                     ctx.resetScopeForFunction()
@@ -1160,6 +1190,7 @@ extension KIRLoweringDriver {
                 returnType: signature.returnType,
                 captures: [],
                 receiverCount: 0,
+                packedConstructorVarargs: canGenerateInvocation,
                 includeInvocation: canGenerateInvocation,
                 ast: shared.ast,
                 sema: sema,
