@@ -17,6 +17,8 @@
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `check_workflow_npm_install.sh` | ✓ | Forbid ad-hoc `npm install`/`npx`/etc. in GitHub workflows/actions — npm-based CI tools go through `.github/ci-tools/` lockfile + `npm ci --ignore-scripts` |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
+| `check_atomicfu_api_reference.py` | – | Verify the pinned kotlinx.atomicfu 0.33.0 KLIB/JVM snapshots, target-aware declaration index, and unsupported API names |
+| `generate_atomicfu_api_index.py` | – | Generate the deterministic per-declaration common/native API ledger with source provenance, visibility, overloads, and annotations |
 | `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
 ## swift_test.sh
@@ -102,6 +104,25 @@ Validate compiler runtime link names against `RuntimeABISpec`:
 
 ```bash
 bash Scripts/validate_runtime_abi_links.sh
+```
+
+## Atomicfu API reference
+
+Verify the pinned 0.33.0 upstream ABI snapshots, generated per-declaration
+index, effective KLIB target scopes, and excluded `compareAndExchange` / `load`
+/ `store` / `MemoryOrder` names:
+
+```bash
+python3 Scripts/check_atomicfu_api_reference.py
+```
+
+Regenerate the checked-in 155-row ABI-identity index (150 common/native
+declarations plus five explicitly excluded inherited JS/Wasm identities; the
+common/native declarations span 126 unique rendered signatures):
+
+```bash
+python3 Scripts/generate_atomicfu_api_index.py --write
+python3 Tests/Scripts/test_atomicfu_api_index.py
 ```
 
 ## TODO hygiene

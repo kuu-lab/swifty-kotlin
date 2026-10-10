@@ -1,4 +1,5 @@
 #if canImport(Testing)
+import Foundation
 @testable import CompilerCore
 import Testing
 
@@ -148,6 +149,32 @@ struct BundledStdlibOrderingTests {
             }
             #expect(!paths.contains("__bundled_kotlinx/io/IOExceptions.kt"))
         }
+    }
+
+    /// KUU-1732: the resource loader recursively registers Kotlin sources below
+    /// the intended kotlinx.atomicfu subtree. The marker is only a discovery
+    /// fixture; it does not claim atomic API or runtime behavior.
+    @Test
+    func testAtomicfuSubtreeUsesBundledResourceDiscovery() throws {
+        let fileManager = FileManager.default
+        let resourceRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("KSwiftKAtomicfuDiscovery-\(UUID().uuidString)", isDirectory: true)
+        let sourceURL = resourceRoot
+            .appendingPathComponent("Stdlib/kotlinx/atomicfu/DiscoveryMarker.kt")
+        defer { try? fileManager.removeItem(at: resourceRoot) }
+
+        try fileManager.createDirectory(
+            at: sourceURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let marker = "package kotlinx.atomicfu\ninternal class DiscoveryMarker\n"
+        try Data(marker.utf8).write(to: sourceURL)
+
+        let sources = try BundledStdlib.collectBundledStdlibSources(resourcePath: resourceRoot.path)
+        let discovered = try #require(sources.first {
+            $0.path == "__bundled_kotlinx/atomicfu/DiscoveryMarker.kt"
+        })
+        #expect(String(decoding: discovered.contents, as: UTF8.self) == marker)
     }
 
     /// KSP-1586: Pin the kotlinx resource paths independently of the on-disk
