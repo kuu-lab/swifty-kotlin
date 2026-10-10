@@ -6,6 +6,55 @@ import Testing
 
 @Suite
 struct MetadataSerializerTests {
+    @Test(arguments: [Visibility.private, .internal, .protected, .public])
+    func testNestedDeclarationsRespectEffectiveVisibility(outerVisibility: Visibility) {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let outerName = interner.intern("Outer")
+        let innerName = interner.intern("Inner")
+        let memberName = interner.intern("member")
+        let propertyName = interner.intern("value")
+        let outer = symbols.define(
+            kind: .class, name: outerName, fqName: [outerName],
+            declSite: nil, visibility: outerVisibility
+        )
+        let inner = symbols.define(
+            kind: .class, name: innerName, fqName: [outerName, innerName],
+            declSite: nil, visibility: .public
+        )
+        symbols.setParentSymbol(outer, for: inner)
+        let member = symbols.define(
+            kind: .function, name: memberName, fqName: [outerName, innerName, memberName],
+            declSite: nil, visibility: .public
+        )
+        symbols.setParentSymbol(inner, for: member)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: types.intType), for: member
+        )
+        let property = symbols.define(
+            kind: .property, name: propertyName, fqName: [outerName, innerName, propertyName],
+            declSite: nil, visibility: .protected
+        )
+        symbols.setParentSymbol(inner, for: property)
+        symbols.setPropertyType(types.intType, for: property)
+
+        let encoder = MetadataEncoder()
+        let publicRecords = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Visibility",
+            interner: interner, functionLinkNames: [:]
+        )
+        let expectedNames: Set<String> = ["Outer", "Outer.Inner", "Outer.Inner.member", "Outer.Inner.value"]
+        let isExternallyVisible = outerVisibility == .public || outerVisibility == .protected
+        #expect(Set(publicRecords.map(\.fqName)) == (isExternallyVisible ? expectedNames : []))
+
+        let completeRecords = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Visibility",
+            interner: interner, functionLinkNames: [:], includeNonPublic: true
+        )
+        #expect(Set(completeRecords.map(\.fqName)) == expectedNames)
+    }
+
     @Test func testAutoInlineBodiesDoNotEnableNonLocalCallbackReturns() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
