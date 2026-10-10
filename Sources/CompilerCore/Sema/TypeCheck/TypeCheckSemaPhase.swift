@@ -288,5 +288,9 @@ private final class TypeCheckWork: @unchecked Sendable {
             .evaluate(diagnostics: driver.diagnostics)
         driver.declChecker.validatePendingAnnotationConstants()
         driver.validateJsFileNameAnnotationArguments(in: files)
+        DataFlowSemaPhase().validateDeferredLocalAnnotationTargets(
+            ast: driver.ast, symbols: driver.sema.symbols, types: driver.sema.types,
+            bindings: driver.sema.bindings, diagnostics: driver.diagnostics, interner: driver.interner
+        )
     }
 }

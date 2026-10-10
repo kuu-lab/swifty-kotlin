@@ -1743,6 +1743,20 @@ public final class BindingTable {
     /// Lambda boundaries crossed by a return targeting an enclosing named function.
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
+    /// Local nominal target checks run after speculative expression inference.
+    private var pendingLocalAnnotationTargets: [DeclID: [[InternedString]]] = [:]
+
+    func deferLocalAnnotationTargets(_ declaration: DeclID, lexicalEnclosingFQNames: [[InternedString]]) {
+        if pendingLocalAnnotationTargets[declaration] == nil {
+            pendingLocalAnnotationTargets[declaration] = lexicalEnclosingFQNames
+        }
+    }
+
+    func takePendingLocalAnnotationTargets() -> [DeclID: [[InternedString]]] {
+        let pending = pendingLocalAnnotationTargets
+        pendingLocalAnnotationTargets.removeAll(keepingCapacity: false)
+        return pending
+    }
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var indexedCompoundAssignElementOperatorBindings: [ExprID: IndexedCompoundAssignElementOperatorBinding] = [:]

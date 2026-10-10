@@ -1325,8 +1325,22 @@ Local annotation classifiers search the full surrounding class-scope chain
 before file imports, even when synthetic local FQ names omit lexical nesting.
 Primary-property `@Suppress` ranges cover only the same parameter's annotations
 and default initializer, rather than the synthesized property's class-wide range.
-General target validation still omits declarations inside function bodies;
-local class/parameter target violations are tracked separately in KUU-1757.
+Local nominal registration records the declaration and lexical class-scope chain
+for deferred target validation. After module body inference and annotation constant
+checks, TypeCheck validates each registered local class/object once, including its
+header, primary/secondary constructors and parameters, members/accessors and type
+annotations (including secondary-constructor types and object supertypes). This
+pass runs outside speculative receiver-builder inference so diagnostic rollback
+cannot discard a target violation after the nominal's idempotent registration.
+It reuses the declaration target/use-site rules and resolves annotation aliases
+and lexical classifiers through the same TypeSystem-aware resolver. Annotation
+metadata and factories are not re-registered by this validation pass (KUU-1757).
+Statement parsing retains local nominal header annotations before stripping
+annotations for other local statements. Secondary-constructor declaration
+annotations stop at the constructor keyword, excluding parameter/type/body
+annotations from the constructor's own annotation list (KUU-1757).
+Annotations on general local variables/expressions remain outside this nominal
+declaration traversal.
 
 ### Producer flow receiver builder inference (KUU-1378)
 
