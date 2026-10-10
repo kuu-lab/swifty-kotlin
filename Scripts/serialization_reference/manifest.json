@@ -196,6 +196,14 @@
       "upstream_path": "core/commonMain/src/kotlinx/serialization/internal/CollectionDescriptors.kt",
       "sha256": "f1161bfccdb95053f6c96fdc31511e3ea6033d9fb8b79ce55129ebb3ce3b1f3d",
       "git_blob": "3387e661d3692e9017f0ab974aa927ac2ed2e976"
+    },
+    {
+      "module": "core",
+      "platform": "common-source",
+      "path": "upstream/core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "upstream_path": "core/commonMain/src/kotlinx/serialization/Annotations.kt",
+      "sha256": "ddd2cac7e0ecfedbabddbbce34d1af1b1a337d7620c6db874ed648091340b6e7",
+      "git_blob": "6c9b9778d7b3295811e931c441c8fc9fe43957d8"
     }
   ],
   "artifacts": [
