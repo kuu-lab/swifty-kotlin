@@ -1157,9 +1157,20 @@ extension DataFlowSemaPhase {
                 flags: typeParamFlags
             )
             typeParameterSymbols.append(typeParamSymbol)
-            symbols.setAnnotations(typeParam.annotations.map {
-                MetadataAnnotationRecord(annotationFQName: $0.name, arguments: $0.arguments, useSiteTarget: $0.useSiteTarget)
-            }, for: typeParamSymbol)
+            // Preserve the resolved annotation identity for inference and metadata.
+            // All source nominal headers are predeclared before function headers.
+            let annotationFileID = declSite?.start.file
+            registerAnnotations(
+                typeParam.annotations,
+                symbol: typeParamSymbol,
+                declRange: declSite,
+                sourceFileID: annotationFileID,
+                sourceFile: annotationFileID.flatMap { ast.file(for: $0) },
+                sourceManager: nil,
+                interner: interner,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             localTypeParameters[typeParam.name] = typeParamSymbol
             if typeParam.isReified {
                 reifiedIndices.insert(index)

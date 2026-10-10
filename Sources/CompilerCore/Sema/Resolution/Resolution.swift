@@ -467,13 +467,54 @@ extension OverloadResolver {
                 )
             }
         }
+        // Unsuffixed integer literals can adopt a primitive type already
+        // determined by this candidate's concrete inputs. Keep them out of a
+        // preliminary solve so their default Int/UInt does not widen T before
+        // the literal has a context. The authoritative solve below still
+        // checks every input, explicit binding and declared bound.
+        var literalTypeSubstitution = explicitTypeSubstitution
+        let literalIndices = Set(call.args.indices.filter { index in
+            call.args[index].signedIntegerLiteral != nil || call.args[index].unsignedIntegerLiteral != nil
+        })
+        if !typeVarBySymbol.isEmpty, !literalIndices.isEmpty {
+            var nonLiteralConstraints = constraints
+            if appendArgumentConstraints(
+                to: &nonLiteralConstraints,
+                call: call,
+                parameterMapping: parameterMapping,
+                signature: signature,
+                typeVarBySymbol: typeVarBySymbol,
+                explicitTypeSubstitution: explicitTypeSubstitution,
+                ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
+                ignoredIntegerLiteralArgumentIndices: literalIndices,
+                sema: ctx
+            ), case let .success(partial) = solveConstraints(
+                nonLiteralConstraints, solver: solver, typeSystem: ctx.types
+            ) {
+                let concreteInputVariables = Set(nonLiteralConstraints.compactMap { constraint -> TypeVarID? in
+                    if case .type = constraint.left, case let .variable(variable) = constraint.right {
+                        return variable
+                    }
+                    if constraint.kind == .equal, case let .variable(variable) = constraint.left,
+                       case .type = constraint.right {
+                        return variable
+                    }
+                    return nil
+                })
+                for (variable, type) in partial where explicitTypeSubstitution[variable] == nil
+                    && concreteInputVariables.contains(variable) {
+                    guard case .primitive = ctx.types.kind(of: ctx.types.makeNonNullable(type)) else { continue }
+                    literalTypeSubstitution[variable] = type
+                }
+            }
+        }
         guard appendArgumentConstraints(
             to: &constraints,
             call: call,
             parameterMapping: parameterMapping,
             signature: signature,
             typeVarBySymbol: typeVarBySymbol,
-            explicitTypeSubstitution: explicitTypeSubstitution,
+            explicitTypeSubstitution: literalTypeSubstitution,
             ignoredLambdaReturnTypeArgumentIndices: ignoredLambdaReturnTypeArgumentIndices,
             sema: ctx
         ) else {
@@ -804,12 +845,14 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         explicitTypeSubstitution: [TypeVarID: TypeID],
         ignoredLambdaReturnTypeArgumentIndices: Set<Int>,
+        ignoredIntegerLiteralArgumentIndices: Set<Int> = [],
         sema: SemaModule
     ) -> Bool {
         let typeSystem = sema.types
         let isVararg = normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         var processedAll = true
         for argIndex in call.args.indices {
+            if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
             guard let paramIndex = parameterMapping[argIndex],
                   paramIndex >= 0,
                   paramIndex < signature.parameterTypes.count
@@ -820,8 +863,8 @@ extension OverloadResolver {
             }
             let paramType = signature.parameterTypes[paramIndex]
             let arg = call.args[argIndex]
-            // Explicit type arguments supply a concrete literal expectation,
-            // while constraints still target the original type parameter.
+            // Explicit bindings and concrete non-literal inputs supply the
+            // literal expectation; constraints still target the original T.
             let literalParameterType = typeSystem.substituteTypeParameters(
                 in: paramType,
                 substitution: explicitTypeSubstitution,
