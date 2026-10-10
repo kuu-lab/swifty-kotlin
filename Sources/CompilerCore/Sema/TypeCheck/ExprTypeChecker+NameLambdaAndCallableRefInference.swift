@@ -1687,7 +1687,8 @@ extension ExprTypeChecker {
             for parameter in expectedFunctionType.params {
                 inputTypeParameters.formUnion(typeParameterSymbols(in: parameter, sema: sema))
             }
-            return !returnTypeParameters.subtracting(inputTypeParameters).isEmpty
+            let lexicalParameters = driver.helpers.lexicalTypeParameterSymbols(in: ctx)
+            return !returnTypeParameters.subtracting(inputTypeParameters).subtracting(lexicalParameters).isEmpty
         }()
         // Kotlin discards a Unit-expected lambda body's value rather than requiring
         // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
@@ -1713,7 +1714,8 @@ extension ExprTypeChecker {
                   expectedReturnType != sema.types.unitType else {
                 return nil
             }
-            if case .typeParam = sema.types.kind(of: expectedReturnType) {
+            if case let .typeParam(parameter) = sema.types.kind(of: expectedReturnType),
+               !driver.helpers.lexicalTypeParameterSymbols(in: ctx).contains(parameter.symbol) {
                 return nil
             }
             if expectedReturnHasUnresolvedOutputTypeParameter {
@@ -1929,6 +1931,24 @@ extension ExprTypeChecker {
         return ctx.filterByVisibility(ctorSymbols).0
     }
 
+    private func bindReifiedCallableReference(
+        _ expression: ExprID, target: SymbolID, arguments: [TypeID],
+        range: SourceRange, ctx: TypeInferenceContext
+    ) {
+        guard let signature = ctx.sema.symbols.functionSignature(for: target) else { return }
+        for index in signature.reifiedTypeParameterIndices.sorted() where index < arguments.count {
+            if case let .typeParam(parameter) = ctx.sema.types.kind(of: arguments[index]),
+               ctx.sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) != true {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-REIFIED", "Cannot use an unreified type parameter as a reified type argument.", range: range
+                )
+            }
+        }
+        ctx.sema.bindings.bindCallableReference(expression, binding: CallBinding(
+            chosenCallee: target, substitutedTypeArguments: arguments, parameterMapping: [:]
+        ))
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -1942,6 +1962,7 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let outerSymbols = Set(locals.values.map(\.symbol))
+        sema.bindings.bindCallableReference(id, binding: nil)
 
         if let expectedType, sema.types.nominalFunctionType(for: expectedType) != nil {
             sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
@@ -2598,15 +2619,19 @@ extension ExprTypeChecker {
         let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
         } else if receiver != nil && !isConstructorReference {
-            effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+            effectiveReceiverType
         } else {
             nil
         }
+        let postponedReturnParameter = driver.helpers.postponedCallableReferenceReturnTypeParameter(
+            expectedFunctionType, inferenceParameters: ctx.callableReferenceInferenceParameters, sema: sema
+        )
         let chosen = driver.helpers.chooseCallableReferenceTarget(
             from: candidates,
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
+            postponedReturnTypeParameter: postponedReturnParameter,
             sema: sema
         )
 
@@ -2627,7 +2652,35 @@ extension ExprTypeChecker {
             // caller needs for inference, so report the reference's own type.
             if let expectedFunctionType {
                 let concreteResult = expectedSamInterfaceType ?? expectedFunctionType
-                if !sema.types.typeContainsAnyTypeParam(concreteResult) {
+                if !signature.reifiedTypeParameterIndices.isEmpty {
+                    if let specialization = driver.helpers.contextualCallableReferenceBinding(
+                        for: signature,
+                        bindReceiver: isBoundReceiver,
+                        boundReceiver: boundReceiverType.map { (chosen, $0) },
+                        expectedFunctionType: expectedFunctionType,
+                        postponedReturnTypeParameter: postponedReturnParameter,
+                        sema: sema
+                    ) {
+                        inferredType = specialization.functionType
+                        bindReifiedCallableReference(
+                            id, target: chosen, arguments: specialization.typeArguments, range: range, ctx: ctx
+                        )
+                    } else {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-INFER", "Cannot infer type arguments for reified callable reference.", range: range
+                        )
+                    }
+                    resultType = postponedReturnParameter == nil ? concreteResult : inferredType
+                } else if let postponedReturnParameter,
+                          let specialization = driver.helpers.contextualCallableReferenceBinding(
+                              for: signature, bindReceiver: isBoundReceiver,
+                              boundReceiver: boundReceiverType.map { (chosen, $0) },
+                              expectedFunctionType: expectedFunctionType,
+                              postponedReturnTypeParameter: postponedReturnParameter, sema: sema
+                          ) {
+                    inferredType = specialization.functionType
+                    resultType = inferredType
+                } else if !sema.types.typeContainsAnyTypeParam(concreteResult) {
                     if let specializedType = driver.helpers.contextualCallableFunctionType(
                         for: signature,
                         bindReceiver: isBoundReceiver,
@@ -2649,6 +2702,23 @@ extension ExprTypeChecker {
                 }
 
             } else {
+                if !signature.reifiedTypeParameterIndices.isEmpty {
+                    if isBoundReceiver,
+                       let specialization = driver.helpers.contextualCallableReferenceBinding(
+                           for: signature, bindReceiver: true,
+                           boundReceiver: boundReceiverType.map { (chosen, $0) },
+                           expectedFunctionType: nil, sema: sema
+                       ) {
+                        inferredType = specialization.functionType
+                        bindReifiedCallableReference(
+                            id, target: chosen, arguments: specialization.typeArguments, range: range, ctx: ctx
+                        )
+                    } else {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-INFER", "Reified callable reference requires contextual type arguments.", range: range
+                        )
+                    }
+                }
                 resultType = inferredType
             }
             // BUG-164: A callable reference passed to a fun-interface parameter
