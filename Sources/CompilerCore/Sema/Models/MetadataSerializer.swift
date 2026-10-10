@@ -282,15 +282,20 @@ public struct MetadataAnnotationRecord: Equatable {
     public let arguments: [String]
     /// Optional use-site target (get, set, field, param, etc.).
     public let useSiteTarget: String?
+    /// Producer-side retention survives when the annotation class is non-public.
+    /// Older metadata without this field is classified from its declaration.
+    public let retention: AnnotationRetentionKind?
 
     public init(
         annotationFQName: String,
         arguments: [String] = [],
-        useSiteTarget: String? = nil
+        useSiteTarget: String? = nil,
+        retention: AnnotationRetentionKind? = nil
     ) {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
         self.useSiteTarget = useSiteTarget
+        self.retention = retention
     }
 }
 
@@ -1314,7 +1319,15 @@ package final class MetadataEncoder {
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
         let isValueClass = symbol.flags.contains(.valueType)
 
-        let annotationEntries = symbols.annotations(for: symbol.id)
+        let annotationEntries = symbols.annotations(for: symbol.id).compactMap { annotation -> MetadataAnnotationRecord? in
+            let retention = resolvedAnnotationRetention(annotation, symbols: symbols, interner: interner)
+            guard retention != .source else { return nil }
+            return MetadataAnnotationRecord(
+                annotationFQName: annotation.annotationFQName, arguments: annotation.arguments,
+                useSiteTarget: annotation.useSiteTarget,
+                retention: retention == .binary ? retention : annotation.retention
+            )
+        }
 
         // P5-78: collect sealed subclass FQ names for cross-module exhaustiveness
         var sealedSubclassFQNames: [String] = []
@@ -2044,6 +2057,9 @@ package final class MetadataEncoder {
 
     private func encodeAnnotation(_ annotation: MetadataAnnotationRecord) -> String {
         var parts = [annotation.annotationFQName]
+        if let retention = annotation.retention {
+            parts.append("retention:\(retention.rawValue)")
+        }
         if let target = annotation.useSiteTarget {
             parts.append("target:\(target)")
         }
@@ -2422,10 +2438,13 @@ final class MetadataDecoder {
             return nil
         }
         var useSiteTarget: String?
+        var retention: AnnotationRetentionKind?
         var arguments: [String] = []
         for part in parts.dropFirst() {
             if part.hasPrefix("target:") {
                 useSiteTarget = String(part.dropFirst("target:".count))
+            } else if part.hasPrefix("retention:") {
+                retention = AnnotationRetentionKind(rawValue: String(part.dropFirst("retention:".count)))
             } else if part.hasPrefix("args:") {
                 let argsStr = String(part.dropFirst("args:".count))
                 arguments = argsStr.split(separator: ",", omittingEmptySubsequences: false).compactMap { b64 in
@@ -2439,7 +2458,8 @@ final class MetadataDecoder {
         return MetadataAnnotationRecord(
             annotationFQName: annotationFQName,
             arguments: arguments,
-            useSiteTarget: useSiteTarget
+            useSiteTarget: useSiteTarget,
+            retention: retention
         )
     }
 
