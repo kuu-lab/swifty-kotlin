@@ -935,11 +935,11 @@ extension CallTypeChecker {
            let argumentTypesForSourceLookup,
            !scopedRangeUserCandidates.isEmpty
         {
-            let callArgs = zip(args, argumentTypesForSourceLookup).map { argument, type in
-                CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
-            }
             guard let callRange = ctx.ast.arena.exprRange(id) ?? ctx.ast.arena.exprRange(receiverID) else {
                 return nil
+            }
+            let callArgs = zip(args, argumentTypesForSourceLookup).map { argument, type in
+                CallArg.source(argument, type: type, callRange: callRange, ast: ctx.ast)
             }
             let resolved = ctx.resolver.resolveCall(
                 candidates: scopedRangeUserCandidates,

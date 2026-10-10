@@ -93,12 +93,18 @@ extension OverloadResolver {
             return false
         }
         func trailingLambdaParameterIndex(for argIndex: Int) -> Int? {
-            let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
-            guard argIndex == callArgs.count - 1,
-                  argumentIsCallable
-            else {
+            guard argIndex == callArgs.count - 1 else {
                 return nil
             }
+            if let isTrailing = callArgs[argIndex].isTrailingLambda {
+                let lastParameter = paramCount - 1
+                guard isTrailing, !isVararg[lastParameter],
+                      !boundNonVarargParams.contains(lastParameter)
+                else { return nil }
+                return lastParameter
+            }
+            let argumentIsCallable = isCallableArgument?(argIndex) ?? isCallableLike(callArgs[argIndex].type)
+            guard argumentIsCallable else { return nil }
             let remainingIndices = positionalCursor..<paramCount
             for paramIndex in remainingIndices.reversed() {
                 guard isCallableLike(signature.parameterTypes[paramIndex]) else {
@@ -149,6 +155,10 @@ extension OverloadResolver {
                     continue
                 }
                 if isVararg[positionalCursor] {
+                    // Source positional arguments remain vararg elements;
+                    // later ordinary parameters must be supplied by name.
+                    // A trailing lambda is mapped separately below.
+                    if callArgs[argIndex].isTrailingLambda != nil { break }
                     let trailingRequiredCount = trailingRequiredParameterCount(after: positionalCursor)
                     if callArgs.count - argIndex <= trailingRequiredCount {
                         positionalCursor += 1
@@ -172,6 +182,16 @@ extension OverloadResolver {
         var maxBoundParamIndex = -1
 
         for (argIndex, arg) in callArgs.enumerated() {
+            if arg.isTrailingLambda == true {
+                guard arg.label == nil, !arg.isSpread,
+                      let parameterIndex = trailingLambdaParameterIndex(for: argIndex)
+                else { return nil }
+                boundNonVarargParams.insert(parameterIndex)
+                mapping[argIndex] = parameterIndex
+                maxBoundParamIndex = max(maxBoundParamIndex, parameterIndex)
+                positionalCursor = max(positionalCursor, parameterIndex + 1)
+                continue
+            }
             if let label = arg.label {
                 sawNamedArgument = true
                 guard let paramIndex = paramNames.firstIndex(where: { $0 == label }) else {

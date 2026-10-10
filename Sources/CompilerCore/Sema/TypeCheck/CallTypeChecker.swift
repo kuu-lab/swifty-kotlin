@@ -97,6 +97,7 @@ final class CallTypeChecker {
             id,
             calleeName: calleeName,
             args: args,
+            range: range,
             ctx: ctx,
             locals: &locals,
             expectedType: expectedType,
@@ -2511,7 +2512,7 @@ final class CallTypeChecker {
         {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             if let returnTypeVariable = typeVarBySymbol[returnTypeParam.symbol],
-               let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+               let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx)
             {
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
@@ -2581,7 +2582,7 @@ final class CallTypeChecker {
                         ? expectedArgType : sema.types.makeNonNullable(expectedArgType)
                 }
                 guard !substitution.isEmpty else { continue }
-                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) else {
                     continue
                 }
                 for index in args.indices {
@@ -2641,7 +2642,7 @@ final class CallTypeChecker {
                 else {
                     continue
                 }
-                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx) else {
+                guard let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) else {
                     continue
                 }
                 let isConstructor = sema.symbols.symbol(candidate)?.kind == .constructor
@@ -2709,7 +2710,7 @@ final class CallTypeChecker {
            let signature = sema.symbols.functionSignature(for: candidate)
         {
             let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-            let parameterMapping = parameterMappingForCallArguments(args, in: signature, ctx: ctx)
+            let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx)
             for index in args.indices {
                 guard isInferableNestedCallExpr(args[index].expr, ast: ast),
                       let parameterIndex = parameterMapping?[index],
@@ -2754,6 +2755,7 @@ final class CallTypeChecker {
         }
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             expectedTypeOverrides: expectedTypeOverrides,
             explicitTypeArgs: explicitTypeArgs,
@@ -3648,7 +3650,7 @@ final class CallTypeChecker {
             }
             if !invokeCandidates.isEmpty {
                 let resolvedArgs = zip(args, argTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 let resolved = ctx.resolver.resolveCall(
                     candidates: invokeCandidates,
@@ -3892,7 +3894,7 @@ final class CallTypeChecker {
                     )
                 }
                 let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 for group in orderedMemberGroups {
                     let resolved = ctx.resolver.resolveCall(
@@ -4000,7 +4002,7 @@ final class CallTypeChecker {
                     driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
                 let resolvedOuterArgs = zip(args, outerArgTypes).map { argument, type in
-                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                    CallArg.source(argument, type: type, callRange: range, ast: ctx.ast)
                 }
                 let resolvedOuter = ctx.resolver.resolveCall(
                     candidates: outerRegularCandidates,
