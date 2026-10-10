@@ -213,3 +213,26 @@ Runtime source hashes are checked; cached Runtime object bytes are outside this
 provenance proof. This also remains **assertion-only candidate execution**:
 seven-observation mappings are unfinished, paired PASS stays zero, and KUU-1727
 remains partial even if selected assertions pass.
+
+### Audited Native catalog factories and cleanup
+
+Add `--native-catalog linux` or `--native-catalog macos` to use the pinned
+`candidate-declarations.json` audit. With no `--suite`, this prepares all 1,188
+Linux executions (521 source function IDs/35 source files) or 1,217 macOS
+executions (550 source function IDs/43 source files). The requested lane must
+match the actual host. Optional `--suite` selection retains the whole original
+source closure, including native actual helpers, while running only selected IDs.
+
+Each inherited test invokes its original concrete factory subclass, preserving
+the constructor-selected source/sink implementation. Shared abstract-class files
+compile once. Original source bytes remain unchanged after the same suppression
+prefix. `SmokeFileTest` uses a fresh lazy instance per ID and calls its original
+`cleanup()` in `finally`, including after a failing body; cleanup failure replaces
+the body failure as in Kotlin/Native 2.3.10. PASS is emitted only after cleanup.
+Unreviewed parameterized methods, constructors, hooks or source changes fail
+preparation. The original assertions and helper implementations are not replaced.
+
+The full catalog and source closure have been mechanically prepared for both
+lanes; candidate compilation/execution and the seven observation adapters remain
+unverified. This preparation is not a candidate PASS. Source/library and separate
+test-library consumer modes retain the same hash, deadline and result checks.
