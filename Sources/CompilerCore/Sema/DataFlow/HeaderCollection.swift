@@ -392,6 +392,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
+        sourceManager: SourceManager? = nil,
         diagnostics: DiagnosticEngine,
         enclosingTypeParameters: [InternedString: SymbolID] = [:]
     ) -> (symbols: [SymbolID], localMap: [InternedString: SymbolID]) {
@@ -450,11 +451,13 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
+                    sourceManager: sourceManager,
                     localTypeParameters: localTypeParameters,
                     relativeOwnerFQName: fqName,
                     currentPackageFQName: currentPackageFQName,
                     imports: imports,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    usageRange: declSite
                 )
             }
             if !resolvedBounds.isEmpty {
