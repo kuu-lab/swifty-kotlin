@@ -6,19 +6,42 @@ public struct CallArg {
     /// A pre-inferred Int/UInt alone loses contextual integer adaptation.
     public let signedIntegerLiteral: Int64?
     public let unsignedIntegerLiteral: UInt64?
+    /// Source calls distinguish a lambda outside parentheses from ordinary
+    /// positional arguments. Nil preserves normalized calls without an AST.
+    public let isTrailingLambda: Bool?
 
     public init(
         label: InternedString? = nil,
         isSpread: Bool = false,
         type: TypeID,
         signedIntegerLiteral: Int64? = nil,
-        unsignedIntegerLiteral: UInt64? = nil
+        unsignedIntegerLiteral: UInt64? = nil,
+        isTrailingLambda: Bool? = nil
     ) {
         self.label = label
         self.isSpread = isSpread
         self.type = type
         self.signedIntegerLiteral = signedIntegerLiteral
         self.unsignedIntegerLiteral = unsignedIntegerLiteral
+        self.isTrailingLambda = isTrailingLambda
+    }
+
+    private static func trailingLambdaPosition(
+        _ argument: CallArgument, callRange: SourceRange, ast: ASTModule
+    ) -> Bool {
+        guard case .lambdaLiteral = ast.arena.expr(argument.expr) else { return false }
+        return ast.arena.exprRange(argument.expr)?.end == callRange.end
+    }
+
+    package static func source(
+        _ argument: CallArgument, type: TypeID, callRange: SourceRange, ast: ASTModule,
+        signedIntegerLiteral: Int64? = nil, unsignedIntegerLiteral: UInt64? = nil
+    ) -> CallArg {
+        CallArg(
+            label: argument.label, isSpread: argument.isSpread, type: type,
+            signedIntegerLiteral: signedIntegerLiteral, unsignedIntegerLiteral: unsignedIntegerLiteral,
+            isTrailingLambda: trailingLambdaPosition(argument, callRange: callRange, ast: ast)
+        )
     }
 }
 

@@ -350,7 +350,7 @@ extension CallTypeChecker {
             sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
         }
         let callArgs = zip(args, argTypes).map { arg, type in
-            CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+            CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
         }
         let call = CallExpr(
             range: range,

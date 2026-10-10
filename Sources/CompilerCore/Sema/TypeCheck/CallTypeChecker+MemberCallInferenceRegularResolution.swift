@@ -414,7 +414,7 @@ extension CallTypeChecker {
                 }
                 if !visibleStaticMethods.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
                     }
                     let call = CallExpr(
                         range: range,
@@ -550,7 +550,7 @@ extension CallTypeChecker {
                 }
                 if !visibleOwnerExtensions.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
                     }
                     let call = CallExpr(
                         range: range,
@@ -746,7 +746,7 @@ extension CallTypeChecker {
                         }
                     }
                     let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
                     }
                     let call = CallExpr(range: range, calleeName: calleeName, args: callArgs, explicitTypeArgs: explicitTypeArgs)
                     let resolved = ctx.resolver.resolveCall(
@@ -2113,6 +2113,7 @@ extension CallTypeChecker {
         }
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: {
@@ -2222,7 +2223,7 @@ extension CallTypeChecker {
             var extensionCandidates = receiverMatchingExtensions(ctx.scope.lookup(calleeName))
             if extensionCandidates.isEmpty || ctx.resolver.probeCall(
                 candidates: extensionCandidates,
-                call: CallExpr(range: range, calleeName: calleeName, args: preparedArgs.argTypes.map { CallArg(type: $0) }),
+                call: CallExpr(range: range, calleeName: calleeName, args: zip(args, preparedArgs.argTypes).map { CallArg.source($0.0, type: $0.1, callRange: range, ast: ctx.ast) }),
                 expectedType: expectedType,
                 implicitReceiverType: receiverForExtensionLookup,
                 ctx: ctx.semaCtx
@@ -2232,6 +2233,7 @@ extension CallTypeChecker {
             if !extensionCandidates.isEmpty {
                 let extensionArgs = prepareCallArguments(
                     args: args,
+                    callRange: range,
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                     contextualCallResultType: expectedType,
@@ -3270,6 +3272,7 @@ extension CallTypeChecker {
         }
         let preparedArgs = prepareCallArguments(
             args: args,
+            callRange: range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
             expectedTypeOverrides: {

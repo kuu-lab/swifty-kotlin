@@ -546,7 +546,7 @@ extension CallTypeChecker {
             guard !candidates.isEmpty else { return false }
 
             let callArgs: [CallArg] = args.map { arg in
-                CallArg(label: arg.label, isSpread: arg.isSpread, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType)
+                CallArg.source(arg, type: sema.bindings.exprTypes[arg.expr] ?? sema.types.anyType, callRange: range, ast: ctx.ast)
             }
             let callExpr = CallExpr(range: range, calleeName: calleeName, args: callArgs)
             let resolved = OverloadResolver().resolveCall(
