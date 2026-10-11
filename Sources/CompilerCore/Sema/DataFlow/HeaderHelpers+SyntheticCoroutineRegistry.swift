@@ -1225,7 +1225,6 @@ extension DataFlowSemaPhase {
 
         let coroutineContextKeyTypeParamBound = coroutineContextElementType
 
-        // CoroutineContext.get(key: Key<E>): E?
         do {
             let functionName = interner.intern("get")
             let functionFQName = coroutineContextFQName + [functionName]
@@ -1287,7 +1286,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // CoroutineContext.fold(initial: R, operation: (R, Element) -> R): R
         do {
             let functionName = interner.intern("fold")
             let functionFQName = coroutineContextFQName + [functionName]
@@ -1357,7 +1355,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // CoroutineContext.minusKey(key: Key<*>): CoroutineContext
         do {
             let functionName = interner.intern("minusKey")
             let functionFQName = coroutineContextFQName + [functionName]
@@ -1503,7 +1500,6 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName("kk_exception_handler_key", for: cehKeySymbol)
         }
 
-        // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
         if !symbols.isSourceBackedSymbol(dispatcherSymbol) {
             symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
             types.setNominalDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
@@ -1566,7 +1562,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Flow builders
         registerSyntheticCoroutineTopLevelFunction(
             named: "flow",
             packageFQName: flowPkg,
@@ -1706,7 +1701,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // CoroutineContext.plus(other: CoroutineContext): CoroutineContext
         if !bundledIndex.contains(
             ownerFQName: coroutineContextFQName,
             name: interner.intern("plus"),
@@ -2216,7 +2210,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
         // demoted __kk_mutex_create bridge.
 
-        // Mutex.lock() suspend
         registerSyntheticCoroutineMember(
             ownerSymbol: mutexSymbol,
             ownerType: mutexType,
@@ -2243,7 +2236,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Mutex.unlock()
         registerSyntheticCoroutineMember(
             ownerSymbol: mutexSymbol,
             ownerType: mutexType,
@@ -2298,7 +2290,6 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
         // demoted __kk_semaphore_create bridge.
 
-        // Semaphore.acquire() suspend
         registerSyntheticCoroutineMember(
             ownerSymbol: semaphoreSymbol,
             ownerType: semaphoreType,
@@ -2310,7 +2301,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Semaphore.release()
         registerSyntheticCoroutineMember(
             ownerSymbol: semaphoreSymbol,
             ownerType: semaphoreType,
