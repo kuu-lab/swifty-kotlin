@@ -10,7 +10,7 @@ struct BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedBuildKIRCtx = Result<CompilationContext, any Error> {
+    private static let _sharedBuildKIRCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package buildkir.raw0
@@ -87,7 +87,7 @@ struct BuildKIRRegressionTests {
     /// parallel tests share a single compile. The previous check-then-set over
     /// a mutable static allowed concurrent tests to each miss the cache and
     /// re-pay the bundled-stdlib compile.
-    private static nonisolated(unsafe) let _sharedBuildKIRLoweredCtx = Result<CompilationContext, any Error> {
+    private static let _sharedBuildKIRLoweredCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package buildkir.lower0
