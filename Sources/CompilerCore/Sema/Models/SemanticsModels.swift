@@ -1159,54 +1159,42 @@ public final class SymbolTable {
         (directSubtypesIndex[symbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
-    /// CLASS-008: Record that a class delegates to an interface.
     public func addDelegatedInterface(_ interfaceSymbol: SymbolID, forClass classSymbol: SymbolID) {
         delegatedInterfacesByClass[classSymbol, default: []].insert(interfaceSymbol)
     }
 
-    /// CLASS-008: Return the interface symbols that a class delegates to in a stable order.
     public func delegatedInterfaces(forClass classSymbol: SymbolID) -> [SymbolID] {
         (delegatedInterfacesByClass[classSymbol] ?? []).sorted(by: { $0.rawValue < $1.rawValue })
     }
 
-    /// CLASS-008: Map from (classSymbol, interfaceSymbol) to the delegate field symbol.
     private var classDelegationFieldByClassAndInterface: [SymbolID: [SymbolID: SymbolID]] = [:]
 
-    /// CLASS-008: Record the delegate field symbol for a class delegating to an interface.
     public func setClassDelegationField(
         _ fieldSymbol: SymbolID, forClass classSymbol: SymbolID, interface interfaceSymbol: SymbolID
     ) {
         classDelegationFieldByClassAndInterface[classSymbol, default: [:]][interfaceSymbol] = fieldSymbol
     }
 
-    /// CLASS-008: Get the delegate field symbol for a class delegating to an interface.
     public func classDelegationField(forClass classSymbol: SymbolID, interface interfaceSymbol: SymbolID) -> SymbolID? {
         classDelegationFieldByClassAndInterface[classSymbol]?[interfaceSymbol]
     }
 
-    /// CLASS-008: Map from (classSymbol, interfaceSymbol) to the delegate expression DeclID for lowering.
     private var classDelegationExprByClassAndInterface: [SymbolID: [SymbolID: ExprID]] = [:]
 
-    /// CLASS-008: Record the delegate expression for a class delegating to an interface.
     public func setClassDelegationExpr(
         _ exprID: ExprID, forClass classSymbol: SymbolID, interface interfaceSymbol: SymbolID
     ) {
         classDelegationExprByClassAndInterface[classSymbol, default: [:]][interfaceSymbol] = exprID
     }
 
-    /// CLASS-008: Get the delegate expression for a class delegating to an interface.
     public func classDelegationExpr(forClass classSymbol: SymbolID, interface interfaceSymbol: SymbolID) -> ExprID? {
         classDelegationExprByClassAndInterface[classSymbol]?[interfaceSymbol]
     }
 
-    /// CLASS-008: Synthetic forwarding method symbols created for class delegation.
-    /// Maps forwarding method symbol -> (interfaceSymbol, interfaceMethodSymbol, fieldSymbol).
     private var classDelegationForwardingMethodInfo: [SymbolID: (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
 
-    /// CLASS-008: Per-class list of synthetic forwarding method symbols.
     private var classDelegationForwardingMethodsByClass: [SymbolID: [SymbolID]] = [:]
 
-    /// CLASS-008: Record a synthetic forwarding method for class delegation.
     public func addClassDelegationForwardingMethod(
         _ forwardingSymbol: SymbolID,
         forClass classSymbol: SymbolID,
@@ -1218,24 +1206,18 @@ public final class SymbolTable {
         classDelegationForwardingMethodsByClass[classSymbol, default: []].append(forwardingSymbol)
     }
 
-    /// CLASS-008: Get synthetic forwarding method symbols for a class.
     public func classDelegationForwardingMethodSymbols(forClass classSymbol: SymbolID) -> [SymbolID] {
         classDelegationForwardingMethodsByClass[classSymbol] ?? []
     }
 
-    /// CLASS-008: Get the info needed to emit the forwarding body for a synthetic method.
     public func classDelegationForwardingMethodInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfaceMethodSymbol: SymbolID, fieldSymbol: SymbolID)? {
         classDelegationForwardingMethodInfo[forwardingSymbol]
     }
 
-    /// CLASS-008: Synthetic forwarding property symbols created for class delegation.
-    /// Maps forwarding property symbol -> (interfaceSymbol, interfacePropertySymbol, fieldSymbol).
     private var classDelegationForwardingPropertyInfo: [SymbolID: (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)] = [:]
 
-    /// CLASS-008: Per-class list of synthetic forwarding property symbols.
     private var classDelegationForwardingPropertiesByClass: [SymbolID: [SymbolID]] = [:]
 
-    /// CLASS-008: Record a synthetic forwarding property for class delegation.
     public func addClassDelegationForwardingProperty(
         _ forwardingSymbol: SymbolID,
         forClass classSymbol: SymbolID,
@@ -1247,12 +1229,10 @@ public final class SymbolTable {
         classDelegationForwardingPropertiesByClass[classSymbol, default: []].append(forwardingSymbol)
     }
 
-    /// CLASS-008: Get synthetic forwarding property symbols for a class.
     public func classDelegationForwardingPropertySymbols(forClass classSymbol: SymbolID) -> [SymbolID] {
         classDelegationForwardingPropertiesByClass[classSymbol] ?? []
     }
 
-    /// CLASS-008: Get the info needed to emit the forwarding body for a synthetic property.
     public func classDelegationForwardingPropertyInfo(for forwardingSymbol: SymbolID) -> (interfaceSymbol: SymbolID, interfacePropertySymbol: SymbolID, fieldSymbol: SymbolID)? {
         classDelegationForwardingPropertyInfo[forwardingSymbol]
     }
