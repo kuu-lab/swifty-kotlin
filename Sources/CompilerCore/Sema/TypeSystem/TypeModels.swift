@@ -24,7 +24,6 @@ public enum PrimitiveType: String, Hashable, Sendable {
 }
 
 public extension PrimitiveType {
-    /// The Kotlin source-level name for this primitive type.
     var kotlinName: String {
         switch self {
         case .boolean: "Boolean"
@@ -159,7 +158,6 @@ public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
 
 /// Represents `kotlin.reflect.KClass<T>`, the type of `T::class` expressions.
 public struct KClassType: Hashable, Sendable {
-    /// The type argument `T` — the class being referenced.
     public let argument: TypeID
     public let nullability: Nullability
 
