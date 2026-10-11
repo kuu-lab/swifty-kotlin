@@ -526,7 +526,9 @@ extension CodegenRuntimeSupport {
         guard _NSGetExecutablePath(&buffer, &length) == 0 else {
             return nil
         }
-        return URL(fileURLWithPath: String(cString: buffer))
+        return buffer.withUnsafeBufferPointer {
+            URL(fileURLWithPath: String(cString: $0.baseAddress!))
+        }
 #elseif os(Linux)
         return URL(fileURLWithPath: "/proc/self/exe").resolvingSymlinksInPath()
 #else
