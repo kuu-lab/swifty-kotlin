@@ -178,9 +178,7 @@ public enum StdlibSpecialCallKind: Equatable {
 /// or a property, so that KIR lowering can emit the correct KFunction /
 /// KProperty type identity metadata (REFL-003).
 public enum CallableRefKind: Equatable {
-    /// `::functionName` — produces a KFunction reference.
     case functionRef
-    /// `::propertyName` — produces a KProperty reference.
     case propertyRef
 }
 
