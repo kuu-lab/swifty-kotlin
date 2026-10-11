@@ -75,9 +75,9 @@ public fun Buffer.asByteChannel(): ByteChannel = object : ByteChannel {
     override fun read(sink: ByteBuffer): Int = readAtMostTo(sink)
 
     override fun write(source: ByteBuffer): Int {
-        val sizeBefore = size
+        val byteCount = source.remaining()
         transferFrom(source)
-        return (size - sizeBefore).toInt()
+        return byteCount
     }
 
     override fun close() {}
