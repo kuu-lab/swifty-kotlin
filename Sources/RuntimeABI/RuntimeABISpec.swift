@@ -100,6 +100,7 @@ public enum RuntimeABISpec {
         abiParityFunctions,
         arrayFunctions,
         atomicFunctions,
+        atomicfuSynchronizationFunctions,
         base64Functions,
         bitwiseFunctions,
         booleanFunctions,

@@ -124,6 +124,7 @@ let package = Package(
             exclude: [
                 "GoldenCases",
                 "Klib/Fixtures",
+                "Fixtures/Atomicfu",
             ]
         ),
         .testTarget(
