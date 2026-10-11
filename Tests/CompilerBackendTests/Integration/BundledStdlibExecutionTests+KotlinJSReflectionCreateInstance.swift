@@ -22,6 +22,9 @@ extension BundledStdlibExecutionTests {
             }
             class SideEffectDefault(val value: Int = nextDefaultValue())
             class RequiredConstructor(val value: Int)
+            class MultipleEligibleConstructors(val value: Int = 7) {
+                constructor() : this(42)
+            }
 
             fun main() {
                 println(ExportedBox::class.createInstance().value)
@@ -32,7 +35,7 @@ extension BundledStdlibExecutionTests {
                 println(defaultEvaluationCount)
 
                 val createInstanceReference = ExportedBox::class::createInstance
-                println(createInstanceReference.name)
+                println("${ExportedBox::class.simpleName}:${createInstanceReference.name}:${ExportedBox::class.createInstance().value}")
 
                 try {
                     RequiredConstructor::class.createInstance()
@@ -40,9 +43,16 @@ extension BundledStdlibExecutionTests {
                 } catch (error: IllegalArgumentException) {
                     println("required:rejected")
                 }
+
+                try {
+                    MultipleEligibleConstructors::class.createInstance()
+                    println("multiple:unexpected")
+                } catch (error: IllegalArgumentException) {
+                    println("multiple:rejected")
+                }
             }
             """,
-            expectedOutput: "7\n42\n41\n1\n42\n2\ncreateInstance\nrequired:rejected\n",
+            expectedOutput: "7\n42\n41\n1\n42\n2\nExportedBox:createInstance:7\nrequired:rejected\nmultiple:rejected\n",
             moduleName: "KotlinJSReflectionCreateInstance",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
