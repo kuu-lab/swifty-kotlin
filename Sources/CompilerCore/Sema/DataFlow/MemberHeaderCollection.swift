@@ -1117,7 +1117,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Value class validation: must have exactly one primary constructor parameter
             if isValueClassDeclaration(nestedClass) {
                 symbols.insertFlags(.valueType, for: nestedSymbol)
                 let valParams = nestedClass.primaryConstructorParams
@@ -1298,7 +1297,6 @@ extension DataFlowSemaPhase {
                     interner: interner
                 )
             } else if nestedClassKind == .enumClass {
-                // Synthesize implicit companion for enum classes (valueOf, entries)
                 let companionName = interner.intern("Companion")
                 let companionFQName = nestedFQName + [companionName]
                 let companionSymbol = symbols.define(
@@ -1535,10 +1533,6 @@ extension DataFlowSemaPhase {
             )
         }
     }
-
-    // Collects companion object header: creates the companion symbol, links it to the owner class,
-    // and registers companion members under the companion's fully qualified name. Resolution of
-    // `ClassName.memberName` to companion members is handled separately by the call/type checker.
 
     /// Returns a synthetic member function placeholder with the same fully-qualified
     /// name and parent, so bundled source declarations can claim pre-registered
