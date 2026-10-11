@@ -296,6 +296,26 @@ struct LLVMOptimizationRegressionTests {
     }
 
     @Test(arguments: [0, 2])
+    func reflectedStringVarargsRetainArrayABI(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("annotation_vararg_reflection.kt"),
+            moduleName: "ReflectedStringVarargABI",
+            expected: "label\n2\nb\n3\n5\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func boxedChannelCloseCallbackExpandsItsNamedABIPair(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("channel_boxed_close_callback.kt"),
+            moduleName: "BoxedChannelCloseCallbackABI",
+            expected: "true\ntrue\n1\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
     func branchingSuspendStateMachineRemainsValidAtEachOptimizationLevel(optimization: Int) throws {
         let source = """
         import kotlin.coroutines.*

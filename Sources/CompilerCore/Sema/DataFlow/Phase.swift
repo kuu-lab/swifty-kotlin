@@ -611,7 +611,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         validateSealedHierarchy(
             ast: ast, symbols: symbols, bindings: bindings,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
+            diagnostics: ctx.diagnostics, interner: ctx.interner, sourceManager: ctx.sourceManager
         )
         validateClassDelegation(
             ast: ast, symbols: symbols, bindings: bindings, types: types,

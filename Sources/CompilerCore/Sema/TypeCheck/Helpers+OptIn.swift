@@ -330,8 +330,9 @@ extension TypeCheckHelpers {
         }
 
         let supertypeName = renderSymbolName(supertype, ctx: ctx)
+        let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
         let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
-            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'."
+            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
         switch requirement.level {
         case .warning:
             diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)
