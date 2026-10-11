@@ -1,0 +1,61 @@
+initial:0:0:0:0:0
+shared:0:1:0:0:0:0:355
+drained:0:0:0:0
+initial:1:1:267:267:267
+get:1:0:11:11
+get:1:0:11:11
+get:1:0:11:11
+shared:1:2:1:267:267:267:68974
+drained:1:0:0:0
+initial:8191:8191:952277012:952277012:952277012
+get:8191:0:11:11
+get:8191:4095:-83:-83
+get:8191:8190:84:84
+shared:8191:4097:8191:952277012:952277012:952277012:307731405
+drained:8191:0:0:0
+initial:8192:8192:735190753:735190753:735190753
+get:8192:0:11:11
+get:8192:4096:-46:-46
+get:8192:8191:121:121
+shared:8192:4097:8192:735190753:735190753:735190753:438984567
+drained:8192:0:0:0
+initial:8193:8193:944022363:944022363:944022363
+get:8193:0:11:11
+get:8193:4096:-46:-46
+get:8193:8192:-98:-98
+shared:8193:4098:8193:944022363:944022363:944022363:818982661
+drained:8193:0:0:0
+initial:16385:16385:748313161:748313161:748313161
+get:16385:0:11:11
+get:16385:8192:-98:-98
+get:16385:16384:54:54
+shared:16385:8194:16385:748313161:748313161:748313161:367742650
+drained:16385:0:0:0
+head-tail:8194:121:-98:11:121:586671561
+refill:1:42:0
+self-copy:5:[1, 2, 3, 2, 3]
+self-write:ARGUMENT:3
+move:2:8194:8193:40870:932723196:944022363
+partial:3:0:[77, 1, 2, 3, 77]
+eof:-1:[77, 1, 2, 3, 77]
+zero-empty:-1:-1
+zero-nonempty:0:0:1
+skip-eof:EOF:0
+write-eof:EOF:0:[4, 5, 6]
+throw-root:true:3:[1, 2]:[3, 4, 5]
+get-invalid:-1:BOUNDS:BOUNDS:3
+get-invalid:-9223372036854775808:BOUNDS:BOUNDS:3
+get-invalid:3:BOUNDS:BOUNDS:3
+get-invalid:9223372036854775807:BOUNDS:BOUNDS:3
+copy-invalid:BOUNDS:ARGUMENT:BOUNDS:3
+skip-invalid:ARGUMENT:3
+search:8191:-1:8190:0:8194
+write-context:0:true
+read-context:0:true:55
+iteration-context:0:true:true:true
+unsafe-state:0:1:55:0
+write-context:1:true
+read-context:1:true:55
+iteration-context:1:true:true:true
+unsafe-state:1:1:55:0
+done
