@@ -1,0 +1,158 @@
+name: Kotlinx IO Apple candidate focused gates
+
+# Six Apple IO APIs only; no nightly/full-catalog or official reference reruns.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/kotlinx-io-apple-candidate.yml
+      - .github/actions/setup-swift/**
+      - Package.swift
+      - Package.resolved
+      - Scripts/swift_test.sh
+      - Scripts/lib/common.sh
+      - Scripts/kotlinx_io_upstream/apple/**
+      - Sources/CompilerCore/Stdlib/kotlinx/cinterop/Apple*.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/cinterop/CValuesRef.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/io/Apple*.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/io/BuffersApple.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/io/SinksApple.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/io/SourcesApple.kt
+      - Sources/CompilerCore/Stdlib/kotlinx/io/bytestring/ByteStringApple.kt
+      - Sources/CompilerCore/Stdlib/platform/Foundation/**
+      - Sources/CompilerCore/Stdlib/platform/CoreFoundation/**
+      - Sources/CompilerCore/Stdlib/platform/darwin/**
+      - Sources/CompilerCore/Stdlib/platform/posix/AppleMemory.kt
+      - Sources/Runtime/RuntimeAppleFoundation*.swift
+      - Sources/Runtime/RuntimeForeignResources.swift
+      - Sources/Runtime/RuntimeGC.swift
+      - Sources/Runtime/RuntimeObjectOwnership.swift
+      - Sources/Runtime/RuntimeTypes.swift
+      - Sources/RuntimeABI/RuntimeABISpec+AppleFoundation.swift
+      - Sources/RuntimeABI/RuntimeABISpec.swift
+      - Tests/CompilerCoreTests/Sema/IOAppleAPIContractTests.swift
+      - Tests/RuntimeTests/RuntimeAppleFoundationTests.swift
+      - Tests/CompilerBackendTests/Integration/IOAppleInteropExecutionTests.swift
+      - Tests/CompilerBackendTests/Fixtures/IOApple1763/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Each PR push gets fresh inputs; no privileged pull_request_target execution.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  apple-candidate:
+    name: Darwin SDK and Apple IO focused candidate
+    runs-on: macos-26
+    # Existing runner bounds: build 300 + Core 1200 + Runtime 900 + Backend
+    # 3600 seconds. Leave setup/upload margin; retried wrapper runs cannot pass the audit.
+    timeout-minutes: 120
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      KSWIFTK_IO1763_RECEIPT_DIRECTORY: ${{ github.workspace }}/apple-candidate-receipts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select an installed full Xcode that actually provides Swift 6.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p apple-candidate-receipts
+          python3 - <<'PY'
+          import glob, json, pathlib, re, subprocess
+          active = subprocess.check_output(["xcode-select", "--print-path"], text=True).strip()
+          candidates = list(dict.fromkeys([active] + sorted(
+              glob.glob("/Applications/Xcode*.app/Contents/Developer"), reverse=True)))
+          observed = []
+          selected = None
+          for developer in candidates:
+              swift = pathlib.Path(developer) / "Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
+              row = {"developer_dir": developer, "swift": str(swift), "exists": swift.is_file()}
+              if swift.is_file():
+                  result = subprocess.run([str(swift), "--version"], text=True,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+                  row.update(exit=result.returncode, stdout=result.stdout, stderr=result.stderr)
+                  match = re.search(r"Swift version ([0-9]+\.[0-9]+)(?:\.|\s|$)", result.stdout)
+                  if result.returncode == 0 and match and match.group(1) == "6.3" and selected is None:
+                      selected = developer
+              observed.append(row)
+          pathlib.Path("apple-candidate-receipts/xcode-candidates.json").write_text(
+              json.dumps({"required_swift": "6.3", "selected": selected, "observed": observed}, indent=2) + "\n")
+          if selected is None:
+              raise SystemExit("No installed full Xcode provides required Swift 6.3; no candidate gate started")
+          pathlib.Path("apple-candidate-receipts/selected-developer-dir.txt").write_text(selected + "\n")
+          PY
+          selected_developer_dir="$(cat apple-candidate-receipts/selected-developer-dir.txt)"
+          sudo xcode-select --switch "$selected_developer_dir"
+      - name: Verify selected Swift 6.3 toolchain
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Configure actual Darwin SDK, modern Bash and LLVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install bash grep llvm
+          bash_prefix="$(brew --prefix bash)"
+          llvm_prefix="$(brew --prefix llvm)"
+          grep_prefix="$(brew --prefix grep)"
+          "$bash_prefix/bin/bash" -c '(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3) ))'
+          llvm_dylib="$llvm_prefix/lib/libLLVM.dylib"
+          [[ -f "$llvm_dylib" ]]
+          sdkroot="$(xcrun --sdk macosx --show-sdk-path)"
+          [[ -d "$sdkroot/System/Library/Frameworks/Foundation.framework" ]]
+          [[ -d "$sdkroot/System/Library/Frameworks/CoreFoundation.framework" ]]
+          {
+            echo "$bash_prefix/bin"
+            echo "$grep_prefix/libexec/gnubin"
+            echo "$llvm_prefix/bin"
+          } >> "$GITHUB_PATH"
+          {
+            echo "SDKROOT=$sdkroot"
+            echo "KSWIFTK_LLVM_DYLIB=$llvm_dylib"
+            echo "C_INCLUDE_PATH=$llvm_prefix/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+            echo "LIBRARY_PATH=$llvm_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          } >> "$GITHUB_ENV"
+          sw_vers > apple-candidate-receipts/host.txt
+          uname -a > apple-candidate-receipts/uname.txt
+          xcodebuild -version > apple-candidate-receipts/xcode.txt
+          xcrun --sdk macosx --show-sdk-version > apple-candidate-receipts/sdk-version.txt
+          printf '%s\n' "$sdkroot" > apple-candidate-receipts/sdk-path.txt
+          swift --version > apple-candidate-receipts/swift.txt
+          python3 --version > apple-candidate-receipts/python.txt
+          "$llvm_prefix/bin/clang" --version > apple-candidate-receipts/clang.txt
+          "$bash_prefix/bin/bash" --version > apple-candidate-receipts/bash.txt
+          "$llvm_prefix/bin/llvm-config" --version > apple-candidate-receipts/llvm-version.txt
+          "$grep_prefix/libexec/gnubin/grep" --version > apple-candidate-receipts/grep.txt
+          brew info --json=v2 bash grep llvm > apple-candidate-receipts/homebrew-toolchains.json
+          git rev-parse HEAD > apple-candidate-receipts/head.txt
+          git status --porcelain=v1 > apple-candidate-receipts/status.before.txt
+          python3 - "$llvm_dylib" "$bash_prefix/bin/bash" "$(command -v swift)" <<'PY'
+          import hashlib, json, pathlib, sys
+          def record(raw):
+              path = pathlib.Path(raw).resolve()
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return {"requested_path": raw, "resolved_path": str(path),
+                  "bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+          pathlib.Path("apple-candidate-receipts/toolchain-binaries.json").write_text(
+              json.dumps([record(raw) for raw in sys.argv[1:]], indent=2) + "\n")
+          PY
+      - name: Fresh build and exact focused gates, sequential ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -c '(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3) ))'
+          python3 Scripts/kotlinx_io_upstream/apple/run_candidate.py --receipts apple-candidate-receipts
+          python3 Scripts/kotlinx_io_upstream/apple/verify_candidate_receipts.py --receipts apple-candidate-receipts
+      - name: Preserve raw failures, SDK inputs and successful scoped proofs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: io-apple-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apple-candidate-receipts
+          if-no-files-found: error

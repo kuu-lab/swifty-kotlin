@@ -1,0 +1,43 @@
+{
+  "status": "PINNED_NATIVE_REFERENCE_ONLY;CANDIDATE_NOT_RUN",
+  "upstream": "362bdc35e159bad6da1e08101c8321792d762281",
+  "source_hashes": {
+    "ByteStringAppleTest.kt": "b6ffbc2c746d7ca84631836288e3a7d55c961bc62d86f5c76feb1762e3c7008b",
+    "NSInputStreamSourceTest.kt": "b880f9fc9184d6e9a2f3d5d2a23087400974b8cfe5750e28c5657cbbff1c37e4",
+    "NSOutputStreamSinkTest.kt": "f1834d7f5d8296b6ded9d6ca30f469b093989536d4a30e3ff9d97f1212a8a1f2",
+    "SinkNSOutputStreamTest.kt": "ff2855af7bbdcb6019dd7058a43f5be5131167f462cbc3c74e15be3cec56ccf8",
+    "SourceNSInputStreamTest.kt": "43a89b9da18660b41d6fc996937a2b9cb5bd5cb01128a8076ebd370e547ef7f0",
+    "utilApple.kt": "0b47e570260b8b6a5ed83311af27a85a6c5b4f31ff534c877067060703c524e5",
+    "SegmentHelpers.kt": "cb69f026857698fcaa5dc96049e43fdd063af38cef0d66ce2d7cb98c864dd588",
+    "TempFileHelper.kt": "472a2979514fdba96caace8cf36126bb577ae1312a97f46faef3d3ea4b12f7d7",
+    "AtomicfuTestSupport.kt": "f963b265856af2f3da94f980f2ba4f65b63ef6c4a1580d837133ec03da5da71e",
+    "AtomicfuLockTestSupport.kt": "c4ed61ecb3187d91185ecca554a7da5083cd633da041d8b8866bfc3c807a955b",
+    "OriginalConsumer.kt": "9a377658e57496edbe856a5b032e9cf51551529e2b7f02ee9af88f824c9875e3"
+  },
+  "expected_sha256": "be43c426d9215845e9348f90de53318b9637e2aa65bc9a093c7f6855fd7a3f4d",
+  "expected_kind": "derived begin/pass guards over unchanged original bodies",
+  "producer": [
+    "ByteStringAppleTest.kt",
+    "NSInputStreamSourceTest.kt",
+    "NSOutputStreamSinkTest.kt",
+    "SinkNSOutputStreamTest.kt",
+    "SourceNSInputStreamTest.kt",
+    "utilApple.kt",
+    "SegmentHelpers.kt",
+    "TempFileHelper.kt",
+    "AtomicfuTestSupport.kt",
+    "AtomicfuLockTestSupport.kt"
+  ],
+  "consumer": "OriginalConsumer.kt",
+  "expected": "originals.expected.stdout",
+  "entry": "kuu1763originalconsumer.main",
+  "methods": 25,
+  "original_body_changes": 0,
+  "atomicfu_adapter": "test-only delegates to real kotlin.concurrent.atomics.AtomicInt + Foundation NSRecursiveLock; no full Atomicfu coverage claim",
+  "helper_whitespace_derivative": {
+    "SegmentHelpers.kt": {
+      "original_preparation_sha256": "c0245e2da0e4ae413c6b96729cdd3729ff8a896850f752eea388f10dbb64a8f4",
+      "change": "One final blank line removed for strict whitespace validation; all helper statements and 25 original bodies unchanged"
+    }
+  }
+}

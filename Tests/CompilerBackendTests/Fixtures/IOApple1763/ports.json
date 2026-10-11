@@ -1,0 +1,37 @@
+[
+  {
+    "file": "ByteStringAppleTest.kt",
+    "original_sha256": "db1e588c7bb7d5a8299602111c43a51b3ad353ad49d05b5b2058f9304d1c527a",
+    "port_sha256": "b6ffbc2c746d7ca84631836288e3a7d55c961bc62d86f5c76feb1762e3c7008b",
+    "body_changes": 0,
+    "change": "file visibility escape only; equivalent to pinned tests friend-module access"
+  },
+  {
+    "file": "NSInputStreamSourceTest.kt",
+    "original_sha256": "8d9cc441568543fdbf35edbffd31ec64c243156baf539664f9825d2d48c3a533",
+    "port_sha256": "b880f9fc9184d6e9a2f3d5d2a23087400974b8cfe5750e28c5657cbbff1c37e4",
+    "body_changes": 0,
+    "change": "file visibility escape only; equivalent to pinned tests friend-module access"
+  },
+  {
+    "file": "NSOutputStreamSinkTest.kt",
+    "original_sha256": "834c8aedacbf91b32c1e147c966a88fa4cb81503dbe2175b111b9cba95c828df",
+    "port_sha256": "f1834d7f5d8296b6ded9d6ca30f469b093989536d4a30e3ff9d97f1212a8a1f2",
+    "body_changes": 0,
+    "change": "file visibility escape only; equivalent to pinned tests friend-module access"
+  },
+  {
+    "file": "SinkNSOutputStreamTest.kt",
+    "original_sha256": "3794605c9d61316bc4a47c92bc1070a1a2f5a7c1c2176cf131e02b995c81876c",
+    "port_sha256": "ff2855af7bbdcb6019dd7058a43f5be5131167f462cbc3c74e15be3cec56ccf8",
+    "body_changes": 0,
+    "change": "file visibility escape only; equivalent to pinned tests friend-module access"
+  },
+  {
+    "file": "SourceNSInputStreamTest.kt",
+    "original_sha256": "3e28345e7b58b20279b0dd5683f47bbd98f36af0bd3800f735f26358a98189ef",
+    "port_sha256": "43a89b9da18660b41d6fc996937a2b9cb5bd5cb01128a8076ebd370e547ef7f0",
+    "body_changes": 0,
+    "change": "file visibility escape only; equivalent to pinned tests friend-module access"
+  }
+]

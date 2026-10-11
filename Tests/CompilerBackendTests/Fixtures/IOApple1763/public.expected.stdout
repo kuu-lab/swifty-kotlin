@@ -1,0 +1,9 @@
+copy: true
+source: true
+sink: true
+read failure: true
+short write: true
+zero write: true
+write failure: true
+done
+done

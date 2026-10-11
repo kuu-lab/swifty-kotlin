@@ -54,6 +54,8 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     }
 
     let key = UInt(bitPattern: pointer)
+    let foreignResources = runtimeForeignResourcesTakeForReleasedOwner(rawValue)
+    defer { withExtendedLifetime(foreignResources) {} }
     removeRuntimeObjectMetadata(forObjectKey: key)
     runtimeForgetFrozenObject(rawValue)
     // Primitive box handles are tagged (kk_box_* / registerTaggedPrimitiveBox):

@@ -306,6 +306,20 @@ class RuntimeArrayBox {
     private final class Storage {
         var values: [RuntimeValue]
         var componentType: Int?
+        // Allocated only by the typed Pinned<ByteArray>.addressOf bridge. Same
+        // storage is shared by primitive views. All Kotlin reads/writes below
+        // reconcile with this stable byte buffer while it exists.
+        var nativeBytes: UnsafeMutableBufferPointer<UInt8>?
+        deinit { nativeBytes?.deallocate() }
+        func pullBytes() {
+            guard let bytes = nativeBytes else { return }
+            for i in values.indices { values[i] = RuntimeValue(raw: Int(Int8(bitPattern: bytes[i]))) }
+        }
+        func pushBytes() {
+            guard let bytes = nativeBytes else { return }
+            precondition(bytes.count == values.count)
+            for i in values.indices { bytes[i] = UInt8(truncatingIfNeeded: values[i].legacyRawValue) }
+        }
         // Canonical handles preserve identity when views are repeated or reversed.
         var viewHandles: [Int64: Int] = [:]
         let viewLock = NSLock()
@@ -319,19 +333,23 @@ class RuntimeArrayBox {
 
     var values: [RuntimeValue] {
         get {
-            storage.values
+            storage.pullBytes()
+            return storage.values
         }
         set {
             storage.values = newValue
+            storage.pushBytes()
         }
     }
 
     var elements: [Int] {
         get {
-            storage.values.map(\.legacyRawValue)
+            storage.pullBytes()
+            return storage.values.map(\.legacyRawValue)
         }
         set {
             storage.values = newValue.map { RuntimeValue(raw: $0) }
+            storage.pushBytes()
         }
     }
 
@@ -339,8 +357,12 @@ class RuntimeArrayBox {
     /// `elements` materializes the whole array on every get/set, making per-index
     /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
-        get { storage.values[index].legacyRawValue }
+        get {
+            if let bytes = storage.nativeBytes { return Int(Int8(bitPattern: bytes[index])) }
+            return storage.values[index].legacyRawValue
+        }
         set {
+            if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: newValue) }
             storage.values[index] = RuntimeValue(
                 raw: newValue,
                 anyFallbackTag: storage.values[index].anyFallbackTag
@@ -351,11 +373,22 @@ class RuntimeArrayBox {
     /// Stores a raw field value together with the static tag needed by
     /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
+        if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value) }
         storage.values[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
     }
 
     func setValue(_ value: RuntimeValue, at index: Int) {
+        if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value.legacyRawValue) }
         storage.values[index] = runtimeValuePreservingAnyFallbackTag(value, existing: storage.values[index])
+    }
+
+    func nativeByteAddress(at index: Int) -> UnsafeMutablePointer<UInt8>? {
+        guard index >= 0, index < count else { return nil }
+        if storage.nativeBytes == nil {
+            storage.nativeBytes = .allocate(capacity: count)
+            storage.pushBytes()
+        }
+        return storage.nativeBytes?.baseAddress?.advanced(by: index)
     }
 
     var count: Int {

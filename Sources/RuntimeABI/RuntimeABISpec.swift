@@ -98,6 +98,7 @@ public enum RuntimeABISpec {
     /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
+        appleFoundationFunctions,
         arrayFunctions,
         atomicFunctions,
         base64Functions,

@@ -1097,3 +1097,24 @@ arrays and cannot construct omitted reference-vararg arrays from this metadata.
 Valid descriptors, reified component slots, primitive arrays, optional default
 masks and the existing private runtime ABI signatures are unchanged. Direct
 metadata controls and invocation counters remain proposed until executed.
+
+
+### KUU-1763 Apple IO draft bridge admission
+
+This proposed Apple-only SDK surface adds 43 private `__kk_foundation_*`
+entry points. Reasons: OS/SDK syscall dispatch, native byte/pointer memory
+representation and GC/ARC callback leases. The six public IO extension bodies
+and stream state/segment logic stay Kotlin. RuntimeABISpec registers all
+signatures in appleFoundationFunctions; canonical specVersion changes
+computationally. No public Kotlin IO behavior is moved into a Swift collection
+or stream model. ByteArray storage creates a native mirror only on typed
+addressOf, and all Kotlin array access paths reconcile it.
+
+SDK retention follows the existing owner's lifecycle: kk_alloc owners sweep,
+retained RuntimeObjectBox owners explicitly release. This is not an automatic
+boxed-object GC or general ObjC importer implementation. Strict SDK type/ABI
+checks and six Source/library/producer-consumer O0/O2 lanes remain unexecuted.
+No KUU-1763 API/test state may become VERIFIED based on this draft. CF opaque
+pointee typing, general foreign-object ingress/subclass protocol import, and
+cross-GC/ARC cycles remain documented review dependencies. The prepared macOS
+workflow is PR-triggered and also permits manual dispatch; no candidate execution is claimed.

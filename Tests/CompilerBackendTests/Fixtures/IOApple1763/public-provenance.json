@@ -1,0 +1,21 @@
+{
+  "status": "NEW_PUBLIC_CONTRACT_STATIC_EXPECTATIONS;CANDIDATE_NOT_RUN;NO_NEW_REFERENCE_RUN",
+  "upstream": "362bdc35e159bad6da1e08101c8321792d762281",
+  "source_hashes": {
+    "PublicProducer.kt": "d4d11dcc9158a195c88dad4f31441ecc00606eb0b26baa471338cab33987555e",
+    "ErrorAndPartialContracts.kt": "681682d0df8538e59b4e39c57a256ff17a6111cf5d9f65d088fb7193c7236a2b",
+    "PublicConsumer.kt": "8f9aa8e9f78f6524622500b8da31c3156972c9efa8000576098c28f0c1ff7a7f"
+  },
+  "expected_sha256": "32c5da9cc770ba636ae51cc95c19a4010254bbe916a77fa6df2e097a2e6fcf30",
+  "expected_kind": "explicit new assertions; not upstream execution replacement",
+  "producer": [
+    "PublicProducer.kt",
+    "ErrorAndPartialContracts.kt"
+  ],
+  "consumer": "PublicConsumer.kt",
+  "expected": "public.expected.stdout",
+  "entry": "kuu1763publicconsumer.main",
+  "methods": null,
+  "original_body_changes": 0,
+  "atomicfu_adapter": "test-only delegates to real kotlin.concurrent.atomics.AtomicInt + Foundation NSRecursiveLock; no full Atomicfu coverage claim"
+}

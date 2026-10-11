@@ -1,0 +1,452 @@
+[
+  {
+    "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.toNSData",
+    "concrete_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "declaring_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "method_name": "toNSData",
+    "parameter_types": "",
+    "upstream_id": "bytestring/apple/test/ByteStringAppleTest.kt#toNSData",
+    "upstream_path": "bytestring/apple/test/ByteStringAppleTest.kt",
+    "git_blob_sha": "45166786a343d75ace421102bb523f0619f0fbeb",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.toNSData",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.toNSDataDataIntegrity",
+    "concrete_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "declaring_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "method_name": "toNSDataDataIntegrity",
+    "parameter_types": "",
+    "upstream_id": "bytestring/apple/test/ByteStringAppleTest.kt#toNSDataDataIntegrity",
+    "upstream_path": "bytestring/apple/test/ByteStringAppleTest.kt",
+    "git_blob_sha": "45166786a343d75ace421102bb523f0619f0fbeb",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.toNSDataDataIntegrity",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.fromNSData",
+    "concrete_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "declaring_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "method_name": "fromNSData",
+    "parameter_types": "",
+    "upstream_id": "bytestring/apple/test/ByteStringAppleTest.kt#fromNSData",
+    "upstream_path": "bytestring/apple/test/ByteStringAppleTest.kt",
+    "git_blob_sha": "45166786a343d75ace421102bb523f0619f0fbeb",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.fromNSData",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.fromNSDataIntegrity",
+    "concrete_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "declaring_class": "kotlinx.io.bytestring.ByteStringAppleTest",
+    "method_name": "fromNSDataIntegrity",
+    "parameter_types": "",
+    "upstream_id": "bytestring/apple/test/ByteStringAppleTest.kt#fromNSDataIntegrity",
+    "upstream_path": "bytestring/apple/test/ByteStringAppleTest.kt",
+    "git_blob_sha": "45166786a343d75ace421102bb523f0619f0fbeb",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.bytestring.ByteStringAppleTest.fromNSDataIntegrity",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSource",
+    "concrete_class": "kotlinx.io.NSInputStreamSourceTest",
+    "declaring_class": "kotlinx.io.NSInputStreamSourceTest",
+    "method_name": "nsInputStreamSource",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSInputStreamSourceTest.kt#nsInputStreamSource",
+    "upstream_path": "core/apple/test/NSInputStreamSourceTest.kt",
+    "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSource",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSourceFromFile",
+    "concrete_class": "kotlinx.io.NSInputStreamSourceTest",
+    "declaring_class": "kotlinx.io.NSInputStreamSourceTest",
+    "method_name": "nsInputStreamSourceFromFile",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSInputStreamSourceTest.kt#nsInputStreamSourceFromFile",
+    "upstream_path": "core/apple/test/NSInputStreamSourceTest.kt",
+    "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSInputStreamSourceTest.nsInputStreamSourceFromFile",
+      "status": "PASS",
+      "duration_ms": "2"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStream",
+    "concrete_class": "kotlinx.io.NSInputStreamSourceTest",
+    "declaring_class": "kotlinx.io.NSInputStreamSourceTest",
+    "method_name": "sourceFromInputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSInputStreamSourceTest.kt#sourceFromInputStream",
+    "upstream_path": "core/apple/test/NSInputStreamSourceTest.kt",
+    "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStreamBounds",
+    "concrete_class": "kotlinx.io.NSInputStreamSourceTest",
+    "declaring_class": "kotlinx.io.NSInputStreamSourceTest",
+    "method_name": "sourceFromInputStreamBounds",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSInputStreamSourceTest.kt#sourceFromInputStreamBounds",
+    "upstream_path": "core/apple/test/NSInputStreamSourceTest.kt",
+    "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStreamBounds",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStreamWithSegmentSize",
+    "concrete_class": "kotlinx.io.NSInputStreamSourceTest",
+    "declaring_class": "kotlinx.io.NSInputStreamSourceTest",
+    "method_name": "sourceFromInputStreamWithSegmentSize",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSInputStreamSourceTest.kt#sourceFromInputStreamWithSegmentSize",
+    "upstream_path": "core/apple/test/NSInputStreamSourceTest.kt",
+    "git_blob_sha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSInputStreamSourceTest.sourceFromInputStreamWithSegmentSize",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.bufferOutputStream",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "bufferOutputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#bufferOutputStream",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.bufferOutputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.delegateTest",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "delegateTest",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#delegateTest",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.delegateTest",
+      "status": "PASS",
+      "duration_ms": "6"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.multipleWrites",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "multipleWrites",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#multipleWrites",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.multipleWrites",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.nsOutputStreamClose",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "nsOutputStreamClose",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#nsOutputStreamClose",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.nsOutputStreamClose",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.realSinkOutputStream",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "realSinkOutputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#realSinkOutputStream",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.realSinkOutputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SinkNSOutputStreamTest.testSubscribeAfterOpen",
+    "concrete_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "declaring_class": "kotlinx.io.SinkNSOutputStreamTest",
+    "method_name": "testSubscribeAfterOpen",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SinkNSOutputStreamTest.kt#testSubscribeAfterOpen",
+    "upstream_path": "core/apple/test/SinkNSOutputStreamTest.kt",
+    "git_blob_sha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SinkNSOutputStreamTest.testSubscribeAfterOpen",
+      "status": "PASS",
+      "duration_ms": "5"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.bufferInputStream",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "bufferInputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#bufferInputStream",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.bufferInputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.bufferInputStreamLongData",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "bufferInputStreamLongData",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#bufferInputStreamLongData",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.bufferInputStreamLongData",
+      "status": "PASS",
+      "duration_ms": "16"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.delegateTest",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "delegateTest",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#delegateTest",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.delegateTest",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.nsInputStreamClose",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "nsInputStreamClose",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#nsInputStreamClose",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.nsInputStreamClose",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.realSourceInputStream",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "realSourceInputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#realSourceInputStream",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.realSourceInputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.realSourceInputStreamLongData",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "realSourceInputStreamLongData",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#realSourceInputStreamLongData",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.realSourceInputStreamLongData",
+      "status": "PASS",
+      "duration_ms": "12"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.testRunLoopSwitch",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "testRunLoopSwitch",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#testRunLoopSwitch",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.testRunLoopSwitch",
+      "status": "PASS",
+      "duration_ms": "205"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.SourceNSInputStreamTest.testSubscribeAfterOpen",
+    "concrete_class": "kotlinx.io.SourceNSInputStreamTest",
+    "declaring_class": "kotlinx.io.SourceNSInputStreamTest",
+    "method_name": "testSubscribeAfterOpen",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/SourceNSInputStreamTest.kt#testSubscribeAfterOpen",
+    "upstream_path": "core/apple/test/SourceNSInputStreamTest.kt",
+    "git_blob_sha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.SourceNSInputStreamTest.testSubscribeAfterOpen",
+      "status": "PASS",
+      "duration_ms": "1"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSOutputStreamSinkTest.nsOutputStreamSink",
+    "concrete_class": "kotlinx.io.NSOutputStreamSinkTest",
+    "declaring_class": "kotlinx.io.NSOutputStreamSinkTest",
+    "method_name": "nsOutputStreamSink",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSOutputStreamSinkTest.kt#nsOutputStreamSink",
+    "upstream_path": "core/apple/test/NSOutputStreamSinkTest.kt",
+    "git_blob_sha": "2b14b6fda4bc6653cbebc880f3a4a4fa5367ee1c",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSOutputStreamSinkTest.nsOutputStreamSink",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  },
+  {
+    "execution_id": "kotlinx.io.NSOutputStreamSinkTest.sinkFromOutputStream",
+    "concrete_class": "kotlinx.io.NSOutputStreamSinkTest",
+    "declaring_class": "kotlinx.io.NSOutputStreamSinkTest",
+    "method_name": "sinkFromOutputStream",
+    "parameter_types": "",
+    "upstream_id": "core/apple/test/NSOutputStreamSinkTest.kt#sinkFromOutputStream",
+    "upstream_path": "core/apple/test/NSOutputStreamSinkTest.kt",
+    "git_blob_sha": "2b14b6fda4bc6653cbebc880f3a4a4fa5367ee1c",
+    "source_set": "apple",
+    "reference_result": {
+      "execution_id": "kotlinx.io.NSOutputStreamSinkTest.sinkFromOutputStream",
+      "status": "PASS",
+      "duration_ms": "0"
+    },
+    "candidate_disposition": "unmapped",
+    "candidate_reason": "No verified KSwiftK port preserving this upstream assertion body yet."
+  }
+]
