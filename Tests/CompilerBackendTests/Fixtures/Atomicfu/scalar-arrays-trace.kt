@@ -1,6 +1,7 @@
 @file:Suppress("DEPRECATION")
 import kotlinx.atomicfu.*
 import kotlinx.atomicfu.atomic as createAtomic
+import kotlinx.atomicfu.atomic
 
 class EqualValue(val number: Int) {
     override fun equals(other: Any?): Boolean = other is EqualValue && other.number == number

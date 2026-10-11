@@ -26,6 +26,7 @@ struct AtomicfuBundledSourceRegistrationTests {
     @file:Suppress("DEPRECATION")
     import kotlinx.atomicfu.*
     import kotlinx.atomicfu.atomic as makeAtomic
+    import kotlinx.atomicfu.atomic
     import kotlinx.atomicfu.AtomicInt as FuInt
     import kotlin.concurrent.AtomicInt as StandardInt
     import kotlin.concurrent.atomics.AtomicInt as CanonicalInt
