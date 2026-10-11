@@ -118,7 +118,6 @@ extension OverloadResolver {
                 continue
             }
 
-            // Check all upper bounds (with type parameter substitution applied to bounds)
             for bound in upperBounds {
                 let substitutedBound = ctx.types.substituteTypeParameters(
                     in: bound,
