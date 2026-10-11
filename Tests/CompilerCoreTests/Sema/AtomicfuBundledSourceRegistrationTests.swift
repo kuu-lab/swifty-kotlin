@@ -329,6 +329,53 @@ struct AtomicfuBundledSourceRegistrationTests {
             try runSema(ctx)
             #expect(ctx.diagnostics.hasError, "private/internal API leaked: \(source)")
         }
+
+        // The producer's existing file suppression must cover MutableData's
+        // self-type member, while source and compiled consumers still require
+        // their own suppression of its unchanged error-level deprecation.
+        for suppressed in [false, true] {
+            let source = (suppressed ? "@file:Suppress(\"DEPRECATION_ERROR\")\n" : "")
+                + "fun legacy(data: kotlin.native.concurrent.MutableData): Int = data.size"
+            let ctx = try context(source, library: library)
+            try runSema(ctx)
+            let diagnostics = ctx.diagnostics.diagnostics
+            let input = try #require(ctx.options.inputs.first)
+            let receipt: [String: Any] = [
+                "input": input, "stdlib": ctx.options.stdlibLibraryPath ?? "SOURCE",
+                "consumer_suppressed": suppressed, "library": library,
+                "diagnostics": diagnostics.map {
+                    ["code": $0.code, "severity": String(describing: $0.severity), "message": $0.message,
+                     "path": $0.primaryRange.map { ctx.sourceManager.path(of: $0.start.file) } ?? "<none>"]
+                },
+            ]
+            try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
+                .write(to: URL(fileURLWithPath: input).deletingLastPathComponent()
+                    .appendingPathComponent("legacy-deprecation.diagnostics.json"))
+            let sema = try #require(ctx.sema)
+            let legacy = try #require(sema.symbols.lookup(fqName:
+                ["kotlin", "native", "concurrent", "MutableData"].map(ctx.interner.intern)))
+            let symbol = try #require(sema.symbols.symbol(legacy))
+            try #require(symbol.kind == .class && symbol.visibility == .public)
+            try #require(symbol.flags.contains(.importedLibrary) == library)
+            let annotations = sema.symbols.annotations(for: legacy)
+            try #require(annotations.contains { KnownCompilerAnnotation.deprecated.matches($0.annotationFQName) })
+            let since = try #require(annotations.first {
+                KnownCompilerAnnotation.deprecatedSinceKotlin.matches($0.annotationFQName)
+            })
+            try #require(since.arguments.contains {
+                $0.filter { !$0.isWhitespace && $0 != "\"" && $0 != "'" } == "errorSince=2.1"
+            })
+            let errors = diagnostics.filter { $0.severity == .error }
+            if suppressed {
+                try #require(errors.isEmpty, "Suppressed consumer failed; retained at \(input): \(errors)")
+            } else {
+                try #require(errors.count == 1, "Expected one consumer deprecation; retained at \(input): \(errors)")
+                try #require(errors[0].code == "KSWIFTK-SEMA-DEPRECATED")
+                try #require(errors[0].message.contains("kotlin.native.concurrent.MutableData"))
+                let range = try #require(errors[0].primaryRange)
+                try #require(ctx.sourceManager.path(of: range.start.file) == input)
+            }
+        }
     }
 
     private let blockingCall = "fun caller() { kotlinx.atomicfu.locks.ParkingSupport.currentThreadHandle() }"

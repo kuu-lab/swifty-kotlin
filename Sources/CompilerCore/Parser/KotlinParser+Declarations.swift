@@ -670,7 +670,9 @@ extension KotlinParser {
     func parsePostDeclarationTail(into children: inout [SyntaxChild], range: inout RangeAccumulator, includeBlock: Bool) {
         if case .symbol(.lBrace) = stream.peek().kind {
             if includeBlock {
-                children.append(.node(parseBlock()))
+                let body = parseBlock()
+                children.append(.node(body))
+                range.append(childRange(.node(body)))
             } else {
                 _ = consumeToken(into: &children, range: &range)
             }

@@ -112,6 +112,10 @@ struct ActualConstructorSupertypeParsingTests {
         #expect(boxFunctions.map { ctx.interner.resolve($0.name) } == ["get"])
         #expect(boxFunctions.first?.modifiers.contains(.operator) == true)
         #expect(box.hasPrimaryConstructorSyntax)
+        let boxRange = box.range
+        for function in boxFunctions {
+            #expect(boxRange.contains(function.range))
+        }
 
         let generic = try userClassDecl(named: "GenericBox", in: ast, ctx: ctx)
         #expect(generic.typeParams.count == 1)
@@ -179,6 +183,47 @@ struct ActualConstructorSupertypeParsingTests {
         #expect(comparisons.arena.nodes.count { $0.kind == .classDecl } == 2)
         #expect(comparisons.arena.nodes.count { $0.kind == .funDecl } == 2)
         #expect(comparisons.arena.nodes.count { $0.kind == .propertyDecl } == 0)
+
+        // A consumed explicit constructor makes the class body the immediate
+        // post-header tail. Both class and file ranges must cover its members,
+        // or @file:Suppress stops at the constructor and misses header errors.
+        let declaration = """
+        @Deprecated("old", level = DeprecationLevel.ERROR)
+        class Legacy constructor() {
+            fun append(data: Legacy): Int = 1
+        }
+        """
+        let suppressed = "@file:Suppress(\"DEPRECATION_ERROR\")\n" + declaration
+        let (legacyAST, legacyContext) = try buildASTModule(from: suppressed, includeStdlib: false)
+        try #require(legacyContext.diagnostics.diagnostics.isEmpty)
+        let legacy = try userClassDecl(named: "Legacy", in: legacyAST, ctx: legacyContext)
+        let legacyRange = legacy.range
+        let legacyFile = try #require(legacyAST.sortedFiles.first)
+        let fileRange = try #require(legacyFile.range)
+        #expect(fileRange.end.offset == suppressed.utf8.count)
+        #expect(legacyRange.end.offset == suppressed.utf8.count)
+        for function in try memberFunctions(of: legacy, in: legacyAST) {
+            let functionRange = function.range
+            #expect(legacyRange.contains(functionRange))
+            #expect(fileRange.contains(functionRange))
+        }
+        try #require(legacyFile.annotations.contains {
+            $0.name == "Suppress" && $0.useSiteTarget == "file"
+                && $0.arguments.contains { $0.contains("DEPRECATION_ERROR") }
+        })
+        try #require(!legacyContext.options.includeStdlib)
+        try SemaPhase().run(legacyContext)
+        try #require(!legacyContext.diagnostics.hasError,
+                     "File suppression did not cover the explicit constructor body: \(legacyContext.diagnostics.diagnostics)")
+
+        let (_, unsuppressedContext) = try buildASTModule(from: declaration, includeStdlib: false)
+        try SemaPhase().run(unsuppressedContext)
+        let deprecations = unsuppressedContext.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-DEPRECATED" && $0.severity == .error
+        }
+        try #require(deprecations.count == 1,
+                     "The same self-type must retain its error without file suppression: \(unsuppressedContext.diagnostics.diagnostics)")
+        #expect(deprecations[0].message.contains("Legacy"))
     }
 
     @Test
