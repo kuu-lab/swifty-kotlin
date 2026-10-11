@@ -299,10 +299,11 @@ struct RuntimeAtomicfuSynchronizationTests {
             secondUnparkComplete.signal()
             group.leave()
         }
-        #expect(parker.park(timeoutNanos: 2_000_000_000, afterWaitBeforeCleanup: {
+        let parked = parker.park(timeoutNanos: 2_000_000_000, afterWaitBeforeCleanup: {
             ownerAwake.signal()
             #expect(secondUnparkComplete.wait(timeout: .now() + 3) == .success)
-        }))
+        })
+        #expect(parked)
         atomicfuDrain(group)
         #expect(values.snapshot == [1, 1])
         let nextStart = DispatchTime.now().uptimeNanoseconds
