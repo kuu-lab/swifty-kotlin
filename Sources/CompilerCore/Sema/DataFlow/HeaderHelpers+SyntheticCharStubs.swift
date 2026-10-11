@@ -104,7 +104,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
     // KSP-662: uppercase(Char)/lowercase(Char)/titlecase(Char)/digitToInt(OrNull)/
     // digitToChar now live in bundled Kotlin (kotlin.text.CharConversions).
-    // New numeric conversion functions
     SyntheticCharMemberSpec(
         name: "toInt",
         externalLinkName: "kk_char_toInt",
@@ -126,7 +125,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         returnKind: .nullableDouble
     ),
     // KSP-663: isSurrogate/isHighSurrogate/isLowSurrogate are now bundled Kotlin.
-    // Control character predicates
     SyntheticCharMemberSpec(
         name: "isISOControl",
         externalLinkName: "kk_char_isISOControl",
@@ -155,7 +153,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isJavaIdentifierStart",
         returnKind: .boolean
     ),
-    // Code point and Unicode properties
     SyntheticCharMemberSpec(
         name: "code",
         externalLinkName: "kk_char_code",
