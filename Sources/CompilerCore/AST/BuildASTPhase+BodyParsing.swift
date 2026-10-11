@@ -426,8 +426,6 @@ extension BuildASTPhase {
         }
     }
 
-    // MARK: - Annotation Parsing
-
     func declarationAnnotations(
         from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
     ) -> [AnnotationNode] {
