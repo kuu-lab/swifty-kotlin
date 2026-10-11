@@ -1,0 +1,7 @@
+cpointer_null=true
+copaque_null=true
+memScoped_value=42
+os_known=true
+arch_known=true
+cpus_positive=true
+native_api_ok=true

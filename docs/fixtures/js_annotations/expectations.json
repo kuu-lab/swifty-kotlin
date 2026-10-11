@@ -1043,7 +1043,7 @@
     {
       "id": "reflection",
       "source": "valid/reflection.kt",
-      "sourceSha256": "bb16b31186ecc0e1447812baab330ea35a7efc79993ab8b1837e66e619b955aa",
+      "sourceSha256": "8ce75f24b4226e14309859dc0878f3833c3dcb71795fb8a82b03295b6f069ce0",
       "lanes": [
         "kotlin-js-reference",
         "native-compat"
@@ -1064,7 +1064,7 @@
         },
         "run": {
           "exitCode": 0,
-          "stdout": "createInstance:7:7:2\nEmpty\nrequired:Class \"Required\" should have a single no-arg constructor\n",
+          "stdout": "ExportedBox:7:0\nEmpty\ndefault:41:1\ndefault:42:2\nrequired:Class \"RequiredConstructor\" should have a single no-arg constructor\nmultiple:Class \"MultipleEligibleConstructors\" should have a single no-arg constructor\n",
           "stderr": ""
         }
       },
@@ -1073,16 +1073,21 @@
         "pointer": "/cases/reflection"
       },
       "nativeContract": {
-        "status": "required-by-followup-not-yet-implemented",
+        "status": "candidate-only-verified",
         "compile": {
           "exitCode": 0,
           "diagnostics": []
         },
         "run": {
           "exitCode": 0,
-          "stdout": "createInstance:7:7:2\nEmpty\nrequired:Class \"Required\" should have a single no-arg constructor\n",
+          "stdout": "ExportedBox:7:0\nEmpty\ndefault:41:1\ndefault:42:2\nrequired:Class should have a single no-arg constructor: class RequiredConstructor\nmultiple:Class should have a single no-arg constructor: class MultipleEligibleConstructors\n",
           "stderr": ""
-        }
+        },
+        "targetDifferences": [
+          "Kotlin/JS 2.3.10 reports Class \"<simpleName>\" should have a single no-arg constructor.",
+          "KSwiftK native reports Class should have a single no-arg constructor: class <SimpleName>.",
+          "Both targets reject zero or multiple eligible constructors with IllegalArgumentException; message text is target-specific."
+        ]
       }
     },
     {
