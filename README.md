@@ -57,5 +57,6 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | アーキテクチャ詳細・ディレクトリマップ・タスク別ナビゲーション |
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF デバッグ情報の使い方（lldb セッション例） |
+| [`docs/kotlin-test-runner.md`](docs/kotlin-test-runner.md) | `--test` で kotlin.test の注釈からテスト実行ファイルを生成 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
 | [`AGENTS.md`](AGENTS.md) | AI 向けクイックリファレンス・Linux（Cursor Cloud）環境セットアップ |
