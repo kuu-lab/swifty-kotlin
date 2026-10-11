@@ -2430,7 +2430,18 @@ final class CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.fqName.starts(with: [interner.intern("kotlinx"), interner.intern("coroutines")])
         }
-        let isCoroutineLauncher = hasCoroutineLauncherCandidates && (
+        // Canonical source/imported runBlocking is a normal generic function:
+        // materialize its block as a suspend value rather than flattening the
+        // legacy launcher captures or guessing the block's argument position.
+        let isCanonicalRunBlocking = calleeName == knownNames.runBlocking
+            && candidates.contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.fqName == knownNames.kotlinxCoroutinesRunBlockingFQName
+                else { return false }
+                return sema.symbols.isSourceBackedSymbol(candidate)
+                    || symbol.flags.contains(.importedLibrary)
+            }
+        let isCoroutineLauncher = hasCoroutineLauncherCandidates && !isCanonicalRunBlocking && (
             calleeName == knownNames.runBlocking
                 || calleeName == knownNames.launch
                 || calleeName == knownNames.async
