@@ -1,4 +1,3 @@
-/// Resolves declaration annotations using their source file imports and package.
 func resolveAnnotationSymbol(
     named rawName: String,
     in file: ASTFile,
