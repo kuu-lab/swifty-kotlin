@@ -805,8 +805,6 @@ extension BuildASTPhase {
         return .unit
     }
 
-    // MARK: - Explicit Backing Field (Kotlin 2.0)
-
     func declarationExplicitBackingField(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -851,7 +849,6 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExplicitBackingField? {
-        // tokens[0] is `field`
         guard tokens.count >= 2 else { return nil }
         var index = 1
 
