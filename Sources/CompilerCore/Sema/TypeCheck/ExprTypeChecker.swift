@@ -169,7 +169,6 @@ final class ExprTypeChecker {
             return driver.localDeclChecker.inferLocalAssignExpr(id, name: name, value: value, range: range, ctx: ctx, locals: &locals)
 
         case let .memberAssign(receiverExpr, calleeName, valueExpr, range):
-            // Type-check the receiver and value, bind as unit-typed expression.
             let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
             let receiverType = driver.helpers.retypeClassNameAsCompanionValue(
                 receiverExpr, currentType: inferredReceiverType, ast: ast, sema: sema
@@ -392,7 +391,6 @@ final class ExprTypeChecker {
 
         case let .isCheck(exprID, typeRefID, negated, range):
             let subjectType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            // Resolve the target type and validate it (P5-101)
             let targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
@@ -425,7 +423,6 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // Emit erasure warning for generic type checks with non-star type arguments
             if let typeRef = ast.arena.typeRef(typeRefID),
                case let .named(_, argRefs, _) = typeRef, !argRefs.isEmpty
             {
@@ -621,7 +618,6 @@ final class ExprTypeChecker {
             var reachedNothing = false
             for stmt in statements {
                 if reachedNothing {
-                    // Emit unreachable code diagnostic for statements after Nothing-typed expression
                     if let stmtRange = ast.arena.exprRange(stmt) {
                         ctx.semaCtx.diagnostics.warning(
                             "KSWIFTK-SEMA-0096",
@@ -629,7 +625,6 @@ final class ExprTypeChecker {
                             range: stmtRange
                         )
                     }
-                    // Still type-check for completeness but skip further unreachable warnings
                     _ = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
