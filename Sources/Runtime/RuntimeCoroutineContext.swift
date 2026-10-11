@@ -1324,6 +1324,8 @@ final class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
     let tag: Int
     let displayName: String?
+    let isUnconfined: Bool
+    weak var blockingEventLoop: RuntimeEventLoop?
 
     /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
     private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
@@ -1338,11 +1340,13 @@ final class RuntimeDispatcher: @unchecked Sendable {
         queue: DispatchQueue,
         tag: Int,
         displayName: String? = nil,
+        isUnconfined: Bool = false,
         nominalTypeFqName: String = "kotlinx.coroutines.CoroutineDispatcher"
     ) {
         self.queue = queue
         self.tag = tag
         self.displayName = displayName
+        self.isUnconfined = isUnconfined
         // KUU-1395: a dispatcher object carries CoroutineDispatcher's nominal
         // identity so `is`/`as?` checks on `Dispatchers.*` values and on the
         // runBlocking event-loop element answer like kotlinx's.
@@ -1490,14 +1494,15 @@ private func runtimeDispatcherObjectHandle(forTag tag: Int) -> Int {
 }
 
 // These globals own the objects; accessors register their pointers idempotently.
-// IO and Unconfined preserve the existing Default scheduler compatibility behavior.
+// Named IO uses its actual pool; Unconfined is distinguished without changing
+// the legacy tag fallback used by unrelated invocation paths.
 private let runtimeNamedDispatchers: [RuntimeDispatcher] = [
     RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
                       displayName: "Dispatchers.Default"),
-    RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
+    RuntimeDispatcher(queue: runtimeIODispatcher.queue, tag: RuntimeDispatcherTag.ioDispatcher,
                       displayName: "Dispatchers.IO"),
     RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
-                      displayName: "Dispatchers.Unconfined"),
+                      displayName: "Dispatchers.Unconfined", isUnconfined: true),
 ]
 
 @_cdecl("__kk_dispatcher_named")

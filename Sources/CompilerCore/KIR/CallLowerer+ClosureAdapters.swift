@@ -1118,6 +1118,16 @@ extension CallLowerer {
             )
         }
 
+        // Only this resolved external link owns the physical context/fn/env
+        // ABI. The public wrapper and user homonyms remain ordinary calls.
+        // Preserve an opaque suspend box here: eager fn/env extraction loses
+        // its suspendEntryPoint and can unpack an adapter's opaque capture env.
+        if externalLinkName == "__kk_run_blocking_context", loweredArguments.count == 2 {
+            let env = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: env, value: .intLiteral(0)))
+            return [loweredArguments[0], loweredArguments[1], env]
+        }
+
         // KSP-1583: `runTest` forwards `testBody` — a suspend
         // `TestScope.() -> Unit` value, usually a variable-held lambda
         // rather than a literal — to the blocking-run bridge. Expand it to

@@ -1,0 +1,8 @@
+default=3|explicit-empty=4
+name-ok|fresh-child|parent-active|child-completed-detached
+function-value=captured:value
+nested=default-detached|explicit-inherits|loop-reused|outer-restored
+pre-cancelled-parent=CancellationException|body-not-entered
+parent-cancel=CancellationException|finally-ran
+failures=body-child-rethrown|handler-not-called|parent-active
+generic-results-ok|two-captures-named-value|named-literal
