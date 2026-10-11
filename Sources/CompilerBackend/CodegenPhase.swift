@@ -634,9 +634,6 @@ public final class CodegenPhase: CompilerPhase {
         )
         return encoder.serializeIndexed(records)
     }
-
-    // MARK: - REFL-004: Runtime Reflection Metadata
-
     private func buildReflectionMetadataRecords(
         ctx: CompilationContext,
         functionLinkInfo: FunctionLinkInfo
