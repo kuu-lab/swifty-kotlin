@@ -92,6 +92,8 @@ package struct MetadataRecord {
     /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
+    /// Inner classes require an enclosing instance even when their public constructor arity is zero.
+    package let isInnerClass: Bool
     /// Declaration modality for classes and members. Final is omitted from the
     /// wire format so older artifacts remain compact and decode as final.
     package let modality: MetadataModality
@@ -191,6 +193,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        isInnerClass: Bool = false,
         modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
@@ -252,6 +255,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
@@ -875,6 +879,7 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    isInnerClass: symbol.flags.contains(.innerClass),
                     modality: symbol.flags.contains(.abstractType)
                         ? .abstract
                         : (symbol.flags.contains(.openType) ? .open : .final),
@@ -894,6 +899,7 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                isInnerClass: symbol.flags.contains(.innerClass),
                 modality: symbol.flags.contains(.abstractType)
                     ? .abstract
                     : (symbol.flags.contains(.openType) ? .open : .final),
@@ -1354,6 +1360,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            isInnerClass: symbol.flags.contains(.innerClass),
             modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
@@ -1718,6 +1725,7 @@ package final class MetadataEncoder {
             if record.isOpenClass {
                 fields.append("openClass=1")
             }
+            if record.isInnerClass { fields.append("innerClass=1") }
             if record.modality != .final {
                 fields.append("modality=\(record.modality.rawValue)")
             }
@@ -1836,6 +1844,7 @@ package final class MetadataEncoder {
         }
         if record.isDataClass { fields.append("dataClass=1") }
         if record.isOpenClass { fields.append("openClass=1") }
+        if record.isInnerClass { fields.append("innerClass=1") }
         if record.modality != .final { fields.append("modality=\(record.modality.rawValue)") }
         if record.isSealedClass { fields.append("sealedClass=1") }
         if record.isFunInterface { fields.append("funInterface=1") }
@@ -1881,7 +1890,14 @@ package final class MetadataEncoder {
                 return nil
             }
             if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
-                return nil
+                // An inner constructor's caller stores this ABI-only enclosing-instance
+                // link before invoking the producer constructor. Keep its actual slot,
+                // without exporting the private field as a Kotlin declaration.
+                guard let owner = symbols.parentSymbol(for: symbolID),
+                      includedSymbolIDs.contains(owner),
+                      symbols.symbol(owner)?.flags.contains(.innerClass) == true,
+                      symbols.outerInstanceFieldSymbol(for: owner) == symbolID
+                else { return nil }
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
@@ -2170,6 +2186,7 @@ final class MetadataDecoder {
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
+                isInnerClass: rec.isInnerClass,
                 modality: rec.modality,
                 isSealedClass: rec.isSealedClass,
                 isFunInterface: rec.isFunInterface,
@@ -2236,6 +2253,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
+        var isInnerClass: Bool = false
         var modality: MetadataModality = .final
         var isSealedClass: Bool = false
         var isFunInterface: Bool = false
@@ -2369,6 +2387,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "openClass":
             record.isOpenClass = value == "1" || value == "true"
+        case "innerClass":
+            record.isInnerClass = value == "1" || value == "true"
         case "modality":
             record.modality = MetadataModality(rawValue: value) ?? .final
         case "sealedClass":

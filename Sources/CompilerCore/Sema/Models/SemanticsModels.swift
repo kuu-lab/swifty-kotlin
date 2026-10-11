@@ -1502,7 +1502,8 @@ public final class SymbolTable {
     /// The `$outer` field symbol holding `innerClass`'s enclosing-instance
     /// link, or `nil` when `innerClass` is not an `inner class`.
     public func outerInstanceFieldSymbol(for innerClass: SymbolID) -> SymbolID? {
-        outerInstanceFieldSymbols[innerClass]
+        ensureLazyImportedMetadataLoaded(for: innerClass)
+        return outerInstanceFieldSymbols[innerClass]
     }
 
     public func setObjectInitializerSymbol(_ initializer: SymbolID, for object: SymbolID) {
