@@ -416,13 +416,10 @@ final class DataFlowAnalyzer {
                                       let existingType = baseState.possibleTypes.first
         {
             if sema.types.isSubtype(existingType, targetType) {
-                // Existing flow type is already more specific; keep it.
                 existingType
             } else if sema.types.isSubtype(targetType, existingType) {
-                // New target type is more specific; use it.
                 targetType
             } else {
-                // Types are unrelated; intersect them for chained is-checks.
                 sema.types.make(.intersection([existingType, targetType]))
             }
         } else {
@@ -866,11 +863,9 @@ final class DataFlowAnalyzer {
     /// P5-78: Get sealed subtype symbols, using sealedSubclasses metadata for cross-module support,
     /// falling back to directSubtypes for same-module sealed types.
     private func sealedSubtypeSymbols(for classSymbol: SemanticSymbol, sema: SemaModule) -> [SymbolID] {
-        // First try sealedSubclasses (populated from metadata for cross-module)
         if let sealedSubs = sema.symbols.sealedSubclasses(for: classSymbol.id) {
             return sealedSubs
         }
-        // Fall back to directSubtypes (same-module)
         return sema.symbols.directSubtypes(of: classSymbol.id)
     }
 
