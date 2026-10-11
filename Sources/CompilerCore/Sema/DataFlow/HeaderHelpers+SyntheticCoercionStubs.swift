@@ -33,7 +33,6 @@ extension DataFlowSemaPhase {
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
             // MARK: - Primitive Type Conversion Functions (STDLIB-PRIM-002)
 
-            // Int conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
                 externalLinkName: "kk_int_to_byte",
@@ -154,7 +153,6 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Long conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
                 externalLinkName: "kk_long_to_byte",
@@ -276,7 +274,6 @@ extension DataFlowSemaPhase {
             // are source-backed in Stdlib/kotlin/Numbers.kt (toInt().toX()
             // composition with error-level deprecation metadata).
 
-            // Double conversion functions
             registerSyntheticCoercionFunction(
                 named: "toFloat",
                 externalLinkName: "kk_double_to_float",
@@ -452,7 +449,6 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
 
-        // Check if already registered with same signature
         if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == receiverType
