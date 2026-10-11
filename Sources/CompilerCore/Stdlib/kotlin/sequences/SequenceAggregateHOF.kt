@@ -665,11 +665,12 @@ public fun <T> Sequence<T>.joinToString(
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
 public fun <T> Sequence<T>.indexOf(element: T): Int {
-    val elements = this.toList()
+    val iterator = this.iterator()
     var i = 0
-    val sz = elements.size
-    while (i < sz) {
-        if (__valuesEqual(elements[i], element)) return i
+    while (iterator.hasNext()) {
+        val item = iterator.next()
+        checkIndexOverflow(i)
+        if (element == item) return i
         i += 1
     }
     return -1

@@ -5,7 +5,10 @@ import Testing
 
 @Suite
 struct CallableReferenceParsingTests {
-    @Test(arguments: ["Array<Int>?::class", "Array<Int>? ::class"])
+    @Test(arguments: [
+        "Array<Int>?::class", "Array<Int>? ::class", "BooleanArray?::contentToString",
+        "BooleanArray? ::contentEquals", "kotlin.IntArray?::contentToString",
+    ])
     func nullableTypeReceiverPreservesQuestionMark(_ source: String) throws {
         let lexed = lex(source)
         let arena = ASTArena()

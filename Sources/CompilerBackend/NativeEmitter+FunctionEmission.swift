@@ -3106,16 +3106,30 @@ extension NativeEmitter {
                           calleeName == "get",
                           argumentValues.count == 1,
                           let symbols,
-                          let typeSystem,
-                          let receiverType = module.arena.exprType(receiver),
-                          case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                          let typeSystem
                     else {
                         return false
                     }
-                    return symbols.throwableMessageGetterSlot(
-                        for: receiverClass.classSymbol,
-                        interner: interner
-                    ) == slot
+                    if let receiverType = module.arena.exprType(receiver),
+                       case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+                    {
+                        return symbols.throwableMessageGetterSlot(
+                            for: receiverClass.classSymbol,
+                            interner: interner
+                        ) == slot
+                    }
+                    // Imported inline bodies omit expression types. The
+                    // resolved accessor still identifies Throwable.message,
+                    // whose vtable entry returns a raw handle, never String's
+                    // aggregate ABI (which would shift the receiver to sret).
+                    guard let symbol,
+                          let property = symbols.propertySymbol(forAccessor: symbol)
+                            ?? symbols.accessorOwnerProperty(for: symbol),
+                          let owner = symbols.parentSymbol(for: property)
+                    else {
+                        return false
+                    }
+                    return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
                 }()
                 let virtualCallReturnsAggregate = !isThrowableMessageVirtualGetter
                     && calleeName == "get"

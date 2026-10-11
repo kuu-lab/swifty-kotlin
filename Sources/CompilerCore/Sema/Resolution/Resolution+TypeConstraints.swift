@@ -974,7 +974,7 @@ extension OverloadResolver {
                 blameRange: blameRange, depth: depth
             )
 
-        case let (.star, .invariant(superInner)):
+        case let (.star, .invariant(superInner)), let (.star, .out(superInner)):
             // Subtype is star (e.g. receiver `Box<*>` against signature `Box<T>`).
             // A star projection is equivalent to `out TUpperBound`, where the
             // upper bound comes from the declaration of the projected type.

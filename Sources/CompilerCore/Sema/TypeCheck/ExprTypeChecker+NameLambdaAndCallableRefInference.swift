@@ -2552,7 +2552,7 @@ extension ExprTypeChecker {
         let boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
         } else if receiver != nil && !isConstructorReference {
-            effectiveReceiverType.map { sema.types.makeNonNullable($0) }
+            effectiveReceiverType
         } else {
             nil
         }

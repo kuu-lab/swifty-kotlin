@@ -230,3 +230,43 @@ public fun <T> Array<T>.count(predicate: (T) -> Boolean): Int {
     }
     return count
 }
+
+@ExperimentalUnsignedTypes
+public operator fun UByteArray.contains(element: UByte): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UShortArray.contains(element: UShort): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun UIntArray.contains(element: UInt): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
+
+@ExperimentalUnsignedTypes
+public operator fun ULongArray.contains(element: ULong): Boolean {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return true
+        index++
+    }
+    return false
+}
