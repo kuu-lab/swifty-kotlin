@@ -13,7 +13,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        // --- kotlin.native.Platform (STDLIB-NATIVE-169) ---
         let kotlinNativePkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("native")],
             symbols: symbols
