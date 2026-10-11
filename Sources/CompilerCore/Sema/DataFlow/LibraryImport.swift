@@ -1383,8 +1383,67 @@ extension DataFlowSemaPhase {
                 allowPlaceholders: binding.isStdlibArtifact
             )
             symbols.setPropertyType(propertyType, for: binding.symbol)
+            if binding.record.isMemberExtension {
+                normalizeImportedExtensionPropertyAccessors(
+                    binding, symbols: symbols, types: types, diagnostics: diagnostics,
+                    interner: interner, cache: cache
+                )
+            }
         default:
             return
+        }
+    }
+
+    /// Property getter links are preloaded before lazy owner callbacks are
+    /// installed. Complete their owner parameter prefix after owner metadata
+    /// becomes available, just as for imported member function signatures.
+    private func normalizeImportedExtensionPropertyAccessors(
+        _ binding: ImportedLibraryBinding,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        cache: LibraryMetadataCache?
+    ) {
+        guard let owner = symbols.parentSymbol(for: binding.symbol) else { return }
+        let ownerParameters = types.nominalTypeParameterSymbols(for: owner)
+        let normalize: (TypeID) -> TypeID = {
+            self.normalizeImportedOwnerTypeParameters(
+                $0, record: binding.record, symbols: symbols, types: types,
+                diagnostics: diagnostics, interner: interner,
+                metadataPath: binding.metadataPath, cache: cache,
+                allowPlaceholders: binding.isStdlibArtifact
+            )
+        }
+        if let receiver = symbols.extensionPropertyReceiverType(for: binding.symbol) {
+            symbols.setExtensionPropertyReceiverType(normalize(receiver), for: binding.symbol)
+        }
+        let accessors = [symbols.extensionPropertyGetterAccessor(for: binding.symbol),
+                         symbols.extensionPropertySetterAccessor(for: binding.symbol)].compactMap { $0 }
+        for accessor in accessors {
+            guard let signature = symbols.functionSignature(for: accessor) else { continue }
+            let ownerCount = min(ownerParameters.count, signature.typeParameterSymbols.count)
+            let parameters = Array(ownerParameters.prefix(ownerCount))
+                + signature.typeParameterSymbols.dropFirst(ownerCount)
+            let bounds = signature.typeParameterUpperBoundsList.map { $0.map(normalize) }
+            for (parameter, upperBounds) in zip(parameters, bounds) where !upperBounds.isEmpty {
+                symbols.setTypeParameterUpperBounds(upperBounds, for: parameter)
+            }
+            symbols.setFunctionSignature(FunctionSignature(
+                receiverType: signature.receiverType.map(normalize),
+                contextReceiverTypes: signature.contextReceiverTypes.map(normalize),
+                parameterTypes: signature.parameterTypes.map(normalize),
+                returnType: normalize(signature.returnType),
+                isSuspend: signature.isSuspend, canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                typeParameterSymbols: parameters,
+                reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: bounds, classTypeParameterCount: ownerCount
+            ), for: accessor)
         }
     }
 
@@ -2227,6 +2286,38 @@ extension DataFlowSemaPhase {
         {
             symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
 
+            var propertyTypeParameters = record.callableTypeParameterSignatures.compactMap { token -> SymbolID? in
+                guard let decoded = decodeImportedTypeSignature(
+                    token: token, symbols: symbols, types: types, interner: interner,
+                    diagnostics: diagnostics, metadataPath: binding.metadataPath, ownerFQName: record.fqName,
+                    cache: cache, allowPlaceholders: isStdlibArtifact
+                ), case let .typeParam(parameter) = types.kind(of: decoded) else { return nil }
+                return parameter.symbol
+            }
+            let ownerParameters = symbols.parentSymbol(for: symbol).map { types.nominalTypeParameterSymbols(for: $0) } ?? []
+            let ownerParameterCount = record.isMemberExtension ? min(ownerParameters.count, propertyTypeParameters.count) : 0
+            if ownerParameterCount > 0 {
+                propertyTypeParameters.replaceSubrange(0 ..< ownerParameterCount, with: ownerParameters.prefix(ownerParameterCount))
+            }
+            let propertyUpperBounds = propertyTypeParameters.indices.map { index -> [TypeID] in
+                guard record.typeParameterUpperBoundsSignatures.indices.contains(index) else { return [] }
+                return record.typeParameterUpperBoundsSignatures[index].compactMap {
+                    guard let bound = decodeImportedTypeSignature(
+                        token: $0, symbols: symbols, types: types, interner: interner,
+                        diagnostics: diagnostics, metadataPath: binding.metadataPath, ownerFQName: record.fqName,
+                        cache: cache, allowPlaceholders: isStdlibArtifact
+                    ) else { return nil }
+                    return normalizeImportedOwnerTypeParameters(
+                        bound, record: record, symbols: symbols, types: types,
+                        diagnostics: diagnostics, interner: interner, metadataPath: binding.metadataPath,
+                        cache: cache, allowPlaceholders: isStdlibArtifact
+                    )
+                }
+            }
+            for (parameter, bounds) in zip(propertyTypeParameters, propertyUpperBounds) {
+                if !bounds.isEmpty { symbols.setTypeParameterUpperBounds(bounds, for: parameter) }
+            }
+
             // Match the source-path convention: the accessor's short name is
             // `get` while its FQ name is `<property>.$get` (HeaderCollection).
             let getName = interner.intern("get")
@@ -2245,7 +2336,11 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     parameterTypes: [],
-                    returnType: propertyType
+                    returnType: propertyType,
+                    typeParameterSymbols: propertyTypeParameters,
+                    reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+                    typeParameterUpperBoundsList: propertyUpperBounds,
+                    classTypeParameterCount: ownerParameterCount
                 ),
                 for: getterSymbol
             )
@@ -2286,7 +2381,11 @@ extension DataFlowSemaPhase {
                     FunctionSignature(
                         receiverType: receiverType,
                         parameterTypes: [propertyType],
-                        returnType: types.unitType
+                        returnType: types.unitType,
+                        typeParameterSymbols: propertyTypeParameters,
+                        reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+                        typeParameterUpperBoundsList: propertyUpperBounds,
+                        classTypeParameterCount: ownerParameterCount
                     ),
                     for: setterSymbol
                 )

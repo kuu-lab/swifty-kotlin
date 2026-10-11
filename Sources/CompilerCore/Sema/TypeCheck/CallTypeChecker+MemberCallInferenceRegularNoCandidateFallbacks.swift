@@ -69,7 +69,7 @@ extension CallTypeChecker {
                            !ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
                        }) == true
                        || !callablePropertyAcceptsArgumentShape(
-                           memberProperty.symbol, request: request, argTypes: argTypes,
+                           memberProperty.symbol, request: request, argTypes: argTypes, receiverType: memberLookupType,
                            typeOverride: memberProperty.type, locals: invocationLocals
                        )) {
                     return nil
@@ -91,7 +91,7 @@ extension CallTypeChecker {
                                 ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
                             } == true)
                             && self.callablePropertyAcceptsArgumentShape(
-                                property, request: request, argTypes: argTypes, locals: invocationLocals
+                                property, request: request, argTypes: argTypes, receiverType: memberLookupType, locals: invocationLocals
                             )
                 }
             ), let property = sema.bindings.identifierSymbol(for: id) else {

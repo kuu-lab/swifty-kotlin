@@ -335,6 +335,10 @@ extension BuildASTPhase {
 
     func makePropertyDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> PropertyDecl {
         let node = arena.node(nodeID)
+        let typeParams = applyWhereClauses(
+            declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            whereClauses: declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        )
         let accessors = declarationPropertyAccessors(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let delegateExpr = declarationDelegateExpression(from: nodeID, in: arena, interner: interner, astArena: astArena)
 
@@ -391,6 +395,7 @@ extension BuildASTPhase {
             name: propertyName,
             modifiers: modifiers,
             annotations: annotations,
+            typeParams: typeParams,
             type: declarationPropertyType(from: nodeID, in: arena, interner: interner, astArena: astArena),
             isVar: declarationIsVar(from: nodeID, in: arena),
             initializer: declarationPropertyInitializer(from: nodeID, in: arena, interner: interner, astArena: astArena),

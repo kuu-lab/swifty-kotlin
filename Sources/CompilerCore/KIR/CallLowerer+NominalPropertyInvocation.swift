@@ -14,7 +14,7 @@ extension CallLowerer {
         let arena = shared.arena
         let receiver = precomputedReceiver ?? driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
         guard let value = lowerStoredMemberPropertyReadValue(
-            propertySymbol: property.property, receiverExpr: receiverExpr, loweredReceiverID: receiver,
+            propertySymbol: property.property, callExprID: exprID, receiverExpr: receiverExpr, loweredReceiverID: receiver,
             resultType: property.propertyType, ast: shared.ast, sema: sema, arena: arena, interner: shared.interner,
             propertyConstantInitializers: shared.propertyConstantInitializers, instructions: &instructions.instructions
         ) else { return nil }

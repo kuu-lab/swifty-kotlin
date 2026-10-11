@@ -520,6 +520,7 @@ extension CallLowerer {
     /// supplies the property symbol and the desired result type explicitly.
     func lowerStoredMemberPropertyReadValue(
         propertySymbol: SymbolID,
+        callExprID: ExprID? = nil,
         receiverExpr: ExprID,
         loweredReceiverID: KIRExprID,
         resultType: TypeID,
@@ -559,7 +560,7 @@ extension CallLowerer {
                    interner: interner, cache: driver.ctx.nominalDispatchCache
                ),
                let dispatchReceiver = memberExtensionDispatchReceiver(
-                   for: getter, callExprID: nil, sema: sema, arena: arena,
+                   for: getter, callExprID: callExprID, sema: sema, arena: arena,
                    interner: interner, instructions: &instructions
                ) {
                 let typeID = RuntimeTypeCheckToken.stableNominalTypeID(
@@ -575,7 +576,7 @@ extension CallLowerer {
                    propertySymbol: propertySymbol, accessorKind: .getter, sema: sema
                ) {
                 let arguments = propertyAccessorArguments(
-                    for: accessor, arguments: [loweredReceiverID], callExprID: nil,
+                    for: accessor, arguments: [loweredReceiverID], callExprID: callExprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -585,7 +586,7 @@ extension CallLowerer {
                 ))
             } else {
                 appendPropertyGetterCall(
-                    getterSymbol: getter, receiver: loweredReceiverID, callExprID: nil, result: result,
+                    getterSymbol: getter, receiver: loweredReceiverID, callExprID: callExprID, result: result,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }
