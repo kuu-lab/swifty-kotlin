@@ -247,9 +247,36 @@ extension LambdaLowerer {
                                                        interner: interner, instructions: &body)
             }
         }
-        let arguments = unpack(refs[0], types: captureTypes) + unpack(refs[1], types: parameterTypes)
-        let result = arena.appendTemporary(type: returnType)
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        let receiverCount = parameterTypes.count - (signature?.parameterTypes.count ?? parameterTypes.count)
+        let invocationTypes = parameterTypes.enumerated().map { index, type in
+            let valueIndex = index - receiverCount
+            let isVararg = valueIndex >= 0 && valueIndex < (signature?.valueParameterIsVararg.count ?? 0)
+                && signature?.valueParameterIsVararg[valueIndex] == true
+            return callableReflectionParameterType(type, isVararg: isVararg, sema: sema, interner: interner)
+        }
+        var valueArguments = unpack(refs[1], types: invocationTypes)
+        if let targetSymbol,
+           sema.symbols.symbol(targetSymbol)?.kind != .constructor,
+           sema.symbols.symbol(targetSymbol)?.flags.contains(.localFunction) != true,
+           sema.symbols.externalLinkName(for: targetSymbol).map({ $0.hasPrefix("kk_fn_") }) ?? true {
+            for index in valueArguments.indices {
+                let valueIndex = index - receiverCount
+                guard valueIndex >= 0, valueIndex < (signature?.valueParameterIsVararg.count ?? 0),
+                      signature?.valueParameterIsVararg[valueIndex] == true,
+                      let elementType = signature?.parameterTypes[valueIndex],
+                      primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner) == nil
+                else { continue }
+                // Reflection supplies an Array, while source reference-vararg
+                // bodies use the same List representation as ordinary calls.
+                valueArguments[index] = driver.callSupportLowerer.emitArrayToList(
+                    valueArguments[index], arena: arena, interner: interner,
+                    anyType: sema.types.anyType, instructions: &body
+                )
+            }
+        }
+        let arguments = unpack(refs[0], types: captureTypes) + valueArguments
+        let result = arena.appendTemporary(type: returnType)
         if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
            sema.symbols.symbol(targetSymbol)?.kind == .constructor,
            let wrapper = driver.ctx.pendingGeneratedCallableDeclIDs.compactMap({ declID -> KIRFunction? in
@@ -315,7 +342,7 @@ extension LambdaLowerer {
     }
 }
 
-private func callableReflectionParameterType(
+func callableReflectionParameterType(
     _ elementType: TypeID,
     isVararg: Bool,
     sema: SemaModule,

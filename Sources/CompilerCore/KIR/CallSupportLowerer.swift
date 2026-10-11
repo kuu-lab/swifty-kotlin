@@ -1199,7 +1199,7 @@ final class CallSupportLowerer {
         )
     }
 
-    private func emitArrayToList(
+    func emitArrayToList(
         _ arrayID: KIRExprID,
         arena: KIRArena,
         interner: StringInterner,

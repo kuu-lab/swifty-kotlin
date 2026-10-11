@@ -91,6 +91,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `jdbc_basic.kt`: SQLite in-memory JDBC の基本操作を `jdbc_basic.expected` と照合する candidate-only output coverage（JVM kotlinc を起動しない）
 - `connection_validation.kt`: JDBC façade が提供する API を除き、残る JVM `Thread` API の未実装について kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `transaction_management.kt`: JDBC façade に未実装のトランザクション API 呼び出しが出す `kswiftc` compile diagnostics を `transaction_management.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
+- `resultset_complete.kt`: JDBC façade に未実装の `ResultSet` / `ResultSetMetaData` 呼び出しに対する candidate-only コンパイル診断を `resultset_complete.expected.stderr` と比較する（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
 - `deprecated_error.kt`: `@Deprecated(level = DeprecationLevel.ERROR)` 呼び出しの compile-error parity
@@ -113,6 +114,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 
 - `callsinplace_definite_assignment.kt`: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE / AT_LEAST_ONCE) }` を持つ呼び出し（自作関数、および `run`/`with`/`let`/`apply`/`also`）のラムダ引数内で行う outer `var` への代入を、呼び出し元の definite assignment 解析が初期化済みとして扱う parity
 - `stdlib_kotlin_concurrent_AtomicInt_AtomicInt_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicInt` の candidate-only runtime parity。`DIFF_CANDIDATE_ONLY` 指定ケースは sibling `.expected` と stdout を照合し、通常の diff harness でも JVM reference を呼ばずに実行する
+- `stdlib_kotlin_concurrent_AtomicLong_AtomicLong_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicLong` の compare-and-exchange、算術更新、value 読み書き、文字列表現を candidate-only stdout と sibling `.expected` で検証する
 - `stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt`: Kotlin/Native 専用 `IncorrectDereferenceException` のコンストラクタ、message、例外階層判定、throw/catch 順序を candidate-only の stdout と sibling sidecar で検証する
 - `stdlib_kotlin_concurrent_AtomicReference_AtomicReference_n.kt`: Kotlin/Native 専用 `kotlin.concurrent.AtomicReference` の compare-and-exchange、get-and-set、value access、`toString()` を candidate-only stdout sidecar と照合する
 - `stdlib_kotlin_native_Platform_Platform_n.kt`: Kotlin/Native 専用 `kotlin.native.Platform` API の candidate-only runtime coverage。各プロパティの読出し、enum の安定性、2 つの mutable property の書き戻し、available processor 数を `.expected.stdout` と照合する

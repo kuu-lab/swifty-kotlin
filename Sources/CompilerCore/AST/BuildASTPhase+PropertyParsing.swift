@@ -295,6 +295,26 @@ extension BuildASTPhase {
         return nil
     }
 
+    private func accessorIsInline(in tokensBeforeAccessor: [Token]) -> Bool {
+        let start = tokensBeforeAccessor.lastIndex {
+            $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
+                || $0.kind == .softKeyword(.get) || $0.kind == .softKeyword(.set)
+        }.map { $0 + 1 } ?? 0
+        var depth = BracketDepth()
+        for index in start ..< tokensBeforeAccessor.count {
+            let token = tokensBeforeAccessor[index]
+            let isNameToken = index > start
+                && (tokensBeforeAccessor[index - 1].kind == .symbol(.at)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.dot)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.colon)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.arrow)
+                    || tokensBeforeAccessor[index - 1].kind == .symbol(.assign))
+            if depth.isAtTopLevel, token.kind == .keyword(.inline), !isNameToken { return true }
+            depth.track(token.kind)
+        }
+        return false
+    }
+
     /// Earlier property annotations and annotations inside an initializer are
     /// not accessor annotations.
     private func accessorAnnotations(from tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
@@ -495,6 +515,7 @@ extension BuildASTPhase {
                 kind: kind,
                 annotations: annotations,
                 visibility: accessorVisibility(in: tokensBeforeAccessor),
+                isInline: accessorIsInline(in: tokensBeforeAccessor),
                 parameterName: parameterName,
                 body: body
             )
@@ -548,6 +569,7 @@ extension BuildASTPhase {
             kind: kind,
             annotations: annotations,
             visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
+            isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -604,6 +626,7 @@ extension BuildASTPhase {
             kind: kind,
             annotations: annotations,
             visibility: accessorVisibility(in: Array(rawHeaderTokens[..<accessorStart])),
+            isInline: accessorIsInline(in: Array(rawHeaderTokens[..<accessorStart])),
             parameterName: parameterName,
             body: body
         )
@@ -709,6 +732,7 @@ extension BuildASTPhase {
                     from: prefixTokens, interner: interner
                 ),
                 visibility: accessorVisibility(in: prefixTokens),
+                isInline: accessorIsInline(in: prefixTokens),
                 parameterName: kind == .setter
                     ? setterParameterName(from: headerTokens, interner: interner)
                     : nil,

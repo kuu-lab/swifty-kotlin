@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "auditDateJST": "2026-10-08",
+  "auditDateJST": "2026-10-09",
   "toolchain": {
     "target": "Kotlin/JS",
     "kotlinVersion": "2.3.10",
@@ -20,7 +20,7 @@
       "exitCode": 0,
       "stdout": "",
       "stderr": "info: kotlinc-jvm 2.3.10 (JRE 27)\n",
-      "durationSeconds": 1.814
+      "durationSeconds": 4.095
     },
     "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
     "javaVersion": {
@@ -32,7 +32,7 @@
       "exitCode": 0,
       "stdout": "",
       "stderr": "openjdk version \"27\" 2026-09-15\nOpenJDK Runtime Environment Homebrew (build 27)\nOpenJDK 64-Bit Server VM Homebrew (build 27, mixed mode, sharing)\n",
-      "durationSeconds": 0.063
+      "durationSeconds": 0.075
     },
     "nodeVersion": {
       "command": [
@@ -43,9 +43,9 @@
       "exitCode": 0,
       "stdout": "v26.10.0\n",
       "stderr": "",
-      "durationSeconds": 0.101
+      "durationSeconds": 0.202
     },
-    "repositoryRevision": "5d4f8b899e3d7814095491f0ba3ba2366341e98f"
+    "repositoryRevision": "90358b29955d8d835f81efdc65eb363db20b68ef"
   },
   "timeoutsSeconds": {
     "compile": 60,
@@ -933,7 +933,7 @@
     },
     "reflection": {
       "source": "valid/reflection.kt",
-      "sourceSha256": "bb16b31186ecc0e1447812baab330ea35a7efc79993ab8b1837e66e619b955aa",
+      "sourceSha256": "8ce75f24b4226e14309859dc0878f3833c3dcb71795fb8a82b03295b6f069ce0",
       "compile": {
         "command": [
           "<KOTLIN_DIR>/bin/kotlinc-js",
@@ -948,12 +948,13 @@
           "-Werror",
           "docs/fixtures/js_annotations/valid/reflection.kt"
         ],
+        "timeout": false,
         "exitCode": 0,
         "stdout": "",
         "stderr": "",
+        "durationSeconds": 8.42,
         "diagnostics": [],
-        "timeout": false,
-        "artifactSha256": "8fd801e09b700aa1cc6be7ff79fff82a4f164315119d8c32e83197a36398f846"
+        "artifactSha256": "72a4ffb1b039cc7a0b46c9b2e8c46cf483d32654a1990b424a4f95e0378c0eb9"
       },
       "link": {
         "command": [
@@ -973,12 +974,13 @@
           "-main",
           "call"
         ],
+        "timeout": false,
         "exitCode": 0,
         "stdout": "",
         "stderr": "",
-        "timeout": false,
+        "durationSeconds": 12.824,
         "artifacts": {
-          "reflection.mjs": "20aa452da72dd19a0fee1241211266f7a81131e92fabe78e93b90ed8bb2848df"
+          "reflection.mjs": "1732cc49d185cf3f40fcaec042296cd95f4659eed118e395fb88f174195bf8a1"
         }
       },
       "run": {
@@ -986,10 +988,11 @@
           "node",
           "<CAPTURE_DIR>/reflection/js/reflection.mjs"
         ],
+        "timeout": false,
         "exitCode": 0,
-        "stdout": "createInstance:7:7:2\nEmpty\nrequired:Class \"Required\" should have a single no-arg constructor\n",
+        "stdout": "ExportedBox:7:0\nEmpty\ndefault:41:1\ndefault:42:2\nrequired:Class \"RequiredConstructor\" should have a single no-arg constructor\nmultiple:Class \"MultipleEligibleConstructors\" should have a single no-arg constructor\n",
         "stderr": "",
-        "timeout": false
+        "durationSeconds": 0.335
       }
     },
     "static_accepted": {

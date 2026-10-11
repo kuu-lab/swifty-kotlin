@@ -16,7 +16,13 @@ extension KIRLoweringDriver {
         arena.transformFunctions { function in
             var updated = function
 
-            if function.name == mainName, !allTopLevelInitInstructions.isEmpty {
+            let matchesEntry: Bool
+            if let entry = compilationCtx.options.entryPointFQName {
+                matchesEntry = sema.symbols.symbol(function.symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entry
+            } else {
+                matchesEntry = function.name == mainName
+            }
+            if matchesEntry, !allTopLevelInitInstructions.isEmpty {
                 updated.replaceBody(injectTopLevelInits(
                     body: function.body,
                     bodyLocations: function.instructionLocations,

@@ -132,7 +132,7 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> ConstructorDelegationCall? {
         let tokens = collectTokens(from: nodeID, in: arena)
-        guard let parenIndex = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
+        guard let parenIndex = constructorParameterOpenParenIndex(in: tokens, interner: interner) else {
             return nil
         }
         var index = skipBalancedBracket(in: tokens, from: parenIndex, open: .symbol(.lParen), close: .symbol(.rParen))

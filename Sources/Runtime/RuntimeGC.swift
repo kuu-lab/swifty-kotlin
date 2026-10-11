@@ -25,6 +25,9 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Existing retained reference cells are external owners, not swept boxes.
+    /// Trace their direct kk_alloc payloads until replacement or owner release.
+    var retainedAtomicReferenceHandles: Set<UInt> = []
     var seededRandomPointers: Set<UInt> = []
     /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
     /// singleton or a dedicated runtime registry rather than passRetained.
@@ -668,6 +671,7 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
         for pointer in pointers {
             let key = UInt(bitPattern: pointer)
             state.objectPointers.remove(key)
+            state.retainedAtomicReferenceHandles.remove(key)
             state.seededRandomPointers.remove(key)
         }
     }
@@ -696,6 +700,7 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     worklist.reserveCapacity(state.heapObjects.count)
     collectRootPointersLocked(state: state, threadLocalValues: threadLocalValues, into: &worklist)
     worklist.append(contentsOf: callableRoots.compactMap(UnsafeMutableRawPointer.init(bitPattern:)))
+    collectRetainedAtomicPayloadRootsLocked(state: state, into: &worklist)
 
     while let current = worklist.popLast() {
         let key = UInt(bitPattern: current)

@@ -761,6 +761,15 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let invokeResult = tryLowerNominalPropertyInvocation(
+            exprID, receiverExpr: receiverExpr, args: args, precomputedReceiver: loweredReceiverID,
+            shared: shared, emit: &instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let invokeResult = tryLowerLexicalExtensionCallableInvocation(
             exprID,
             receiverExpr: receiverExpr,
@@ -836,7 +845,7 @@ extension CallLowerer {
             case .localValue(let localSym):
                 if sema.symbols.symbol(localSym)?.kind == .property {
                     if let functionValue = lowerStoredMemberPropertyReadValue(
-                        propertySymbol: localSym,
+                        propertySymbol: localSym, callExprID: exprID,
                         receiverExpr: receiverExpr,
                         loweredReceiverID: loweredReceiverID,
                         resultType: callableBinding.functionType,
@@ -849,7 +858,9 @@ extension CallLowerer {
                     ) {
                         callSymbol = localSym
                         var prefix = [functionValue]
-                        if fnType.receiver != nil {
+                        if fnType.receiver != nil,
+                           sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
+                        {
                             prefix.append(loweredReceiverID)
                         }
                         callPrefix = prefix

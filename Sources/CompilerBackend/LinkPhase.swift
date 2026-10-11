@@ -64,11 +64,12 @@ final class LinkPhase: CompilerPhase {
             interner: ctx.interner,
             moduleName: ctx.options.moduleName,
             symbols: ctx.sema?.symbols,
-            fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast)
+            fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
+            entryPointFQName: ctx.options.entryPointFQName
         ) else {
             ctx.diagnostics.error(
                 "KSWIFTK-LINK-0002",
-                "No entry point 'main' function found for executable emission.",
+                "No entry point '\(ctx.options.entryPointFQName ?? "main")' function found for executable emission.",
                 range: nil
             )
             throw CompilerPipelineError.outputUnavailable
@@ -220,7 +221,8 @@ final class LinkPhase: CompilerPhase {
         interner: StringInterner,
         moduleName: String,
         symbols: SymbolTable?,
-        fileFacadeNamesByFileID: [Int32: String]
+        fileFacadeNamesByFileID: [Int32: String],
+        entryPointFQName: String?
     ) -> String? {
         guard let ast, let bindings else {
             return nil
@@ -242,8 +244,14 @@ final class LinkPhase: CompilerPhase {
                 // Compare interned IDs first; fall back to the resolved string so
                 // an entry point is found even if `main` was interned on a
                 // different code path and received a distinct `InternedString`.
-                if function.name == knownNames.main
-                    || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved) {
+                let matchesEntry: Bool
+                if let entryPointFQName {
+                    matchesEntry = symbols?.symbol(symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entryPointFQName
+                } else {
+                    matchesEntry = function.name == knownNames.main
+                        || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved)
+                }
+                if matchesEntry {
                     return CodegenSymbolSupport.cFunctionSymbol(
                         for: function,
                         interner: interner,

@@ -78,6 +78,8 @@ public struct CompilerOptions: Equatable {
     public var irFlags: [String]
     public var runtimeFlags: [String]
     public var diagnosticsFormat: DiagnosticsFormat
+    /// Exact file-level entry point, used by generated test executables.
+    public var entryPointFQName: String?
 
     /// Whether this compilation produces common-module metadata that may
     /// retain expect declarations without local actual declarations.
@@ -162,7 +164,8 @@ public struct CompilerOptions: Equatable {
         diagnosticsFormat: DiagnosticsFormat = .text,
         stdlibOnly: Bool = false,
         stdlibLibraryPath: String? = nil,
-        allowDefaultStdlibLibrary: Bool = true
+        allowDefaultStdlibLibrary: Bool = true,
+        entryPointFQName: String? = nil
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -194,6 +197,7 @@ public struct CompilerOptions: Equatable {
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
         self.stdlibOnly = stdlibOnly
+        self.entryPointFQName = entryPointFQName
     }
 
     /// Default search paths for locating Kotlin stdlib sources.
