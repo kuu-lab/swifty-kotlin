@@ -3,5 +3,8 @@ package kotlinx.io.bytestring.unsafe
 
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
-@RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+@RequiresOptIn(
+    level = RequiresOptIn.Level.ERROR,
+    message = "This is a unsafe API and its use may corrupt the data stored in a byte string. Make sure you fully read and understand documentation of the declaration that is marked as an unsafe API."
+)
 public annotation class UnsafeByteStringApi
