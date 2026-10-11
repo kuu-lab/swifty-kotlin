@@ -569,14 +569,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([arenaBaseSymbol], for: memScopeSymbol)
         types.setNominalDirectSupertypes([arenaBaseSymbol], for: memScopeSymbol)
 
-        // inline fun <R> memScoped(block: MemScope.() -> R): R
         let memScopedName = interner.intern("memScoped")
         let memScopedFQName = cinteropPkg + [memScopedName]
         if symbols.lookupAll(fqName: memScopedFQName).contains(where: { symbolID in
             guard let sig = symbols.functionSignature(for: symbolID) else { return false }
             return sig.receiverType == nil && sig.parameterTypes.count == 1 && sig.typeParameterSymbols.count == 1
         }) {
-            // already registered
         } else {
             let memScopedRName = interner.intern("R")
             let memScopedRFQName = memScopedFQName + [memScopedRName]
@@ -699,11 +697,8 @@ extension DataFlowSemaPhase {
                 nullability: .nonNull
             )))
 
-            // CValue<T>.write(location: T) — STDLIB-CINTEROP-FN-045
-
         }
 
-        // inline fun <T : CPointed> CPointer<T>?.toLong(): Long
         let pointerToLongFunctionName = interner.intern("toLong")
         let pointerToLongFunctionFQName = cinteropPkg + [pointerToLongFunctionName]
         let pointerToLongTypeParameterName = interner.intern("T")
@@ -746,7 +741,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // inline fun <reified T : Any> unwrapKotlinObjectHolder(holder: COpaquePointer?): T
         let unwrapHolderFunctionName = interner.intern("unwrapKotlinObjectHolder")
         let unwrapHolderFunctionFQName = cinteropPkg + [unwrapHolderFunctionName]
         let unwrapHolderTypeParameterName = interner.intern("T")
@@ -979,8 +973,6 @@ extension DataFlowSemaPhase {
         // registered above (all three parameters have default values).
         // Registering a separate zero-parameter overload here would cause ambiguity
         // when calling bytes.toKString() with no arguments.
-        //
-        // fun ByteArray.toCValues(): CValues<ByteVar>
         let byteArrayReceiverType = syntheticClassType(
             packagePath: ["kotlin"],
             name: "ByteArray",
@@ -1085,7 +1077,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Pinned<T>.get(): T — STDLIB-CINTEROP-FN-009
         registerSyntheticNativeMemberFunction(
             named: "get",
             ownerSymbol: pinnedSymbol,
@@ -1099,7 +1090,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Pinned<T>.unpin(): Unit — STDLIB-CINTEROP-FN-009
         registerSyntheticNativeMemberFunction(
             named: "unpin",
             ownerSymbol: pinnedSymbol,
@@ -1404,7 +1394,6 @@ extension DataFlowSemaPhase {
             )))
 
         }
-        // fun UIntArray.toCValues(): CValues<UIntVar>
         if let uIntVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UIntVar")]) {
             let uIntVarType = types.make(.classType(ClassType(
                 classSymbol: uIntVarSymbol,
@@ -1435,7 +1424,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // fun ULongArray.toCValues(): CValues<ULongVar>
         if let uLongVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("ULongVar")]) {
             let uLongVarType = types.make(.classType(ClassType(
                 classSymbol: uLongVarSymbol,
@@ -1465,7 +1453,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // fun CPointer<IntVar>.toKStringFromUtf32(): String
         if let intVarSymbolForUtf32 = symbols.lookup(fqName: cinteropPkg + [interner.intern("IntVar")]) {
             let intVarTypeForUtf32 = types.make(.classType(ClassType(
                 classSymbol: intVarSymbolForUtf32,
@@ -1489,7 +1476,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // fun CPointer<ShortVar>.toKString(): String
         if let shortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("ShortVar")]) {
             let shortVarTypeForToKString = types.make(.classType(ClassType(
                 classSymbol: shortVarSymbolForToKString,
@@ -1513,7 +1499,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // fun CPointer<UShortVar>.toKStringFromUtf16(): String
         if let uShortVarSymbolForUtf16 = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForUtf16 = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbolForUtf16,
@@ -1536,8 +1521,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // fun CPointer<UShortVar>.toKString(): String — STDLIB-CINTEROP-FN-032
-        // Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
+        // STDLIB-CINTEROP-FN-032: Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
         if let uShortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForToKString = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbolForToKString,
@@ -1560,7 +1544,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // fun UByteArray.toCValues(): CValues<UByteVar>
         if let uByteVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UByteVar")]) {
             let uByteVarType = types.make(.classType(ClassType(
                 classSymbol: uByteVarSymbol,
@@ -1649,7 +1632,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun <reified R : CPointed> CPointer<T>.reinterpret(): CPointer<R>
         let reinterpretRName = interner.intern("R")
         let reinterpretFunctionFQName = cinteropPkg + [interner.intern("CPointer"), interner.intern("reinterpret")]
         let reinterpretRSymbol: SymbolID = if let existing = symbols.lookup(fqName: reinterpretFunctionFQName + [reinterpretRName]) {
@@ -1791,7 +1773,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun NativePlacement.allocRaw(size: Long, align: Int): NativePtr
         registerSyntheticNativeMemberFunction(
             named: "allocRaw",
             ownerSymbol: nativePlacementSymbol,
@@ -1809,7 +1790,6 @@ extension DataFlowSemaPhase {
         // NativePlacement returning COpaquePointer. Omitted here — the bridge
         // returns a NativePtr box, and `allocRaw` covers the raw path.
 
-        // fun NativeFreeablePlacement.free(ptr: CPointer<*>?) / free(ptr: NativePtr)
         registerSyntheticNativeMemberFunction(
             named: "free",
             ownerSymbol: nativeFreeablePlacementSymbol,
@@ -1887,7 +1867,6 @@ extension DataFlowSemaPhase {
         let nativeHeapPropertyName = interner.intern("nativeHeap")
         let nativeHeapPropertyFQName = cinteropPkg + [nativeHeapPropertyName]
         if symbols.lookupAll(fqName: nativeHeapPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-            // already registered
         } else {
             let nativeHeapPropertySymbol = symbols.define(
                 kind: .property,
@@ -1904,7 +1883,6 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName("kk_native_heap_get", for: nativeHeapPropertySymbol)
         }
 
-        // fun NativePtr.toLong(): Long / fun nativeNullPtr(): NativePtr
         registerSyntheticNativeMemberFunction(
             named: "toLong",
             ownerSymbol: nativePtrSymbol,
@@ -1925,7 +1903,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun <reified T : CVariable> sizeOf(): Long / alignOf(): Long
         let sizeOfName = interner.intern("sizeOf")
         let sizeOfFQName = cinteropPkg + [sizeOfName]
         let sizeOfT: SymbolID = if let existing = symbols.lookup(fqName: sizeOfFQName + [interner.intern("T")]) {
@@ -1982,7 +1959,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun <reified T : CPointed> interpretCPointer(rawPtr: NativePtr): CPointer<T>
         let interpretCPointerName = interner.intern("interpretCPointer")
         let interpretCPointerFQName = cinteropPkg + [interpretCPointerName]
         let interpretCPointerT: SymbolID = if let existing = symbols.lookup(fqName: interpretCPointerFQName + [interner.intern("T")]) {
@@ -2020,7 +1996,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun <T : CPointed> Long.toCPointer(): CPointer<T>?
         let longToCPointerName = interner.intern("toCPointer")
         let longToCPointerFQName = cinteropPkg + [longToCPointerName]
         let longToCPointerT: SymbolID = if let existing = symbols.lookup(fqName: longToCPointerFQName + [interner.intern("T")]) {
@@ -2076,7 +2051,6 @@ extension DataFlowSemaPhase {
             let cstrPropertyName = interner.intern("cstr")
             let cstrPropertyFQName = cinteropPkg + [interner.intern("MemScope"), cstrPropertyName]
             if symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-                // already registered
             } else {
                 let cstrPropertySymbol = symbols.define(
                     kind: .property,
@@ -2113,7 +2087,6 @@ extension DataFlowSemaPhase {
                 symbols.setAccessorOwnerProperty(cstrPropertySymbol, for: cstrGetterSymbol)
             }
         }
-        // fun <T> CValues<T>.getPointer(scope: NativePlacement): CPointer<T>
         configureSingleTypeParameterNominal(
             ownerSymbol: cValuesSymbol,
             fqName: cinteropPkg + [interner.intern("CValues")],
