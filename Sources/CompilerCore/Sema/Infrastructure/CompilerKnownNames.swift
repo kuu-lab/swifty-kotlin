@@ -339,7 +339,6 @@ package struct KnownCompilerNames {
 
     // Scope function names (STDLIB-004 / STDLIB-250)
 
-    // StringBuilder member names
     let append: InternedString
     let appendLine: InternedString
     let appendRange: InternedString
@@ -761,7 +760,6 @@ package struct KnownCompilerNames {
 
         // Scope function names (STDLIB-004 / STDLIB-250)
 
-        // StringBuilder member names
         append = interner.intern("append")
         appendLine = interner.intern("appendLine")
         appendRange = interner.intern("appendRange")
@@ -1217,15 +1215,12 @@ package struct KnownCompilerNames {
             || name == ulongProgression
     }
 
-    /// The signed subset of `isRangeLikeClassName` (Int/Long/Char only).
     func isSignedRangeLikeClassName(_ name: InternedString) -> Bool {
         name == intRange || name == longRange || name == charRange
             || name == intProgression || name == longProgression
             || name == charProgression
     }
 
-    /// True when `symbol` is a built-in `kotlin.ranges` Range / Progression
-    /// class (unsigned variants included).
     func isRangeLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.fqName.starts(with: kotlinRangesPackageFQName)
             && (symbol.fqName.last.map { isRangeLikeClassName($0) } ?? false)
@@ -1247,8 +1242,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-    /// Returns true if the name is a primitive array constructor type name
-    /// (e.g. Array, IntArray, LongArray, etc.).
     func isPrimitiveArrayConstructorTypeName(_ name: InternedString) -> Bool {
         name == array
             || name == intArray
