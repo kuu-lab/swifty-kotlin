@@ -11,7 +11,7 @@ public object Paths {
     public fun get(first: String, vararg more: String): Path {
         var path = first
         for (part in more) {
-            if (part.isNotEmpty()) path = if (path.isEmpty()) part else path.trimEnd('/') + "/" + part
+            if (part.isNotEmpty()) path = if (path.isEmpty()) part else "${path.trimEnd('/')}/$part"
         }
         return Path(path)
     }

@@ -6,7 +6,6 @@
 package kotlinx.io.bytestring
 
 import kotlinx.io.bytestring.unsafe.UnsafeByteStringApi
-import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 
@@ -32,11 +31,7 @@ public fun String.encodeToByteString(charset: Charset): ByteString = ByteString.
  */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteString.asReadOnlyByteBuffer(): ByteBuffer {
-    val data: ByteArray
-
-    UnsafeByteStringOperations.withByteArrayUnsafe(this) {
-        data = it
-    }
+    val data = getBackingArrayReference()
 
     return ByteBuffer.wrap(data).asReadOnlyBuffer()
 }
