@@ -1307,7 +1307,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Only check concrete class/object declarations (not abstract, not interface)
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
               !symbolInfo.flags.contains(.abstractType)
         else {
@@ -1348,7 +1347,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Collects the set of member names that this class provides via `override`.
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
@@ -1430,7 +1428,6 @@ extension DataFlowSemaPhase {
                 else {
                     continue
                 }
-                // Only check class and interface declarations that have supertypes
                 let hasSuperTypes: Bool
                 switch decl {
                 case let .classDecl(classDecl):
