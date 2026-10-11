@@ -805,7 +805,7 @@ final class CallSupportLowerer {
                 instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(argIndices.count))))
             }
             let typedPackedArray = appendRuntimeArrayComponentTag(
-                packedArray, arrayType: concreteArrayType, sema: sema, arena: arena,
+                packedArray, arrayType: concreteArrayType, context: driver.ctx, sema: sema, arena: arena,
                 interner: interner, instructions: &instructions
             )
             return NormalizedCallResult(arguments: [typedPackedArray, countExpr], defaultMask: 0)
@@ -946,7 +946,7 @@ final class CallSupportLowerer {
                 // Empty primitive and local reference varargs keep their array
                 // representation. Other reference varargs use the List bridge.
                 let typedEmptyArray = appendRuntimeArrayComponentTag(
-                    emptyArray, arrayType: arena.exprType(emptyArray), sema: sema,
+                    emptyArray, arrayType: arena.exprType(emptyArray), context: driver.ctx, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
                 )
                 normalized.append(preserveArrayVarargs || primitiveArrayType != nil
@@ -1130,7 +1130,7 @@ final class CallSupportLowerer {
             instructions.append(.copy(from: expression, to: typed))
             if let sema {
                 return appendRuntimeArrayComponentTag(
-                    typed, arrayType: resultType, sema: sema, arena: arena,
+                    typed, arrayType: resultType, context: driver.ctx, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
                 )
             }
@@ -1316,7 +1316,7 @@ final class CallSupportLowerer {
         )
     }
 
-    private func emitArrayToList(
+    func emitArrayToList(
         _ arrayID: KIRExprID,
         arena: KIRArena,
         interner: StringInterner,

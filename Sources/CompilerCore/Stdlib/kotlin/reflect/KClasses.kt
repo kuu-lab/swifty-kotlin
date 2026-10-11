@@ -215,8 +215,6 @@ private external fun __kk_kclass_get_annotations(kclass: KClass<*>): List<Annota
 @KsSymbolName("__kk_kclass_members")
 private external fun __kk_kclass_members(kclass: KClass<*>): List<KCallable<*>>
 
-@KsSymbolName("__kk_kclass_constructors")
-private external fun __kk_kclass_constructors(kclass: KClass<*>): List<KFunction<*>>
 
 @KsSymbolName("__kk_kclass_nested_classes")
 private external fun __kk_kclass_nested_classes(kclass: KClass<*>): List<KClass<*>>
@@ -264,10 +262,6 @@ public val KClass<*>.annotations: List<Annotation>
 /** Returns all functions and properties declared in this class and its supertypes. */
 public val KClass<*>.members: Collection<KCallable<*>>
     get() = __kk_kclass_members(this)
-
-/** Returns the constructors declared in this class. */
-public val KClass<*>.constructors: Collection<KFunction<*>>
-    get() = __kk_kclass_constructors(this)
 
 /** Returns the classes declared directly inside this class. */
 public val KClass<*>.nestedClasses: Collection<KClass<*>>

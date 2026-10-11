@@ -89,7 +89,7 @@ extension CallLowerer {
             arrayExpr = taggedArrayExpr
         }
         arrayExpr = appendRuntimeArrayComponentTag(
-            arrayExpr, arrayType: sema.bindings.exprTypes[exprID], sema: sema,
+            arrayExpr, arrayType: sema.bindings.exprTypes[exprID], context: driver.ctx, sema: sema,
             arena: arena, interner: interner, instructions: &instructions
         )
 

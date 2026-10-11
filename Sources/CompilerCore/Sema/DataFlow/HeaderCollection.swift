@@ -2004,12 +2004,26 @@ extension DataFlowSemaPhase {
             )
 
         case let .propertyDecl(propertyDecl):
+            let typeParamResult = collectFunctionTypeParameters(
+                propertyDecl.typeParams,
+                localNamespaceFQName: fqName + [interner.intern("$\(symbol.rawValue)")],
+                declSite: propertyDecl.range,
+                ast: ast, symbols: symbols, types: types,
+                interner: interner, isInline: propertyDecl.allAccessorsAreInline,
+                diagnostics: diagnostics,
+                relativeOwnerFQName: package, currentPackageFQName: package,
+                imports: file.imports
+            )
+            let upperBounds = typeParamResult.typeParameterSymbols.map {
+                symbols.typeParameterUpperBounds(for: $0)
+            }
             let resolvedType = resolveTypeRef(
                 propertyDecl.type,
                 ast: ast,
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
@@ -2028,6 +2042,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
+                localTypeParameters: typeParamResult.localTypeParameters,
                 relativeOwnerFQName: package,
                 currentPackageFQName: package,
                 imports: file.imports,
@@ -2048,7 +2063,10 @@ extension DataFlowSemaPhase {
                     FunctionSignature(
                         receiverType: receiverType,
                         parameterTypes: [],
-                        returnType: resolvedType
+                        returnType: resolvedType,
+                        typeParameterSymbols: typeParamResult.typeParameterSymbols,
+                        reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
+                        typeParameterUpperBoundsList: upperBounds
                     ),
                     for: getterSymbol
                 )
@@ -2068,7 +2086,10 @@ extension DataFlowSemaPhase {
                         FunctionSignature(
                             receiverType: receiverType,
                             parameterTypes: [resolvedType],
-                            returnType: unitType
+                            returnType: unitType,
+                            typeParameterSymbols: typeParamResult.typeParameterSymbols,
+                            reifiedTypeParameterIndices: typeParamResult.reifiedIndices,
+                            typeParameterUpperBoundsList: upperBounds
                         ),
                         for: setterSymbol
                     )

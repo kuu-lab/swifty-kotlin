@@ -1,4 +1,4 @@
-// SKIP-DIFF (DEBT-DIFF-001): kotlinc rejects expect/actual unless split across common/platform files with -Xcommon-sources, which this single-file harness cannot express; kswiftc also has independent expect/actual bugs.
+// CANDIDATE-ONLY: this single-file harness cannot model common/platform source sets for JVM kotlinc; compare the candidate's expect/actual runtime output directly.
 package diff.kmp
 
 expect fun <T> identity(value: T): T

@@ -481,4 +481,89 @@ struct AtomicfuBundledSourceRegistrationTests {
         _ = try realBlockingCall(ctx, library: library)
         confirmed = true
     }
+
+    @Test(arguments: [false, true])
+    func explicitRecordingTypesBindBesideUnchangedNativeTypes(library: Bool) throws {
+        let input = """
+        import kswiftk.atomicfu.*
+        import kswiftk.atomicfu.recordingAtomic as recorded
+        import kotlinx.atomicfu.atomic as nativeAtomic
+        import kotlinx.atomicfu.TraceFormat
+        fun actualRecording() {
+            val trace = kswiftk.atomicfu.RecordingTrace(3, TraceFormat { i, e -> "$i=$e" })
+            val i: RecordingAtomicInt = recorded(1)
+            val l: RecordingAtomicLong = recorded(1L, trace.named("l"))
+            val b: RecordingAtomicBoolean = recorded(false, trace)
+            val r: RecordingAtomicRef<String?> = recorded<String?>(null, trace)
+            val original: kotlinx.atomicfu.AtomicInt = nativeAtomic(2, trace)
+            i.value = original.value
+            i.update { it + 1 }
+            l.getAndAdd(1L)
+            b.compareAndSet(false, true)
+            r.getAndSet("value")
+            trace.snapshot()
+        }
+        """
+        let ctx = try context(input, library: library)
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let path = try #require(ctx.options.inputs.first)
+        let calls = sema.bindings.callBindings.filter { expression, binding in
+            guard let range = ast.arena.exprRange(expression),
+                  ctx.sourceManager.path(of: range.start.file) == path else { return false }
+            return qualifiedName(binding.chosenCallee, sema, ctx) == "kswiftk.atomicfu.recordingAtomic"
+        }
+        try #require(calls.count == 4)
+        try #require(Set(calls.values.map(\.chosenCallee)).count == 4)
+        for call in calls.values {
+            let info = try #require(sema.symbols.symbol(call.chosenCallee))
+            try #require(info.kind == .function && info.visibility == .public)
+            try #require(info.flags.contains(.importedLibrary) == library)
+            try #require(!info.flags.contains(.synthetic))
+            if library {
+                let link = try #require(sema.symbols.externalLinkName(for: info.id))
+                let privateBridges: Set<String> = [
+                    "__kk_atomicfu_lock_new", "__kk_atomicfu_lock_lock",
+                    "__kk_atomicfu_lock_try_lock", "__kk_atomicfu_lock_unlock",
+                    "__kk_atomicfu_parker_new", "__kk_atomicfu_parker_wait",
+                    "__kk_atomicfu_parker_unpark", "__kk_atomicfu_current_parking_handle",
+                ]
+                try #require(!link.isEmpty && !privateBridges.contains(link))
+            } else {
+                try #require(sema.symbols.externalLinkName(for: info.id) == nil)
+                try #require(sema.symbols.isSourceBackedSymbol(info.id))
+                let file = try #require(sema.symbols.sourceFileID(for: info.id) ?? info.declSite?.start.file)
+                try #require(ctx.sourceManager.path(of: file).contains("__bundled_kswiftk/atomicfu/"))
+            }
+        }
+        for name in ["Int", "Long", "Boolean", "Ref"] {
+            let recording = try #require(sema.symbols.lookup(fqName:
+                ["kswiftk", "atomicfu", "RecordingAtomic" + name].map(ctx.interner.intern)))
+            let native = try #require(sema.symbols.lookup(fqName:
+                ["kotlinx", "atomicfu", "Atomic" + name].map(ctx.interner.intern)))
+            try #require(recording != native)
+        }
+        let expected = try expectations()
+        try #require(expected.count == 150 && expected.filter { $0.visibility == "public" }.count == 142)
+    }
+
+    @Test(arguments: [false, true], [0, 1, 2, 3])
+    func recordingInternalsAndExtensionNamesDoNotLeak(library: Bool, index: Int) throws {
+        let sources = [
+            "import kotlinx.atomicfu.*\nfun bad() = RecordingTrace()",
+            "import kotlinx.atomicfu.*\nfun bad() = recordingAtomic(1)",
+            "fun bad() = kswiftk.atomicfu.RecordingTraceStorage(1, kotlinx.atomicfu.TraceFormat())",
+            "fun bad() = kswiftk.atomicfu.RecordingAtomicInt(kotlinx.atomicfu.atomic(0), kotlinx.atomicfu.TraceBase.None)",
+        ]
+        let ctx = try context(sources[index], library: library)
+        try runSema(ctx)
+        let path = try #require(ctx.options.inputs.first)
+        try #require(ctx.diagnostics.diagnostics.contains { diagnostic in
+            diagnostic.severity == .error && diagnostic.primaryRange.map {
+                ctx.sourceManager.path(of: $0.start.file) == path
+            } == true
+        }, "Actual user input must reject private/internal/unimported extension: \(sources[index])")
+    }
 }

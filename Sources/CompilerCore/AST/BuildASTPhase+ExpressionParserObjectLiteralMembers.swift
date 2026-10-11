@@ -213,6 +213,17 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralPropertyDecl(from tokens: ArraySlice<Token>) -> PropertyDecl? {
+        if let declaration = tokens.firstIndex(where: { $0.kind == .keyword(.val) || $0.kind == .keyword(.var) }),
+           tokens.index(after: declaration) < tokens.endIndex,
+           tokens[tokens.index(after: declaration)].kind == .symbol(.lessThan) {
+            let parser = KotlinParser(tokens: objectLiteralMemberParseTokens(from: Array(tokens)),
+                                      interner: interner, diagnostics: diagnostics ?? DiagnosticEngine())
+            let parsed = parser.parseFile()
+            guard let node = firstTopLevelNode(ofKind: .propertyDecl, in: parsed.arena, root: parsed.root) else { return nil }
+            return BuildASTPhase(diagnostics: diagnostics).makePropertyDecl(from: node, in: parsed.arena,
+                                                                           interner: interner, astArena: astArena)
+        }
+
         let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard let first = sanitized.first, let last = sanitized.last else {
             return nil

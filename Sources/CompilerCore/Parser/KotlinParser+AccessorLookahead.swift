@@ -29,6 +29,8 @@ extension KotlinParser {
             case .public, .private, .internal, .protected:
                 hasVisibilityModifier = true
                 offset += 1
+            case .inline:
+                offset += 1
             default:
                 break visibilityPrefix
             }

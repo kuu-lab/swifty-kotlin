@@ -52,10 +52,14 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
         preferredSourcePackage: [InternedString]? = nil,
-        bindCall: Bool = true
+        bindCall: Bool = true,
+        requireInScope: Bool = false,
+        invocationCandidateFilter: ((SymbolID) -> Bool)? = nil
     ) -> TypeID? {
         let sema = ctx.sema
-        let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        let scopedCandidates = invocationCandidateFilter == nil
+            ? ctx.cachedScopeLookup(calleeName) : ctx.scope.lookupMergingChain(calleeName)
+        let visible = ctx.filterByVisibility(scopedCandidates).visible
         var getterCandidates: [SymbolID] = []
         var propertyForGetter: [SymbolID: SymbolID] = [:]
         var invisibleProperties: [SymbolID] = []
@@ -90,13 +94,36 @@ extension CallTypeChecker {
                     classSymbol: enclosingClass, args: [], nullability: .nonNull
                 ))))
             }
-            return receiverTypes.contains { sema.types.isSubtype($0, ownerType) }
+            return receiverTypes.contains { receiver in
+                if sema.types.isSubtype(receiver, ownerType) { return true }
+                guard case let .classType(type) = sema.types.kind(of: sema.types.makeNonNullable(receiver)) else { return false }
+                return sema.types.isNominalSubtypeSymbol(type.classSymbol, of: owner)
+            }
+        }
+        func isInInvocationScope(_ candidate: SymbolID) -> Bool {
+            guard requireInScope else { return true }
+            if visible.contains(candidate) { return true }
+            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            if let owner = sema.symbols.parentSymbol(for: candidate),
+               let ownerInfo = sema.symbols.symbol(owner),
+               ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .object {
+                return hasDispatchReceiverOrImport(for: candidate)
+            }
+            guard let file = ctx.currentASTFile else { return false }
+            let package = Array(symbol.fqName.dropLast())
+            if file.packageFQName == package { return true }
+            return file.imports.contains { item in
+                if item.isWildcard { return item.path == package }
+                return item.path == symbol.fqName && (item.alias == nil || item.alias == calleeName)
+            }
         }
         func collectGetterCandidate(from candidate: SymbolID, requireSynthetic: Bool) {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
                   hasDispatchReceiverOrImport(for: candidate),
+                  isInInvocationScope(candidate),
+                  invocationCandidateFilter?(candidate) ?? true,
                   preferredSourcePackage == nil || isUserSourceDeclaration(candidate)
                       || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
@@ -224,12 +251,22 @@ extension CallTypeChecker {
             return nil
         }
 
+        if invocationCandidateFilter != nil,
+           let priority = getterCandidates.compactMap({ propertyForGetter[$0] }).map({
+               callableInvocationScopePriority($0, named: calleeName, ctx: ctx)
+           }).min() {
+            getterCandidates.removeAll { getter in
+                guard let property = propertyForGetter[getter] else { return true }
+                return callableInvocationScopePriority(property, named: calleeName, ctx: ctx) != priority
+            }
+        }
         var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(
                 range: range,
                 calleeName: calleeName,
-                args: []
+                args: [],
+                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: expectedType,
             implicitReceiverType: receiverType,
@@ -247,7 +284,8 @@ extension CallTypeChecker {
                 call: CallExpr(
                     range: range,
                     calleeName: calleeName,
-                    args: []
+                    args: [],
+                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
                 ),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
@@ -261,6 +299,13 @@ extension CallTypeChecker {
             return nil
         }
 
+        validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)
+
+        sema.bindings.bindExtensionPropertyGetterCall(id, binding: CallBinding(
+            chosenCallee: chosen,
+            substitutedTypeArguments: resolved.substitutedTypeArguments.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value),
+            parameterMapping: resolved.parameterMapping
+        ))
         if bindCall {
             sema.bindings.bindCall(
                 id,
@@ -280,7 +325,7 @@ extension CallTypeChecker {
         // Plain reads keep the accessor-owner-only behaviour so lowering still
         // dispatches through the getter call binding.
         let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
-            ?? (bindCall ? nil : sema.symbols.parentSymbol(for: chosen))
+            ?? (bindCall ? nil : propertyForGetter[chosen] ?? sema.symbols.parentSymbol(for: chosen))
         if let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
             sema.bindings.bindIdentifier(id, symbol: ownerProperty)
             deprecationCheckTarget = ownerProperty
@@ -311,9 +356,29 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return sema.types.anyType
         }
+        // Source getters may retain an erased header return type. Callable
+        // property invocation needs the declared property function type, with
+        // the same inferred type arguments as its selected getter.
+        var returnType = propertyForGetter[chosen].flatMap { sema.symbols.propertyType(for: $0) } ?? signature.returnType
+        if let property = propertyForGetter[chosen],
+           let owner = sema.symbols.parentSymbol(for: property),
+           let info = sema.symbols.symbol(owner),
+           info.kind == .class || info.kind == .interface || info.kind == .object {
+            let ownerType = sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            let dispatchTypes = ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            if let dispatchType = dispatchTypes.first(where: { receiver in
+                if sema.types.isSubtype(receiver, ownerType) { return true }
+                guard case let .classType(type) = sema.types.kind(of: sema.types.makeNonNullable(receiver)) else { return false }
+                return sema.types.isNominalSubtypeSymbol(type.classSymbol, of: owner)
+            }) {
+                returnType = driver.helpers.resolveMemberPropertyType(
+                    returnType, receiverType: dispatchType, ownerSymbol: owner, sema: sema
+                )
+            }
+        }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         return sema.types.substituteTypeParameters(
-            in: signature.returnType,
+            in: returnType,
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
@@ -405,14 +470,18 @@ extension CallTypeChecker {
             call: CallExpr(
                 range: range,
                 calleeName: calleeName,
-                args: [CallArg(type: valueType)]
+                args: [CallArg(type: valueType)],
+                dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: nil,
             implicitReceiverType: receiverType,
             ctx: ctx.semaCtx
         )
-        guard resolved.diagnostic == nil,
-              let chosen = resolved.chosenCallee,
+        if let diagnostic = resolved.diagnostic {
+            ctx.semaCtx.diagnostics.emit(diagnostic)
+            return nil
+        }
+        guard let chosen = resolved.chosenCallee,
               let propertySymbol = propertyForSetter[chosen]
                   ?? sema.symbols.accessorOwnerProperty(for: chosen)
         else {
@@ -429,6 +498,7 @@ extension CallTypeChecker {
                 parameterMapping: resolved.parameterMapping
             )
         )
+        validateReifiedPropertyArguments(chosen, arguments: resolved.substitutedTypeArguments, range: range, ctx: ctx)
         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         driver.helpers.checkDeprecation(
@@ -445,5 +515,27 @@ extension CallTypeChecker {
             diagnostics: ctx.semaCtx.diagnostics
         )
         return propertySymbol
+    }
+
+    private func validateReifiedPropertyArguments(
+        _ accessor: SymbolID, arguments: [TypeVarID: TypeID], range: SourceRange, ctx: TypeInferenceContext
+    ) {
+        guard let signature = ctx.sema.symbols.functionSignature(for: accessor) else { return }
+        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        func cannotBeReified(_ type: TypeID) -> Bool {
+            switch ctx.sema.types.kind(of: type) {
+            case let .typeParam(parameter):
+                return ctx.sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) != true
+            default:
+                return false
+            }
+        }
+        for index in signature.reifiedTypeParameterIndices where index < signature.typeParameterSymbols.count {
+            guard let variable = typeVariables[signature.typeParameterSymbols[index]],
+                  let argument = arguments[variable] else { continue }
+            if cannotBeReified(argument) {
+                ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0020", "This type cannot be used as a reified property type argument.", range: range)
+            }
+        }
     }
 }

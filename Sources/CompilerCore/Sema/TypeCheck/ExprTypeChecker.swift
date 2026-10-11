@@ -195,7 +195,7 @@ final class ExprTypeChecker {
                     id: id,
                     calleeName: calleeName,
                     range: range,
-                    receiverType: nonNullReceiver,
+                    receiverType: receiverType,
                     valueType: valueType,
                     ctx: ctx
                 )

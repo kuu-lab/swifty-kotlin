@@ -78,6 +78,11 @@ struct CaptureAnalyzer {
             switch expr {
             case .nameRef:
                 recordCapture(for: currentExprID)
+                if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
+                   outerSymbols.contains(receiverSymbol)
+                {
+                    captured.insert(receiverSymbol)
+                }
 
             case let .forExpr(_, iterable, body, _, _):
                 visit(iterable)
