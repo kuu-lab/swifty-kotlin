@@ -563,7 +563,10 @@ final class ExprTypeChecker {
             if let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
                let assertLocal = locals[assertVarName],
-               driver.helpers.isStableLocalSymbol(assertLocal.symbol, sema: sema)
+               let reference = ctx.dataFlow.resolveStableReference(
+                   exprID, locals: locals, ast: ast, sema: sema,
+                   interner: interner, narrowingType: type
+               ), reference.isStable
             {
                 locals[assertVarName] = (type, assertLocal.symbol, assertLocal.isMutable, assertLocal.isInitialized)
             }
