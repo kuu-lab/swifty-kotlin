@@ -344,4 +344,63 @@ struct RuntimeAtomicfuSynchronizationTests {
             ["intptr_t", "intptr_t", "intptr_t * _Nullable"])
         #expect(specs.allSatisfy { spec in RuntimeABISpec.allFunctions.filter { $0.name == spec.name }.count == 1 })
     }
+
+    // These test the existing kernel used by RecordingTrace, not a simulated ring.
+    // Kotlin ring/formatter/event behavior is covered by actual Backend fixtures.
+    @Test func existingRecordingLockSerializesConcurrentCriticalSections() {
+        let lock = RuntimeAtomicfuRecursiveLock()
+        let values = AtomicfuTestValues()
+        let group = DispatchGroup()
+        let ready = DispatchGroup()
+        let begin = DispatchSemaphore(value: 0)
+        for worker in 0..<4 {
+            group.enter()
+            ready.enter()
+            DispatchQueue.global().async {
+                defer { group.leave() }
+                ready.leave()
+                guard begin.wait(timeout: .now() + 2) == .success else {
+                    values.append(-3)
+                    return
+                }
+                for index in 0..<32 {
+                    guard lock.acquire(timeoutNanos: 2_000_000_000) else {
+                        values.append(-1)
+                        return
+                    }
+                    // Two observations under one acquisition must remain adjacent.
+                    values.append(worker * 100 + index)
+                    Thread.sleep(forTimeInterval: 0.0001) // force competitors to contend
+                    values.append(worker * 100 + index)
+                    guard lock.release() else { values.append(-2); return }
+                }
+            }
+        }
+        #expect(ready.wait(timeout: .now() + 2) == .success)
+        for _ in 0..<4 { begin.signal() }
+        atomicfuDrain(group) // drain even after failure, before Runtime isolation resets
+        let actual = values.snapshot
+        #expect(actual.count == 256)
+        #expect(!actual.contains(-1) && !actual.contains(-2) && !actual.contains(-3))
+        if actual.count == 256 {
+            for index in stride(from: 0, to: actual.count, by: 2) {
+                #expect(actual[index] == actual[index + 1])
+            }
+            #expect(Set(actual).count == 128)
+        }
+    }
+
+    @Test func existingRecordingKernelRemainsTypedAcrossCollection() {
+        let raw = __kk_atomicfu_lock_new(1)
+        let first = resolveRuntimeHandle(raw, as: RuntimeAtomicfuRecursiveLock.self)
+        #expect(first != nil)
+        kk_gc_collect()
+        let second = resolveRuntimeHandle(raw, as: RuntimeAtomicfuRecursiveLock.self)
+        #expect(first === second)
+        var thrown = 0
+        #expect(__kk_atomicfu_lock_lock(raw, &thrown) == 0 && thrown == 0)
+        #expect(__kk_atomicfu_lock_unlock(raw, &thrown) == 0 && thrown == 0)
+        // Registered kernels are permanently retained in the current runtime.
+        // Identity after GC cannot prove payload tracing or reclamation.
+    }
 }
