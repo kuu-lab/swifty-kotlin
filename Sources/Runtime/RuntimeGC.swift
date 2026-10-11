@@ -555,6 +555,7 @@ public func kk_runtime_force_reset() {
 /// panic (invalid range/array/string handle). Entries are removed by whoever
 /// releases the box.
 func kk_runtime_reset_gc() {
+    runtimeResetAtomicfuParkingCaches()
     runtimeStorage.withGCLock { state in
         for (_, object) in state.heapObjects {
             object.pointer.deallocate()

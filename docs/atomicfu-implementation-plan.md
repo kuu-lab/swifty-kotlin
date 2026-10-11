@@ -154,3 +154,87 @@ coverage in parent KUU-1728 slices rather than calling the entire library done
 from an import smoke. The pipeline's enforcing and dual-oracle requirements still
 apply. The scratch inventory repair ran only focused Python tests; none of these
 product gates has been newly executed by it.
+
+## Prepared actual-source registration slice (KUU-1732)
+
+This slice is prepared code, not a completed compatibility claim. It registers
+all 150 pinned Native identities as real bundled Kotlin declarations: 142 public
+and eight PublishedApi internal property/getter identities. `ReentrantLock` is
+also preserved as the official source typealias to `SynchronizedObject`; it is
+not an additional Native nominal identity. The five JS/Wasm-only ABI rows stay
+excluded. Their missing platform source facts remain unknown.
+
+`AtomicFU.kt` keeps the four distinct ordinary atomicfu nominals and official
+legacy `a` field types. Values and operations delegate through actual standard
+objects to existing atomic kernels; no raw factory whitelist, synthetic atomicfu
+registry, plugin transformation or direct wrapper-address shortcut is added.
+Ref `getAndSet` uses the standard class-T member exchange so nullable/reference
+marshalling stays with that member. Boolean keeps Int 0/1 backing. The common
+retry/update bodies and arrays keep their pinned algorithms; each array stores
+one stable wrapper per element. Trace/None append bodies are the specified
+Native no-op, while `invoke` still evaluates `event()` and the real formatter
+retains its callback. There are no unsupported-operation placeholder bodies.
+
+`locks/` owns public source behavior. Its private blocking kernels implement
+actual recursive thread ownership, FIFO acquisition and timed cancellation,
+owner validation, one-bit parking permits, cross-thread unpark, and a per-thread
+stable ParkingHandle factory cache. A coroutine Mutex cannot satisfy these
+contracts and is not used. Native `SynchronizedObject.unlock` uses
+IllegalArgumentException (`require` upstream); SynchronousMutex uses
+IllegalStateException (`check` upstream). Duration conversion stays in Kotlin.
+
+The eight private ABI additions are admitted as OS synchronization / memory
+representation / GC-and-TLS mechanisms under stdlib-pipeline §13-2, rather than
+as new public atomicfu operations. Their complete signatures, throwing flags,
+lifetimes and thread-safety contract are in
+[atomicfu-runtime-kernel-contract.md](atomicfu-runtime-kernel-contract.md).
+The existing Runtime registered-object table retains Swift boxes for the
+Runtime lifetime; ordinary GC currently sweeps `kk_alloc` heap records, not
+those registered boxes. This slice follows that ownership model. TLS root slots
+are removed at thread exit; that fact must not be reported as reclamation of a
+registered wrapper/kernel. Changing the existing registered-object collector is
+a separate memory-management scope. Force-reset invalidates cached wrapper
+values and requires the existing isolation rule: all worker threads joined.
+
+Prepared enforcing checks use actual compiler sources/artifacts, not local mock
+AtomicInt declarations: four Core cases (150 exact identities in source/library,
+plus negative visibility/leak tests), twelve Backend cases (source/library O0/O2
+for scalar/array/Trace, lock/parking, and independent producer/consumer), and ten
+Runtime methods. The two compiled symbol snapshots are independently compared
+by `check_atomicfu_compiled_api.py` against expected types, nullability, receiver,
+generic bounds, defaults, inline flags, visibility, mutable properties and
+argument-bearing annotations from the pinned ledger. Unexpected public or
+PublishedApi symbols fail. Generator/checker Python tests are controls of the
+checker, never actual registration evidence.
+
+These expectations have not been compiled or executed during preparation.
+Fixture stdout is specification-derived and needs the pinned actual Native
+reference before it can be called an oracle. Compile source first, publish a
+fresh source/RuntimeABI-matched stdlib artifact, then verify the imported lane
+and separate consumer with no source fallback. Archive compiler/resources/ABI/
+Runtime/complete artifact file hashes, actual exits and finite watchdog reaping.
+Do not reuse old artifacts or bypass normal fingerprint validation. Keep normal
+standard-atomic regression checks and the parent stack's annotation-retention /
+startup/entry ABI fixes in the future base. OptionalJsName's flattened ordinary
+annotation still preserves BINARY OptionalExpectation; its multiplatform
+legality and metadata behavior need actual compiler validation.
+
+F06/C01/V08 remain incomplete until these real gates pass. Parent KUU-1728 still
+owns wider operation/concurrency conformance, target grids, performance and
+atomicfu plugin compatibility; this registration slice does not establish those.
+
+### v2 preparation follow-up
+
+The private parking factory uses the existing exact-link Function0 adapter;
+no scalar raw-factory whitelist or additional private ABI is introduced. The
+Parker completes wake handoff before unpark returns and preserves a subsequent
+pre-permit while the old owner cleans up. Runtime regression proposals observe
+the TLS root while its worker is live and require worker drain before reset.
+Backend proposals retain every failing source/executable/producer and save
+compile results plus dependency/executable hashes before assertions. Success-only
+owned cleanup follows completed execution and exact ASCII expected Data match.
+CommandRunner exposes decoded UTF-8 strings: those receipts are not arbitrary
+raw byte streams; an outer gate must retain its own raw stdout/stderr.
+
+Syntax parsing and nine Python checker controls are preparation validation only.
+Actual source/library/KIR/Runtime execution remains NOT_RUN.
