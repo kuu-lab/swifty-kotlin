@@ -30,7 +30,6 @@ final class SemaCacheContext {
     /// `ObjectIdentifier` reuse after a scope is deallocated.
     private var scopeRetainer: [ObjectIdentifier: Scope] = [:]
 
-    /// Cached wrapper around ``Scope.lookup(_:)``.
     func lookupInScope(_ name: InternedString, scope: Scope) -> [SymbolID] {
         let scopeKey = ObjectIdentifier(scope)
         if let nameCache = scopeCache[scopeKey], let cached = nameCache[name] {
@@ -52,7 +51,6 @@ final class SemaCacheContext {
     /// Set of IDs that have been queried but returned `nil` (invalid / out-of-bounds).
     private var symbolMissCache: Set<SymbolID> = []
 
-    /// Cached wrapper around ``SymbolTable.symbol(_:)``.
     func symbol(_ id: SymbolID, in table: SymbolTable) -> SemanticSymbol? {
         if let cached = symbolCache[id] {
             return cached
@@ -98,7 +96,6 @@ final class SemaCacheContext {
 
     private var callResolutionCache: [CallResolutionKey: ResolvedCall] = [:]
 
-    /// Returns a previously cached resolution result, or `nil` on a cache miss.
     func cachedCallResolution(for key: CallResolutionKey) -> ResolvedCall? {
         callResolutionCache[key]
     }
