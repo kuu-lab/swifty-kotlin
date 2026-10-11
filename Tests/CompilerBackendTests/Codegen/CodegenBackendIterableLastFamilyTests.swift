@@ -7,7 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendIterableLastFamilyTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
 
     @Test
     func testCodegenIterableLastFamilyMatchesKotlinSemantics() throws {
@@ -25,7 +24,7 @@ struct CodegenBackendIterableLastFamilyTests {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "IterableLastFamily",
                 emit: .executable,
