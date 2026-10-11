@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "codes": {
+    "KSWIFTK-SEMA-0024": "UNRESOLVED_REFERENCE",
+    "KSWIFTK-TYPE-0001": "TYPE_CONSTRAINT_FAILURE"
+  }
+}
