@@ -118,6 +118,7 @@ final class TypeCheckDriver {
         if let subjectType = ctx.whenSubjectTypes[id] {
             return subjectType
         }
+        let ctx = ctx.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext

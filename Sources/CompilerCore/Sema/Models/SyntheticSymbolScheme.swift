@@ -123,6 +123,13 @@ enum SyntheticSymbolScheme {
         makeSymbol(kind: .receiver, original: functionSymbol)
     }
 
+    /// Recover only real synthetic receiver parameters, without allocating or
+    /// encoding a new symbol for an arbitrary declaration at a use site.
+    static func receiverParameterOwner(for symbol: SymbolID) -> SymbolID? {
+        guard let (kind, original) = decode(symbol), kind == .receiver else { return nil }
+        return original
+    }
+
     /// Base of the band holding one symbol per receiver-bearing lambda literal.
     /// It sits far below every other synthetic family (the lambda parameter /
     /// capture bands around -1_000_000 / -2_000_000, the `.kklib` invoke band at
