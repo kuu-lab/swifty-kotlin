@@ -187,6 +187,7 @@ extension DataFlowSemaPhase {
                 enumStaticInitLinkName: metadataRecord.enumStaticInitLinkName,
                 isDataClass: metadataRecord.isDataClass,
                 isOpenClass: metadataRecord.isOpenClass,
+                isInnerClass: metadataRecord.isInnerClass,
                 modality: metadataRecord.modality,
                 isSealedClass: metadataRecord.isSealedClass,
                 isFunInterface: metadataRecord.isFunInterface,

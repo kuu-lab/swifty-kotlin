@@ -1833,8 +1833,14 @@ final class CallTypeChecker {
         /// must still apply to them.
         var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
+        var knownApplicableImplicitMembers: Set<SymbolID> = []
         if let calleeName {
-            let allCallCandidates = scopeCallCandidatesConsideringImplicitReceivers(named: calleeName, ctx: ctx).filter { candidate in
+            let scopeSelection = scopeCallCandidatesAfterInapplicableMembers(
+                named: calleeName, args: args, range: range,
+                explicitTypeArgs: explicitTypeArgs, ctx: ctx, locals: locals
+            )
+            knownApplicableImplicitMembers = scopeSelection.knownApplicableMembers
+            let allCallCandidates = scopeSelection.candidates.filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
@@ -1871,8 +1877,9 @@ final class CallTypeChecker {
                 // Include them before argument inference so receiver lambdas on
                 // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
-                    sema.symbols.isSourceBackedSymbol($0)
-                        || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false
+                    !scopeSelection.excludedMembers.contains($0)
+                        && (sema.symbols.isSourceBackedSymbol($0)
+                            || sema.symbols.symbol($0)?.flags.contains(.synthetic) == false)
                 }
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
@@ -3234,6 +3241,16 @@ final class CallTypeChecker {
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
                 ctx: ctx
             )
+            // An applicable member keeps precedence even when the surrounding
+            // result expectation fails, or its own overload set is ambiguous.
+            if let diagnostic = resolved.diagnostic,
+               !knownApplicableImplicitMembers.isEmpty,
+               candidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
+            {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             if resolved.diagnostic != nil {
                 if let calleeName,
                    let recovered = tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
