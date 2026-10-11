@@ -672,16 +672,7 @@ struct NativeEmitter {
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
         let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
 
-        func isStringAggregateType(_ type: TypeID?) -> Bool {
-            guard let type,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: type)
-            else {
-                return false
-            }
-            return typeLowering != nil
-        }
-
+        // Create LLVM global variables for each KIR global declaration.
         // Globals that back properties/singletons shared across .kklib modules
         // are named by their stable fully-qualified name so a consumer object
         // can reference the same storage defined in the library object.
@@ -768,7 +759,12 @@ struct NativeEmitter {
                 )
             }
             parameterTypes.append(outThrownPointerType)
-            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
+            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
+                && isStringAggregateType(
+                    function.returnType,
+                    typeSystem: typeSystem,
+                    hasStringLowering: typeLowering != nil
+                )
             let returnType = if returnsRawStringRuntimeCallback {
                 int64Type
             } else {
@@ -814,7 +810,11 @@ struct NativeEmitter {
                 do {
                     let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
                     let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI
-                        && isStringAggregateType(function.returnType)
+                        && isStringAggregateType(
+                            function.returnType,
+                            typeSystem: typeSystem,
+                            hasStringLowering: typeLowering != nil
+                        )
                     try emitFunctionBody(
                         function: function,
                         llvmFunction: llvmFunction,

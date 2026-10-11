@@ -1,7 +1,5 @@
-// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no java.sql.* / JDBC support at all (no DriverManager,
-// no synthetic stub; verified by repo-wide search) — a candidate compile failure, not a reference
-// runtime failure (kotlinc itself compiles this fine; "jdbc:kswiftk:memory" is just a string
-// literal to it).
+// CANDIDATE-ONLY: transaction-management methods are not exposed by the current JDBC facade;
+// pin the candidate compile diagnostics without a JVM reference.
 import java.sql.Connection
 import java.sql.DriverManager
 

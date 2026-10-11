@@ -16,6 +16,36 @@ candidate-only runner の製品実装・CI 接続は KUU-1612 以降の担当で
 | `evidence/native_observations.export.d.mts` | 統合 fixture から生成した TypeScript 宣言の保存例 |
 | `capture_reference.py` | 監査用の再採取/期待値比較。KSwiftK や JVM compile/run reference を実行しない |
 
+## `createInstance` constructor 選択 (KUU-1615)
+
+`valid/reflection.kt` を Kotlin/JS 2.3.10 で個別にコンパイル・実行し、
+`expectations.json` と `evidence/reference-results.json` に厳密な出力と provenance を保存する。
+ケースは `Empty` の引数ゼロ、`ExportedBox` の既定値 `7`、副作用付き既定値の2回評価、
+必須引数 constructor が候補0個となる失敗、既定値付き primary と引数ゼロ secondary が
+候補複数となる失敗を区別する。Native candidate の期待出力は `nativeContract` に記録し、
+JS の例外文言との相違を実測結果に沿って扱う。
+
+元ケースの `ExportedBox:createInstance:7` は `valid/native_observations.kt` と
+`evidence/reference-results.json` で引き続き対応づける。constructor matrix は direct call に
+限定する。KUU-1615 の candidate-only `.kklib` 試行では bound/unbound callable reference の戻り値に
+対する `.value` が `KSWIFTK-SEMA-0024` で解決できなかったため、その generic metadata 往復は
+KUU-1616 の source/artifact × O0/O2 検証へ渡す。
+
+| 元の `class:name:value` | 回帰観測 | 期待値 |
+|---|---|---|
+| `ExportedBox:createInstance:7` | backend integration test の `KClass.simpleName` / bound reference `.name` / direct-call `.value` | `ExportedBox:createInstance:7` |
+
+Focused commands:
+
+```bash
+swift build --disable-sandbox
+KOTLINC=/not-used JAVA_BIN=/not-used python3 Scripts/js_annotations/run_candidate.py --case reflection --compile-timeout 600
+/opt/homebrew/bin/bash Scripts/swift_test.sh --disable-sandbox --no-parallel --filter 'CompilerBackendTests.BundledStdlibExecutionTests/kotlinJsCreateInstanceUsesSharedConstructorPath'
+python3 docs/fixtures/js_annotations/capture_reference.py --check-record docs/fixtures/js_annotations/evidence/reference-results.json --case reflection
+```
+
+KUU-1615 covers this direct-call selection matrix and the candidate-only library path. The full source/artifact × O0/O2 matrix, including callable-reference generic metadata, remains with KUU-1616.
+
 ## JsStatic の観測経路
 
 native 側は `Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+JsStatic.swift`
