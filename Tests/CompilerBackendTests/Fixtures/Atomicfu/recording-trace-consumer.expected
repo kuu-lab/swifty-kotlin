@@ -1,0 +1,4 @@
+0: counter.incAndGet():1
+1: hidden
+2: counter.CAS(1, 2)
+consumer-state:3
