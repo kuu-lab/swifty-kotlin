@@ -91,6 +91,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `state_flow_kotlin.kt`: `MutableStateFlow` / `StateFlow` / `Flow.stateIn` / `Flow.shareIn` の bundled Kotlin source 実行 parity（JVM の `stateIn` / `shareIn` シグネチャと意図的に異なるため、`Scripts/run_candidate_only.sh` で `.expected.stdout` と照合）
 - `jdbc_basic.kt`: SQLite in-memory JDBC の基本操作を `jdbc_basic.expected` と照合する candidate-only output coverage（JVM kotlinc を起動しない）
 - `connection_validation.kt`: JDBC façade が提供する API を除き、残る JVM `Thread` API の未実装について kswiftc の compile diagnostics を `connection_validation.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
+- `transaction_management.kt`: JDBC façade に未実装のトランザクション API 呼び出しが出す `kswiftc` compile diagnostics を `transaction_management.expected.stderr` と照合する candidate-only coverage（JVM kotlinc を起動しない）
 - `resultset_complete.kt`: JDBC façade に未実装の `ResultSet` / `ResultSetMetaData` 呼び出しに対する candidate-only コンパイル診断を `resultset_complete.expected.stderr` と比較する（JVM kotlinc を起動しない）
 - `mutex_basic.kt`: `Mutex` の基本ロック、`tryLock`、`withLock` の parity（kotlinx classpath 必須）
 - `semaphore_basic.kt`: `Semaphore` の permit 管理、`tryAcquire`、`acquire` / `release` の parity（kotlinx classpath 必須）
