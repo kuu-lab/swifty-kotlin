@@ -340,7 +340,7 @@ extension BuildASTPhase.ExpressionParser {
                   tokens, suppressesLocalModifierDiagnostics: true
               ),
               let localDeclExpr = astArena.expr(localDeclExprID),
-              case let .localDecl(name, isMutable, typeAnnotation, initializer, _, _) = localDeclExpr
+              case let .localDecl(name, isMutable, typeAnnotation, initializer, _, _, _) = localDeclExpr
         else {
             return nil
         }

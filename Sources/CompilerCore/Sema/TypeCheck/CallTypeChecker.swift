@@ -3535,7 +3535,9 @@ final class CallTypeChecker {
         if let calleeName,
            let local = locals[calleeName]
         {
-            if !local.isInitialized {
+            if !local.isInitialized,
+               sema.symbols.symbol(local.symbol)?.flags.contains(.lateinitProperty) != true
+            {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0031",
                     "Variable '\(interner.resolve(calleeName))' must be initialized before use.",

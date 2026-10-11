@@ -43,8 +43,8 @@ enum GoldenHarnessExprFormat {
             return renderJumpExpr("continue", label, ctx)
 
         // Declarations and assignments
-        case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, _):
-            return renderLocalDecl(name, isMutable, typeAnnotation, initializer, isDelegated, ctx)
+        case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, isLateinit, _):
+            return renderLocalDecl(name, isMutable, typeAnnotation, initializer, isDelegated, isLateinit, ctx)
         case let .localAssign(name, value, _):
             return "localAssign \(interner.resolve(name)) value=\(ctx.exprKey(value))"
         case let .indexedAssign(receiver, indices, value, _):
@@ -212,12 +212,14 @@ enum GoldenHarnessExprFormat {
         _ typeAnnotation: TypeRefID?,
         _ initializer: ExprID?,
         _ isDelegated: Bool,
+        _ isLateinit: Bool,
         _ ctx: StableRenderContext
     ) -> String {
         let typeStr = typeAnnotation.map { ctx.renderTypeRef($0) } ?? "_"
         let initStr = initializer.map { ctx.exprKey($0) } ?? "_"
         let delegatedStr = isDelegated ? " delegated=1" : ""
-        return "localDecl \(ctx.interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)"
+        let lateinitStr = isLateinit ? " lateinit=1" : ""
+        return "localDecl \(ctx.interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)\(lateinitStr)"
     }
 
     private static func renderCall(_ callType: String, callee: ExprID, args: [CallArgument], ctx: StableRenderContext) -> String {

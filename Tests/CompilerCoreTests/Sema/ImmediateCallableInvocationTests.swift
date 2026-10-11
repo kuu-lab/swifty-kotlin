@@ -149,7 +149,7 @@ struct ImmediateCallableInvocationTests {
         let main = try #require(topLevelFunction(named: "main", in: ast, interner: ctx.interner))
         guard case let .block(statements, _) = main.body,
               let declaration = statements.first,
-              case let .localDecl(_, _, _, initializer?, _, _) = ast.arena.expr(declaration),
+              case let .localDecl(_, _, _, initializer?, _, _, _) = ast.arena.expr(declaration),
               case let .call(callee, _, args, _) = ast.arena.expr(initializer),
               case .call = ast.arena.expr(callee)
         else {

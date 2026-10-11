@@ -13,6 +13,7 @@ final class LocalDeclTypeChecker {
         typeAnnotation: TypeRefID?,
         initializer: ExprID?,
         isDelegated: Bool,
+        isLateinit: Bool,
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -37,6 +38,8 @@ final class LocalDeclTypeChecker {
 
         // The delegate resolution below needs a symbol to key getValue/setValue
         // onto, so the symbol is defined up front instead of after localType.
+        var localFlags: SymbolFlags = isMutable ? [.mutable] : []
+        if isLateinit, isMutable { localFlags.insert(.lateinitProperty) }
         let localSymbol = sema.symbols.define(
             kind: .local,
             name: name,
@@ -46,7 +49,7 @@ final class LocalDeclTypeChecker {
             ],
             declSite: range,
             visibility: .private,
-            flags: isMutable ? [.mutable] : []
+            flags: localFlags
         )
 
         let localType: TypeID
@@ -140,6 +143,57 @@ final class LocalDeclTypeChecker {
                 } ?? initializerType
             } else {
                 localType = sema.types.errorType
+            }
+        }
+        if isLateinit {
+            // The parser already diagnoses source-level `lateinit val`. Keep
+            // programmatically constructed ASTs checked without duplicating it.
+            let diagnosedVal = ctx.semaCtx.diagnostics.diagnostics.contains { diagnostic in
+                diagnostic.code == "KSWIFTK-SEMA-0418"
+                    && diagnostic.primaryRange.map { range.contains($0) } == true
+            }
+            if !isMutable, !diagnosedVal {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0418",
+                    "'lateinit' modifier is allowed only on mutable properties.",
+                    range: range
+                )
+            }
+            if initializer != nil || isDelegated {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "'lateinit' local variable must not have an initializer or delegate.",
+                    range: range
+                )
+            }
+            if typeAnnotation == nil {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "'lateinit' local variable must declare an explicit non-null reference type.",
+                    range: range
+                )
+            }
+            if !lateinitLocalTypeIsDefinitelyNonNull(localType, sema: sema) {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "'lateinit' local variable type must be non-null.",
+                    range: range
+                )
+            } else if case .primitive = sema.types.kind(of: localType) {
+                // Includes Byte/Short and every unsigned primitive.
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "'lateinit' is not allowed on primitive local variable types.",
+                    range: range
+                )
+            } else if case let .classType(classType) = sema.types.kind(of: localType),
+                      sema.symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-LATEINIT",
+                    "'lateinit' is not allowed on local variable types that are value classes.",
+                    range: range
+                )
             }
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
@@ -388,5 +442,38 @@ final class LocalDeclTypeChecker {
         }
         ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.errorType)
         return ctx.sema.types.errorType
+    }
+}
+
+/// A syntactically non-null `T` can still denote null when its upper bound
+/// is nullable (including the implicit `Any?`). Local lateinit needs proof
+/// that null cannot be a valid assigned value, since null is its sentinel.
+/// Keep this separate from TypeSystem's syntactic nullability API.
+func lateinitLocalTypeIsDefinitelyNonNull(
+    _ type: TypeID,
+    sema: SemaModule,
+    visiting: Set<SymbolID> = []
+) -> Bool {
+    switch sema.types.kind(of: type) {
+    case let .typeParam(parameter):
+        guard parameter.nullability == .nonNull,
+              !visiting.contains(parameter.symbol)
+        else { return false }
+        let bounds = sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
+        // No explicit bound means Any?, never Any. A recursive path without
+        // any concrete non-null evidence must not prove its own nullability.
+        guard !bounds.isEmpty else { return false }
+        let next = visiting.union([parameter.symbol])
+        return bounds.contains {
+            lateinitLocalTypeIsDefinitelyNonNull($0, sema: sema, visiting: next)
+        }
+    case let .intersection(parts):
+        // A concrete non-null conjunct makes the intersection non-null even
+        // when another conjunct is a nullable/recursive type parameter.
+        return parts.contains {
+            lateinitLocalTypeIsDefinitelyNonNull($0, sema: sema, visiting: visiting)
+        }
+    default:
+        return sema.types.isDefinitelyNonNull(type)
     }
 }
