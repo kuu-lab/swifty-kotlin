@@ -1752,6 +1752,12 @@ public final class BindingTable {
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
     public private(set) var invokeOperatorCallExprs: Set<ExprID> = []
+    public private(set) var extensionPropertyGetterCalls: [ExprID: CallBinding] = [:]
+    public func bindExtensionPropertyGetterCall(_ expression: ExprID, binding: CallBinding) {
+        extensionPropertyGetterCalls[expression] = binding
+    }
+
+    public private(set) var invokeOperatorPropertyCalls: [ExprID: InvokeOperatorPropertyBinding] = [:]
     public private(set) var collectionExprIDs: Set<ExprID> = []
     public private(set) var rangeExprIDs: Set<ExprID> = []
     public private(set) var charRangeExprIDs: Set<ExprID> = []
@@ -1863,7 +1869,7 @@ public final class BindingTable {
     /// Maps nameRef expression IDs to their member name when they were resolved
     /// as implicit receiver member accesses (STDLIB-004).
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
-    /// For calls that resolved on an *outer* implicit receiver (e.g. an
+    /// For member accesses that resolved on an *outer* implicit receiver (e.g. an
     /// enclosing class's member called unqualified from an object literal's
     /// member body), the enclosing function's receiver parameter symbol. KIR
     /// lowering reads the receiver through the captured value of that symbol
@@ -2039,6 +2045,10 @@ public final class BindingTable {
 
     public func markInvokeOperatorCall(_ expr: ExprID) {
         invokeOperatorCallExprs.insert(expr)
+    }
+
+    public func bindInvokeOperatorPropertyCall(_ expr: ExprID, binding: InvokeOperatorPropertyBinding) {
+        invokeOperatorPropertyCalls[expr] = binding
     }
 
     public func markCollectionExpr(_ expr: ExprID) {
@@ -2528,13 +2538,13 @@ public final class BindingTable {
         implicitReceiverMemberNames[expr] = name
     }
 
-    /// Record which captured outer receiver an unqualified member call
+    /// Record which captured outer receiver an unqualified member access
     /// dispatches on. See `implicitReceiverOuterReceiverSymbols`.
     public func markImplicitReceiverOuterReceiver(_ expr: ExprID, symbol: SymbolID) {
         implicitReceiverOuterReceiverSymbols[expr] = symbol
     }
 
-    /// The captured outer-receiver symbol an unqualified member call dispatches
+    /// The captured outer-receiver symbol an unqualified member access dispatches
     /// on, if any. See `implicitReceiverOuterReceiverSymbols`.
     public func implicitReceiverOuterReceiver(for expr: ExprID) -> SymbolID? {
         implicitReceiverOuterReceiverSymbols[expr]
