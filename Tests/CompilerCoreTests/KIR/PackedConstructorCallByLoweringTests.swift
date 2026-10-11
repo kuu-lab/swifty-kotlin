@@ -207,6 +207,33 @@ struct PackedConstructorCallByLoweringTests {
     }
 
     @Test
+    func typedEmptyArrayFactoriesCarryComponentMetadata() throws {
+        let ctx = makeContextFromSource("""
+        fun strings() = emptyArray<String>()
+        fun nested() = emptyArray<Array<String>>()
+        fun boxedInts() = emptyArray<Int>()
+        inline fun <reified T> reifiedEmpty() = emptyArray<T>()
+        fun probe() {
+            strings()
+            nested()
+            boxedInts()
+            reifiedEmpty<Array<String>>()
+        }
+        """)
+        try runToKIR(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        for name in ["strings", "nested", "boxedInts", "reifiedEmpty"] {
+            let function = try findKIRFunction(named: name, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: function.body, interner: ctx.interner)
+            #expect(callees.contains("kk_array_new"), "\(name) allocates a typed empty array")
+            #expect(callees.contains("kk_array_tag_type"), "\(name) retains Array nominal identity")
+            #expect(callees.contains("__kk_array_tag_component"), "\(name) attaches its component descriptor")
+            #expect(!callees.contains("kk_empty_array"), "\(name) does not discard its allocation component")
+        }
+    }
+
+    @Test
     func capturedReifiedDescriptorUsesOneRootedPairAndTwoDecodedSlots() throws {
         let ctx = makeContextFromSource("""
         inline fun <reified T> capture(): Array<T> { val supplier = { emptyArray<T>() }; return supplier() }

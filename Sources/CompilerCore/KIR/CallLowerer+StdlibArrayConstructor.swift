@@ -1,5 +1,50 @@
 
 extension CallLowerer {
+    func lowerEmptyArrayCallExpr(
+        chosenCallee: SymbolID?,
+        boundType: TypeID?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        let emptyArrayFQName = [interner.intern("kotlin"), interner.intern("emptyArray")]
+        guard let chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              symbol.kind == .function,
+              symbol.fqName == emptyArrayFQName,
+              sema.symbols.externalLinkName(for: chosenCallee) == "kk_empty_array",
+              let arrayType = boundType,
+              referenceArrayElementType(arrayType, sema: sema, interner: interner) != nil
+        else {
+            return nil
+        }
+
+        // kk_empty_array returns a fresh box today, but it carries no element
+        // descriptor. Allocate at the typed call site so erased and reified
+        // Array components can be attached before reflective callBy checks it.
+        let zero = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zero, value: .intLiteral(0)))
+        let array = arena.appendTemporary(type: arrayType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_new"),
+            arguments: [zero],
+            result: array,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return appendRuntimeArrayComponentTag(
+            array,
+            arrayType: arrayType,
+            context: driver.ctx,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
     func lowerArrayConstructorCallExpr(
         _ exprID: ExprID,
         args: [CallArgument],

@@ -107,6 +107,16 @@ public final class DiagnosticEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         if _diagnostics.count > checkpoint {
+            let rolledBack = _diagnostics[checkpoint...]
+            for diagnostic in rolledBack {
+                let bucket = fileBucket(for: diagnostic)
+                if _truncationNoticeByFile[bucket] == diagnostic {
+                    _truncationNoticeByFile.removeValue(forKey: bucket)
+                } else {
+                    _diagnosticCountByFile[bucket, default: 0] -= 1
+                }
+            }
+            _emittedDiagnostics.subtract(rolledBack)
             _diagnostics.removeSubrange(checkpoint...)
         }
     }

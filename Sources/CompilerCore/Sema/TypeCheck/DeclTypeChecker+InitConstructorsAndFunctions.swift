@@ -87,8 +87,13 @@ extension DeclTypeChecker {
                     at: index, signature: signature, sema: sema, interner: ctx.interner,
                     referenceVarargAsArray: true
                 )
+                // Infer vararg defaults from their own expression shape before
+                // checking the required source-array type. Passing the array
+                // expectation into overload resolution can silently accept a
+                // List-producing call such as listOf(...).
+                let inferenceExpectedType = valueParams[index].isVararg ? nil : defaultExpectedType
                 let defaultType = driver.inferExpr(
-                    defaultExprID, ctx: ctx, locals: &locals, expectedType: defaultExpectedType
+                    defaultExprID, ctx: ctx, locals: &locals, expectedType: inferenceExpectedType
                 )
                 driver.emitSubtypeConstraint(
                     left: defaultType, right: defaultExpectedType,
