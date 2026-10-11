@@ -342,9 +342,6 @@ struct CompilerCoreTests {
             // testSemaBindsSimpleCallExpression
 
             do {
-                let sample0Path = paths[0]
-                let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
-
 
                         let sema = try #require(ctx.sema)
                         #expect(!(sema.bindings.callBindings.isEmpty))
