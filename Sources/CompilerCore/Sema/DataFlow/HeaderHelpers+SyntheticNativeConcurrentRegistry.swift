@@ -775,7 +775,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(companionType, for: companionSymbol)
 
-        // Worker.isTerminated: Boolean (property)
         registerNativeConcurrentReadOnlyProperty(
             ownerSymbol: workerSymbol,
             name: "isTerminated",
