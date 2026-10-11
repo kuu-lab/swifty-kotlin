@@ -417,12 +417,10 @@ extension KotlinLexer {
         let consecutiveDollars = countConsecutiveDollars(at: offset)
         let afterDollars = offset + consecutiveDollars
 
-        // Expression interpolation: exactly dollarCount $ followed by {
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
            byte(at: afterDollars) == 0x7B
         {
-            // Emit any literal dollars before the interpolation threshold
             let literalDollars = consecutiveDollars - dollarCount
             if literalDollars > 0 {
                 appendSegment(to: &tokens, from: segmentStart, to: offset + literalDollars, leadingTrivia: [])
@@ -445,7 +443,6 @@ extension KotlinLexer {
             return
         }
 
-        // Simple name interpolation: exactly dollarCount $ followed by identifier start
         if consecutiveDollars >= dollarCount,
            afterDollars < byteCount(),
            isIdentifierStart(byte(at: afterDollars)),
@@ -475,7 +472,6 @@ extension KotlinLexer {
             return
         }
 
-        // Not enough dollars for interpolation — treat all as literal
         offset += consecutiveDollars
     }
 
