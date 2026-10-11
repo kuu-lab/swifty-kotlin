@@ -1,0 +1,14 @@
+metadata-defaults:false:false:0
+metadata-partial:false:true:0
+metadata-named:true:false:7
+nullable-message:true
+io-supertype:true
+factory-named:a
+string-vararg-empty:a
+path-vararg-empty:a
+string-vararg-spread:a/b/c
+path-vararg-spread:a/b/c
+hash-contract:true
+equal-hash:true
+singleton-identity:true
+separator:/

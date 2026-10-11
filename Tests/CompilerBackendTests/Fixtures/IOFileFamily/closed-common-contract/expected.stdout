@@ -1,0 +1,5 @@
+closed-write-zero:IllegalStateException
+closed-write-one:IllegalStateException
+closed-flush:IllegalStateException
+closed-read-zero:IllegalStateException
+closed-read-one:IllegalStateException

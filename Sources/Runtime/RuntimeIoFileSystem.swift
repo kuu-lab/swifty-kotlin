@@ -168,7 +168,10 @@ public func __kk_io_fs_list(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer<In
     outThrown?.pointee = 0
     let path = ioFileSystemPath(pathRaw)
     guard let info = ioFileSystemStat(path) else {
-        outThrown?.pointee = ioFileSystemError("Directory does not exist: \(path)", missing: true)
+        let code = errno
+        outThrown?.pointee = ioFileSystemError(
+            "Directory lookup failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
+        )
         return runtimeNullSentinelInt
     }
     guard (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else {
@@ -361,4 +364,15 @@ public func __kk_io_fs_close(_ descriptor: Int, _ outThrown: UnsafeMutablePointe
         outThrown?.pointee = ioFileSystemError("Close failed: \(String(cString: strerror(code)))")
     }
     return 0
+}
+
+// Host information boundary; public Path construction remains in Kotlin.
+@_cdecl("__kk_io_fs_temporary_directory")
+public func __kk_io_fs_temporary_directory() -> Int {
+    #if canImport(Darwin)
+    return runtimeMakeStringRaw(NSTemporaryDirectory())
+    #else
+    let path = getenv("TMPDIR") ?? getenv("TMP")
+    return runtimeMakeStringRaw(path.map { String(cString: $0) } ?? "")
+    #endif
 }
