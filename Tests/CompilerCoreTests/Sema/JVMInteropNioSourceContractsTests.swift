@@ -441,7 +441,7 @@ struct JVMInteropNioSourceContractsTests {
         for (name, annotation, targets) in propertyCases {
             let properties = sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })
                 .compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .property }
-            try #require(properties.count == 1, name)
+            try #require(properties.count == 1, "\(name)")
             let property = try #require(properties.first)
             #expect(property.flags.contains(.importedLibrary) == library)
             let values = sema.symbols.annotations(for: property.id).filter { $0.annotationFQName == annotation }
@@ -451,7 +451,7 @@ struct JVMInteropNioSourceContractsTests {
             }
             if library {
                 let actual = records.filter { $0.kind == .property && $0.fqName == name }
-                try #require(actual.count == 1, "Actual artifact: " + name)
+                try #require(actual.count == 1, "Actual artifact: \(name)")
                 #expect(actual[0].annotations.filter { $0.annotationFQName == annotation } == values)
                 if annotation == "kotlin.jvm.JvmName" || name.hasSuffix("ContextImpl") {
                     #expect(actual[0].propertyGetterExternalLinkName?.isEmpty == false)
@@ -461,7 +461,7 @@ struct JVMInteropNioSourceContractsTests {
         for name in ["kotlinx.io.Buffer.writableSegment", "kotlinx.io.Buffer.recycleTail", "kotlinx.io.seek", "kotlinx.io.unsafe.withData"] {
             let symbols = sema.symbols.lookupAll(fqName: name.split(separator: ".").map { ctx.interner.intern(String($0)) })
                 .compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .function && !$0.flags.contains(.extensionMemberAlias) }
-            try #require(symbols.count == 1, name)
+            try #require(symbols.count == 1, "\(name)")
             let symbol = try #require(symbols.first)
             #expect(sema.symbols.annotations(for: symbol.id).contains { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == nil })
             if library {

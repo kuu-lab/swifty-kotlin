@@ -4,14 +4,16 @@ import TestStdlibCache
 import Testing
 
 extension BundledStdlibExecutionTests {
-    @Test(arguments: [false, true], [OptimizationLevel.O0, .O2])
-    func testJVMInteropNioReferenceBehavior(useProducerLibrary: Bool, level: OptimizationLevel) throws {
+    @Test(arguments: [false, true], [0, 2])
+    func testJVMInteropNioReferenceBehavior(useProducerLibrary: Bool, optimization: Int) throws {
+        let level: OptimizationLevel = optimization == 2 ? .O2 : .O0
         try runJVMInteropNioFixture("native156", useProducerLibrary: useProducerLibrary, level: level,
             producerHash: "b284b962aa302b6db6e2a5be925cc16a1561fd7232b53dc35e4b3d66357d9d31", consumerHash: "a4148c6628f584782ad6d0d14a4993055fa8707fb1fe6e94fc5bdfd6e8251292", expectedHash: "b5665907768289a01b6f5982167738d0dc03a5f469c9212439b85c70a97a6b53")
     }
 
-    @Test(arguments: [false, true], [OptimizationLevel.O0, .O2])
-    func testJVMInteropOriginalFileChannelProducers(useProducerLibrary: Bool, level: OptimizationLevel) throws {
+    @Test(arguments: [false, true], [0, 2])
+    func testJVMInteropOriginalFileChannelProducers(useProducerLibrary: Bool, optimization: Int) throws {
+        let level: OptimizationLevel = optimization == 2 ? .O2 : .O0
         try runJVMInteropNioFixture("filechannel12", useProducerLibrary: useProducerLibrary, level: level,
             producerHash: "e5959b55df61c9a021336c98a46dc4e60277a223b5ffad285123e25275324cc1", consumerHash: "1728ea2963f5c6e3065f827e578c1bc5a8a3e91a457c5cce0d740056a4e53945", expectedHash: "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
             fixtureDirectory: "JVMInteropFileChannel")

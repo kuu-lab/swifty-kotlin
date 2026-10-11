@@ -1,0 +1,2904 @@
+[
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi|null[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi",
+    "kind": "annotation_class",
+    "signature": "open annotation class kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi : kotlin/Annotation {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Retention",
+        "arguments": [
+          "AnnotationRetention.BINARY"
+        ]
+      },
+      {
+        "name": "Target",
+        "arguments": [
+          "AnnotationTarget.CLASS",
+          "AnnotationTarget.FUNCTION",
+          "AnnotationTarget.PROPERTY",
+          "AnnotationTarget.TYPEALIAS"
+        ]
+      },
+      {
+        "name": "RequiresOptIn",
+        "arguments": [
+          "level=RequiresOptIn.Level.ERROR",
+          "message=\"This API is experimental. It is low-level and might change in the future.\""
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi.<init>|<init>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ExperimentalThreadBlockingApi.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingHandle|null[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingHandle",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu.locks/ParkingHandle",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "ExperimentalThreadBlockingApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingSupport|null[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingSupport",
+    "kind": "object",
+    "signature": "final object kotlinx.atomicfu.locks/ParkingSupport {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "ExperimentalThreadBlockingApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingSupport.currentThreadHandle|currentThreadHandle(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingSupport.currentThreadHandle",
+    "kind": "function",
+    "signature": "final fun currentThreadHandle(): kotlinx.atomicfu.locks/ParkingHandle",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.locks.ParkingHandle",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingSupport.park|park(kotlin.time.Duration){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingSupport.park",
+    "kind": "function",
+    "signature": "final fun park(kotlin.time/Duration)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.time.Duration"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingSupport.parkUntil|parkUntil(kotlin.time.TimeMark){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingSupport.parkUntil",
+    "kind": "function",
+    "signature": "final fun parkUntil(kotlin.time/TimeMark)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.time.TimeMark"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/ParkingSupport.unpark|unpark(kotlinx.atomicfu.locks.ParkingHandle){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/ParkingSupport.unpark",
+    "kind": "function",
+    "signature": "final fun unpark(kotlinx.atomicfu.locks/ParkingHandle)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlinx.atomicfu.locks.ParkingHandle"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronizedObject|null[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronizedObject",
+    "kind": "class",
+    "signature": "open class kotlinx.atomicfu.locks/SynchronizedObject {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronizedObject.<init>|<init>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronizedObject.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronizedObject.lock|lock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronizedObject.lock",
+    "kind": "function",
+    "signature": "final fun lock()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronizedObject.tryLock|tryLock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronizedObject.tryLock",
+    "kind": "function",
+    "signature": "final fun tryLock(): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronizedObject.unlock|unlock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronizedObject.unlock",
+    "kind": "function",
+    "signature": "final fun unlock()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex|null[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu.locks/SynchronousMutex {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex.<init>|<init>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex.lock|lock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex.lock",
+    "kind": "function",
+    "signature": "final fun lock()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex.tryLock|tryLock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex.tryLock",
+    "kind": "function",
+    "signature": "final fun tryLock(): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex.tryLock|tryLock(kotlin.time.Duration){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex.tryLock",
+    "kind": "function",
+    "signature": "final fun tryLock(kotlin.time/Duration): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.time.Duration"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/SynchronousMutex.unlock|unlock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/SynchronousMutex.unlock",
+    "kind": "function",
+    "signature": "final fun unlock()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/reentrantLock|reentrantLock(){}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/reentrantLock",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu.locks/reentrantLock(): kotlinx.atomicfu.locks/SynchronizedObject",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.locks.SynchronizedObject",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/synchronized|synchronized(kotlinx.atomicfu.locks.SynchronizedObject;kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/synchronized",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> kotlinx.atomicfu.locks/synchronized(kotlinx.atomicfu.locks/SynchronizedObject, kotlin/Function0<#A>): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlinx.atomicfu.locks.SynchronizedObject",
+      "kotlin.Function0<#0>"
+    ],
+    "receiver_type": null,
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/withLock|withLock@kotlinx.atomicfu.locks.SynchronizedObject(kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/withLock",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu.locks/SynchronizedObject).kotlinx.atomicfu.locks/withLock(kotlin/Function0<#A>): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function0<#0>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.locks.SynchronizedObject",
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu.locks/withLock|withLock@kotlinx.atomicfu.locks.SynchronousMutex(kotlin.Function0<0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu.locks/withLock",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu.locks/SynchronousMutex).kotlinx.atomicfu.locks/withLock(kotlin/Function0<#A>): #A",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptIn",
+        "arguments": [
+          "ExperimentalContracts::class"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Function0<#0>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.locks.SynchronousMutex",
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicArray|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicArray",
+    "kind": "class",
+    "signature": "final class <#A: kotlin/Any?> kotlinx.atomicfu/AtomicArray {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicArray type provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.AtomicArray<T>\")"
+        ]
+      },
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ATOMIC_REF_ARRAY"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicArray.get|get(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicArray.get",
+    "kind": "function",
+    "signature": "final fun get(kotlin/Int): kotlinx.atomicfu/AtomicRef<#A?>",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_ELEMENT_GET"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicRef<#0?>",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicArray.size|{}size[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicArray.size",
+    "kind": "property",
+    "signature": "final val size",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_SIZE"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicArray.size.<get-size>|<get-size>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicArray.size.<get-size>",
+    "kind": "function",
+    "signature": "final fun <get-size>(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicBoolean {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.a|{}a[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.a",
+    "kind": "property",
+    "signature": "final val a",
+    "visibility": "internal",
+    "annotations": [
+      {
+        "name": "PublishedApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.a.<get-a>|<get-a>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.a.<get-a>",
+    "kind": "function",
+    "signature": "final fun <get-a>(): kotlin.concurrent/AtomicInt",
+    "visibility": "internal",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.concurrent.AtomicInt",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.compareAndSet|compareAndSet(kotlin.Boolean;kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.compareAndSet",
+    "kind": "function",
+    "signature": "final fun compareAndSet(kotlin/Boolean, kotlin/Boolean): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean",
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.getAndSet|getAndSet(kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.getAndSet",
+    "kind": "function",
+    "signature": "final fun getAndSet(kotlin/Boolean): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.getValue",
+    "kind": "function",
+    "signature": "final inline fun getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.lazySet|lazySet(kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.lazySet",
+    "kind": "function",
+    "signature": "final inline fun lazySet(kotlin/Boolean)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.setValue",
+    "kind": "function",
+    "signature": "final inline fun setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, kotlin/Boolean)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>",
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.toString|toString(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.toString",
+    "kind": "function",
+    "signature": "final fun toString(): kotlin/String",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.value|{}value[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.value",
+    "kind": "property",
+    "signature": "final var value",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.value.<get-value>|<get-value>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.value.<get-value>",
+    "kind": "function",
+    "signature": "final inline fun <get-value>(): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBoolean.value.<set-value>|<set-value>(kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBoolean.value.<set-value>",
+    "kind": "function",
+    "signature": "final inline fun <set-value>(kotlin/Boolean)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBooleanArray|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBooleanArray",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicBooleanArray {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ATOMIC_BOOLEAN_ARRAY"
+        ]
+      },
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"There is no direct replacement for this type in the standard library. \" +\n            \"Consider encoding boolean values as Int constants and using kotlin.concurrent.atomics.AtomicIntArray instead.\"",
+          "level=DeprecationLevel.WARNING"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBooleanArray.<init>|<init>(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBooleanArray.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBooleanArray.get|get(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBooleanArray.get",
+    "kind": "function",
+    "signature": "final fun get(kotlin/Int): kotlinx.atomicfu/AtomicBoolean",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_ELEMENT_GET"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicBoolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBooleanArray.size|{}size[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBooleanArray.size",
+    "kind": "property",
+    "signature": "final val size",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_SIZE"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicBooleanArray.size.<get-size>|<get-size>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicBooleanArray.size.<get-size>",
+    "kind": "function",
+    "signature": "final fun <get-size>(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicInt {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.a|{}a[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.a",
+    "kind": "property",
+    "signature": "final val a",
+    "visibility": "internal",
+    "annotations": [
+      {
+        "name": "PublishedApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.a.<get-a>|<get-a>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.a.<get-a>",
+    "kind": "function",
+    "signature": "final fun <get-a>(): kotlin.concurrent/AtomicInt",
+    "visibility": "internal",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.concurrent.AtomicInt",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.addAndGet|addAndGet(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.addAndGet",
+    "kind": "function",
+    "signature": "final inline fun addAndGet(kotlin/Int): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.compareAndSet|compareAndSet(kotlin.Int;kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.compareAndSet",
+    "kind": "function",
+    "signature": "final inline fun compareAndSet(kotlin/Int, kotlin/Int): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int",
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.decrementAndGet|decrementAndGet(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.decrementAndGet",
+    "kind": "function",
+    "signature": "final inline fun decrementAndGet(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.getAndAdd|getAndAdd(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.getAndAdd",
+    "kind": "function",
+    "signature": "final inline fun getAndAdd(kotlin/Int): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.getAndDecrement|getAndDecrement(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.getAndDecrement",
+    "kind": "function",
+    "signature": "final inline fun getAndDecrement(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.getAndIncrement|getAndIncrement(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.getAndIncrement",
+    "kind": "function",
+    "signature": "final inline fun getAndIncrement(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.getAndSet|getAndSet(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.getAndSet",
+    "kind": "function",
+    "signature": "final fun getAndSet(kotlin/Int): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.getValue",
+    "kind": "function",
+    "signature": "final inline fun getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): kotlin/Int",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.incrementAndGet|incrementAndGet(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.incrementAndGet",
+    "kind": "function",
+    "signature": "final inline fun incrementAndGet(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.lazySet|lazySet(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.lazySet",
+    "kind": "function",
+    "signature": "final inline fun lazySet(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.minusAssign|minusAssign(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.minusAssign",
+    "kind": "function",
+    "signature": "final inline fun minusAssign(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.plusAssign|plusAssign(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.plusAssign",
+    "kind": "function",
+    "signature": "final inline fun plusAssign(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.setValue",
+    "kind": "function",
+    "signature": "final inline fun setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, kotlin/Int)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>",
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.toString|toString(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.toString",
+    "kind": "function",
+    "signature": "final fun toString(): kotlin/String",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.value|{}value[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.value",
+    "kind": "property",
+    "signature": "final var value",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.value.<get-value>|<get-value>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.value.<get-value>",
+    "kind": "function",
+    "signature": "final inline fun <get-value>(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicInt.value.<set-value>|<set-value>(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicInt.value.<set-value>",
+    "kind": "function",
+    "signature": "final inline fun <set-value>(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicIntArray|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicIntArray",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicIntArray {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicIntArray type provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.AtomicIntArray\")"
+        ]
+      },
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ATOMIC_INT_ARRAY"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicIntArray.<init>|<init>(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicIntArray.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicIntArray type provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.AtomicIntArray(size)\")"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicIntArray.get|get(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicIntArray.get",
+    "kind": "function",
+    "signature": "final fun get(kotlin/Int): kotlinx.atomicfu/AtomicInt",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_ELEMENT_GET"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicInt",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicIntArray.size|{}size[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicIntArray.size",
+    "kind": "property",
+    "signature": "final val size",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_SIZE"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicIntArray.size.<get-size>|<get-size>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicIntArray.size.<get-size>",
+    "kind": "function",
+    "signature": "final fun <get-size>(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicLong {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.a|{}a[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.a",
+    "kind": "property",
+    "signature": "final val a",
+    "visibility": "internal",
+    "annotations": [
+      {
+        "name": "PublishedApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.a.<get-a>|<get-a>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.a.<get-a>",
+    "kind": "function",
+    "signature": "final fun <get-a>(): kotlin.concurrent/AtomicLong",
+    "visibility": "internal",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.concurrent.AtomicLong",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.addAndGet|addAndGet(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.addAndGet",
+    "kind": "function",
+    "signature": "final inline fun addAndGet(kotlin/Long): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.compareAndSet|compareAndSet(kotlin.Long;kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.compareAndSet",
+    "kind": "function",
+    "signature": "final inline fun compareAndSet(kotlin/Long, kotlin/Long): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long",
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.decrementAndGet|decrementAndGet(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.decrementAndGet",
+    "kind": "function",
+    "signature": "final inline fun decrementAndGet(): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.getAndAdd|getAndAdd(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.getAndAdd",
+    "kind": "function",
+    "signature": "final inline fun getAndAdd(kotlin/Long): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.getAndDecrement|getAndDecrement(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.getAndDecrement",
+    "kind": "function",
+    "signature": "final inline fun getAndDecrement(): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.getAndIncrement|getAndIncrement(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.getAndIncrement",
+    "kind": "function",
+    "signature": "final inline fun getAndIncrement(): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.getAndSet|getAndSet(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.getAndSet",
+    "kind": "function",
+    "signature": "final fun getAndSet(kotlin/Long): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.getValue",
+    "kind": "function",
+    "signature": "final inline fun getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): kotlin/Long",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.incrementAndGet|incrementAndGet(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.incrementAndGet",
+    "kind": "function",
+    "signature": "final inline fun incrementAndGet(): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.lazySet|lazySet(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.lazySet",
+    "kind": "function",
+    "signature": "final inline fun lazySet(kotlin/Long)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.minusAssign|minusAssign(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.minusAssign",
+    "kind": "function",
+    "signature": "final inline fun minusAssign(kotlin/Long)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.plusAssign|plusAssign(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.plusAssign",
+    "kind": "function",
+    "signature": "final inline fun plusAssign(kotlin/Long)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.setValue",
+    "kind": "function",
+    "signature": "final inline fun setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, kotlin/Long)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>",
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.toString|toString(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.toString",
+    "kind": "function",
+    "signature": "final fun toString(): kotlin/String",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.value|{}value[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.value",
+    "kind": "property",
+    "signature": "final var value",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.value.<get-value>|<get-value>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.value.<get-value>",
+    "kind": "function",
+    "signature": "final inline fun <get-value>(): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLong.value.<set-value>|<set-value>(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLong.value.<set-value>",
+    "kind": "function",
+    "signature": "final inline fun <set-value>(kotlin/Long)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLongArray|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLongArray",
+    "kind": "class",
+    "signature": "final class kotlinx.atomicfu/AtomicLongArray {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicLongArray type provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.AtomicLongArray\")"
+        ]
+      },
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ATOMIC_LONG_ARRAY"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLongArray.<init>|<init>(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLongArray.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>(kotlin/Int)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicLongArray type provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.AtomicLongArray(size)\")"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLongArray.get|get(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLongArray.get",
+    "kind": "function",
+    "signature": "final fun get(kotlin/Int): kotlinx.atomicfu/AtomicLong",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_ELEMENT_GET"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicLong",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLongArray.size|{}size[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLongArray.size",
+    "kind": "property",
+    "signature": "final val size",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ARRAY_SIZE"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicLongArray.size.<get-size>|<get-size>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicLongArray.size.<get-size>",
+    "kind": "function",
+    "signature": "final fun <get-size>(): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Int",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef|null[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef",
+    "kind": "class",
+    "signature": "final class <#A: kotlin/Any?> kotlinx.atomicfu/AtomicRef {",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.a|{}a[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.a",
+    "kind": "property",
+    "signature": "final val a",
+    "visibility": "internal",
+    "annotations": [
+      {
+        "name": "PublishedApi",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.a.<get-a>|<get-a>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.a.<get-a>",
+    "kind": "function",
+    "signature": "final fun <get-a>(): kotlin.concurrent/AtomicReference<#A>",
+    "visibility": "internal",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.concurrent.AtomicReference<#0>",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.compareAndSet|compareAndSet(1:0;1:0){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.compareAndSet",
+    "kind": "function",
+    "signature": "final inline fun compareAndSet(#A, #A): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0",
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.getAndSet|getAndSet(1:0){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.getAndSet",
+    "kind": "function",
+    "signature": "final fun getAndSet(#A): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "#0",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.getValue|getValue(kotlin.Any?;kotlin.reflect.KProperty<*>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.getValue",
+    "kind": "function",
+    "signature": "final inline fun getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): #A",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>"
+    ],
+    "receiver_type": null,
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.lazySet|lazySet(1:0){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.lazySet",
+    "kind": "function",
+    "signature": "final inline fun lazySet(#A)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.setValue|setValue(kotlin.Any?;kotlin.reflect.KProperty<*>;1:0){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.setValue",
+    "kind": "function",
+    "signature": "final inline fun setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, #A)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any?",
+      "kotlin.reflect.KProperty<*>",
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.toString|toString(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.toString",
+    "kind": "function",
+    "signature": "final fun toString(): kotlin/String",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.value|{}value[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.value",
+    "kind": "property",
+    "signature": "final var value",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.value.<get-value>|<get-value>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.value.<get-value>",
+    "kind": "function",
+    "signature": "final inline fun <get-value>(): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/AtomicRef.value.<set-value>|<set-value>(1:0){}[0]",
+    "api_symbol": "kotlinx.atomicfu/AtomicRef.value.<set-value>",
+    "kind": "function",
+    "signature": "final inline fun <set-value>(#A)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/OptionalJsName|null[1]",
+    "api_symbol": "kotlinx.atomicfu/OptionalJsName",
+    "kind": "annotation_class",
+    "signature": "open annotation class kotlinx.atomicfu/OptionalJsName : kotlin/Annotation {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptIn",
+        "arguments": [
+          "ExperimentalMultiplatform::class"
+        ]
+      },
+      {
+        "name": "OptionalExpectation",
+        "arguments": []
+      },
+      {
+        "name": "Retention",
+        "arguments": [
+          "AnnotationRetention.BINARY"
+        ]
+      },
+      {
+        "name": "Target",
+        "arguments": [
+          "AnnotationTarget.CLASS",
+          "AnnotationTarget.FUNCTION",
+          "AnnotationTarget.PROPERTY",
+          "AnnotationTarget.CONSTRUCTOR",
+          "AnnotationTarget.PROPERTY_GETTER",
+          "AnnotationTarget.PROPERTY_SETTER"
+        ]
+      },
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "\"The annotation was intended for internal use only and will be hidden in the future release.\""
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/OptionalJsName.<init>|<init>(kotlin.String){}[1]",
+    "api_symbol": "kotlinx.atomicfu/OptionalJsName.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>(kotlin/String)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.String"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/OptionalJsName.name|{}name[1]",
+    "api_symbol": "kotlinx.atomicfu/OptionalJsName.name",
+    "kind": "property",
+    "signature": "final val name",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/OptionalJsName.name.<get-name>|<get-name>(){}[1]",
+    "api_symbol": "kotlinx.atomicfu/OptionalJsName.name.<get-name>",
+    "kind": "function",
+    "signature": "final fun <get-name>(): kotlin/String",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/Trace|Trace(kotlin.Int;kotlinx.atomicfu.TraceFormat){}[0]",
+    "api_symbol": "kotlinx.atomicfu/Trace",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/Trace(kotlin/Int = ..., kotlinx.atomicfu/TraceFormat = ...): kotlinx.atomicfu/TraceBase",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"FunctionName\""
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int",
+      "kotlinx.atomicfu.TraceFormat"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.TraceBase",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      true,
+      true
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase|null[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase",
+    "kind": "class",
+    "signature": "open class kotlinx.atomicfu/TraceBase {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_BASE_CONSTRUCTOR"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.None|null[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.None",
+    "kind": "object",
+    "signature": "final object None : kotlinx.atomicfu/TraceBase",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.append",
+    "kind": "function",
+    "signature": "open fun append(kotlin/Any)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_APPEND_1"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.append",
+    "kind": "function",
+    "signature": "open fun append(kotlin/Any, kotlin/Any)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_APPEND_2"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any",
+      "kotlin.Any"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any;kotlin.Any){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.append",
+    "kind": "function",
+    "signature": "open fun append(kotlin/Any, kotlin/Any, kotlin/Any)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_APPEND_3"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any",
+      "kotlin.Any",
+      "kotlin.Any"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.append|append(kotlin.Any;kotlin.Any;kotlin.Any;kotlin.Any){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.append",
+    "kind": "function",
+    "signature": "open fun append(kotlin/Any, kotlin/Any, kotlin/Any, kotlin/Any)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_APPEND_4"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Any",
+      "kotlin.Any",
+      "kotlin.Any",
+      "kotlin.Any"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      false,
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceBase.invoke|invoke(kotlin.Function0<kotlin.Any>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceBase.invoke",
+    "kind": "function",
+    "signature": "final inline fun invoke(kotlin/Function0<kotlin/Any>)",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Function0<kotlin.Any>"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceFormat|TraceFormat(kotlin.Function2<kotlin.Int,kotlin.Any,kotlin.String>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceFormat",
+    "kind": "function",
+    "signature": "final inline fun kotlinx.atomicfu/TraceFormat(crossinline kotlin/Function2<kotlin/Int, kotlin/Any, kotlin/String>): kotlinx.atomicfu/TraceFormat",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "InlineOnly",
+        "arguments": []
+      }
+    ],
+    "parameter_types": [
+      "crossinlinekotlin.Function2<kotlin.Int,kotlin.Any,kotlin.String>"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.TraceFormat",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceFormat|null[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceFormat",
+    "kind": "class",
+    "signature": "open class kotlinx.atomicfu/TraceFormat {",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_FORMAT_CLASS"
+        ]
+      }
+    ],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceFormat.<init>|<init>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceFormat.<init>",
+    "kind": "constructor",
+    "signature": "constructor <init>()",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlin.Unit",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/TraceFormat.format|format(kotlin.Int;kotlin.Any){}[0]",
+    "api_symbol": "kotlinx.atomicfu/TraceFormat.format",
+    "kind": "function",
+    "signature": "open fun format(kotlin/Int, kotlin/Any): kotlin/String",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "TRACE_FORMAT_FORMAT_FUNCTION"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int",
+      "kotlin.Any"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlin.String",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(0:0){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun <#A: kotlin/Any?> kotlinx.atomicfu/atomic(#A): kotlinx.atomicfu/AtomicRef<#A>",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(0:0;kotlinx.atomicfu.TraceBase){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun <#A: kotlin/Any?> kotlinx.atomicfu/atomic(#A, kotlinx.atomicfu/TraceBase = ...): kotlinx.atomicfu/AtomicRef<#A>",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "#0",
+      "kotlinx.atomicfu.TraceBase"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      true
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Boolean){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Boolean): kotlinx.atomicfu/AtomicBoolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicBoolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Boolean;kotlinx.atomicfu.TraceBase){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Boolean, kotlinx.atomicfu/TraceBase = ...): kotlinx.atomicfu/AtomicBoolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Boolean",
+      "kotlinx.atomicfu.TraceBase"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicBoolean",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      true
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Int){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Int): kotlinx.atomicfu/AtomicInt",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicInt",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Int;kotlinx.atomicfu.TraceBase){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Int, kotlinx.atomicfu/TraceBase = ...): kotlinx.atomicfu/AtomicInt",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Int",
+      "kotlinx.atomicfu.TraceBase"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicInt",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      true
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Long){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Long): kotlinx.atomicfu/AtomicLong",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicLong",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomic|atomic(kotlin.Long;kotlinx.atomicfu.TraceBase){}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomic",
+    "kind": "function",
+    "signature": "final fun kotlinx.atomicfu/atomic(kotlin/Long, kotlinx.atomicfu/TraceBase = ...): kotlinx.atomicfu/AtomicLong",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Long",
+      "kotlinx.atomicfu.TraceBase"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicLong",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false,
+      true
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/atomicArrayOfNulls|atomicArrayOfNulls(kotlin.Int){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/atomicArrayOfNulls",
+    "kind": "function",
+    "signature": "final fun <#A: kotlin/Any?> kotlinx.atomicfu/atomicArrayOfNulls(kotlin/Int): kotlinx.atomicfu/AtomicArray<#A?>",
+    "visibility": "public",
+    "annotations": [
+      {
+        "name": "Deprecated",
+        "arguments": [
+          "message=\"Atomic array types provided by the kotlinx-atomicfu are prone to various bugs and will be removed soon. \" +\n            \"Use AtomicArray type and corresponding factory functions provided by the Kotlin standard library instead.\"",
+          "level=DeprecationLevel.WARNING",
+          "replaceWith=ReplaceWith(\"kotlin.concurrent.atomics.atomicArrayOfNulls<T>(size)\")"
+        ]
+      },
+      {
+        "name": "Suppress",
+        "arguments": [
+          "\"DEPRECATION\""
+        ]
+      },
+      {
+        "name": "OptionalJsName",
+        "arguments": [
+          "ATOMIC_ARRAY_OF_NULLS"
+        ]
+      }
+    ],
+    "parameter_types": [
+      "kotlin.Int"
+    ],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.AtomicArray<#0?>",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/getAndUpdate",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicBoolean).kotlinx.atomicfu/getAndUpdate(kotlin/Function1<kotlin/Boolean, kotlin/Boolean>): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Boolean,kotlin.Boolean>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicBoolean",
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/getAndUpdate",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicInt).kotlinx.atomicfu/getAndUpdate(kotlin/Function1<kotlin/Int, kotlin/Int>): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Int,kotlin.Int>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicInt",
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/getAndUpdate",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicLong).kotlinx.atomicfu/getAndUpdate(kotlin/Function1<kotlin/Long, kotlin/Long>): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Long,kotlin.Long>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicLong",
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/getAndUpdate|getAndUpdate@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/getAndUpdate",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu/AtomicRef<#A>).kotlinx.atomicfu/getAndUpdate(kotlin/Function1<#A, #A>): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<#0,#0>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Unit>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/loop",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicBoolean).kotlinx.atomicfu/loop(kotlin/Function1<kotlin/Boolean, kotlin/Unit>): kotlin/Nothing",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Boolean,kotlin.Unit>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicBoolean",
+    "return_type": "kotlin.Nothing",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Unit>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/loop",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicInt).kotlinx.atomicfu/loop(kotlin/Function1<kotlin/Int, kotlin/Unit>): kotlin/Nothing",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Int,kotlin.Unit>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicInt",
+    "return_type": "kotlin.Nothing",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Unit>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/loop",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicLong).kotlinx.atomicfu/loop(kotlin/Function1<kotlin/Long, kotlin/Unit>): kotlin/Nothing",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Long,kotlin.Unit>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicLong",
+    "return_type": "kotlin.Nothing",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/loop|loop@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,kotlin.Unit>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/loop",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu/AtomicRef<#A>).kotlinx.atomicfu/loop(kotlin/Function1<#A, kotlin/Unit>): kotlin/Nothing",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<#0,kotlin.Unit>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "return_type": "kotlin.Nothing",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/named|named@kotlinx.atomicfu.TraceBase(kotlin.String){}[0]",
+    "api_symbol": "kotlinx.atomicfu/named",
+    "kind": "function",
+    "signature": "final fun (kotlinx.atomicfu/TraceBase).kotlinx.atomicfu/named(kotlin/String): kotlinx.atomicfu/TraceBase",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.String"
+    ],
+    "receiver_type": "kotlinx.atomicfu.TraceBase",
+    "return_type": "kotlinx.atomicfu.TraceBase",
+    "is_inline": false,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/traceFormatDefault|{}traceFormatDefault[0]",
+    "api_symbol": "kotlinx.atomicfu/traceFormatDefault",
+    "kind": "property",
+    "signature": "final val kotlinx.atomicfu/traceFormatDefault",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": null,
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/traceFormatDefault.<get-traceFormatDefault>|<get-traceFormatDefault>(){}[0]",
+    "api_symbol": "kotlinx.atomicfu/traceFormatDefault.<get-traceFormatDefault>",
+    "kind": "function",
+    "signature": "final fun <get-traceFormatDefault>(): kotlinx.atomicfu/TraceFormat",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [],
+    "receiver_type": null,
+    "return_type": "kotlinx.atomicfu.TraceFormat",
+    "is_inline": false,
+    "parameter_has_defaults": [],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/update",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicBoolean).kotlinx.atomicfu/update(kotlin/Function1<kotlin/Boolean, kotlin/Boolean>)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Boolean,kotlin.Boolean>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicBoolean",
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/update",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicInt).kotlinx.atomicfu/update(kotlin/Function1<kotlin/Int, kotlin/Int>)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Int,kotlin.Int>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicInt",
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/update",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicLong).kotlinx.atomicfu/update(kotlin/Function1<kotlin/Long, kotlin/Long>)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Long,kotlin.Long>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicLong",
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/update|update@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/update",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu/AtomicRef<#A>).kotlinx.atomicfu/update(kotlin/Function1<#A, #A>)",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<#0,#0>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "return_type": "kotlin.Unit",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicBoolean(kotlin.Function1<kotlin.Boolean,kotlin.Boolean>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/updateAndGet",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicBoolean).kotlinx.atomicfu/updateAndGet(kotlin/Function1<kotlin/Boolean, kotlin/Boolean>): kotlin/Boolean",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Boolean,kotlin.Boolean>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicBoolean",
+    "return_type": "kotlin.Boolean",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicInt(kotlin.Function1<kotlin.Int,kotlin.Int>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/updateAndGet",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicInt).kotlinx.atomicfu/updateAndGet(kotlin/Function1<kotlin/Int, kotlin/Int>): kotlin/Int",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Int,kotlin.Int>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicInt",
+    "return_type": "kotlin.Int",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicLong(kotlin.Function1<kotlin.Long,kotlin.Long>){}[0]",
+    "api_symbol": "kotlinx.atomicfu/updateAndGet",
+    "kind": "function",
+    "signature": "final inline fun (kotlinx.atomicfu/AtomicLong).kotlinx.atomicfu/updateAndGet(kotlin/Function1<kotlin/Long, kotlin/Long>): kotlin/Long",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<kotlin.Long,kotlin.Long>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicLong",
+    "return_type": "kotlin.Long",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": []
+  },
+  {
+    "api_identity": "kotlinx.atomicfu/updateAndGet|updateAndGet@kotlinx.atomicfu.AtomicRef<0:0>(kotlin.Function1<0:0,0:0>){0\u00a7<kotlin.Any?>}[0]",
+    "api_symbol": "kotlinx.atomicfu/updateAndGet",
+    "kind": "function",
+    "signature": "final inline fun <#A: kotlin/Any?> (kotlinx.atomicfu/AtomicRef<#A>).kotlinx.atomicfu/updateAndGet(kotlin/Function1<#A, #A>): #A",
+    "visibility": "public",
+    "annotations": [],
+    "parameter_types": [
+      "kotlin.Function1<#0,#0>"
+    ],
+    "receiver_type": "kotlinx.atomicfu.AtomicRef<#0>",
+    "return_type": "#0",
+    "is_inline": true,
+    "parameter_has_defaults": [
+      false
+    ],
+    "type_parameter_bounds": [
+      "kotlin.Any?"
+    ]
+  }
+]
