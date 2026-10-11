@@ -477,7 +477,4 @@ extension DataFlowSemaPhase {
             types.setNominalSupertypeTypeArgs(supertypeTypeArgs, for: ownerSymbol, supertype: supertype)
         }
     }
-
-    /// Registers `operator fun <T : CPointed> CPointer<T>.get(index: Int): T`.
-
 }
