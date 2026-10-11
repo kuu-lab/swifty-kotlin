@@ -265,7 +265,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        // load() -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "load", externalLinkName: "\(prefix)_load",
@@ -274,7 +273,6 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
-        // store(value: T) -> Unit (returns via side effect)
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "store", externalLinkName: "\(prefix)_store",
@@ -283,7 +281,6 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
-        // exchange(new: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "exchange", externalLinkName: "\(prefix)_exchange",
@@ -319,7 +316,6 @@ extension DataFlowSemaPhase {
             )
         }
         if includeCompareAndSet {
-            // compareAndSet(expect: T, update: T) -> Boolean
             registerAtomicMember(
                 ownerSymbol: ownerSymbol, ownerType: ownerType,
                 name: "compareAndSet", externalLinkName: compareAndSetLinkName ?? "\(prefix)_compareAndSet",
@@ -333,7 +329,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner
             )
         }
-        // compareAndExchange(expect: T, update: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "compareAndExchange", externalLinkName: "\(prefix)_compareAndExchange",
