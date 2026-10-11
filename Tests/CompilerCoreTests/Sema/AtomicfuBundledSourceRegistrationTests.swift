@@ -1,6 +1,7 @@
 @testable import CompilerCore
 @testable import CompilerTestSupport
 import Foundation
+import TestStdlibCache
 import Testing
 
 private struct AtomicfuNativeExpectation: Decodable {
@@ -60,7 +61,14 @@ struct AtomicfuBundledSourceRegistrationTests {
         try source.write(to: path, atomically: true, encoding: .utf8)
         // Keep tiny Core inputs and configuration on every path, including
         // throwing #require and nonthrowing #expect failures in the inventory.
-        let stdlib = library ? try testStdlibArtifactPath() : nil
+        let stdlib: String?
+        if library {
+            TestStdlibCache.shared.prepare()
+            stdlib = try #require(CompilerOptions.defaultStdlibLibraryPath,
+                                  "Expected a prepared bundled .kklib; input retained at \(directory.path)")
+        } else {
+            stdlib = nil
+        }
         let ctx = makeCompilationContext(inputs: [path.path],
             stdlibLibraryPath: stdlib, allowDefaultStdlibLibrary: false)
         let provenance: [String: Any] = ["input": path.path,
