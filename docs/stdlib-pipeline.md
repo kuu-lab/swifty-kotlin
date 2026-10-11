@@ -981,3 +981,18 @@ integer values with scheduler tags. This adds one internal bridge with reason
 context operations, retaining the object handle for element identity and fold.
 IO and Unconfined retain their existing Default scheduler compatibility;
 this bridge does not implement a separate IO pool or an unconfined event loop.
+
+
+### Prepared KUU-1732 atomicfu private kernel admission
+
+The actual-source registration proposal adds eight `__kk_atomicfu_*` entries
+and no public `kk_*` entries. Reason codes are syscall (blocking monotonic waits
+and real thread ownership), memory representation (opaque native kernel objects
+owned by normal Kotlin fields), and GC/TLS (stable per-thread Kotlin wrapper
+factory/root and destructor). Public API selection, Duration conversion,
+annotations, factories, arrays, retry operations, Trace callback evaluation and
+nominal identity remain bundled Kotlin source. No performance exception is
+claimed. `RuntimeABISpec.atomicfuSynchronizationFunctions` registers all exact
+signatures and updates computed specVersion; direct Runtime tests cover those
+contracts. See [the complete contract](atomicfu-runtime-kernel-contract.md).
+This admission is prepared and unexecuted, not an enforcing-green completion.

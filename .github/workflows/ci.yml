@@ -34,6 +34,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify remote Action pins
         run: python3 Scripts/check_action_pins.py
+      - name: Validate atomicfu pinned declaration evidence
+        run: |
+          python3 Scripts/check_atomicfu_api_reference.py
+          python3 Tests/Scripts/test_atomicfu_api_index.py
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs

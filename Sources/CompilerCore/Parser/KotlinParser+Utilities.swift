@@ -78,7 +78,9 @@ extension KotlinParser {
         }
     }
 
-    func parseBalancedGroup(opening: Symbol, closing: Symbol) -> NodeID {
+    func parseBalancedGroup(
+        opening: Symbol, closing: Symbol, allowsPrimaryConstructorParameters: Bool = false
+    ) -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
@@ -86,6 +88,12 @@ extension KotlinParser {
             return arena.appendNode(kind: .statement, range: invalidRange, [])
         }
 
+        let parsesConstructorParameters = allowsPrimaryConstructorParameters
+            && opening == .lParen && closing == .rParen
+        var atConstructorParameterStart = true
+        var constructorParameterPrefixEnd: Int?
+        var constructorTypeArgumentDepth = 0
+        var constructorInDefaultValue = false
         var closingSymbols = [closing]
         while !stream.atEOF() {
             let token = stream.peek()
@@ -93,10 +101,40 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
+            // Only a proven parameter prefix at '(' or after a parameter
+            // comma may cross a declaration-looking newline. Keep the usual
+            // recovery boundary for a missing ')' and following declarations.
+            if parsesConstructorParameters, closingSymbols.count == 1, atConstructorParameterStart {
+                constructorParameterPrefixEnd = primaryConstructorParameterPrefixEnd()
+            }
+            let isConstructorParameterPrefix = parsesConstructorParameters
+                && constructorParameterPrefixEnd.map { stream.index < $0 } == true
+            if closingSymbols.count == 1, hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token),
+               !isConstructorParameterPrefix {
                 break
             }
 
+            if parsesConstructorParameters, closingSymbols.count == 1 {
+                // A generic type's comma is not a new parameter. Conversely,
+                // '<' in a default expression may be a comparison, not a type.
+                if token.kind == .symbol(.comma), constructorTypeArgumentDepth == 0 {
+                    atConstructorParameterStart = true
+                    constructorParameterPrefixEnd = nil
+                    constructorInDefaultValue = false
+                } else {
+                    atConstructorParameterStart = false
+                    if token.kind == .symbol(.assign) {
+                        constructorInDefaultValue = true
+                    } else if token.kind == .symbol(.lessThan) {
+                        if !constructorInDefaultValue || constructorTypeArgumentDepth > 0
+                            || primaryConstructorDefaultStartsTypeArguments() {
+                            constructorTypeArgumentDepth += 1
+                        }
+                    } else if token.kind == .symbol(.greaterThan), constructorTypeArgumentDepth > 0 {
+                        constructorTypeArgumentDepth -= 1
+                    }
+                }
+            }
             _ = consumeToken(into: &children, range: &range)
             switch token.kind {
             case .symbol(.lParen):
@@ -118,6 +156,98 @@ extension KotlinParser {
             range: stream.peek().rangeIfAvailable
         )
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
+    }
+
+    /// Returns an absolute end index only for a parameter prefix ending in
+    /// `name:`, without consuming tokens. Called once per parameter boundary;
+    /// the cached end also covers annotations/modifiers split across newlines.
+    private func primaryConstructorParameterPrefixEnd() -> Int? {
+        var offset = 0
+        var work = 0
+        while true {
+            guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
+            let kind = stream.peek(offset).kind
+            if kind == .symbol(.at) {
+                offset += 1
+                if isAnnotationUseSiteTarget(stream.peek(offset)),
+                   stream.peek(offset + 1).kind == .symbol(.colon) {
+                    offset += 2
+                }
+                guard isIdentifierLike(stream.peek(offset).kind) else { return nil }
+                offset += 1
+                while stream.peek(offset).kind == .symbol(.dot),
+                      isIdentifierLike(stream.peek(offset + 1).kind) {
+                    guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
+                    offset += 2
+                }
+                if stream.peek(offset).kind == .symbol(.lParen) {
+                    offset = offsetPastBalancedGroup(from: offset,
+                                                    open: .symbol(.lParen), close: .symbol(.rParen))
+                    guard stream.peek(offset - 1).kind == .symbol(.rParen) else { return nil }
+                }
+                continue
+            }
+            // Modifier keywords can themselves be parameter names (`value:`).
+            if isPrimaryConstructorParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
+                return stream.index + offset + 2
+            }
+            if case let .keyword(keyword) = kind, isPrimaryConstructorParameterModifier(keyword) {
+                offset += 1
+                continue
+            }
+            if kind == .keyword(.val) || kind == .keyword(.var) {
+                offset += 1
+            }
+            guard isPrimaryConstructorParameterName(stream.peek(offset).kind),
+                  stream.peek(offset + 1).kind == .symbol(.colon) else { return nil }
+            return stream.index + offset + 2
+        }
+    }
+
+    private func isPrimaryConstructorParameterModifier(_ keyword: Keyword) -> Bool {
+        switch keyword {
+        case .public, .private, .internal, .protected, .override, .final, .open, .actual, .expect,
+             .vararg, .noinline, .crossinline:
+            true
+        default:
+            false
+        }
+    }
+
+    private func isPrimaryConstructorParameterName(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .identifier, .backtickedIdentifier, .softKeyword:
+            true
+        case let .keyword(keyword):
+            Self.isDeclarationModifierKeyword(keyword) || keyword == .vararg
+        default:
+            false
+        }
+    }
+
+    private func primaryConstructorDefaultStartsTypeArguments() -> Bool {
+        guard let anchor = lastConsumedToken, isIdentifierLike(anchor.kind) else { return false }
+        var depth = 0
+        // Bound this new lookup before calling the existing generic scanner.
+        // Exhaustion only declines shielding; it emits no new diagnostic and
+        // never changes the generic scanner's own recovery behavior.
+        for offset in 0..<4096 {
+            let kind = stream.peek(offset).kind
+            if kind == .eof { return false }
+            if kind == .symbol(.lessThan) {
+                depth += 1
+            } else if kind == .symbol(.greaterThan) {
+                depth -= 1
+                if depth == 0 {
+                    let following = stream.peek(offset + 1).kind
+                    guard following == .symbol(.lParen) || following == .symbol(.lBrace) else { return false }
+                    // A closed generic call shields its commas in a default;
+                    // an ordinary comparison leaves parameter commas visible.
+                    return canStartTypeArgumentsInternal(hasAnchorToken: true)
+                }
+            }
+        }
+        return false
     }
 
     func parseQualifiedPath(into children: inout [SyntaxChild], range: inout RangeAccumulator, allowImportWildcard: Bool, stopAtAs: Bool = false) {
