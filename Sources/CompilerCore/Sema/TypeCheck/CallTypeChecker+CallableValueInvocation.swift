@@ -184,7 +184,8 @@ extension CallTypeChecker {
         }
         var parameterMapping: [Int: Int] = [:]
         func contextualizedArgumentType(at index: Int, parameterType: TypeID) -> TypeID {
-            guard integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
+            guard isLambdaOrCallableRefArg(args[index].expr, ast: ast)
+                || integerLiteralFitsParameter(args[index].expr, parameterType: parameterType, ctx: ctx) else {
                 return argTypes[index]
             }
             return driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: parameterType)

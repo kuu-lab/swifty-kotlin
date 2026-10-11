@@ -2437,6 +2437,11 @@ extension CallTypeChecker {
             {
                 return fallbackType
             }
+            if resolved.diagnostic != nil,
+               let propertyType = tryInferCallableMemberPropertyInvocation(
+                   request, memberLookupType: memberLookupType, argTypes: argTypes,
+                   isClassNameReceiver: isClassNameReceiver, locals: &locals
+               ) { return propertyType }
             if resolved.diagnostic != nil {
                 if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                     candidates: candidates,
@@ -2517,6 +2522,10 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
+            if let propertyType = tryInferCallableMemberPropertyInvocation(
+                request, memberLookupType: memberLookupType, argTypes: argTypes,
+                isClassNameReceiver: isClassNameReceiver, locals: &locals
+            ) { return propertyType }
             ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }

@@ -546,6 +546,51 @@ extension CallLowerer {
             resultType: resultType, arena: arena, sema: sema, interner: interner,
             instructions: &instructions
         ) { return result }
+        if sema.symbols.extensionPropertyReceiverType(for: propertySymbol) != nil,
+           let getter = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+        {
+            let result = arena.appendTemporary(type: resultType)
+            if !isSuperQualifiedReceiver,
+               !kirIsRuntimeBridgedCallee(getter, sema: sema),
+               let owner = sema.symbols.parentSymbol(for: propertySymbol),
+               sema.symbols.symbol(owner)?.kind == .interface,
+               let slot = kirInterfacePropertyGetterSlot(
+                   interfaceProperty: propertySymbol, interfaceSymbol: owner, sema: sema,
+                   interner: interner, cache: driver.ctx.nominalDispatchCache
+               ),
+               let dispatchReceiver = memberExtensionDispatchReceiver(
+                   for: getter, callExprID: nil, sema: sema, arena: arena,
+                   interner: interner, instructions: &instructions
+               ) {
+                let typeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: owner, sema: sema, interner: interner
+                )
+                instructions.append(.virtualCall(
+                    symbol: getter, callee: interner.intern("get"), receiver: dispatchReceiver,
+                    arguments: [loweredReceiverID], result: result, canThrow: false,
+                    thrownResult: nil, dispatch: .itableDynamic(interfaceTypeID: typeID, methodSlot: slot)
+                ))
+            } else if !isSuperQualifiedReceiver,
+               let (accessor, dispatch) = resolvePropertyAccessorVirtualDispatch(
+                   propertySymbol: propertySymbol, accessorKind: .getter, sema: sema
+               ) {
+                let arguments = propertyAccessorArguments(
+                    for: accessor, arguments: [loweredReceiverID], callExprID: nil,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                instructions.append(.virtualCall(
+                    symbol: accessor, callee: interner.intern("get"), receiver: arguments[0],
+                    arguments: Array(arguments.dropFirst()), result: result, canThrow: false,
+                    thrownResult: nil, dispatch: dispatch
+                ))
+            } else {
+                appendPropertyGetterCall(
+                    getterSymbol: getter, receiver: loweredReceiverID, callExprID: nil, result: result,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+            }
+            return result
+        }
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol)
         else {
