@@ -91,8 +91,6 @@ private extension ProtoFields {
 /// happens in ``KlibIrModule``.
 package enum KlibIrDecoding {
 
-    // MARK: Files
-
     package static func fileEntry(_ proto: ProtoFields) throws -> KlibFileEntry {
         var lineOffsets = try proto.int32List(2)
         if lineOffsets.isEmpty {
@@ -121,8 +119,6 @@ package enum KlibIrDecoding {
             explicitlyExportedToCompiler: proto.int64List(5)
         )
     }
-
-    // MARK: Signatures
 
     package static func idSignature(_ proto: ProtoFields) throws -> KlibIdSignature {
         if let common = try proto.message(1) {
@@ -170,8 +166,6 @@ package enum KlibIrDecoding {
         }
         throw KlibFormatError.corruptProto("IdSignature has no id_sig set")
     }
-
-    // MARK: Types
 
     package static func type(_ proto: ProtoFields) throws -> KlibIrType {
         if let legacy = try proto.message(1) {
@@ -223,8 +217,6 @@ package enum KlibIrDecoding {
             typeArguments: proto.int32List(4)
         )
     }
-
-    // MARK: Declarations
 
     private static func declarationBase(_ proto: ProtoFields) throws -> KlibDeclBase {
         try KlibDeclBase(
@@ -378,8 +370,6 @@ package enum KlibIrDecoding {
         if let value = try proto.message(12) { return .typeAlias(try typeAlias(value)) }
         throw KlibFormatError.corruptProto("IrDeclaration has no declarator set")
     }
-
-    // MARK: Expressions
 
     private static func optionalExpression(_ proto: ProtoFields, field: Int) throws -> KlibIrExpression? {
         try proto.decoded(field, expression)
@@ -917,8 +907,6 @@ package enum KlibIrDecoding {
         return KlibIrExpression(kind: kind, typeIndex: typeIndex, globalCoordinates: global, localCoordinates: local)
     }
 
-    // MARK: Statements
-
     package static func statement(_ proto: ProtoFields) throws -> KlibIrStatement {
         let global = proto.globalCoordinates(1)
         let local = proto.localCoordinates(8)
@@ -948,8 +936,6 @@ package enum KlibIrDecoding {
 
         return KlibIrStatement(kind: kind, globalCoordinates: global, localCoordinates: local)
     }
-
-    // MARK: - Helpers
 
     private static func requiredInt32(_ proto: ProtoFields, _ field: Int, _ name: String) throws -> Int32 {
         guard let value = proto.int32(field) else { throw KlibIrDecodeError.missing(name) }
