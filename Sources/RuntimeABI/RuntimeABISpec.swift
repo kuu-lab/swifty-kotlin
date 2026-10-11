@@ -101,6 +101,7 @@ public enum RuntimeABISpec {
         appleFoundationFunctions,
         arrayFunctions,
         atomicFunctions,
+        atomicfuSynchronizationFunctions,
         base64Functions,
         bitwiseFunctions,
         booleanFunctions,

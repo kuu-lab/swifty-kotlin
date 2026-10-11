@@ -562,6 +562,7 @@ public func kk_runtime_force_reset() {
 /// panic (invalid range/array/string handle). Entries are removed by whoever
 /// releases the box.
 func kk_runtime_reset_gc() {
+    runtimeResetAtomicfuParkingCaches()
     let retired = runtimeStorage.withGCLock { state -> [RuntimeForeignResourceLease] in
         var retired = state.retiredForeignResources
         state.retiredForeignResources.removeAll()
