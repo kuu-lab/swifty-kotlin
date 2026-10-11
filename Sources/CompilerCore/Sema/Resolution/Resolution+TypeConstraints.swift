@@ -218,7 +218,6 @@ extension OverloadResolver {
                     }
                     continue
                 }
-                // Advance the cursor past already-bound non-vararg params.
                 advancePositionalCursor(for: argIndex)
                 if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
@@ -753,7 +752,6 @@ extension OverloadResolver {
                         depth: depth + 1
                     ))
                 }
-                // Covariant in return type.
                 result.append(contentsOf: decomposeSubtypeConstraintImpl(
                     subtype: subFunc.returnType,
                     supertype: superFunc.returnType,
@@ -845,7 +843,6 @@ extension OverloadResolver {
             )
         }
 
-        // Default: simple type-to-type constraint.
         return [VariableConstraint(
             kind: .subtype,
             left: .type(subtype),
@@ -943,7 +940,6 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
-            // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -958,7 +954,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .out(superInner)),
              let (.out(subInner), .out(superInner)):
-            // Covariant: sub <: super.
             return decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -967,7 +962,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .in(superInner)),
              let (.in(subInner), .in(superInner)):
-            // Contravariant: super <: sub.
             return decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
