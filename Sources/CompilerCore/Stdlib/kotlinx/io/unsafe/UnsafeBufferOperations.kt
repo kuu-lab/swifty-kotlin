@@ -3,9 +3,9 @@
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE.txt file.
  *
  * Derived from kotlinx-io core/common/src/unsafe/UnsafeBufferOperations.kt (tag 0.9.1).
- * `@JvmSynthetic` annotations are dropped (this compiler has a single non-JVM target), and the
- * context implementation singletons are `object` declarations instead of stored top-level `val`s
- * (stored top-level initializers do not round-trip through .kklib artifacts in this compiler).
+ * Internal context properties retain upstream's interface type and getter annotations.
+ * Computed getters return private singleton implementations, preserving identity while avoiding
+ * a stored top-level initializer dependency across .kklib compilation boundaries.
  */
 
 package kotlinx.io.unsafe
@@ -533,13 +533,23 @@ public interface BufferIterationContext : SegmentReadContext {
 
 @UnsafeIoApi
 @PublishedApi
-internal object SegmentReadContextImpl : SegmentReadContext {
+@get:kotlin.jvm.JvmSynthetic
+internal val SegmentReadContextImpl: SegmentReadContext
+    get() = SegmentReadContextSingleton
+
+@UnsafeIoApi
+private object SegmentReadContextSingleton : SegmentReadContext {
     override fun getUnchecked(segment: Segment, offset: Int): Byte = segment.getUnchecked(offset)
 }
 
 @UnsafeIoApi
 @PublishedApi
-internal object SegmentWriteContextImpl : SegmentWriteContext {
+@get:kotlin.jvm.JvmSynthetic
+internal val SegmentWriteContextImpl: SegmentWriteContext
+    get() = SegmentWriteContextSingleton
+
+@UnsafeIoApi
+private object SegmentWriteContextSingleton : SegmentWriteContext {
     override fun setUnchecked(segment: Segment, offset: Int, value: Byte) {
         segment.setUnchecked(offset, value)
     }
@@ -559,7 +569,12 @@ internal object SegmentWriteContextImpl : SegmentWriteContext {
 
 @UnsafeIoApi
 @PublishedApi
-internal object BufferIterationContextImpl : BufferIterationContext {
+@get:kotlin.jvm.JvmSynthetic
+internal val BufferIterationContextImpl: BufferIterationContext
+    get() = BufferIterationContextSingleton
+
+@UnsafeIoApi
+private object BufferIterationContextSingleton : BufferIterationContext {
     override fun next(segment: Segment): Segment? = segment.next
 
     override fun getUnchecked(segment: Segment, offset: Int): Byte =
