@@ -209,6 +209,7 @@ extension DataFlowSemaPhase {
             }
             if record.isDataClass { flags.insert(.dataType) }
             if record.isOpenClass { flags.insert(.openType) }
+            if record.kind == .class && record.isInnerClass { flags.insert(.innerClass) }
             switch record.modality {
             case .abstract: flags.insert(.abstractType)
             case .open: flags.insert(.openType)
@@ -1693,6 +1694,7 @@ extension DataFlowSemaPhase {
         let enumStaticInitLinkName: String?
         let isDataClass: Bool
         let isOpenClass: Bool
+        let isInnerClass: Bool
         let modality: MetadataModality
         let isSealedClass: Bool
         let isFunInterface: Bool
@@ -1762,6 +1764,7 @@ extension DataFlowSemaPhase {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        isInnerClass: Bool = false,
         modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
@@ -1825,6 +1828,7 @@ extension DataFlowSemaPhase {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.isInnerClass = isInnerClass
         self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
@@ -2731,6 +2735,46 @@ extension DataFlowSemaPhase {
             } else if let packageOwner = ownerCandidates.first(where: { $0.kind == .package }) {
                 symbols.setParentSymbol(packageOwner.id, for: binding.symbol)
             }
+        }
+
+        if record.kind == .class, record.isInnerClass {
+            // The enclosing-instance link is private ABI storage, not a public
+            // property/extra value parameter. Its producer slot must not be guessed.
+            let outerName = interner.intern("$outer")
+            let outerFQName = record.fqName + [outerName]
+            let entries = record.fieldOffsets.filter { $0.fqName == outerFQName }
+            guard let owner = symbols.parentSymbol(for: binding.symbol),
+                  let outerOwner = symbols.symbol(owner),
+                  outerOwner.kind == .class || outerOwner.kind == .enumClass,
+                  entries.count == 1,
+                  let entry = entries.first,
+                  entry.offset >= 2,
+                  let size = record.declaredInstanceSizeWords,
+                  entry.offset < size
+            else {
+                diagnostics.error(
+                    "KSWIFTK-LIB-0024",
+                    "Inner class '\(renderFQName(record.fqName, interner: interner))' has invalid enclosing-instance storage metadata",
+                    range: nil
+                )
+                return
+            }
+            symbols.ensureLazyImportedMetadataLoaded(for: owner)
+            let field = symbols.define(
+                kind: .field, name: outerName, fqName: outerFQName, declSite: nil,
+                visibility: .private, flags: [.synthetic, .importedLibrary]
+            )
+            symbols.setParentSymbol(binding.symbol, for: field)
+            if let module = symbols.moduleFQN(for: binding.symbol) {
+                symbols.setModuleFQN(module, for: field)
+            }
+            let arguments: [TypeArg] = types.nominalTypeParameterSymbols(for: owner).map {
+                .invariant(types.make(.typeParam(TypeParamType(symbol: $0))))
+            }
+            symbols.setPropertyType(types.make(.classType(ClassType(
+                classSymbol: owner, args: arguments, nullability: .nonNull
+            ))), for: field)
+            symbols.setOuterInstanceFieldSymbol(field, for: binding.symbol)
         }
 
         let hasLayoutHint =
