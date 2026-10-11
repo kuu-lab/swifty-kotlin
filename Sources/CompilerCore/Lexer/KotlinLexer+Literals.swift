@@ -132,7 +132,6 @@ extension KotlinLexer {
         return makeNumericToken(kind: TokenKind.intLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
     }
 
-    /// Scans hex/bin digits with underscore handling. Advances cursor past digits; emits diagnostics for invalid placement.
     private func scanPrefixedDigits(cursor: inout Int, isDigit: (UInt8) -> Bool, rangeStart: Int) -> Int {
         let startDigits = cursor
         if cursor < byteCount(), byte(at: cursor) == 0x5F {
@@ -213,7 +212,6 @@ extension KotlinLexer {
         return (false, false)
     }
 
-    /// Scans decimal digits and optional decimal point. Advances cursor.
     private func scanDecimalDigits(cursor: inout Int, start: Int, hasDot: inout Bool) {
         while cursor < byteCount() {
             let ch = byte(at: cursor)
