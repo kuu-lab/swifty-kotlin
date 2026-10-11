@@ -355,7 +355,7 @@ public fun Sink.writeDoubleLe(double: Double) {
  * @throws IllegalStateException when the sink is closed.
  * @throws IOException when some I/O error occurs.
  */
-@OptIn(ExperimentalContracts::class)
+@OptIn(InternalIoApi::class, ExperimentalContracts::class)
 public inline fun Sink.writeToInternalBuffer(lambda: (Buffer) -> Unit) {
     contract {
         callsInPlace(lambda, InvocationKind.EXACTLY_ONCE)

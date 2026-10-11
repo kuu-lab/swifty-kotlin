@@ -33,7 +33,7 @@ public fun Sink.write(byteString: ByteString, startIndex: Int = 0, endIndex: Int
 }
 
 /** Consumes all bytes from this source and returns them as an immutable byte string. */
-@OptIn(UnsafeByteStringApi::class)
+@OptIn(InternalIoApi::class, UnsafeByteStringApi::class)
 public fun Source.readByteString(): ByteString {
     var fetchSize = Int.MAX_VALUE.toLong()
     while (buffer.size < Int.MAX_VALUE && request(fetchSize)) {
@@ -44,7 +44,7 @@ public fun Source.readByteString(): ByteString {
 }
 
 /** Consumes exactly [byteCount] bytes, throwing [EOFException] if there are not enough. */
-@OptIn(UnsafeByteStringApi::class)
+@OptIn(InternalIoApi::class, UnsafeByteStringApi::class)
 public fun Source.readByteString(byteCount: Int): ByteString {
     checkByteCount(byteCount.toLong())
     require(byteCount.toLong())
