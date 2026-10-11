@@ -194,7 +194,6 @@ enum SyntheticSymbolScheme {
         }
     }
 
-    /// Returns true when `symbol` is a synthetic setter accessor symbol.
     static func isLikelySyntheticSetterAccessor(_ symbol: SymbolID) -> Bool {
         decode(symbol)?.kind == .setter
     }
