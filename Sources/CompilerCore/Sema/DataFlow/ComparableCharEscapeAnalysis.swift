@@ -168,7 +168,7 @@ final class ComparableCharEscapeAnalyzer {
             }
         }
         switch expr {
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer { visit(initializer, depth, false) }
         case let .localAssign(_, value, _):
             visit(value, depth, false)
@@ -440,7 +440,7 @@ final class ComparableCharEscapeAnalyzer {
     }
 
     private func collectExpr(_ exprID: ExprID, depth: Int) {
-        if case let .localDecl(_, _, _, _, isDelegated, _) = ast.arena.expr(exprID),
+        if case let .localDecl(_, _, _, _, isDelegated, _, _) = ast.arena.expr(exprID),
            !isDelegated,
            let symbol = bindings.identifierSymbols[exprID],
            isComparableCharType(symbols.propertyType(for: symbol) ?? bindings.exprTypes[exprID])
@@ -504,7 +504,7 @@ final class ComparableCharEscapeAnalyzer {
                 escaped.insert(symbol)
             }
 
-        case let .localDecl(_, _, _, initializer, isDelegated, _):
+        case let .localDecl(_, _, _, initializer, isDelegated, _, _):
             let symbol = bindings.identifierSymbols[exprID]
             if isDelegated {
                 if let initializer { classifyExpr(initializer, depth: depth, statement: false) }

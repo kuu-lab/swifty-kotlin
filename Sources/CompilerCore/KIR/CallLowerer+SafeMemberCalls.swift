@@ -854,6 +854,12 @@ extension CallLowerer {
                         }
                         callPrefix = prefix
                     }
+                } else if let functionValue = lowerLateinitLocalCallableRead(
+                    symbol: localSym, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions.instructions
+                ) {
+                    callSymbol = localSym
+                    callPrefix = [functionValue, loweredReceiverID]
                 } else if let localExprID = driver.ctx.localValue(for: localSym) {
                     if let info = driver.ctx.callableValueInfo(for: localExprID) {
                         callSymbol = info.symbol

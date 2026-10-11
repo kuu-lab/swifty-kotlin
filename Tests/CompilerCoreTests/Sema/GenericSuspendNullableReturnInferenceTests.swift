@@ -38,7 +38,7 @@ struct GenericSuspendNullableReturnInferenceTests {
             var checked = Set<String>()
             for index in ast.arena.exprs.indices {
                 let expr = ExprID(rawValue: Int32(index))
-                guard case let .localDecl(name, _, _, initializer, _, _) = ast.arena.expr(expr),
+                guard case let .localDecl(name, _, _, initializer, _, _, _) = ast.arena.expr(expr),
                       let initializer else { continue }
                 let text = ctx.interner.resolve(name)
                 if names.contains(text) {

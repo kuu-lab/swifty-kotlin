@@ -40,7 +40,7 @@ struct NewlineOperatorTests {
         }.first)
         guard case let .block(statements, _) = function.body,
               statements.count == 3,
-              case let .localDecl(_, _, _, initializer?, _, _) = ast.arena.expr(statements[0]),
+              case let .localDecl(_, _, _, initializer?, _, _, _) = ast.arena.expr(statements[0]),
               case .intLiteral(1, _) = ast.arena.expr(initializer),
               case .unaryExpr = ast.arena.expr(statements[1])
         else {

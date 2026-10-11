@@ -348,7 +348,7 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: bodyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             collectBoundIdentifierSymbols(in: conditionExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer {
                 collectBoundIdentifierSymbols(in: initializer, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
@@ -689,7 +689,7 @@ extension LambdaLowerer {
             return containsImplicitReceiverReference(in: bodyExpr, ast: ast)
                 || containsImplicitReceiverReference(in: conditionExpr, ast: ast)
 
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             guard let initializer else {
                 return false
             }
