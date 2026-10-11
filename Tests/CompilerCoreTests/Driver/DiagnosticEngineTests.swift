@@ -126,6 +126,28 @@ struct DiagnosticEngineTests {
         #expect(engine.count == 5)
     }
 
+    @Test
+    func testRollbackRemovesDiagnosticFromDeduplicationState() {
+        let engine = DiagnosticEngine()
+        let diagnostic = Diagnostic(
+            severity: .error,
+            code: "E-RETRY",
+            message: "retryable diagnostic",
+            primaryRange: nil,
+            secondaryRanges: []
+        )
+
+        let checkpoint = engine.checkpoint()
+        engine.emit(diagnostic)
+        engine.rollback(to: checkpoint)
+        #expect(engine.diagnostics.isEmpty)
+        #expect(engine.errorCount == 0)
+
+        engine.emit(diagnostic)
+        #expect(engine.diagnostics == [diagnostic])
+        #expect(engine.hasError)
+    }
+
     // MARK: - Render
 
     @Test
