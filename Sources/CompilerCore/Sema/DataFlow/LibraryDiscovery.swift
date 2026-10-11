@@ -17,6 +17,7 @@ package struct LibraryManifest: Decodable {
     let kotlinLanguageVersion: String?
     let target: String?
     let compilerVersion: String?
+    let sourceVarargStorageABI: String?
     let metadata: String?
     let inlineKIRDir: String?
     let topLevelInitializerLinkName: String?
@@ -25,6 +26,7 @@ package struct LibraryManifest: Decodable {
     private enum CodingKeys: String, CodingKey {
         case formatVersion, moduleName, libraryKind, stdlibManifestHash
         case kotlinLanguageVersion, target
+        case sourceVarargStorageABI
         case compilerVersion, metadata, inlineKIRDir, topLevelInitializerLinkName, objects
     }
 
@@ -37,6 +39,7 @@ package struct LibraryManifest: Decodable {
         kotlinLanguageVersion = try? container.decodeIfPresent(String.self, forKey: .kotlinLanguageVersion)
         target = try? container.decodeIfPresent(String.self, forKey: .target)
         compilerVersion = try? container.decodeIfPresent(String.self, forKey: .compilerVersion)
+        sourceVarargStorageABI = try? container.decodeIfPresent(String.self, forKey: .sourceVarargStorageABI)
         metadata = try? container.decodeIfPresent(String.self, forKey: .metadata)
         inlineKIRDir = try? container.decodeIfPresent(String.self, forKey: .inlineKIRDir)
         topLevelInitializerLinkName = try? container.decodeIfPresent(String.self, forKey: .topLevelInitializerLinkName)
@@ -211,7 +214,8 @@ extension DataFlowSemaPhase {
             inlineKIRDir: canonicalInlineKIRDir,
             moduleName: manifest.moduleName,
             isValid: isValid,
-            topLevelInitializerLinkName: manifest.topLevelInitializerLinkName
+            topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
+            sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1"
         )
     }
 

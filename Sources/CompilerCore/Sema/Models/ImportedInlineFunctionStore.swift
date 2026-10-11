@@ -24,11 +24,16 @@ public final class ImportedInlineFunctionStore {
         /// `KIRFunction.name`, which `nameB64` serializes). Used by the
         /// by-name expansion fallback without parsing the body.
         public let name: InternedString
+        public let reifiedComponentTokens: Bool
+        public let packedValueParameterTypes: [TypeID]?
 
-        public init(path: String, signature: FunctionSignature?, name: InternedString) {
+        public init(path: String, signature: FunctionSignature?, name: InternedString,
+                    reifiedComponentTokens: Bool = false, packedValueParameterTypes: [TypeID]? = nil) {
             self.path = path
             self.signature = signature
             self.name = name
+            self.reifiedComponentTokens = reifiedComponentTokens
+            self.packedValueParameterTypes = packedValueParameterTypes
         }
     }
 
@@ -136,7 +141,9 @@ public final class ImportedInlineFunctionStore {
                   interner: parseContext.interner,
                   diagnostics: parseContext.diagnostics,
                   externalLinkNameToSymbol: parseContext.externalLinkNameToSymbol,
-                  importedSymbolByFQName: parseContext.importedSymbolByFQName
+                  importedSymbolByFQName: parseContext.importedSymbolByFQName,
+                  reifiedComponentTokens: descriptor.reifiedComponentTokens,
+                  packedValueParameterTypes: descriptor.packedValueParameterTypes
               )
         else {
             failedSymbols.insert(symbol)

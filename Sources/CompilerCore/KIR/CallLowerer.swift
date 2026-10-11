@@ -1583,6 +1583,9 @@ final class CallLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+                // Nominal return tagging is existing erased-Array behavior.
+                // Actual components belong to allocation/copy sites: an
+                // untagged legacy/erased array cannot be proven by return type.
                 instructions.append(.copy(from: taggedResult, to: result))
             }
             if let thrownResult,
@@ -1914,6 +1917,8 @@ final class CallLowerer {
             return
         }
 
+        let carriesComponent = !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            && sema.symbols.symbol(chosenCallee)?.flags.contains(.legacyReifiedClassTokenABI) != true
         let intType = sema.types.make(.primitive(.int, .nonNull))
         for index in signature.reifiedTypeParameterIndices.sorted() {
             let concreteType = index < callBinding.substitutedTypeArguments.count
@@ -1928,6 +1933,13 @@ final class CallLowerer {
                 let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
                 instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
                 arguments.append(tokenExpr)
+                if carriesComponent {
+                    let component = runtimeArrayComponentTypeExpr(
+                        for: concreteType, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
+                    arguments.append(component)
+                }
                 continue
             }
             let encodedToken = RuntimeTypeCheckToken.encode(type: concreteType, sema: sema, interner: interner)
@@ -1937,6 +1949,13 @@ final class CallLowerer {
             )
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
             arguments.append(tokenExpr)
+            if carriesComponent {
+                let component = runtimeArrayComponentTypeExpr(
+                    for: concreteType, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions
+                )
+                arguments.append(component)
+            }
         }
     }
 

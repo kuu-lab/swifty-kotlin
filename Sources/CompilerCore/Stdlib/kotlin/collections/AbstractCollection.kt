@@ -63,7 +63,7 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
     @Suppress("UNCHECKED_CAST")
     protected open fun <T> toArray(array: Array<T>): Array<T> {
         val destination = if (array.size < size) {
-            arrayOfNulls<T>(size) as Array<T>
+            array.copyOf(size) as Array<T>
         } else {
             array
         }

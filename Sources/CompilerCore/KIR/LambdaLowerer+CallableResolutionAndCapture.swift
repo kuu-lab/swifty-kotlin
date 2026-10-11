@@ -717,8 +717,16 @@ extension LambdaLowerer {
            semanticSymbol.flags.contains(.reifiedTypeParameter)
         {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol)
-            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
-                return tokenValue
+            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: symbol)
+            if let tokenValue = driver.ctx.localValue(for: tokenSymbol),
+               let componentValue = driver.ctx.localValue(for: componentSymbol) {
+                let pair = arena.appendTemporary(type: sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil, callee: interner.intern("__kk_pair_new"),
+                    arguments: [tokenValue, componentValue], result: pair,
+                    canThrow: false, thrownResult: nil
+                ))
+                return pair
             }
         }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),

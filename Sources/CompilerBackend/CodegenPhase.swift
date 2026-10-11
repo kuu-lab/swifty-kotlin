@@ -179,6 +179,7 @@ public final class CodegenPhase: CompilerPhase {
             "moduleName": ctx.options.moduleName,
             "kotlinLanguageVersion": "2.3.10",
             "compilerVersion": CompilerBuildInfo.version,
+            "sourceVarargStorageABI": "array-v1",
             "target": targetString,
             "objects": ["objects/\(ctx.options.moduleName)_0.o"],
             "metadata": "metadata.bin",

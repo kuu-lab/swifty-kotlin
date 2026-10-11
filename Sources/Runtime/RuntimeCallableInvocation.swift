@@ -167,6 +167,31 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
     return invokeCallable(metadata, values: values, mask: 0, outThrown: outThrown)
 }
 
+private let callableVarargArrayTypeIDs: Set<Int64> = Set([
+    "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray",
+    "FloatArray", "IntArray", "LongArray", "ShortArray", "UByteArray",
+    "UShortArray", "UIntArray", "ULongArray",
+].map { runtimeStableNominalTypeID(fqName: "kotlin.\($0)") })
+
+/// callBy supplies an empty array for an omitted non-optional vararg. The
+/// public parameter token describes the whole array, not its element type.
+private func callableEmptyVarargArray(_ raw: Int) -> Int? {
+    guard let parameter = runtimeReflectionObject(from: raw, as: RuntimeKParameterBox.self),
+          parameter.isVararg, let token = parameter.typeToken else { return nil }
+    let wide = Int64(token)
+    guard wide & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase else { return nil }
+    let typeID = (wide >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+    guard callableVarargArrayTypeIDs.contains(typeID) else { return nil }
+    let genericArrayID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    guard typeID != genericArrayID || parameter.arrayComponentType.map({ $0 != 0 }) == true else { return nil }
+    let empty = kk_array_new(0)
+    if let component = parameter.arrayComponentType {
+        runtimeArrayBox(from: empty)?.installComponentTypeIfAbsent(component)
+    }
+    runtimeRegisterArrayType(rawValue: empty, typeID: typeID)
+    return empty
+}
+
 @_cdecl("__kk_kcallable_call_by")
 public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -186,6 +211,12 @@ public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: Un
         } else if __kk_kparameter_is_optional(parameter) != 0, index - receiverCount < 30 {
             mask |= 1 << (index - receiverCount)
             values.append(0)
+        } else if __kk_kparameter_is_optional(parameter) == 0, __kk_kparameter_is_vararg(parameter) != 0 {
+            guard let empty = callableEmptyVarargArray(parameter) else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Vararg parameter \(index) does not have an array type.")
+                return runtimeNullSentinelInt
+            }
+            values.append(empty)
         } else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "No argument provided for required parameter \(index).")
             return runtimeNullSentinelInt
@@ -221,7 +252,15 @@ private func invokeCallable(_ metadata: RuntimeCallableRefMetadata, values: [Int
             if valueIndex >= 0, valueIndex < Int.bitWidth - 1, mask & (1 << valueIndex) != 0 { continue }
             guard let parameter = runtimeReflectionObject(from: raw, as: RuntimeKParameterBox.self),
                   let token = parameter.typeToken, token & 0xff != 0 else { continue }
-            if kk_op_is(values[index], token) == 0 {
+            let componentMatches: Bool
+            if let expectedComponent = parameter.arrayComponentType {
+                componentMatches = runtimeArrayBox(from: values[index])?.componentType.map {
+                    runtimeArrayComponentIsAssignable($0, to: expectedComponent)
+                } ?? false
+            } else {
+                componentMatches = true
+            }
+            if kk_op_is(values[index], token) == 0 || !componentMatches {
                 outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Argument \(index) has an incompatible type.")
                 return runtimeNullSentinelInt
             }

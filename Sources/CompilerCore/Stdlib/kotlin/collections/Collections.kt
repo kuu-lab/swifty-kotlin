@@ -10,8 +10,8 @@ import kotlin.random.Random
 // type tag; they are reachable through the `__kk_collection_*` bridges.
 
 @Suppress("UNCHECKED_CAST")
-public fun <T> Collection<T>.toTypedArray(): Array<T> {
-    val result = arrayOfNulls<Any?>(size)
+public inline fun <reified T> Collection<T>.toTypedArray(): Array<T> {
+    val result = arrayOfNulls<T>(size)
     var index = 0
     for (element in this) {
         result[index] = element

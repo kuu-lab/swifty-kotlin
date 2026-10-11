@@ -1,0 +1,14 @@
+list-empty:0
+list-nonempty:list
+collection-empty:0
+collection-nonempty:collection
+collection-identity:true
+inline-forward:forward
+inline-empty:0
+inline-reflection-identity:true
+slice-component:slice
+reverse-component:b, a
+format-extension:receiver
+format-extension-locale:receiver-locale
+format-companion:companion
+format-companion-locale:companion-locale

@@ -305,6 +305,7 @@ final class RuntimeTimeoutCancellationBox: RuntimeCancellationBox {
 class RuntimeArrayBox {
     private final class Storage {
         var values: [RuntimeValue]
+        var componentType: Int?
         // Canonical handles preserve identity when views are repeated or reversed.
         var viewHandles: [Int64: Int] = [:]
         let viewLock = NSLock()
@@ -367,6 +368,18 @@ class RuntimeArrayBox {
 
     private init(sharingStorageOf array: RuntimeArrayBox) {
         storage = array.storage
+    }
+
+    var componentType: Int? {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        return storage.componentType
+    }
+
+    func installComponentTypeIfAbsent(_ type: Int) {
+        storage.viewLock.lock()
+        defer { storage.viewLock.unlock() }
+        if storage.componentType == nil { storage.componentType = type }
     }
 
     /// A distinct, correctly tagged box over the same mutable element storage.
@@ -3337,6 +3350,7 @@ enum RuntimeKParameterFlags {
 /// Represents a single parameter of a KFunction or KConstructor.
 final class RuntimeKParameterBox {
     var typeToken: Int?
+    var arrayComponentType: Int?
     var callableOwner = 0
     var boundArguments: [Int] = []
     /// Parameter index (0-based).

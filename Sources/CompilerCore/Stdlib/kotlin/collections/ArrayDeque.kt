@@ -290,7 +290,7 @@ public class ArrayDeque<E> : AbstractMutableList<E> {
         val result = if (array.size >= currentSize) {
             array
         } else {
-            arrayOfNulls<Any?>(currentSize) as Array<T>
+            array.copyOf(currentSize) as Array<T>
         }
         val writable = result as Array<Any?>
         var index = 0

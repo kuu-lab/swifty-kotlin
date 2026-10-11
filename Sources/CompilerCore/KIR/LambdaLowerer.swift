@@ -349,7 +349,7 @@ final class LambdaLowerer {
         for capture in functionCaptureBindings {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
+            bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
                 driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
@@ -391,7 +391,7 @@ final class LambdaLowerer {
            let closureParam = lambdaParameters.first,
            let closureExpr = driver.ctx.localValue(for: closureParam.symbol)
         {
-            bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
+            bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
                 driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureParam.symbol)
@@ -421,7 +421,7 @@ final class LambdaLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
+                bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
                     driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.param.symbol)
@@ -657,7 +657,10 @@ final class LambdaLowerer {
     private func bindCapturedLambdaValue(
         _ capturedValue: KIRExprID,
         capture: (capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID),
-        sema: SemaModule
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
     ) {
         if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
             driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
@@ -679,8 +682,21 @@ final class LambdaLowerer {
            semanticSymbol.flags.contains(.reifiedTypeParameter)
         {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
-            driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
+            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capture.capturedSymbol)
+            let classToken = arena.appendTemporary(type: sema.types.intType)
+            let componentToken = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("component1"), arguments: [capturedValue],
+                result: classToken, canThrow: false, thrownResult: nil
+            ))
+            instructions.append(.call(
+                symbol: nil, callee: interner.intern("component2"), arguments: [capturedValue],
+                result: componentToken, canThrow: false, thrownResult: nil
+            ))
+            driver.ctx.setLocalValue(classToken, for: tokenSymbol)
             driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+            driver.ctx.setLocalValue(componentToken, for: componentSymbol)
+            driver.ctx.setLocalDeclaredType(sema.types.intType, for: componentSymbol)
         }
     }
 
@@ -811,6 +827,14 @@ final class LambdaLowerer {
                 isRawCallbackParameter: true
             )
             callArguments.append(normalizedParamExpr)
+        }
+
+        if let signature = sema.symbols.functionSignature(for: lambdaSymbol) {
+            callArguments = packOrdinaryCallableVarargValues(
+                callArguments, targetSymbol: lambdaSymbol,
+                parameterOffset: callArguments.count - signature.parameterTypes.count, resultType: lambdaReturnType,
+                sema: sema, arena: arena, interner: interner, instructions: &body
+            )
         }
 
         let callResult = arena.appendTemporary(type: lambdaReturnType)
@@ -1717,7 +1741,10 @@ final class LambdaLowerer {
             let constructedValue = driver.callLowerer.lowerResolvedCallBody(
                 exprID,
                 args: [],
-                loweredArgIDs: callArgExprs,
+                loweredArgIDs: packOrdinaryCallableVarargValues(
+                    callArgExprs, targetSymbol: callTargetSymbol, parameterOffset: 0, resultType: returnType,
+                    sema: sema, arena: arena, interner: interner, instructions: &body
+                ),
                 chosen: callTargetSymbol,
                 callBinding: nil,
                 callableValueCallBinding: nil,
@@ -1880,7 +1907,10 @@ final class LambdaLowerer {
             body.append(.call(
                 symbol: callTargetSymbol,
                 callee: targetName,
-                arguments: callArgExprs,
+                arguments: packOrdinaryCallableVarargValues(
+                    callArgExprs, targetSymbol: callTargetSymbol, parameterOffset: captureArguments.count, resultType: returnType,
+                    sema: sema, arena: arena, interner: interner, instructions: &body
+                ),
                 result: callResult,
                 canThrow: false,
                 thrownResult: nil
@@ -1907,6 +1937,47 @@ final class LambdaLowerer {
                 )
             )
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+        } else if let callTargetSymbol,
+                  let signature = sema.symbols.functionSignature(for: callTargetSymbol),
+                  signature.valueParameterIsVararg.contains(true),
+                  !signature.isSuspend, signature.contextReceiverTypes.isEmpty,
+                  signature.reifiedTypeParameterIndices.isEmpty,
+                  !driver.callLowerer.kirIsRuntimeBridgedCallee(callTargetSymbol, sema: sema),
+                  let boundType, case let .functionType(functionType) = sema.types.kind(of: boundType)
+        {
+            callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+            callableName = syntheticLambdaName(for: exprID, interner: interner)
+            let parameterTypes = captureArguments.map { arena.exprType($0) ?? sema.types.anyType }
+                + (functionType.receiver.map { [$0] } ?? []) + functionType.params
+            let parameters = parameterTypes.enumerated().map { index, type in
+                KIRParameter(symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index), type: type)
+            }
+            var body: [KIRInstruction] = [.beginBlock]
+            let refs = parameters.map { parameter -> KIRExprID in
+                let ref = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+                body.append(.constValue(result: ref, value: .symbolRef(parameter.symbol)))
+                return ref
+            }
+            let arguments = packOrdinaryCallableVarargValues(
+                refs, targetSymbol: callTargetSymbol,
+                parameterOffset: refs.count - signature.parameterTypes.count,
+                resultType: functionType.returnType,
+                sema: sema, arena: arena, interner: interner, instructions: &body
+            )
+            let result = arena.appendTemporary(type: functionType.returnType)
+            body.append(.call(symbol: callTargetSymbol,
+                              callee: callTargetName ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
+                              arguments: arguments, result: result, canThrow: true, thrownResult: nil))
+            switch sema.types.kind(of: functionType.returnType) {
+            case .unit, .nothing: body.append(.returnUnit)
+            default: body.append(.returnValue(result))
+            }
+            body.append(.endBlock)
+            driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+                symbol: callableSymbol, name: callableName, params: parameters,
+                returnType: functionType.returnType, body: body,
+                isSuspend: false, isInline: false
+            ))))
         } else if let callTargetSymbol {
             callableSymbol = callTargetSymbol
             callableName = callTargetName

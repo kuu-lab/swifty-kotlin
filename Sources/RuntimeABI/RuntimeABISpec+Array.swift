@@ -4,6 +4,36 @@
 public extension RuntimeABISpec {
     static let arrayFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "__kk_array_new_same_component",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_array_component_type",
+            parameters: [
+                RuntimeABIParameter(name: "classifier", type: .intptr),
+                RuntimeABIParameter(name: "element", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_array_tag_component",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "component", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_new",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),

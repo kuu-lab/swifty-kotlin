@@ -7,6 +7,11 @@ import kotlin.internal.__arrayContentDeepHashCode
 import kotlin.internal.__arrayContentDeepToString
 import kotlin.internal.__valuesEqual
 import kotlin.text.StringBuilder
+import kotlin.native.internal.KsSymbolName
+
+// Allocation preserves the actual component classifier through generic erasure.
+@KsSymbolName("__kk_array_new_same_component")
+private external fun <T> arrayWithCopiedComponent(source: Array<T>, size: Int): Array<T?>
 
 // KSP-1514
 // Array content comparison, hashing, rendering, and deep-content helpers.
@@ -322,7 +327,7 @@ public fun ULongArray?.contentToString(): String = if (this == null) "null" else
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<T>.copyOf(): Array<T> {
     val size = this.size
-    val result = arrayOfNulls<T>(size)
+    val result = arrayWithCopiedComponent(this, size)
     var i = 0
     while (i < size) {
         result[i] = this[i]
@@ -338,7 +343,7 @@ public fun <T> Array<T>.copyOf(newSize: Int): Array<T?> {
     val source = copyOf()
     val size = source.size
     @Suppress("UNCHECKED_CAST")
-    val result = arrayOfNulls<T>(newSize) as Array<T>
+    val result = arrayWithCopiedComponent(source, newSize) as Array<T>
     val count = if (newSize < size) newSize else size
     var i = 0
     while (i < count) {
@@ -371,7 +376,7 @@ public fun <T> Array<T>.copyOfRange(fromIndex: Int, toIndex: Int): Array<T> {
     checkCopyOfRangeArguments(this.size, fromIndex, toIndex)
     val count = toIndex - fromIndex
     @Suppress("UNCHECKED_CAST")
-    val result = arrayOfNulls<T>(count) as Array<T>
+    val result = arrayWithCopiedComponent(this, count) as Array<T>
     var i = 0
     while (i < count) {
         result[i] = this[fromIndex + i]

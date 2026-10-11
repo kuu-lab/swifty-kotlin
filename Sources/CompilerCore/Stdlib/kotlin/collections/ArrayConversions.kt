@@ -115,7 +115,7 @@ public fun FloatArray.toMutableList(): MutableList<Float> = this.toList().toMuta
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<T>.sliceArray(indices: Collection<Int>): Array<T> {
-    val result = arrayOfNulls<T>(indices.size)
+    val result = this.copyOf(indices.size)
     var targetIndex = 0
     for (sourceIndex in indices) {
         result[targetIndex++] = this[sourceIndex]
@@ -286,7 +286,7 @@ public fun ULongArray.sliceArray(indices: IntRange): ULongArray =
 public fun <T> Array<T>.reversedArray(): Array<T> {
     val length = __kkArraySize(this)
     if (length == 0) return this
-    val result = arrayOfNulls<T>(length) as Array<T>
+    val result = this.copyOf()
     var index = 0
     while (index < length) {
         result[length - index - 1] = this[index]
@@ -610,7 +610,7 @@ public fun ULongArray.toTypedArray(): Array<ULong> {
 // per-array-type allocation core stays in the Swift runtime.
 
 @Suppress("UNCHECKED_CAST")
-public fun <T> List<T>.toTypedArray(): Array<T> {
+public inline fun <reified T> List<T>.toTypedArray(): Array<T> {
     val size = this.size
     val result = arrayOfNulls<T>(size)
     var i = 0

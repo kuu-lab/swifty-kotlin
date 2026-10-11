@@ -65,7 +65,11 @@ extension LambdaLowerer {
         var body: [KIRInstruction] = [.beginBlock]
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
-        for (index, type) in signature.parameterTypes.enumerated() {
+        for (index, elementType) in signature.parameterTypes.enumerated() {
+            let type = signature.valueParameterIsVararg.indices.contains(index) && signature.valueParameterIsVararg[index]
+                ? primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+                    ?? referenceVarargArrayType(elementType: elementType, sema: sema, interner: interner) ?? elementType
+                : elementType
             let paramSymbol = sema.symbols.define(
                 kind: .valueParameter,
                 name: interner.intern("$p\(index)"),
@@ -81,6 +85,8 @@ extension LambdaLowerer {
             body.append(.constValue(result: argExpr, value: .symbolRef(paramSymbol)))
             argExprs.append(argExpr)
         }
+        // The dispatch thunk mirrors the callee's physical packed storage.
+        // Scalar adaptation occurs in the ordinary reference wrapper outside it.
         let result = arena.appendTemporary(type: signature.returnType)
         let probeEndLabel = driver.callLowerer.emitFloatingPointRangeMemberProbe(
             chosenCallee: targetSymbol,
@@ -117,7 +123,11 @@ extension LambdaLowerer {
                 receiverType: ownerType,
                 parameterTypes: signature.parameterTypes,
                 returnType: signature.returnType,
-                valueParameterSymbols: parameterSymbols
+                valueParameterSymbols: parameterSymbols,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                typeParameterSymbols: signature.typeParameterSymbols,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
+                classTypeParameterCount: signature.classTypeParameterCount
             ),
             for: thunkSymbol
         )
@@ -131,5 +141,70 @@ extension LambdaLowerer {
             isInline: false
         ))))
         return (thunkSymbol, name)
+    }
+
+    /// Scalar adapters keep their existing invoke ABI. Their internal call to
+    /// a source vararg body still needs one packed array/List for each slot.
+    func packOrdinaryCallableVarargValues(
+        _ arguments: [KIRExprID], targetSymbol: SymbolID, parameterOffset: Int,
+        resultType: TypeID,
+        sema: SemaModule, arena: KIRArena, interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard let signature = sema.symbols.functionSignature(for: targetSymbol),
+              signature.valueParameterIsVararg.contains(true),
+              !signature.isSuspend, signature.contextReceiverTypes.isEmpty,
+              signature.reifiedTypeParameterIndices.isEmpty,
+              !driver.callLowerer.kirIsRuntimeBridgedCallee(targetSymbol, sema: sema),
+              parameterOffset >= 0, arguments.count == parameterOffset + signature.parameterTypes.count
+        else { return arguments }
+        // The complete callable shape separates legal scalar adaptation from
+        // whole-array invoke; Array-shaped contexts require a packed match.
+        let expected = sema.types.make(.functionType(FunctionType(
+            params: arguments.dropFirst(parameterOffset).map { arena.exprType($0) ?? sema.types.anyType },
+            returnType: resultType, isCallableReference: true
+        )))
+        let boundReceiver: (symbol: SymbolID, receiverType: TypeID)? = signature.receiverType != nil
+            && parameterOffset > 0
+            ? arena.exprType(arguments[parameterOffset - 1]).map { (targetSymbol, $0) } : nil
+        let helpers = TypeCheckHelpers()
+        if helpers.contextualCallableFunctionType(
+            for: signature, bindReceiver: true, boundReceiver: boundReceiver, expectedFunctionType: expected,
+            interner: interner, allowScalarVarargAdaptation: false, sema: sema
+        ) != nil { return arguments }
+        let scalarParameters: [TypeID]? = helpers.contextualCallableFunctionType(
+            for: signature, bindReceiver: true, boundReceiver: boundReceiver, expectedFunctionType: expected,
+            interner: interner, sema: sema
+        ).flatMap { type in
+            guard case let .functionType(function) = sema.types.kind(of: type) else { return nil }
+            return function.params
+        }
+        var result = arguments
+        for index in signature.parameterTypes.indices
+            where signature.valueParameterIsVararg.indices.contains(index) && signature.valueParameterIsVararg[index] {
+            let elementType = signature.parameterTypes[index]
+            // Declaration T remains reference storage even when specialized to
+            // Int. Its allocation component comes from the inferred scalar
+            // callable shape, rather than erased declaration bounds.
+            let allocatedElement = scalarParameters.flatMap { $0.indices.contains(index) ? $0[index] : nil } ?? elementType
+            let primitiveArray = primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
+            let arrayType = primitiveArray
+                ?? referenceVarargArrayType(elementType: allocatedElement, sema: sema, interner: interner)
+            let packed = driver.callSupportLowerer.packVarargArguments(
+                argIndices: [parameterOffset + index], providedArguments: arguments,
+                spreadFlags: Array(repeating: false, count: arguments.count),
+                listifyResult: arrayType == nil, boxPrimitiveElements: primitiveArray == nil,
+                resultType: arrayType, arena: arena, interner: interner,
+                intType: sema.types.intType, anyType: sema.types.anyType,
+                types: sema.types, symbols: sema.symbols, sema: sema, instructions: &instructions
+            )
+            let storageType = arrayType ?? driver.constructorParameterStorageType(
+                at: index, signature: signature, sema: sema, interner: interner
+            )
+            let typed = arena.appendTemporary(type: storageType)
+            instructions.append(.copy(from: packed, to: typed))
+            result[parameterOffset + index] = typed
+        }
+        return result
     }
 }

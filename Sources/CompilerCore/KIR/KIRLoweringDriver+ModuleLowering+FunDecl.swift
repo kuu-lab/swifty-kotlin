@@ -103,24 +103,11 @@ extension KIRLoweringDriver {
                 let effectiveType: TypeID
                 if index < isVararg.count, isVararg[index] {
                     let interner = shared.interner
-                    let listFQName: [InternedString] = [
-                        interner.intern("kotlin"),
-                        interner.intern("collections"),
-                        interner.intern("List"),
-                    ]
-                    if let arrayType = primitiveVarargArrayType(
+                    effectiveType = primitiveVarargArrayType(
                         elementType: paramType, sema: sema, interner: interner
-                    ) {
-                        effectiveType = arrayType
-                    } else if let listSymbol = sema.symbols.lookup(fqName: listFQName) {
-                        effectiveType = sema.types.make(.classType(ClassType(
-                            classSymbol: listSymbol,
-                            args: [.invariant(paramType)],
-                            nullability: .nonNull
-                        )))
-                    } else {
-                        effectiveType = paramType
-                    }
+                    ) ?? referenceVarargArrayType(
+                        elementType: paramType, sema: sema, interner: interner
+                    ) ?? paramType
                 } else {
                     effectiveType = paramType
                 }
@@ -134,6 +121,9 @@ extension KIRLoweringDriver {
                 let typeParamSymbol = signature.typeParameterSymbols[index]
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
                 params.append(KIRParameter(symbol: tokenSymbol, type: intType))
+                params.append(KIRParameter(
+                    symbol: SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParamSymbol), type: intType
+                ))
             }
         }
         return params
