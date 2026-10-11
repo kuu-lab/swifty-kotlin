@@ -2270,6 +2270,11 @@ extension DataFlowSemaPhase {
            let constValue = MetadataConstValueCoder.decode(constValueLiteral, interner: { interner.intern($0) })
         {
             symbols.setConstValueExprKind(constValue, for: symbol)
+            // Both metadata encoders reserve property const literals for
+            // declarations that carry the const contract.
+            if record.kind == .property, !record.isMutable {
+                symbols.insertFlags(.constValue, for: symbol)
+            }
         }
 
         // Restore extension property accessor(s). Extension properties are
