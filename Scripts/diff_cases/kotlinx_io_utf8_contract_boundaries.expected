@@ -1,0 +1,40 @@
+empty:EOF:Buffer doesn't contain required number of bytes (size: 0, required: 1):left=
+truncated2:EOF:size < 2: 1 (to read code point prefixed 0xdf):left=df
+truncated3:EOF:size < 3: 2 (to read code point prefixed 0xe2):left=e282
+truncated4:EOF:size < 4: 3 (to read code point prefixed 0xf0):left=f09f98
+sourceTruncated:EOF:Source doesn't contain required number of bytes (3).:left=e282
+nonContinuation:point=65533:left=41
+continuation:point=65533:left=41
+unknown:point=65533:left=41
+overlong2:point=65533:left=41
+overlong3:point=65533:left=41
+overlong4:point=65533:left=41
+surrogate:point=65533:left=41
+outOfRange:point=65533:left=41
+valid4:point=1114111:left=41
+stringTruncated:units=65533:left=0
+stringBadContinuation:units=65533,65,65533:left=0
+stringOutOfRange:units=65533:left=0
+chars:01:4142
+charThrow:charAt(1):left=c3a9
+utf16:3f413ff09f9880
+splitPair:3f
+rangeIOOB:startIndex (-1) and endIndex (2) are not within the range [0..size(3)):left=3f
+rangeIAE:startIndex (2) > endIndex (1):left=3f
+writtenPoints:3f3ff0908080
+negativePoint:Code point value is out of Unicode codespace 0..0x10ffff: 0xffffffff (-1):left=3f3ff0908080
+largePoint:Code point value is out of Unicode codespace 0..0x10ffff: 0x110000 (1114112):left=3f3ff0908080
+closedString:Sink is closed.:left=58
+lines::65:66,13,67:null
+limitLF0:line=:left=5a
+limitCRLF0:line=:left=5a
+limitUTF8before:EOF:null:left=ceb10a5a
+limitUTF8at:line=945:left=5a
+limitCRbefore:EOF:null:left=61620d0a5a
+limitCRat:line=97,98:left=5a
+bareCR:EOF:null:left=61620d
+noLF:EOF:null:left=6162
+negativeLimit:IAE:limit (-1) < 0:left=0a5a
+segmentPoint:128512:left=0d0a5a
+segmentLine::left=5a
+segmentCRLF:8191:left=5a
