@@ -1,7 +1,7 @@
 final class KotlinParser {
-    /// Caps active recursive parser productions across blocks, statements, and
-    /// declarations. The budget is shared because those productions call one
-    /// another to parse nested control flow and declaration bodies.
+    /// The budget is shared across blocks, statements, and declarations because
+    /// those productions call one another to parse nested control flow and
+    /// declaration bodies.
     static let maxNestingDepth = 128
 
     let stream: TokenStream
@@ -21,8 +21,6 @@ final class KotlinParser {
         arena = SyntaxArena()
     }
 
-    /// Enters one recursive grammar production. The caller must pair success
-    /// with `leaveNesting()` using `defer`.
     func enterNesting() -> Bool {
         nestingDepth += 1
         guard nestingDepth <= Self.maxNestingDepth else {
@@ -36,8 +34,6 @@ final class KotlinParser {
         nestingDepth -= 1
     }
 
-    /// Produces a partial node and iteratively skips to the next parser
-    /// synchronization point after the shared nesting budget is exhausted.
     func recoverFromNestingLimit(inBlock: Bool, kind: SyntaxKind = .statement) -> NodeID {
         let start = stream.peek().range
         if !nestingLimitReported {

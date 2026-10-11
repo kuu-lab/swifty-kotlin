@@ -120,7 +120,6 @@ extension KotlinLexer {
         return (scalar: scalar, length: 5)
     }
 
-    /// Counts consecutive `$` characters starting at the given position.
     func countConsecutiveDollars(at position: Int) -> Int {
         var count = 0
         var cursor = position

@@ -16,7 +16,6 @@ import Testing
 /// 詳細は `Tests/CompilerBackendTests/Fixtures/README.md` を参照。
 @Suite
 struct CodegenBackendFixtureTests {
-    private let pipelineHelper = CodegenBackendTestSupport()
 
     /// 全 fixture を検出して実行する単一エントリポイント。
     /// 各 fixture の失敗はケースの相対パス付きで報告され、1 件の失敗が他の
@@ -106,7 +105,7 @@ struct CodegenBackendFixtureTests {
         do {
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
+            let ctx = try runCodegenPipeline(
                 inputPath: fixture.sourcePath,
                 moduleName: Self.moduleName(for: fixture.relativePath),
                 emit: .executable,
