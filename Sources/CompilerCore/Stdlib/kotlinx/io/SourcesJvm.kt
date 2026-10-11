@@ -14,12 +14,14 @@ import java.io.InputStream
 import kotlin.text.Charset
 
 /** Decodes all remaining bytes using [charset]. */
+@OptIn(InternalIoApi::class)
 public fun Source.readString(charset: Charset): String {
     request(Long.MAX_VALUE)
     return buffer.readStringWithCharset(buffer.size, charset)
 }
 
 /** Decodes exactly [byteCount] bytes using [charset], throwing on premature exhaustion. */
+@OptIn(InternalIoApi::class)
 public fun Source.readString(byteCount: Long, charset: Charset): String {
     require(byteCount)
     return buffer.readStringWithCharset(byteCount, charset)

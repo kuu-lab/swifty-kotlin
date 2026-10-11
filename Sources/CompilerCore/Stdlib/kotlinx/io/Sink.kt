@@ -11,6 +11,7 @@ package kotlinx.io
  * some data without sending it directly to an upstream.
  */
 public sealed interface Sink : RawSink {
+    @InternalIoApi
     public val buffer: Buffer
 
     /**
@@ -38,6 +39,7 @@ public sealed interface Sink : RawSink {
      * Removes all bytes from [source] and writes them to this sink. Returns the number of bytes
      * read, which will be 0 if [source] is exhausted.
      */
+    @IgnorableReturnValue
     public fun transferFrom(source: RawSource): Long
 
     /**
@@ -78,5 +80,6 @@ public sealed interface Sink : RawSink {
     /**
      * Hints that the buffer may be partially emitted to the underlying sink.
      */
+    @InternalIoApi
     public fun hintEmit()
 }

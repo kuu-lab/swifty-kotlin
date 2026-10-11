@@ -1,0 +1,19 @@
+{
+  "status": "PINNED_NATIVE_DECLARATION_AND_EXPLICIT_RUNTIME_ASSERTIONS;CANDIDATE_NOT_RUN",
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "Native_extra_constructor_row": "klib-fc162bb4315d0dce",
+  "Native_declaration_path": "/workspace/scratch/kotlinx-io-091-upstream/core/native/src/-NonJvmPlatform.kt",
+  "Native_declaration_sha256": "7457bfbc4776618b3acd128ccd2d69b6cb05b3e8758ef61052882afbafff8ab5",
+  "Native_declaration_line": 40,
+  "source_hashes": {
+    "EOFExceptionContracts.kt": "e62b4b013cfc512d571dd827987d026768526bcabb8bc79eed81b0651903d868",
+    "EOFConsumer.kt": "8485de3fae43235eb187b32d164c2d0196aee61d205cdf5beeccb0f947e42138"
+  },
+  "expected_sha256": "1d46c75afe280ea4b971a8593f0cb9dee1791045690ac7418b9b5116c3993613",
+  "rows": 9,
+  "expected_origin": "Static expected output of explicit check assertions against pinned Native declaration, NOT raw JVM or Native execution",
+  "Native_reference_run": false,
+  "JVM_alias_extra_constructor_present": false,
+  "JVM_reference_only_shared_IOException_and_legacy_EOF_constructors": true,
+  "separate_JVM_producer_consumer_executed": false
+}

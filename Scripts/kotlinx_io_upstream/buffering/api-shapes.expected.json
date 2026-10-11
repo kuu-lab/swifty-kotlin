@@ -1,0 +1,479 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "rows": [
+    {
+      "fqName": "kotlinx.io.buffered",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSource;",
+      "signature": "F0<RLkotlinx.io.RawSource;,Lkotlinx.io.Source;>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Core.kt:28"
+    },
+    {
+      "fqName": "kotlinx.io.buffered",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSink;",
+      "signature": "F0<RLkotlinx.io.RawSink;,Lkotlinx.io.Sink;>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Core.kt:34"
+    },
+    {
+      "fqName": "kotlinx.io.discardingSink",
+      "visibility": "public",
+      "receiver": null,
+      "signature": "F0<Lkotlinx.io.RawSink;>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Core.kt:39"
+    },
+    {
+      "fqName": "kotlinx.io.RawSink.write",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSink;",
+      "signature": "F2<RLkotlinx.io.RawSink;,Lkotlinx.io.Buffer;,J,U>",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "Lkotlinx.io.Buffer;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/RawSink.kt:53"
+    },
+    {
+      "fqName": "kotlinx.io.RawSink.flush",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSink;",
+      "signature": "F0<RLkotlinx.io.RawSink;,U>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/RawSink.kt:61"
+    },
+    {
+      "fqName": "kotlinx.io.RawSink.close",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSink;",
+      "signature": "F0<RLkotlinx.io.RawSink;,U>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/RawSink.kt:69"
+    },
+    {
+      "fqName": "kotlinx.io.RawSource.readAtMostTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSource;",
+      "signature": "F2<RLkotlinx.io.RawSource;,Lkotlinx.io.Buffer;,J,J>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlinx.io.Buffer;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/RawSource.kt:56"
+    },
+    {
+      "fqName": "kotlinx.io.RawSource.close",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.RawSource;",
+      "signature": "F0<RLkotlinx.io.RawSource;,U>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/RawSource.kt:64"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.write",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F3<RLkotlinx.io.Sink;,Lkotlin.ByteArray;,I,I,U>",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "Lkotlin.ByteArray;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "source.size"
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:88"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.transferFrom",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,Lkotlinx.io.RawSource;,J>",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "Lkotlinx.io.RawSource;",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [
+        "kotlin.IgnorableReturnValue"
+      ],
+      "upstreamRef": "core/common/src/Sink.kt:102"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.write",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F2<RLkotlinx.io.Sink;,Lkotlinx.io.RawSource;,J,U>",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "Lkotlinx.io.RawSource;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:119"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.writeByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,B,U>",
+      "parameters": [
+        {
+          "name": "byte",
+          "type": "B",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:131"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.writeShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,S,U>",
+      "parameters": [
+        {
+          "name": "short",
+          "type": "S",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:143"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.writeInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,I,U>",
+      "parameters": [
+        {
+          "name": "int",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:155"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.writeLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,J,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:167"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.flush",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F0<RLkotlinx.io.Sink;,U>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:178"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.emit",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F0<RLkotlinx.io.Sink;,U>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Sink.kt:192"
+    },
+    {
+      "fqName": "kotlinx.io.Sink.hintEmit",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F0<RLkotlinx.io.Sink;,U>",
+      "parameters": [],
+      "annotationFQNames": [
+        "kotlinx.io.InternalIoApi"
+      ],
+      "upstreamRef": "core/common/src/Sink.kt:210"
+    },
+    {
+      "fqName": "kotlinx.io.Source.exhausted",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Z>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:89"
+    },
+    {
+      "fqName": "kotlinx.io.Source.require",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,J,U>",
+      "parameters": [
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:107"
+    },
+    {
+      "fqName": "kotlinx.io.Source.request",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,J,Z>",
+      "parameters": [
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:124"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,B>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:135"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,S>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:146"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,I>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:157"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,J>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:168"
+    },
+    {
+      "fqName": "kotlinx.io.Source.skip",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,J,U>",
+      "parameters": [
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:182"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readAtMostTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F3<RLkotlinx.io.Source;,Lkotlin.ByteArray;,I,I,I>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlin.ByteArray;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "sink.size"
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:199"
+    },
+    {
+      "fqName": "kotlinx.io.Source.readTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F2<RLkotlinx.io.Source;,Lkotlinx.io.RawSink;,J,U>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlinx.io.RawSink;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "byteCount",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:214"
+    },
+    {
+      "fqName": "kotlinx.io.Source.transferTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,Lkotlinx.io.RawSink;,J>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlinx.io.RawSink;",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "annotationFQNames": [
+        "kotlin.IgnorableReturnValue"
+      ],
+      "upstreamRef": "core/common/src/Source.kt:230"
+    },
+    {
+      "fqName": "kotlinx.io.Source.peek",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Lkotlinx.io.Source;>",
+      "parameters": [],
+      "annotationFQNames": [],
+      "upstreamRef": "core/common/src/Source.kt:248"
+    }
+  ],
+  "NativeEOFException": {
+    "rowID": "klib-fc162bb4315d0dce",
+    "upstreamRef": "core/native/src/-NonJvmPlatform.kt:40",
+    "upstream_sha256": "7457bfbc4776618b3acd128ccd2d69b6cb05b3e8758ef61052882afbafff8ab5",
+    "fqName": "kotlinx.io.EOFException",
+    "visibility": "public",
+    "open": true,
+    "superFQName": "kotlinx.io.IOException",
+    "constructors": [
+      {
+        "parameterNames": [],
+        "parameterTypes": [],
+        "defaults": []
+      },
+      {
+        "parameterNames": [
+          "message"
+        ],
+        "parameterTypes": [
+          "Q<Lkotlin_String;>"
+        ],
+        "defaults": [
+          false
+        ]
+      },
+      {
+        "parameterNames": [
+          "message",
+          "cause"
+        ],
+        "parameterTypes": [
+          "Q<Lkotlin_String;>",
+          "Q<Lkotlin.Throwable;>"
+        ],
+        "defaults": [
+          false,
+          false
+        ]
+      }
+    ],
+    "state": "UNVERIFIED",
+    "common_expect_extra_ctor": false,
+    "JVM_java_alias_extra_ctor": false
+  }
+}

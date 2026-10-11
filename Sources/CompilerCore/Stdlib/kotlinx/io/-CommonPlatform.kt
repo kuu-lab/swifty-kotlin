@@ -39,6 +39,7 @@ public open class IOException : Exception {
 public open class EOFException : IOException {
     public constructor() : super()
     public constructor(message: String?) : super(message)
+    public constructor(message: String?, cause: Throwable?) : super(message, cause)
 }
 
 /** This compiler targets POSIX platforms. */
