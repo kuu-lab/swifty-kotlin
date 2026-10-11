@@ -281,6 +281,12 @@ This reference fixture is outside `diff_cases`: candidate-side atomicfu support
 has its own implementation tickets. A reference pass does not establish
 KSwiftK atomic behavior or Kotlin/Native compatibility.
 
+The separate [`serialization_reference`](serialization_reference/README.md)
+directory pins serialization 1.10.0 API dumps and all eight modules' real JVM
+artifacts, including external I/O and HOCON dependencies. It supplies a verified
+Kotlin 2.3.10 compiler-plugin fixture and integrity checks. This reference does
+not count as candidate-side serialization implementation.
+
 A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
 usable oracle. The runner compiles and runs only kswiftc, then compares stdout
 to that fixture. When the target is this single case, JVM tooling is not
