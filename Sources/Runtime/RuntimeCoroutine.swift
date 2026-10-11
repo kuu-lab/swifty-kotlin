@@ -300,6 +300,9 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// global pool. `nil` keeps the original global-pool behaviour, which is
     /// what dispatcher-bound bodies and direct runtime (test) calls get.
     var eventLoop: RuntimeEventLoop?
+    /// Set only by the canonical context-aware runBlocking boundary and its
+    /// structured descendants. nil preserves legacy invocation scheduling.
+    var blockingScheduler: RuntimeBlockingScheduler?
     // Public builders leave scheduling to the intercepted continuation itself.
     var resumesInline = false
     var builderContext: RuntimeCoroutineContext?
@@ -556,7 +559,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
         if resumeSignalPending {
             resumeSignalPending = false
             let loop = eventLoop
+            let scheduler = blockingScheduler
             stateLock.unlock()
+            if let scheduler {
+                scheduler.enqueueResume { boxedContinuation.invoke() }
+                return
+            }
             // Signal already arrived — re-queue the continuation immediately.
             //
             // On a runBlocking event loop this lands at the TAIL of the queue,
@@ -654,7 +662,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
             resumeContinuation = nil
             let loop = eventLoop
             let inlineResume = resumesInline
+            let scheduler = blockingScheduler
             stateLock.unlock()
+            if let scheduler {
+                scheduler.enqueueResume { cont.invoke() }
+                return
+            }
             // Queue the resumption on the coroutine's event loop when it has
             // one, so resumptions keep the loop's FIFO order instead of being
             // ordered by whichever global-pool thread happens to pick them up.
@@ -2112,6 +2125,8 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
     let context: RuntimeCoroutineContext
+    /// Opt-in inherited scheduling for children of context-aware runBlocking.
+    var blockingScheduler: RuntimeBlockingScheduler?
     /// The Job this scope installs into its block's coroutine context
     /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
     /// child job at scope entry so `currentCoroutineContext().job` resolves
@@ -2616,6 +2631,10 @@ public func kk_coroutine_call_direct_suspend(
         childState.builderContext = callerState.builderContext
         childState.flowCollectContext = callerState.flowCollectContext
         childState.resumesInline = callerState.resumesInline
+        if let scheduler = callerState.blockingScheduler {
+            childState.blockingScheduler = scheduler
+            childState.eventLoop = callerState.eventLoop
+        }
         callerState.bindSuspendedCallChild(childState)
     }
     let completion = RuntimeDirectSuspendCompletion()
@@ -3488,6 +3507,18 @@ public func kk_kxmini_run_blocking_with_cont(
     // current scope shares the caller's job. A genuine top-level `runBlocking`
     // has no ambient scope, so this is a no-op there.
     let contState = runtimeContinuationState(from: continuation)
+    // Only a new context-aware blocking invocation opts into this link.
+    // Existing nil-policy suspend-value borrowing retains its original path.
+    let blockingCaller = RuntimeContinuationState.current?.blockingScheduler != nil
+        ? RuntimeContinuationState.current : nil
+    if let contState, let blockingCaller {
+        contState.blockingScheduler = blockingCaller.blockingScheduler
+        contState.eventLoop = blockingCaller.eventLoop
+        blockingCaller.bindSuspendedCallChild(contState)
+    }
+    defer {
+        if let contState { blockingCaller?.unbindSuspendedCallChild(contState) }
+    }
     if let contState, contState.scope == nil {
         contState.scope = RuntimeCoroutineScope.current
         if contState.jobHandle == nil,
@@ -4648,6 +4679,7 @@ public func kk_coroutine_scope_async_with_cont(
     // DeferredCoroutine contract), so `this` and any nested builder observe a
     // child scope whose Job is the task's — not the receiver scope's.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     state.launcherArgs[Int64(scopeSlotRaw)] = Int64(childHandle)
@@ -4716,6 +4748,7 @@ public func kk_coroutine_scope_async(
     // Same DeferredCoroutine contract as the continuation path: the block runs
     // on a child scope whose context Job is this task's job.
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     return runtimeScopeAsync(
@@ -4809,6 +4842,7 @@ private func runtimeScopeLaunch(
         ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob ?? scope.job
     let parent = contextParent === runtimeNonCancellableJob ? nil : contextParent
     let childScope = RuntimeCoroutineScope(context: context)
+    childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
     let childHandle = runtimeRegisterObject(childScope)
     // Whether the child is additionally registered into `scope` for
@@ -4886,26 +4920,39 @@ private func runtimeScopeAsync(
     let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
     prepare?(task, handle)
     if registerWithScope { scope.registerChild(handle) }
+    let blockingChildScheduler = scope.blockingScheduler.map { inherited in
+        runtimeBlockingScheduler(
+            context: context,
+            fallbackLoop: inherited.eventLoop ?? RuntimeEventLoop.current ?? RuntimeEventLoop()
+        )
+    }
     let work: @Sendable () -> Void = {
         guard task.markStarted() else { return }
         let savedKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
         let savedJob = RuntimeJobHandle.current
         let savedDispatcher = RuntimeDispatcher.current
+        let savedEventLoop = RuntimeEventLoop.current
         let workKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
         defer {
             RuntimeCoroutineScope.removeScope(forTask: workKey)
             RuntimeCoroutineScopeTaskKey.installKey(savedKey)
             RuntimeJobHandle.current = savedJob
             RuntimeDispatcher.current = savedDispatcher
+            RuntimeEventLoop.current = savedEventLoop
         }
-        if context.dispatcher != 0 {
+        if let scheduler = blockingChildScheduler {
+            RuntimeDispatcher.current = scheduler.dispatcher
+            RuntimeEventLoop.current = scheduler.eventLoop
+        } else if context.dispatcher != 0 {
             RuntimeDispatcher.current = runtimeResolveDispatcher(from: context.dispatcher)
         }
         RuntimeJobHandle.current = task.completionJob
         body(task)
     }
     let schedule: @Sendable () -> Void = {
-        if context.dispatcher != 0 {
+        if let scheduler = blockingChildScheduler {
+            scheduler.scheduleChild(work)
+        } else if context.dispatcher != 0 {
             runtimeResolveDispatcher(from: context.dispatcher).queue.async(execute: work)
         } else if let scheduler = scope.testSchedulerIfPresent() {
             scheduler.schedule(after: 0, action: work)
@@ -5776,12 +5823,14 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
     guard let state = runtimeContinuationState(from: continuation) else {
         return 0
     }
-    if state.isBoundToEventLoop {
+    if state.isBoundToEventLoop || state.blockingScheduler != nil {
         // Resume synchronously here. No continuation is installed
         // mid-burst, so this only records a pending resume signal; the
         // suspension handler in runSuspendEntryLoopWithContinuation first
         // flushes the coroutines this burst launched and then installs, which
-        // queues this coroutine at the TAIL behind them. That is exactly
+        // queues this coroutine at the TAIL behind them. A context-aware
+        // blocking body uses its explicit scheduling policy for that enqueue,
+        // including dispatcher-bound and Unconfined resumptions. That is exactly
         // kotlinx.coroutines' `yield()`: re-dispatch to the end of the event
         // loop's queue, giving every already-queued coroutine a turn first.
         _ = state.resume(with: 0)
@@ -6899,7 +6948,8 @@ func runtimeRunBlockingOnEventLoop(
     }
 
     let state = runtimeContinuationState(from: continuation)
-    state?.eventLoop = loop
+    if let scheduler = state?.blockingScheduler { state?.eventLoop = scheduler.eventLoop }
+    else { state?.eventLoop = loop }
     // A fresh blocking coroutine owns its children's lifetime. Suspend-value
     // launcher thunks borrow an existing scope instead; joining that scope
     // here would wait for the very actor/producer executing this thunk.
@@ -6952,7 +7002,10 @@ func runtimeRunBlockingOnEventLoop(
             loop.wake()
         }
     )
-    loop.run(until: { outcome.isFinished })
+    loop.run(until: {
+        if state?.blockingScheduler != nil { runtimeDrainBlockingUnconfinedTasks() }
+        return outcome.isFinished
+    })
 
     let (result, bodyThrown) = outcome.snapshot()
     // A child can fail first and cause the body to throw during cancellation.
@@ -7033,7 +7086,15 @@ func runSuspendEntryLoopWithContinuation(
     // `current` is nil and therefore stays unbound, keeping its previous
     // global-pool behaviour.
     let callerEventLoop = RuntimeEventLoop.current
-    if let contState, contState.eventLoop == nil {
+    if let contState, contState.blockingScheduler == nil,
+       let inherited = contState.scope?.blockingScheduler {
+        contState.blockingScheduler = runtimeBlockingScheduler(
+            context: contState.builderContext ?? contState.scope!.context,
+            fallbackLoop: inherited.eventLoop ?? callerEventLoop ?? RuntimeEventLoop()
+        )
+        contState.eventLoop = contState.blockingScheduler?.eventLoop
+    }
+    if let contState, contState.blockingScheduler == nil, contState.eventLoop == nil {
         contState.eventLoop = callerEventLoop
     }
     let boundEventLoop = contState?.eventLoop
@@ -7080,8 +7141,13 @@ func runSuspendEntryLoopWithContinuation(
         // the body and the pending-launch flush at the bottom queue onto it
         // rather than onto the global pool.
         let outerEventLoop = RuntimeEventLoop.current
-        RuntimeEventLoop.current = boundEventLoop ?? outerEventLoop
+        RuntimeEventLoop.current = contState?.blockingScheduler != nil ? boundEventLoop : (boundEventLoop ?? outerEventLoop)
         defer { RuntimeEventLoop.current = outerEventLoop }
+        let outerDispatcher = RuntimeDispatcher.current
+        if let scheduler = contState?.blockingScheduler {
+            RuntimeDispatcher.current = scheduler.dispatcher
+        }
+        defer { RuntimeDispatcher.current = outerDispatcher }
         // BUG-041: mark this thread as synchronously running a coroutine body
         // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
         // knows any `launch{}` it makes has a real burst to be flushed at.
@@ -7176,6 +7242,11 @@ func runSuspendEntryLoopWithContinuation(
         // When signalResume() fires, this closure is queued on the bound event
         // loop (or dispatched to a GCD global queue when unbound), re-entering
         // the loop without blocking any thread.
+        // A pool can deliver the pending resume immediately after install.
+        // Capture this burst's displaced TLS before the callback can mutate
+        // TaskKeyBox for the resumed burst on a different thread.
+        let burstOuterKey = taskKeyBox.outerKey
+        let burstOuterJob = taskKeyBox.outerJob
         state.installResumeContinuation {
             // CORO-003: After suspend/resume we are on a (possibly different)
             // GCD thread.  Re-install the task key so the scope map lookup
@@ -7197,6 +7268,10 @@ func runSuspendEntryLoopWithContinuation(
             // signal meant for the current suspend point.
             state.resetResumeState()
             loopBodyBox.body?()
+        }
+        if state.blockingScheduler != nil {
+            RuntimeCoroutineScopeTaskKey.restoreKey(burstOuterKey)
+            RuntimeJobHandle.current = burstOuterJob
         }
         // The current thread is released here — no blocking.
     }

@@ -868,6 +868,19 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    by bundled `CoroutineScope.launch`. The existing no-stdlib launcher bridges
    remain, so `__kk_*` increases by two. `RuntimeABISpec.coroutineFunctions`
    registers both signatures and the canonical hash updates `specVersion`.
+   KUU-1765 adds one private blocking bridge (reason: GC・continuation):
+   `__kk_run_blocking_context`. The canonical generic/default context contract
+   is owned by bundled `runBlocking`; both literal and stored suspend blocks
+   use existing function-value materialization, preserving the opaque capture
+   environment and suspend entry point. The bridge owns a fresh scoped Job,
+   applies the supplied scheduler to initial and resumed execution, joins its
+   children, detaches from the supplied parent and restores ambient bindings.
+   No literal-only companion bridge is needed. Existing no-stdlib/borrowed
+   invocation entry points remain, so `__kk_*` increases by one and public
+   `kk_*` does not increase. `RuntimeABISpec.coroutineFunctions` registers the
+   physical `(context, fnOrBox, env, outThrown): intptr` ABI and its canonical
+   hash updates `specVersion`. Completion still requires actual targeted
+   source/library O0/O2 and Runtime/Core gates; this design alone is not green.
    KUU-1312 adds one private bridge, `__kk_mutable_list_as_reversed` (reason:
    metadata). Read-only and mutable `asReversed` overloads require distinct runtime
    view identities even with the same backing list; Kotlin cannot register the
