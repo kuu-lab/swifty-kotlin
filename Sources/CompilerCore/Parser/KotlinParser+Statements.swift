@@ -186,8 +186,6 @@ extension KotlinParser {
         )
     }
 
-    // MARK: - Structured Control Flow Parsers
-
     func parseIfStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
             return recoverFromNestingLimit(inBlock: inBlock)
@@ -427,8 +425,6 @@ extension KotlinParser {
         }
     }
 
-    // MARK: - when Entry Parsing
-
     private func parseWhenBody(inBlock: Bool) -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
@@ -562,8 +558,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenCondition, range: range.value ?? invalidRange, children)
     }
 
-    // MARK: - Statement Classification (for non-dispatched cases)
-
     func classifyStatementLeadingToken(_ token: Token) -> SyntaxKind {
         switch token.kind {
         case .keyword(.if):
@@ -604,8 +598,6 @@ extension KotlinParser {
             return .statement
         }
     }
-
-    // MARK: - Loop Parsing
 
     func parseLoopStatement(inBlock: Bool) -> NodeID {
         guard enterNesting() else {
