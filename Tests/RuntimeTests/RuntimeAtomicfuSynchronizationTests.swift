@@ -4,6 +4,11 @@ import Foundation
 import RuntimeABI
 import Testing
 
+private func atomicfuRuntimeBox<T: AnyObject>(from raw: Int, as type: T.Type) -> T? {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(pointer, to: type)
+}
+
 private final class AtomicfuTestValues: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [Int] = []
@@ -125,9 +130,9 @@ struct RuntimeAtomicfuSynchronizationTests {
             var thrown = 99
             #expect(__kk_atomicfu_lock_unlock(kernel, &thrown) == runtimeExceptionCaughtSentinel)
             if expectedArgument {
-                #expect(runtimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
+                #expect(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
             } else {
-                #expect(runtimeBox(from: thrown, as: RuntimeIllegalStateExceptionBox.self) != nil)
+                #expect(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalStateExceptionBox.self) != nil)
             }
             thrown = 99
             #expect(__kk_atomicfu_lock_lock(kernel, &thrown) == 0)
@@ -139,7 +144,7 @@ struct RuntimeAtomicfuSynchronizationTests {
         }
         var thrown = 0
         #expect(__kk_atomicfu_lock_lock(17, &thrown) == runtimeExceptionCaughtSentinel)
-        #expect(runtimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
+        #expect(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
     }
 
     @Test func parkerHasOnePermitAndHonorsItsOwner() {
@@ -190,14 +195,14 @@ struct RuntimeAtomicfuSynchronizationTests {
             var thrown = 0
             let result = __kk_atomicfu_parker_wait(handle, 0, &thrown)
             values.append(result == runtimeExceptionCaughtSentinel ? 1 : 0)
-            values.append(runtimeBox(from: thrown, as: RuntimeIllegalStateExceptionBox.self) != nil ? 1 : 0)
+            values.append(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalStateExceptionBox.self) != nil ? 1 : 0)
             group.leave()
         }
         atomicfuDrain(group)
         #expect(values.snapshot == [1, 1])
         var thrown = 0
         #expect(__kk_atomicfu_parker_unpark(17, &thrown) == runtimeExceptionCaughtSentinel)
-        #expect(runtimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
+        #expect(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
         #expect(__kk_atomicfu_parker_unpark(handle, &thrown) == 0)
         #expect(thrown == 0)
         // Negative finite duration consumes a pre-existing permit, then returns.
@@ -314,7 +319,7 @@ struct RuntimeAtomicfuSynchronizationTests {
         let factory = unsafeBitCast(atomicfuThrowingFactory, to: Int.self)
         var thrown = 0
         #expect(__kk_atomicfu_current_parking_handle(factory, 0, &thrown) == runtimeExceptionCaughtSentinel)
-        #expect(runtimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
+        #expect(atomicfuRuntimeBox(from: thrown, as: RuntimeIllegalArgumentExceptionBox.self) != nil)
         let succeedingFactory = unsafeBitCast(atomicfuCacheFactory, to: Int.self)
         #expect(__kk_atomicfu_current_parking_handle(succeedingFactory, 0, &thrown) != runtimeExceptionCaughtSentinel)
         #expect(thrown == 0)
