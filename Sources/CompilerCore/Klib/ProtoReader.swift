@@ -51,8 +51,6 @@ package struct ProtoFields {
         try self.init(bytes[...])
     }
 
-    // MARK: - Presence and raw access
-
     package func has(_ field: Int) -> Bool {
         values[field]?.isEmpty == false
     }
@@ -83,7 +81,7 @@ package struct ProtoFields {
         }
     }
 
-    // MARK: - Scalar accessors (proto2: last value wins)
+    // proto2 scalar semantics: last value wins.
 
     /// `int64`/`uint64`; negative `int32`/`int64` values arrive sign-extended.
     package func int64(_ field: Int) -> Int64? {
@@ -122,8 +120,6 @@ package struct ProtoFields {
             return try ProtoFields(b)
         }
     }
-
-    // MARK: - Repeated scalar accessors (packed or unpacked)
 
     package func int32List(_ field: Int) throws -> [Int32] {
         try varintList(field).map { Int32(truncatingIfNeeded: $0) }
