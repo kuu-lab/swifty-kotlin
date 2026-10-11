@@ -20,7 +20,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // --- Duration class symbol ---
         let durationSymbol = ensureClassSymbol(
             named: "Duration",
             in: kotlinTimePkg,
