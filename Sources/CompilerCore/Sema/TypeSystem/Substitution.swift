@@ -1,5 +1,4 @@
 public extension TypeSystem {
-    /// Returns the suffix character representing the given nullability: `""`, `"?"`, or `"!"`.
     internal func nullabilitySuffix(_ nullability: Nullability) -> String {
         switch nullability {
         case .nullable: "?"
@@ -115,7 +114,6 @@ public extension TypeSystem {
         return mapping
     }
 
-    /// Result of checking use-site variance projections on a member access.
     struct VarianceProjectionResult {
         /// Substitution for covariant positions (return types).
         /// For `out Number`: T → Number.  For `in Number`: T → Any?.  For `*`: T → Any?.
@@ -178,8 +176,6 @@ public extension TypeSystem {
         )
     }
 
-    /// Resolve a single variance-projected type argument into a covariant substitution entry.
-    /// Returns the substituted type and whether the projection forbids writes.
     private func resolveVarianceArg(
         _ arg: TypeArg, tpSymbol: SymbolID, symbols: SymbolTable
     ) -> (type: TypeID, writeForbidden: Bool) {
@@ -195,8 +191,6 @@ public extension TypeSystem {
         }
     }
 
-    /// Check if a member function's parameters use any write-forbidden type parameters.
-    /// Returns the index of the first violating parameter, or nil if no violation.
     func checkVarianceViolationInParameters(
         signature: FunctionSignature,
         writeForbiddenSymbols: Set<SymbolID>
