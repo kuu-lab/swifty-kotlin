@@ -1033,12 +1033,10 @@ public final class SymbolTable {
             switch symbol.kind {
             case .property:
                 return symbol.flags.contains(.synthetic)
+            // A source-backed factory can share a FQName with its nominal
+            // return type, so its parameter may collide with a residual
+            // synthetic property on that type (for example `size`).
             case .function, .constructor, .valueParameter, .typeParameter:
-                return true
-            case .valueParameter:
-                // A source-backed factory can share a FQName with its nominal
-                // return type, so its parameter may collide with a residual
-                // synthetic property on that type (for example `size`).
                 return true
             default:
                 return false
