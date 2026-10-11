@@ -1,8 +1,14 @@
 # serialization 1.10.0 reference
 
-This directory pins upstream evidence and a real JVM reference for KUU-1737,
-the first independent task under KUU-1724. It does not add serialization to
-KSwiftK or establish full API compatibility.
+This directory pins serialization 1.10.0 source/ABI evidence and real JVM
+references for KUU-1724. Full API compatibility remains unfinished.
+
+KUU-1745 adds the bounded primitive descriptor factory implementation. The
+immutable dump inventory remains reproducible with `implementation: unmapped`;
+`implementations.json` is a separate overlay linking two JVM/KLIB factory IDs to
+bundled source, fixtures, and the source/cache/separate-library O0/O2 test suite.
+`verify` checks those IDs and paths without changing the upstream inventory.
+The rest of serialization is still incomplete.
 
 `manifest.json` records the immutable upstream commit
 `370c4e3780066b82f746cf38e4733cbe62c94f74` (`v1.10.0`), original paths, Git blob
@@ -20,6 +26,13 @@ stay distinct. JVM synthetic/default accessors and exported internal packages
 remain visible in the inventory. These are **dump records**, not a deduplicated
 source API count. Every implementation mapping starts as `unmapped`; classifications
 are evidence from the dump, not a substitute for source-level API review.
+
+The manifest also pins the original primitive descriptor implementation, factory
+source, and Native platform builtin registry by Git blob and SHA-256. The bounded
+factory projects the Native registry's 30 reserved names and serializer display
+names directly; it does not construct unimplemented builtin serializers. `verify`
+compares the projection with that registry. The internal descriptor follows the
+upstream implementation and opts into the bundled interface's subclass marker.
 
 The eight reference modules are core, JSON, CBOR, ProtoBuf/schema, Properties,
 json-io, json-okio, and HOCON. External JVM dependencies are Okio 3.9.0,
@@ -39,6 +52,11 @@ python3 Scripts/serialization_reference/reference.py fetch --cache /tmp/serializ
 python3 Scripts/serialization_reference/reference.py run \
   --cache /tmp/serialization-jars --kotlin-home /path/to/kotlinc-2.3.10 \
   --output /tmp/serialization-reference-results
+
+# Actual primitive factory contract, using the same locked published JVM jars:
+python3 Scripts/serialization_reference/reference.py run --case primitive-descriptor \
+  --cache /tmp/serialization-jars --kotlin-home /path/to/kotlinc-2.3.10 \
+  --output /tmp/primitive-descriptor-reference
 ```
 
 `fetch` requires network access to Maven Central. `verify` and `run` are offline
@@ -57,7 +75,7 @@ contracts, not all settings, wire layouts, resource ownership, or upstream tests
 The output directory retains compiler/runtime stdout and stderr, the generated
 JAR, actual command arguments, toolchain version output, source/plugin hashes and
 exit codes in `evidence.json`. JVM execution was verified on Linux with JDK 21 and
-Kotlin 2.3.10. Native/macOS backend and distribution, the upstream full suites,
+Kotlin 2.3.10. For the full eight-module suite, Native/macOS backend and distribution, the upstream full suites,
 KSwiftK source/prebuilt/separate-library consumers, and O0/O2 compatibility remain
 work for other children of KUU-1724. HOCON's Java dependencies require a real native
 implementation or explicit bridge; this JVM reference does not settle that choice.

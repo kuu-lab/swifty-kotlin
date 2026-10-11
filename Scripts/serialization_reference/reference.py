@@ -103,6 +103,39 @@ def verify_index(root, manifest):
         raise ValueError("Declaration index is stale; regenerate with the index command")
 
 
+def verify_implementations(root, manifest):
+    path = root / "implementations.json"
+    if not path.exists():
+        return
+    overlay = json.loads(path.read_text())
+    if overlay["schema_version"] != 1 or overlay["commit"] != manifest["commit"]:
+        raise ValueError("Implementation mappings use a different upstream snapshot")
+    declarations_by_id = {row["id"]: row for row in declarations(root, manifest)["declarations"]}
+    repository = root.parent.parent.resolve()
+    seen = set()
+    for mapping in overlay["mappings"]:
+        identity = mapping["declaration_id"]
+        if identity in seen or identity not in declarations_by_id:
+            raise ValueError("Duplicate or unknown implementation declaration: " + identity)
+        seen.add(identity)
+        for relative in mapping["source"] + [mapping["fixture"], mapping["expected"], mapping["test"]]:
+            target = repository / relative
+            if repository not in target.resolve().parents or not target.is_file():
+                raise ValueError("Missing or invalid implementation path: " + relative)
+    # The factory's rejection set follows Native's registry, including builtin
+    # arrays and modern time/uuid types, rather than just the nine primitive kinds.
+    native = (root / "upstream/core/nativeMain/src/kotlinx/serialization/internal/Platform.kt").read_text()
+    registry = native.split("internal actual fun initBuiltins()", 1)[1]
+    names = re.findall(r"^\s*(\w+)::class to", registry, re.MULTILINE)
+    qualified = {"kotlin." + ("time." if name in {"Duration", "Instant"} else
+                             "uuid." if name == "Uuid" else "") + name: name + "Serializer"
+                 for name in names}
+    factory = repository / "Sources/CompilerCore/Stdlib/kotlinx/serialization/descriptors/PrimitiveSerialDescriptor.kt"
+    projection = dict(re.findall(r'^\s*"([^"]+)" -> "(\w+)"', factory.read_text(), re.MULTILINE))
+    if len(names) != 30 or projection != qualified:
+        raise ValueError("Primitive descriptor reserved names differ from the pinned Native registry")
+
+
 def verify_artifacts(cache, manifest):
     paths = []
     for record in manifest["artifacts"]:
@@ -137,7 +170,7 @@ def fetch_artifacts(cache, manifest):
     return verify_artifacts(cache, manifest)
 
 
-def run_reference(root, manifest, cache, kotlin_home, output):
+def run_reference(root, manifest, cache, kotlin_home, output, case="modules"):
     jars = verify_artifacts(cache, manifest)
     compiler = kotlin_home / "bin/kotlinc"
     runtime = kotlin_home / "bin/kotlin"
@@ -148,16 +181,19 @@ def run_reference(root, manifest, cache, kotlin_home, output):
     if sha256(plugin.read_bytes()) != manifest["compiler_plugin_sha256"]:
         raise ValueError("Serialization compiler plugin hash mismatch")
     output.mkdir(parents=True, exist_ok=True)
+    source = root / "serialization_modules.kt" if case == "modules" else root.parent / "reference_cases/serialization_primitive_descriptor.kt"
+    expected = root / "expected.stdout" if case == "modules" else root.parent / "reference_cases/serialization_primitive_descriptor.expected"
+    main_class = "Serialization_modulesKt" if case == "modules" else "Serialization_primitive_descriptorKt"
     jar = output / "reference.jar"
     jar.unlink(missing_ok=True)
     classpath = os.pathsep.join(str(path.resolve()) for path in jars)
     commands = [
         [str(compiler), "-Xplugin=" + str(plugin), "-classpath", classpath,
-         str(root / "serialization_modules.kt"), "-d", str(jar)],
-        [str(runtime), "-classpath", str(jar.resolve()) + os.pathsep + classpath, "Serialization_modulesKt"],
+         str(source), "-d", str(jar)],
+        [str(runtime), "-classpath", str(jar.resolve()) + os.pathsep + classpath, main_class],
     ]
     evidence = {"version_output": version.stdout + version.stderr, "java_version": "",
-                "source_sha256": sha256((root / "serialization_modules.kt").read_bytes()),
+                "case": case, "source_sha256": sha256(source.read_bytes()),
                 "plugin_sha256": manifest["compiler_plugin_sha256"], "runs": []}
     java = subprocess.run(["java", "-version"], capture_output=True, text=True, timeout=30)
     evidence["java_version"] = java.stdout + java.stderr
@@ -169,7 +205,7 @@ def run_reference(root, manifest, cache, kotlin_home, output):
         (output / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
         if result.returncode:
             raise ValueError(label + " failed; see " + str(output / (label + ".stderr")))
-    if (output / "run.stdout").read_text() != (root / "expected.stdout").read_text():
+    if (output / "run.stdout").read_text() != expected.read_text():
         raise ValueError("JVM reference output mismatch; see " + str(output / "run.stdout"))
     print((output / "run.stdout").read_text(), end="")
 
@@ -180,6 +216,7 @@ def main():
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/kswiftk/serialization-1.10.0")
     parser.add_argument("--kotlin-home", type=Path, default=os.environ.get("KOTLIN_HOME"))
     parser.add_argument("--output", type=Path, default=Path("serialization-reference-output"))
+    parser.add_argument("--case", choices=["modules", "primitive-descriptor"], default="modules")
     args = parser.parse_args()
     manifest = read_manifest()
     verify_files(ROOT, manifest)
@@ -187,12 +224,13 @@ def main():
         (ROOT / "declarations.json").write_text(index_text(ROOT, manifest))
     else:
         verify_index(ROOT, manifest)
+        verify_implementations(ROOT, manifest)
         if args.action == "fetch":
             fetch_artifacts(args.cache, manifest)
         elif args.action == "run":
             if args.kotlin_home is None:
                 parser.error("run requires --kotlin-home or KOTLIN_HOME")
-            run_reference(ROOT, manifest, args.cache, args.kotlin_home, args.output)
+            run_reference(ROOT, manifest, args.cache, args.kotlin_home, args.output, args.case)
     print("serialization reference: " + args.action + " OK")
 
 
