@@ -4,6 +4,7 @@
 func runtimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     for type: TypeID,
     useReifiedToken: Bool = true,
+    context: KIRLoweringContext? = nil,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -12,7 +13,7 @@ func runtimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     var activeTypes: Set<TypeID> = []
     var activeParameters: Set<SymbolID> = []
     return boundedRuntimeArrayComponentTypeExpr(
-        for: type, useReifiedToken: useReifiedToken, sema: sema,
+        for: type, useReifiedToken: useReifiedToken, context: context, sema: sema,
         arena: arena, interner: interner, instructions: &instructions,
         activeTypes: &activeTypes, activeParameters: &activeParameters
     )
@@ -24,6 +25,7 @@ func runtimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
 private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     for type: TypeID,
     useReifiedToken: Bool,
+    context: KIRLoweringContext?,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -50,6 +52,9 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
         if useReifiedToken,
            sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
             let symbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: parameter.symbol)
+            if let capturedComponent = context?.localValue(for: symbol) {
+                return capturedComponent
+            }
             let component = arena.appendExpr(.symbolRef(symbol), type: sema.types.intType)
             instructions.append(.constValue(result: component, value: .symbolRef(symbol)))
             return component
@@ -63,7 +68,7 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
     let nested: KIRExprID
     if let element = referenceArrayElementType(erased, sema: sema, interner: interner) {
         nested = boundedRuntimeArrayComponentTypeExpr(
-            for: element, useReifiedToken: useReifiedToken, sema: sema,
+            for: element, useReifiedToken: useReifiedToken, context: context, sema: sema,
             arena: arena, interner: interner, instructions: &instructions,
             activeTypes: &activeTypes, activeParameters: &activeParameters
         )
@@ -101,6 +106,7 @@ func referenceArrayElementType(_ type: TypeID?, sema: SemaModule, interner: Stri
 func appendRuntimeArrayComponentTag<Instructions: RangeReplaceableCollection>(
     _ array: KIRExprID,
     arrayType: TypeID?,
+    context: KIRLoweringContext? = nil,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -116,7 +122,7 @@ func appendRuntimeArrayComponentTag<Instructions: RangeReplaceableCollection>(
     ))
     guard let element = referenceArrayElementType(arrayType, sema: sema, interner: interner) else { return nominallyTagged }
     let component = runtimeArrayComponentTypeExpr(
-        for: element, sema: sema, arena: arena, interner: interner, instructions: &instructions
+        for: element, context: context, sema: sema, arena: arena, interner: interner, instructions: &instructions
     )
     let result = arena.appendTemporary(type: arrayType)
     instructions.append(.call(

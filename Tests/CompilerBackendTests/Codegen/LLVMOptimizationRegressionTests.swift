@@ -10,6 +10,15 @@ import Testing
 @Suite
 struct LLVMOptimizationRegressionTests {
     @Test(arguments: [0, 2])
+    func annotatedSecondaryConstructorsKeepTheirDelegation(optimization: Int) throws {
+        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repository.appendingPathComponent("Scripts/diff_cases/annotated_constructor_delegation.kt"), encoding: .utf8)
+        try assertOutput(source, moduleName: "AnnotatedConstructorDelegation", expected: "7\n2\n9\n",
+                         optimization: try #require(OptimizationLevel(rawValue: optimization)))
+    }
+
+    @Test(arguments: [0, 2])
     func sourceInjectedHelloUsesCoroutineMarkerABI(optimization: Int) throws {
         try assertOutput(
             "fun main() { println(\"hello\") }",
@@ -291,6 +300,26 @@ struct LLVMOptimizationRegressionTests {
             source,
             moduleName: "LLVMOptimizationStringVarargConstructor",
             expected: "3\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func reflectedStringVarargsRetainArrayABI(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("annotation_vararg_reflection.kt"),
+            moduleName: "ReflectedStringVarargABI",
+            expected: "label\n2\nb\n3\n5\n",
+            optimization: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
+    @Test(arguments: [0, 2])
+    func boxedChannelCloseCallbackExpandsItsNamedABIPair(optimization: Int) throws {
+        try assertOutput(
+            try diffCaseSource("channel_boxed_close_callback.kt"),
+            moduleName: "BoxedChannelCloseCallbackABI",
+            expected: "true\ntrue\n1\n",
             optimization: try #require(OptimizationLevel(rawValue: optimization))
         )
     }

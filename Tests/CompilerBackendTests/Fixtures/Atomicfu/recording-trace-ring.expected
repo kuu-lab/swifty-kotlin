@@ -1,0 +1,10 @@
+ring:1=b|2=c|3=d|4=e
+named:2=c|3=d|4=e|5=outer.inner.payload
+default:1
+single:3=d
+invalid-size:5
+maximum:1048576
+gc-live-replacement
+native-none
+format:2
+virtual:1:6=f|7=g|8=h|9=i

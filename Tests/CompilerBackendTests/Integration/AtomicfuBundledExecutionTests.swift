@@ -205,4 +205,106 @@ struct AtomicfuBundledExecutionTests {
             throw error
         }
     }
+
+    @Test(arguments: [false, true], [0, 2])
+    func explicitRecordingRingSnapshotsAndNativeNoneControls(library: Bool, optimization: Int) throws {
+        try runFixture("recording-trace-ring", library: library, optimization: optimization)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func explicitScalarRecordingUsesGenuineSuccessOnlyModifications(library: Bool, optimization: Int) throws {
+        try runFixture("recording-trace-scalars", library: library, optimization: optimization)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func recordingCallbacksAndFailuresPreserveEvaluationAndCommittedState(library: Bool, optimization: Int) throws {
+        try runFixture("recording-trace-effects", library: library, optimization: optimization)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func recordingSessionAndScalarCrossActualProducerConsumer(library: Bool, optimization: Int) throws {
+        let level = try #require(OptimizationLevel(rawValue: optimization))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var dependencies: [String] = []
+        do {
+            // The independent consumer always imports actual bundled library and producer.
+            let consumerStdlib = try testStdlibArtifactPath()
+            dependencies.append(consumerStdlib)
+            let stdlibBefore = try artifactHashes(consumerStdlib)
+            try receipt(directory, "stdlib-before", ["path": consumerStdlib, "file_sha256": stdlibBefore])
+            let producerStdlib = library ? consumerStdlib : nil
+            let producer = try compile(fixture("recording-trace-producer.kt"), module: "RecordingTraceProducer",
+                emit: .library, directory: directory, level: level, stdlib: producerStdlib)
+            dependencies.append(producer)
+            let producerBefore = try artifactHashes(producer)
+            try receipt(directory, "producer-before", ["path": producer, "file_sha256": producerBefore])
+            let metadata = try String(contentsOfFile: producer + "/metadata.bin", encoding: .utf8)
+            let rows = MetadataDecoder().decode(metadata)
+            try #require(rows.contains { $0.fqName == "recordingproducer.session" })
+            try #require(rows.contains { $0.fqName == "recordingproducer.counter" })
+            try #require(rows.contains { $0.fqName == "recordingproducer.bump" && $0.isInline })
+            try #require(!rows.contains { $0.fqName == "recordingproducer.HiddenEvent" })
+            let executable = try compile(fixture("recording-trace-consumer.kt"), module: "RecordingTraceConsumer",
+                emit: .executable, directory: directory, level: level, stdlib: consumerStdlib,
+                searchPaths: [producer])
+            try execute(executable, expectedFile: "recording-trace-consumer.expected", directory: directory)
+            let producerAfter = try artifactHashes(producer)
+            let stdlibAfter = try artifactHashes(consumerStdlib)
+            try receipt(directory, "dependencies-after", ["producer_sha256": producerAfter, "stdlib_sha256": stdlibAfter])
+            try #require(producerBefore == producerAfter && stdlibBefore == stdlibAfter)
+            try receipt(directory, "success", ["status": "PASS", "owned_file_sha256": try fileHashes(directory)])
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            retainFailure(directory, error, dependencies: dependencies)
+            throw error
+        }
+    }
+    // Survival of these ordinary registered objects is a compatibility control,
+    // not automatic box-reclamation evidence. Runtime heap-count tests below
+    // the public ABI establish the managed-payload tracing/release contract.
+    @Test(arguments: [false, true], [0, 2])
+    func managedPayloadCompatibilityControls(library: Bool, optimization: Int) throws {
+        try runFixture("gc-boundary", library: library, optimization: optimization)
+    }
+
+    @Test(arguments: [false, true], [0, 2])
+    func managedPayloadProducerConsumerCompatibility(library: Bool, optimization: Int) throws {
+        let level = try #require(OptimizationLevel(rawValue: optimization))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var dependencies: [String] = []
+        do {
+            let consumerStdlib = try testStdlibArtifactPath()
+            dependencies.append(consumerStdlib)
+            let stdlib = library ? consumerStdlib : nil
+            let stdlibBefore = try artifactHashes(consumerStdlib)
+            try receipt(directory, "stdlib-before", ["path": consumerStdlib, "file_sha256": stdlibBefore])
+            let producer = try compile(fixture("gc-producer.kt"), module: "AtomicfuLifetimeProducer",
+                emit: .library, directory: directory, level: level, stdlib: stdlib)
+            dependencies.append(producer)
+            let producerBefore = try artifactHashes(producer)
+            try receipt(directory, "producer-before", ["path": producer, "file_sha256": producerBefore])
+            let metadata = try String(contentsOfFile: producer + "/metadata.bin", encoding: .utf8)
+            let records = MetadataDecoder().decode(metadata)
+            try #require(records.contains { $0.fqName == "lifetime.producer.LifetimeOwner" })
+            try #require(records.contains { $0.fqName == "lifetime.producer.LifetimeOwner.collectAndCheck" })
+            try #require(records.contains { $0.fqName == "lifetime.producer.LifetimeOwner.dropAndCheck" })
+            let executable = try compile(fixture("gc-consumer.kt"), module: "AtomicfuLifetimeConsumer",
+                emit: .executable, directory: directory, level: level, stdlib: consumerStdlib,
+                searchPaths: [producer])
+            try execute(executable, expectedFile: "gc-consumer.expected", directory: directory)
+            let producerAfter = try artifactHashes(producer)
+            let stdlibAfter = try artifactHashes(consumerStdlib)
+            try receipt(directory, "dependencies-after", ["producer_sha256": producerAfter, "stdlib_sha256": stdlibAfter])
+            try #require(producerAfter == producerBefore)
+            try #require(stdlibAfter == stdlibBefore)
+            try receipt(directory, "success", ["status": "PASS", "owned_file_sha256": try fileHashes(directory)])
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            retainFailure(directory, error, dependencies: dependencies)
+            throw error
+        }
+    }
+
 }

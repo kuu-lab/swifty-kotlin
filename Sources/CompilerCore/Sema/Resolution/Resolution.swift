@@ -349,8 +349,8 @@ extension OverloadResolver {
         if !isConstructor,
            signature.classTypeParameterCount > 0,
            let classReceiverType,
-           isNominalMemberFunction(candidate, typeSystem: ctx.types),
-           let owner = ctx.symbols.parentSymbol(for: candidate),
+           (isNominalMemberFunction(candidate, typeSystem: ctx.types) || memberExtensionOwner != nil),
+           let owner = memberExtensionOwner ?? ctx.symbols.parentSymbol(for: candidate),
            memberExtensionOwner != nil || signature.receiverType == nil || {
                guard case let .classType(receiverClass) = ctx.types.kind(
                    of: ctx.types.makeNonNullable(classReceiverType)

@@ -1,7 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-001): kswiftc has no java.sql.* / JDBC support at all (no DriverManager,
-// no synthetic stub; verified by repo-wide search) — a candidate compile failure, not a reference
-// runtime failure (kotlinc itself compiles this fine; "jdbc:kswiftk:memory" is just a string
-// literal to it).
+// CANDIDATE-ONLY: The bundled JDBC facade does not expose all ResultSet APIs
+// used below. Compare candidate compiler diagnostics with the adjacent expected
+// stderr; JVM compilation does not validate this fixture's custom
+// jdbc:kswiftk:memory runtime behavior.
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet

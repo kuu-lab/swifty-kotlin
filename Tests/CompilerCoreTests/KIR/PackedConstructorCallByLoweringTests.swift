@@ -229,12 +229,12 @@ struct PackedConstructorCallByLoweringTests {
         #expect(supplierStub.params.count == 4, "closure/class/component/mask")
         #expect(extractCallees(from: supplierStub.body, interner: ctx.interner).contains("__kk_pair_new"), "function-valued default captures both hidden descriptors")
         let lambdas = findAllKIRFunctions(in: module).filter {
-            extractCallees(from: $0.body, interner: ctx.interner).contains("component1")
+            extractCallees(from: $0.body, interner: ctx.interner).contains("__kk_pair_first")
         }
         try #require(!lambdas.isEmpty)
         for lambda in lambdas {
             #expect(lambda.params.count == 1, "one rooted pair capture, no extra hidden receiver/member slot")
-            #expect(extractCallees(from: lambda.body, interner: ctx.interner).contains("component2"))
+            #expect(extractCallees(from: lambda.body, interner: ctx.interner).contains("__kk_pair_second"))
         }
     }
 

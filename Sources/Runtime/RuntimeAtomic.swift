@@ -377,11 +377,15 @@ final class AtomicRefBox {
     }
 
     func store(_ value: Int) {
-        kkrt_atomic_word_store(storage, value)
+        runtimeStorage.withGCLock { _ in
+            kkrt_atomic_word_store(storage, value)
+        }
     }
 
     func exchange(_ new: Int) -> Int {
-        kkrt_atomic_word_exchange(storage, new)
+        runtimeStorage.withGCLock { _ in
+            kkrt_atomic_word_exchange(storage, new)
+        }
     }
 
     /// CAS matching `runtimeAtomicRefValuesMatch` so value-type words that
@@ -395,13 +399,17 @@ final class AtomicRefBox {
     /// The loop retries on the newly observed value so the swap happens iff
     /// the cell held a matching value at the successful compare-exchange.
     func compareAndExchange(expect: Int, update: Int) -> Int {
-        var observed = kkrt_atomic_word_load(storage)
-        while runtimeAtomicRefValuesMatch(observed, expect) {
-            var exchanged = false
-            observed = kkrt_atomic_word_compare_exchange(storage, observed, update, &exchanged)
-            if exchanged { return expect }
+        // Mutation and the payload root snapshot share the collector lock.
+        // The matcher below uses this locked registry without locking again.
+        runtimeStorage.withGCLock { state in
+            var observed = kkrt_atomic_word_load(storage)
+            while runtimeAtomicRefValuesMatch(observed, expect, objectPointers: state.objectPointers) {
+                var exchanged = false
+                observed = kkrt_atomic_word_compare_exchange(storage, observed, update, &exchanged)
+                if exchanged { return expect }
+            }
+            return observed
         }
-        return observed
     }
 }
 
@@ -414,7 +422,9 @@ public func kk_atomic_ref_create(_ initial: Int) -> Int {
     let box = AtomicRefBox(initial: initial)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        state.retainedAtomicReferenceHandles.insert(key)
     }
     let raw = Int(bitPattern: ptr)
     runtimeRegisterObjectType(rawValue: raw, classID: runtimeStableNominalTypeID(fqName: "kotlin.concurrent.AtomicReference"))
@@ -750,12 +760,16 @@ final class AtomicRefArrayBox {
 
     func store(at index: Int, value: Int) {
         guard let cell = cell(at: index) else { return }
-        kkrt_atomic_word_store(cell, value)
+        runtimeStorage.withGCLock { _ in
+            kkrt_atomic_word_store(cell, value)
+        }
     }
 
     func exchange(at index: Int, newValue: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
-        return kkrt_atomic_word_exchange(cell, newValue)
+        return runtimeStorage.withGCLock { _ in
+            kkrt_atomic_word_exchange(cell, newValue)
+        }
     }
 
     /// Identity-based CAS with decoded-payload matching for primitive boxes.
@@ -764,25 +778,29 @@ final class AtomicRefArrayBox {
     /// iff the cell held a matching value at the successful compare-exchange.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         guard let cell = cell(at: index) else { return false }
-        var observed = kkrt_atomic_word_load(cell)
-        while runtimeAtomicRefValuesMatch(observed, expect) {
-            var exchanged = false
-            observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
-            if exchanged { return true }
+        return runtimeStorage.withGCLock { state in
+            var observed = kkrt_atomic_word_load(cell)
+            while runtimeAtomicRefValuesMatch(observed, expect, objectPointers: state.objectPointers) {
+                var exchanged = false
+                observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
+                if exchanged { return true }
+            }
+            return false
         }
-        return false
     }
 
     /// Identity-based compareAndExchange: returns the previous value regardless of success.
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
-        var observed = kkrt_atomic_word_load(cell)
-        while runtimeAtomicRefValuesMatch(observed, expect) {
-            var exchanged = false
-            observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
-            if exchanged { break }
+        return runtimeStorage.withGCLock { state in
+            var observed = kkrt_atomic_word_load(cell)
+            while runtimeAtomicRefValuesMatch(observed, expect, objectPointers: state.objectPointers) {
+                var exchanged = false
+                observed = kkrt_atomic_word_compare_exchange(cell, observed, update, &exchanged)
+                if exchanged { break }
+            }
+            return observed
         }
-        return observed
     }
 }
 
@@ -793,7 +811,9 @@ private func atomicRefArrayBox(from raw: Int) -> AtomicRefArrayBox? {
 private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
+        let key = UInt(bitPattern: ptr)
+        state.objectPointers.insert(key)
+        state.retainedAtomicReferenceHandles.insert(key)
     }
     return Int(bitPattern: ptr)
 }
@@ -839,10 +859,8 @@ private enum AtomicRefWordValue {
     }
 }
 
-private func runtimeAtomicRefWordValue(_ word: Int) -> AtomicRefWordValue {
-    let isObject = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: word))
-    }
+private func runtimeAtomicRefWordValue(_ word: Int, objectPointers: Set<UInt>) -> AtomicRefWordValue {
+    let isObject = objectPointers.contains(UInt(bitPattern: word))
     guard isObject, let ptr = UnsafeMutableRawPointer(bitPattern: word) else {
         return .raw(word)
     }
@@ -880,12 +898,12 @@ private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
 /// primitive kind match by payload, and a bare stored word matches a box
 /// carrying the same payload. Distinct string and other object handles never
 /// match; flat String bridges preserve their canonical box identity.
-private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
+private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int, objectPointers: Set<UInt>) -> Bool {
     if lhs == rhs {
         return true
     }
-    let left = runtimeAtomicRefWordValue(lhs)
-    let right = runtimeAtomicRefWordValue(rhs)
+    let left = runtimeAtomicRefWordValue(lhs, objectPointers: objectPointers)
+    let right = runtimeAtomicRefWordValue(rhs, objectPointers: objectPointers)
     switch (left, right) {
     case let (.bool(l), .bool(r)):
         return l == r

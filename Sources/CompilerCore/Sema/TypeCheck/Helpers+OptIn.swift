@@ -42,7 +42,15 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        let requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        var requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
+        if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
+           let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
+            var markers = Set(requirements.map(\.markerSymbol))
+            for requirement in requiredOptInRequirements(for: owner, ctx: ctx)
+                where markers.insert(requirement.markerSymbol).inserted {
+                requirements.append(requirement)
+            }
+        }
         guard !requirements.isEmpty else {
             return
         }
@@ -330,8 +338,9 @@ extension TypeCheckHelpers {
         }
 
         let supertypeName = renderSymbolName(supertype, ctx: ctx)
+        let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
         let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
-            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'."
+            "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
         switch requirement.level {
         case .warning:
             diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)

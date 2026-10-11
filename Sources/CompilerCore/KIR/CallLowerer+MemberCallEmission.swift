@@ -84,13 +84,15 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
+        var result = arguments
         if let receiver = memberExtensionDispatchReceiver(
             for: accessor, callExprID: callExprID, sema: sema, arena: arena,
             interner: interner, instructions: &instructions
-        ) {
-            return [receiver] + arguments
-        }
-        return arguments
+        ) { result.insert(receiver, at: 0) }
+        let binding = callExprID.flatMap { sema.bindings.extensionPropertyGetterCalls[$0] ?? sema.bindings.callBindings[$0] }
+        appendReifiedTypeTokens(chosenCallee: accessor, callBinding: binding, sema: sema,
+                                       interner: interner, arena: arena, instructions: &instructions, arguments: &result)
+        return result
     }
 
     func sequenceBuilderRuntimeCalleeName(
@@ -387,7 +389,7 @@ extension CallLowerer {
            !isSuperCall,
            let chosenCallee,
            let chosenCalleeInfo = sema.symbols.symbol(chosenCallee),
-           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let receiverType = receiver.type(in: sema),
            let (_, receiverClassSymbol) = resolveClassTypeSymbol(
                sema.types.makeNonNullable(receiverType), sema: sema
            ),
@@ -423,7 +425,7 @@ extension CallLowerer {
         if finalArguments.first == receiver.loweredID,
            let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_any_member_equals",
-           let receiverType = sema.bindings.exprTypes[receiver.expr],
+           let receiverType = receiver.type(in: sema),
            let (receiverClassType, receiverClassSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
            receiverClassType.nullability == .nonNull,
            receiverClassSymbol.kind == .enumClass,
@@ -579,7 +581,8 @@ extension CallLowerer {
             sourceArgumentCount: sourceArgExprs.count,
             hasHOFLambdaArg: hasHOFLambdaArg,
             sema: sema,
-            interner: interner
+            interner: interner,
+            receiverTypeOverride: receiver.typeOverride
         )
         let loweredCalleeText = interner.resolve(loweredCallee)
         if loweredCalleeText == "kk_range_windowed",
@@ -670,12 +673,12 @@ extension CallLowerer {
         // internal-function lookup; that would bypass the runtime ABI callee.
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: interner.resolve(calleeName),
-            receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            receiverType: receiver.type(in: sema) ?? sema.types.anyType,
             chosenCallee: chosenCallee,
             sema: sema,
             interner: interner
         )
-        let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+        let receiverType = receiver.type(in: sema) ?? sema.types.anyType
         let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
             memberName: interner.resolve(calleeName),
             receiverType: receiverType,
@@ -710,7 +713,7 @@ extension CallLowerer {
            sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
         {
             let receiverType = sema.types.makeNonNullable(
-                sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+                receiver.type(in: sema) ?? sema.types.anyType
             )
             let floatingRangeCallee: InternedString? = if receiverType == sema.types.floatType {
                 interner.intern("__kk_float_coerceIn_range")
@@ -993,7 +996,7 @@ extension CallLowerer {
         // loweredMemberCalleeName intentionally retains those names so the
         // implementation can be selected through its dynamic itable.
         let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
-            receiverType: sema.bindings.exprTypes[receiver.expr],
+            receiverType: receiver.type(in: sema),
             calleeName: loweredCallee,
             sema: sema,
             interner: interner
@@ -1020,14 +1023,14 @@ extension CallLowerer {
             || chosenCallee.map({
                 isIteratorRuntimeVirtualBridge(
                     $0,
-                    receiverTypeID: sema.bindings.exprTypes[receiver.expr],
+                    receiverTypeID: receiver.type(in: sema),
                     sema: sema,
                     interner: interner
                 )
             }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
-               receiverExpr: memberExtensionDispatchReceiver == nil ? receiver.expr : nil,
+               receiverExpr: memberExtensionDispatchReceiver == nil && receiver.typeOverride == nil ? receiver.expr : nil,
                loweredReceiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
                isSuperCall: isSuperCall, finalArguments: finalArguments,
                result: result, sema: sema, arena: arena, interner: interner
