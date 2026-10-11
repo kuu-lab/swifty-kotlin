@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "upstream_commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "native_execution_catalog_sha256": "3bd3e5e45e2a86315dfb7c8a5ef171abdeeab49dbc50b6260c219155b67ac57e",
+  "target": "linux",
+  "suites": [
+    "kotlinx.io.files.SmokeFileTest",
+    "kotlinx.io.files.UtilsTest"
+  ],
+  "source_paths": [
+    "core/common/test/files/SmokeFileTest.kt",
+    "core/common/test/files/UtilsTest.kt",
+    "core/common/test/util.kt",
+    "core/native/test/util.kt"
+  ],
+  "scope": "KUU-1761 original SmokeFile28 + Utils2; not full catalog or Apple execution"
+}
