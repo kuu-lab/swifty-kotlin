@@ -1,0 +1,2221 @@
+{
+  "repository": "https://github.com/Kotlin/kotlinx-io",
+  "tag": "0.9.1",
+  "commit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "files": [
+    {
+      "path": "bytestring/apple/test/ByteStringAppleTest.kt",
+      "gitBlobSha": "45166786a343d75ace421102bb523f0619f0fbeb",
+      "size": 2340,
+      "testNames": [
+        "toNSData",
+        "fromNSData",
+        "toNSDataDataIntegrity",
+        "fromNSDataIntegrity"
+      ],
+      "functionNames": [
+        "toNSData",
+        "fromNSData",
+        "toNSDataDataIntegrity",
+        "fromNSDataIntegrity"
+      ],
+      "classNames": [
+        "ByteStringAppleTest"
+      ]
+    },
+    {
+      "path": "bytestring/apple/test/samples/samplesApple.kt",
+      "gitBlobSha": "9d0701638d7e201e1ab6eba0b5a0ec2322a0ea9e",
+      "size": 1177,
+      "testNames": [
+        "nsDataConversion"
+      ],
+      "functionNames": [
+        "nsDataConversion"
+      ],
+      "classNames": [
+        "ByteStringSamplesApple"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/ByteStringBase64Test.kt",
+      "gitBlobSha": "32daee64a9286ade61f933de366e75aa4b47d81b",
+      "size": 8846,
+      "testNames": [
+        "testEncodeToByteArray",
+        "testEncodeIntoByteArray",
+        "testEncode",
+        "testDecode",
+        "testDecodeIntoByteArray",
+        "testDecodeToByteString",
+        "testByteArrayDecodeToByteString",
+        "testByteStringDecodeToByteString"
+      ],
+      "functionNames": [
+        "bytes",
+        "testEncodeToByteArray",
+        "testEncodeIntoByteArray",
+        "testEncode",
+        "testDecode",
+        "testDecodeIntoByteArray",
+        "testDecodeToByteString",
+        "testByteArrayDecodeToByteString",
+        "testByteStringDecodeToByteString"
+      ],
+      "classNames": [
+        "ByteStringBase64Test"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/ByteStringBuilderTest.kt",
+      "gitBlobSha": "2fbb054083fa091ef563e62c51533fe07c1d0c9e",
+      "size": 4494,
+      "testNames": [
+        "emptyString",
+        "appendByte",
+        "appendBytes",
+        "appendUByte",
+        "appendArray",
+        "testAppendByteArrayWithInvalidIndices",
+        "appendByteString",
+        "appendMultipleValues",
+        "resizeMultipleTimes",
+        "testSize",
+        "testCapacity",
+        "createMultipleByteStrings"
+      ],
+      "functionNames": [
+        "emptyString",
+        "appendByte",
+        "appendBytes",
+        "appendUByte",
+        "appendArray",
+        "testAppendByteArrayWithInvalidIndices",
+        "appendByteString",
+        "appendMultipleValues",
+        "resizeMultipleTimes",
+        "testSize",
+        "testCapacity",
+        "createMultipleByteStrings"
+      ],
+      "classNames": [
+        "ByteStringBuilderTest"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/ByteStringHexTest.kt",
+      "gitBlobSha": "131830e22b25e12f10b2a06b911c9c7a5e759c12",
+      "size": 1915,
+      "testNames": [
+        "testEmpty",
+        "testIndexes",
+        "testFormats",
+        "testDefault"
+      ],
+      "functionNames": [
+        "testEmpty",
+        "testIndexes",
+        "testFormats",
+        "testDefault"
+      ],
+      "classNames": [
+        "ByteStringHexTest"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/ByteStringTest.kt",
+      "gitBlobSha": "5aefaf5f5eaaf3ecfed336f5998d6cb717dd59c8",
+      "size": 16826,
+      "testNames": [
+        "get",
+        "getWithInvalidIndex",
+        "equalsAndHashCode",
+        "toByteArray",
+        "toByteArrayWithInvalidIndex",
+        "copyTo",
+        "copyToWithInvalidArguments",
+        "substring",
+        "substringWithInvalidArgs",
+        "compareTo",
+        "size",
+        "indices",
+        "isEmpty",
+        "isNotEmpty",
+        "indexOfByte",
+        "indexOfByteArray",
+        "indexOfByteString",
+        "lastIndexOfByte",
+        "lastIndexOfByteArray",
+        "lastIndexOfByteString",
+        "startsWithByteArray",
+        "startWithByteString",
+        "endsWithByteArray",
+        "endsWithByteString",
+        "testToString",
+        "utf8",
+        "contentEquals",
+        "fromUBytes"
+      ],
+      "functionNames": [
+        "get",
+        "getWithInvalidIndex",
+        "equalsAndHashCode",
+        "checkEqualsAndHashCodeAreSame",
+        "toByteArray",
+        "toByteArrayWithInvalidIndex",
+        "copyTo",
+        "copyToWithInvalidArguments",
+        "substring",
+        "substringWithInvalidArgs",
+        "compareTo",
+        "size",
+        "indices",
+        "isEmpty",
+        "isNotEmpty",
+        "indexOfByte",
+        "indexOfByteArray",
+        "indexOfByteString",
+        "lastIndexOfByte",
+        "lastIndexOfByteArray",
+        "lastIndexOfByteString",
+        "startsWithByteArray",
+        "startWithByteString",
+        "endsWithByteArray",
+        "endsWithByteString",
+        "testToString",
+        "utf8",
+        "contentEquals",
+        "fromUBytes"
+      ],
+      "classNames": [
+        "ByteStringTest"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/samples/samples.kt",
+      "gitBlobSha": "14cbf86d402c9f0c3b073af4abb263aa6fd51066",
+      "size": 9272,
+      "testNames": [
+        "compareTo",
+        "toStringSample",
+        "substringSample",
+        "toByteArraySample",
+        "toByteArrayWithIndicesSample",
+        "copyToSample",
+        "indexOfByteSample",
+        "lastIndexOfByteSample",
+        "indexOfByteStringSample",
+        "lastIndexOfByteStringSample",
+        "indexOfByteArraySample",
+        "lastIndexOfByteArraySample",
+        "startsWithByteStringSample",
+        "endsWithByteStringSample",
+        "startsWithByteArraySample",
+        "endsWithByteArraySample",
+        "constructionSample",
+        "constructionFromBytesSample",
+        "constructionFromUBytesSample",
+        "encodeAndDecodeUtf8String",
+        "builderSample",
+        "builderSampleWithoutAdditionalAllocs",
+        "constructEmpty"
+      ],
+      "functionNames": [
+        "compareTo",
+        "toStringSample",
+        "substringSample",
+        "toByteArraySample",
+        "toByteArrayWithIndicesSample",
+        "copyToSample",
+        "indexOfByteSample",
+        "lastIndexOfByteSample",
+        "indexOfByteStringSample",
+        "lastIndexOfByteStringSample",
+        "indexOfByteArraySample",
+        "lastIndexOfByteArraySample",
+        "startsWithByteStringSample",
+        "endsWithByteStringSample",
+        "startsWithByteArraySample",
+        "endsWithByteArraySample",
+        "constructionSample",
+        "constructionFromBytesSample",
+        "constructionFromUBytesSample",
+        "encodeAndDecodeUtf8String",
+        "builderSample",
+        "builderSampleWithoutAdditionalAllocs",
+        "constructEmpty"
+      ],
+      "classNames": [
+        "ByteStringSamples"
+      ]
+    },
+    {
+      "path": "bytestring/common/test/unsafe/UnsafeByteStringOperationsTest.kt",
+      "gitBlobSha": "a0b1902df09392cc663149382c40d81d0794be19",
+      "size": 695,
+      "testNames": [
+        "callsInPlaceContract"
+      ],
+      "functionNames": [
+        "callsInPlaceContract"
+      ],
+      "classNames": [
+        "UnsafeByteStringOperationsTest"
+      ]
+    },
+    {
+      "path": "bytestring/jvm/test/ByteStringByteBufferExtensionsTest.kt",
+      "gitBlobSha": "1a08ae36923dac14f1472165c26072608d62e98d",
+      "size": 3578,
+      "testNames": [
+        "asReadOnlyByteBuffer",
+        "getByteString",
+        "putString"
+      ],
+      "functionNames": [
+        "asReadOnlyByteBuffer",
+        "getByteString",
+        "putString"
+      ],
+      "classNames": [
+        "ByteStringByteBufferExtensionsTest"
+      ]
+    },
+    {
+      "path": "bytestring/jvm/test/ByteStringJvmTest.kt",
+      "gitBlobSha": "37f9b86ae0aaeef69a608220502ee111200caa77",
+      "size": 1151,
+      "testNames": [
+        "createFromString",
+        "decodeToString"
+      ],
+      "functionNames": [
+        "createFromString",
+        "decodeToString"
+      ],
+      "classNames": [
+        "ByteStringJvmTest"
+      ]
+    },
+    {
+      "path": "bytestring/jvm/test/samples/samplesJvm.kt",
+      "gitBlobSha": "ee97d186f1f457f628da02e632cab92eda0e144b",
+      "size": 2502,
+      "testNames": [
+        "toReadOnlyByteBuffer",
+        "getByteStringFromBuffer",
+        "getByteStringFromBufferAbsolute",
+        "putByteStringToBuffer",
+        "putByteStringToBufferAbsolute"
+      ],
+      "functionNames": [
+        "toReadOnlyByteBuffer",
+        "getByteStringFromBuffer",
+        "getByteStringFromBufferAbsolute",
+        "putByteStringToBuffer",
+        "putByteStringToBufferAbsolute"
+      ],
+      "classNames": [
+        "ByteStringSamplesJvm"
+      ]
+    },
+    {
+      "path": "core/apple/test/NSInputStreamSourceTest.kt",
+      "gitBlobSha": "94bcf39bc3cc204b1850ace3516b889c9d0d7f24",
+      "size": 2877,
+      "testNames": [
+        "nsInputStreamSource",
+        "nsInputStreamSourceFromFile",
+        "sourceFromInputStream",
+        "sourceFromInputStreamWithSegmentSize",
+        "sourceFromInputStreamBounds"
+      ],
+      "functionNames": [
+        "nsInputStreamSource",
+        "nsInputStreamSourceFromFile",
+        "sourceFromInputStream",
+        "sourceFromInputStreamWithSegmentSize",
+        "sourceFromInputStreamBounds"
+      ],
+      "classNames": [
+        "NSInputStreamSourceTest"
+      ]
+    },
+    {
+      "path": "core/apple/test/NSOutputStreamSinkTest.kt",
+      "gitBlobSha": "2b14b6fda4bc6653cbebc880f3a4a4fa5367ee1c",
+      "size": 1651,
+      "testNames": [
+        "nsOutputStreamSink",
+        "sinkFromOutputStream"
+      ],
+      "functionNames": [
+        "nsOutputStreamSink",
+        "sinkFromOutputStream"
+      ],
+      "classNames": [
+        "NSOutputStreamSinkTest"
+      ]
+    },
+    {
+      "path": "core/apple/test/samples/samplesApple.kt",
+      "gitBlobSha": "99b062ccb723393051de440f69ed0e556a9dec7b",
+      "size": 1761,
+      "testNames": [
+        "inputStreamAsSource",
+        "outputStreamAsSink",
+        "asStream"
+      ],
+      "functionNames": [
+        "inputStreamAsSource",
+        "outputStreamAsSink",
+        "asStream"
+      ],
+      "classNames": [
+        "KotlinxIoSamplesApple"
+      ]
+    },
+    {
+      "path": "core/apple/test/SinkNSOutputStreamTest.kt",
+      "gitBlobSha": "0c6998521792dcaa24ff550628f3a1b742f71860",
+      "size": 6695,
+      "testNames": [
+        "multipleWrites",
+        "bufferOutputStream",
+        "realSinkOutputStream",
+        "nsOutputStreamClose",
+        "delegateTest",
+        "testSubscribeAfterOpen"
+      ],
+      "functionNames": [
+        "write",
+        "multipleWrites",
+        "bufferOutputStream",
+        "realSinkOutputStream",
+        "testOutputStream",
+        "nsOutputStreamClose",
+        "delegateTest",
+        "produceWithDelegate",
+        "stream",
+        "testSubscribeAfterOpen",
+        "subscribeAfterOpen"
+      ],
+      "classNames": [
+        "SinkNSOutputStreamTest"
+      ]
+    },
+    {
+      "path": "core/apple/test/SourceNSInputStreamTest.kt",
+      "gitBlobSha": "e7cce3c56847a0b0f2739db2ea21f1ffab6a22fa",
+      "size": 11241,
+      "testNames": [
+        "bufferInputStream",
+        "realSourceInputStream",
+        "bufferInputStreamLongData",
+        "realSourceInputStreamLongData",
+        "nsInputStreamClose",
+        "delegateTest",
+        "testRunLoopSwitch",
+        "testSubscribeAfterOpen"
+      ],
+      "functionNames": [
+        "bufferInputStream",
+        "realSourceInputStream",
+        "testInputStream",
+        "bufferInputStreamLongData",
+        "realSourceInputStreamLongData",
+        "testInputStreamLongData",
+        "nsInputStreamClose",
+        "delegateTest",
+        "consumeWithDelegate",
+        "stream",
+        "testRunLoopSwitch",
+        "consumeSwitching",
+        "testSubscribeAfterOpen",
+        "subscribeAfterOpen"
+      ],
+      "classNames": [
+        "SourceNSInputStreamTest"
+      ]
+    },
+    {
+      "path": "core/apple/test/utilApple.kt",
+      "gitBlobSha": "eb393be3145850b25c0c8ce8967f8d8cf8ce0b2f",
+      "size": 2361,
+      "testNames": [],
+      "functionNames": [
+        "toNSData",
+        "toByteArray",
+        "startRunLoop",
+        "lockWithTimeout",
+        "asString",
+        "write"
+      ],
+      "classNames": [
+        "MutexSource"
+      ]
+    },
+    {
+      "path": "core/common/test/AbstractSinkTest.kt",
+      "gitBlobSha": "f52f5eb7b204ddeca7a3e502d01cfcf0dab1b19a",
+      "size": 15919,
+      "testNames": [
+        "writeByteArray",
+        "writeNothing",
+        "writeByte",
+        "writeBytes",
+        "writeLastByteInSegment",
+        "writeShort",
+        "writeShorts",
+        "writeShortLe",
+        "writeInt",
+        "writeInts",
+        "writeLastIntegerInSegment",
+        "writeIntegerDoesNotQuiteFitInSegment",
+        "writeIntLe",
+        "writeLong",
+        "writeLongs",
+        "writeLongLe",
+        "writeAll",
+        "writeAllExhausted",
+        "writeSource",
+        "writeSourceReadsFully",
+        "writeSourcePropagatesEof",
+        "writeBufferThrowsIAE",
+        "writeSourceWithNegativeBytesCount",
+        "writeBufferWithNegativeBytesCount",
+        "writeSourceWithZeroIsNoOp",
+        "closeEmitsBufferedBytes",
+        "longDecimalString",
+        "longHexString",
+        "writeUtf8FromIndex",
+        "writeUtf8FromRange",
+        "writeUtf8WithInvalidIndexes",
+        "writeCharSequenceFromIndex",
+        "writeCharSequenceFromRange",
+        "writeCharSequenceWithInvalidIndexes",
+        "writeUByte",
+        "writeUShort",
+        "writeUShortLe",
+        "writeUInt",
+        "writeUIntLe",
+        "writeULong",
+        "writeULongLe",
+        "writeFloat",
+        "writeFloatLe",
+        "writeDouble",
+        "writeDoubleLe",
+        "writeByteString",
+        "writeByteStringOffset"
+      ],
+      "functionNames": [
+        "writeByteArray",
+        "writeNothing",
+        "writeByte",
+        "writeBytes",
+        "writeLastByteInSegment",
+        "writeShort",
+        "writeShorts",
+        "writeShortLe",
+        "writeInt",
+        "writeInts",
+        "writeLastIntegerInSegment",
+        "writeIntegerDoesNotQuiteFitInSegment",
+        "writeIntLe",
+        "writeLong",
+        "writeLongs",
+        "writeLongLe",
+        "writeAll",
+        "writeAllExhausted",
+        "writeSource",
+        "writeSourceReadsFully",
+        "readAtMostTo",
+        "writeSourcePropagatesEof",
+        "writeBufferThrowsIAE",
+        "writeSourceWithNegativeBytesCount",
+        "writeBufferWithNegativeBytesCount",
+        "writeSourceWithZeroIsNoOp",
+        "closeEmitsBufferedBytes",
+        "longDecimalString",
+        "assertLongDecimalString",
+        "longHexString",
+        "assertLongHexString",
+        "writeUtf8FromIndex",
+        "writeUtf8FromRange",
+        "writeUtf8WithInvalidIndexes",
+        "writeCharSequenceFromIndex",
+        "writeCharSequenceFromRange",
+        "writeCharSequenceWithInvalidIndexes",
+        "writeUByte",
+        "writeUShort",
+        "writeUShortLe",
+        "writeUInt",
+        "writeUIntLe",
+        "writeULong",
+        "writeULongLe",
+        "writeFloat",
+        "writeFloatLe",
+        "writeDouble",
+        "writeDoubleLe",
+        "writeByteString",
+        "writeByteStringOffset"
+      ],
+      "classNames": [
+        "BufferSinkTest",
+        "RealSinkTest",
+        "AbstractSinkTest"
+      ]
+    },
+    {
+      "path": "core/common/test/AbstractSourceTest.kt",
+      "gitBlobSha": "5c830ec8b7e60a46d12be3b55c194e4aab39fc87",
+      "size": 55133,
+      "testNames": [
+        "exhausted",
+        "readBytes",
+        "readByteTooShortThrows",
+        "readShort",
+        "readShortLe",
+        "readShortSplitAcrossMultipleSegments",
+        "readShortTooShortThrows",
+        "readShortLeTooShortThrows",
+        "readInt",
+        "readIntLe",
+        "readIntSplitAcrossMultipleSegments",
+        "readIntTooShortThrows",
+        "readIntLeTooShortThrows",
+        "readLong",
+        "readLongLe",
+        "readLongSplitAcrossMultipleSegments",
+        "readLongTooShortThrows",
+        "readLongLeTooShortThrows",
+        "transferTo",
+        "transferToExhausted",
+        "readExhaustedSource",
+        "readZeroBytesFromSource",
+        "readNegativeBytesFromSource",
+        "readFromClosedSource",
+        "readAtMostToBufferFromSourceWithFilledBuffer",
+        "readAtMostToNonEmptyBufferFromSourceWithFilledBuffer",
+        "readAtMostToByteArrayFromSourceWithFilledBuffer",
+        "readToSink",
+        "readToSinkTooShortThrows",
+        "readToSinkWithNegativeByteCount",
+        "readToSinkZeroBytes",
+        "readToByteArray",
+        "readToByteArraySubrange",
+        "readToByteArrayInvalidArguments",
+        "readToByteArrayTooShortThrows",
+        "readAtMostToByteArray",
+        "readAtMostToByteArrayNotEnough",
+        "readAtMostToByteArrayOffsetAndCount",
+        "readAtMostToByteArrayFromOffset",
+        "readAtMostToByteArrayWithInvalidArguments",
+        "readByteArray",
+        "readByteArrayPartial",
+        "readByteArrayTooShortThrows",
+        "readByteArrayWithNegativeSizeThrows",
+        "readUtf8SpansSegments",
+        "readUtf8Segment",
+        "readUtf8PartialBuffer",
+        "readUtf8EntireBuffer",
+        "readUtf8TooShortThrows",
+        "skip",
+        "skipInsufficientData",
+        "skipNegativeNumberOfBytes",
+        "indexOf",
+        "indexOfByteWithStartOffset",
+        "indexOfByteWithIndices",
+        "indexOfByteInvalidBoundsThrows",
+        "indexOfByteWithFromIndex",
+        "request",
+        "requestZeroBytes",
+        "requestNegativeNumberOfBytes",
+        "require",
+        "requireZeroBytes",
+        "requireNegativeNumberOfBytes",
+        "longHexString",
+        "hexStringWithManyLeadingZeros",
+        "longHexStringAcrossSegment",
+        "longHexTerminatedByNonDigit",
+        "longHexAlphabet",
+        "longHexStringTooLongThrows",
+        "longHexStringTooShortThrows",
+        "longHexEmptySourceThrows",
+        "longDecimalString",
+        "longDecimalStringAcrossSegment",
+        "longDecimalStringTooLongThrows",
+        "longDecimalStringTooHighThrows",
+        "longDecimalStringTooLowThrows",
+        "longDecimalStringTooShortThrows",
+        "longDecimalEmptyThrows",
+        "longDecimalLoneDashThrows",
+        "longDecimalDashFollowedByNonDigitThrows",
+        "codePoints",
+        "codePointsFromExhaustedSource",
+        "decimalStringWithManyLeadingZeros",
+        "peek",
+        "peekMultiple",
+        "peekLarge",
+        "peekInvalid",
+        "peekSegmentThenInvalid",
+        "peekDoesntReadTooMuch",
+        "factorySegmentSizes",
+        "readUtf8Line",
+        "readUtf8LineStrict",
+        "readUnsignedByte",
+        "readTooShortUnsignedByteThrows",
+        "readUnsignedShort",
+        "readUnsignedShortLe",
+        "readTooShortUnsignedShortThrows",
+        "readTooShortUnsignedShortLeThrows",
+        "readUnsignedInt",
+        "readUnsignedIntLe",
+        "readFloat",
+        "readDouble",
+        "readFloatLe",
+        "readDoubleLe",
+        "readTooShortFloatThrows",
+        "readTooShortDoubleThrows",
+        "readTooShortFloatLeThrows",
+        "readTooShortDoubleLeThrows",
+        "readTooShortUnsignedIntThrows",
+        "readTooShortUnsignedIntLeThrows",
+        "readUnsignedLong",
+        "readUnsignedLongLe",
+        "readTooShortUnsignedLongThrows",
+        "readTooShortUnsignedLongLeThrows",
+        "readByteString",
+        "readByteStringPartial",
+        "readByteStringTooShortThrows",
+        "indexOfByteString",
+        "indexOfByteStringAtSegmentBoundary",
+        "indexOfDoesNotWrapAround",
+        "indexOfByteStringWithOffset",
+        "indexOfEmptyByteString",
+        "indexOfByteStringAcrossSegmentBoundaries",
+        "indexOfByteStringSpanningAcrossMultipleSegments"
+      ],
+      "functionNames": [
+        "exhausted",
+        "readBytes",
+        "readByteTooShortThrows",
+        "readShort",
+        "readShortLe",
+        "readShortSplitAcrossMultipleSegments",
+        "readShortTooShortThrows",
+        "readShortLeTooShortThrows",
+        "readInt",
+        "readIntLe",
+        "readIntSplitAcrossMultipleSegments",
+        "readIntTooShortThrows",
+        "readIntLeTooShortThrows",
+        "readLong",
+        "readLongLe",
+        "readLongSplitAcrossMultipleSegments",
+        "readLongTooShortThrows",
+        "readLongLeTooShortThrows",
+        "transferTo",
+        "transferToExhausted",
+        "readExhaustedSource",
+        "readZeroBytesFromSource",
+        "readNegativeBytesFromSource",
+        "readFromClosedSource",
+        "readAtMostToBufferFromSourceWithFilledBuffer",
+        "readAtMostToNonEmptyBufferFromSourceWithFilledBuffer",
+        "readAtMostToByteArrayFromSourceWithFilledBuffer",
+        "readToSink",
+        "readToSinkTooShortThrows",
+        "readToSinkWithNegativeByteCount",
+        "readToSinkZeroBytes",
+        "readToByteArray",
+        "readToByteArraySubrange",
+        "readToByteArrayInvalidArguments",
+        "readToByteArrayTooShortThrows",
+        "readAtMostToByteArray",
+        "readAtMostToByteArrayNotEnough",
+        "readAtMostToByteArrayOffsetAndCount",
+        "readAtMostToByteArrayFromOffset",
+        "readAtMostToByteArrayWithInvalidArguments",
+        "readByteArray",
+        "readByteArrayPartial",
+        "readByteArrayTooShortThrows",
+        "readByteArrayWithNegativeSizeThrows",
+        "readUtf8SpansSegments",
+        "readUtf8Segment",
+        "readUtf8PartialBuffer",
+        "readUtf8EntireBuffer",
+        "readUtf8TooShortThrows",
+        "skip",
+        "skipInsufficientData",
+        "skipNegativeNumberOfBytes",
+        "indexOf",
+        "indexOfByteWithStartOffset",
+        "indexOfByteWithIndices",
+        "indexOfByteInvalidBoundsThrows",
+        "indexOfByteWithFromIndex",
+        "request",
+        "requestZeroBytes",
+        "requestNegativeNumberOfBytes",
+        "require",
+        "requireZeroBytes",
+        "requireNegativeNumberOfBytes",
+        "longHexString",
+        "hexStringWithManyLeadingZeros",
+        "assertLongHexString",
+        "longHexStringAcrossSegment",
+        "longHexTerminatedByNonDigit",
+        "longHexAlphabet",
+        "longHexStringTooLongThrows",
+        "longHexStringTooShortThrows",
+        "longHexEmptySourceThrows",
+        "longDecimalString",
+        "assertLongDecimalString",
+        "longDecimalStringAcrossSegment",
+        "longDecimalStringTooLongThrows",
+        "longDecimalStringTooHighThrows",
+        "longDecimalStringTooLowThrows",
+        "longDecimalStringTooShortThrows",
+        "longDecimalEmptyThrows",
+        "longDecimalLoneDashThrows",
+        "longDecimalDashFollowedByNonDigitThrows",
+        "codePoints",
+        "codePointsFromExhaustedSource",
+        "decimalStringWithManyLeadingZeros",
+        "peek",
+        "peekMultiple",
+        "peekLarge",
+        "peekInvalid",
+        "peekSegmentThenInvalid",
+        "peekDoesntReadTooMuch",
+        "factorySegmentSizes",
+        "readUtf8Line",
+        "readUtf8LineStrict",
+        "readUnsignedByte",
+        "readTooShortUnsignedByteThrows",
+        "readUnsignedShort",
+        "readUnsignedShortLe",
+        "readTooShortUnsignedShortThrows",
+        "readTooShortUnsignedShortLeThrows",
+        "readUnsignedInt",
+        "readUnsignedIntLe",
+        "readFloat",
+        "readDouble",
+        "readFloatLe",
+        "readDoubleLe",
+        "readTooShortFloatThrows",
+        "readTooShortDoubleThrows",
+        "readTooShortFloatLeThrows",
+        "readTooShortDoubleLeThrows",
+        "readTooShortUnsignedIntThrows",
+        "readTooShortUnsignedIntLeThrows",
+        "readUnsignedLong",
+        "readUnsignedLongLe",
+        "readTooShortUnsignedLongThrows",
+        "readTooShortUnsignedLongLeThrows",
+        "readByteString",
+        "readByteStringPartial",
+        "readByteStringTooShortThrows",
+        "indexOfByteString",
+        "indexOfByteStringAtSegmentBoundary",
+        "indexOfDoesNotWrapAround",
+        "indexOfByteStringWithOffset",
+        "indexOfEmptyByteString",
+        "indexOfByteStringAcrossSegmentBoundaries",
+        "indexOfByteStringSpanningAcrossMultipleSegments"
+      ],
+      "classNames": [
+        "BufferSourceTest",
+        "RealBufferedSourceTest",
+        "OneByteAtATimeBufferedSourceTest",
+        "OneByteAtATimeBufferTest",
+        "PeekBufferTest",
+        "PeekBufferedSourceTest",
+        "AbstractBufferedSourceTest"
+      ]
+    },
+    {
+      "path": "core/common/test/AlwaysSharedCopyTrackerTest.kt",
+      "gitBlobSha": "62418c8c0b854afc0aabf701b62220b2c172b8ac",
+      "size": 656,
+      "testNames": [
+        "stateTransition"
+      ],
+      "functionNames": [
+        "stateTransition"
+      ],
+      "classNames": [
+        "AlwaysSharedCopyTrackerTest"
+      ]
+    },
+    {
+      "path": "core/common/test/CommonBufferTest.kt",
+      "gitBlobSha": "801c21cca0aafcb5854de25d2cbdb6dd1c5f0f9e",
+      "size": 21696,
+      "testNames": [
+        "readAndWriteUtf8",
+        "bufferToString",
+        "multipleSegmentBuffers",
+        "fillAndDrainPool",
+        "moveBytesBetweenBuffersShareSegment",
+        "moveBytesBetweenBuffersReassignSegment",
+        "moveBytesBetweenBuffersMultipleSegments",
+        "writeSplitSourceBufferLeft",
+        "writeSplitSourceBufferRight",
+        "writePrefixDoesntSplit",
+        "writePrefixDoesntSplitButRequiresCompact",
+        "writeSourceWithNegativeNumberOfBytes",
+        "moveAllRequestedBytesWithRead",
+        "moveFewerThanRequestedBytesWithRead",
+        "indexOfWithOffset",
+        "byteAt",
+        "getByteOfEmptyBuffer",
+        "getByteByInvalidIndex",
+        "writePrefixToEmptyBuffer",
+        "equalsAndHashCode",
+        "readAllWritesAllSegmentsAtOnce",
+        "writeAllMultipleSegments",
+        "copyTo",
+        "copyToAll",
+        "copyToWithOnlyStartIndex",
+        "copyToWithOnlyEndIndex",
+        "copyToOnSegmentBoundary",
+        "copyToOffSegmentBoundary",
+        "copyToSourceAndTargetCanBeTheSame",
+        "copyToEmptySource",
+        "copyToEmptyTarget",
+        "completeSegmentByteCountOnEmptyBuffer",
+        "completeSegmentByteCountOnBufferWithFullSegments",
+        "completeSegmentByteCountOnBufferWithIncompleteTailSegment",
+        "cloneDoesNotObserveWritesToOriginal",
+        "cloneDoesNotObserveReadsFromOriginal",
+        "originalDoesNotObserveWritesToClone",
+        "originalDoesNotObserveReadsFromClone",
+        "cloneMultipleSegments",
+        "readAndWriteToSelf",
+        "transferCopy",
+        "snapshot",
+        "splitHead",
+        "indexOfByteString"
+      ],
+      "functionNames": [
+        "readAndWriteUtf8",
+        "bufferToString",
+        "multipleSegmentBuffers",
+        "fillAndDrainPool",
+        "moveBytesBetweenBuffersShareSegment",
+        "moveBytesBetweenBuffersReassignSegment",
+        "moveBytesBetweenBuffersMultipleSegments",
+        "moveBytesBetweenBuffers",
+        "writeSplitSourceBufferLeft",
+        "writeSplitSourceBufferRight",
+        "writePrefixDoesntSplit",
+        "writePrefixDoesntSplitButRequiresCompact",
+        "writeSourceWithNegativeNumberOfBytes",
+        "moveAllRequestedBytesWithRead",
+        "moveFewerThanRequestedBytesWithRead",
+        "indexOfWithOffset",
+        "byteAt",
+        "getByteOfEmptyBuffer",
+        "getByteByInvalidIndex",
+        "writePrefixToEmptyBuffer",
+        "equalsAndHashCode",
+        "readAllWritesAllSegmentsAtOnce",
+        "writeAllMultipleSegments",
+        "copyTo",
+        "copyToAll",
+        "copyToWithOnlyStartIndex",
+        "copyToWithOnlyEndIndex",
+        "copyToOnSegmentBoundary",
+        "copyToOffSegmentBoundary",
+        "copyToSourceAndTargetCanBeTheSame",
+        "copyToEmptySource",
+        "copyToEmptyTarget",
+        "completeSegmentByteCountOnEmptyBuffer",
+        "completeSegmentByteCountOnBufferWithFullSegments",
+        "completeSegmentByteCountOnBufferWithIncompleteTailSegment",
+        "cloneDoesNotObserveWritesToOriginal",
+        "cloneDoesNotObserveReadsFromOriginal",
+        "originalDoesNotObserveWritesToClone",
+        "originalDoesNotObserveReadsFromClone",
+        "cloneMultipleSegments",
+        "readAndWriteToSelf",
+        "transferCopy",
+        "snapshot",
+        "splitHead",
+        "indexOfByteString"
+      ],
+      "classNames": [
+        "CommonBufferTest"
+      ]
+    },
+    {
+      "path": "core/common/test/CommonPlatformTest.kt",
+      "gitBlobSha": "2cf8faa20a4c8f3de4498e300ea8e5608520518c",
+      "size": 1515,
+      "testNames": [
+        "sourceBuffer",
+        "sinkBuffer",
+        "discardingSinkTest"
+      ],
+      "functionNames": [
+        "sourceBuffer",
+        "sinkBuffer",
+        "discardingSinkTest"
+      ],
+      "classNames": [
+        "CommonPlatformTest"
+      ]
+    },
+    {
+      "path": "core/common/test/CommonRealSinkTest.kt",
+      "gitBlobSha": "f6b454e97b779d097ffe934932f2997faa9083c6",
+      "size": 7364,
+      "testNames": [
+        "bufferedSinkEmitsTailWhenItIsComplete",
+        "bufferedSinkEmitMultipleSegments",
+        "bufferedSinkFlush",
+        "bytesEmittedToSinkWithFlush",
+        "bytesNotEmittedToSinkWithoutFlush",
+        "bytesEmittedToSinkWithEmit",
+        "completeSegmentsEmitted",
+        "incompleteSegmentsNotEmitted",
+        "closeWithExceptionWhenWriting",
+        "closeWithExceptionWhenClosing",
+        "closeWithExceptionWhenWritingAndClosing",
+        "operationsAfterClose",
+        "writeAll",
+        "writeAllExhausted",
+        "writeAllWritesOneSegmentAtATime",
+        "closeMultipleTimes"
+      ],
+      "functionNames": [
+        "bufferedSinkEmitsTailWhenItIsComplete",
+        "bufferedSinkEmitMultipleSegments",
+        "bufferedSinkFlush",
+        "bytesEmittedToSinkWithFlush",
+        "bytesNotEmittedToSinkWithoutFlush",
+        "bytesEmittedToSinkWithEmit",
+        "completeSegmentsEmitted",
+        "incompleteSegmentsNotEmitted",
+        "closeWithExceptionWhenWriting",
+        "closeWithExceptionWhenClosing",
+        "closeWithExceptionWhenWritingAndClosing",
+        "operationsAfterClose",
+        "writeAll",
+        "writeAllExhausted",
+        "writeAllWritesOneSegmentAtATime",
+        "closeMultipleTimes",
+        "write",
+        "flush",
+        "close"
+      ],
+      "classNames": [
+        "CommonRealSinkTest"
+      ]
+    },
+    {
+      "path": "core/common/test/CommonRealSourceTest.kt",
+      "gitBlobSha": "b345516f2d022d8e50e44bfa44e6f0f5747be6a6",
+      "size": 7100,
+      "testNames": [
+        "indexOfStopsReadingAtLimit",
+        "requireTracksBufferFirst",
+        "requireIncludesBufferBytes",
+        "requireInsufficientData",
+        "requireReadsOneSegmentAtATime",
+        "skipReadsOneSegmentAtATime",
+        "skipTracksBufferFirst",
+        "operationsAfterClose",
+        "transferToReadsOneSegmentAtATime",
+        "closeMultipleTimes",
+        "readAtMostFromEmptySource",
+        "readAtMostFromFinite"
+      ],
+      "functionNames": [
+        "indexOfStopsReadingAtLimit",
+        "readAtMostTo",
+        "requireTracksBufferFirst",
+        "requireIncludesBufferBytes",
+        "requireInsufficientData",
+        "requireReadsOneSegmentAtATime",
+        "skipReadsOneSegmentAtATime",
+        "skipTracksBufferFirst",
+        "operationsAfterClose",
+        "transferToReadsOneSegmentAtATime",
+        "closeMultipleTimes",
+        "close",
+        "readAtMostFromEmptySource",
+        "readAtMostFromFinite"
+      ],
+      "classNames": [
+        "CommonRealSourceTest"
+      ]
+    },
+    {
+      "path": "core/common/test/DelicateApiTest.kt",
+      "gitBlobSha": "70abc821bad133a4359c406b7ab737579a5dc77e",
+      "size": 1513,
+      "testNames": [
+        "callsInPlaceContract",
+        "testWriteIntoBuffer"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "testWriteIntoBuffer"
+      ],
+      "classNames": [
+        "DelicateApiTest"
+      ]
+    },
+    {
+      "path": "core/common/test/files/SmokeFileTest.kt",
+      "gitBlobSha": "db7824e7a348529bcb1cfcde76fbfe92ab0f493f",
+      "size": 14635,
+      "testNames": [
+        "readWriteFile",
+        "writeFlush",
+        "readNotExistingFile",
+        "readWriteMultipleSegments",
+        "basicFileSystemOps",
+        "checkTmpDir",
+        "atomicMove",
+        "atomicMoveDir",
+        "deleteFile",
+        "moveNonExistingFile",
+        "createDirectories",
+        "trailingSeparatorsTrimming",
+        "pathParent",
+        "pathConcat",
+        "fileName",
+        "isAbsolute",
+        "fileMetadata",
+        "fileSize",
+        "pathEquality",
+        "deleteNonEmptyDirectory",
+        "readDirectory",
+        "writeDirectory",
+        "appendToFile",
+        "resolve",
+        "createAnEmptyFileUsingSink",
+        "closeFileSinkTwice",
+        "closeFileSourceTwice",
+        "listDirectory"
+      ],
+      "functionNames": [
+        "cleanup",
+        "createTempPath",
+        "removeOnExit",
+        "readWriteFile",
+        "writeFlush",
+        "readNotExistingFile",
+        "readWriteMultipleSegments",
+        "basicFileSystemOps",
+        "checkTmpDir",
+        "atomicMove",
+        "atomicMoveDir",
+        "deleteFile",
+        "moveNonExistingFile",
+        "createDirectories",
+        "trailingSeparatorsTrimming",
+        "pathParent",
+        "pathConcat",
+        "fileName",
+        "isAbsolute",
+        "fileMetadata",
+        "fileSize",
+        "pathEquality",
+        "deleteNonEmptyDirectory",
+        "readDirectory",
+        "writeDirectory",
+        "appendToFile",
+        "resolve",
+        "createAnEmptyFileUsingSink",
+        "closeFileSinkTwice",
+        "closeFileSourceTwice",
+        "listDirectory",
+        "constructAbsolutePath",
+        "constructRelativePath"
+      ],
+      "classNames": [
+        "SmokeFileTest"
+      ]
+    },
+    {
+      "path": "core/common/test/files/SmokeFileTestWindows.kt",
+      "gitBlobSha": "5c11784195394700eaf23f4d8628f59c8e204a7a",
+      "size": 1580,
+      "testNames": [
+        "isAbsolute",
+        "getParent",
+        "trailingSeparatorsTrimming"
+      ],
+      "functionNames": [
+        "isAbsolute",
+        "getParent",
+        "trailingSeparatorsTrimming"
+      ],
+      "classNames": [
+        "SmokeFileTestWindows"
+      ]
+    },
+    {
+      "path": "core/common/test/files/UtilsTest.kt",
+      "gitBlobSha": "496ef423906a71c817aba2aec83fe459d3cd0258",
+      "size": 2551,
+      "testNames": [
+        "testPathTrimmingUnix",
+        "testPathTrimmingWindows"
+      ],
+      "functionNames": [
+        "removeTrailingSeparatorsU",
+        "removeTrailingSeparatorsW",
+        "testPathTrimmingUnix",
+        "testPathTrimmingWindows"
+      ],
+      "classNames": [
+        "UtilsTest"
+      ]
+    },
+    {
+      "path": "core/common/test/LineSeparatorTest.kt",
+      "gitBlobSha": "ca03a987416bb30feafc5e69aae9d5e0c515fd1b",
+      "size": 535,
+      "testNames": [
+        "testLineSeparator"
+      ],
+      "functionNames": [
+        "testLineSeparator"
+      ],
+      "classNames": [
+        "LineSeparatorTest"
+      ]
+    },
+    {
+      "path": "core/common/test/MockSink.kt",
+      "gitBlobSha": "30725f753c81b1e3698cfa4c4988488604fd5784",
+      "size": 1853,
+      "testNames": [],
+      "functionNames": [
+        "assertLog",
+        "assertLogContains",
+        "scheduleThrow",
+        "throwIfScheduled",
+        "write",
+        "flush",
+        "close"
+      ],
+      "classNames": [
+        "MockSink"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/byteStringSample.kt",
+      "gitBlobSha": "6b3c743325cca8a34b1871a567bc11154526d36f",
+      "size": 1340,
+      "testNames": [
+        "writeByteString",
+        "readByteString",
+        "indexOfByteString"
+      ],
+      "functionNames": [
+        "writeByteString",
+        "readByteString",
+        "indexOfByteString"
+      ],
+      "classNames": [
+        "ByteStringSamples"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/moduleDescriptionSample.kt",
+      "gitBlobSha": "fd2f3f6ccc30c334a7a73d8cd9a7cda0cd9e5358",
+      "size": 2938,
+      "testNames": [
+        "sample"
+      ],
+      "functionNames": [
+        "toBson",
+        "fromBson",
+        "readFieldName",
+        "sample"
+      ],
+      "classNames": [
+        "Message",
+        "ModuleDescriptionSampleTest"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/rawSinkSample.kt",
+      "gitBlobSha": "ae25a396dc0d8366666766d636ae1e35ba14ce39",
+      "size": 2345,
+      "testNames": [
+        "crc32"
+      ],
+      "functionNames": [
+        "crc32",
+        "update",
+        "write",
+        "flush",
+        "close",
+        "generateCrc32Table"
+      ],
+      "classNames": [
+        "Crc32Sample",
+        "CRC32Sink"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/rawSourceSample.kt",
+      "gitBlobSha": "6d25dba77930714149907de2509fb6653c0c157f",
+      "size": 3033,
+      "testNames": [
+        "rc4"
+      ],
+      "functionNames": [
+        "rc4",
+        "readAtMostTo",
+        "close",
+        "nextByte",
+        "swapStateBytes"
+      ],
+      "classNames": [
+        "RC4SourceSample",
+        "RC4DecryptingSource",
+        "RC4Key"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/samples.kt",
+      "gitBlobSha": "870bfa7643536a008320f4cff5a050788c1b886d",
+      "size": 23500,
+      "testNames": [
+        "bufferToString",
+        "bufferClear",
+        "bufferGetByte",
+        "bufferCopy",
+        "transferFrom",
+        "transferTo",
+        "peekSample",
+        "utf8SizeSample",
+        "writeUtf8CodePointSample",
+        "writeSurrogatePair",
+        "readUtf8CodePointSample",
+        "surrogatePairs",
+        "readLinesSample",
+        "readShortLe",
+        "readIntLe",
+        "readLongLe",
+        "writeShortLe",
+        "writeIntLe",
+        "writeLongLe",
+        "readDecimalLong",
+        "writeDecimalLong",
+        "writeHexLong",
+        "readHexLong",
+        "startsWithSample",
+        "indexOfByteSample",
+        "readToArraySample",
+        "writeUtf8Sample",
+        "writeUtf8SeqSample",
+        "readUtf8",
+        "readByteArraySample",
+        "readByte",
+        "readShort",
+        "readInt",
+        "readLong",
+        "skip",
+        "request",
+        "require",
+        "exhausted",
+        "writeByte",
+        "writeShort",
+        "writeInt",
+        "writeLong",
+        "readUByte",
+        "readUShort",
+        "readUInt",
+        "readULong",
+        "readFloat",
+        "readDouble",
+        "writeUByte",
+        "writeUShort",
+        "writeUInt",
+        "writeULong",
+        "writeFloat",
+        "writeDouble",
+        "flush",
+        "emit",
+        "writeSourceToSink",
+        "writeByteArrayToSink",
+        "readSourceToSink",
+        "readAtMostToByteArray",
+        "readAtMostToSink",
+        "readUShortLe",
+        "readUIntLe",
+        "readULongLe",
+        "readFloatLe",
+        "readDoubleLe",
+        "writeUShortLe",
+        "writeUIntLe",
+        "writeULongLe",
+        "writeFloatLe",
+        "writeDoubleLe"
+      ],
+      "functionNames": [
+        "bufferToString",
+        "bufferClear",
+        "bufferGetByte",
+        "bufferCopy",
+        "transferFrom",
+        "transferTo",
+        "peekSample",
+        "utf8SizeSample",
+        "writeUtf8CodePointSample",
+        "writeSurrogatePair",
+        "readUtf8CodePointSample",
+        "surrogatePairs",
+        "readLinesSample",
+        "readShortLe",
+        "readIntLe",
+        "readLongLe",
+        "writeShortLe",
+        "writeIntLe",
+        "writeLongLe",
+        "readDecimalLong",
+        "writeDecimalLong",
+        "writeHexLong",
+        "readHexLong",
+        "startsWithSample",
+        "indexOfByteSample",
+        "readToArraySample",
+        "writeUtf8Sample",
+        "writeUtf8SeqSample",
+        "readUtf8",
+        "readByteArraySample",
+        "readByte",
+        "readShort",
+        "readInt",
+        "readLong",
+        "skip",
+        "request",
+        "readAtMostTo",
+        "close",
+        "require",
+        "exhausted",
+        "writeByte",
+        "writeShort",
+        "writeInt",
+        "writeLong",
+        "readUByte",
+        "readUShort",
+        "readUInt",
+        "readULong",
+        "readFloat",
+        "readDouble",
+        "writeUByte",
+        "writeUShort",
+        "writeUInt",
+        "writeULong",
+        "writeFloat",
+        "writeDouble",
+        "flush",
+        "write",
+        "emit",
+        "writeSourceToSink",
+        "writeByteArrayToSink",
+        "readSourceToSink",
+        "readAtMostToByteArray",
+        "readAtMostToSink",
+        "readUShortLe",
+        "readUIntLe",
+        "readULongLe",
+        "readFloatLe",
+        "readDoubleLe",
+        "writeUShortLe",
+        "writeUIntLe",
+        "writeULongLe",
+        "writeFloatLe",
+        "writeDoubleLe"
+      ],
+      "classNames": [
+        "KotlinxIoCoreCommonSamples"
+      ]
+    },
+    {
+      "path": "core/common/test/samples/unsafe/unsafeSamples.kt",
+      "gitBlobSha": "b51ba86f4d8fbb30e45d642f5876c055d1871dda",
+      "size": 12970,
+      "testNames": [
+        "writeByteArrayToTail",
+        "moveToTail",
+        "readByteArrayFromHead",
+        "readUleb128",
+        "writeUleb128",
+        "writeUleb128Array",
+        "crc32Unsafe",
+        "crc32GetUnchecked"
+      ],
+      "functionNames": [
+        "writeByteArrayToTail",
+        "writeRandomBytes",
+        "moveToTail",
+        "writeBase64",
+        "readByteArrayFromHead",
+        "readULeb128",
+        "readUleb128",
+        "readULEB128UInt",
+        "writeUleb128",
+        "writeULEB128",
+        "writeUleb128Array",
+        "crc32Unsafe",
+        "generateCrc32Table",
+        "crc32",
+        "crc32GetUnchecked",
+        "crc32UsingGetUnchecked"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsSamples"
+      ]
+    },
+    {
+      "path": "core/common/test/SinkFactory.kt",
+      "gitBlobSha": "54a4d54c8750a05349ac4d22eb196468ae16a600",
+      "size": 1277,
+      "testNames": [],
+      "functionNames": [
+        "create"
+      ],
+      "classNames": [
+        "SinkFactory"
+      ]
+    },
+    {
+      "path": "core/common/test/SourceFactory.kt",
+      "gitBlobSha": "554c7f74f0d89eed60c195d2caefcfb40b90c040",
+      "size": 5115,
+      "testNames": [],
+      "functionNames": [
+        "pipe",
+        "readAtMostTo",
+        "write"
+      ],
+      "classNames": [
+        "SourceFactory",
+        "Pipe"
+      ]
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsForEachTest.kt",
+      "gitBlobSha": "68ba2b5b6f1d0cc6ed4736629d05df24af5ddbdd",
+      "size": 2108,
+      "testNames": [
+        "emptyBuffer",
+        "singleSegment",
+        "multipleSegments",
+        "acquireDataDuringIteration"
+      ],
+      "functionNames": [
+        "emptyBuffer",
+        "singleSegment",
+        "multipleSegments",
+        "acquireDataDuringIteration"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsForEachTest"
+      ]
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsIterationTest.kt",
+      "gitBlobSha": "16b07c12a633e0822d2d81cd6152b979356fc48c",
+      "size": 5452,
+      "testNames": [
+        "callsInPlaceContract",
+        "emptyBuffer",
+        "singleSegment",
+        "multipleSegments",
+        "acquireDataDuringIteration",
+        "seekStartOffsets",
+        "seekOutOfBounds"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "emptyBuffer",
+        "singleSegment",
+        "multipleSegments",
+        "acquireDataDuringIteration",
+        "seekStartOffsets",
+        "seekOutOfBounds"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsIterationTest"
+      ]
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsMoveTest.kt",
+      "gitBlobSha": "b251c55923a912e141e089b1960496fdcba18a11",
+      "size": 2907,
+      "testNames": [
+        "moveArrayFully",
+        "moveArraySlice",
+        "movedArrayIsReadOnly",
+        "moveEmptySlice",
+        "illegalArgumentsHandling",
+        "moveMultipleSegments"
+      ],
+      "functionNames": [
+        "moveArrayFully",
+        "moveArraySlice",
+        "movedArrayIsReadOnly",
+        "moveEmptySlice",
+        "illegalArgumentsHandling",
+        "moveMultipleSegments"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsMoveTest"
+      ]
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsReadTest.kt",
+      "gitBlobSha": "7866afee0d37e9e03182b28e19f1b56a4ee715e2",
+      "size": 6277,
+      "testNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "consumeByteByByte",
+        "readNothing",
+        "readEverything",
+        "readFromEmptyBuffer",
+        "readFromTheSegmentEnd",
+        "readFromTheSegmentEndUsingCtx",
+        "returnIllegalReadCount",
+        "resetReadOnException"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "consumeByteByByte",
+        "readNothing",
+        "readEverything",
+        "readFromEmptyBuffer",
+        "readFromTheSegmentEnd",
+        "readFromTheSegmentEndUsingCtx",
+        "returnIllegalReadCount",
+        "resetReadOnException"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsReadTest",
+        "TestException"
+      ]
+    },
+    {
+      "path": "core/common/test/unsafe/UnsafeBufferOperationsWriteTest.kt",
+      "gitBlobSha": "9e638245ca323a19fc2c464069ed5613802fe1e0",
+      "size": 8151,
+      "testNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "writeByteByByte",
+        "writeNothing",
+        "writeWholeBuffer",
+        "writeWithCtx",
+        "requireToManyBytes",
+        "writeToTheEndOfABuffer",
+        "writeToTheEndOfABufferUsingCtx",
+        "returnIllegalWriteCount",
+        "writeMultipleBytes",
+        "resetWriteOnException",
+        "returnLessBytesThanItWasActuallyWritten"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "writeByteByByte",
+        "writeNothing",
+        "writeWholeBuffer",
+        "writeWithCtx",
+        "requireToManyBytes",
+        "writeToTheEndOfABuffer",
+        "writeToTheEndOfABufferUsingCtx",
+        "returnIllegalWriteCount",
+        "writeMultipleBytes",
+        "resetWriteOnException",
+        "returnLessBytesThanItWasActuallyWritten"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsWriteTest",
+        "TestException"
+      ]
+    },
+    {
+      "path": "core/common/test/Utf8Test.kt",
+      "gitBlobSha": "499039d7d5ecff8f3c39754aece19fa35afcc207",
+      "size": 19582,
+      "testNames": [
+        "oneByteCharacters",
+        "twoByteCharacters",
+        "threeByteCharacters",
+        "fourByteCharacters",
+        "unknownBytes",
+        "overlongSequences",
+        "danglingHighSurrogate",
+        "lowSurrogateWithoutHighSurrogate",
+        "highSurrogateFollowedByNonSurrogate",
+        "doubleLowSurrogate",
+        "doubleHighSurrogate",
+        "lowSurrogateHighSurrogate",
+        "writeSurrogateCodePoint",
+        "bufferWriteCodePoints",
+        "bufferWriteCodePointsCrossSegments",
+        "bufferReadCodePoints",
+        "bufferReadCodePointsCrossSegments",
+        "bufferWriteUtf8String",
+        "bufferWriteUtf8StringCrossSegments",
+        "bufferWriteUtf8CharSequence",
+        "bufferWriteUtf8CharSequenceCrossSegments",
+        "bufferReadUtf8String",
+        "bufferReadUtf8StringCrossSegments",
+        "size",
+        "sizeWithBounds",
+        "sizeBoundsCheck",
+        "readCodePointFromEmptyBufferThrowsEofException",
+        "readLeadingContinuationByteReturnsReplacementCharacter",
+        "readMissingContinuationBytesThrowsEofException",
+        "readTooLargeCodepointReturnsReplacementCharacter",
+        "readNonContinuationBytesReturnsReplacementCharacter",
+        "readCodePointBeyondUnicodeMaximum",
+        "readSurrogateCodePoint",
+        "readOverlongCodePoint",
+        "writeCodePointBeyondUnicodeMaximum",
+        "writeCodePointBelowUnicodeMinimum",
+        "readStringWithUnderflow",
+        "readStringWithoutContinuationByte",
+        "encodeUtf16SurrogatePair"
+      ],
+      "functionNames": [
+        "oneByteCharacters",
+        "twoByteCharacters",
+        "threeByteCharacters",
+        "fourByteCharacters",
+        "unknownBytes",
+        "overlongSequences",
+        "danglingHighSurrogate",
+        "lowSurrogateWithoutHighSurrogate",
+        "highSurrogateFollowedByNonSurrogate",
+        "doubleLowSurrogate",
+        "doubleHighSurrogate",
+        "lowSurrogateHighSurrogate",
+        "writeSurrogateCodePoint",
+        "bufferWriteCodePoints",
+        "bufferWriteCodePointsCrossSegments",
+        "bufferWriteCodePointsCheck",
+        "bufferReadCodePoints",
+        "bufferReadCodePointsCrossSegments",
+        "bufferReadCodePointsCheck",
+        "bufferWriteUtf8String",
+        "bufferWriteUtf8StringCrossSegments",
+        "bufferWriteUtf8CharSequence",
+        "bufferWriteUtf8CharSequenceCrossSegments",
+        "bufferWriteUtf8StringCheck",
+        "bufferReadUtf8String",
+        "bufferReadUtf8StringCrossSegments",
+        "bufferReadUtf8StringCheck",
+        "size",
+        "sizeWithBounds",
+        "sizeBoundsCheck",
+        "readCodePointFromEmptyBufferThrowsEofException",
+        "readLeadingContinuationByteReturnsReplacementCharacter",
+        "readMissingContinuationBytesThrowsEofException",
+        "readTooLargeCodepointReturnsReplacementCharacter",
+        "readNonContinuationBytesReturnsReplacementCharacter",
+        "readCodePointBeyondUnicodeMaximum",
+        "readSurrogateCodePoint",
+        "readOverlongCodePoint",
+        "writeCodePointBeyondUnicodeMaximum",
+        "writeCodePointBelowUnicodeMinimum",
+        "readStringWithUnderflow",
+        "readStringWithoutContinuationByte",
+        "encodeUtf16SurrogatePair",
+        "assertEncoded",
+        "assertCodePointDecoded",
+        "assertCodePointEncoded",
+        "assertUtf8StringEncoded",
+        "assertUtf8StringDecoded",
+        "assertStringEncoded"
+      ],
+      "classNames": [
+        "Utf8Test"
+      ]
+    },
+    {
+      "path": "core/common/test/util.kt",
+      "gitBlobSha": "3d15705113a2da5629722f19e4da7d6396e72d76",
+      "size": 5858,
+      "testNames": [],
+      "functionNames": [
+        "segmentSizes",
+        "assertNoEmptySegments",
+        "tempFileName",
+        "fromHexChar",
+        "decodeHex",
+        "repeat",
+        "assertArrayEquals",
+        "commonAsUtf8ToByteArray",
+        "processUtf8Bytes",
+        "asUtf8ToByteArray"
+      ],
+      "classNames": []
+    },
+    {
+      "path": "core/common/test/UtilsTest.kt",
+      "gitBlobSha": "392dc7baffd906fbfe3ea6997601df39926fcdeb",
+      "size": 1165,
+      "testNames": [
+        "hexNumberLength"
+      ],
+      "functionNames": [
+        "hexNumberLength"
+      ],
+      "classNames": [
+        "UtilsTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/AbstractSinkTestJVM.kt",
+      "gitBlobSha": "c143c151c02e9abd30133481ed5f7216ea4418b3",
+      "size": 4767,
+      "testNames": [
+        "outputStream",
+        "outputStreamBounds",
+        "writeToClosedOutputStream",
+        "outputStreamClosesSink",
+        "writeNioBuffer",
+        "writeLargeNioBufferWritesAllData",
+        "writeNioBufferToClosedSink",
+        "writeStringWithCharset",
+        "writeSubstringWithCharset",
+        "writeUtf8SubstringWithCharset"
+      ],
+      "functionNames": [
+        "outputStream",
+        "outputStreamBounds",
+        "writeToClosedOutputStream",
+        "outputStreamClosesSink",
+        "writeNioBuffer",
+        "writeLargeNioBufferWritesAllData",
+        "writeNioBufferToClosedSink",
+        "writeStringWithCharset",
+        "writeSubstringWithCharset",
+        "writeUtf8SubstringWithCharset"
+      ],
+      "classNames": [
+        "BufferSinkTestJVM",
+        "RealSinkTestJVM",
+        "AbstractSinkTestJVM"
+      ]
+    },
+    {
+      "path": "core/jvm/test/AbstractSourceTestJVM.kt",
+      "gitBlobSha": "511446d903261c0d9d8bd2e90b7723add16fa086",
+      "size": 8616,
+      "testNames": [
+        "inputStream",
+        "inputStreamOffsetCount",
+        "inputStreamSkip",
+        "inputStreamCharByChar",
+        "inputStreamBounds",
+        "inputStreamForClosedSource",
+        "inputStreamClosesSource",
+        "inputStreamAvailable",
+        "inputStreamAvailableForClosedSource",
+        "readNioBuffer",
+        "readLargeNioBufferOnlyReadsOneSegment",
+        "readNioBufferFromEmptySource",
+        "readSpecificCharsetPartial",
+        "readSpecificCharset",
+        "readStringTooShortThrows"
+      ],
+      "functionNames": [
+        "inputStream",
+        "inputStreamOffsetCount",
+        "inputStreamSkip",
+        "inputStreamCharByChar",
+        "inputStreamBounds",
+        "inputStreamForClosedSource",
+        "inputStreamClosesSource",
+        "inputStreamAvailable",
+        "inputStreamAvailableForClosedSource",
+        "readNioBuffer",
+        "readLargeNioBufferOnlyReadsOneSegment",
+        "readNioBufferFromEmptySource",
+        "readSpecificCharsetPartial",
+        "readSpecificCharset",
+        "readStringTooShortThrows"
+      ],
+      "classNames": [
+        "BufferSourceTestJVM",
+        "RealBufferedSourceTestJVM",
+        "OneByteAtATimeBufferedSourceTestJVM",
+        "OneByteAtATimeBufferTestJVM",
+        "PeekBufferTestJVM",
+        "PeekBufferedSourceTestJVM",
+        "AbstractSourceTestJVM"
+      ]
+    },
+    {
+      "path": "core/jvm/test/BufferTest.kt",
+      "gitBlobSha": "693cf67caf375cc51d568b7b39c27fff9a84dc98",
+      "size": 8461,
+      "testNames": [
+        "copyToSpanningSegments",
+        "copyToSkippingSegments",
+        "copyToStream",
+        "writeToSpanningSegments",
+        "writeToStream",
+        "readFromStream",
+        "readFromSpanningSegments",
+        "readFromStreamWithCount",
+        "readFromStreamThrowsEOFOnExhaustion",
+        "readFromStreamWithNegativeBytesCount",
+        "readFromDoesNotLeaveEmptyTailSegment",
+        "bufferInputStreamByteByByte",
+        "bufferInputStreamBulkReads",
+        "copyToOutputStream",
+        "copyToOutputStreamWithStartIndex",
+        "copyToOutputStreamWithEndIndex",
+        "copyToOutputStreamWithIndices",
+        "copyToOutputStreamWithEmptyRange",
+        "readToOutputStream",
+        "readToOutputStreamWithByteCount",
+        "readEmptyBufferToByteBuffer"
+      ],
+      "functionNames": [
+        "copyToSpanningSegments",
+        "copyToSkippingSegments",
+        "copyToStream",
+        "writeToSpanningSegments",
+        "writeToStream",
+        "readFromStream",
+        "readFromSpanningSegments",
+        "readFromStreamWithCount",
+        "readFromStreamThrowsEOFOnExhaustion",
+        "readFromStreamWithNegativeBytesCount",
+        "readFromDoesNotLeaveEmptyTailSegment",
+        "bufferInputStreamByteByByte",
+        "bufferInputStreamBulkReads",
+        "copyToOutputStream",
+        "copyToOutputStreamWithStartIndex",
+        "copyToOutputStreamWithEndIndex",
+        "copyToOutputStreamWithIndices",
+        "copyToOutputStreamWithEmptyRange",
+        "readToOutputStream",
+        "readToOutputStreamWithByteCount",
+        "readEmptyBufferToByteBuffer"
+      ],
+      "classNames": [
+        "BufferTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/files/SmokeFileTestWindowsJVM.kt",
+      "gitBlobSha": "d873a68b83ad99e55ea788601f324ce7b73c17c4",
+      "size": 578,
+      "testNames": [
+        "uncParent"
+      ],
+      "functionNames": [
+        "uncParent"
+      ],
+      "classNames": [
+        "SmokeFileTestWindowsJVM"
+      ]
+    },
+    {
+      "path": "core/jvm/test/JvmPlatformTest.kt",
+      "gitBlobSha": "220b067e7ddfaf5bf1cff901e6da7d8b91613df7",
+      "size": 6371,
+      "testNames": [
+        "outputStreamSink",
+        "outputStreamSinkWriteZeroBytes",
+        "outputStreamSinkWriteNegativeNumberOfBytes",
+        "outputStreamSinkWritePartOfTheBuffer",
+        "inputStreamSource",
+        "inputStreamSourceReadZeroBytes",
+        "inputStreamSourceReadNegativeNumberOfBytes",
+        "fileSink",
+        "fileAppendingSink",
+        "fileSource",
+        "pathSink",
+        "pathSinkWithOptions",
+        "pathSource",
+        "pathSourceWithOptions",
+        "socketSink",
+        "socketSource"
+      ],
+      "functionNames": [
+        "outputStreamSink",
+        "outputStreamSinkWriteZeroBytes",
+        "outputStreamSinkWriteNegativeNumberOfBytes",
+        "outputStreamSinkWritePartOfTheBuffer",
+        "inputStreamSource",
+        "inputStreamSourceReadZeroBytes",
+        "inputStreamSourceReadNegativeNumberOfBytes",
+        "fileSink",
+        "fileAppendingSink",
+        "fileSource",
+        "pathSink",
+        "pathSinkWithOptions",
+        "pathSource",
+        "pathSourceWithOptions",
+        "socketSink",
+        "getOutputStream",
+        "socketSource",
+        "getInputStream"
+      ],
+      "classNames": [
+        "JvmPlatformTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/NioTest.kt",
+      "gitBlobSha": "96c59629d256a6d75fa2ca9f16dfaff67707df18",
+      "size": 5627,
+      "testNames": [
+        "sourceIsOpen",
+        "sinkIsOpen",
+        "writableChannelNioFile",
+        "writableChannelBuffer",
+        "writableChannelBufferedSink",
+        "readableChannelNioFile",
+        "readableChannelBuffer",
+        "readableChannelBufferedSource"
+      ],
+      "functionNames": [
+        "sourceIsOpen",
+        "sinkIsOpen",
+        "writableChannelNioFile",
+        "writableChannelBuffer",
+        "writableChannelBufferedSink",
+        "readableChannelNioFile",
+        "readableChannelBuffer",
+        "readableChannelBufferedSource",
+        "testWritableByteChannel",
+        "testReadableByteChannel"
+      ],
+      "classNames": [
+        "NioTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/PoolingTest.kt",
+      "gitBlobSha": "009dc2eb3f88baaed66e6ca5c79791bbcb2d40a3",
+      "size": 5787,
+      "testNames": [
+        "segmentSharing",
+        "segmentAcquisitionAndRelease",
+        "contendedUseTest",
+        "contendedUseWithMixedOperationsTest"
+      ],
+      "functionNames": [
+        "segmentSharing",
+        "segmentAcquisitionAndRelease",
+        "contendedUseTest",
+        "contendedUseWithMixedOperationsTest"
+      ],
+      "classNames": [
+        "PoolingTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/RefCounteringCopyTrackerTest.kt",
+      "gitBlobSha": "49192ea3ca54fc59b6d03e1d0ab29d672f7ae4ce",
+      "size": 968,
+      "testNames": [
+        "stateTransition"
+      ],
+      "functionNames": [
+        "stateTransition"
+      ],
+      "classNames": [
+        "RefCounteringCopyTrackerTest"
+      ]
+    },
+    {
+      "path": "core/jvm/test/samples/samplesJvm.kt",
+      "gitBlobSha": "f139d96fdb90092d5c346edd4bcd0db9fade8dff",
+      "size": 3955,
+      "testNames": [
+        "inputStreamAsSource",
+        "outputStreamAsSink",
+        "asStream",
+        "readWriteByteBuffer",
+        "bufferTransferToStream",
+        "writeInputStreamToBuffer",
+        "copyBufferToOutputStream",
+        "transferBufferFromByteBuffer",
+        "readWriteStrings",
+        "readStringBounded"
+      ],
+      "functionNames": [
+        "inputStreamAsSource",
+        "outputStreamAsSink",
+        "asStream",
+        "readWriteByteBuffer",
+        "bufferTransferToStream",
+        "writeInputStreamToBuffer",
+        "copyBufferToOutputStream",
+        "transferBufferFromByteBuffer",
+        "readWriteStrings",
+        "readStringBounded"
+      ],
+      "classNames": [
+        "KotlinxIoSamplesJvm"
+      ]
+    },
+    {
+      "path": "core/jvm/test/samples/unsafeAccessSamplesJvm.kt",
+      "gitBlobSha": "e2dca4b6d4f75a28f30bdb1d5cda270ebceccf6b",
+      "size": 5230,
+      "testNames": [
+        "writeToByteChannel",
+        "readFromByteChannel",
+        "gatheringWrite",
+        "messageDigest"
+      ],
+      "functionNames": [
+        "writeToByteChannel",
+        "readFromByteChannel",
+        "gatheringWrite",
+        "messageDigest",
+        "digest"
+      ],
+      "classNames": [
+        "UnsafeReadWriteSamplesJvm"
+      ]
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadBulkTest.kt",
+      "gitBlobSha": "8d4d8af0451b44da4e88108a990a9c18ccbad20e",
+      "size": 7312,
+      "testNames": [
+        "callsInPlaceContract",
+        "readAllFromEmptyBuffer",
+        "readUsingEmptyArray",
+        "readSingleSegment",
+        "readSingleSegmentWithoutConsumingIt",
+        "readMultipleSegments",
+        "readMultipleSegmentsWithoutConsumingIt",
+        "consumeBufferPartially",
+        "consumeMultiSegmentBufferPartially",
+        "passShortArray",
+        "returnIncorrectReadValue",
+        "resetReadOnException"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "readAllFromEmptyBuffer",
+        "readUsingEmptyArray",
+        "readSingleSegment",
+        "readSingleSegmentWithoutConsumingIt",
+        "readMultipleSegments",
+        "readMultipleSegmentsWithoutConsumingIt",
+        "consumeBufferPartially",
+        "consumeMultiSegmentBufferPartially",
+        "passShortArray",
+        "returnIncorrectReadValue",
+        "resetReadOnException"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsJvmReadBulkTest",
+        "TestException"
+      ]
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmReadFromHeadTest.kt",
+      "gitBlobSha": "e6fd67a94b0f29638ba5d7d32aad4dfac04f444c",
+      "size": 4524,
+      "testNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "consumeByteByByte",
+        "readNothing",
+        "readEverything",
+        "writeIntoReadOnlyBuffer",
+        "readFromEmptyBuffer",
+        "readFromTheSegmentEnd",
+        "changeLimit",
+        "resetReadOnException"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "consumeByteByByte",
+        "readNothing",
+        "readEverything",
+        "writeIntoReadOnlyBuffer",
+        "readFromEmptyBuffer",
+        "readFromTheSegmentEnd",
+        "changeLimit",
+        "resetReadOnException"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsJvmReadFromHeadTest",
+        "TestException"
+      ]
+    },
+    {
+      "path": "core/jvm/test/unsafe/UnsafeBufferOperationsJvmWriteToTailTest.kt",
+      "gitBlobSha": "ebb99c5211cb03bcb82df92556d2da8c97690adb",
+      "size": 3753,
+      "testNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "writeByteByByte",
+        "writeNothing",
+        "writeWholeBuffer",
+        "requireToManyBytes",
+        "writeToTheEndOfABuffer",
+        "changeLimit",
+        "resetWriteOnException"
+      ],
+      "functionNames": [
+        "callsInPlaceContract",
+        "bufferCapacity",
+        "writeByteByByte",
+        "writeNothing",
+        "writeWholeBuffer",
+        "requireToManyBytes",
+        "writeToTheEndOfABuffer",
+        "changeLimit",
+        "resetWriteOnException"
+      ],
+      "classNames": [
+        "UnsafeBufferOperationsJvmWriteToTailTest",
+        "TestException"
+      ]
+    },
+    {
+      "path": "core/jvm/test/utilJVM.kt",
+      "gitBlobSha": "5d0833deeee8b9f433eb6a715ce20b86e7a6830c",
+      "size": 847,
+      "testNames": [],
+      "functionNames": [
+        "tempFileName",
+        "assertByteArrayEquals",
+        "asUtf8ToByteArray"
+      ],
+      "classNames": []
+    },
+    {
+      "path": "core/native/test/util.kt",
+      "gitBlobSha": "0743a43ae0189bf4824693fc53b03e0d5600425c",
+      "size": 833,
+      "testNames": [],
+      "functionNames": [
+        "tempFileName",
+        "asUtf8ToByteArray"
+      ],
+      "classNames": []
+    }
+  ]
+}

@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "version": "1.10.0",
+  "tag": "v1.10.0",
+  "upstream": "https://github.com/Kotlin/kotlinx.serialization",
+  "commit": "370c4e3780066b82f746cf38e4733cbe62c94f74",
+  "files": [
+    {
+      "module": "core",
+      "platform": "jvm",
+      "path": "upstream/core/api/kotlinx-serialization-core.api",
+      "upstream_path": "core/api/kotlinx-serialization-core.api",
+      "sha256": "ed07d55cb6e77b967f2f6a1a3bfcb5888a63eb832904fe53858516760671787c",
+      "git_blob": "0b08acb367a6767421184440101f4e4f3751264a"
+    },
+    {
+      "module": "core",
+      "platform": "klib",
+      "path": "upstream/core/api/kotlinx-serialization-core.klib.api",
+      "upstream_path": "core/api/kotlinx-serialization-core.klib.api",
+      "sha256": "659b487c64e1156981d144ca5430a788daea46b300b75aeb7ca9c6b790db6f6f",
+      "git_blob": "97bc3b2ad64a11d4882ea5e020ccd36a5a202f50"
+    },
+    {
+      "module": "json",
+      "platform": "jvm",
+      "path": "upstream/formats/json/api/kotlinx-serialization-json.api",
+      "upstream_path": "formats/json/api/kotlinx-serialization-json.api",
+      "sha256": "009ca57d19a3b31b35a8b807a9dfa434432af506aa6806efd20da5bf9eb22820",
+      "git_blob": "48a747da2bf72d136dd8ea2a4767aeb22bb512a2"
+    },
+    {
+      "module": "json",
+      "platform": "klib",
+      "path": "upstream/formats/json/api/kotlinx-serialization-json.klib.api",
+      "upstream_path": "formats/json/api/kotlinx-serialization-json.klib.api",
+      "sha256": "07edf3d4336b1b92179b1e0b9d80a1df279f3367f68e3ec49daf2e220bd5571e",
+      "git_blob": "18c1078ee3b4599c0dd33295ee49fa598ba2ec84"
+    },
+    {
+      "module": "cbor",
+      "platform": "jvm",
+      "path": "upstream/formats/cbor/api/kotlinx-serialization-cbor.api",
+      "upstream_path": "formats/cbor/api/kotlinx-serialization-cbor.api",
+      "sha256": "b2967afe11a28b2b8428bc0a6906ca2fac89e9dba72409b90fd9fabf5d81f86d",
+      "git_blob": "6b580add00876c6ea6f72b7d8819b2742f92d259"
+    },
+    {
+      "module": "cbor",
+      "platform": "klib",
+      "path": "upstream/formats/cbor/api/kotlinx-serialization-cbor.klib.api",
+      "upstream_path": "formats/cbor/api/kotlinx-serialization-cbor.klib.api",
+      "sha256": "dd0ab7d56c1d5b262010006c5004456f9533cffb80a13d0f3106964384c661b2",
+      "git_blob": "346416c8fa198996dd87adea112a6c4f7da5bd45"
+    },
+    {
+      "module": "protobuf",
+      "platform": "jvm",
+      "path": "upstream/formats/protobuf/api/kotlinx-serialization-protobuf.api",
+      "upstream_path": "formats/protobuf/api/kotlinx-serialization-protobuf.api",
+      "sha256": "e02dcee17099b6c5478a656755fad0290369dbbb765694c4ed48f18e9fb84b87",
+      "git_blob": "59a1073056d7a1112bcc24f0c1d0c22ed5a7b22d"
+    },
+    {
+      "module": "protobuf",
+      "platform": "klib",
+      "path": "upstream/formats/protobuf/api/kotlinx-serialization-protobuf.klib.api",
+      "upstream_path": "formats/protobuf/api/kotlinx-serialization-protobuf.klib.api",
+      "sha256": "87b06b3db988e1ec0b1a0b23cea20cc6b6fb3fb59fa7b6b6c9fbab6a1fe66c35",
+      "git_blob": "4e61b61738675836092fe8f2d13ded3621a8742a"
+    },
+    {
+      "module": "properties",
+      "platform": "jvm",
+      "path": "upstream/formats/properties/api/kotlinx-serialization-properties.api",
+      "upstream_path": "formats/properties/api/kotlinx-serialization-properties.api",
+      "sha256": "972611444abfc96376dfd9fbc0ae05a59481e8fb1f1434445da9e8c9ddc610e6",
+      "git_blob": "258a7f383ee080b184ffe56495c106e23cc604fc"
+    },
+    {
+      "module": "properties",
+      "platform": "klib",
+      "path": "upstream/formats/properties/api/kotlinx-serialization-properties.klib.api",
+      "upstream_path": "formats/properties/api/kotlinx-serialization-properties.klib.api",
+      "sha256": "0377d023507f78f4d826c81a6510edf8cd490c640660e69bf9ba9ad747d97f35",
+      "git_blob": "b995c221539d1835b97ca1e3cb05bf969944b8bc"
+    },
+    {
+      "module": "json-io",
+      "platform": "jvm",
+      "path": "upstream/formats/json-io/api/kotlinx-serialization-json-io.api",
+      "upstream_path": "formats/json-io/api/kotlinx-serialization-json-io.api",
+      "sha256": "bb278475e442b0373884c09c53b86421715f215107b786739712b01216d3bee8",
+      "git_blob": "4d626a26a5a852790b5f2e51fe1719c32a0871c3"
+    },
+    {
+      "module": "json-io",
+      "platform": "klib",
+      "path": "upstream/formats/json-io/api/kotlinx-serialization-json-io.klib.api",
+      "upstream_path": "formats/json-io/api/kotlinx-serialization-json-io.klib.api",
+      "sha256": "e5b9d35dc87ff988a19111b27f530fd0c14916608a13f37431cbe5ebab2f1c9d",
+      "git_blob": "2a025754c72ab54818f7e6ee5ed1e422197bbde3"
+    },
+    {
+      "module": "json-okio",
+      "platform": "jvm",
+      "path": "upstream/formats/json-okio/api/kotlinx-serialization-json-okio.api",
+      "upstream_path": "formats/json-okio/api/kotlinx-serialization-json-okio.api",
+      "sha256": "946c95377aa0b8e9619732c1be3a6fb4f9e926ba81acaa2660bc8222e0ca3032",
+      "git_blob": "75effa13fc7953ba2c8e6b31b03331a31c7fddcf"
+    },
+    {
+      "module": "json-okio",
+      "platform": "klib",
+      "path": "upstream/formats/json-okio/api/kotlinx-serialization-json-okio.klib.api",
+      "upstream_path": "formats/json-okio/api/kotlinx-serialization-json-okio.klib.api",
+      "sha256": "0c8797ef51e90a7d0173aa7587b061112da6f10e1f52f33781badb52b31f70d6",
+      "git_blob": "7d9a9b98e1376ed298cc8d9717120e879ab818a2"
+    },
+    {
+      "module": "hocon",
+      "platform": "jvm",
+      "path": "upstream/formats/hocon/api/kotlinx-serialization-hocon.api",
+      "upstream_path": "formats/hocon/api/kotlinx-serialization-hocon.api",
+      "sha256": "a89399a502fad083fd1ad6e03706e814f7b612cff159f2948c9829744dd456b8",
+      "git_blob": "4afe9d3cc0fbf38df84f7886dce97576e7e26921"
+    },
+    {
+      "module": null,
+      "platform": null,
+      "path": "upstream/LICENSE.txt",
+      "upstream_path": "LICENSE.txt",
+      "sha256": "c5accbbd8546e94c34aed24afe689a617627d18eed5a6c48277e48db57c23851",
+      "git_blob": "9c8f3ea0871e0bfe81da0fa6e7c1d7d156dc380e"
+    }
+  ],
+  "artifacts": [
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-core-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/1.10.0/kotlinx-serialization-core-jvm-1.10.0.jar",
+      "published_sha1": "9400c03c056953bbbf30e861e63735c90e9eb320",
+      "sha256": "14d6f27ce28f61ebc4a516d562f911b7bc01cfbe5397fb884c45ea0db044c635",
+      "bytes": 403584,
+      "filename": "kotlinx-serialization-core-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-json-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-jvm/1.10.0/kotlinx-serialization-json-jvm-1.10.0.jar",
+      "published_sha1": "a74d7819e02bad98af4d6b56c4f45aa6d31ef4ad",
+      "sha256": "af1e3e1e8ee3176468e1ec729df853b2066071de94a84c412ad9fa135cb37f3a",
+      "bytes": 279729,
+      "filename": "kotlinx-serialization-json-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-cbor-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-cbor-jvm/1.10.0/kotlinx-serialization-cbor-jvm-1.10.0.jar",
+      "published_sha1": "6d0a89a6a173801c9b909d7e7bac71d791cff857",
+      "sha256": "98d462c62c01e9400504efab68974ebf31dad1ed9a25e1c486c89b9202526550",
+      "bytes": 71324,
+      "filename": "kotlinx-serialization-cbor-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-protobuf-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-protobuf-jvm/1.10.0/kotlinx-serialization-protobuf-jvm-1.10.0.jar",
+      "published_sha1": "a04019cfbd65103dd536923b9b3cf93ac16fa2a2",
+      "sha256": "563d8969c3eac74057ca57b95ee2aeb0e4e0ec0f444234cef0f908a80fa6bb0c",
+      "bytes": 114882,
+      "filename": "kotlinx-serialization-protobuf-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-properties-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-properties-jvm/1.10.0/kotlinx-serialization-properties-jvm-1.10.0.jar",
+      "published_sha1": "82d5dfb4903bf056eb913fd3ce899aecefe635ff",
+      "sha256": "ecf9a26a85abc65db65c4318db01ed8302c2d48acf354c4e938a39d62d6009f3",
+      "bytes": 17647,
+      "filename": "kotlinx-serialization-properties-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-json-io-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-io-jvm/1.10.0/kotlinx-serialization-json-io-jvm-1.10.0.jar",
+      "published_sha1": "50ca77d6d3986562a140275d6c8b07086af55f83",
+      "sha256": "6fc1a9f0e2bbc2d48c6602ce5ad2d83ef6ed6cf3a349c90f5691e824cf0b4821",
+      "bytes": 6978,
+      "filename": "kotlinx-serialization-json-io-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-json-okio-jvm",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-okio-jvm/1.10.0/kotlinx-serialization-json-okio-jvm-1.10.0.jar",
+      "published_sha1": "b7701399778f4679b2ee66250b700496a5988604",
+      "sha256": "5d6e88a75368cce0648f388eaec4caf155ec310a8c3892d9ff06296af17e81a0",
+      "bytes": 7039,
+      "filename": "kotlinx-serialization-json-okio-jvm-1.10.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-serialization-hocon",
+      "version": "1.10.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-hocon/1.10.0/kotlinx-serialization-hocon-1.10.0.jar",
+      "published_sha1": "b25ffc67b03a7f08293c6ac5200ce1b733c77963",
+      "sha256": "a084a20199d04ff7bb2768d4718a973c7b3fa2d105a4258ca1693980e570a17d",
+      "bytes": 57341,
+      "filename": "kotlinx-serialization-hocon-1.10.0.jar"
+    },
+    {
+      "group": "com.typesafe",
+      "artifact": "config",
+      "version": "1.4.1",
+      "url": "https://repo.maven.apache.org/maven2/com/typesafe/config/1.4.1/config-1.4.1.jar",
+      "published_sha1": "19058a07624a87f90d129af7cd9c68bee94535a9",
+      "sha256": "4c0aa7e223c75c8840c41fc183d4cd3118140a1ee503e3e08ce66ed2794c948f",
+      "bytes": 295197,
+      "filename": "config-1.4.1.jar"
+    },
+    {
+      "group": "com.squareup.okio",
+      "artifact": "okio-jvm",
+      "version": "3.9.0",
+      "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.9.0/okio-jvm-3.9.0.jar",
+      "published_sha1": "eaa4f7858a1e80908b1a2e861e662edd7c6cbbb5",
+      "sha256": "ddc386ff14bd25d5c934167196eaf45b18de4f28e1c55a4db37ae594cbfd37e4",
+      "bytes": 372089,
+      "filename": "okio-jvm-3.9.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-io-core-jvm",
+      "version": "0.6.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-core-jvm/0.6.0/kotlinx-io-core-jvm-0.6.0.jar",
+      "published_sha1": "f1d1e496fe0c6937fdb7509442b7f3e613d345d4",
+      "sha256": "42523c80823d31ef59fae42c9252ef1d3b1189ca9d3cc3adfd402a29d063e6ff",
+      "bytes": 151667,
+      "filename": "kotlinx-io-core-jvm-0.6.0.jar"
+    },
+    {
+      "group": "org.jetbrains.kotlinx",
+      "artifact": "kotlinx-io-bytestring-jvm",
+      "version": "0.6.0",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-io-bytestring-jvm/0.6.0/kotlinx-io-bytestring-jvm-0.6.0.jar",
+      "published_sha1": "bb3104eef13622362179216566db2ea6a4e7ed64",
+      "sha256": "baa77a783d70a66af88d6898a1d4971e4aa84e62b26418057379bdf09fb5bada",
+      "bytes": 22691,
+      "filename": "kotlinx-io-bytestring-jvm-0.6.0.jar"
+    }
+  ],
+  "compiler_plugin_sha256": "9a4d5139df8ef580005b737e2accef070fbc3b581d95e5f64d74a93abb4069a6"
+}

@@ -285,6 +285,12 @@ For the separately pinned Kotlin/Native 2.3.10 / atomicfu 0.33.0 Linux/x64
 reference, including Native Trace no-op, lock aliases, parking and exception
 differences, see [atomicfu_native_reference/README.md](atomicfu_native_reference/README.md).
 
+The separate [`serialization_reference`](serialization_reference/README.md)
+directory pins serialization 1.10.0 API dumps and all eight modules' real JVM
+artifacts, including external I/O and HOCON dependencies. It supplies a verified
+Kotlin 2.3.10 compiler-plugin fixture and integrity checks. This reference does
+not count as candidate-side serialization implementation.
+
 A case can use `// DIFF_EXPECTED_OUTPUT: <relative-path>` when kotlinc is not a
 usable oracle. The runner compiles and runs only kswiftc, then compares stdout
 to that fixture. When the target is this single case, JVM tooling is not

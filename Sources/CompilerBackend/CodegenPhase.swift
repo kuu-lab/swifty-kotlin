@@ -280,7 +280,7 @@ public final class CodegenPhase: CompilerPhase {
                 )
             } else if ctx.interner.resolve(function.name).hasSuffix("$default"),
                       let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Reified default stubs also require call-site expansion. Their
+                // Inline default stubs also require call-site expansion. Their
                 // existing metadata link name identifies the serialized body.
                 mangled = linkName
             } else {

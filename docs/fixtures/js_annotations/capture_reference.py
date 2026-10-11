@@ -76,23 +76,34 @@ def main():
     parser.add_argument("--node", default="node")
     parser.add_argument("--case", action="append")
     parser.add_argument("--check-record", type=Path)
+    parser.add_argument("--expectations", type=Path, default=FIXTURES / "expectations.json")
     args = parser.parse_args()
-    manifest = json.loads((FIXTURES / "expectations.json").read_text())
+    fixture_root = args.expectations.resolve().parent
+    manifest = json.loads(args.expectations.read_text())
     if manifest["schemaVersion"] != 1:
         parser.error("unknown expectation schema")
     known = {case["id"] for case in manifest["cases"]}
     if args.case and set(args.case) - known:
         parser.error("unknown case")
-    cases = [case for case in manifest["cases"] if not args.case or case["id"] in args.case]
-    for case in cases:
+    selected = [case for case in manifest["cases"] if not args.case or case["id"] in args.case]
+    for case in selected:
         if not set(case["lanes"]).issubset({"kotlin-js-reference", "native-compat"}):
             parser.error(case["id"] + ": unknown lane")
-        if digest(FIXTURES / case["source"]) != case["sourceSha256"]:
+    excluded = [case for case in selected if "kotlin-js-reference" not in case["lanes"]]
+    if args.case and excluded:
+        parser.error("selected cases have no Kotlin/JS reference lane: " + ", ".join(case["id"] for case in excluded))
+    if excluded:
+        print("out-of-lane: " + ", ".join(case["id"] for case in excluded))
+    cases = [case for case in selected if "kotlin-js-reference" in case["lanes"]]
+    if not cases:
+        parser.error("no Kotlin/JS reference cases selected")
+    for case in cases:
+        if digest(fixture_root / case["source"]) != case["sourceSha256"]:
             parser.error(case["id"] + ": source hash differs from reviewed expectation")
         consumer = case["reference"].get("consumer")
         if consumer and consumer["lane"] != "js-emission-reference":
             parser.error(case["id"] + ": unknown consumer lane")
-        if consumer and digest(FIXTURES / consumer["script"]) != consumer["scriptSha256"]:
+        if consumer and digest(fixture_root / consumer["script"]) != consumer["scriptSha256"]:
             parser.error(case["id"] + ": consumer hash differs from reviewed expectation")
 
     if args.check_record:
@@ -130,8 +141,8 @@ def main():
                        "-ir-output-name", key, "-libraries", library, "-Xrender-internal-diagnostic-names"]
             if case["reference"]["compile"].get("werror"):
                 command.append("-Werror")
-            command.append(str((FIXTURES / case["source"]).relative_to(REPOSITORY)))
-            observed = {"source": case["source"], "sourceSha256": digest(FIXTURES / case["source"]),
+            command.append(str((fixture_root / case["source"]).relative_to(REPOSITORY)))
+            observed = {"source": case["source"], "sourceSha256": digest(fixture_root / case["source"]),
                         "compile": invoke(command, manifest["timeoutsSeconds"]["compile"], replacements)}
             observed["compile"]["diagnostics"] = diagnostics(observed["compile"]["stderr"])
             klib = destination / (key + ".klib")
@@ -151,9 +162,9 @@ def main():
                                                  manifest["timeoutsSeconds"]["run"], replacements)
                         consumer = case["reference"].get("consumer")
                         if consumer:
-                            observed["consumer"] = invoke([args.node, str((FIXTURES / consumer["script"]).relative_to(REPOSITORY)),
+                            observed["consumer"] = invoke([args.node, str((fixture_root / consumer["script"]).relative_to(REPOSITORY)),
                                 str(generated / consumer["module"])], manifest["timeoutsSeconds"]["run"], replacements)
-                            observed["consumer"]["scriptSha256"] = digest(FIXTURES / consumer["script"])
+                            observed["consumer"]["scriptSha256"] = digest(fixture_root / consumer["script"])
             report["cases"][key] = observed
             (output / "reference-results.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
             print(key + ": " + ("FAIL" if verify(case, observed) else "PASS"), flush=True)

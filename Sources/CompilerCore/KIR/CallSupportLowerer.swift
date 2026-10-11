@@ -458,7 +458,11 @@ final class CallSupportLowerer {
             returnType: signature.returnType,
             body: body,
             isSuspend: signature.isSuspend,
-            isInline: !signature.reifiedTypeParameterIndices.isEmpty
+            // Inline callbacks retain their captures for call-site expansion.
+            // The default stub must also expand instead of forwarding a raw
+            // lambda symbol through an ordinary function-value boundary.
+            isInline: sema.symbols.symbol(originalSymbol)?.flags.contains(.inlineFunction) == true
+                || !signature.reifiedTypeParameterIndices.isEmpty
         )))
 
         driver.ctx.restoreScope(scopeSnapshot)
