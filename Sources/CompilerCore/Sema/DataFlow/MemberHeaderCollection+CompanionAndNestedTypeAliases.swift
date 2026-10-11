@@ -23,7 +23,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Companion objects default to name "Companion" if the parsed name is empty or just "Companion"
         let companionName: InternedString
         let parsedName = interner.resolve(companionObject.name)
         if parsedName.isEmpty {
