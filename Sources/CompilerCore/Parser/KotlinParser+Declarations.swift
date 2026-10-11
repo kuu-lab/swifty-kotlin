@@ -164,7 +164,9 @@ extension KotlinParser {
         if kind == .classDecl, startsPrimaryConstructorHeader() {
             parseLeadingDeclarationPrefix(into: &children, range: &range)
             _ = consumeToken(into: &children, range: &range) // constructor
-            let parameters = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            let parameters = parseBalancedGroup(
+                opening: .lParen, closing: .rParen, allowsPrimaryConstructorParameters: true
+            )
             children.append(.node(parameters))
             range.append(childRange(.node(parameters)))
         }

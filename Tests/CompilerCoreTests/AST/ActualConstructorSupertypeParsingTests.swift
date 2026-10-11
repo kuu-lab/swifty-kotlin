@@ -64,9 +64,43 @@ struct ActualConstructorSupertypeParsingTests {
         internal constructor(val item: T) : Holder<T> {
             fun read(): T = item
         }
+        class MultilineProperties private constructor(
+            private val bytes: Int,
+            @PublishedApi internal val item: Int = 1,
+            public var count: Int = 2,
+        ) {
+            fun read(): Int = bytes + item + count
+        }
+        class MultilineGeneric<K, out V> internal constructor(
+            @PublishedApi internal val view: Map<K, @UnsafeVariance V>,
+        ) : Holder<V> {
+            fun read(): Int = 0
+        }
+        class EmptyAnnotated
+        @CtorMarker
+        private constructor() {
+            fun read(): Int = 0
+        }
+        class SplitPrefixes private constructor(
+            @param:FirstMarker(nested = ReplaceWith("class, fun, val"))
+            @SecondMarker
+            private
+            val
+            bytes: Int,
+            value: Int,
+            private val callback: () -> Int = {
+                val inside: Int = 1
+                fun nested(): Int = inside
+                nested()
+            },
+            private val selected: Int = choose<Int, Int>(1),
+            private val tail: Int = 3,
+        ) {
+            fun read(): Int = bytes + tail
+        }
         """, includeStdlib: false)
 
-        try #require(!ctx.diagnostics.hasError, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
+        try #require(ctx.diagnostics.diagnostics.isEmpty, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
         let box = try userClassDecl(named: "ArrayBox", in: ast, ctx: ctx)
         #expect(box.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["size"])
         #expect(box.primaryConstructorModifiers.contains(.public))
@@ -88,6 +122,63 @@ struct ActualConstructorSupertypeParsingTests {
         let genericFunctions = try memberFunctions(of: generic, in: ast)
         #expect(genericFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
         #expect(supertypeNames(of: generic, in: ast, ctx: ctx) == ["Holder"])
+
+        let properties = try userClassDecl(named: "MultilineProperties", in: ast, ctx: ctx)
+        #expect(properties.primaryConstructorModifiers.contains(.private))
+        #expect(properties.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["bytes", "item", "count"])
+        #expect(properties.primaryConstructorParams.map(\.isProperty) == [true, true, true])
+        #expect(properties.primaryConstructorParams.map(\.isMutableProperty) == [false, false, true])
+        #expect(properties.primaryConstructorParams.map(\.propertyVisibilityModifiers) == [.some([.private]), .some([.internal]), .some([.public])])
+        #expect(properties.primaryConstructorParams[1].annotations.map(\.name) == ["PublishedApi"])
+        let propertyMembers = try memberProperties(of: properties, in: ast)
+        #expect(propertyMembers.map { ctx.interner.resolve($0.name) } == ["bytes", "item", "count"])
+        let propertyFunctions = try memberFunctions(of: properties, in: ast)
+        #expect(propertyFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+
+        let multilineGeneric = try userClassDecl(named: "MultilineGeneric", in: ast, ctx: ctx)
+        #expect(multilineGeneric.typeParams.count == 2)
+        #expect(multilineGeneric.primaryConstructorModifiers.contains(.internal))
+        #expect(multilineGeneric.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["view"])
+        #expect(multilineGeneric.primaryConstructorParams[0].annotations.map(\.name) == ["PublishedApi"])
+        #expect(multilineGeneric.primaryConstructorParams[0].propertyVisibilityModifiers == [.internal])
+        #expect(supertypeNames(of: multilineGeneric, in: ast, ctx: ctx) == ["Holder"])
+        let genericMembers = try memberProperties(of: multilineGeneric, in: ast)
+        #expect(genericMembers.map { ctx.interner.resolve($0.name) } == ["view"])
+        let genericMemberFunctions = try memberFunctions(of: multilineGeneric, in: ast)
+        #expect(genericMemberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+
+        let emptyAnnotated = try userClassDecl(named: "EmptyAnnotated", in: ast, ctx: ctx)
+        #expect(emptyAnnotated.hasPrimaryConstructorSyntax)
+        #expect(emptyAnnotated.primaryConstructorParams.isEmpty)
+        #expect(emptyAnnotated.primaryConstructorModifiers.contains(.private))
+        #expect(emptyAnnotated.primaryConstructorAnnotations.map(\.name) == ["CtorMarker"])
+        let emptyFunctions = try memberFunctions(of: emptyAnnotated, in: ast)
+        #expect(emptyFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+
+        let split = try userClassDecl(named: "SplitPrefixes", in: ast, ctx: ctx)
+        #expect(split.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["bytes", "value", "callback", "selected", "tail"])
+        #expect(split.primaryConstructorParams[0].annotations.map(\.name) == ["FirstMarker", "SecondMarker"])
+        #expect(split.primaryConstructorParams[0].propertyVisibilityModifiers == [.private])
+        #expect(split.primaryConstructorParams.map(\.hasDefaultValue) == [false, false, true, true, true])
+        let splitProperties = try memberProperties(of: split, in: ast)
+        #expect(splitProperties.map { ctx.interner.resolve($0.name) } == ["bytes", "callback", "selected", "tail"])
+        let splitFunctions = try memberFunctions(of: split, in: ast)
+        #expect(splitFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+
+        // This is a CST boundary probe. The AST parameter splitter's separate
+        // comparison-vs-angle handling is outside this constructor recovery fix.
+        let comparisons = parse("""
+        class Comparisons private constructor(
+            private val threshold: Boolean = left < right,
+            private val tail: Int = 3,
+        ) { fun read(): Int = tail }
+        class Following {}
+        fun after(): Int = 1
+        """)
+        try #require(comparisons.diagnostics.diagnostics.isEmpty)
+        #expect(comparisons.arena.nodes.count { $0.kind == .classDecl } == 2)
+        #expect(comparisons.arena.nodes.count { $0.kind == .funDecl } == 2)
+        #expect(comparisons.arena.nodes.count { $0.kind == .propertyDecl } == 0)
     }
 
     @Test
@@ -99,9 +190,16 @@ struct ActualConstructorSupertypeParsingTests {
         class AnotherEmpty
         @NextFunction
         fun unrelated(): Int = 1
+        class LastEmpty
+        @NextClass("private constructor", nested = ReplaceWith("Following(0)"))
+        class AnnotatedFollowing private constructor(
+            @PublishedApi internal val item: Int,
+        ) {
+            fun read(): Int = item
+        }
         """, includeStdlib: false)
 
-        try #require(!ctx.diagnostics.hasError, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
+        try #require(ctx.diagnostics.diagnostics.isEmpty, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
         let empty = try userClassDecl(named: "Empty", in: ast, ctx: ctx)
         #expect(empty.primaryConstructorParams.isEmpty)
         #expect(empty.primaryConstructorAnnotations.isEmpty)
@@ -119,6 +217,67 @@ struct ActualConstructorSupertypeParsingTests {
             return function
         }.first)
         #expect(unrelated.annotations.map(\.name) == ["NextFunction"])
+        let lastEmpty = try userClassDecl(named: "LastEmpty", in: ast, ctx: ctx)
+        #expect(!lastEmpty.hasPrimaryConstructorSyntax)
+        #expect(lastEmpty.primaryConstructorParams.isEmpty)
+        #expect(lastEmpty.primaryConstructorAnnotations.isEmpty)
+        #expect(lastEmpty.annotations.isEmpty)
+        let annotatedFollowing = try userClassDecl(named: "AnnotatedFollowing", in: ast, ctx: ctx)
+        #expect(annotatedFollowing.annotations.map(\.name) == ["NextClass"])
+        #expect(annotatedFollowing.primaryConstructorAnnotations.isEmpty)
+        #expect(annotatedFollowing.primaryConstructorModifiers.contains(.private))
+        #expect(annotatedFollowing.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["item"])
+        #expect(annotatedFollowing.primaryConstructorParams[0].annotations.map(\.name) == ["PublishedApi"])
+        let followingMembers = try memberProperties(of: annotatedFollowing, in: ast)
+        #expect(followingMembers.map { ctx.interner.resolve($0.name) } == ["item"])
+        let followingMemberFunctions = try memberFunctions(of: annotatedFollowing, in: ast)
+        #expect(followingMemberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+
+        // Recovery diagnostics belong to separate malformed inputs; valid
+        // multiline constructors above must remain completely diagnostic-free.
+        let recoveryTails = [
+            "class Following {}\nfun after(): Int = 1",
+            "@NextClass\nclass Following {}\nfun after(): Int = 1",
+            "fun after(): Int = 1\nclass Following {}",
+            "object Other {}\nclass Following {}\nfun after(): Int = 1",
+            "val outside: Int = 1\nclass Following {}\nfun after(): Int = 1",
+            "@NextProperty\nval outside: Int = 1\nclass Following {}\nfun after(): Int = 1",
+        ]
+        for parameter in ["value: Int", "value: Int = 1", "value: Map<Int, Int>"] {
+            for tail in recoveryTails {
+                let source = "class Broken private constructor(\n    \(parameter)\n\(tail)"
+                let (recoveredAST, recoveredContext) = try buildASTModule(from: source, includeStdlib: false)
+                try #require(!recoveredContext.diagnostics.hasError, "Unexpected error diagnostics: \(recoveredContext.diagnostics.diagnostics)")
+                let warnings = recoveredContext.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0004" }
+                try #require(warnings.count == 1, "Missing constructor recovery warning for \(source)")
+                #expect(warnings[0].severity == .warning)
+                let recoveredFollowing = try userClassDecl(named: "Following", in: recoveredAST, ctx: recoveredContext)
+                #expect(recoveredFollowing.annotations.map(\.name) == (tail.contains("@NextClass") ? ["NextClass"] : []))
+                let after = try #require(recoveredAST.arena.declarations().compactMap { decl -> FunDecl? in
+                    guard case let .funDecl(function) = decl,
+                          recoveredContext.interner.resolve(function.name) == "after" else { return nil }
+                    return function
+                }.first)
+                #expect(after.valueParams.isEmpty)
+                if tail.contains("outside") {
+                    let outside = recoveredAST.arena.declarations().compactMap { decl -> PropertyDecl? in
+                        guard case let .propertyDecl(property) = decl,
+                              recoveredContext.interner.resolve(property.name) == "outside" else { return nil }
+                        return property
+                    }
+                    try #require(outside.count == 1)
+                    #expect(outside[0].annotations.map(\.name) == (tail.contains("@NextProperty") ? ["NextProperty"] : []))
+                }
+            }
+        }
+        let (ordinaryAST, ordinaryContext) = try buildASTModule(from: """
+        fun broken(
+            value: Int
+        class Following {}
+        fun after(): Int = 1
+        """, includeStdlib: false)
+        #expect(ordinaryContext.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0004" })
+        _ = try userClassDecl(named: "Following", in: ordinaryAST, ctx: ordinaryContext)
     }
 
     private func memberProperties(of classDecl: ClassDecl, in ast: ASTModule) throws -> [PropertyDecl] {
