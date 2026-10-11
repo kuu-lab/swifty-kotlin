@@ -2922,33 +2922,19 @@ extension ExprLowerer {
                               forProperty: symbol,
                               sema: sema
                           ),
-                          driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
-                          driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
+                          driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
+                          let read = lowerImplicitPropertyCompoundRead(
+                              propertySymbol: symbol, receiver: receiverExprID, callExprID: exprID,
+                              ast: ast, sema: sema, arena: arena, interner: interner,
+                              instructions: &instructions
+                          )
                 {
-                    // Member property whose reads and writes both go through
-                    // accessors (delegated `var`, or custom getter AND custom
-                    // setter): there is no `fieldOffsets[symbol]` slot to do
-                    // the read-modify-write against — delegated storage is
-                    // keyed by `$delegate_<name>` — so the direct-field
-                    // branches below cannot handle it. Mirror the explicit
-                    // `o.x += v` path in lowerMemberCompoundAssignExpr: load
-                    // through `get`, compute, store through `set`.
+                    // Run a custom/delegated setter even when the getter uses
+                    // ordinary field storage. Keep the read and write halves
+                    // independent, as for explicit-receiver compound writes.
                     let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
-                    let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
-                        ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
-                    let loadedValue = arena.appendTemporary(type: propType)
-                    let getterArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
-                        sema: sema, arena: arena, interner: interner, instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: getterSymbol,
-                        callee: interner.intern("get"),
-                        arguments: getterArguments,
-                        result: loadedValue,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    let receiverExprID = read.receiver
+                    let loadedValue = read.value
                     func storeViaSetter(_ value: KIRExprID) {
                         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                             ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)

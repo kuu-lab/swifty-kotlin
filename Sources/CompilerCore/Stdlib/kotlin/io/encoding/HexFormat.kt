@@ -95,11 +95,36 @@ public class HexFormat internal constructor(
         /** Mutable options used while building a [BytesHexFormat]. */
         public class Builder @PublishedApi internal constructor() {
             public var bytesPerLine: Int = Int.MAX_VALUE
+                set(value) {
+                    if (value <= 0)
+                        throw IllegalArgumentException("Non-positive values are prohibited for bytesPerLine, but was $value")
+                    field = value
+                }
             public var bytesPerGroup: Int = Int.MAX_VALUE
+                set(value) {
+                    if (value <= 0)
+                        throw IllegalArgumentException("Non-positive values are prohibited for bytesPerGroup, but was $value")
+                    field = value
+                }
             public var groupSeparator: String = "  "
             public var byteSeparator: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in byteSeparator, but was $value")
+                    field = value
+                }
             public var bytePrefix: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in bytePrefix, but was $value")
+                    field = value
+                }
             public var byteSuffix: String = ""
+                set(value) {
+                    if (value.contains('\n') || value.contains('\r'))
+                        throw IllegalArgumentException("LF and CR characters are prohibited in byteSuffix, but was $value")
+                    field = value
+                }
 
             @PublishedApi
             internal fun build(): BytesHexFormat = BytesHexFormat(

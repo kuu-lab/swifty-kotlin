@@ -1831,7 +1831,32 @@ package final class MetadataEncoder {
         interner: StringInterner,
         includedSymbolIDs: Set<SymbolID>? = nil
     ) -> String {
-        let pairs: [(String, Int)] = offsets.compactMap { symbolID, offset in
+        // Export a property's storage under its own name. Consumers do not
+        // have the producer's property-to-backing-field association, and a
+        // private backing field may not be exported at all. Replace its key
+        // rather than adding an alias: layout field counts count keys, so two
+        // names for one slot would grow the imported object layout.
+        // The offsets include inherited fields; inspect each storage owner.
+        let storageOwners = Set(offsets.keys.compactMap { symbols.parentSymbol(for: $0) })
+        var exportedPropertyByBackingField: [SymbolID: SymbolID] = [:]
+        for owner in storageOwners {
+            guard let ownerSymbol = symbols.symbol(owner) else { continue }
+            for propertyID in symbols.children(ofFQName: ownerSymbol.fqName) {
+                guard let property = symbols.symbol(propertyID), property.kind == .property,
+                      !property.fqName.isEmpty,
+                      symbols.parentSymbol(for: propertyID) == owner,
+                      includedSymbolIDs?.contains(propertyID) ?? true,
+                      let backingField = symbols.backingFieldSymbol(for: propertyID),
+                      offsets[backingField] != nil,
+                      symbols.parentSymbol(for: backingField) == owner
+                else {
+                    continue
+                }
+                exportedPropertyByBackingField[backingField] = propertyID
+            }
+        }
+        let pairs: [(String, Int)] = offsets.compactMap { storageSymbolID, offset in
+            let symbolID = exportedPropertyByBackingField[storageSymbolID] ?? storageSymbolID
             guard let symbol = symbols.symbol(symbolID) else {
                 return nil
             }
