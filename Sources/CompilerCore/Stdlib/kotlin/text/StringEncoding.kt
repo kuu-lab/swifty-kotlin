@@ -94,9 +94,12 @@ public fun String.encodeToByteArray(): ByteArray =
 public fun String.encodeToByteArray(charset: Charset): ByteArray =
     this.__kk_string_encodeToByteArray_charset_flat(charset.tag)
 
-public fun String.encodeToByteArray(startIndex: Int, endIndex: Int): ByteArray {
-    if (startIndex < 0 || endIndex > this.length || startIndex > endIndex) {
+public fun String.encodeToByteArray(startIndex: Int = 0, endIndex: Int = this.length): ByteArray {
+    if (startIndex < 0 || endIndex > this.length) {
         throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, length: ${this.length}")
+    }
+    if (startIndex > endIndex) {
+        throw IllegalArgumentException("startIndex: $startIndex > endIndex: $endIndex")
     }
     return this.__kk_string_encodeToByteArray_range_flat(startIndex, endIndex)
 }
