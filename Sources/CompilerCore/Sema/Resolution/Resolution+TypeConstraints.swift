@@ -218,7 +218,6 @@ extension OverloadResolver {
                     }
                     continue
                 }
-                // Advance the cursor past already-bound non-vararg params.
                 advancePositionalCursor(for: argIndex)
                 if positionalCursor >= paramCount || !isVararg[positionalCursor] || positionalCursor < maxBoundParamIndex {
                     return nil
@@ -317,7 +316,6 @@ extension OverloadResolver {
         return seen.sorted(by: { $0.rawValue < $1.rawValue })
     }
 
-    /// Checks whether a type contains any type parameters mapped in `typeVarBySymbol`.
     func containsTypeVariable(
         _ type: TypeID,
         typeVarBySymbol: [SymbolID: TypeVarID],
@@ -410,8 +408,6 @@ extension OverloadResolver {
             )]
         }
         let supertypeKind = typeSystem.kind(of: supertype)
-
-        // Case 1: supertype is a direct type parameter → single variable constraint.
         if case let .typeParam(typeParam) = supertypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
         {
@@ -675,8 +671,6 @@ extension OverloadResolver {
                     depth: depth + 1
                 )
             }
-            // Different class symbols or mismatched arity – fall through to
-            // simple constraint which will use isSubtype.
         }
 
         // KClass<T> is covariant in T. Decompose receiver constraints like
@@ -753,7 +747,6 @@ extension OverloadResolver {
                         depth: depth + 1
                     ))
                 }
-                // Covariant in return type.
                 result.append(contentsOf: decomposeSubtypeConstraintImpl(
                     subtype: subFunc.returnType,
                     supertype: superFunc.returnType,
@@ -766,7 +759,6 @@ extension OverloadResolver {
             }
         }
 
-        // Case 4: subtype contains type variables (e.g. return type T or List<T>).
         let subtypeKind = typeSystem.kind(of: subtype)
         if case let .typeParam(typeParam) = subtypeKind,
            let variable = typeVarBySymbol[typeParam.symbol]
@@ -845,7 +837,6 @@ extension OverloadResolver {
             )
         }
 
-        // Default: simple type-to-type constraint.
         return [VariableConstraint(
             kind: .subtype,
             left: .type(subtype),
@@ -943,7 +934,6 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
-            // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -958,7 +948,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .out(superInner)),
              let (.out(subInner), .out(superInner)):
-            // Covariant: sub <: super.
             return decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -967,7 +956,6 @@ extension OverloadResolver {
 
         case let (.invariant(subInner), .in(superInner)),
              let (.in(subInner), .in(superInner)):
-            // Contravariant: super <: sub.
             return decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -1064,8 +1052,4 @@ extension OverloadResolver {
             return typeSystem.isSubtype(rhs, lhs)
         }
     }
-
-    // Returns a diagnostic when the solver resolved a type variable to `errorType`,
-    // meaning no constraints existed to determine it.  The caller should require
-    // explicit type arguments in that case.
 }
