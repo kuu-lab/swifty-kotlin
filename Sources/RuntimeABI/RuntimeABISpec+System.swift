@@ -12,6 +12,18 @@ public extension RuntimeABISpec {
     )
 
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
+        // Compiler-only startup bridge: argc is the C int32 ABI and argv is
+        // a borrowed pointer to a null-terminated C-string pointer vector.
+        RuntimeABIFunctionSpec(
+            name: "__kk_process_args_from_argv",
+            parameters: [
+                RuntimeABIParameter(name: "argc", type: .int32),
+                RuntimeABIParameter(name: "argv", type: .nullableConstRawPointer),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "__kk_system_exitProcess",
             parameters: [
