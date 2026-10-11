@@ -42,7 +42,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Set up primitive types to implement Comparable<Self>
     func setupPrimitiveComparableImplementations(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -62,7 +61,6 @@ extension DataFlowSemaPhase {
                 nullability: .nonNull
             )))
 
-            // Set direct supertypes for member resolution
             symbols.setDirectSupertypes([comparableSymbol], for: primitiveSymbol)
             types.setNominalDirectSupertypes([comparableSymbol], for: primitiveSymbol)
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
