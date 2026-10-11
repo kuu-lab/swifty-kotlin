@@ -1,0 +1,988 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "commonLedgerCount": 46,
+  "neighborControlCount": 6,
+  "optInRetention": "SOURCE",
+  "rows": [
+    {
+      "rowID": "klib-0947c0d50c4105d0",
+      "fqName": "kotlinx.io.Sink.writeInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,I,U>",
+      "parameters": [
+        {
+          "name": "int",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Sink.kt:155",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-0d3d6a9bd110e684",
+      "fqName": "kotlinx.io.Source.readInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,I>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Source.kt:157",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-0e4b69482e6a968a",
+      "fqName": "kotlinx.io.writeFloatLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,F,U>",
+      "parameters": [
+        {
+          "name": "float",
+          "type": "F",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:331",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-18109e8ba4982d6c",
+      "fqName": "kotlinx.io.readByteArray",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Lkotlin.ByteArray;>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:236",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-1884b30ae2cabdd7",
+      "fqName": "kotlinx.io.readTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F3<RLkotlinx.io.Source;,Lkotlin.ByteArray;,I,I,U>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlin.ByteArray;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "sink.size"
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:292",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-1eab86b635e53e32",
+      "fqName": "kotlinx.io.writeUByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,UB,U>",
+      "parameters": [
+        {
+          "name": "byte",
+          "type": "UB",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:182",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-21d678c0082fac12",
+      "fqName": "kotlinx.io.writeUInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,UI,U>",
+      "parameters": [
+        {
+          "name": "int",
+          "type": "UI",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:210",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-28f888234979270b",
+      "fqName": "kotlinx.io.writeUShortLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,US,U>",
+      "parameters": [
+        {
+          "name": "short",
+          "type": "US",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:238",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-3892125bf6d12ddd",
+      "fqName": "kotlinx.io.readUIntLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,UI>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:376",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-3c68d271a161568d",
+      "fqName": "kotlinx.io.readByteString",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,I,Lkotlinx.io.bytestring.ByteString;>",
+      "parameters": [
+        {
+          "name": "byteCount",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [
+        "UnsafeByteStringApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/ByteStrings.kt:79",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-3d41c73755becbfd",
+      "fqName": "kotlinx.io.Sink.writeShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,S,U>",
+      "parameters": [
+        {
+          "name": "short",
+          "type": "S",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Sink.kt:143",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-51d6c72a1f365869",
+      "fqName": "kotlinx.io.Sink.writeByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,B,U>",
+      "parameters": [
+        {
+          "name": "byte",
+          "type": "B",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Sink.kt:131",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-56c50bf69a16e323",
+      "fqName": "kotlinx.io.readUByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,UB>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:316",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-58329ccccc665665",
+      "fqName": "kotlinx.io.readFloatLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,F>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:438",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-68baf701ff31ad9b",
+      "fqName": "kotlinx.io.readUShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,US>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:328",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-6acf344318aaed3d",
+      "fqName": "kotlinx.io.writeULongLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,UJ,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "UJ",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:266",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-6b0debf09de64260",
+      "fqName": "kotlinx.io.Source.readAtMostTo",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F3<RLkotlinx.io.Source;,Lkotlin.ByteArray;,I,I,I>",
+      "parameters": [
+        {
+          "name": "sink",
+          "type": "Lkotlin.ByteArray;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "sink.size"
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Source.kt:199",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-6c944335ca7a6f05",
+      "fqName": "kotlinx.io.readULongLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,UJ>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:388",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-6d6284225d20375c",
+      "fqName": "kotlinx.io.writeUShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,US,U>",
+      "parameters": [
+        {
+          "name": "short",
+          "type": "US",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:196",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-6ffc7a3dfb94a6d5",
+      "fqName": "kotlinx.io.readLongLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,J>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:43",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-71da4182a46d1646",
+      "fqName": "kotlinx.io.writeDecimalLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,J,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [
+        "DelicateIoApi::class",
+        "UnsafeIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:72",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-77f7b41ec87f091b",
+      "fqName": "kotlinx.io.writeDoubleLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,D,U>",
+      "parameters": [
+        {
+          "name": "double",
+          "type": "D",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:350",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-7f75d8253eaeafaf",
+      "fqName": "kotlinx.io.Sink.writeLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,J,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Sink.kt:167",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-88bbb664f38f686c",
+      "fqName": "kotlinx.io.Source.readLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,J>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Source.kt:168",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-8a4d65b40a0bf57d",
+      "fqName": "kotlinx.io.Source.readByte",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,B>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Source.kt:135",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-8bffc09edd89a6f5",
+      "fqName": "kotlinx.io.readDecimalLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,J>",
+      "parameters": [],
+      "optInArguments": [
+        "InternalIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:66",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-99561fb55e3c6768",
+      "fqName": "kotlinx.io.writeShortLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,S,U>",
+      "parameters": [
+        {
+          "name": "short",
+          "type": "S",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:27",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-a6ee175ecb9390e8",
+      "fqName": "kotlinx.io.readByteString",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,Lkotlinx.io.bytestring.ByteString;>",
+      "parameters": [],
+      "optInArguments": [
+        "UnsafeByteStringApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/ByteStrings.kt:62",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-a97fa5c19fd45e36",
+      "fqName": "kotlinx.io.readDoubleLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,D>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:452",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-ac359cf3beddc6af",
+      "fqName": "kotlinx.io.readShortLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,S>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:17",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-ae2e25bc70cb0f81",
+      "fqName": "kotlinx.io.writeDouble",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,D,U>",
+      "parameters": [
+        {
+          "name": "double",
+          "type": "D",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:308",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-b0cbc86985848be3",
+      "fqName": "kotlinx.io.readByteArray",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,I,Lkotlin.ByteArray;>",
+      "parameters": [
+        {
+          "name": "byteCount",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:252",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-b4c0c7877dbf9c38",
+      "fqName": "kotlinx.io.readIntLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,I>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:30",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-b6239168ccc071cf",
+      "fqName": "kotlinx.io.writeFloat",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,F,U>",
+      "parameters": [
+        {
+          "name": "float",
+          "type": "F",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:289",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-b8cef78e807482ab",
+      "fqName": "kotlinx.io.readHexadecimalUnsignedLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,J>",
+      "parameters": [],
+      "optInArguments": [
+        "InternalIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:146",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-bb9ffc979ba60de7",
+      "fqName": "kotlinx.io.readUInt",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,UI>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:340",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-cc0b8375fc87baf1",
+      "fqName": "kotlinx.io.writeIntLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,I,U>",
+      "parameters": [
+        {
+          "name": "int",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:41",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-d622a899b3e52773",
+      "fqName": "kotlinx.io.writeUIntLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,UI,U>",
+      "parameters": [
+        {
+          "name": "int",
+          "type": "UI",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:252",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-db1be29554216403",
+      "fqName": "kotlinx.io.writeHexadecimalUnsignedLong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,J,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [
+        "DelicateIoApi::class",
+        "UnsafeIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:151",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-defd9573ba737c05",
+      "fqName": "kotlinx.io.readULong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,UJ>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:352",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-dfc8f292cc42fe63",
+      "fqName": "kotlinx.io.writeLongLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,J,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "J",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:55",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-f69256afeaa9b7ce",
+      "fqName": "kotlinx.io.Source.readShort",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,S>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Source.kt:146",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-fb2aeb01e083e94f",
+      "fqName": "kotlinx.io.readUShortLe",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,US>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:364",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-fbfc8c4cffccfd8f",
+      "fqName": "kotlinx.io.readFloat",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,F>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:406",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-fc00249c9b381346",
+      "fqName": "kotlinx.io.readDouble",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F0<RLkotlinx.io.Source;,D>",
+      "parameters": [],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:420",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "klib-fc72f439d7d51eff",
+      "fqName": "kotlinx.io.writeULong",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F1<RLkotlinx.io.Sink;,UJ,U>",
+      "parameters": [
+        {
+          "name": "long",
+          "type": "UJ",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sinks.kt:224",
+      "scope": "KUU1731_COMMON_LEDGER"
+    },
+    {
+      "rowID": "control-Source.indexOf-46",
+      "fqName": "kotlinx.io.indexOf",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F3<RLkotlinx.io.Source;,B,J,J,J>",
+      "parameters": [
+        {
+          "name": "byte",
+          "type": "B",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "J",
+          "default": true,
+          "defaultExpression": "0L"
+        },
+        {
+          "name": "endIndex",
+          "type": "J",
+          "default": true,
+          "defaultExpression": "Long.MAX_VALUE"
+        }
+      ],
+      "optInArguments": [
+        "InternalIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:207",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    },
+    {
+      "rowID": "control-Source.readByteArrayImpl-47",
+      "fqName": "kotlinx.io.readByteArrayImpl",
+      "visibility": "private",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,I,Lkotlin.ByteArray;>",
+      "parameters": [
+        {
+          "name": "size",
+          "type": "I",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [
+        "InternalIoApi::class"
+      ],
+      "sourceOnly": true,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:258",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    },
+    {
+      "rowID": "control-Source.startsWith-48",
+      "fqName": "kotlinx.io.startsWith",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F1<RLkotlinx.io.Source;,B,Z>",
+      "parameters": [
+        {
+          "name": "byte",
+          "type": "B",
+          "default": false,
+          "defaultExpression": null
+        }
+      ],
+      "optInArguments": [
+        "InternalIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/Sources.kt:466",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    },
+    {
+      "rowID": "control-Source.indexOf-49",
+      "fqName": "kotlinx.io.indexOf",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Source;",
+      "signature": "F2<RLkotlinx.io.Source;,Lkotlinx.io.bytestring.ByteString;,J,J>",
+      "parameters": [
+        {
+          "name": "byteString",
+          "type": "Lkotlinx.io.bytestring.ByteString;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "J",
+          "default": true,
+          "defaultExpression": "0"
+        }
+      ],
+      "optInArguments": [
+        "InternalIoApi::class",
+        "UnsafeByteStringApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/ByteStrings.kt:102",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    },
+    {
+      "rowID": "control-Sink.write-50",
+      "fqName": "kotlinx.io.write",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F3<RLkotlinx.io.Sink;,Lkotlinx.io.bytestring.ByteString;,I,I,U>",
+      "parameters": [
+        {
+          "name": "byteString",
+          "type": "Lkotlinx.io.bytestring.ByteString;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "byteString.size"
+        }
+      ],
+      "optInArguments": [
+        "DelicateIoApi::class",
+        "UnsafeByteStringApi::class",
+        "UnsafeIoApi::class"
+      ],
+      "sourceOnly": false,
+      "abstract": false,
+      "upstreamRef": "core/common/src/ByteStrings.kt:31",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    },
+    {
+      "rowID": "control-write-51",
+      "fqName": "kotlinx.io.Sink.write",
+      "visibility": "public",
+      "receiver": "Lkotlinx.io.Sink;",
+      "signature": "F3<RLkotlinx.io.Sink;,Lkotlin.ByteArray;,I,I,U>",
+      "parameters": [
+        {
+          "name": "source",
+          "type": "Lkotlin.ByteArray;",
+          "default": false,
+          "defaultExpression": null
+        },
+        {
+          "name": "startIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "0"
+        },
+        {
+          "name": "endIndex",
+          "type": "I",
+          "default": true,
+          "defaultExpression": "source.size"
+        }
+      ],
+      "optInArguments": [],
+      "sourceOnly": false,
+      "abstract": true,
+      "upstreamRef": "core/common/src/Sink.kt:88",
+      "scope": "SAME_FILE_NEIGHBOR_OR_DEFAULT_CONTROL_NOT_LEDGER"
+    }
+  ]
+}
