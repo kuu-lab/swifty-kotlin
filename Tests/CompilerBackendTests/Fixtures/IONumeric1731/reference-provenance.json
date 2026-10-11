@@ -1,0 +1,100 @@
+{
+  "status": "JVM_SEPARATE_PRODUCER_CONSUMER_REFERENCE_EXECUTED;CANDIDATE_NOT_RUN",
+  "original_receipt_sha256": "4bf57b766cbc2b7731fe320b58dc37a935d615ecb48937dd6f13229a4b286fcf",
+  "boundary_receipt_sha256": "19ce279c35dfddff0ae99875a572ff0d3dc74096d821c03945be8b809df36829",
+  "body_copy_proof": [
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/Driver.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/Driver.kt",
+      "sha256": "05ba34a819caeafb60d47393703a90b76a3c095fc26ead811366c62f0448bc39",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sinks_bytearray.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sinks_bytearray.kt",
+      "sha256": "123dde08716992db47f52da9e79f45ae4d44ba5b62ce5fc90ddf75a533675781",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sinks_decimal_hex.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sinks_decimal_hex.kt",
+      "sha256": "f43d0c39e4f717a431320fb4993e88f9a3e33888862f5d82ea7317c4424de008",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sinks_endianness.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sinks_endianness.kt",
+      "sha256": "6d3cd187578f8894124150a94bdc16330097079f5b4f401182167f28878a9313",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sources_arrays.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sources_arrays.kt",
+      "sha256": "78e6b0e3d86b76fc7c07887093bf54c58b60caee7362f6644504db024f80f518",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sources_numbers.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sources_numbers.kt",
+      "sha256": "d6c036a8f4ca027de2ee6caf4bd399e04bfabe727c21436c6a932ff0eec4b0c7",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sources_primitives.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sources_primitives.kt",
+      "sha256": "34bf562e594c9700d107db066dc00238307cc79cddcfc9d3a595ce34fb34cc32",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/kotlinx_io_sources_search.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/inputs/kotlinx_io_sources_search.kt",
+      "sha256": "8fce642b88cd5e01536081cc1034882ea5ee22bc7a00ad9a9b1618dce46d05ea",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Originals/reference.stdout",
+      "original_reference_output": "/workspace/scratch/io-1731-numeric-preparation/composite-reference1/run.stdout",
+      "sha256": "4b5deb9e7151b717a45a3e3a59c9e3fe5b38110ad9527945d0dda8a3523159f1",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Boundaries/ArrayBoundaries.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/boundary-reference1/inputs/ArrayBoundaries.kt",
+      "sha256": "e94f6832e56e801ceb7f0f5c371ef1fb6a67f9f586bed8fc851f54974eb9f13f",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Boundaries/Driver.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/boundary-reference1/inputs/Driver.kt",
+      "sha256": "dc9b0ac3f9eba5b0eaeedcdc3e43d8599532d855c9b5d8fa2acde709da0af1d2",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Boundaries/NumericBoundaries.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/boundary-reference1/inputs/NumericBoundaries.kt",
+      "sha256": "0d2e0c5cc182517bfdc78bf2d19e8e32044b1bf6060de68329f13c5dad1fd84b",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Boundaries/PartialEof.kt",
+      "original_reference_input": "/workspace/scratch/io-1731-numeric-preparation/boundary-reference1/inputs/PartialEof.kt",
+      "sha256": "f762a0b15a5282dc48adca574b76b1f98dbb3adc10b1eb31ecf7281c1661618d",
+      "copy_exact": true
+    },
+    {
+      "path": "Tests/CompilerBackendTests/Fixtures/IONumeric1731/Boundaries/reference.stdout",
+      "original_reference_output": "/workspace/scratch/io-1731-numeric-preparation/boundary-reference1/run.stdout",
+      "sha256": "3892ddc3fc5d5d55574a353aae75389b91118f67f91aface414f949c01d7ee06",
+      "copy_exact": true
+    }
+  ],
+  "consumer_sha256": "e37251eb390304dc14ec10b8bd1d19f9d2e6aa5c9be430ec3679ae9b93cd1576",
+  "expected_composition": "exact original compound driver stdout followed by exact boundary driver stdout, no additional delimiters",
+  "candidate_execution": "NOT_RUN",
+  "newfixtures_are_not_upstream_execution_ids": true,
+  "consumer_separate_JVM_execution": "PASS",
+  "producer_consumer_reference_receipt_sha256": "a9087f02d981b4df86d1a998e574a90052e890bd848f430cc000a8567438d82d",
+  "expected_sha256": "4d6151ee630fdb3c82824ea8b5b59f78a4f00ff531cc0470c0e3bc3a588abbed",
+  "expected_rows": 1759,
+  "expected_bytes": 71685
+}

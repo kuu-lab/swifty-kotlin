@@ -33,6 +33,7 @@ public fun Sink.write(byteString: ByteString, startIndex: Int = 0, endIndex: Int
 }
 
 /** Consumes all bytes from this source and returns them as an immutable byte string. */
+@OptIn(UnsafeByteStringApi::class)
 public fun Source.readByteString(): ByteString {
     var fetchSize = Int.MAX_VALUE.toLong()
     while (buffer.size < Int.MAX_VALUE && request(fetchSize)) {
@@ -56,6 +57,7 @@ public fun Source.readByteString(byteCount: Int): ByteString {
 }
 
 /** Searches without consuming bytes, fetching more data into the buffer as needed. */
+@OptIn(InternalIoApi::class, UnsafeByteStringApi::class)
 public fun Source.indexOf(byteString: ByteString, startIndex: Long = 0L): Long {
     val start = maxOf(0L, startIndex)
     if (byteString.size == 0) {

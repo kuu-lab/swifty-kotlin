@@ -14,6 +14,7 @@ public fun Source.readLongLe(): Long = this.readLong().reverseBytes()
 internal const val OVERFLOW_ZONE: Long = -922337203685477580L
 internal const val OVERFLOW_DIGIT_START: Long = -7L
 
+@OptIn(InternalIoApi::class)
 public fun Source.readDecimalLong(): Long {
     this.require(1L)
     var negative = false
@@ -58,6 +59,7 @@ private fun hexadecimalDigit(byte: Byte): Int {
     return -1
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.readHexadecimalUnsignedLong(): Long {
     this.require(1L)
     val first = this.buffer.get(0L)
@@ -80,6 +82,7 @@ public fun Source.readHexadecimalUnsignedLong(): Long {
     return result
 }
 
+@OptIn(InternalIoApi::class)
 public fun Source.indexOf(byte: Byte, startIndex: Long = 0L, endIndex: Long = Long.MAX_VALUE): Long {
     if (startIndex < 0L || startIndex > endIndex) {
         val message = if (endIndex < 0L) {
@@ -106,6 +109,7 @@ public fun Source.readByteArray(byteCount: Int): ByteArray {
     return this.readByteArrayImpl(byteCount)
 }
 
+@OptIn(InternalIoApi::class)
 private fun Source.readByteArrayImpl(size: Int): ByteArray {
     var arraySize = size
     if (size == -1) {
@@ -154,4 +158,5 @@ public fun Source.readFloat(): Float = Float.fromBits(this.readInt())
 public fun Source.readDouble(): Double = Double.fromBits(this.readLong())
 public fun Source.readFloatLe(): Float = Float.fromBits(this.readIntLe())
 public fun Source.readDoubleLe(): Double = Double.fromBits(this.readLongLe())
+@OptIn(InternalIoApi::class)
 public fun Source.startsWith(byte: Byte): Boolean = this.request(1L) && this.buffer.get(0L) == byte

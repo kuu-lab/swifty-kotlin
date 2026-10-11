@@ -1,0 +1,25 @@
+package kuu1731refs.driver
+
+fun main() {
+    println("BEGIN:kotlinx_io_sources_primitives")
+    kuu1731refs.kotlinx_io_sources_primitives.main()
+    println("END:kotlinx_io_sources_primitives")
+    println("BEGIN:kotlinx_io_sources_arrays")
+    kuu1731refs.kotlinx_io_sources_arrays.main()
+    println("END:kotlinx_io_sources_arrays")
+    println("BEGIN:kotlinx_io_sources_numbers")
+    kuu1731refs.kotlinx_io_sources_numbers.main()
+    println("END:kotlinx_io_sources_numbers")
+    println("BEGIN:kotlinx_io_sources_search")
+    kuu1731refs.kotlinx_io_sources_search.main()
+    println("END:kotlinx_io_sources_search")
+    println("BEGIN:kotlinx_io_sinks_endianness")
+    kuu1731refs.kotlinx_io_sinks_endianness.main()
+    println("END:kotlinx_io_sinks_endianness")
+    println("BEGIN:kotlinx_io_sinks_decimal_hex")
+    kuu1731refs.kotlinx_io_sinks_decimal_hex.main()
+    println("END:kotlinx_io_sinks_decimal_hex")
+    println("BEGIN:kotlinx_io_sinks_bytearray")
+    kuu1731refs.kotlinx_io_sinks_bytearray.main()
+    println("END:kotlinx_io_sinks_bytearray")
+}
