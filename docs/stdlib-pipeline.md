@@ -852,6 +852,14 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    registers it and automatically changes the canonical `specVersion` hash.
    `__kk_*` increases by one. The POSIX test-only adapter reuses public
    `SystemFileSystem.exists` and adds no runtime export or CInterop bypass.
+   KUU-1770 adds one compiler startup bridge, `__kk_process_args_from_argv`
+   (reason: memory representation). C `int32 argc` and borrowed `char **argv`
+   are copied into an owned `RuntimeArrayBox` with UTF-16-compatible string
+   boxes before the selected `Array<String>` entry runs. The bridge exposes
+   no Kotlin public process API; only the generated C entry wrapper calls it.
+   `__kk_*` cdecl count increases by one, with no additional `kk_*` export.
+   `RuntimeABISpec.systemFunctions` records the nonthrowing int32/pointer/handle
+   ABI; its canonical hash automatically updates `specVersion`.
    KUU-1244 adds two private launch bridges (reason: GC・continuation):
    `__kk_coroutine_scope_launch_context` and its `_with_cont` counterpart.
    A stored suspend block uses the function-value ABI, while a lowered literal

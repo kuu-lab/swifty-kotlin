@@ -57,7 +57,7 @@ final class LinkPhase: CompilerPhase {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available during link.")
         }
-        guard let entrySymbol = resolveEntrySymbol(
+        guard let entry = resolveEntrySymbol(
             kir: kir,
             ast: ctx.ast,
             bindings: ctx.sema?.bindings,
@@ -65,7 +65,8 @@ final class LinkPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             symbols: ctx.sema?.symbols,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
-            entryPointFQName: ctx.options.entryPointFQName
+            entryPointFQName: ctx.options.entryPointFQName,
+            types: ctx.sema?.types
         ) else {
             ctx.diagnostics.error(
                 "KSWIFTK-LINK-0002",
@@ -75,18 +76,18 @@ final class LinkPhase: CompilerPhase {
             throw CompilerPipelineError.outputUnavailable
         }
         try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
-            try performLink(objectPath: objectPath, entrySymbol: entrySymbol, ctx: ctx)
+            try performLink(objectPath: objectPath, entrySymbol: entry.symbol, takesArguments: entry.takesArguments, ctx: ctx)
         }
     }
 
-    private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
+    private func performLink(objectPath: String, entrySymbol: String, takesArguments: Bool, ctx: CompilationContext) throws {
         let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
         do {
             let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(
                 target: ctx.options.target,
                 configuration: .release
             )
-            let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
+            let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target, takesArguments: takesArguments)
                 .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
                 .deletingLastPathComponent()
@@ -222,47 +223,44 @@ final class LinkPhase: CompilerPhase {
         moduleName: String,
         symbols: SymbolTable?,
         fileFacadeNamesByFileID: [Int32: String],
-        entryPointFQName: String?
-    ) -> String? {
-        guard let ast, let bindings else {
-            return nil
-        }
-        let knownNames = KnownCompilerNames(interner: interner)
-        let mainNameResolved = interner.resolve(knownNames.main)
-        for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
-                guard let astDecl = ast.arena.decl(declID),
-                      case .funDecl = astDecl,
-                      let symbol = bindings.declSymbols[declID],
-                      let function = kir.arena.function(for: symbol)
-                else {
-                    continue
-                }
-                // Only file-level declarations are eligible as the executable
-                // entry point. The arena also contains local and class-member
-                // functions, which can share the name `main`.
-                // Compare interned IDs first; fall back to the resolved string so
-                // an entry point is found even if `main` was interned on a
-                // different code path and received a distinct `InternedString`.
-                let matchesEntry: Bool
-                if let entryPointFQName {
-                    matchesEntry = symbols?.symbol(symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entryPointFQName
-                } else {
-                    matchesEntry = function.name == knownNames.main
-                        || (!mainNameResolved.isEmpty && interner.resolve(function.name) == mainNameResolved)
-                }
-                if matchesEntry {
-                    return CodegenSymbolSupport.cFunctionSymbol(
-                        for: function,
-                        interner: interner,
-                        moduleName: moduleName,
-                        symbols: symbols,
-                        fileFacadeNamesByFileID: fileFacadeNamesByFileID
-                    )
-                }
+        entryPointFQName: String?,
+        types: TypeSystem?
+    ) -> (symbol: String, takesArguments: Bool)? {
+        guard let ast, let bindings,
+              let symbol = ExecutableEntryPointSelector.firstFileLevelSymbol(
+                ast: ast, bindings: bindings, arena: kir.arena, interner: interner,
+                symbols: symbols, entryPointFQName: entryPointFQName
+              ),
+              let function = kir.arena.function(for: symbol)
+        else { return nil }
+        let takesArguments: Bool
+        if function.params.isEmpty {
+            takesArguments = false
+        } else {
+            guard function.params.count == 1, let types, let symbols,
+                  let signature = symbols.functionSignature(for: symbol),
+                  signature.receiverType == nil, signature.contextReceiverTypes.isEmpty,
+                  signature.typeParameterSymbols.isEmpty, !signature.isSuspend,
+                  case let .classType(arrayType) = types.kind(of: function.params[0].type),
+                  arrayType.nullability == .nonNull,
+                  symbols.symbol(arrayType.classSymbol)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.Array",
+                  arrayType.args.count == 1
+            else { return nil }
+            let elementType: TypeID
+            switch arrayType.args[0] {
+            case let .invariant(type), let .out(type): elementType = type
+            case .in, .star: return nil
             }
+            guard elementType == types.stringType else { return nil }
+            takesArguments = true
         }
-        return nil
+        return (
+            CodegenSymbolSupport.cFunctionSymbol(
+                for: function, interner: interner, moduleName: moduleName,
+                symbols: symbols, fileFacadeNamesByFileID: fileFacadeNamesByFileID
+            ),
+            takesArguments
+        )
     }
 
     func linkerDriverArgs(for target: TargetTriple) -> [String] {

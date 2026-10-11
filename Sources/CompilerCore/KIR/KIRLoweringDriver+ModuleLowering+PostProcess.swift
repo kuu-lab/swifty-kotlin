@@ -11,29 +11,10 @@ extension KIRLoweringDriver {
         guard !allTopLevelInitInstructions.isEmpty || !delegateStorageSymbolByPropertySymbol.isEmpty else { return }
 
         let interner = compilationCtx.interner
-        let mainName = interner.intern("main")
-        var entrySymbol: SymbolID?
-        if compilationCtx.options.emit != .library {
-            // Match LinkPhase's first file-level entry. Other functions named
-            // main are ordinary Kotlin functions and must not restart the module.
-            entrySearch: for file in ast.sortedFiles {
-                for declID in file.topLevelDecls {
-                    guard case .funDecl? = ast.arena.decl(declID),
-                          let symbol = sema.bindings.declSymbols[declID],
-                          let function = arena.function(for: symbol) else { continue }
-                    let matchesEntry: Bool
-                    if let entry = compilationCtx.options.entryPointFQName {
-                        matchesEntry = sema.symbols.symbol(symbol)?.fqName.map(interner.resolve).joined(separator: ".") == entry
-                    } else {
-                        matchesEntry = function.name == mainName || interner.resolve(function.name) == "main"
-                    }
-                    if matchesEntry {
-                        entrySymbol = symbol
-                        break entrySearch
-                    }
-                }
-            }
-        }
+        let entrySymbol = compilationCtx.options.emit == .library ? nil : ExecutableEntryPointSelector.firstFileLevelSymbol(
+            ast: ast, bindings: sema.bindings, arena: arena, interner: interner,
+            symbols: sema.symbols, entryPointFQName: compilationCtx.options.entryPointFQName
+        )
         var startupInitializers = allTopLevelInitInstructions
         if entrySymbol != nil, !startupInitializers.isEmpty {
             // Kotlin can call the selected main again as an ordinary function.
