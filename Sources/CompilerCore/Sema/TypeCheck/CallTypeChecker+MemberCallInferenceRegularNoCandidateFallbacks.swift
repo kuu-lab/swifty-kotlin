@@ -7,7 +7,8 @@ extension CallTypeChecker {
         memberLookupType: TypeID,
         argTypes: [TypeID],
         isClassNameReceiver: Bool,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        maximumPropertyPriority: Int? = nil
     ) -> TypeID? {
         let id = request.id
         let calleeName = request.calleeName
@@ -21,6 +22,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let calleeStr = interner.resolve(calleeName)
+        let invocationLocals = locals
         let isSuperReceiver = if case .superRef = ast.arena.expr(request.receiverID) { true } else { false }
         // For non-empty-arg member calls, try member property/field lookup.
         // This handles callable property syntax (e.g. `receiver.f(...)`);
@@ -33,14 +35,23 @@ extension CallTypeChecker {
         )
         // Lexical receiver-function values precede package extension properties.
         // Nominal member properties retain their existing priority.
-        if !isClassNameReceiver, !isSuperReceiver, ast.arena.isExplicitCall(id), memberProperty == nil {
-            let lexicalType = locals[calleeName]?.type ?? ctx.implicitReceiverType.flatMap {
-                driver.helpers.lookupMemberProperty(named: calleeName, receiverType: $0, sema: sema)?.type
+        if !isClassNameReceiver, !isSuperReceiver,
+           !args.isEmpty || ast.arena.isExplicitCall(id), memberProperty == nil,
+           maximumPropertyPriority.map({ $0 >= 1 }) ?? true {
+            let lexicalType = locals[calleeName]?.type ?? ctx.implicitReceiverType.flatMap { receiver in
+                guard let property = driver.helpers.lookupMemberProperty(named: calleeName, receiverType: receiver, sema: sema),
+                      let symbol = sema.symbols.symbol(property.symbol),
+                      ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                else { return TypeID?.none }
+                return property.type
             }
             if let lexicalType,
                case let .functionType(function) = sema.types.kind(of: lexicalType),
                let receiver = function.receiver,
                sema.types.isSubtype(memberLookupType, receiver),
+               maximumPropertyPriority == nil || callableValueAcceptsArgumentShape(
+                   function, receiverIsExplicit: false, request: request, argTypes: argTypes, locals: invocationLocals
+               ),
                let result = inferLexicalExtensionCallableInvocation(request, receiverType: memberLookupType, locals: &locals) {
                 return result
             }
@@ -50,6 +61,19 @@ extension CallTypeChecker {
                 return nil
             }
             if let memberProperty {
+                if !explicitTypeArgs.isEmpty,
+                   inferFunctionTypeOrError(from: memberProperty.type, sema: sema) != nil { return nil }
+                if let maximumPropertyPriority,
+                   (callableInvocationScopePriority(memberProperty.symbol, named: calleeName, ctx: ctx) > maximumPropertyPriority
+                       || sema.symbols.symbol(memberProperty.symbol).map({
+                           !ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                       }) == true
+                       || !callablePropertyAcceptsArgumentShape(
+                           memberProperty.symbol, request: request, argTypes: argTypes,
+                           typeOverride: memberProperty.type, locals: invocationLocals
+                       )) {
+                    return nil
+                }
                 return memberProperty
             }
             if isSuperReceiver { return nil }
@@ -59,7 +83,18 @@ extension CallTypeChecker {
             guard explicitTypeArgs.isEmpty,
                   let propertyType = resolveExtensionPropertyGetter(
                 id: id, calleeName: calleeName, range: range,
-                receiverType: memberLookupType, expectedType: nil, ctx: ctx, bindCall: false, requireInScope: true
+                receiverType: memberLookupType, expectedType: nil, ctx: ctx, bindCall: false, requireInScope: true,
+                invocationCandidateFilter: { property in
+                        (maximumPropertyPriority.map {
+                            self.callableInvocationScopePriority(property, named: calleeName, ctx: ctx) <= $0
+                        } ?? true)
+                            && (maximumPropertyPriority == nil || ctx.sema.symbols.symbol(property).map {
+                                ctx.visibilityChecker.isAccessible($0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                            } == true)
+                            && self.callablePropertyAcceptsArgumentShape(
+                                property, request: request, argTypes: argTypes, locals: invocationLocals
+                            )
+                }
             ), inferFunctionTypeOrError(from: propertyType, sema: sema) != nil,
                   let property = sema.bindings.identifierSymbol(for: id) else {
                 return nil

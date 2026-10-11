@@ -224,6 +224,25 @@ extension CallTypeChecker {
                 diagnostics: ctx.semaCtx.diagnostics
             )
         }
+        // A bare receiver-function call in an escaping lambda reads an outer
+        // `this` even when its body contains no ordinary member reference.
+        // Record that value so capture analysis retains it and KIR supplies it.
+        if receiverArgOffset == 0, let requiredReceiver = functionType.receiver,
+           case .call = ast.arena.expr(id) {
+            let localThis = locals[ctx.interner.intern("this")].flatMap { local in
+                sema.types.isSubtype(local.type, requiredReceiver) ? local.symbol : nil
+            }
+            let receiverSymbol = localThis
+                ?? ctx.implicitReceiverStack.reversed().first(where: {
+                    sema.types.isSubtype($0.type, requiredReceiver)
+                })?.symbol
+                ?? ctx.outerReceiverTypes.reversed().first(where: {
+                    sema.types.isSubtype($0.type, requiredReceiver)
+                })?.symbol
+            if let receiverSymbol {
+                sema.bindings.markImplicitExtensionReceiver(id, symbol: receiverSymbol)
+            }
+        }
         sema.bindings.bindCallableValueCall(
             id,
             binding: CallableValueCallBinding(
