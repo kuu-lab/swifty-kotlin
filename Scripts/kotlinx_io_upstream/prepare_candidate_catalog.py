@@ -17,7 +17,7 @@ from run_jvm_reference import sha256, verify_file
 
 def prepare_catalog(upstream: Path, catalog: list[dict], lock: dict,
                     suites: list[str] | None, output: Path, target: str,
-                    declarations: dict) -> list[dict]:
+                    declarations: dict, source_closure: dict | None = None) -> list[dict]:
     if target not in {"linux", "macos"}:
         raise ValueError("catalog target must be linux or macos")
     if (declarations["schema_version"] != 1 or declarations["upstream_commit"] != lock["commit"]
@@ -45,6 +45,19 @@ def prepare_catalog(upstream: Path, catalog: list[dict], lock: dict,
                    or "/native/test/" in row["path"] or target == "macos" and "/apple/test/" in row["path"]))
     if paths != sorted(declarations["source_closures"][target]) or len(set(paths)) != len(paths):
         raise ValueError("original source closure must match the reference lane")
+    full_paths = paths
+    if source_closure is not None:
+        if (not suites or source_closure.get("schema_version") != 1
+                or source_closure.get("upstream_commit") != lock["commit"]
+                or source_closure.get("native_execution_catalog_sha256") != lock["native_execution_catalog_sha256"]
+                or source_closure.get("target") != target
+                or source_closure.get("suites") != sorted(selected)):
+            raise ValueError("scoped closure must match the explicit selected suites and pinned target")
+        paths = source_closure["source_paths"]
+        if (not paths or paths != sorted(set(paths)) or not set(paths) <= set(full_paths)
+                or not {classes[suite]["source_path"] for suite in selected} <= set(paths)
+                or not {row["upstream_path"] for row in rows} <= set(paths)):
+            raise ValueError("scoped closure cannot replace sources or omit selected original declarations")
     texts = {}
     sources = []
     for path in paths:
@@ -110,6 +123,7 @@ def prepare_catalog(upstream: Path, catalog: list[dict], lock: dict,
     driver_path.write_text("\n".join(driver))
     return [{"suite": "native-catalog-" + target, "target": target,
              "source_ports": [row["port_path"] for row in sources], "original_sources": sources,
+             "source_closure_scope": "explicit-scoped" if source_closure is not None else "full-catalog",
              "driver_path": str(driver_path), "driver_sha256": sha256(driver_path),
              "execution_ids": identifiers, "source_function_ids": sorted({row["upstream_id"] for row in rows}),
              "event_token": token, "assertions_parameters_constructors_changed": False,

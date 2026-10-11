@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "issue": "KUU-1761",
+  "state": "UNVERIFIED",
+  "candidate_fingerprint": null,
+  "policy": "Closed resource safety follows common documented IllegalStateException contract, explicitly deviating from defective upstream Native closed operations. Ordinary original tests remain exact unchanged differential controls.",
+  "common_native_ledger_rows": 41,
+  "common_native_declarations": 32,
+  "JVM_PublishedApi_coordination_rows": 34,
+  "JVM_owner": "KUU-1762",
+  "original_Smoke28_Utils2_state": "NOT_RUN",
+  "common_contract_anchors": [
+    {
+      "path": "core/common/src/RawSource.kt",
+      "line": 51,
+      "contract": "IllegalStateException when closed; close twice safe at line60"
+    },
+    {
+      "path": "core/common/src/RawSink.kt",
+      "line": 50,
+      "contract": "write closed throws IllegalStateException; argument bounds IllegalArgumentException at line49"
+    },
+    {
+      "path": "core/common/src/RawSink.kt",
+      "line": 58,
+      "contract": "flush closed throws IllegalStateException; close twice safe at line65"
+    }
+  ],
+  "actual_Native_reference": {
+    "summary_path": "/workspace/scratch/path-filesystem-1761-integration/closed-native-reference-proposed1/summary.json",
+    "summary_sha256": "0da70c074e3efc66b3a84c1e86066c16a8947b297694545f02bce896997283bd",
+    "status": "OBSERVED_PARTIAL_REFERENCE_NO_RETRY",
+    "compile_exit": 0,
+    "run_exit": -11,
+    "observed": {
+      "closed-write-zero": "IllegalStateException",
+      "closed-write-one": "IllegalStateException",
+      "closed-flush": "IOException",
+      "closed-read-zero": "ArrayIndexOutOfBoundsException",
+      "closed-read-one": null
+    },
+    "read_one": "UNOBSERVED_UNVERIFIED",
+    "retry_count": 0,
+    "failed_binary_retained": true,
+    "native_partial_observation_is_candidate_PASS": false
+  },
+  "proposed_closed_contract_checks": [
+    {
+      "check_id": "ClosedCommon.source-O0",
+      "method": "IOFileFamilyExecutionTests/closedRawFilesFollowTheCommonSafetyContract",
+      "expected_rows": 5,
+      "state": "NOT_RUN"
+    },
+    {
+      "check_id": "ClosedCommon.source-O2",
+      "method": "IOFileFamilyExecutionTests/closedRawFilesFollowTheCommonSafetyContract",
+      "expected_rows": 5,
+      "state": "NOT_RUN"
+    },
+    {
+      "check_id": "ClosedCommon.library-O0",
+      "method": "IOFileFamilyExecutionTests/closedRawFilesFollowTheCommonSafetyContract",
+      "expected_rows": 5,
+      "state": "NOT_RUN"
+    },
+    {
+      "check_id": "ClosedCommon.library-O2",
+      "method": "IOFileFamilyExecutionTests/closedRawFilesFollowTheCommonSafetyContract",
+      "expected_rows": 5,
+      "state": "NOT_RUN"
+    }
+  ],
+  "guard_order": "Negative read count / write bounds are checked before closed state; closed check precedes zero-byte result, write loop and all OS descriptor accesses. Open unbuffered flush remains a valid no-op, not fsync/atomic durability.",
+  "limits": [
+    "All candidate shape/lifecycle/original-suite states remain UNVERIFIED/NOT_RUN.",
+    "Official Native -11 after four observed rows does not establish a typed closed-read-one exception; no exact instruction-level diagnosis or retry.",
+    "Apple/mac host behavior not executed. JVM platform family remains coordinated rather than removed.",
+    "No new runtime bridge or public API added."
+  ],
+  "fixture": "Tests/CompilerBackendTests/Fixtures/IOFileFamily/closed-common-contract/fixture.kt",
+  "expected": "Tests/CompilerBackendTests/Fixtures/IOFileFamily/closed-common-contract/expected.stdout",
+  "not_a_JVM_diff_case": "Candidate-only common documented safety control deliberately outside Scripts/diff_cases; actual upstream JVM/Native exception behavior differs and is never silently rewritten as matching oracle."
+}
