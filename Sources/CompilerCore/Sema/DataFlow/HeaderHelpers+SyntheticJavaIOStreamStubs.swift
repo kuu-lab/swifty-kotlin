@@ -366,7 +366,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(readerType, for: readerSymbol)
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
 
-        // BufferedReader.readLine() -> String?
         registerFileMemberFunction(
             named: "readLine",
             externalLinkName: "__kk_buffered_reader_readLine",
@@ -378,7 +377,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.readLines() -> List<String>
         registerFileMemberFunction(
             named: "readLines",
             externalLinkName: "__kk_buffered_reader_readLines",
@@ -390,7 +388,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "__kk_buffered_reader_close",
@@ -413,7 +410,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
 
-        // BufferedReader.read() -> Int  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "read",
             externalLinkName: "__kk_buffered_reader_read",
@@ -425,7 +421,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedReader.ready() -> Boolean  (STDLIB-IO-091)
         registerFileMemberFunction(
             named: "ready",
             externalLinkName: "__kk_buffered_reader_ready",
@@ -566,7 +561,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
         types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
 
-        // BufferedWriter.write(text: String) -> Unit
         registerFileMemberFunction(
             named: "write",
             externalLinkName: "__kk_buffered_writer_write",
@@ -578,7 +572,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.newLine() -> Unit
         registerFileMemberFunction(
             named: "newLine",
             externalLinkName: "__kk_buffered_writer_new_line",
@@ -590,7 +583,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.flush() -> Unit
         registerFileMemberFunction(
             named: "flush",
             externalLinkName: "__kk_buffered_writer_flush",
@@ -602,7 +594,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // BufferedWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
             externalLinkName: "__kk_buffered_writer_close",
