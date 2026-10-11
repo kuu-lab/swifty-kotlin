@@ -30,7 +30,7 @@ extension BundledStdlibExecutionTests {
     func functionReferenceNameAndCall(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
             try diffCaseSource("function_reference_name_call.kt", file: #filePath),
-            expectedOutput: "topFn\n4\n4\n4\n",
+            expectedOutput: "topFn\n4\n4\n4\n7\n7\n",
             moduleName: "KUU1231FunctionReference",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
