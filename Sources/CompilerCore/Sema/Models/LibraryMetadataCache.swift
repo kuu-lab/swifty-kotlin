@@ -78,7 +78,7 @@ final class LibraryMetadataCache {
     func cachedMetadataRecords(metadataPath: String, interner: StringInterner) -> [DataFlowSemaPhase.ImportedLibrarySymbolRecord]? {
         let intID = ObjectIdentifier(interner)
         if currentInternerID != intID {
-            return nil // different interner — treat as miss
+            return nil
         }
         let mtime = Self.fileMtimeNanos(path: metadataPath)
         guard let entry = metadataCache[metadataPath],
@@ -146,12 +146,12 @@ final class LibraryMetadataCache {
         let tsID = ObjectIdentifier(types)
         let stID = ObjectIdentifier(symbols)
         if currentTypeSystemID != tsID || currentSymbolTableID != stID {
-            return nil // different TypeSystem or SymbolTable — treat as miss
+            return nil
         }
         guard let entry = signatureCache[signature] else {
-            return nil // cache miss — outer optional is nil
+            return nil
         }
-        return entry // cache hit — may be .some(nil) for previously-failed parses
+        return entry
     }
 
     /// Stores a type signature parse result (including `nil` for failures).
@@ -169,12 +169,10 @@ final class LibraryMetadataCache {
 
     // MARK: - Statistics
 
-    /// Number of manifest cache entries.
     var manifestCacheCount: Int {
         manifestCache.count
     }
 
-    /// Number of metadata record cache entries.
     var metadataCacheCount: Int {
         metadataCache.count
     }
@@ -183,7 +181,6 @@ final class LibraryMetadataCache {
         indexedMetadataCache.count
     }
 
-    /// Number of cached type signature entries.
     var signatureCacheCount: Int {
         signatureCache.count
     }
