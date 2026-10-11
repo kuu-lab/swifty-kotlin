@@ -761,6 +761,15 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
 
+        if let invokeResult = tryLowerNominalPropertyInvocation(
+            exprID, receiverExpr: receiverExpr, args: args, precomputedReceiver: loweredReceiverID,
+            shared: shared, emit: &instructions
+        ) {
+            instructions.append(.copy(from: invokeResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let invokeResult = tryLowerLexicalExtensionCallableInvocation(
             exprID,
             receiverExpr: receiverExpr,

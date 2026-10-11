@@ -34,8 +34,11 @@ extension CallTypeChecker {
     ) -> Bool {
         let ctx = request.ctx
         let sema = ctx.sema
-        guard let type = typeOverride ?? sema.symbols.propertyType(for: property),
-              case let .functionType(function) = sema.types.kind(of: type) else { return false }
+        guard let type = typeOverride ?? sema.symbols.propertyType(for: property) else { return false }
+        guard case let .functionType(function) = sema.types.kind(of: type) else {
+            return nominalCallablePropertyAcceptsArgumentShape(type, request: request, argTypes: argTypes, locals: locals)
+        }
+        guard request.explicitTypeArgs.isEmpty else { return false }
         return callableValueAcceptsArgumentShape(
             function, receiverIsExplicit: sema.symbols.extensionPropertyReceiverType(for: property) != nil,
             request: request, argTypes: argTypes, locals: locals
@@ -80,13 +83,13 @@ extension CallTypeChecker {
         return true
     }
 
-    private func callableArgumentFunctionType(_ type: TypeID, ctx: TypeInferenceContext) -> FunctionType? {
+    func callableArgumentFunctionType(_ type: TypeID, ctx: TypeInferenceContext) -> FunctionType? {
         if case let .functionType(function) = ctx.sema.types.kind(of: type) { return function }
         return ctx.sema.types.nominalFunctionType(for: type)
             ?? driver.helpers.samFunctionType(for: type, sema: ctx.sema)
     }
 
-    private func callableArgumentAcceptsUnknownArity(_ type: TypeID, isReference: Bool, ctx: TypeInferenceContext) -> Bool {
+    func callableArgumentAcceptsUnknownArity(_ type: TypeID, isReference: Bool, ctx: TypeInferenceContext) -> Bool {
         let placeholder = ctx.sema.types.make(.functionType(FunctionType(
             params: [], returnType: ctx.sema.types.nothingType,
             isSuspend: false, isCallableReference: isReference, nullability: .nonNull
@@ -97,7 +100,7 @@ extension CallTypeChecker {
     /// Check known reference signatures without binding the reference against
     /// a tier that may lose. The normal contextual inference still reports
     /// errors and binds the target once the winning callable is selected.
-    private func callableReferenceAcceptsArgumentType(
+    func callableReferenceAcceptsArgumentType(
         _ expression: ExprID, parameter: TypeID, ctx: TypeInferenceContext, locals: LocalBindings
     ) -> Bool {
         let sema = ctx.sema
