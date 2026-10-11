@@ -1003,16 +1003,29 @@ final class CallLowerer {
                // (`ef(3, 4)`), normalizedArgs already has `params.count + 1`
                // elements and finalArgIDs.count is params.count + 2 -- there
                // is no missing receiver slot to fill from the ambient scope.
-               finalArgIDs.count == functionType.params.count + 1,
-               let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+               finalArgIDs.count == functionType.params.count + 1
             {
                 // A receiver-function value invoked as `block()` inside a
                 // receiver scope uses the active implicit receiver as its
                 // dispatch receiver (e.g. the bodies of T.run and T.apply).
-                finalArgIDs.insert(implicitReceiver, at: 1)
+                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+                    .flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 1) }
             }
         }
         if callableInvokeCallee == nil, let loweredCallable {
+            if let callableValueCallBinding,
+               case let .functionType(functionType) = sema.types.kind(
+                   of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
+               ),
+               functionType.receiver != nil,
+               finalArgIDs.count == functionType.params.count {
+                let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
+                    .flatMap { driver.ctx.localValue(for: $0) }
+                    ?? driver.ctx.activeImplicitReceiverExprID()
+                if let implicitReceiver { finalArgIDs.insert(implicitReceiver, at: 0) }
+            }
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
         } else if let chosen,
                   !isAtomicFactory,
@@ -1926,23 +1939,61 @@ final class CallLowerer {
                 : sema.types.anyType
             // Nested inline calls must forward the enclosing reified token;
             // a type parameter has no concrete nominal token to encode yet.
-            if case let .typeParam(parameter) = sema.types.kind(of: concreteType),
-               parameter.nullability == .nonNull,
+            var forwardedParameter: TypeParamType?
+            var tokenType = concreteType
+            switch sema.types.kind(of: concreteType) {
+            case let .typeParam(parameter):
+                forwardedParameter = parameter
+            case let .intersection(parts):
+                if parts.contains(sema.types.anyType),
+                   let parameter = parts.compactMap({ part -> TypeParamType? in
+                       if case let .typeParam(parameter) = sema.types.kind(of: part) { return parameter }
+                       return nil
+                   }).first {
+                    if sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
+                        forwardedParameter = parameter
+                    } else {
+                        // Kotlin 2.3.10 erases an unreified U & Any to Any for
+                        // this reified invocation, rather than rejecting it.
+                        tokenType = sema.types.anyType
+                    }
+                }
+            default:
+                break
+            }
+            let componentType = forwardedParameter.map { sema.types.make(.typeParam($0)) } ?? tokenType
+            if let parameter = forwardedParameter,
                sema.symbols.symbol(parameter.symbol)?.flags.contains(.reifiedTypeParameter) == true {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter.symbol)
-                let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
-                instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
-                arguments.append(tokenExpr)
+                let tokenExpr: KIRExprID
+                if let capturedToken = driver.ctx.localValue(for: tokenSymbol) {
+                    tokenExpr = capturedToken
+                } else {
+                    tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
+                    instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
+                }
+                if parameter.nullability == .nullable {
+                    let flagValue = RuntimeTypeCheckToken.nullableFlag
+                    let flag = arena.appendExpr(.intLiteral(flagValue), type: intType)
+                    instructions.append(.constValue(result: flag, value: .intLiteral(flagValue)))
+                    let adjustedToken = arena.appendTemporary(type: intType)
+                    instructions.append(.call(symbol: nil, callee: interner.intern("kk_bitwise_or"),
+                                              arguments: [tokenExpr, flag], result: adjustedToken,
+                                              canThrow: false, thrownResult: nil))
+                    arguments.append(adjustedToken)
+                } else {
+                    arguments.append(tokenExpr)
+                }
                 if carriesComponent {
                     let component = runtimeArrayComponentTypeExpr(
-                        for: concreteType, sema: sema, arena: arena,
+                        for: componentType, context: driver.ctx, sema: sema, arena: arena,
                         interner: interner, instructions: &instructions
                     )
                     arguments.append(component)
                 }
                 continue
             }
-            let encodedToken = RuntimeTypeCheckToken.encode(type: concreteType, sema: sema, interner: interner)
+            let encodedToken = RuntimeTypeCheckToken.encode(type: tokenType, sema: sema, interner: interner)
             let tokenExpr = arena.appendExpr(
                 .intLiteral(encodedToken),
                 type: intType
@@ -1951,7 +2002,7 @@ final class CallLowerer {
             arguments.append(tokenExpr)
             if carriesComponent {
                 let component = runtimeArrayComponentTypeExpr(
-                    for: concreteType, sema: sema, arena: arena,
+                    for: componentType, context: driver.ctx, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
                 )
                 arguments.append(component)

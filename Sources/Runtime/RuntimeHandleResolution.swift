@@ -9,20 +9,14 @@
 /// or `runtimePlainArrayBox` requiring an exact-type match) inline a custom
 /// version.
 func resolveRuntimeHandle<T: AnyObject>(_ rawValue: Int, as _: T.Type) -> T? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: T.self)
+    resolveRuntimeObjectHandle(rawValue) as? T
 }
 
 /// Resolve a raw integer handle to the registered runtime object it points to,
-/// taking the GC lock once for the `objectPointers` membership check.
+/// taking the GC lock once for membership and acquisition of a strong reference.
+/// Explicit release removes membership under the same lock, so the retain must
+/// happen before unlocking. Casting and dropping the returned reference happen
+/// outside the lock: object deinitializers may re-enter the runtime.
 ///
 /// A dispatcher testing one handle against several box types can cast the
 /// result with `as?`/`is` repeatedly without re-locking — equivalent to one
@@ -31,12 +25,11 @@ func resolveRuntimeObjectHandle(_ rawValue: Int) -> AnyObject? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
     }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+    return runtimeStorage.withGCLock { state in
+        guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
+            return nil
+        }
+        let normalized = runtimePrimitiveBoxBasePointer(from: rawValue) ?? ptr
+        return Unmanaged<AnyObject>.fromOpaque(normalized).retain().takeRetainedValue()
     }
-    guard isObjectPointer else {
-        return nil
-    }
-    let normalized = runtimePrimitiveBoxBasePointer(from: rawValue) ?? ptr
-    return Unmanaged<AnyObject>.fromOpaque(normalized).takeUnretainedValue()
 }

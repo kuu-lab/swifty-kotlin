@@ -686,11 +686,11 @@ final class LambdaLowerer {
             let classToken = arena.appendTemporary(type: sema.types.intType)
             let componentToken = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("component1"), arguments: [capturedValue],
+                symbol: nil, callee: interner.intern("__kk_pair_first"), arguments: [capturedValue],
                 result: classToken, canThrow: false, thrownResult: nil
             ))
             instructions.append(.call(
-                symbol: nil, callee: interner.intern("component2"), arguments: [capturedValue],
+                symbol: nil, callee: interner.intern("__kk_pair_second"), arguments: [capturedValue],
                 result: componentToken, canThrow: false, thrownResult: nil
             ))
             driver.ctx.setLocalValue(classToken, for: tokenSymbol)

@@ -7,6 +7,29 @@ import Testing
 /// the next accessor is wrapped in a `.propertyAccessor` child.
 @Suite
 struct PropertyAccessorParsingTests {
+    @Test(arguments: ["(Int) -> Int", "String.(Int) -> Int"])
+    func inlineExpressionGetterRetainsFunctionTypeBeforeLambda(_ type: String) throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Holder {
+            val callback: \(type) get() = { it }
+        }
+        """, includeStdlib: false)
+        let property = try #require(memberProperty(named: "callback", ofClass: "Holder", in: ast, interner: ctx.interner))
+        let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
+        guard case let .functionType(_, receiver, parameters, _, _, _) = typeRef else {
+            Issue.record("Expected a function property annotation, got \(typeRef)")
+            return
+        }
+        #expect(parameters.count == 1)
+        #expect((receiver != nil) == type.hasPrefix("String"))
+        #expect(property.initializer == nil)
+        guard case let .expr(expression, _) = property.getter?.body,
+              case .lambdaLiteral = ast.arena.expr(expression) else {
+            Issue.record("The getter must return a lambda expression")
+            return
+        }
+    }
+
     @Test
     func semicolonSeparatedGetterAndSetterAreBothParsed() throws {
         let (ast, ctx) = try buildASTModule(from: """

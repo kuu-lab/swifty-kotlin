@@ -556,7 +556,7 @@ extension LambdaLowerer {
     }
 }
 
-private func callableReflectionParameterType(
+func callableReflectionParameterType(
     _ elementType: TypeID,
     isVararg: Bool,
     declarationType: TypeID? = nil,

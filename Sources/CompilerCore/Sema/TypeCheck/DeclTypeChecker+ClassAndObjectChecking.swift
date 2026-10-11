@@ -8,7 +8,7 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        let propertyCtx = ctx.with(currentDeclSymbol: symbol)
+        let propertyCtx = propertyTypeParameterContext(property, symbol: symbol, ctx: ctx, diagnostics: diagnostics)
         validatePropertyHeaderOptInTypes(
             symbol,
             ctx: propertyCtx
@@ -21,6 +21,41 @@ extension DeclTypeChecker {
             solver: solver,
             diagnostics: diagnostics
         )
+    }
+
+    func propertyTypeParameterContext(
+        _ property: PropertyDecl, symbol: SymbolID, ctx: TypeInferenceContext, diagnostics: DiagnosticEngine
+    ) -> TypeInferenceContext {
+        var propertyCtx = ctx.with(currentDeclSymbol: symbol)
+        if !property.typeParams.isEmpty {
+            let propertyScope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
+            if let getter = ctx.sema.symbols.extensionPropertyGetterAccessor(for: symbol),
+               let signature = ctx.sema.symbols.functionSignature(for: getter) {
+                for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount) { propertyScope.insert(parameter) }
+                if let receiver = signature.receiverType {
+                    for parameter in signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+                        where !ctx.sema.types.typeContainsTypeParam(receiver, symbol: parameter) {
+                        diagnostics.error("KSWIFTK-SEMA-0005", "Property type parameter must occur in its receiver type.", range: property.range)
+                    }
+                }
+            } else {
+                diagnostics.error("KSWIFTK-SEMA-0005", "Only extension properties can declare type parameters.", range: property.range)
+            }
+            var names: Set<InternedString> = []
+            for parameter in property.typeParams {
+                if !names.insert(parameter.name).inserted {
+                    diagnostics.error("KSWIFTK-SEMA-0005", "Duplicate property type parameter.", range: property.range)
+                }
+                if parameter.isReified, !property.allAccessorsAreInline {
+                    diagnostics.error("KSWIFTK-SEMA-0020", "Reified property type parameters require inline accessors.", range: property.range)
+                }
+                if parameter.variance != .invariant {
+                    diagnostics.error("KSWIFTK-SEMA-0005", "Variance is not allowed on property type parameters.", range: property.range)
+                }
+            }
+            propertyCtx = propertyCtx.copying(scope: propertyScope)
+        }
+        return propertyCtx
     }
 
     func typeCheckClassDecl(

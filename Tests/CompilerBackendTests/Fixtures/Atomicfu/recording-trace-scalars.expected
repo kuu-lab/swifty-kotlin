@@ -1,0 +1,12 @@
+int:i.set(1)|i.lazySet(2)|i.CAS(2, 3)|i.getAndSet(4):3|i.getAndInc():4|i.getAndDec():5|i.getAndAdd(2):4|i.addAndGet(-1):5|i.incAndGet():6|i.decAndGet():5|i.getAndAdd(3):5|i.getAndAdd(-2):8|i.set(7)|i.CAS(7, 8)|i.CAS(8, 9)|i.CAS(9, 10)
+long:l.set(1)|l.lazySet(2)|l.CAS(2, 3)|l.getAndSet(4):3|l.getAndInc():4|l.getAndDec():5|l.getAndAdd(2):4|l.addAndGet(-1):5|l.incAndGet():6|l.decAndGet():5|l.getAndAdd(3):5|l.getAndAdd(-2):8|l.CAS(6, 7)|l.CAS(7, 8)|l.CAS(8, 9)
+boolean:b.set(true)|b.lazySet(false)|b.CAS(false, true)|b.getAndSet(false):true|b.CAS(false, true)|b.set(false)|b.CAS(false, true)|b.CAS(true, false)
+ref:r.set(a)|r.lazySet(b)|r.CAS(b, null)|r.getAndSet(a):null|r.CAS(a, a!)|r.CAS(a!, x)|r.CAS(x, null)
+read-loops:4
+wrap:incAndGet():-2147483648|decAndGet():9223372036854775807
+retry-update:2:11:2
+retry-getAndUpdate:2:20:21:4
+retry-updateAndGet:2:31:31:6
+retry-long:2:11:2
+retry-boolean:2:false:2
+retry-ref:2:interference:interference!:2
