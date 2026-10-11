@@ -1,0 +1,7 @@
+1
+custom. Expected <42>, actual <43>.
+2
+Expected <1>, actual <2>.
+13
+changed: Expected <1>, actual <2>.
+changed: adapter. Expected <1>, actual <2>.

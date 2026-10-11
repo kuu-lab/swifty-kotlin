@@ -129,7 +129,21 @@ func compileAndRunKotlin(
     moduleName: String = "ExecTest",
     allowDefaultStdlibLibrary: Bool = true
 ) throws {
-    try withTemporaryFile(contents: source) { path in
+    try compileAndRunKotlinSources(
+        [source], expectedOutput: expectedOutput, moduleName: moduleName,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
+}
+
+/// Compile related fixtures together so source-injection coverage pays the
+/// bundled stdlib compilation cost once for the matrix.
+func compileAndRunKotlinSources(
+    _ sources: [String],
+    expectedOutput: String,
+    moduleName: String,
+    allowDefaultStdlibLibrary: Bool
+) throws {
+    try withTemporaryFiles(contents: sources) { paths in
         let fm = FileManager.default
         let outputBase = fm.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
@@ -137,11 +151,19 @@ func compileAndRunKotlin(
 
         let options = makeTestOptions(
             moduleName: moduleName,
-            inputs: [path],
+            inputs: paths,
             outputPath: outputBase,
             emit: .executable,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
+        if allowDefaultStdlibLibrary {
+            guard let library = options.stdlibLibraryPath,
+                  fm.fileExists(atPath: library + "/manifest.json") else {
+                throw TestCompilationFailure(description: "Precompiled stdlib coverage requires an existing artifact")
+            }
+        } else if options.stdlibLibraryPath != nil || !options.includeStdlib {
+            throw TestCompilationFailure(description: "Source-injection coverage requires bundled stdlib sources")
+        }
         let result = makeTestDriver().runForTesting(options: options)
         try assertCompilationSucceeded(result)
 

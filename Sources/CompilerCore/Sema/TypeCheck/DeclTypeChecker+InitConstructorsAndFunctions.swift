@@ -1224,12 +1224,14 @@ extension DeclTypeChecker {
     /// Records a `returns() implies (condition)` or `returns(true/false) implies (condition)`
     /// contract effect.
     ///
-    /// Handles two sub-patterns for the condition:
+    /// Handles these sub-patterns for the condition:
     /// 1. `param != null` — records a `ContractNonNullEffect` that narrows the
     ///    parameter to non-null after normal return.
     /// 2. `param` — where `param` is a Boolean parameter, records a
     ///    `ContractConditionEffect` so that the argument expression is analyzed
     ///    for smart casts at the call site (STDLIB-591).
+    /// 3. `!param` — records a false Boolean implication for APIs such as
+    ///    `kotlin.test.assertFalse`.
     ///
     /// - Parameter returnsValue: `nil` for `returns()`, `true`/`false` for
     ///   `returns(true)` / `returns(false)`.
@@ -1303,6 +1305,21 @@ extension DeclTypeChecker {
                     for: symbol
                 )
             }
+            return
+        }
+
+        // A negated Boolean parameter guarantees the argument's false branch.
+        // The legacy ContractConditionEffect only represents true conditions.
+        if case let .unaryExpr(.not, operandID, _) = conditionExpr,
+           case let .nameRef(paramName, _) = ast.arena.expr(operandID),
+           let parameterIndex = function.valueParams.firstIndex(where: { $0.name == paramName }),
+           parameterIndex < signature.parameterTypes.count,
+           signature.parameterTypes[parameterIndex] == sema.types.booleanType
+        {
+            sema.symbols.addContractImplicationEffect(
+                ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .booleanFalse),
+                for: symbol
+            )
             return
         }
 

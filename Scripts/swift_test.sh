@@ -193,7 +193,9 @@ parse_failed_tests() {
             match="${BASH_REMATCH[1]}"
         elif [[ "$line" == *FAILED:* ]] && [[ "$line" =~ ^[[:space:]]*FAILED:[[:space:]]*(.+)$ ]]; then
             match="${BASH_REMATCH[1]}"
-        elif [[ "$line" == *[✗✖]* ]] && [[ "$line" =~ [✗✖][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
+        elif [[ "$line" == *"✘ Test "* ]] && [[ "$line" =~ ✘[[:space:]]+Test[[:space:]]+([^[:space:]]+) ]]; then
+            match="${BASH_REMATCH[1]}"
+        elif [[ "$line" == *[✗✖✘]* ]] && [[ "$line" =~ [✗✖✘][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
             match="${BASH_REMATCH[1]}"
         fi
         if [[ -n "$match" && -z "${seen[$match]:-}" ]]; then
