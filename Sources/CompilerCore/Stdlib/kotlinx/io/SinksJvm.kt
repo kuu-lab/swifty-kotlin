@@ -1,55 +1,81 @@
 /*
  * Copyright 2017-2023 JetBrains s.r.o. and respective authors and developers.
  * Use of this source code is governed by the Apache 2.0 license that can be found in the LICENCE file.
+ */
+
+/*
+ * Copyright (C) 2014 Square, Inc.
  *
- * Derived from kotlinx-io core/jvm/src/SinksJvm.kt (tag 0.9.1). Only `Sink.asOutputStream()` is
- * ported; upstream's `writeString`/`write(ByteBuffer)`/`asByteChannel` depend on not-yet-ported
- * APIs. The synthetic `java.io.OutputStream` cannot be subclassed or constructed from Kotlin
- * source, so the stream is a bridge object built by `__kk_kotlin_sink_output_stream` that
- * invokes the callbacks below; upstream's anonymous `OutputStream` subclass becomes a Kotlin
- * callback closure per operation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package kotlinx.io
 
+import java.io.IOException
 import java.io.OutputStream
-import kotlin.internal.KsSymbolName
-
-@KsSymbolName("__kk_kotlin_sink_output_stream")
-private external fun kkKotlinSinkOutputStream(
-    writeBytes: (ByteArray) -> Unit,
-    flushAction: () -> Unit,
-    closeAction: () -> Unit
-): OutputStream
+import java.nio.charset.Charset
 
 /**
- * Returns an output stream that writes to this sink.
+ * Encodes substring of [string] starting at [startIndex] and ending at [endIndex] using [charset]
+ * and writes into this sink.
  *
- * Upstream keeps no stream-side closed flag either: writes surface
- * `IOException("Underlying sink is closed.")` only when the sink reports
- * itself closed (`RealSink`), flushes become no-ops, and `close()` just
- * delegates to `Sink.close()`. A `Buffer` never reports closed, so writes
- * keep flowing even after the stream is closed — matching upstream.
+ * @param string the string to encode into this sink.
+ * @param charset the [Charset] to use for encoding.
+ * @param startIndex the index of the first character to encode, inclusive, 0 by default.
+ * @param endIndex the index of the last character to encode, exclusive, `string.length` by default.
  *
- * The thrown type is `java.io.IOException` — upstream's `kotlinx.io.IOException`
- * is a typealias for it, and in this compiler the runtime-backed
- * `java.io.IOException` is the catchable spelling for the colliding
- * `IOException` name. It is referenced qualified because an unqualified
- * `IOException` inside `kotlinx.io` resolves to the bundled class of the same
- * name.
+ * @throws IndexOutOfBoundsException when [startIndex] or [endIndex] is out of range of [string] indices.
+ * @throws IllegalArgumentException when `startIndex > endIndex`.
+ * @throws IllegalStateException when the sink is closed.
+ * @throws IOException when some I/O error occurs.
+ *
+ * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteStrings
  */
+public fun Sink.writeString(string: String, charset: Charset, startIndex: Int = 0, endIndex: Int = string.length) {
+    checkBounds(string.length, startIndex, endIndex)
+    if (charset == Charsets.UTF_8) return writeString(string, startIndex, endIndex)
+    val data = string.substring(startIndex, endIndex).toByteArray(charset)
+    write(data, 0, data.size)
+}
+
+/**
+ * Returns an output stream that writes to this sink. Closing the stream will also close this sink.
+ *
+ * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.asStream
+ */
+@OptIn(DelicateIoApi::class)
 public fun Sink.asOutputStream(): OutputStream {
-    val sink = this
-    val isClosed: () -> Boolean = when (sink) {
-        is RealSink -> { { sink.closed } }
-        is Buffer -> { { false } }
-        else -> { { false } }
+    val isClosed: () -> Boolean = when (this) {
+        is RealSink -> this::closed
+        is Buffer -> {
+            { false }
+        }
     }
-    return kkKotlinSinkOutputStream(
-        { bytes: ByteArray ->
-            if (isClosed()) throw java.io.IOException("Underlying sink is closed.")
-            write(bytes, 0, bytes.size)
+
+    return kkKotlinSinkOutputStreamRange(
+        { data: ByteArray, offset: Int, byteCount: Int ->
+            if (isClosed()) throw IOException("Underlying sink is closed.")
+            writeToInternalBuffer { it.write(data, offset, offset + byteCount) }
         },
         { if (!isClosed()) flush() },
-        { close() }
+        { close() },
+        { "${this}.asOutputStream()" }
     )
 }
+
+@kotlin.internal.KsSymbolName("__kk_kotlin_sink_output_stream_range")
+private external fun kkKotlinSinkOutputStreamRange(
+    writeBytes: (ByteArray, Int, Int) -> Unit,
+    flushAction: () -> Unit,
+    closeAction: () -> Unit,
+    description: () -> String
+): OutputStream

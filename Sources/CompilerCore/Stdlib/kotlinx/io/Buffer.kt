@@ -4,8 +4,7 @@
  * Copyright (C) 2019 Square, Inc. Licensed under the Apache License, Version 2.0.
  *
  * Derived from kotlinx-io core/common/src/Buffer.kt (tag 0.9.1). Stores bytes as a doubly-linked
- * list of `Segment`s exactly like upstream. `@JvmSynthetic` annotations are dropped (this compiler
- * has a single non-JVM target). The bounds helpers live in `-Util.kt`.
+ * list of `Segment`s exactly like upstream. `@JvmSynthetic` intent is retained in source and Native metadata. The bounds helpers live in `-Util.kt`.
  */
 package kotlinx.io
 
@@ -37,9 +36,13 @@ import kotlinx.io.unsafe.UnsafeBufferOperations
  */
 public class Buffer : Source, Sink {
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var head: Segment? = null
 
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var tail: Segment? = null
 
     /**
@@ -49,6 +52,8 @@ public class Buffer : Source, Sink {
         get() = sizeMut
 
     @PublishedApi
+    @get:kotlin.jvm.JvmSynthetic
+    @set:kotlin.jvm.JvmSynthetic
     internal var sizeMut: Long = 0L
 
     /**
@@ -358,6 +363,7 @@ public class Buffer : Source, Sink {
      * bytes to, creating it if necessary.
      */
     @PublishedApi
+    @kotlin.jvm.JvmSynthetic
     internal fun writableSegment(minimumCapacity: Int): Segment {
         if (minimumCapacity < 1 || minimumCapacity > Segment.SIZE) {
             throw IllegalArgumentException(
@@ -630,6 +636,7 @@ public class Buffer : Source, Sink {
      * It's up to a caller to ensure that the tail exists.
      */
     @PublishedApi
+    @kotlin.jvm.JvmSynthetic
     internal fun recycleTail() {
         val oldTail = tail!!
         val newTail = oldTail.prev
@@ -665,6 +672,7 @@ public class Buffer : Source, Sink {
  */
 @PublishedApi
 @OptIn(ExperimentalContracts::class)
+@kotlin.jvm.JvmSynthetic
 internal inline fun <T> Buffer.seek(
     fromIndex: Long,
     lambda: (Segment?, Long) -> T

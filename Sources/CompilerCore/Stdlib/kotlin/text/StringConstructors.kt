@@ -8,7 +8,7 @@
 package kotlin
 
 import kotlin.internal.KsSymbolName
-import kotlin.text.Charset
+import java.nio.charset.Charset
 
 // String remains a compiler/runtime nominal shell. These source declarations
 // own the public constructor overloads while the byte decoding itself remains
@@ -18,11 +18,20 @@ import kotlin.text.Charset
 @KsSymbolName("__kk_bytearray_decodeToString")
 public external fun String(bytes: ByteArray): String
 
-@KsSymbolName("__kk_bytearray_decodeToString_charset")
-public external fun String(bytes: ByteArray, charset: Charset): String
+public fun String(bytes: ByteArray, charset: Charset): String = bytes.decodeToString(charset)
 
 @KsSymbolName("__kk_bytearray_decodeToString")
 internal external fun String(bytes: List<Int>): String
 
 @KsSymbolName("__kk_bytearray_decodeToString_charset")
-internal external fun String(bytes: List<Int>, charset: Charset): String
+private external fun decodeListWithCharset(bytes: List<Int>, charsetTag: Int): String
+
+internal fun String(bytes: List<Int>, charset: Charset): String = decodeListWithCharset(bytes, charset.tag)
+
+/** JVM-compatible bounds before the source-backed charset decoder. */
+public fun String(bytes: ByteArray, offset: Int, length: Int, charset: Charset): String {
+    if (offset < 0 || length < 0 || offset > bytes.size - length) {
+        throw IndexOutOfBoundsException("offset: $offset, length: $length, size: ${bytes.size}")
+    }
+    return String(bytes.copyOfRange(offset, offset + length), charset)
+}

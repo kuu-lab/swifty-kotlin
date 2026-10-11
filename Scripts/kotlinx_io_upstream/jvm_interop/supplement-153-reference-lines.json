@@ -1,0 +1,1858 @@
+{
+  "candidate_status": "NOT_RUN",
+  "rows": [
+    {
+      "line": 1,
+      "exact_utf8": "relative-default:2/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 1,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 2,
+      "exact_utf8": "absolute:2/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 2,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 3,
+      "exact_utf8": "relative-invalid:Bounds/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 3,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 4,
+      "exact_utf8": "absolute-at-limit-zero:Bounds/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 4,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "exact_utf8": "position-invalid:Argument/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 5,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "exact_utf8": "limit-invalid:Argument/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 6,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "exact_utf8": "underflow:Underflow/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 7,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "exact_utf8": "overflow:Overflow/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 8,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "exact_utf8": "readonly-relative-before-overflow:ReadOnly/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 9,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "exact_utf8": "readonly-absolute-bounds-first:Bounds/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 10,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "exact_utf8": "readonly-absolute-empty:none/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 11,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "exact_utf8": "readonly-shared:8/true/false",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 12,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "exact_utf8": "slice-shared:7/2/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 13,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 14,
+      "exact_utf8": "buffer-channel-read:2/2/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 24,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "exact_utf8": "buffer-channel-close-noop:true",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 25,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 16,
+      "exact_utf8": "buffer-read-empty:-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-behavior-oracle1",
+          "line": 26,
+          "stdout_sha256": "9afcead922cbfa1f8f4050646cf0b3d291cfa8768b8714d3684273854e9b117b",
+          "report_sha256": "56c6c673154a2a7b1274ea3a36d12f9f7dae792ddab59485ef673a52dac2ca72"
+        }
+      ]
+    },
+    {
+      "line": 17,
+      "exact_utf8": "get-overlap:1, 2, 1, 2, 3/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 1,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 18,
+      "exact_utf8": "put-overlap:1, 2, 1, 2, 3/5",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 2,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 19,
+      "exact_utf8": "duplicate-shared-independent:9/1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 3,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 20,
+      "exact_utf8": "limit-invalidates-mark:InvalidMark/1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 4,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 21,
+      "exact_utf8": "direct-hidden-array:true/false/Unsupported",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 5,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 22,
+      "exact_utf8": "wrap-offset:5/2/4/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-state-oracle1",
+          "line": 6,
+          "stdout_sha256": "58a54523f873265d1d558f75397a50dec0f45c7ff4f11d8eec0b8d61abc1284e",
+          "report_sha256": "64f7072b8f9c8d9d6c31fd16ce70e1537d6c56e2f6a8c3057a71a727af7bd602"
+        }
+      ]
+    },
+    {
+      "line": 23,
+      "exact_utf8": "relative-put-success:0, 7, 8, 0/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 1,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 24,
+      "exact_utf8": "absolute-put-success:5, 7, 8, 0/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 2,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 25,
+      "exact_utf8": "buffer-transfer:4/3, 4",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 3,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 26,
+      "exact_utf8": "buffer-channel-write-after-close:2/2/2",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 4,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 27,
+      "exact_utf8": "source-channel-open:true",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 5,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 28,
+      "exact_utf8": "source-buffer-read:1/1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 6,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 29,
+      "exact_utf8": "source-channel-read:1/2",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 7,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 30,
+      "exact_utf8": "source-channel-close:false/State",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 8,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 31,
+      "exact_utf8": "sink-buffer-write:1/1/10",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 9,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 32,
+      "exact_utf8": "sink-channel-write:1/1/11",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 10,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 33,
+      "exact_utf8": "sink-channel-close:false/State",
+      "reference_matches": [
+        {
+          "directory": "jvm-nio-closure-optin-oracle2",
+          "line": 11,
+          "stdout_sha256": "ee0d30aa5289297f3a962a2ee1c4249aeea6b6e8e4ab71aeb7a104e34f106f95",
+          "report_sha256": "5c5e9d892324e32f518b00c05212d6dd1d06f57bbdf6a60b82081f52b719687a"
+        }
+      ]
+    },
+    {
+      "line": 34,
+      "exact_utf8": "lazy-create:0/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 1,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 35,
+      "exact_utf8": "lazy-read:253/1/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 2,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 36,
+      "exact_utf8": "lazy-bulk:1/9, -2, 9, 9/2",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 3,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 37,
+      "exact_utf8": "raw-short:1/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 4,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 38,
+      "exact_utf8": "bulk-eof:-1/4",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 5,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 39,
+      "exact_utf8": "zero-range:-1/5",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 6,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 40,
+      "exact_utf8": "invalid-range:Argument/5",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 7,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 41,
+      "exact_utf8": "input-mark:false/IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 8,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 42,
+      "exact_utf8": "input-close:1/IO/IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 9,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 43,
+      "exact_utf8": "closed-before-bounds:IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 10,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 44,
+      "exact_utf8": "input-exception-identity:true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 11,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 45,
+      "exact_utf8": "buffer-output-after-close:2, 3, -1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 12,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 46,
+      "exact_utf8": "output-range-invalid:Bounds/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 13,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 47,
+      "exact_utf8": "output-range:5, 6",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 14,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 48,
+      "exact_utf8": "output-closed:IO/none",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 15,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 49,
+      "exact_utf8": "output-failed-transaction:true/8192/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 16,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 50,
+      "exact_utf8": "charset-canonical:ISO-8859-1/-23/é",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 17,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 51,
+      "exact_utf8": "charset-range:1/é",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 18,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 52,
+      "exact_utf8": "charset-write-bounds:Bounds/Argument/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 19,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 53,
+      "exact_utf8": "charset-read-bounds:Argument/EOF",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 20,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 54,
+      "exact_utf8": "charset-whole-empty:0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 21,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 55,
+      "exact_utf8": "charset-utf8:2/é",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 22,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 56,
+      "exact_utf8": "exception-aliases:x/true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 23,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 57,
+      "exact_utf8": "unsafe-head-view:3/0/true/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 24,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 58,
+      "exact_utf8": "unsafe-head-commit:1/2/1/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 25,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 59,
+      "exact_utf8": "unsafe-head-rollback:IO/2/4",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 26,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 60,
+      "exact_utf8": "unsafe-head-readonly:ReadOnly/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 27,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 61,
+      "exact_utf8": "unsafe-tail-commit:2/7, 8",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 28,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 62,
+      "exact_utf8": "unsafe-tail-rollback:IO/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 29,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 63,
+      "exact_utf8": "unsafe-iovec:2/true/8192/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 30,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 64,
+      "exact_utf8": "unsafe-bulk-commit:8193/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 31,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 65,
+      "exact_utf8": "unsafe-bulk-invalid:State/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 32,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 66,
+      "exact_utf8": "unsafe-bulk-rollback:IO/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 33,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 67,
+      "exact_utf8": "unsafe-bulk-empty-iovec:Argument/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 34,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 68,
+      "exact_utf8": "unsafe-head-empty:Argument/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-shared-native-oracle1",
+          "line": 35,
+          "stdout_sha256": "48ed3894a18833ec22444aae90d9abb85fa881d4218ae37f9c0ae468b2ea3021",
+          "report_sha256": "ef8c404a197943b999018ab1d0de29d2f95f9c486a3c89b964d0b0571fc74da0"
+        }
+      ]
+    },
+    {
+      "line": 69,
+      "exact_utf8": "stream-transfer:true/1, 2, 3/-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 1,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 70,
+      "exact_utf8": "stream-write-count:true/4, 5/6",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 2,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 71,
+      "exact_utf8": "stream-write-eof:EOF/7, 8",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 3,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 72,
+      "exact_utf8": "stream-write-negative:Argument/9/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 4,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 73,
+      "exact_utf8": "stream-copy-default-end:11, 12/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 5,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 74,
+      "exact_utf8": "stream-copy-default-start:10/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 6,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 75,
+      "exact_utf8": "stream-copy-invalid:Bounds/Argument/0/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 7,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 76,
+      "exact_utf8": "stream-read-count:10/2",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 8,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 77,
+      "exact_utf8": "stream-read-default:11, 12/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 9,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 78,
+      "exact_utf8": "stream-read-invalid:Argument/Argument/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 10,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 79,
+      "exact_utf8": "bytearray-close-noop:13/-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 11,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 80,
+      "exact_utf8": "charset-constructor:é/é",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 12,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 81,
+      "exact_utf8": "charset-constructor-bounds:Bounds/Bounds",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 13,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 82,
+      "exact_utf8": "charset-input-stream:233",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 14,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 83,
+      "exact_utf8": "charset-reader:é",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 15,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 84,
+      "exact_utf8": "charset-roundtrip:UTF-8/65, -61, -87/Aé",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 16,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 85,
+      "exact_utf8": "charset-roundtrip:ISO-8859-1/65, -23/Aé",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 17,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 86,
+      "exact_utf8": "charset-roundtrip:US-ASCII/65, 63/A?",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 18,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 87,
+      "exact_utf8": "charset-roundtrip:UTF-16/-2, -1, 0, 65, 0, -23/Aé",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 19,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 88,
+      "exact_utf8": "charset-roundtrip:UTF-16BE/0, 65, 0, -23/Aé",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 20,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 89,
+      "exact_utf8": "charset-roundtrip:UTF-16LE/65, 0, -23, 0/Aé",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 21,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 90,
+      "exact_utf8": "charset-replacement:UTF-8/-16, -97, -104, -128/63",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 22,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 91,
+      "exact_utf8": "charset-replacement:ISO-8859-1/63/63",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 23,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 92,
+      "exact_utf8": "charset-replacement:US-ASCII/63/63",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 24,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 93,
+      "exact_utf8": "charset-replacement:UTF-16BE/-40, 61, -34, 0/-1, -3",
+      "reference_matches": [
+        {
+          "directory": "jvm-buffer-charset-closure-oracle1",
+          "line": 25,
+          "stdout_sha256": "cf1e0463b5efe3b676acbf924c39f2cc8e534c12d84727f2a54ec0dcd54199c8",
+          "report_sha256": "dfd1e711e316d94b494bbb1ebb416d478ced35dba5916c41f012839284296795"
+        }
+      ]
+    },
+    {
+      "line": 94,
+      "exact_utf8": "charset-empty:UTF-8/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 1,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 95,
+      "exact_utf8": "charset-empty:ISO-8859-1/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 2,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 96,
+      "exact_utf8": "charset-empty:US-ASCII/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 3,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 97,
+      "exact_utf8": "charset-empty:UTF-16/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 4,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 98,
+      "exact_utf8": "charset-empty:UTF-16BE/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 5,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 99,
+      "exact_utf8": "charset-empty:UTF-16LE/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 6,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 100,
+      "exact_utf8": "charset-utf8-malformed:65533, 65533",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 7,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 101,
+      "exact_utf8": "charset-utf8-malformed:65533",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 8,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        },
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 9,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 102,
+      "exact_utf8": "charset-utf8-malformed:65533",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 8,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        },
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 9,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 103,
+      "exact_utf8": "charset-utf8-malformed:65533, 65",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 10,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 104,
+      "exact_utf8": "charset-utf16-malformed:65533",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 11,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 105,
+      "exact_utf8": "charset-utf16-malformed:55296, 56320, 65533",
+      "reference_matches": [
+        {
+          "directory": "jvm-charset-empty-malformed-oracle1",
+          "line": 12,
+          "stdout_sha256": "911db3b65a5576d97f45cd0886e7ed6494e571b750f4540487cf7d3636267ec8",
+          "report_sha256": "7a66baaf270f1cb306238304e160a7edef925334e10a0f4bee32aee2cd9711c0"
+        }
+      ]
+    },
+    {
+      "line": 106,
+      "exact_utf8": "model-beans:true/true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 1,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 107,
+      "exact_utf8": "model-for-name:UTF8/UTF-8",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 2,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 108,
+      "exact_utf8": "model-for-name:ASCII/US-ASCII",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 3,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 109,
+      "exact_utf8": "model-for-name:latin1/ISO-8859-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 4,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 110,
+      "exact_utf8": "model-for-name:utf-32/UTF-32",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 5,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 111,
+      "exact_utf8": "model-for-name:UTF_32LE/UTF-32LE",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 6,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 112,
+      "exact_utf8": "model-for-name:UnicodeBigUnmarked/UTF-16BE",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 7,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 113,
+      "exact_utf8": "model-illegal:IllegalCharset:<bad>",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 8,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 114,
+      "exact_utf8": "model-unsupported:UnsupportedCharset:missing-1762",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 9,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 115,
+      "exact_utf8": "model-output-capacity:Argument",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 10,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 116,
+      "exact_utf8": "model-output-snapshot:2, 3/2",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 11,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 117,
+      "exact_utf8": "model-output-close-noop:2, 3, -1",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 12,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 118,
+      "exact_utf8": "model-output-bounds:Bounds/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 13,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 119,
+      "exact_utf8": "model-output-charsets:é/é",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 14,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 120,
+      "exact_utf8": "model-output-invalid-charset:IO/IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 15,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 121,
+      "exact_utf8": "model-output-copy:6, 7/3",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 16,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 122,
+      "exact_utf8": "model-output-drain:6, 7, 5, 6, 7/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 17,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 123,
+      "exact_utf8": "model-output-raw-sink:8, 9/10",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 18,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 124,
+      "exact_utf8": "model-output-types:true/true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 19,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 125,
+      "exact_utf8": "model-input-erased-close:1/IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 20,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 126,
+      "exact_utf8": "model-output-erased-close:1/IO",
+      "reference_matches": [
+        {
+          "directory": "jvm-native-model-prerequisites-oracle1",
+          "line": 21,
+          "stdout_sha256": "7a9348664e73182d77475126553834bce2d98734e56255e244abe53501f62bb0",
+          "report_sha256": "61d5901e8f487edb3ef9a1b57bfd739170f7a96eb7be0a42f3f6c2043614a172"
+        }
+      ]
+    },
+    {
+      "line": 127,
+      "exact_utf8": "storage-constructor-alias:9/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 1,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 128,
+      "exact_utf8": "storage-mark-first:2",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 2,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 129,
+      "exact_utf8": "storage-reset-alias:8",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 3,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 130,
+      "exact_utf8": "storage-close-mark:3/0",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 4,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 131,
+      "exact_utf8": "storage-reset-after-close:8",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 5,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 132,
+      "exact_utf8": "storage-extension-range-alias:7/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 6,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 133,
+      "exact_utf8": "storage-extension-range-initial-mark:7",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 7,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 134,
+      "exact_utf8": "storage-writer-before-flush:0",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 8,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 135,
+      "exact_utf8": "storage-writer-charset:-23",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 9,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 136,
+      "exact_utf8": "storage-writer-closed:IO/-23",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 10,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 137,
+      "exact_utf8": "storage-callback-writer:0, -23/1/1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-storage-oracle1",
+          "line": 11,
+          "stdout_sha256": "82792fe22e4b7d147f401c89c14d930c5be1b36881137313a20574eb1122bfa4",
+          "report_sha256": "a678e685d79fff4100ec4b08b809274e0bb26901bd21217714f8cb5e5a24c5df"
+        }
+      ]
+    },
+    {
+      "line": 138,
+      "exact_utf8": "stream-descriptions-empty:true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-description-oracle1",
+          "line": 1,
+          "stdout_sha256": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5",
+          "report_sha256": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72"
+        }
+      ]
+    },
+    {
+      "line": 139,
+      "exact_utf8": "stream-descriptions-updated:true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-description-oracle1",
+          "line": 2,
+          "stdout_sha256": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5",
+          "report_sha256": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72"
+        }
+      ]
+    },
+    {
+      "line": 140,
+      "exact_utf8": "stream-description-source-error:true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-description-oracle1",
+          "line": 3,
+          "stdout_sha256": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5",
+          "report_sha256": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72"
+        }
+      ]
+    },
+    {
+      "line": 141,
+      "exact_utf8": "stream-description-sink-error:true",
+      "reference_matches": [
+        {
+          "directory": "jvm-stream-description-oracle1",
+          "line": 4,
+          "stdout_sha256": "a9b7fa2e1945f28d88d276325f979d3cd646cb8043c559a79bd7601f0c061eb5",
+          "report_sha256": "f43d5a3ee8742d501fd257dbb8334b2deda06394f5f337a5e962c7aded8a5e72"
+        }
+      ]
+    },
+    {
+      "line": 142,
+      "exact_utf8": "sequence-construction-lazy:2/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 1,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 143,
+      "exact_utf8": "sequence-read-first:1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 2,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 144,
+      "exact_utf8": "sequence-range-first-only:1/9, 2, 9/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 3,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 145,
+      "exact_utf8": "sequence-read-rest:3",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 4,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 146,
+      "exact_utf8": "sequence-close-both:true/true",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 5,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 147,
+      "exact_utf8": "sequence-source-error:true",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 6,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 148,
+      "exact_utf8": "sequence-nested:6, 7",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-composition-oracle1",
+          "line": 7,
+          "stdout_sha256": "da71f1c4c4cb003766f0edaea2eba5dd9bc4492849bd83641d97a2ab1ad17728",
+          "report_sha256": "ecc44defbaf010dd3e1dbf7e091dc2ac801aea2ee6a13d4bcc6ab9813132835a"
+        }
+      ]
+    },
+    {
+      "line": 149,
+      "exact_utf8": "sequence-zero-empty:0",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-edge-oracle1",
+          "line": 1,
+          "stdout_sha256": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+          "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e"
+        }
+      ]
+    },
+    {
+      "line": 150,
+      "exact_utf8": "sequence-invalid-empty:Bounds",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-edge-oracle1",
+          "line": 2,
+          "stdout_sha256": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+          "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e"
+        }
+      ]
+    },
+    {
+      "line": 151,
+      "exact_utf8": "sequence-invalid-closed:-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-edge-oracle1",
+          "line": 3,
+          "stdout_sha256": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+          "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e"
+        }
+      ]
+    },
+    {
+      "line": 152,
+      "exact_utf8": "sequence-closed-source-bounds:Bounds",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-edge-oracle1",
+          "line": 4,
+          "stdout_sha256": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+          "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e"
+        }
+      ]
+    },
+    {
+      "line": 153,
+      "exact_utf8": "sequence-close-error:true/1/1",
+      "reference_matches": [
+        {
+          "directory": "jvm-sequence-edge-oracle1",
+          "line": 5,
+          "stdout_sha256": "6478cbb04e7abaf284af6d4ad8f470a4f88916ece0e13bdf22be0899b905ac0c",
+          "report_sha256": "9def09c45c8f7f53a471b9b1afb8dd18877887e0c85ff91b5d1ee7b56a45746e"
+        }
+      ]
+    }
+  ],
+  "fixture_sha256": {
+    "producer.kt": "b0fc0ab99b77a0ea6b4133d3c3ba09d9cc7fbca71ba803dea63d86e9ef477d40",
+    "consumer.kt": "a88dad65e01080c84b633144520d1d5b9732b867d10fef5ba03cb25c260af406",
+    "expected.stdout": "8a132c7cfd6dea2fd3812687042697487df61526c749ce3cf8f14a03085da296"
+  }
+}

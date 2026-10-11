@@ -45,7 +45,7 @@ extension CallLowerer {
         "single", "singleOrNull", "getOrNull",
         "format", "concat", "plus",
         "lowercase", "uppercase", "normalize", "isNormalized",
-        "codePointCount",
+        "codePointCount", "toByteArray", "encodeToByteArray", "byteInputStream",
     ]
 
     static let sourceBackedListSearchNames: Set<String> = [

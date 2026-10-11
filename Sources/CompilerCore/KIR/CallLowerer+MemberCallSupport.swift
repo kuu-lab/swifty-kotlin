@@ -516,6 +516,27 @@ extension CallLowerer {
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
         let converted = arena.appendTemporary(type: stringType)
+        // Objects may implement a throwing toString. Preserve existing raw
+        // primitive/tag/null handling; use a private error channel only at
+        // source-generated object conversion, including original IO wrappers.
+        let objectConversionCanThrow: Bool
+        switch sema.types.kind(of: sema.types.makeNonNullable(valueType)) {
+        case .primitive, .stringStruct, .unit: objectConversionCanThrow = false
+        default: objectConversionCanThrow = true
+        }
+        if objectConversionCanThrow {
+            let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+            instructions.append(.call(symbol: nil, callee: interner.intern("__kk_any_to_string_throwing"),
+                arguments: [renderedValue, tagID], result: converted, canThrow: true, thrownResult: thrown))
+            let failure = driver.ctx.makeLoopLabel()
+            let continuation = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: thrown, target: failure))
+            instructions.append(.jump(continuation))
+            instructions.append(.label(failure))
+            instructions.append(.rethrow(value: thrown))
+            instructions.append(.label(continuation))
+            return converted
+        }
         guard isNullable, tag == 5 || tag == 6 || tag == 7 else {
             instructions.append(.call(
                 symbol: nil,

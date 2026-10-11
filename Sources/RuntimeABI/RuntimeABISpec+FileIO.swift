@@ -6,6 +6,12 @@ public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
         // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_new_default", parameters: [], returnType: .intptr, section: "FileIO"),
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_new", parameters: [RuntimeABIParameter(name: "value0", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "FileIO"),
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_to_byte_array", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_reset", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_size", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
+        RuntimeABIFunctionSpec(name: "__kk_bytearray_output_stream_to_string", parameters: [RuntimeABIParameter(name: "value0", type: .intptr)], returnType: .intptr, section: "FileIO"),
         RuntimeABIFunctionSpec(
             name: "__kk_file_new",
             parameters: [
@@ -167,6 +173,15 @@ public extension RuntimeABISpec {
             name: "__kk_buffered_writer_close",
             parameters: [
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_buffered_writer_close_throwing",
+            parameters: [
+                RuntimeABIParameter(name: "writerRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "FileIO"
@@ -434,6 +449,88 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        RuntimeABIFunctionSpec(name: "__kk_io_stream_to_string", parameters: [
+            RuntimeABIParameter(name: "stream", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(name: "__kk_sequence_input_stream_available_throwing", parameters: [
+            RuntimeABIParameter(name: "stream", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(name: "__kk_sequence_input_stream_close_throwing", parameters: [
+            RuntimeABIParameter(name: "stream", type: .intptr),
+            RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+        ], returnType: .intptr, section: "FileIO", isThrowing: true),
+        // KUU1762: foreign stream range/closure storage and error channels only.
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_source_input_stream",
+            parameters: [
+                RuntimeABIParameter(name: "readFn", type: .intptr),
+                RuntimeABIParameter(name: "readClosure", type: .intptr),
+                RuntimeABIParameter(name: "rangeFn", type: .intptr),
+                RuntimeABIParameter(name: "rangeClosure", type: .intptr),
+                RuntimeABIParameter(name: "availableFn", type: .intptr),
+                RuntimeABIParameter(name: "availableClosure", type: .intptr),
+                RuntimeABIParameter(name: "closeFn", type: .intptr),
+                RuntimeABIParameter(name: "closeClosure", type: .intptr),
+                RuntimeABIParameter(name: "descriptionFn", type: .intptr),
+                RuntimeABIParameter(name: "descriptionClosure", type: .intptr),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: false),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_sink_output_stream_range",
+            parameters: [
+                RuntimeABIParameter(name: "writeFn", type: .intptr),
+                RuntimeABIParameter(name: "writeClosure", type: .intptr),
+                RuntimeABIParameter(name: "flushFn", type: .intptr),
+                RuntimeABIParameter(name: "flushClosure", type: .intptr),
+                RuntimeABIParameter(name: "closeFn", type: .intptr),
+                RuntimeABIParameter(name: "closeClosure", type: .intptr),
+                RuntimeABIParameter(name: "descriptionFn", type: .intptr),
+                RuntimeABIParameter(name: "descriptionClosure", type: .intptr),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: false),
+        RuntimeABIFunctionSpec(
+            name: "__kk_input_stream_read_range",
+            parameters: [
+                RuntimeABIParameter(name: "streamRaw", type: .intptr),
+                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
+                RuntimeABIParameter(name: "offset", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_output_stream_write_range",
+            parameters: [
+                RuntimeABIParameter(name: "streamRaw", type: .intptr),
+                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
+                RuntimeABIParameter(name: "offset", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_input_stream_available_throwing",
+            parameters: [
+                RuntimeABIParameter(name: "streamRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_input_stream_close_throwing",
+            parameters: [
+                RuntimeABIParameter(name: "streamRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_output_stream_close_throwing",
+            parameters: [
+                RuntimeABIParameter(name: "streamRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
         // KSP-1553: kotlinx.io Sink.asOutputStream() — the write/flush/close
         // Kotlin lambdas arrive as (fnPtr, closureRaw) pairs expanded by
         // KIRLowering, same convention as `__kk_synchronized` /
@@ -452,6 +549,31 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false,
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_native_filechannel_open",
+            parameters: [
+                RuntimeABIParameter(name: "pathRaw", type: .intptr),
+                RuntimeABIParameter(name: "options", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_native_filechannel_write",
+            parameters: [
+                RuntimeABIParameter(name: "descriptor", type: .intptr),
+                RuntimeABIParameter(name: "bytesRaw", type: .intptr),
+                RuntimeABIParameter(name: "offset", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
+        RuntimeABIFunctionSpec(
+            name: "__kk_native_nio_create_file",
+            parameters: [
+                RuntimeABIParameter(name: "pathRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr, section: "FileIO", isThrowing: true),
         RuntimeABIFunctionSpec(
             name: "__kk_classloader_getSystemClassLoader",
             parameters: [],

@@ -2,13 +2,7 @@ package kotlin.text
 
 import kotlin.internal.KsSymbolName
 
-public class Charset internal constructor(internal val tag: Int) {
-    @KsSymbolName("__kk_charset_name")
-    public external fun name(): String
-
-    @KsSymbolName("__kk_charset_name")
-    public external override fun toString(): String
-}
+public typealias Charset = java.nio.charset.Charset
 
 public object Charsets {
     @KsSymbolName("__kk_charset_utf_8")
@@ -127,3 +121,5 @@ public fun ByteArray.decodeToString(
     }
     return this.__kk_bytearray_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
 }
+
+public fun ByteArray.toString(charset: Charset): String = String(this, charset)

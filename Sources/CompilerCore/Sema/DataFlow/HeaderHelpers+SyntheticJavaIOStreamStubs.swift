@@ -605,7 +605,7 @@ extension DataFlowSemaPhase {
         // BufferedWriter.close() -> Unit
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "__kk_buffered_writer_close",
+            externalLinkName: "__kk_buffered_writer_close_throwing",
             ownerSymbol: bufferedWriterSymbol,
             ownerType: bufferedWriterType,
             parameters: [],
@@ -706,14 +706,44 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerFileConstructor(
-            ownerSymbol: byteArrayInputStreamSymbol,
-            ownerType: byteArrayInputStreamType,
-            parameters: [("buffer", listOfIntType)],
-            externalLinkName: "__kk_bytearrayinputstream_new",
-            symbols: symbols,
-            interner: interner
-        )
+        if let arraySymbol = symbols.lookup(fqName: ["kotlin", "ByteArray"].map(interner.intern)) {
+            let arrayType = types.make(.classType(ClassType(classSymbol: arraySymbol, args: [], nullability: .nonNull)))
+            registerFileConstructor(
+                ownerSymbol: byteArrayInputStreamSymbol,
+                ownerType: byteArrayInputStreamType,
+                parameters: [("buffer", arrayType)],
+                externalLinkName: "__kk_bytearrayinputstream_new",
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        // Native foreign-handle producer used by unchanged upstream Java IO
+        // consumers. Ordinary OutputStream operations retain their existing ABI.
+        if let arraySymbol = symbols.lookup(fqName: ["kotlin", "ByteArray"].map(interner.intern)) {
+            let owner = ensureClassSymbol(named: "ByteArrayOutputStream", in: javaIOPkg,
+                symbols: symbols, interner: interner)
+            if let javaIOPkgSymbol { symbols.setParentSymbol(javaIOPkgSymbol, for: owner) }
+            let ownerType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            let arrayType = types.make(.classType(ClassType(classSymbol: arraySymbol, args: [], nullability: .nonNull)))
+            symbols.setPropertyType(ownerType, for: owner)
+            symbols.setDirectSupertypes([outputStreamSymbol], for: owner)
+            types.setNominalDirectSupertypes([outputStreamSymbol], for: owner)
+            registerFileConstructor(ownerSymbol: owner, ownerType: ownerType, parameters: [],
+                externalLinkName: "__kk_bytearray_output_stream_new_default", symbols: symbols, interner: interner)
+            registerFileConstructor(ownerSymbol: owner, ownerType: ownerType, parameters: [("size", intType)],
+                externalLinkName: "__kk_bytearray_output_stream_new", symbols: symbols, interner: interner)
+            for (name, link, result) in [
+                ("toByteArray", "__kk_bytearray_output_stream_to_byte_array", arrayType),
+                ("reset", "__kk_bytearray_output_stream_reset", types.unitType),
+                ("size", "__kk_bytearray_output_stream_size", intType),
+                ("toString", "__kk_bytearray_output_stream_to_string", types.stringType),
+            ] {
+                registerFileMemberFunction(named: name, externalLinkName: link,
+                    ownerSymbol: owner, ownerType: ownerType, parameters: [], returnType: result,
+                    symbols: symbols, interner: interner)
+            }
+        }
 
         // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset = Charsets.UTF_8): ByteArrayInputStream
         // Lives in kotlin.io as an extension function on String. Two overloads are
@@ -725,34 +755,23 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin"), interner.intern("io")],
             symbols: symbols
         )
-        let kotlinTextPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("text")]
-        let charsetFQName = kotlinTextPkg + [interner.intern("Charset")]
-        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
-            let charsetType = types.make(.classType(ClassType(
-                classSymbol: charsetSymbol, args: [], nullability: .nonNull
-            )))
-            registerSyntheticStringExtensionFunction(
-                named: "byteInputStream",
-                externalLinkName: "__kk_string_byteInputStream_flat",
-                receiverType: types.stringType,
-                parameters: [],
-                returnType: byteArrayInputStreamType,
-                packageFQName: kotlinIOPkg,
-                symbols: symbols,
-                interner: interner
-            )
-            registerSyntheticStringExtensionFunction(
-                named: "byteInputStream",
-                externalLinkName: "__kk_string_byteInputStream_charset_flat",
-                receiverType: types.stringType,
-                parameters: [
-                    ("charset", charsetType, false, false),
-                ],
-                returnType: byteArrayInputStreamType,
-                packageFQName: kotlinIOPkg,
-                symbols: symbols,
-                interner: interner
-            )
+        // Charset-bearing wrappers are Kotlin source. Their private runtime
+        // bridges take an Int codec tag, not the source Charset object.
+        registerSyntheticStringExtensionFunction(
+            named: "byteInputStream",
+            externalLinkName: "__kk_string_byteInputStream_flat",
+            receiverType: types.stringType,
+            parameters: [],
+            returnType: byteArrayInputStreamType,
+            packageFQName: kotlinIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        for (ownerSymbol, ownerType) in [(inputStreamSymbol, inputStreamType), (outputStreamSymbol, outputStreamType)] {
+            registerFileMemberFunction(named: "toString", externalLinkName: "__kk_io_stream_to_string",
+                ownerSymbol: ownerSymbol, ownerType: ownerType, parameters: [], returnType: types.stringType,
+                symbols: symbols, interner: interner)
         }
 
         registerFileMemberFunction(
@@ -768,7 +787,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "available",
-            externalLinkName: "__kk_input_stream_available",
+            externalLinkName: "__kk_input_stream_available_throwing",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -798,6 +817,25 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
+            let byteArrayType = types.make(.classType(ClassType(
+                classSymbol: byteArraySymbol, args: [], nullability: .nonNull)))
+            registerFileMemberFunction(
+                named: "read", externalLinkName: "__kk_input_stream_read_bytes",
+                ownerSymbol: inputStreamSymbol, ownerType: inputStreamType,
+                parameters: [("buffer", byteArrayType)], returnType: intType,
+                symbols: symbols, interner: interner)
+            registerFileMemberFunction(
+                named: "read", externalLinkName: "__kk_input_stream_read_range",
+                ownerSymbol: inputStreamSymbol, ownerType: inputStreamType,
+                parameters: [("buffer", byteArrayType), ("offset", intType), ("length", intType)],
+                returnType: intType, symbols: symbols, interner: interner)
+            registerFileConstructor(
+                ownerSymbol: byteArrayInputStreamSymbol, ownerType: byteArrayInputStreamType,
+                parameters: [("buffer", byteArrayType)], externalLinkName: "__kk_bytearray_inputStream",
+                symbols: symbols, interner: interner)
+        }
 
         // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
         //
@@ -856,7 +894,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "__kk_input_stream_close",
+            externalLinkName: "__kk_input_stream_close_throwing",
             ownerSymbol: inputStreamSymbol,
             ownerType: inputStreamType,
             parameters: [],
@@ -968,7 +1006,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "available",
-            externalLinkName: "__kk_sequence_input_stream_available",
+            externalLinkName: "__kk_sequence_input_stream_available_throwing",
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [],
@@ -979,7 +1017,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "__kk_sequence_input_stream_close",
+            externalLinkName: "__kk_sequence_input_stream_close_throwing",
             ownerSymbol: sequenceInputStreamSymbol,
             ownerType: sequenceInputStreamType,
             parameters: [],
@@ -1024,6 +1062,11 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+            registerFileMemberFunction(
+                named: "write", externalLinkName: "__kk_output_stream_write_range",
+                ownerSymbol: outputStreamSymbol, ownerType: outputStreamType,
+                parameters: [("buffer", byteArrayType), ("offset", intType), ("length", intType)],
+                returnType: types.unitType, symbols: symbols, interner: interner)
         }
 
         registerFileMemberFunction(
@@ -1039,7 +1082,7 @@ extension DataFlowSemaPhase {
 
         registerFileMemberFunction(
             named: "close",
-            externalLinkName: "__kk_output_stream_close",
+            externalLinkName: "__kk_output_stream_close_throwing",
             ownerSymbol: outputStreamSymbol,
             ownerType: outputStreamType,
             parameters: [],
@@ -1125,46 +1168,6 @@ extension DataFlowSemaPhase {
             parameters: [("name", types.stringType)],
             returnType: types.stringType,
             externalLinkName: "__kk_readResourceAsText",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
-        //
-        // Kotlin signature: `public fun OutputStream.bufferedWriter(
-        //     charset: Charset = Charsets.UTF_8
-        // ): BufferedWriter`  declared in the `kotlin.io` package.
-        let kotlinTextPkgFQName = ensurePackage(
-            path: ["kotlin", "text"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkgFQName)
-        let outputStreamCharsetSymbol = ensureClassSymbol(
-            named: "Charset",
-            in: kotlinTextPkgFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let kotlinTextPkgSymbol {
-            symbols.setParentSymbol(kotlinTextPkgSymbol, for: outputStreamCharsetSymbol)
-        }
-        let outputStreamCharsetType = types.make(.classType(ClassType(
-            classSymbol: outputStreamCharsetSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(outputStreamCharsetType, for: outputStreamCharsetSymbol)
-
-        registerKotlinIOExtensionFunction(
-            named: "bufferedWriter",
-            packageFQName: kotlinIOPkg,
-            receiverType: outputStreamType,
-            parameters: [("charset", outputStreamCharsetType)],
-            returnType: bufferedWriterType,
-            externalLinkName: "__kk_output_stream_bufferedWriter",
-            valueParameterHasDefaultValues: [true],
-            valueParameterIsVararg: [false],
             symbols: symbols,
             interner: interner
         )
@@ -1297,31 +1300,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
-        // Top-level extension function on java.io.InputStream returning BufferedReader.
-        // Signature: fun InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader
-        let resolvedCharsetType: TypeID = {
-            if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
-                return types.make(.classType(ClassType(
-                    classSymbol: charsetSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-            }
-            return types.anyType
-        }()
 
-        registerExtensionFunction(
-            named: "bufferedReader",
-            packageFQName: kotlinIOPkg,
-            receiverType: inputStreamType,
-            parameters: [("charset", resolvedCharsetType)],
-            returnType: bufferedReaderType,
-            externalLinkName: "__kk_input_stream_bufferedReader",
-            valueParameterHasDefaultValues: [true],
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     // MARK: - Private Helpers

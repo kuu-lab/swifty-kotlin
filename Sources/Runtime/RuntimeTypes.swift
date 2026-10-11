@@ -3715,28 +3715,55 @@ final class RuntimeBufferedReaderBox {
 
 // MARK: - InputStream / OutputStream (STDLIB-IO-092)
 
-final class RuntimeInputStreamBox {
+final class RuntimeInputStreamBox: RuntimeChildReferenceProviding {
     private let data: Data
+    private let arrayRaw: Int?
+    private let begin: Int
+    private let end: Int
     private var offset: Int
+    private var markPosition: Int
     private var closed: Bool
+    private let closeIsNoOp: Bool
 
-    init(data: Data) {
+    init(data: Data, closeIsNoOp: Bool = false) {
         self.data = data
+        self.arrayRaw = nil
+        self.begin = 0
+        self.end = data.count
+        self.closeIsNoOp = closeIsNoOp
         self.offset = 0
+        self.markPosition = 0
         self.closed = false
     }
 
-    func readByte() -> Int {
-        guard !closed else { return -1 }
-        guard offset < data.count else { return -1 }
-        defer { offset += 1 }
-        return Int(data[offset])
+    /// ByteArrayInputStream retains the supplied array, including a ranged
+    /// ByteArray.inputStream view. A later caller mutation is observed by read.
+    init(arrayRaw: Int, offset: Int, length: Int) {
+        self.data = Data()
+        self.arrayRaw = arrayRaw
+        self.begin = offset
+        self.end = offset + length
+        self.closeIsNoOp = true
+        self.offset = offset
+        self.markPosition = offset
+        self.closed = false
     }
 
-    func available() -> Int {
-        guard !closed else { return 0 }
-        return max(0, data.count - offset)
+    var childRefs: [Int] { arrayRaw.map { [$0] } ?? [] }
+
+    private func byte(at index: Int) -> UInt8 {
+        guard let arrayRaw else { return data[index] }
+        if let array = runtimeArrayBox(from: arrayRaw) { return UInt8(truncatingIfNeeded: array[index]) }
+        return UInt8(truncatingIfNeeded: kk_unbox_int(runtimeListBox(from: arrayRaw)?[index] ?? 0))
     }
+
+    func readByte() -> Int {
+        guard !closed, offset < end else { return -1 }
+        defer { offset += 1 }
+        return Int(byte(at: offset))
+    }
+
+    func available() -> Int { closed ? 0 : max(0, end - offset) }
 
     func skip(_ count: Int) -> Int {
         guard !closed else { return 0 }
@@ -3747,114 +3774,113 @@ final class RuntimeInputStreamBox {
 
     func read(into list: RuntimeListBox) -> Int {
         guard !closed else { return -1 }
+        if offset >= end { return -1 }
         let writableCount = min(list.count, available())
-        guard writableCount > 0 else { return -1 }
-        for index in 0 ..< writableCount {
-            list[index] = Int(Int8(bitPattern: data[offset + index]))
-        }
+        for index in 0..<writableCount { list[index] = Int(Int8(bitPattern: byte(at: offset + index))) }
         offset += writableCount
         return writableCount
     }
 
-    /// Reads all remaining bytes from the stream as a list of signed Int values
-    /// in the range [-128, 127] (matching `kotlin.ByteArray` element semantics).
-    /// Advances the read cursor to the end of the underlying buffer.  When the
-    /// stream is closed or already at EOF, returns an empty list.
-    /// Used by `InputStream.readBytes()` (STDLIB-IO-FN-029).
     func readAllBytes() -> [Int] {
         guard !closed else { return [] }
-        let remaining = max(0, data.count - offset)
-        guard remaining > 0 else { return [] }
-        var elements: [Int] = []
-        elements.reserveCapacity(remaining)
-        for index in 0 ..< remaining {
-            elements.append(Int(Int8(bitPattern: data[offset + index])))
-        }
-        offset += remaining
-        return elements
+        let values = (offset..<end).map { Int(Int8(bitPattern: byte(at: $0))) }
+        offset = end
+        return values
     }
 
     func mark(readLimit: Int) {
-        // FileInputStream does not support mark/reset; this is a no-op.
+        if closeIsNoOp { markPosition = offset }
     }
-
-    func markSupported() -> Bool { false }
-
-    /// Attempts a reset.  Returns `false` when mark/reset is not supported
-    /// (matching JVM FileInputStream behaviour — callers must raise IOException).
-    func reset() -> Bool { false }
-
+    func markSupported() -> Bool { closeIsNoOp }
+    func reset() -> Bool {
+        guard closeIsNoOp else { return false }
+        offset = markPosition
+        return true
+    }
     func close() {
-        closed = true
+        if !closeIsNoOp { closed = true }
     }
-
-    /// Drain remaining bytes (after the current `offset`) so they can be
-    /// handed to a `BufferedReader` constructed by
-    /// `InputStream.bufferedReader()` (STDLIB-IO-FN-007). Mirrors what the
-    /// JVM does: wrapping an `InputStream` in an `InputStreamReader` reads
-    /// from the *current* position onwards. Advances the offset to the end
-    /// because callers should treat the stream as fully consumed.
-    func drainRemaining() -> Data {
-        guard !closed else { return Data() }
-        let remaining = data.suffix(from: data.startIndex.advanced(by: offset))
-        offset = data.count
-        return Data(remaining)
-    }
+    func drainRemaining() -> Data { Data(readAllBytes().map { UInt8(truncatingIfNeeded: $0) }) }
 }
 
 /// Runtime box for `java.io.SequenceInputStream` — chains two InputStreams.
-final class RuntimeSequenceInputStreamBox {
-    private var first: RuntimeInputStreamBox?
-    private var second: RuntimeInputStreamBox?
-    private var closed: Bool
+final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding {
+    private var current: Int?
+    private var remaining: Int?
 
-    init(first: RuntimeInputStreamBox, second: RuntimeInputStreamBox) {
-        self.first = first
-        self.second = second
-        self.closed = false
+    init(first: Int, second: Int) {
+        self.current = first
+        self.remaining = second
     }
 
-    func readByte() -> Int {
-        guard !closed else { return -1 }
-        if let s1 = first {
-            let b = s1.readByte()
-            if b != -1 { return b }
-            // first stream exhausted — move to second
-            s1.close()
-            first = nil
+    var childRefs: [Int] { [current, remaining].compactMap { $0 } }
+
+    private func advance(_ outThrown: UnsafeMutablePointer<Int>?) -> Bool {
+        if let raw = current {
+            _ = __kk_input_stream_close_throwing(raw, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return false }
         }
-        return second?.readByte() ?? -1
+        current = remaining
+        remaining = nil
+        return true
     }
 
-    func available() -> Int {
-        guard !closed else { return 0 }
-        return first?.available() ?? 0
-    }
-
-    /// Reads all remaining bytes across both chained streams.  Drains `first`
-    /// fully, then drains `second`.  Used by `InputStream.readBytes()`
-    /// (STDLIB-IO-FN-029) when the receiver is a SequenceInputStream.
-    func readAllBytes() -> [Int] {
-        guard !closed else { return [] }
-        var elements: [Int] = []
-        if let s1 = first {
-            elements.append(contentsOf: s1.readAllBytes())
-            s1.close()
-            first = nil
+    func readByte(_ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        while let raw = current {
+            let byte = __kk_input_stream_read(raw, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return -1 }
+            if byte != -1 { return byte }
+            if !advance(outThrown) { return -1 }
         }
-        if let s2 = second {
-            elements.append(contentsOf: s2.readAllBytes())
-        }
-        return elements
+        return -1
     }
 
-    func close() {
-        guard !closed else { return }
-        first?.close()
-        second?.close()
-        first = nil
-        second = nil
-        closed = true
+    func readRange(_ bytes: Int, _ offset: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        guard current != nil else { return -1 }
+        let size = runtimeArrayBox(from: bytes)?.count ?? runtimeListBox(from: bytes)?.count
+        guard let size, offset >= 0, count >= 0, offset <= size - count else {
+            outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(message: "SequenceInputStream offset/count out of bounds")
+            return -1
+        }
+        if count == 0 { return 0 }
+        while let raw = current {
+            let copied = __kk_input_stream_read_range(raw, bytes, offset, count, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return -1 }
+            // SequenceInputStream does not fill a request across streams.
+            if copied != -1 { return copied }
+            if !advance(outThrown) { return -1 }
+        }
+        return -1
+    }
+
+    func available(_ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        current.map { __kk_input_stream_available_throwing($0, outThrown) } ?? 0
+    }
+
+    func readAllBytes(_ outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int] {
+        var result: [Int] = []
+        while true {
+            let byte = readByte(outThrown)
+            if let outThrown, outThrown.pointee != 0 { return [] }
+            if byte == -1 { return result }
+            result.append(Int(Int8(truncatingIfNeeded: byte)))
+        }
+    }
+
+    func close(_ outThrown: UnsafeMutablePointer<Int>? = nil) {
+        let streams = childRefs
+        current = nil
+        remaining = nil
+        var firstFailure = 0
+        for raw in streams {
+            var failure = 0
+            _ = __kk_input_stream_close_throwing(raw, &failure)
+            if failure != 0 {
+                if firstFailure == 0 { firstFailure = failure }
+                else if failure != firstFailure { _ = __kk_throwable_appendSuppressed(firstFailure, failure) }
+            }
+        }
+        outThrown?.pointee = firstFailure
     }
 }
 
@@ -3867,6 +3893,11 @@ protocol RuntimeOutputStreamSink: AnyObject {
     func write(_ data: Data) throws
     func flush() throws
     func close()
+    func closeThrowing() throws
+}
+
+extension RuntimeOutputStreamSink {
+    func closeThrowing() throws { close() }
 }
 
 /// Concrete `RuntimeOutputStreamSink` backed by a `FileHandle`.
@@ -3893,6 +3924,12 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
         guard !closed else { return }
         try? fileHandle.close()
         closed = true
+    }
+
+    func closeThrowing() throws {
+        guard !closed else { return }
+        defer { closed = true }
+        try fileHandle.close()
     }
 
     var underlyingFileHandle: FileHandle { fileHandle }
@@ -3970,20 +4007,16 @@ final class RuntimeKotlinOutputStreamSink: RuntimeOutputStreamSink {
         }
     }
 
-    func close() {
-        // `close()` has no thrown channel (`__kk_output_stream_close` takes no
-        // outThrown), so a throwable raised by the close callback is dropped,
-        // matching the file-backed sink's `try? fileHandle.close()` swallow.
+    func close() { try? closeThrowing() }
+
+    func closeThrowing() throws {
         var thrown = 0
-        _ = runtimeInvokeClosureThunk(
-            fnPtr: closeFnPtr,
-            closureRaw: closeClosureRaw,
-            outThrown: &thrown
-        )
+        _ = runtimeInvokeClosureThunk(fnPtr: closeFnPtr, closureRaw: closeClosureRaw, outThrown: &thrown)
+        if thrown != 0 { throw RuntimeKotlinThrownError(thrownRaw: thrown) }
     }
 }
 
-final class RuntimeOutputStreamBox {
+final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
     private let sink: RuntimeOutputStreamSink
 
     init(fileHandle: FileHandle) {
@@ -4012,9 +4045,27 @@ final class RuntimeOutputStreamBox {
         try sink.flush()
     }
 
-    func close() {
-        sink.close()
+    func close() { sink.close() }
+
+    func closeThrowing() throws { try sink.closeThrowing() }
+
+    /// Return false for an ordinary byte stream so the caller can validate
+    /// and copy its range. Callback streams preserve source validation order.
+    func writeKotlinRange(_ array: Int, offset: Int, count: Int) throws -> Bool {
+        guard let callback = sink as? RuntimeKotlinRangeOutputStreamSink else { return false }
+        try callback.writeRange(array, offset: offset, count: count)
+        return true
     }
+
+    var childRefs: [Int] { (sink as? RuntimeChildReferenceProviding)?.childRefs ?? [] }
+
+    var hasKotlinDescription: Bool { sink is RuntimeKotlinRangeOutputStreamSink }
+
+    func kotlinDescription(_ thrown: UnsafeMutablePointer<Int>?) -> Int? {
+        (sink as? RuntimeKotlinRangeOutputStreamSink)?.kotlinDescription(thrown)
+    }
+
+    var byteArraySink: RuntimeByteArrayOutputStreamSink? { sink as? RuntimeByteArrayOutputStreamSink }
 
     var underlyingFileHandle: FileHandle? {
         (sink as? RuntimeFileHandleOutputStreamSink)?.underlyingFileHandle
@@ -4037,7 +4088,9 @@ final class RuntimeOutputStreamBox {
 /// Runtime box for `java.io.BufferedWriter` returned by `File.bufferedWriter()`.
 /// Wraps a streaming file writer, supporting `write()`, `newLine()`, `flush()`, and `close()`.
 final class RuntimeBufferedWriterBox {
-    private let fileHandle: FileHandle
+    private let fileHandle: FileHandle?
+    private let stream: RuntimeOutputStreamBox?
+    private let charsetTag: CharsetTag?
     private var buffer: Data
     private let bufferSize: Int
     private let encoding: String.Encoding
@@ -4045,16 +4098,34 @@ final class RuntimeBufferedWriterBox {
 
     init(fileHandle: FileHandle, bufferSize: Int = 8192, encoding: String.Encoding = .utf8) {
         self.fileHandle = fileHandle
+        self.stream = nil
+        self.charsetTag = nil
         self.buffer = Data()
         self.bufferSize = max(1, bufferSize)
         self.encoding = encoding
         self.closed = false
     }
 
+    init(stream: RuntimeOutputStreamBox, charsetTag: CharsetTag, bufferSize: Int = 8192) {
+        self.fileHandle = nil
+        self.stream = stream
+        self.charsetTag = charsetTag
+        self.buffer = Data()
+        self.bufferSize = max(1, bufferSize)
+        self.encoding = .utf8
+        self.closed = false
+    }
+
     /// Writes a string to the buffer, flushing when full.
     func write(_ text: String) throws {
-        guard !closed else { return }
-        guard let data = text.data(using: encoding) ?? text.data(using: .utf8) else { return }
+        guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
+        let data: Data
+        if let charsetTag {
+            data = Data(runtimeCharsetEncodedBytes(text, tag: charsetTag).map { UInt8(truncatingIfNeeded: $0) })
+        } else {
+            guard let encoded = text.data(using: encoding) ?? text.data(using: .utf8) else { return }
+            data = encoded
+        }
         buffer.append(data)
         if buffer.count >= bufferSize {
             try flushBuffer()
@@ -4068,16 +4139,26 @@ final class RuntimeBufferedWriterBox {
 
     /// Flushes buffered data to the file.
     func flush() throws {
-        guard !closed else { return }
+        guard !closed else { throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed")) }
         try flushBuffer()
-        try fileHandle.synchronize()
+        if let stream { try stream.flush() }
+        else { try fileHandle?.synchronize() }
     }
 
-    func close() {
+    func close() { try? closeThrowing() }
+
+    func closeThrowing() throws {
         guard !closed else { return }
-        try? flushBuffer()
-        try? fileHandle.close()
-        closed = true
+        defer { closed = true }
+        do { try flush() }
+        catch {
+            // Close the underlying stream even if encoding/flush failed.
+            try? stream?.closeThrowing()
+            try? fileHandle?.close()
+            throw error
+        }
+        if let stream { try stream.closeThrowing() }
+        else { try fileHandle?.close() }
     }
 
     deinit {
@@ -4086,7 +4167,8 @@ final class RuntimeBufferedWriterBox {
 
     private func flushBuffer() throws {
         guard !buffer.isEmpty else { return }
-        try fileHandle.write(contentsOf: buffer)
+        if let stream { try stream.write(buffer) }
+        else { try fileHandle?.write(contentsOf: buffer) }
         buffer.removeAll(keepingCapacity: true)
     }
 }

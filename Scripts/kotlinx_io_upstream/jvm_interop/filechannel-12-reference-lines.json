@@ -1,0 +1,154 @@
+{
+  "candidate_status": "NOT_RUN",
+  "rows": [
+    {
+      "line": 1,
+      "exact_utf8": "file-channel-write:20/23/23",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 1,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 2,
+      "exact_utf8": "file-channel-write-zero:0",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 2,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 3,
+      "exact_utf8": "file-channel-nonreadable:NonReadable",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 3,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 4,
+      "exact_utf8": "file-channel-write-closed:false/Closed",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 4,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 5,
+      "exact_utf8": "file-channel-written:defghijklmnopqrstuvw",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 5,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "exact_utf8": "file-channel-read:20/23/23",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 6,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "exact_utf8": "file-channel-read-data:defghijklmnopqrstuvw",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 7,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "exact_utf8": "file-channel-read-zero-at-eof:0",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 8,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "exact_utf8": "file-channel-read-eof:-1",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 9,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "exact_utf8": "file-channel-readonly:Argument",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 10,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "exact_utf8": "file-channel-nonwritable:NonWritable",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 11,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "exact_utf8": "file-channel-read-closed:false/Closed",
+      "reference_matches": [
+        {
+          "directory": "jvm-filechannel-producer-oracle1",
+          "line": 12,
+          "stdout_sha256": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8",
+          "report_sha256": "559452f734194000a3d84eacdeb2afdb5a65c42f15315d81443a24943199b34f"
+        }
+      ]
+    }
+  ],
+  "fixture_sha256": {
+    "producer.kt": "e5959b55df61c9a021336c98a46dc4e60277a223b5ffad285123e25275324cc1",
+    "consumer.kt": "1728ea2963f5c6e3065f827e578c1bc5a8a3e91a457c5cce0d740056a4e53945",
+    "expected.stdout": "6e8f76b0001779b41b22038f10f3f16ab74a765d74eaf9685c0877c66378cfd8"
+  }
+}

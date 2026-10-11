@@ -1,0 +1,1039 @@
+{
+  "schemaVersion": 1,
+  "upstreamCommit": "362bdc35e159bad6da1e08101c8321792d762281",
+  "rowCount": 43,
+  "jvmMetadataInventorySHA256": "430abec2143506801dde63151b2895b983a6e7fcc80571398b42ebc5af94c64c",
+  "all_candidate_cases": "NOT_RUN",
+  "rows": [
+    {
+      "rowID": "jvm-06eee316b84478d8",
+      "fqName": "kotlinx.io.bytestring.decode",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)[B",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;II)[B",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-0a5972de7cfbf1ce",
+      "fqName": "kotlinx.io.bytestring.indexOf",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;[BIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;[BI)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-0a7391fd7c844ff7",
+      "fqName": "kotlinx.io.bytestring.decodeToByteString",
+      "semanticParameterTypes": [
+        "kotlin.CharSequence",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.CharSequence;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Ljava/lang/CharSequence;IIILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Ljava/lang/CharSequence;II)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-0de664be9f7d0a3a",
+      "fqName": "kotlinx.io.bytestring.ByteStringBuilder.append",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteStringBuilder;[BIIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "([BII)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-1ba14d2113458d26",
+      "fqName": "kotlinx.io.bytestring.decodeToByteString",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;[BIIILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;[BII)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-35ddcf7e494edf2e",
+      "fqName": "kotlinx.io.bytestring.encodeToAppendable",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "0:0",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "T",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;Ljava/lang/Appendable;IIILjava/lang/Object;)Ljava/lang/Appendable;",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;Ljava/lang/Appendable;II)Ljava/lang/Appendable;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-4acb56be62f8c547",
+      "fqName": "kotlinx.io.bytestring.lastIndexOf",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;[BIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;[BI)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-4f2b0ca1c3161191",
+      "fqName": "kotlinx.io.bytestring.encodeToByteArray",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)[B",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;II)[B",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-57d6ca219cd3aaa0",
+      "fqName": "kotlinx.io.bytestring.lastIndexOf",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;IILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;I)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-736bd7dedbf2e212",
+      "fqName": "kotlinx.io.bytestring.toHexString",
+      "semanticParameterTypes": [
+        "kotlin.text.HexFormat"
+      ],
+      "parameterTokens": [
+        "Lkotlin.text.HexFormat;"
+      ],
+      "defaults": [
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlin/text/HexFormat;)Ljava/lang/String;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-7b10429b599406a8",
+      "fqName": "kotlinx.io.bytestring.getByteString",
+      "semanticParameterTypes": [
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "I"
+      ],
+      "defaults": [
+        true
+      ],
+      "extensionReceiverToken": "Ljava.nio.ByteBuffer;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Ljava/nio/ByteBuffer;IILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(Ljava/nio/ByteBuffer;I)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-810539f04f1dc7a9",
+      "fqName": "kotlinx.io.bytestring.lastIndexOf",
+      "semanticParameterTypes": [
+        "kotlin.Byte",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "B",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;BIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;BI)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-827d471d59e105ce",
+      "fqName": "kotlinx.io.bytestring.buildByteString",
+      "semanticParameterTypes": [
+        "kotlin.Int",
+        "kotlin.Function1<kotlinx.io.bytestring.ByteStringBuilder,kotlin.Unit>"
+      ],
+      "parameterTokens": [
+        "I",
+        "F0<RLkotlinx.io.bytestring.ByteStringBuilder;,U>"
+      ],
+      "defaults": [
+        true,
+        false
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(ILkotlin/jvm/functions/Function1;)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-865a0d5771611c1f",
+      "fqName": "kotlinx.io.bytestring.encode",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)Ljava/lang/String;",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;II)Ljava/lang/String;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-9bf7d3cad6cebd14",
+      "fqName": "kotlinx.io.bytestring.toHexString",
+      "semanticParameterTypes": [
+        "kotlin.Int",
+        "kotlin.Int",
+        "kotlin.text.HexFormat"
+      ],
+      "parameterTokens": [
+        "I",
+        "I",
+        "Lkotlin.text.HexFormat;"
+      ],
+      "defaults": [
+        true,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;IILkotlin/text/HexFormat;ILjava/lang/Object;)Ljava/lang/String;",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;IILkotlin/text/HexFormat;)Ljava/lang/String;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-b6f447c2ba2daba9",
+      "fqName": "kotlinx.io.bytestring.ByteString.toByteArray",
+      "semanticParameterTypes": [
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "I",
+        "I"
+      ],
+      "defaults": [
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)[B",
+      "underlyingRegularJVMDescriptor": "(II)[B",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-c376d0d1321523df",
+      "fqName": "kotlinx.io.bytestring.decodeIntoByteArray",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "Lkotlin.ByteArray;",
+        "I",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        false,
+        true,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;[BIIIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;[BIII)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-caddbfc2da0eaa02",
+      "fqName": "kotlinx.io.bytestring.ByteString.substring",
+      "semanticParameterTypes": [
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(II)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-d17f7b740f731918",
+      "fqName": "kotlinx.io.bytestring.ByteString.copyInto",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;[BIIIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "([BIII)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-d49996f4a43448e9",
+      "fqName": "kotlinx.io.bytestring.indexOf",
+      "semanticParameterTypes": [
+        "kotlin.Byte",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "B",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;BIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;BI)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-e23d593d91c5c087",
+      "fqName": "kotlinx.io.bytestring.encodeIntoByteArray",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "Lkotlin.ByteArray;",
+        "I",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        false,
+        true,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;[BIIIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;[BIII)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-ebe766fdf289f961",
+      "fqName": "kotlinx.io.bytestring.decodeToByteString",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin.io.encoding.Base64;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(Lkotlin/io/encoding/Base64;Lkotlinx/io/bytestring/ByteString;II)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-f0c73d7133f5a588",
+      "fqName": "kotlinx.io.bytestring.indexOf",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.bytestring.ByteString;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;IILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/bytestring/ByteString;Lkotlinx/io/bytestring/ByteString;I)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-f30b7b0c6239fc18",
+      "fqName": "kotlinx.io.bytestring.hexToByteString",
+      "semanticParameterTypes": [
+        "kotlin.text.HexFormat"
+      ],
+      "parameterTokens": [
+        "Lkotlin.text.HexFormat;"
+      ],
+      "defaults": [
+        true
+      ],
+      "extensionReceiverToken": "Lkotlin_String;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Ljava/lang/String;Lkotlin/text/HexFormat;ILjava/lang/Object;)Lkotlinx/io/bytestring/ByteString;",
+      "underlyingRegularJVMDescriptor": "(Ljava/lang/String;Lkotlin/text/HexFormat;)Lkotlinx/io/bytestring/ByteString;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-03ad4cbeb43abc13",
+      "fqName": "kotlinx.io.Sink.write",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Sink;[BIIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "([BII)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-22f55505dcae0513",
+      "fqName": "kotlinx.io.files.FileSystem.sink",
+      "semanticParameterTypes": [
+        "kotlinx.io.files.Path",
+        "kotlin.Boolean"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.files.Path;",
+        "Z"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)Lkotlinx/io/RawSink;",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/files/Path;Z)Lkotlinx/io/RawSink;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-258efe69986cf1fb",
+      "fqName": "kotlinx.io.files.FileSystem.delete",
+      "semanticParameterTypes": [
+        "kotlinx.io.files.Path",
+        "kotlin.Boolean"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.files.Path;",
+        "Z"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/files/Path;Z)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-281a58349eb012c0",
+      "fqName": "kotlinx.io.Source.readAtMostTo",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Source;[BIIILjava/lang/Object;)I",
+      "underlyingRegularJVMDescriptor": "([BII)I",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-29a01d1deaf3b966",
+      "fqName": "kotlinx.io.indexOf",
+      "semanticParameterTypes": [
+        "kotlin.Byte",
+        "kotlin.Long",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "B",
+        "J",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Buffer;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Buffer;BJJILjava/lang/Object;)J",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;BJJ)J",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-2a9d7e102164fbd2",
+      "fqName": "kotlinx.io.writeString",
+      "semanticParameterTypes": [
+        "kotlin.String",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin_String;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Sink;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/String;IIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/String;II)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-32ddc189d171b174",
+      "fqName": "kotlinx.io.indexOf",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Buffer;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Buffer;Lkotlinx/io/bytestring/ByteString;JILjava/lang/Object;)J",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;Lkotlinx/io/bytestring/ByteString;J)J",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-3ca45621ab7698c8",
+      "fqName": "kotlinx.io.Buffer.copyTo",
+      "semanticParameterTypes": [
+        "kotlinx.io.Buffer",
+        "kotlin.Long",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.Buffer;",
+        "J",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Buffer;Lkotlinx/io/Buffer;JJILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;JJ)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-5c5fb6c81ee3a3b9",
+      "fqName": "kotlinx.io.indexOf",
+      "semanticParameterTypes": [
+        "kotlin.Byte",
+        "kotlin.Long",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "B",
+        "J",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Source;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Source;BJJILjava/lang/Object;)J",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Source;BJJ)J",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-6474dd39fbc52ecd",
+      "fqName": "kotlinx.io.copyTo",
+      "semanticParameterTypes": [
+        "java.io.OutputStream",
+        "kotlin.Long",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "Ljava.io.OutputStream;",
+        "J",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Buffer;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Buffer;Ljava/io/OutputStream;JJILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;Ljava/io/OutputStream;JJ)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-7ea1f3d4aa2ff9ba",
+      "fqName": "kotlinx.io.readTo",
+      "semanticParameterTypes": [
+        "java.io.OutputStream",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "Ljava.io.OutputStream;",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Buffer;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Buffer;Ljava/io/OutputStream;JILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;Ljava/io/OutputStream;J)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-804266071f0ab846",
+      "fqName": "kotlinx.io.writeString",
+      "semanticParameterTypes": [
+        "kotlin.CharSequence",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.CharSequence;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Sink;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;IIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/CharSequence;II)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-8178a8b4ccb3fdd8",
+      "fqName": "kotlinx.io.unsafe.UnsafeBufferOperations.moveToTail",
+      "semanticParameterTypes": [
+        "kotlinx.io.Buffer",
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.Buffer;",
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/unsafe/UnsafeBufferOperations;Lkotlinx/io/Buffer;[BIIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Buffer;[BII)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-959e3de0168c91f8",
+      "fqName": "kotlinx.io.files.FileSystem.createDirectories",
+      "semanticParameterTypes": [
+        "kotlinx.io.files.Path",
+        "kotlin.Boolean"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.files.Path;",
+        "Z"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": null,
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/files/FileSystem;Lkotlinx/io/files/Path;ZILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/files/Path;Z)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-9996895f35860b5d",
+      "fqName": "kotlinx.io.writeString",
+      "semanticParameterTypes": [
+        "kotlin.String",
+        "java.nio.charset.Charset",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin_String;",
+        "Ljava.nio.charset.Charset;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Sink;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/String;Ljava/nio/charset/Charset;IIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Sink;Ljava/lang/String;Ljava/nio/charset/Charset;II)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-a909d96b4e6edf31",
+      "fqName": "kotlinx.io.readLineStrict",
+      "semanticParameterTypes": [
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "J"
+      ],
+      "defaults": [
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Source;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Source;JILjava/lang/Object;)Ljava/lang/String;",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Source;J)Ljava/lang/String;",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-b88878973d5558f7",
+      "fqName": "kotlinx.io.indexOf",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Long"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "J"
+      ],
+      "defaults": [
+        false,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Source;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Source;Lkotlinx/io/bytestring/ByteString;JILjava/lang/Object;)J",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Source;Lkotlinx/io/bytestring/ByteString;J)J",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-d0a5256163899ef7",
+      "fqName": "kotlinx.io.readTo",
+      "semanticParameterTypes": [
+        "kotlin.ByteArray",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlin.ByteArray;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Source;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Source;[BIIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Source;[BII)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    },
+    {
+      "rowID": "jvm-ff3de7f8d455d172",
+      "fqName": "kotlinx.io.write",
+      "semanticParameterTypes": [
+        "kotlinx.io.bytestring.ByteString",
+        "kotlin.Int",
+        "kotlin.Int"
+      ],
+      "parameterTokens": [
+        "Lkotlinx.io.bytestring.ByteString;",
+        "I",
+        "I"
+      ],
+      "defaults": [
+        false,
+        true,
+        true
+      ],
+      "extensionReceiverToken": "Lkotlinx.io.Sink;",
+      "visibility": "public",
+      "originalJVMDescriptor": "(Lkotlinx/io/Sink;Lkotlinx/io/bytestring/ByteString;IIILjava/lang/Object;)V",
+      "underlyingRegularJVMDescriptor": "(Lkotlinx/io/Sink;Lkotlinx/io/bytestring/ByteString;II)V",
+      "Native_contract": "Source semantic parameters/default flags + actual artifact Native default-stub link, not a physical JVM $default method",
+      "Native_status": "NOT_RUN"
+    }
+  ]
+}

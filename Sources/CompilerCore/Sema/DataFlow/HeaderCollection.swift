@@ -660,14 +660,16 @@ extension DataFlowSemaPhase {
         into predeclared: inout [DeclID: SymbolID]
     ) {
         let charsetFQName = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
+            interner.intern("java"),
+            interner.intern("nio"),
+            interner.intern("charset"),
             interner.intern("Charset"),
         ]
         guard symbols.lookup(fqName: charsetFQName) == nil else { return }
 
         for file in ast.sortedFiles
-            where sourceManager.path(of: file.fileID) == "__bundled_kotlin/text/StringEncoding.kt"
+            where ["__bundled_java/nio/charset/Charset.kt", "__bundled_kotlin/text/StringEncoding.kt"]
+                .contains(sourceManager.path(of: file.fileID))
         {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             predeclareNominalTypeHeaders(

@@ -646,25 +646,20 @@ public func __kk_reader_readText(_ readerRaw: Int) -> Int {
 
 // MARK: - STDLIB-IO-FN-007: InputStream.bufferedReader(charset)
 //
-// Kotlin's `InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader`
-// is a top-level extension in `kotlin.io`. Charset selection is delegated to
-// the `BufferedReader` returned here — the runtime currently decodes lines as
-// UTF-8, matching the rest of the `BufferedReader` API (see
-// `RuntimeBufferedReaderBox.readLine`). The `charsetRaw` argument is accepted
-// for ABI compatibility with future charset support and is otherwise ignored.
+// The private boundary takes an Int CharsetTag. Source wrappers extract it
+// from the public Charset object before invoking this unchanged ABI.
 @_cdecl("__kk_input_stream_bufferedReader")
 public func __kk_input_stream_bufferedReader(
-    _ streamRaw: Int,
-    _ charsetRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+    _ streamRaw: Int, _ charsetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    _ = charsetRaw
     outThrown?.pointee = 0
-    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_bufferedReader received invalid InputStream handle")
-    }
-    let remaining = stream.drainRemaining()
-    return registerRuntimeObject(RuntimeBufferedReaderBox(data: remaining))
+    let bytes = __kk_input_stream_readAllBytes(streamRaw, outThrown)
+    if let outThrown, outThrown.pointee != 0 { return 0 }
+    let text = __kk_bytearray_decodeToString_charset(bytes, charsetRaw)
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: text),
+          let decoded = extractString(from: pointer) else { return 0 }
+    let utf8 = Data(KotlinStringSurrogateEncoding.unicodeString(decoded).utf8)
+    return registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
 }
 
 // MARK: - STDLIB-IO-091: BufferedWriter
@@ -681,12 +676,14 @@ public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outTh
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid BufferedWriter handle")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
-          let text = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
+          let text = extractString(from: ptr)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid text")
     }
     do {
         try writer.write(text)
+    } catch let failure as RuntimeKotlinThrownError {
+        outThrown?.pointee = failure.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -701,6 +698,8 @@ public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeM
     }
     do {
         try writer.newLine()
+    } catch let failure as RuntimeKotlinThrownError {
+        outThrown?.pointee = failure.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -715,6 +714,8 @@ public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMuta
     }
     do {
         try writer.flush()
+    } catch let failure as RuntimeKotlinThrownError {
+        outThrown?.pointee = failure.thrownRaw
     } catch {
         outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
     }
@@ -753,11 +754,11 @@ public func __kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outTh
 @_cdecl("__kk_bytearrayinputstream_new")
 public func __kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let bytes = runtimeByteArrayBytes(from: bufferRaw) else {
+    guard let size = runtimeArrayBox(from: bufferRaw)?.count ?? runtimeListBox(from: bufferRaw)?.count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return 0
     }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
+    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: bufferRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 // STDLIB-IO-FN-020: ByteArray.inputStream() — wraps the entire byte array as a
@@ -765,11 +766,11 @@ public func __kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeM
 @_cdecl("__kk_bytearray_inputStream")
 public func __kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
+    guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
         return 0
     }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
+    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) — wraps a
@@ -783,20 +784,19 @@ public func __kk_bytearray_inputStream_range(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
+    guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
         return 0
     }
     let offset = offsetRaw
     let length = lengthRaw
-    guard offset >= 0, offset <= bytes.count, length >= 0, length <= bytes.count - offset else {
+    guard offset >= 0, offset <= size, length >= 0, length <= size - offset else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "offset=\(offset) length=\(length) size=\(bytes.count)"
+            message: "offset=\(offset) length=\(length) size=\(size)"
         )
         return 0
     }
-    let slice = Array(bytes[offset ..< offset + length])
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(slice)))
+    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: offset, length: length), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 // STDLIB-IO-FN-011: String.byteInputStream() — encodes the receiver as UTF-8 and
@@ -829,7 +829,7 @@ public func __kk_string_byteInputStream_charset_flat(
 
 private func runtimeStringByteInputStream(_ source: String) -> Int {
     let bytes = KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { UInt8($0) }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
+    return runtimeRegisterIoStream(RuntimeInputStreamBox(data: Data(bytes), closeIsNoOp: true), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 private func runtimeStringByteInputStream(_ source: String, charsetTag: Int) -> Int {
@@ -839,12 +839,14 @@ private func runtimeStringByteInputStream(_ source: String, charsetTag: Int) -> 
         return runtimeStringByteInputStream(source)
     }
     let unsignedBytes = bytes.map { UInt8(truncatingIfNeeded: $0) }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(unsignedBytes)))
+    return runtimeRegisterIoStream(RuntimeInputStreamBox(data: Data(unsignedBytes), closeIsNoOp: true), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 @_cdecl("__kk_input_stream_read")
 public func __kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    if let callback = runtimeKotlinInputStream(from: streamRaw) { return callback.read(outThrown) }
+    if let sequence = runtimeSequenceInputStreamBox(from: streamRaw) { return sequence.readByte(outThrown) }
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
     }
@@ -862,6 +864,16 @@ public func __kk_input_stream_available(_ streamRaw: Int) -> Int {
 @_cdecl("__kk_input_stream_skip")
 public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
+        var skipped = 0
+        while skipped < max(0, countRaw) {
+            let value = __kk_input_stream_read(streamRaw, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return skipped }
+            if value == -1 { break }
+            skipped += 1
+        }
+        return skipped
+    }
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
     }
@@ -870,15 +882,12 @@ public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrow
 
 @_cdecl("__kk_input_stream_read_bytes")
 public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read_bytes received invalid InputStream handle")
-    }
-    guard let list = runtimeListBox(from: bytesRaw) else {
+    let count = runtimeArrayBox(from: bytesRaw)?.count ?? runtimeListBox(from: bytesRaw)?.count
+    guard let count else {
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
         return -1
     }
-    return stream.read(into: list)
+    return __kk_input_stream_read_range(streamRaw, bytesRaw, 0, count, outThrown)
 }
 
 // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
@@ -896,26 +905,55 @@ public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ ou
 // The receiver is not closed — `InputStream.readBytes()` mirrors JVM
 // `InputStream.readAllBytes()` in that the caller is responsible for closing
 // the stream (typically via `.use { it.readBytes() }`).
+/// All callers of readAllBytes/readBytes observe Kotlin ByteArray storage.
+/// Allocate a fresh primitive array and install its declared nominal type here;
+/// no element inspection or reference-component retagging is involved.
+private func runtimeMakeIoReadByteArray(_ elements: [Int]) -> Int {
+    let raw = runtimeMakeArrayRaw(elements)
+    runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
+    return raw
+}
+
 @_cdecl("__kk_input_stream_readAllBytes")
 public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    if runtimeKotlinInputStream(from: streamRaw) != nil {
+        let array = RuntimeArrayBox(length: 8192)
+        let raw = registerRuntimeObject(array)
+        var result: [Int] = []
+        while true {
+            let count = __kk_input_stream_read_range(streamRaw, raw, 0, array.count, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return 0 }
+            if count == -1 { break }
+            if count == 0 {
+                let byte = __kk_input_stream_read(streamRaw, outThrown)
+                if let outThrown, outThrown.pointee != 0 { return 0 }
+                if byte == -1 { break }
+                result.append(Int(Int8(truncatingIfNeeded: byte)))
+            } else {
+                result.append(contentsOf: array.elements.prefix(count))
+            }
+        }
+        return runtimeMakeIoReadByteArray(result)
+    }
     // Try a plain InputStream first.
     if let stream = runtimeInputStreamBox(from: streamRaw) {
         let bytes = stream.readAllBytes()
-        return registerRuntimeObject(RuntimeListBox(elements: bytes))
+        return runtimeMakeIoReadByteArray(bytes)
     }
     // Fall back to a SequenceInputStream chain.
     if let ptr = UnsafeMutableRawPointer(bitPattern: streamRaw),
        let sequenceStream = tryCast(ptr, to: RuntimeSequenceInputStreamBox.self)
     {
-        let bytes = sequenceStream.readAllBytes()
-        return registerRuntimeObject(RuntimeListBox(elements: bytes))
+        let bytes = sequenceStream.readAllBytes(outThrown)
+        return runtimeMakeIoReadByteArray(bytes)
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_readAllBytes received invalid InputStream handle")
 }
 
 @_cdecl("__kk_input_stream_mark")
 public func __kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int {
+    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil { return 0 }
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_mark received invalid InputStream handle")
     }
@@ -926,6 +964,10 @@ public func __kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int
 @_cdecl("__kk_input_stream_reset")
 public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
+        outThrown?.pointee = runtimeAllocateIOException(message: "mark/reset not supported")
+        return 0
+    }
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
     }
@@ -937,6 +979,7 @@ public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutable
 
 @_cdecl("__kk_input_stream_mark_supported")
 public func __kk_input_stream_mark_supported(_ streamRaw: Int) -> Int {
+    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil { return kk_box_bool(0) }
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_mark_supported received invalid InputStream handle")
     }
@@ -972,7 +1015,7 @@ public func __kk_input_stream_copyTo(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard let inputStream = runtimeInputStreamBox(from: streamRaw) else {
+    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid InputStream handle")
     }
     guard let outputStream = runtimeOutputStreamBox(from: outStreamRaw) else {
@@ -980,13 +1023,18 @@ public func __kk_input_stream_copyTo(
     }
     let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
     var totalBytesCopied: Int = 0
-    let buffer = RuntimeListBox(elements: Array(repeating: 0, count: bufferSize))
+    let buffer = RuntimeArrayBox(length: bufferSize)
+    let rawBuffer = registerRuntimeObject(buffer)
     while true {
-        let bytesRead = inputStream.read(into: buffer)
+        let bytesRead = __kk_input_stream_read_range(streamRaw, rawBuffer, 0, bufferSize, outThrown)
+        if let outThrown, outThrown.pointee != 0 { return kk_box_long(totalBytesCopied) }
         if bytesRead <= 0 { break }
         let chunk = Array(buffer.elements.prefix(bytesRead))
         do {
             try outputStream.writeBytes(chunk)
+        } catch let error as RuntimeKotlinThrownError {
+            outThrown?.pointee = error.thrownRaw
+            return kk_box_long(totalBytesCopied)
         } catch {
             outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
             return kk_box_long(totalBytesCopied)
@@ -1015,7 +1063,7 @@ public func __kk_input_stream_copyTo(
 @_cdecl("__kk_input_stream_buffered_default")
 public func __kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard runtimeInputStreamBox(from: streamRaw) != nil else {
+    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered_default received invalid InputStream handle")
     }
     // The underlying RuntimeInputStreamBox already buffers via Data, so we
@@ -1027,7 +1075,7 @@ public func __kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: Un
 @_cdecl("__kk_input_stream_buffered")
 public func __kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard runtimeInputStreamBox(from: streamRaw) != nil else {
+    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered received invalid InputStream handle")
     }
     // Kotlin's reference implementation throws IllegalArgumentException for
@@ -1050,13 +1098,13 @@ private func runtimeSequenceInputStreamBox(from raw: Int) -> RuntimeSequenceInpu
 
 @_cdecl("__kk_sequence_input_stream_new")
 public func __kk_sequence_input_stream_new(_ firstRaw: Int, _ secondRaw: Int) -> Int {
-    guard let first = runtimeInputStreamBox(from: firstRaw) else {
+    guard runtimeInputStreamBox(from: firstRaw) != nil || runtimeKotlinInputStream(from: firstRaw) != nil || runtimeSequenceInputStreamBox(from: firstRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_new: invalid first InputStream handle")
     }
-    guard let second = runtimeInputStreamBox(from: secondRaw) else {
+    guard runtimeInputStreamBox(from: secondRaw) != nil || runtimeKotlinInputStream(from: secondRaw) != nil || runtimeSequenceInputStreamBox(from: secondRaw) != nil else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_new: invalid second InputStream handle")
     }
-    return registerRuntimeObject(RuntimeSequenceInputStreamBox(first: first, second: second))
+    return runtimeRegisterIoStream(RuntimeSequenceInputStreamBox(first: firstRaw, second: secondRaw), fqName: "java.io.SequenceInputStream", input: true)
 }
 
 @_cdecl("__kk_sequence_input_stream_read")
@@ -1065,7 +1113,7 @@ public func __kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: Unsaf
     guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_read received invalid SequenceInputStream handle")
     }
-    return stream.readByte()
+    return stream.readByte(outThrown)
 }
 
 @_cdecl("__kk_sequence_input_stream_available")
@@ -1174,14 +1222,10 @@ private func outputStreamEncoding(for charsetRaw: Int) -> String.Encoding {
 /// handle should no longer be used directly.
 @_cdecl("__kk_output_stream_bufferedWriter")
 public func __kk_output_stream_bufferedWriter(_ streamRaw: Int, _ charsetRaw: Int) -> Int {
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_bufferedWriter received invalid OutputStream handle")
+    guard let stream = runtimeOutputStreamBox(from: streamRaw), let tag = CharsetTag(rawValue: charsetRaw) else {
+        fatalError("KSwiftK panic: invalid OutputStream/Charset tag")
     }
-    let encoding = outputStreamEncoding(for: charsetRaw)
-    guard let writer = stream.makeBufferedWriter(encoding: encoding) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_bufferedWriter cannot wrap non-file-handle OutputStream")
-    }
-    return registerRuntimeObject(writer)
+    return registerRuntimeObject(RuntimeBufferedWriterBox(stream: stream, charsetTag: tag))
 }
 
 // MARK: - STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize)

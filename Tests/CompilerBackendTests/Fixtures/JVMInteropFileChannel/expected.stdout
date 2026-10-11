@@ -1,0 +1,12 @@
+file-channel-write:20/23/23
+file-channel-write-zero:0
+file-channel-nonreadable:NonReadable
+file-channel-write-closed:false/Closed
+file-channel-written:defghijklmnopqrstuvw
+file-channel-read:20/23/23
+file-channel-read-data:defghijklmnopqrstuvw
+file-channel-read-zero-at-eof:0
+file-channel-read-eof:-1
+file-channel-readonly:Argument
+file-channel-nonwritable:NonWritable
+file-channel-read-closed:false/Closed

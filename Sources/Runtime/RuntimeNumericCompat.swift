@@ -47,7 +47,7 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     return runtimeMakeStringPointer(runtimeElementToString(value))
 }
 
-private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
+func runtimeAnyToStringOverrideRaw(_ raw: Int, outThrown: UnsafeMutablePointer<Int>? = nil) -> Int? {
     guard let objectPtr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
@@ -62,9 +62,11 @@ private func runtimeAnyToStringOverrideRaw(_ raw: Int) -> Int? {
     let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint1.self)
     var thrown = 0
     let result = function(raw, &thrown)
-    guard thrown == 0, result != 0 else {
+    if thrown != 0 {
+        outThrown?.pointee = thrown
         return nil
     }
+    guard result != 0 else { return nil }
     return result
 }
 
@@ -1725,4 +1727,17 @@ public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
     return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
+}
+
+/// New source-generated object interpolation retains an override's original
+/// throwable without changing the old public no-thrown-slot entry point.
+@_cdecl("__kk_any_to_string_throwing")
+public func __kk_any_to_string_throwing(_ value: Int, _ tag: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> UnsafeMutableRawPointer {
+    outThrown?.pointee = 0
+    if let raw = runtimeAnyToStringOverrideRaw(value, outThrown: outThrown) {
+        if raw == runtimeNullSentinelInt { return runtimeMakeStringPointer("null") }
+        if let pointer = UnsafeMutableRawPointer(bitPattern: raw) { return pointer }
+    }
+    if let outThrown, outThrown.pointee != 0 { return runtimeMakeStringPointer("") }
+    return kk_any_to_string(value, tag)
 }
