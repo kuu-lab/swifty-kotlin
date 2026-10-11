@@ -1,0 +1,11 @@
+{
+  "status": "JVM_SINGLE_DISTINCT_FIXTURE_REFERENCE;CANDIDATE_NOT_RUN",
+  "source_hashes": {
+    "BufferingContracts.kt": "75185ca2412dd4b41515955771ddeafc93e3f603935c429f8867d439969ebb59",
+    "Consumer.kt": "49f5f8e2a6fb8f5c7150099032e3f83462976cf0bff301ba6850b1ba1a3afd9e"
+  },
+  "oracle_receipt_sha256": "82f05af22973a288917379faf1720fd40cf024899e875f6cc4d49e336f7d7248",
+  "expected_sha256": "2084c7158d74ce72d85e5de7d8e246703948fde50572cf745e165834671f435b",
+  "rows": 41,
+  "separate_JVM_producer_consumer_executed": false
+}
