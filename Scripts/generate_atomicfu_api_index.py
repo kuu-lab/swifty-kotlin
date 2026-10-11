@@ -199,10 +199,10 @@ def parse_api_records(contents: bytes) -> tuple[tuple[str, ...], dict[str, dict[
 def declaration_kind(signature: str) -> str:
     if "annotation class " in signature:
         return "annotation_class"
-    if signature.startswith(CLASS_PREFIXES):
-        return "class"
     if signature.startswith(("final object ", "open object ")):
         return "object"
+    if signature.startswith(CLASS_PREFIXES):
+        return "class"
     if signature.startswith("constructor "):
         return "constructor"
     if signature.startswith(PROPERTY_PREFIXES):
@@ -257,7 +257,7 @@ def source_paths_for(api_symbol: str, signature: str, common_native: bool) -> li
             return [(common, "common expect"), (native, "native actual")]
         return [(common, "common expect"), (native, "native actual")]
 
-    if "TraceFormat" in text:
+    if api_symbol == "kotlinx.atomicfu/TraceFormat" or api_symbol.startswith("kotlinx.atomicfu/TraceFormat."):
         return [("atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt", "common declaration")]
 
     if (
@@ -267,7 +267,7 @@ def source_paths_for(api_symbol: str, signature: str, common_native: bool) -> li
         or api_symbol.endswith("/named")
     ):
         common = "atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt"
-        if any(token in api_symbol for token in ("/Trace", "/named", "/traceFormatDefault")):
+        if api_symbol in {"kotlinx.atomicfu/Trace", "kotlinx.atomicfu/named", "kotlinx.atomicfu/traceFormatDefault"} or api_symbol.startswith("kotlinx.atomicfu/traceFormatDefault."):
             return [(common, "common expect/declaration"), ("atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt", "native actual")]
         return [(common, "common declaration")]
 
@@ -275,6 +275,8 @@ def source_paths_for(api_symbol: str, signature: str, common_native: bool) -> li
         arrays = ("AtomicArray", "AtomicBooleanArray", "AtomicIntArray", "AtomicLongArray")
         if any(name in text for name in arrays) or api_symbol.endswith("/atomicArrayOfNulls"):
             return [("atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt", "common declaration")]
+        if api_symbol.endswith(".toString"):
+            return [("atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt", "native actual override")]
         if re.search(r"Atomic(?:Ref|Boolean|Int|Long)\.a(?:\.|$)", api_symbol):
             return [("atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt", "native internal actual")]
         if api_symbol.endswith("/atomic"):
@@ -297,114 +299,17 @@ def source_paths_for(api_symbol: str, signature: str, common_native: bool) -> li
     raise ValueError(f"no pinned source mapping for API declaration {api_symbol}: {signature}")
 
 
-def direct_annotations(path: str, api_symbol: str, signature: str) -> list[str]:
-    symbol = api_symbol
-    if path.endswith("OptionalJsName.kt") and symbol == "kotlinx.atomicfu/OptionalJsName":
-        return ["OptIn", "OptionalExpectation", "Retention", "Target", "Deprecated"]
-
-    if path.endswith("AtomicFU.common.kt"):
-        if symbol.endswith("/atomicArrayOfNulls"):
-            return ["Deprecated", "Suppress", "OptionalJsName"]
-        if re.search(r"/Atomic(?:Boolean|Int|Long)?Array(?:$|[.(])", symbol):
-            if symbol.endswith(("AtomicArray", "AtomicBooleanArray", "AtomicIntArray", "AtomicLongArray")) or ".<init>" in symbol:
-                return ["Deprecated", "Suppress", "OptionalJsName"]
-            if symbol.endswith(".get"):
-                return ["OptionalJsName"]
-            if symbol.endswith(".size"):
-                return ["OptionalJsName"]
-        if re.search(r"/Atomic(?:Ref|Boolean|Int|Long)\.(?:getValue|setValue)$", symbol):
-            return ["InlineOnly"]
-
-    if path.endswith("AtomicFU.kt"):
-        if re.search(r"/Atomic(?:Ref|Boolean|Int|Long)\.a$", symbol):
-            return ["PublishedApi"]
-        if re.search(r"/Atomic(?:Ref|Boolean|Int|Long)\.(?:getValue|setValue)$", symbol):
-            return ["InlineOnly"]
-
-    if path.endswith("Trace.common.kt"):
-        if symbol.endswith("/Trace"):
-            return ["Suppress"]
-        if symbol.endswith("/TraceBase"):
-            return ["Suppress", "OptionalJsName"]
-        if symbol.startswith("kotlinx.atomicfu/TraceBase.append"):
-            return ["OptionalJsName"]
-        if symbol.endswith("TraceBase.invoke"):
-            return ["InlineOnly"]
-
-    if path.endswith("Trace.kt") and symbol.endswith("/Trace"):
-        return ["Suppress"]
-
-    if path.endswith("TraceFormat.kt"):
-        if symbol.endswith("/TraceFormat"):
-            if "crossinline" in signature:
-                return ["InlineOnly"]
-            if "class " in signature:
-                return ["Suppress", "OptionalJsName"]
-        if symbol.endswith("TraceFormat.format"):
-            return ["Suppress", "OptionalJsName"]
-
-    if path.endswith("SynchronousMutex.kt") and path.startswith("atomicfu/src/commonMain") and symbol.endswith("/withLock"):
-        return ["OptIn"]
-
-    if path.endswith("ParkingSupport.kt"):
-        if symbol.endswith(("/ParkingSupport", "/ParkingHandle")):
-            return ["ExperimentalThreadBlockingApi"]
-        if symbol.endswith("/ExperimentalThreadBlockingApi"):
-            return ["Retention", "Target", "RequiresOptIn"]
-
-    if path.endswith("Synchronized.kt") and path.startswith("atomicfu/src/jsAndWasmSharedMain") and symbol.endswith("/Lock.<get-Lock>"):
-        return ["OptionalJsName"]
-
-    return []
-
-
-def inherited_annotations(path: str, api_symbol: str) -> list[str]:
-    if path.endswith("OptionalJsName.kt") and api_symbol.startswith("kotlinx.atomicfu/OptionalJsName."):
-        return ["Deprecated"]
-    if path.endswith("ParkingSupport.kt") and "ParkingSupport." in api_symbol:
-        return ["ExperimentalThreadBlockingApi"]
-    if path.endswith("AtomicFU.kt") and re.search(r"/Atomic(?:Ref|Boolean|Int|Long)\.a\.<get-a>$", api_symbol):
-        return ["PublishedApi"]
-    if path.endswith("AtomicFU.common.kt") and re.search(r"/Atomic(?:Array|BooleanArray|IntArray|LongArray)\.size\.<get-size>$", api_symbol):
-        return ["OptionalJsName"]
-    return []
-
-
-def visibility_for(path: str, api_symbol: str) -> str:
-    if path.endswith("AtomicFU.kt") and re.search(r"/Atomic(?:Ref|Boolean|Int|Long)\.a(?:\.<get-a>)?$", api_symbol):
-        return "internal"
-    return "public"
-
-
-def source_reference(path: str, role: str, api_symbol: str, signature: str) -> dict[str, Any]:
-    if path not in SOURCE_BLOBS:
-        raise ValueError(f"source path missing pinned Git blob: {path}")
-    annotations = direct_annotations(path, api_symbol, signature)
-    inherited = inherited_annotations(path, api_symbol)
-    file_annotations = []
-    if path.endswith(("AtomicFU.common.kt", "Trace.common.kt", "TraceFormat.kt")):
-        file_annotations = ["Suppress"]
-    elif path.endswith("AtomicFU.kt"):
-        file_annotations = ["Suppress"]
-    elif path.endswith("Synchronized.kt") and path.startswith("atomicfu/src/jsAndWasmSharedMain"):
-        file_annotations = ["Suppress"]
-    return {
-        "path": path,
-        "git_blob_sha1": SOURCE_BLOBS[path],
-        "role": role,
-        "visibility": visibility_for(path, api_symbol),
-        "annotations": annotations,
-        "inherited_annotations": inherited,
-        "file_annotations": file_annotations,
-        "annotation_evidence": (
-            "pinned declaration has no direct annotation; source blob and API symbol identify the checked declaration"
-            if not annotations
-            else "direct annotations on the pinned declaration"
-        ),
-    }
+def source_reference(path: str, role: str, api_identity: str, evidence) -> dict[str, Any]:
+    import atomicfu_source_evidence as source_evidence
+    sources, anchors = evidence
+    return source_evidence.source_fact(api_identity, path, role, sources, anchors)
 
 
 def build_declaration_index(klib_contents: bytes) -> dict[str, Any]:
+    import atomicfu_source_evidence as source_evidence
+    source_manifest, sources = source_evidence.load_sources()
+    anchors = json.loads((REFERENCE / "atomicfu.source-anchors.json").read_text())
+    evidence = (sources, anchors)
     default_targets, records = parse_api_records(klib_contents)
     selected = [record for record in records.values() if record["common_native"]]
     inherited_js = [
@@ -451,7 +356,7 @@ def build_declaration_index(klib_contents: bytes) -> dict[str, Any]:
         api_symbol = record["api_symbol"]
         common_native = record["common_native"]
         source_refs = source_paths_for(api_symbol, signature, common_native)
-        sources = [source_reference(path, role, api_symbol, signature) for path, role in source_refs]
+        sources = [source_reference(path, role, record["api_identity"], evidence) for path, role in source_refs]
         group_rows = overload_groups[api_symbol]
         overload_index = next(i for i, item in enumerate(group_rows, start=1) if item is record)
         declarations.append(
@@ -466,8 +371,8 @@ def build_declaration_index(klib_contents: bytes) -> dict[str, Any]:
                 "overload_count": len(group_rows),
                 "klib_target_expressions": sorted(record["target_expressions"]),
                 "kotlin_visibility": (
-                    next(iter({source["visibility"] for source in sources}))
-                    if len({source["visibility"] for source in sources}) == 1
+                    next(iter({source["visibility"] for source in sources if source["visibility"] is not None}), None)
+                    if len({source["visibility"] for source in sources if source["visibility"] is not None}) <= 1
                     else "mixed"
                 ),
                 "source_provenance": sources,
@@ -482,7 +387,7 @@ def build_declaration_index(klib_contents: bytes) -> dict[str, Any]:
         }
     )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "upstream": {
             "repository": "Kotlin/kotlinx-atomicfu",
             "version": "0.33.0",
@@ -509,6 +414,14 @@ def build_declaration_index(klib_contents: bytes) -> dict[str, Any]:
             {"path": path, "git_blob_sha1": SOURCE_BLOBS[path]}
             for path in source_paths_used
         ],
+        "source_evidence": {
+            "manifest": "atomicfu.source-manifest.json",
+            "anchors": "atomicfu.source-anchors.json",
+            "source_jar_sha256": source_manifest["source_jar_sha256"],
+            "verified_source_files": sum(s["evidence_status"] == "pinned" for s in source_manifest["sources"]),
+            "unavailable_sources": [s for s in source_manifest["sources"] if s["evidence_status"] != "pinned"],
+            "note": "Annotation expressions retain exact source; enclosing records are context, not implicit direct annotations. Unavailable excluded source is not inferred.",
+        },
         "declarations": declarations,
     }
 

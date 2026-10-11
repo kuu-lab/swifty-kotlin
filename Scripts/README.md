@@ -109,7 +109,8 @@ bash Scripts/validate_runtime_abi_links.sh
 ## Atomicfu API reference
 
 Verify the pinned 0.33.0 upstream ABI snapshots, generated per-declaration
-index, effective KLIB target scopes, and excluded `compareAndExchange` / `load`
+index, exact pinned source bytes, declaration annotation arguments and visibility,
+effective KLIB target scopes, and excluded `compareAndExchange` / `load`
 / `store` / `MemoryOrder` names:
 
 ```bash
@@ -118,7 +119,12 @@ python3 Scripts/check_atomicfu_api_reference.py
 
 Regenerate the checked-in 155-row ABI-identity index (150 common/native
 declarations plus five explicitly excluded inherited JS/Wasm identities; the
-common/native declarations span 126 unique rendered signatures):
+common/native declarations span 126 unique rendered signatures). The schema-2
+index separates direct, enclosing and file annotations. All Native rows have
+verified source evidence; the five excluded JS/Wasm rows explicitly keep unknown
+annotation facts because that target source is unavailable. See
+`docs/atomicfu-implementation-plan.md` for unfinished source registration and
+runtime requirements:
 
 ```bash
 python3 Scripts/generate_atomicfu_api_index.py --write

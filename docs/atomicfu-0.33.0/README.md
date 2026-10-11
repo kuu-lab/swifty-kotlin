@@ -1,104 +1,109 @@
 # kotlinx.atomicfu 0.33.0 API reference
 
-This directory pins the upstream reference used by KUU-1732. It is an API
-inventory and registration plan; the copied API dumps are not compiler inputs
-and do not claim that atomic operations are implemented.
+This directory pins the API and source evidence used by KUU-1732. Files below
+`reference/sources/` are documentation inputs for the inventory tools; they are
+not bundled compiler sources. Actual registration and operations remain pending
+as described in [the implementation plan](../atomicfu-implementation-plan.md).
 
-## Pinned upstream
+## Pinned reference and count definitions
 
-- Repository: [Kotlin/kotlinx-atomicfu](https://github.com/Kotlin/kotlinx-atomicfu)
-- Commit: [fc175fc575419ca9eae0d3c14cefe9c5cd7ca351](https://github.com/Kotlin/kotlinx-atomicfu/commit/fc175fc575419ca9eae0d3c14cefe9c5cd7ca351)
-- Version: 0.33.0
-- Kotlin reference version: 2.3.10
-- The hashes below are Git blob SHA-1 values for the exact upstream file bytes.
-  The local JVM API snapshot omits one empty final line so repository
-  whitespace checks stay clean; the checker restores that byte before hashing.
+The upstream version is **0.33.0**, commit
+[`fc175fc575419ca9eae0d3c14cefe9c5cd7ca351`](https://github.com/Kotlin/kotlinx-atomicfu/commit/fc175fc575419ca9eae0d3c14cefe9c5cd7ca351),
+with Kotlin reference version **2.3.10**.
 
-| Reference | Upstream path | Git blob SHA-1 |
+| API snapshot | Upstream Git blob SHA-1 |
+| --- | --- |
+| `atomicfu/api/atomicfu.klib.api` | `d170cb60f282c47b96d2c98041a7f5f2bf2e5850` |
+| `atomicfu/api/atomicfu.api` | `43d0bf802a601d72d49c8269bcfc325aa57eefac` |
+
+The local JVM API snapshot trims one empty final line for repository whitespace
+checks; the checker restores that byte before hashing. The Native declaration
+index has **150 common/native ABI identities**, **126 unique rendered
+signatures**, and Kotlin visibility totals **142 public + 8 PublishedApi
+internal**. The original flat count of **130** includes four rendered signatures
+from **five JS/Wasm-only identities**, which remain explicit exclusions. These
+counts measure different things; none is a count of implemented operations.
+
+KLIB effective targets are inherited through nominal/property scopes before
+counting. The five excluded identities are the JS/Wasm `Lock` getter and
+`ReentrantLock` constructor/lock/tryLock/unlock. They are not added to Native
+coverage. The Native source `ReentrantLock` is a `SynchronizedObject` typealias,
+not a new JS/Wasm nominal class.
+
+## Exact source evidence
+
+The Linux source JAR used to acquire the available bytes is
+`atomicfu-linuxx64-0.33.0-sources.jar`, SHA-256
+`c42fc0a74388a147e40ab03b2c084c8e84f7a3620f58b19bb3b72ff417396a25`.
+`atomicfu.source-manifest.json` pins **13 available source files**: the original
+12 common/native files plus `MangledJsNames.kt`, needed to resolve annotation
+constant expressions. Its fourteenth entry is the unavailable JS/Wasm source.
+The local `reference/sources/.gitattributes` lists only these 13 pinned files
+with `whitespace=-blank-at-eol` so upstream comment whitespace remains byte-exact.
+Other paths, including compiler resources, retain normal whitespace checks.
+All 150 Native identities have actual source evidence. The five excluded
+JS/Wasm source references explicitly carry null visibility/annotation facts;
+no annotation names or arguments are inferred for that missing file.
+
+| Upstream source path | Git blob SHA-1 | Evidence |
 | --- | --- | --- |
-| KLIB declarations | `atomicfu/api/atomicfu.klib.api` | `d170cb60f282c47b96d2c98041a7f5f2bf2e5850` |
-| JVM declarations | `atomicfu/api/atomicfu.api` | `43d0bf802a601d72d49c8269bcfc325aa57eefac` |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt` | `721d86023038690cb7feffda049188ce1d2d9979` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt` | `d27c84e83bb05240beb3049e5eea97c268ab9a09` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt` | `7105ca2e6fa124364460a12ab2ad6fa30c1b2476` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt` | `99969bfa0c250fff7f8aca7105fc27a8cba98a00` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt` | `ae0ea685437c061c98ccfd2d6fade06b22258199` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt` | `8de86a013b951a93838d206cbcaf63ba27180b2e` | exact bytes vendored |
+| `atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt` | `d52c9593e8b6264e143a53e4f26200da9c8ecc13` | exact bytes vendored |
+| `atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt` | `acb538d055f2283bb0cdbcc821168b309011e267` | unavailable; excluded JS/Wasm only |
+| `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt` | `61c33a9fdc20515562661fe063f6bf34ded1e038` | exact bytes vendored |
+| `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt` | `9d8dcbf2e7a2e4774cadb7024c717b260f4f8511` | exact bytes vendored |
+| `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt` | `d1fb1e6c42649f4e05b6ad8a340052f6cbb14640` | exact bytes vendored |
+| `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt` | `2cfa72ce247c6a2bd89560a1c70918d029c1e313` | exact bytes vendored |
+| `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt` | `cd50f621c1057f7edf6595a37bb185da99b01868` | exact bytes vendored |
+| `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/MangledJsNames.kt` | `8c37d016e4dc075d35f9f9910b354b18976ad0f3` | exact bytes vendored |
 
-The generated declaration index preserves each KLIB ABI identity instead of
-collapsing declarations that share rendered text. It contains **150
-common/native declarations** across **126 unique rendered signatures**. Five
-additional JS/Wasm-only declaration identities (four unique signatures) are
-listed as exclusions after resolving `Targets` comments through enclosing
-class/property scopes. This prevents children of a JS/Wasm-only
-`ReentrantLock` or `Lock` declaration from being misreported as native API.
-The earlier flat pass's 130 unique rendered-signature count is retained in the
-index summary for comparison. The full declaration text and target comments
-remain in `reference/atomicfu.klib.api`; the JVM-only comparison stays separate
-in `reference/atomicfu.api`.
+`atomicfu.source-anchors.json` maps each ABI identity to an exact declaration
+line, character offset, header, and optional nominal owner in those immutable
+bytes. It disambiguates overloads, explicit/implicit constructors and generated
+property accessors. The schema-2 declaration index retains ABI signature/identity,
+effective targets, kind, overload grouping, visibility, and source provenance.
+For each source reference it keeps:
 
-Run `python3 Scripts/generate_atomicfu_api_index.py --write` to regenerate
-`reference/atomicfu.common-native.declarations.json` deterministically. Each of
-its 155 rows records the exact rendered signature, ABI identity, declaration kind,
-overload group/index, effective KLIB target expression, Kotlin visibility,
-source path and source blob hash, and direct/inherited/file annotations.
-Empty direct annotation lists carry an explicit evidence note and pinned source
-reference. `python3 Scripts/check_atomicfu_api_reference.py` checks the API
-blob hashes, target-aware declaration coverage, generated-index freshness, and
-the unsupported names `compareAndExchange`, `load`, `store`, and `MemoryOrder`.
+- direct annotations separately from enclosing class/property context and file
+  annotations; a class annotation is not invented as a constructor annotation;
+- raw annotation spelling, use-site target, named/positional argument expressions,
+  source range and line; `BINARY`, opt-in `ERROR`, deprecation `WARNING`, messages,
+  `ReplaceWith` expressions and Target sets remain distinguishable;
+- symbolic argument expressions plus the exact pinned constant declaration when
+  present, rather than a guessed JavaScript name;
+- explicit unknown evidence for unavailable excluded source.
 
-## Source annotation and visibility index
+The legacy `inherited_annotations` field contains property-accessor source
+context only; it is not a claim of Kotlin annotation inheritance. For example,
+`AtomicIntArray` and `AtomicLongArray` explicit constructors have direct
+`Deprecated` only, while their class annotations are separate context.
+`TraceBase` and its `None`/append/invoke members come from `Trace.common.kt`;
+only the actual Trace factory/named/default-format declarations point to Native
+`Trace.kt`. Scalar `toString` overrides exist in Native `AtomicFU.kt` only.
 
-The KLIB dump records signatures, overloads, target sets, and ABI modifiers,
-but it does not preserve all Kotlin source annotations or source visibility.
-In particular, an ABI-visible `@PublishedApi internal` member must not be
-mistaken for a Kotlin-public member. The following source files are pinned
-source-of-truth for declaration visibility and annotations. The generated
-index links each ABI identity to the applicable file(s), rather than relying
-on this family summary:
+## Regeneration and independent checks
 
-| Target set | Upstream source path | Git blob SHA-1 | Annotation families present |
-| --- | --- | --- | --- |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/AtomicFU.common.kt` | `721d86023038690cb7feffda049188ce1d2d9979` | `@Deprecated`, `@InlineOnly`; JS-name annotations are target-specific |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/OptionalJsName.kt` | `d27c84e83bb05240beb3049e5eea97c268ab9a09` | `@OptIn`, `@OptionalExpectation`, `@Retention`, `@Target`, `@Deprecated` |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/Trace.common.kt` | `7105ca2e6fa124364460a12ab2ad6fa30c1b2476` | `@InlineOnly`, `@Suppress`, `@OptionalJsName` |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/TraceFormat.kt` | `99969bfa0c250fff7f8aca7105fc27a8cba98a00` | `@InlineOnly`, `@Suppress`, `@OptionalJsName` |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt` | `8de86a013b951a93838d206cbcaf63ba27180b2e` | `@OptIn` |
-| common | `atomicfu/src/commonMain/kotlin/kotlinx/atomicfu/locks/Synchronized.common.kt` | `ae0ea685437c061c98ccfd2d6fade06b22258199` | — |
-| common/concurrent | `atomicfu/src/concurrentMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt` | `d52c9593e8b6264e143a53e4f26200da9c8ecc13` | `@ExperimentalThreadBlockingApi`, `@RequiresOptIn`, `@Retention`, `@Target` |
-| JS/Wasm audit exclusion | `atomicfu/src/jsAndWasmSharedMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt` | `acb538d055f2283bb0cdbcc821168b309011e267` | `@OptionalJsName`; file-level `@Suppress` |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/AtomicFU.kt` | `61c33a9fdc20515562661fe063f6bf34ded1e038` | `@InlineOnly`, `@PublishedApi` |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/Trace.kt` | `9d8dcbf2e7a2e4774cadb7024c717b260f4f8511` | `@Suppress` |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/SynchronousMutex.kt` | `cd50f621c1057f7edf6595a37bb185da99b01868` | — |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/Synchronized.kt` | `2cfa72ce247c6a2bd89560a1c70918d029c1e313` | `@ThreadLocal`, `@OptIn` |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ParkingSupport.kt` | `d1fb1e6c42649f4e05b6ad8a340052f6cbb14640` | `@ThreadLocal`, `@ExperimentalThreadBlockingApi` |
-| native | `atomicfu/src/nativeMain/kotlin/kotlinx/atomicfu/locks/ThreadId.kt` | `acb782bd3ff0100f00b532b74fd2659cfd75d731` | — |
+```bash
+python3 Scripts/generate_atomicfu_api_index.py --write
+python3 Scripts/check_atomicfu_api_reference.py
+python3 Tests/Scripts/test_atomicfu_api_index.py
+```
 
-The API dump intentionally remains the machine-counted ABI inventory; the
-generated declaration JSON is the review index for per-declaration annotation
-and visibility details. Do not infer that an annotation is absent just because
-it is not printed in the ABI dump. `OptionalJsName` itself appears in the KLIB
-surface, while the four inherited JS/Wasm lock members carry their exact
-target provenance in the index.
+The checker SHA-verifies source bytes and compares indexed facts with annotations
+read from the pinned declarations before checking deterministic JSON freshness.
+It independently rejects incorrect object kinds, source path sets, visibility,
+annotation arguments, callable arity, atomic factory overload types and extension
+receiver substitutions. Regression tests fix concrete upstream source facts and
+mutate semantic facts/anchors; they do not obtain expected annotations from the
+generator. The reader is deliberately for this pinned syntax, not a general Kotlin
+parser or proof of arbitrary Kotlin type resolution.
 
-## Bundled source and private bridge plan
-
-The resource loader recursively includes every `.kt` below
-`Sources/CompilerCore/Stdlib/` and registers it under a deterministic
-`__bundled_…` virtual path. Put future source-backed declarations below
-`Sources/CompilerCore/Stdlib/kotlinx/atomicfu/`; for example,
-`AtomicFU.kt` becomes `__bundled_kotlinx/atomicfu/AtomicFU.kt`. No separate
-resource manifest is needed. The focused discovery test exercises this
-directory shape without pretending that an atomic implementation exists.
-
-Keep the Kotlin package as `kotlinx.atomicfu`, distinct from
-`kotlin.concurrent` and `kotlin.concurrent.atomics`. Test wildcard,
-fully-qualified, and alias imports against those existing standard-library
-names before implementing wrappers.
-
-When a later implementation needs runtime operations, Kotlin wrappers should
-call private `__kk_*` bridge declarations whose names are checked against
-`RuntimeABISpec` and linked runtime exports. Preserve the upstream API
-boundary: do not expose internal runtime names as public `kk_*` declarations.
-Do not add wrappers that return placeholders or pretend to provide atomic
-semantics. The native reference delegates to Kotlin/Native's atomic types;
-the KSwiftK implementation must establish real semantics and runtime coverage
-before claiming an operation works.
-
-This inventory does not add any Runtime or RuntimeABI symbol. Future bridge
-changes must run `bash Scripts/validate_runtime_abi_links.sh` and the
-corresponding runtime atomic tests.
+CI's repository-checks job runs the checker and focused Python tests. A green
+inventory check establishes the ledger's pinned facts, not source-backed symbol
+binding, Runtime ABI correctness, or execution. Those gates remain required by
+[the implementation plan](../atomicfu-implementation-plan.md).

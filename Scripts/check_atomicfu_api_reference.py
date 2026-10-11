@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import generate_atomicfu_api_index as api_index
+import atomicfu_source_evidence as source_evidence
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,13 +97,18 @@ def main() -> int:
             f"expected {EXPECTED_COMMON_NATIVE_SIGNATURES}, got {len(signatures)}"
         )
 
-    index_bytes = api_index.render_index(klib)
     try:
         checked_in_index = api_index.INDEX_PATH.read_bytes()
     except OSError as error:
         raise SystemExit(
             f"missing generated declaration index {api_index.INDEX_PATH}: {error}"
         ) from error
+    index = json.loads(checked_in_index)
+    # Read and SHA-verify the actual pinned sources before the regeneration
+    # comparison. Even a mutually consistent generator/index cannot override
+    # declaration existence, visibility or annotation argument evidence.
+    source_evidence.validate_source_semantics(index)
+    index_bytes = api_index.render_index(klib)
     if checked_in_index != index_bytes:
         raise SystemExit(
             f"{api_index.INDEX_PATH.relative_to(ROOT)} is stale; "
@@ -142,6 +148,8 @@ def main() -> int:
         f"{index['summary']['inherited_js_wasm_exclusions']} inherited JS/Wasm declaration exclusions"
     )
     print("PASS no compareAndExchange/load/store/MemoryOrder API entries")
+    print("PASS source semantics: all 150 common/native identities; 13 pinned source files including annotation constants")
+    print("UNVERIFIED excluded JS/Wasm source: Synchronized.kt; 5 source refs have null annotations/arguments")
     return 0
 
 
