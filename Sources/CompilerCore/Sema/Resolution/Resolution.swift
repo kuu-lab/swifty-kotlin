@@ -609,8 +609,6 @@ extension OverloadResolver {
             return .rejected
         }
 
-        // Emit KSWIFTK-SEMA-INFER when a type variable could not be inferred
-        // (solver returned errorType because it had no bounds).
         if let inferDiag = checkForUninferredTypeVariables(
             signature: signature,
             substitution: substitution,
@@ -924,7 +922,6 @@ extension OverloadResolver {
         return nil
     }
 
-    /// Returns the source-level element type represented by a spread argument.
     private func namedVarargArgumentElementType(
         _ type: TypeID,
         parameterType: TypeID,
@@ -1383,8 +1380,6 @@ extension OverloadResolver {
         return strictlyMoreSpecific
     }
 
-    /// Returns `true` if `signature` declares any receiver or parameter type
-    /// that contains a type parameter (e.g. `fun <T> T.compareTo(T)`).
     private func signatureContainsTypeParameter(
         _ signature: FunctionSignature,
         typeSystem: TypeSystem
