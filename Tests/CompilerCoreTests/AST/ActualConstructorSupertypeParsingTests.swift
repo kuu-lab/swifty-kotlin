@@ -48,6 +48,74 @@ struct ActualConstructorSupertypeParsingTests {
         #expect(noSupertype.superTypeEntries.isEmpty)
     }
 
+    @Test
+    func testMultilineAnnotatedPrimaryConstructorRetainsParametersAndBody() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class ArrayBox
+        @CtorMarker(message = "constructor", nested = ReplaceWith("ArrayBox(size)"))
+        @SecondMarker
+        public constructor(size: Int) {
+            private val storage = size
+            val count: Int get() = storage
+            operator fun get(index: Int): Int = storage + index
+        }
+        class GenericBox<T>
+        @CtorMarker
+        internal constructor(val item: T) : Holder<T> {
+            fun read(): T = item
+        }
+        """, includeStdlib: false)
+
+        try #require(!ctx.diagnostics.hasError, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
+        let box = try userClassDecl(named: "ArrayBox", in: ast, ctx: ctx)
+        #expect(box.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["size"])
+        #expect(box.primaryConstructorModifiers.contains(.public))
+        #expect(box.primaryConstructorAnnotations.map(\.name) == ["CtorMarker", "SecondMarker"])
+        #expect(box.annotations.isEmpty)
+        #expect(box.memberProperties.map { ctx.interner.resolve($0.name) } == ["storage", "count"])
+        #expect(box.memberFunctions.map { ctx.interner.resolve($0.name) } == ["get"])
+        #expect(box.memberFunctions.first?.modifiers.contains(.operator) == true)
+        #expect(box.hasPrimaryConstructorSyntax)
+
+        let generic = try userClassDecl(named: "GenericBox", in: ast, ctx: ctx)
+        #expect(generic.typeParams.count == 1)
+        #expect(generic.primaryConstructorModifiers.contains(.internal))
+        #expect(generic.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["item"])
+        #expect(generic.memberProperties.map { ctx.interner.resolve($0.name) } == ["item"])
+        #expect(generic.memberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+        #expect(supertypeNames(of: generic, in: ast, ctx: ctx) == ["Holder"])
+    }
+
+    @Test
+    func testFollowingAnnotatedDeclarationsRemainOutsideConstructorlessClass() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        class Empty
+        @NextClass("constructor")
+        class Following(val value: Int) { fun read(): Int = value }
+        class AnotherEmpty
+        @NextFunction
+        fun unrelated(): Int = 1
+        """, includeStdlib: false)
+
+        try #require(!ctx.diagnostics.hasError, "Unexpected parser diagnostics: \(ctx.diagnostics.diagnostics)")
+        let empty = try userClassDecl(named: "Empty", in: ast, ctx: ctx)
+        #expect(empty.primaryConstructorParams.isEmpty)
+        #expect(empty.primaryConstructorAnnotations.isEmpty)
+        #expect(empty.memberFunctions.isEmpty)
+        let following = try userClassDecl(named: "Following", in: ast, ctx: ctx)
+        #expect(following.annotations.map(\.name) == ["NextClass"])
+        #expect(following.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["value"])
+        #expect(following.memberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+        let another = try userClassDecl(named: "AnotherEmpty", in: ast, ctx: ctx)
+        #expect(another.memberFunctions.isEmpty)
+        let unrelated = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
+            guard case let .funDecl(function) = decl,
+                  ctx.interner.resolve(function.name) == "unrelated" else { return nil }
+            return function
+        }.first)
+        #expect(unrelated.annotations.map(\.name) == ["NextFunction"])
+    }
+
     private func userClassDecl(named name: String, in ast: ASTModule, ctx: CompilationContext) throws -> ClassDecl {
         try #require(ast.arena.declarations().lazy.compactMap { decl -> ClassDecl? in
             guard case let .classDecl(classDecl) = decl,

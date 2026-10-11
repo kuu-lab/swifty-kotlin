@@ -158,6 +158,16 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        // A primary-constructor annotation may start on the next line. Prove
+        // that the prefix ends in `constructor (` before consuming it, so a
+        // following annotated declaration remains outside this class.
+        if kind == .classDecl, startsPrimaryConstructorHeader() {
+            parseLeadingDeclarationPrefix(into: &children, range: &range)
+            _ = consumeToken(into: &children, range: &range) // constructor
+            let parameters = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(parameters))
+            range.append(childRange(.node(parameters)))
+        }
         parsePostDeclarationTail(
             into: &children,
             range: &range,
@@ -168,6 +178,37 @@ extension KotlinParser {
             kind: kind,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    private func startsPrimaryConstructorHeader() -> Bool {
+        var offset = 0
+        while true {
+            let kind = stream.peek(offset).kind
+            if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
+                return stream.peek(offset + 1).kind == .symbol(.lParen)
+            }
+            if case let .keyword(keyword) = kind, Self.isDeclarationModifierKeyword(keyword) {
+                offset += 1
+                continue
+            }
+            guard kind == .symbol(.at) else { return false }
+            offset += 1
+            if isAnnotationUseSiteTarget(stream.peek(offset)),
+               stream.peek(offset + 1).kind == .symbol(.colon) {
+                offset += 2
+            }
+            guard isIdentifierLike(stream.peek(offset).kind) else { return false }
+            offset += 1
+            while stream.peek(offset).kind == .symbol(.dot),
+                  isIdentifierLike(stream.peek(offset + 1).kind) {
+                offset += 2
+            }
+            if stream.peek(offset).kind == .symbol(.lParen) {
+                offset = offsetPastBalancedGroup(from: offset,
+                    open: .symbol(.lParen), close: .symbol(.rParen))
+                guard stream.peek(offset - 1).kind == .symbol(.rParen) else { return false }
+            }
+        }
     }
 
     func parseFunctionDeclaration(
