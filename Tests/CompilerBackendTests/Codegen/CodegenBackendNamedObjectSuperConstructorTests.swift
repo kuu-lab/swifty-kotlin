@@ -21,38 +21,6 @@ import Testing
 @Suite
 struct CodegenBackendNamedObjectSuperConstructorTests {
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let options = CompilerOptions(
-                moduleName: moduleName,
-                inputs: [path],
-                outputPath: outputBase,
-                emit: .executable,
-                target: defaultTargetTriple()
-            )
-            let ctx = CompilationContext(
-                options: options,
-                sourceManager: SourceManager(),
-                diagnostics: DiagnosticEngine(),
-                interner: StringInterner()
-            )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try CodegenPhase().run(ctx)
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
-
     @Test
     func testNamedObjectRunsSuperclassConstructorWithArguments() throws {
         let source = """

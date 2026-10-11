@@ -5,74 +5,11 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    // Disable the shared stdlib .kklib cache for this pipeline so that bundled
-    // stdlib sources are injected and compiled together with the test module.
-    // This avoids a cross-module synthetic-enum ordinal issue that would
-    // otherwise cause DurationUnit entry references to lower to zero.
-    let target = defaultTargetTriple()
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: target,
-        irFlags: irFlags,
-        allowDefaultStdlibLibrary: false
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendStableDurationEdgeCasesTests {
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
-
-
+    // Keep the bundled stdlib sources in-module; using the shared artifact
+    // triggers a cross-module synthetic-enum ordinal issue for DurationUnit.
     @Test
     func testDurationStableUnitExtensionPropertiesInt() throws {
         let source = """
@@ -108,7 +45,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 3
                 2
                 96
-                """ + "\n"
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -160,7 +98,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 true
                 true
                 false
-                """ + "\n"
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -191,7 +130,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 7200000
                 7200000000
                 7200000000000
-                """ + "\n"
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -213,7 +153,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableNegativeLiteralDuration", expected: "-5\ntrue\nfalse\n-1500\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableNegativeLiteralDuration", expected: "-5\ntrue\nfalse\n-1500\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -234,7 +174,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableAbsoluteValue", expected: "7\nfalse\ntrue\n3\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableAbsoluteValue", expected: "7\nfalse\ntrue\n3\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -255,7 +195,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableIsFiniteInfinite", expected: "true\nfalse\ntrue\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableIsFiniteInfinite", expected: "true\nfalse\ntrue\nfalse\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -270,7 +210,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableCompanionConstants", expected: "0\ntrue\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableCompanionConstants", expected: "0\ntrue\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -298,7 +238,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 90
                 90
                 true
-                """ + "\n"
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -314,7 +255,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableParseIsoString", expected: "93784\nfalse\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableParseIsoString", expected: "93784\nfalse\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     // KSP-471: Duration.Companion.parse/parseIsoString are Kotlin source (Duration.kt)
@@ -345,7 +286,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         try assertKotlinOutput(
             source,
             moduleName: "DurationStableParseThrows",
-            expected: "iae-parse\niae-parseIsoString\ndone\n"
+            expected: "iae-parse\niae-parseIsoString\ndone\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -361,7 +303,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableDoubleReceiverExtensions", expected: "1500\n30\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableDoubleReceiverExtensions", expected: "1500\n30\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -381,7 +323,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableToDurationUnit", expected: "2\n1500\n90\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableToDurationUnit", expected: "2\n1500\n90\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -401,7 +343,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         try assertKotlinOutput(
             source,
             moduleName: "DurationBUG195NumericConversionAndComponents",
-            expected: "2\n1500\n90\n2/0\n"
+            expected: "2\n1500\n90\n2/0\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -416,7 +359,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableDivisionReturnsDouble", expected: "1.5\n0.25\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableDivisionReturnsDouble", expected: "1.5\n0.25\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -431,7 +374,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableInWholeDays", expected: "2\n1\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableInWholeDays", expected: "2\n1\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -471,7 +414,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableToComponents", expected: "1\n2\n3\n4\n5\n26\n3\n4\n5\n1563\n4\n5\n-1\n-500000000\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableToComponents", expected: "1\n2\n3\n4\n5\n26\n3\n4\n5\n1563\n4\n5\n-1\n-500000000\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -487,7 +430,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableAddSubtract", expected: "2500\n1500\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableAddSubtract", expected: "2500\n1500\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -503,7 +446,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableTimesDiv", expected: "20\n5\n0\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableTimesDiv", expected: "20\n5\n0\nfalse\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -519,7 +462,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableUnaryMinus", expected: "-5\ntrue\n5\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableUnaryMinus", expected: "-5\ntrue\n5\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -537,7 +480,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableComparisonOperators", expected: "true\ntrue\ntrue\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableComparisonOperators", expected: "true\ntrue\ntrue\nfalse\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -565,7 +508,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableInfiniteArithmetic", expected: "true\ntrue\ntrue\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableInfiniteArithmetic", expected: "true\ntrue\ntrue\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -579,7 +522,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableDivByZero", expected: "true\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableDivByZero", expected: "true\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -598,7 +541,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableNegativeZeroEqualsPositiveZero", expected: "0\n0\nfalse\nfalse\ntrue\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableNegativeZeroEqualsPositiveZero", expected: "0\n0\nfalse\nfalse\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -616,7 +559,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableZeroPredicates", expected: "0\nfalse\nfalse\ntrue\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableZeroPredicates", expected: "0\nfalse\nfalse\ntrue\nfalse\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -635,7 +578,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableInWholeNs", expected: "10000000000\n-3000000000\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableInWholeNs", expected: "10000000000\n-3000000000\n", allowDefaultStdlibLibrary: false)
     }
 
     @Test
@@ -681,7 +624,8 @@ struct CodegenBackendStableDurationEdgeCasesTests {
                 1000000
                 1000000
                 1000000
-                """ + "\n"
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
@@ -699,7 +643,7 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "DurationStableBoundaryPredicates", expected: "true\nfalse\ntrue\nfalse\n")
+        try assertKotlinOutput(source, moduleName: "DurationStableBoundaryPredicates", expected: "true\nfalse\ntrue\nfalse\n", allowDefaultStdlibLibrary: false)
     }
 
 }

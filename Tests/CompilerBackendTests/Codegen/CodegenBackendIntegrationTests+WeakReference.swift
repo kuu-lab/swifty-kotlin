@@ -33,28 +33,6 @@ struct CodegenBackendWeakReferenceTests {
         return ctx
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String,
-        allowDefaultStdlibLibrary: Bool = true
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runExecutablePipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                outputPath: outputBase,
-                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
-
     // KSP-1255: WeakReference(referred: T)'s constructor bridges straight to
     // the kk_weak_ref_create runtime factory (see CallLowerer's
     // isRuntimeFactoryConstructor). get() after clear() must observe the
