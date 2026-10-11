@@ -72,17 +72,21 @@ struct ActualConstructorSupertypeParsingTests {
         #expect(box.primaryConstructorModifiers.contains(.public))
         #expect(box.primaryConstructorAnnotations.map(\.name) == ["CtorMarker", "SecondMarker"])
         #expect(box.annotations.isEmpty)
-        #expect(box.memberProperties.map { ctx.interner.resolve($0.name) } == ["storage", "count"])
-        #expect(box.memberFunctions.map { ctx.interner.resolve($0.name) } == ["get"])
-        #expect(box.memberFunctions.first?.modifiers.contains(.operator) == true)
+        let boxProperties = try memberProperties(of: box, in: ast)
+        #expect(boxProperties.map { ctx.interner.resolve($0.name) } == ["storage", "count"])
+        let boxFunctions = try memberFunctions(of: box, in: ast)
+        #expect(boxFunctions.map { ctx.interner.resolve($0.name) } == ["get"])
+        #expect(boxFunctions.first?.modifiers.contains(.operator) == true)
         #expect(box.hasPrimaryConstructorSyntax)
 
         let generic = try userClassDecl(named: "GenericBox", in: ast, ctx: ctx)
         #expect(generic.typeParams.count == 1)
         #expect(generic.primaryConstructorModifiers.contains(.internal))
         #expect(generic.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["item"])
-        #expect(generic.memberProperties.map { ctx.interner.resolve($0.name) } == ["item"])
-        #expect(generic.memberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+        let genericProperties = try memberProperties(of: generic, in: ast)
+        #expect(genericProperties.map { ctx.interner.resolve($0.name) } == ["item"])
+        let genericFunctions = try memberFunctions(of: generic, in: ast)
+        #expect(genericFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
         #expect(supertypeNames(of: generic, in: ast, ctx: ctx) == ["Holder"])
     }
 
@@ -105,7 +109,8 @@ struct ActualConstructorSupertypeParsingTests {
         let following = try userClassDecl(named: "Following", in: ast, ctx: ctx)
         #expect(following.annotations.map(\.name) == ["NextClass"])
         #expect(following.primaryConstructorParams.map { ctx.interner.resolve($0.name) } == ["value"])
-        #expect(following.memberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
+        let followingFunctions = try memberFunctions(of: following, in: ast)
+        #expect(followingFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
         let another = try userClassDecl(named: "AnotherEmpty", in: ast, ctx: ctx)
         #expect(another.memberFunctions.isEmpty)
         let unrelated = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
@@ -114,6 +119,28 @@ struct ActualConstructorSupertypeParsingTests {
             return function
         }.first)
         #expect(unrelated.annotations.map(\.name) == ["NextFunction"])
+    }
+
+    private func memberProperties(of classDecl: ClassDecl, in ast: ASTModule) throws -> [PropertyDecl] {
+        try classDecl.memberProperties.map { declID in
+            let property: PropertyDecl? = if case let .propertyDecl(property) = ast.arena.decl(declID) {
+                property
+            } else {
+                nil
+            }
+            return try #require(property)
+        }
+    }
+
+    private func memberFunctions(of classDecl: ClassDecl, in ast: ASTModule) throws -> [FunDecl] {
+        try classDecl.memberFunctions.map { declID in
+            let function: FunDecl? = if case let .funDecl(function) = ast.arena.decl(declID) {
+                function
+            } else {
+                nil
+            }
+            return try #require(function)
+        }
     }
 
     private func userClassDecl(named name: String, in ast: ASTModule, ctx: CompilationContext) throws -> ClassDecl {
