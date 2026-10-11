@@ -38,7 +38,7 @@ struct SoftKeywordLocalDeclarationNameTests {
     /// so an arena-wide scan cannot collide with a stdlib declaration.
     private func localDeclNames(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
-            guard case let .localDecl(name, _, _, _, _, _) = expr else { return nil }
+            guard case let .localDecl(name, _, _, _, _, _, _) = expr else { return nil }
             return name
         }
     }
@@ -109,7 +109,7 @@ struct SoftKeywordLocalDeclarationNameTests {
         }
         """)
         let decls = ast.arena.exprs.compactMap { expr -> (InternedString, Bool)? in
-            guard case let .localDecl(name, isMutable, _, _, _, _) = expr else { return nil }
+            guard case let .localDecl(name, isMutable, _, _, _, _, _) = expr else { return nil }
             return (name, isMutable)
         }
         #expect(decls.map(\.0) == [ctx.interner.intern(SoftKeyword.out.rawValue)], "got \(decls)")

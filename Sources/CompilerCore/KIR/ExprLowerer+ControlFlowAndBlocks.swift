@@ -724,7 +724,10 @@ extension ExprLowerer {
                         return delegateValue
                     }
                     if let localValue = driver.ctx.localValue(for: symbol) {
-                        return localValue
+                        return wrapLateinitReadIfNeeded(
+                            localValue, symbol: symbol, sema: sema, arena: arena,
+                            interner: interner, instructions: &instructions
+                        )
                     }
                 }
             }
@@ -769,7 +772,10 @@ extension ExprLowerer {
                        instructions: &instructions
                    )
                 {
-                    return loadedValue
+                    return wrapLateinitReadIfNeeded(
+                        loadedValue, symbol: symbol, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
                 }
                 if let delegateValue = readLocalDelegateValue(
                     symbol: symbol, sema: sema, arena: arena, interner: interner,
@@ -788,7 +794,10 @@ extension ExprLowerer {
                         instructions.append(.copy(from: localValue, to: narrowed))
                         return narrowed
                     }
-                    return localValue
+                    return wrapLateinitReadIfNeeded(
+                        localValue, symbol: symbol, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
                 }
                 // A bare companion/object property reference can resolve
                 // directly to the property symbol without being marked as an
@@ -1747,7 +1756,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
 
-        case let .localDecl(_, isMutable, _, initializer, isDelegated, _):
+        case let .localDecl(_, isMutable, _, initializer, isDelegated, _, _):
             if let initializer {
                 let initializerID = lowerExpr(
                     initializer,
@@ -1906,7 +1915,8 @@ extension ExprLowerer {
             } else if let symbol = sema.bindings.identifierSymbols[exprID] {
                 let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                 driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-                // No initializer (e.g. `lateinit var f: (Int) -> Int`): a
+                // An ordinary deferred-init reference local may be captured
+                // before the first assignment: a
                 // lambda capturing `f` before its first real assignment --
                 // a self-referential closure such as `f = { ... f(...) ... }`
                 // -- needs `f`'s mutable-capture cell to already exist so it
@@ -1928,7 +1938,21 @@ extension ExprLowerer {
                 default:
                     false
                 }
-                if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
+                if sema.symbols.symbol(symbol)?.flags.contains(.lateinitProperty) == true {
+                    // Store the raw null sentinel. Creating a closure captures
+                    // the shared cell without reading/checking its contents.
+                    let sentinel = arena.appendExpr(.null, type: declaredType)
+                    instructions.append(.constValue(result: sentinel, value: .null))
+                    let storage = arena.appendTemporary(type: declaredType)
+                    instructions.append(.copy(from: sentinel, to: storage))
+                    driver.ctx.setLocalValue(storage, for: symbol)
+                    if isMutable, isCapturedByLambda(symbol, sema: sema) {
+                        _ = ensureMutableCaptureCell(
+                            for: symbol, sema: sema, arena: arena,
+                            interner: interner, instructions: &instructions
+                        )
+                    }
+                } else if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
                     let placeholder = arena.appendExpr(.null, type: declaredType)
                     instructions.append(.constValue(result: placeholder, value: .null))
                     driver.ctx.setLocalValue(placeholder, for: symbol)
@@ -3103,12 +3127,16 @@ extension ExprLowerer {
                 {
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                    let checkedValue = wrapLateinitReadIfNeeded(
+                        loadedValue, symbol: symbol, sema: sema, arena: arena,
+                        interner: interner, instructions: &instructions
+                    )
                     let rhsID = lowerRHS()
                     if let callBinding = sema.bindings.callBindings[exprID],
                        let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {
                         if signature.returnType == sema.types.unitType {
-                            _ = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType)
-                        } else if let resultID = appendOperatorCompoundResult(lhs: loadedValue, rhs: rhsID, resultType: signature.returnType) {
+                            _ = appendOperatorCompoundResult(lhs: checkedValue, rhs: rhsID, resultType: signature.returnType)
+                        } else if let resultID = appendOperatorCompoundResult(lhs: checkedValue, rhs: rhsID, resultType: signature.returnType) {
                             _ = storeMutableCaptureCellValue(
                                 resultID,
                                 for: symbol,
@@ -3120,7 +3148,7 @@ extension ExprLowerer {
                         }
                     } else {
                         let resultID = appendBuiltinCompoundResult(
-                            lhs: loadedValue,
+                            lhs: checkedValue,
                             lhsType: symbolType,
                             rhs: rhsID,
                             rhsType: arena.exprType(rhsID)
@@ -3214,7 +3242,11 @@ extension ExprLowerer {
                         // the value Kotlin's left-to-right evaluation order
                         // requires. Freeze it into a fresh temporary first.
                         let frozenLHS = arena.appendTemporary(type: symbolType)
-                        instructions.append(.copy(from: storageID, to: frozenLHS))
+                        let checkedValue = wrapLateinitReadIfNeeded(
+                            storageID, symbol: symbol, sema: sema, arena: arena,
+                            interner: interner, instructions: &instructions
+                        )
+                        instructions.append(.copy(from: checkedValue, to: frozenLHS))
                         let rhsID = lowerRHS()
                         if let callBinding = sema.bindings.callBindings[exprID],
                            let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee) {

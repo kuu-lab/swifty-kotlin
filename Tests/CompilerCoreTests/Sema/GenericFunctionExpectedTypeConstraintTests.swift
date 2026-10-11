@@ -33,7 +33,7 @@ struct GenericFunctionExpectedTypeConstraintTests {
         var checked = false
         for exprID in mainBody {
             guard let expr = ast.arena.expr(exprID),
-                  case let .localDecl(name, _, _, initializer, _, _) = expr,
+                  case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                   interner.resolve(name) == targetName,
                   let initializer,
                   let boundType = sema.bindings.exprType(for: initializer)

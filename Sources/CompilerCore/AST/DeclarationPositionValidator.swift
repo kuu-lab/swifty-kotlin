@@ -410,7 +410,7 @@ struct DeclarationPositionValidator {
             [condition, body]
         case .doWhileExpr(let body, let condition, _, _):
             [body, condition]
-        case .localDecl(_, _, _, let initializer, _, _):
+        case .localDecl(_, _, _, let initializer, _, _, _):
             initializer.map { [$0] } ?? []
         case .localAssign(_, let value, _), .compoundAssign(_, _, let value, _),
              .throwExpr(let value, _):

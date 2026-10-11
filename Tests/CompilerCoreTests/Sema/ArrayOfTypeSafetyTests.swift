@@ -284,7 +284,7 @@ struct ArrayOfTypeSafetyTests {
                 var seenNames: Set<InternedString> = []
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -315,7 +315,7 @@ struct ArrayOfTypeSafetyTests {
                 var foundGetResult = false
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(_, _, _, initializer, _, _) = expr,
+                          case let .localDecl(_, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -352,7 +352,7 @@ struct ArrayOfTypeSafetyTests {
                 var foundUShortGet = false
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -388,7 +388,7 @@ struct ArrayOfTypeSafetyTests {
                 var foundUByteGet = false
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -424,7 +424,7 @@ struct ArrayOfTypeSafetyTests {
                 var foundIndexedUShort = false
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -460,7 +460,7 @@ struct ArrayOfTypeSafetyTests {
                 var foundIndexedUByte = false
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
@@ -509,7 +509,7 @@ struct ArrayOfTypeSafetyTests {
                 let mainBody = try #require(findMainBodyStatements(in: ast, path: samplePath, ctx: ctx, interner: interner))
                 let arrayElementTypes = mainBody.compactMap { exprID -> TypeID? in
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(name, _, _, initializer, _, _) = expr,
+                          case let .localDecl(name, _, _, initializer, _, _, _) = expr,
                           name == interner.intern("a"),
                           let initializer
                     else { return nil }

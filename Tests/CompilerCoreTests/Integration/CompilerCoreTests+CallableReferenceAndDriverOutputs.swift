@@ -18,7 +18,7 @@ extension CompilerCoreTests {
             guard case .localDecl = expr else { return false }
             return true
         })
-        guard case let .localDecl(_, _, _, initializer, _, _) = try #require(ast.arena.expr(localDeclExprID)),
+        guard case let .localDecl(_, _, _, initializer, _, _, _) = try #require(ast.arena.expr(localDeclExprID)),
               let initializerExprID = initializer,
               let initializerExpr = ast.arena.expr(initializerExprID)
         else {

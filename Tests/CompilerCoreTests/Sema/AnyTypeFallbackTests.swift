@@ -110,7 +110,7 @@ struct AnyTypeFallbackTests {
                 let mainBody = try #require(findMainBodyStatements(in: ast, path: paths[2], sourceManager: ctx.sourceManager, interner: interner))
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
-                          case let .localDecl(_, _, _, initializer, _, _) = expr,
+                          case let .localDecl(_, _, _, initializer, _, _, _) = expr,
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }

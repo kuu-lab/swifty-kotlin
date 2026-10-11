@@ -858,7 +858,7 @@ public final class CompilerDriver {
         case let .whileExpr(condition, body, _, _), let .doWhileExpr(body, condition, _, _):
             collectExprDependencies(exprID: condition, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
             collectExprDependencies(exprID: body, ast: ast, interner: interner, availableSymbols: availableSymbols, depended: &depended)
-        case let .localDecl(_, _, typeAnnotation, initializer, _, _):
+        case let .localDecl(_, _, typeAnnotation, initializer, _, _, _):
             if let typeAnnotation {
                 collectTypeRefDependencies(typeRefID: typeAnnotation, ast: ast, interner: interner, depended: &depended)
             }

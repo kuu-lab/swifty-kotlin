@@ -1960,7 +1960,7 @@ extension CallTypeChecker {
             return visit(condition) || visit(body)
         case let .doWhileExpr(body, condition, _, _):
             return visit(body) || visit(condition)
-        case let .localDecl(_, _, _, initializer, _, _):
+        case let .localDecl(_, _, _, initializer, _, _, _):
             return initializer.map(visit) ?? false
         case let .localAssign(_, value, _):
             return visit(value)

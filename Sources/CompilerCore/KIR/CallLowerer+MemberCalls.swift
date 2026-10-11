@@ -555,12 +555,26 @@ extension CallLowerer {
                 let effectiveFnType = maybeReceiverFnType.0
                 let boundType = sema.bindings.exprTypes[exprID] ?? effectiveFnType.returnType
                 let loweredReceiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+                let lateinitFunction = lowerLateinitLocalCallableRead(
+                    symbol: localSym, sema: sema, arena: arena,
+                    interner: interner, instructions: &instructions.instructions
+                )
                 let loweredArgIDs = args.map { argument in
                     driver.lowerExpr(argument.expr, shared: shared, emit: &instructions)
                 }
                 let result = arena.appendTemporary(type: boundType)
-                if let localExprID = driver.ctx.localValue(for: localSym),
-                   let info = driver.ctx.callableValueInfo(for: localExprID)
+                if let lateinitFunction,
+                   let invokeCallee = runtimeCallableInvokeCallee(
+                       callableValueCallBinding: callableBinding, sema: sema, interner: interner
+                   )
+                {
+                    instructions.append(.call(
+                        symbol: localSym, callee: invokeCallee,
+                        arguments: [lateinitFunction, loweredReceiver] + loweredArgIDs,
+                        result: result, canThrow: false, thrownResult: nil
+                    ))
+                } else if let localExprID = driver.ctx.localValue(for: localSym),
+                          let info = driver.ctx.callableValueInfo(for: localExprID)
                 {
                     var allArgs = info.captureArguments
                     allArgs.append(loweredReceiver)

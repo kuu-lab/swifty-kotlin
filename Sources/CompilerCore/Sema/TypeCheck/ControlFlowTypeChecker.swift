@@ -556,7 +556,7 @@ final class ControlFlowTypeChecker {
             return false
         case .throwExpr(let value, _):
             return containsBreakTargetingCurrentLoop(value, loopLabelStack: loopLabelStack, ast: ast)
-        case .localDecl(_, _, _, let initializer, _, _):
+        case .localDecl(_, _, _, let initializer, _, _, _):
             if let initializer, containsBreakTargetingCurrentLoop(initializer, loopLabelStack: loopLabelStack, ast: ast) { return true }
             return false
         case .localAssign(_, let value, _):
