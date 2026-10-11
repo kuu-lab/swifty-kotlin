@@ -210,7 +210,6 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        // Look up the callee name as an interface symbol.
         var interfaceCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .interface && symbol.flags.contains(.funInterface)
@@ -258,7 +257,6 @@ extension CallTypeChecker {
         }
         let samFTTypeID = sema.types.make(.functionType(samFT))
 
-        // Infer the lambda against the SAM function type.
         _ = driver.inferExpr(
             argExpr,
             ctx: ctx,
@@ -266,12 +264,10 @@ extension CallTypeChecker {
             expectedType: interfaceType
         )
 
-        // Mark the lambda as SAM-converted and bind the underlying function type.
         sema.bindings.markSamConversion(argExpr)
         sema.bindings.bindSamUnderlyingFunctionType(argExpr, type: samFTTypeID)
         sema.bindings.bindSamInterfaceType(argExpr, type: interfaceType)
 
-        // The whole call expression has the interface type.
         sema.bindings.bindExprType(id, type: interfaceType)
         return interfaceType
     }
