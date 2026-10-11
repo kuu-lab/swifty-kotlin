@@ -59,7 +59,7 @@ extension KIRLoweringDriver {
     }
 
     /// The semantic signature records vararg element types; constructor bodies
-    /// and synthetic reflection wrappers receive one packed array/list instead.
+    /// and synthetic reflection wrappers receive one packed array instead.
     func constructorParameterStorageType(
         at index: Int,
         signature: FunctionSignature,
@@ -77,14 +77,9 @@ extension KIRLoweringDriver {
         ) {
             return arrayType
         }
-        guard let listSymbol = sema.symbols.lookup(fqName: [
-            interner.intern("kotlin"), interner.intern("collections"), interner.intern("List"),
-        ]) else {
-            return parameterType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: listSymbol, args: [.invariant(parameterType)], nullability: .nonNull
-        )))
+        return referenceVarargArrayType(
+            elementType: parameterType, sema: sema, interner: interner
+        ) ?? parameterType
     }
 
     /// Builds the constructor body instructions for a primary or secondary constructor.
@@ -445,23 +440,9 @@ extension KIRLoweringDriver {
             )
             let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: storageType)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)))
-            let propertyValue: KIRExprID
-            if ctorSignature.valueParameterIsVararg.indices.contains(index),
-               ctorSignature.valueParameterIsVararg[index],
-               primitiveVarargArrayType(
-                   elementType: ctorSignature.parameterTypes[index], sema: sema, interner: shared.interner
-               ) == nil {
-                // A reference vararg local uses the existing List ABI, while
-                // its public constructor property has the source Array type.
-                propertyValue = arena.appendTemporary(type: propertyType)
-                body.append(.call(
-                    symbol: nil, callee: shared.interner.intern("__kk_collection_toTypedArray"),
-                    arguments: [parameterExpr], result: propertyValue,
-                    canThrow: false, thrownResult: nil
-                ))
-            } else {
-                propertyValue = parameterExpr
-            }
+            // Source-backed constructor storage already has the public Array
+            // representation. Storing this handle preserves callBy/default identity.
+            let propertyValue = parameterExpr
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
             body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))

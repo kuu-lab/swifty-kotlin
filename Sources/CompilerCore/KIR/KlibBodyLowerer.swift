@@ -307,6 +307,13 @@ final class KlibBodyLowerer {
                     ),
                     type: types.intType
                 ))
+                if symbols.symbol(symbol)?.flags.contains(.legacyReifiedClassTokenABI) != true {
+                    params.append(KIRParameter(
+                        symbol: SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(
+                            for: signature.typeParameterSymbols[index]
+                        ), type: types.intType
+                    ))
+                }
             }
         }
 

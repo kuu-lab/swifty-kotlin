@@ -4,6 +4,16 @@
 public extension RuntimeABISpec {
     /// KParameter reflection runtime functions (STDLIB-REFLECT-063).
     static let kParameterFunctions: [RuntimeABIFunctionSpec] = [
+        RuntimeABIFunctionSpec(
+            name: "__kk_kparameter_set_array_component",
+            parameters: [
+                RuntimeABIParameter(name: "parameterRaw", type: .intptr),
+                RuntimeABIParameter(name: "component", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection",
+            isThrowing: false
+        ),
         // KUU-1364: the 4th argument is a RuntimeKParameterFlags bitmask
         // (bit0 = isOptional, bit1 = isVararg) — the signature is unchanged
         // so older artifacts keep passing 0/1 and simply lack the vararg bit.

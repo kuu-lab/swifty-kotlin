@@ -9,7 +9,9 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         diagnostics: DiagnosticEngine,
         externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        importedSymbolByFQName: [String: SymbolID],
+        reifiedComponentTokens: Bool = false,
+        packedValueParameterTypes: [TypeID]? = nil
     ) -> KIRFunction? {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             diagnostics.warning(
@@ -105,9 +107,9 @@ extension DataFlowSemaPhase {
             } else if let signature, index < parsedParameterCount {
                 let parameterIndex = index - (hasReceiver ? 1 : 0)
                 if parameterIndex >= 0 && parameterIndex < signature.parameterTypes.count {
-                    paramType = signature.parameterTypes[parameterIndex]
+                    paramType = packedValueParameterTypes?[parameterIndex] ?? signature.parameterTypes[parameterIndex]
                 } else if index >= signatureParameterCount,
-                          index < signatureParameterCount + signature.reifiedTypeParameterIndices.count {
+                          index < signatureParameterCount + signature.reifiedTypeParameterIndices.count * (reifiedComponentTokens ? 2 : 1) {
                     // Reified tokens follow the declared arguments in KIR.
                     // They are raw runtime words; treating the hidden token as
                     // Any makes imported HOF expansion box it and breaks is/T::class.

@@ -119,6 +119,17 @@ enum SyntheticSymbolScheme {
         makeSymbol(kind: .typeToken, original: typeParameterSymbol)
     }
 
+    /// Separate reserved band; all existing synthetic IDs retain their encoding.
+    /// A reified component descriptor accompanies, rather than replaces, its
+    /// class token. The sign bit keeps real and imported type parameters distinct.
+    static func reifiedArrayComponentTokenSymbol(for typeParameterSymbol: SymbolID) -> SymbolID {
+        let original = Int64(typeParameterSymbol.rawValue)
+        let magnitude = original.magnitude
+        precondition(magnitude < 100_000_000, "reified component symbol band exhausted")
+        let offset = Int64(magnitude) * 2 + (original < 0 ? 1 : 0)
+        return SymbolID(rawValue: Int32(-(600_000_000 + offset)))
+    }
+
     static func receiverParameterSymbol(for functionSymbol: SymbolID) -> SymbolID {
         makeSymbol(kind: .receiver, original: functionSymbol)
     }

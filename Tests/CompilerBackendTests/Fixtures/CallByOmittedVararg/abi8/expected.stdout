@@ -1,0 +1,8 @@
+two-t-first:0
+two-t-second:0
+virtual-scalar:derived:1
+virtual-packed:derived:2
+virtual-bound-omitted:derived:0
+virtual-unbound-packed:derived:1
+format-null-extension:extension-null
+format-null-companion:companion-null

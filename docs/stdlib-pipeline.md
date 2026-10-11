@@ -1025,3 +1025,89 @@ claimed. `RuntimeABISpec.atomicfuSynchronizationFunctions` registers all exact
 signatures and updates computed specVersion; direct Runtime tests cover those
 contracts. See [the complete contract](atomicfu-runtime-kernel-contract.md).
 This admission is prepared and unexecuted, not an enforcing-green completion.
+
+### KUU-1768 source reference-vararg storage and component metadata
+
+This ABI change is proposed and requires the focused Core/Runtime gates and the
+nine strict JVM-backed source/library fixtures at O0/O2 before completion.
+The existing source/artifact combine and combineTransform snapshot controls are
+also required after the typed-array factory boundary is updated.
+Source-backed reference-vararg bodies and constructor properties store the same
+`Array<out T>` handle. Primitive varargs retain their primitive arrays; runtime
+`kk_*`/`__kk_*` bridges retain their existing List payload contract. Metadata keeps
+the declaration element type and `isVararg`; reflection invokers accept one whole
+array per vararg. Ordinary named/spread calls copy, ordinary Array-shaped callable
+invoke and reflective whole-array calls preserve the supplied array identity.
+Declaration defaults preserve a stored default array and use the ordinary mask.
+
+Four private entries are added, with §13-2 reasons **metadata / memory
+representation**. `__kk_array_component_type` interns immutable classifier/child
+IDs, `__kk_array_tag_component` installs allocation component metadata once,
+`__kk_kparameter_set_array_component` attaches the declaration's erased component
+to private KParameter metadata, and `__kk_array_new_same_component` allocates a
+null-filled copy destination while preserving its source component. Public
+Kotlin copy bounds, iteration and copying remain in `ArrayContentAndCopy.kt`.
+Only the last entry has an internal Kotlin external declaration; the other three
+are compiler-emitted language/metadata operations. RuntimeABISpec registers all
+four signatures; its derived specVersion changes. `__kk_*` count increases by
+four, with no public Kotlin declaration or alternate API owner added.
+
+A `sourceVarargStorageABI: "array-v1"` manifest field identifies newly produced
+storage/component ABI. Import rejects only old source-backed reference-vararg
+functions/constructors, with KSWIFTK-LIB-0034. Old primitive-only varargs, runtime
+List bridges and non-vararg artifacts remain importable. Old non-vararg reified
+artifacts retain one class-token slot per reified parameter. New source-backed
+reified producers append class-token then component-descriptor slots, in declared
+reified-index order; the default mask follows both. Class-token encodings and
+runtime-bridge reified arities retain their prior meaning. A lambda captures the
+two descriptors in one rooted Pair and decodes them internally; this adds no
+receiver slot, object field, public type parameter, return box or member layout.
+The reified descriptor is limited to actual whole-array component validation and
+does not replace Kotlin KType or general runtime type-check tokens.
+
+Component validation uses allocation descriptors, including typed empty arrays,
+primitive/reference classification, erased bounds and recursively nested arrays.
+It never substitutes element sampling for an unknown component. Nullability is
+erased for reference-array components as on the JVM; declaration argument
+nullability checks remain separate. Casts and generic function return types never install or overwrite
+allocation components; unknown components cannot be inferred from a return type. Legacy arrays without allocation descriptors
+cannot enter a new strictly checked reflective reference-vararg parameter.
+
+
+V5 source boundary controls keep the existing String.format private List bridges
+by adapting each public Array vararg through asList. Collection/List.toTypedArray
+uses inline reified allocation, including typed empty arrays. Generic array
+slice/reversal and provided-array collection copies preserve the source array's
+actual component. The existing non-reified Flow snapshot loops retain explicit
+Object-array storage through a private Kotlin helper; their public API and
+sequential snapshot behavior are unchanged. New imported inline bodies recover
+physical Array/primitive-array parameters and every raw class/component Int slot;
+legacy and runtime-bridge descriptors retain their class-only interpretation.
+Direct default suppliers and two-reified functions have strict source/library
+fixtures, including captured descriptors and last-position default masks. These
+remain proposed controls until the new candidate executes them.
+
+
+Inline default-stub descriptors recover the same physical packed value types as
+ordinary imported inline bodies, after explicit member-extension leading values;
+their already explicit class/component words and final mask remain Int. Generic
+ordinary String, Int and nullable scalar adapters allocate reference storage using the inferred element
+component while retaining declaration-based primitive/reference classification.
+Kotlin 2.3.10 rejects an Array-shaped scalar callable-reference context after a
+failed packed match, for both generic and concrete nested-array varargs. These
+are negative Core controls. Legal concrete nested normal scalar calls and packed
+callable references have separate strict JVM-backed component/identity controls;
+their failed earlier reference inputs and diagnostics remain immutable evidence.
+The new real producer fixture also requires the inline vararg default-stub body,
+so its library consumer observes the physical parameter-type override path.
+
+Component lowering keeps one active TypeID/SymbolID path across bound erasure
+and nested reference arrays, with at most 64 active type nodes. Cyclic or deeper
+imported metadata yields component 0, which propagates to its parents without
+inventing an Any classifier. This is a malformed/unsupported metadata guard,
+not a claim that a cyclic Kotlin source bound is legal. KParameter registration
+retains unknown component 0 as a rejecting sentinel; callBy rejects explicit
+arrays and cannot construct omitted reference-vararg arrays from this metadata.
+Valid descriptors, reified component slots, primitive arrays, optional default
+masks and the existing private runtime ABI signatures are unchanged. Direct
+metadata controls and invocation counters remain proposed until executed.

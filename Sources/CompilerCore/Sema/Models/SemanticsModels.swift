@@ -131,6 +131,8 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
     public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
     public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
+    /// Imported before allocation-component descriptors were part of source ABI.
+    public static let legacyReifiedClassTokenABI = SymbolFlags(rawValue: 1 << 28)
 }
 
 public struct SemanticSymbol: Sendable {

@@ -88,6 +88,10 @@ extension CallLowerer {
             ))
             arrayExpr = taggedArrayExpr
         }
+        arrayExpr = appendRuntimeArrayComponentTag(
+            arrayExpr, arrayType: sema.bindings.exprTypes[exprID], sema: sema,
+            arena: arena, interner: interner, instructions: &instructions
+        )
 
         // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
         // already zero-fills every slot (RuntimeValue(raw: 0)), which matches

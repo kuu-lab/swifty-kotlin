@@ -34,6 +34,21 @@ extension LambdaLowerer {
             makeReflectionArgumentList(elements, sema: sema, arena: arena, interner: interner, instructions: &instructions)
         }
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+        let packedPublicParameters: Bool = {
+            guard let signature, signature.valueParameterIsVararg.contains(true) else { return false }
+            if packedConstructorVarargs { return true }
+            let expected = sema.types.make(.functionType(FunctionType(
+                params: Array(parameterTypes.dropFirst(receiverCount)), returnType: returnType,
+                isCallableReference: true
+            )))
+            let receiverType = receiverCount > 0 ? parameterTypes.first : captures.first.flatMap(arena.exprType)
+            let boundReceiver = targetSymbol.flatMap { symbol in receiverType.map { (symbol, $0) } }
+            return TypeCheckHelpers().contextualCallableFunctionType(
+                for: signature, bindReceiver: true, boundReceiver: boundReceiver,
+                expectedFunctionType: expected, interner: interner,
+                allowScalarVarargAdaptation: false, sema: sema
+            ) != nil
+        }()
         func parameters(_ types: [TypeID], isSetter: Bool = false) -> KIRExprID {
             var elements: [KIRExprID] = []
             for (index, type) in types.enumerated() {
@@ -51,7 +66,11 @@ extension LambdaLowerer {
                 let parameterKind = index < receiverCount
                     ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
                     : 2 // VALUE
-                let reflectedType = callableReflectionParameterType(type, isVararg: vararg, sema: sema, interner: interner)
+                let declarationType = vararg && signature?.parameterTypes.indices.contains(valueIndex) == true
+                    ? signature?.parameterTypes[valueIndex] : nil
+                let reflectedType = vararg && packedPublicParameters ? type : callableReflectionParameterType(
+                    type, isVararg: vararg, declarationType: declarationType, sema: sema, interner: interner
+                )
                 let reflectedTypeName = vararg
                     ? callableReflectionTypeName(of: reflectedType, sema: sema, interner: interner)
                     : sema.types.displayName(of: type, symbols: sema.symbols, interner: interner)
@@ -66,6 +85,18 @@ extension LambdaLowerer {
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(symbol: nil, callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
                                           result: result, canThrow: false, thrownResult: nil))
+                if vararg, let declarationType,
+                   primitiveVarargArrayType(elementType: declarationType, sema: sema, interner: interner) == nil {
+                    let component = runtimeArrayComponentTypeExpr(
+                        for: declarationType, useReifiedToken: false, sema: sema,
+                        arena: arena, interner: interner, instructions: &instructions
+                    )
+                    instructions.append(.call(
+                        symbol: nil, callee: interner.intern("__kk_kparameter_set_array_component"),
+                        arguments: [result, component], result: nil,
+                        canThrow: false, thrownResult: nil
+                    ))
+                }
                 elements.append(result)
             }
             return list(elements)
@@ -77,12 +108,21 @@ extension LambdaLowerer {
                               interner: interner, arena: arena, requireNonNull: true, into: &instructions)
         }
         let environment = list(boxedCaptures)
+        // Ordinary ::Ctor values retain their existing invoke wrapper. Only
+        // reflection receives a separate wrapper whose parameters are packed.
+        let packedConstructorWrapper = includeInvocation && !packedConstructorVarargs
+            && captures.isEmpty && receiverCount == 0
+            ? makePackedConstructorReflectionWrapper(
+                targetSymbol: targetSymbol, ast: ast, sema: sema, arena: arena, interner: interner
+            ) : nil
         let invoker: KIRExprID
         if includeInvocation {
             invoker = callableReflectionInvoker(
-                callableSymbol: callableSymbol, callableName: callableName, targetSymbol: targetSymbol,
+                callableSymbol: packedConstructorWrapper?.symbol ?? callableSymbol,
+                callableName: packedConstructorWrapper?.name ?? callableName, targetSymbol: targetSymbol,
                 parameterTypes: parameterTypes, captureTypes: captureTypes, returnType: returnType,
-                packedConstructorVarargs: packedConstructorVarargs,
+                receiverCount: receiverCount,
+                packedConstructorVarargs: packedConstructorVarargs || packedConstructorWrapper != nil,
                 sema: sema, arena: arena, interner: interner
             )
             if let reference = arena.expr(invoker) {
@@ -218,10 +258,82 @@ extension LambdaLowerer {
         }
     }
 
+    /// Allocates exactly as a source constructor call, using one packed
+    /// array per vararg. This wrapper belongs only to reflection; ordinary
+    /// invoke follows its independently inferred callable-reference type.
+    private func makePackedConstructorReflectionWrapper(
+        targetSymbol: SymbolID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (symbol: SymbolID, name: InternedString)? {
+        guard let targetSymbol,
+              sema.symbols.symbol(targetSymbol)?.kind == .constructor,
+              let signature = sema.symbols.functionSignature(for: targetSymbol),
+              signature.valueParameterIsVararg.contains(true),
+              !driver.callLowerer.kirIsRuntimeBridgedCallee(targetSymbol, sema: sema),
+              !driver.callLowerer.isRuntimeFactoryConstructor(targetSymbol, sema: sema)
+        else {
+            return nil
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        if let owner = sema.symbols.parentSymbol(for: targetSymbol),
+           let ownerInfo = sema.symbols.symbol(owner),
+           knownNames.isAtomicScalarFactorySymbol(ownerInfo)
+        {
+            return nil
+        }
+        let name = interner.intern("kk_reflect_constructor_packed_\(targetSymbol.rawValue)_\(arena.declarations.count)")
+        let symbol = sema.symbols.define(
+            kind: .function, name: name, fqName: [name], declSite: nil,
+            visibility: .private, flags: [.synthetic]
+        )
+        let parameters = signature.parameterTypes.indices.map { index -> KIRParameter in
+            let parameterName = interner.intern("arg\(index)")
+            let parameterSymbol = sema.symbols.define(
+                kind: .valueParameter, name: parameterName, fqName: [name, parameterName],
+                declSite: nil, visibility: .private, flags: [.synthetic]
+            )
+            return KIRParameter(
+                symbol: parameterSymbol,
+                type: driver.constructorParameterStorageType(
+                    at: index, signature: signature, sema: sema, interner: interner
+                )
+            )
+        }
+        let wrapperBody: [KIRInstruction] = driver.ctx.withNewScope {
+            driver.ctx.resetScopeForFunction()
+            driver.ctx.setCurrentFunctionSymbol(symbol)
+            var body: [KIRInstruction] = [.beginBlock]
+            let arguments = parameters.map { parameter -> KIRExprID in
+                let value = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
+                body.append(.constValue(result: value, value: .symbolRef(parameter.symbol)))
+                return value
+            }
+            let instance = driver.callLowerer.lowerResolvedCallBody(
+                .invalid, args: [], loweredArgIDs: arguments, chosen: targetSymbol,
+                callBinding: nil, callableValueCallBinding: nil, loweredCallable: nil,
+                loweredCalleeExprID: nil, sourceCalleeName: interner.intern("<init>"),
+                boundType: signature.returnType, knownNames: knownNames,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: [:], instructions: &body
+            )
+            body.append(.returnValue(instance))
+            body.append(.endBlock)
+            return body
+        }
+        driver.ctx.appendGeneratedCallableDecl(arena.appendDecl(.function(KIRFunction(
+            symbol: symbol, name: name, params: parameters, returnType: signature.returnType,
+            body: wrapperBody, isSuspend: false, isInline: false
+        ))))
+        return (symbol, name)
+    }
+
     private func callableReflectionInvoker(
         callableSymbol: SymbolID, callableName: InternedString, targetSymbol: SymbolID?,
         parameterTypes: [TypeID], captureTypes: [TypeID], returnType: TypeID,
-        packedConstructorVarargs: Bool = false,
+        receiverCount: Int = 0, packedConstructorVarargs: Bool = false,
         sema: SemaModule, arena: KIRArena, interner: StringInterner
     ) -> KIRExprID {
         let name = interner.intern("kk_reflect_invoke_\(callableSymbol.rawValue)_\(arena.declarations.count)")
@@ -240,44 +352,146 @@ extension LambdaLowerer {
             return expr
         }
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
-        func unpack(
-            _ list: KIRExprID, types: [TypeID], constructorParameters: Bool = false
-        ) -> [KIRExprID] {
+        // A reflection invocation consumes one packed array per vararg. Do
+        // not change the ordinary callable-reference wrapper or invoke type.
+        let packedFunctionTarget: SymbolID? = {
+            guard let targetSymbol, let signature,
+                  sema.symbols.symbol(targetSymbol)?.kind == .function,
+                  signature.valueParameterIsVararg.contains(true),
+                  !signature.isSuspend, signature.contextReceiverTypes.isEmpty,
+                  signature.reifiedTypeParameterIndices.isEmpty,
+                  !driver.callLowerer.kirIsRuntimeBridgedCallee(targetSymbol, sema: sema)
+            else { return nil }
+            return targetSymbol
+        }()
+        let packsValueVarargs = packedConstructorVarargs || packedFunctionTarget != nil
+        func unpack(_ list: KIRExprID, types: [TypeID], valueParameters: Bool = false) -> [KIRExprID] {
             types.enumerated().map { index, type in
                 let offset = arena.appendExpr(.intLiteral(Int64(index)), type: sema.types.intType)
                 body.append(.constValue(result: offset, value: .intLiteral(Int64(index))))
                 let raw = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.call(symbol: nil, callee: interner.intern("__kk_list_get"), arguments: [list, offset],
                                   result: raw, canThrow: true, thrownResult: nil))
-                if constructorParameters, let signature,
-                   signature.valueParameterIsVararg.indices.contains(index),
-                   signature.valueParameterIsVararg[index] {
-                    let storageType = driver.constructorParameterStorageType(
-                        at: index, signature: signature, sema: sema, interner: interner
-                    )
+                let valueIndex = index - receiverCount
+                let isVararg = valueParameters && packsValueVarargs
+                    && signature?.valueParameterIsVararg.indices.contains(valueIndex) == true
+                    && signature?.valueParameterIsVararg[valueIndex] == true
+                let storageType: TypeID
+                let keepsArray: Bool
+                if isVararg, let signature {
+                    let declarationType = signature.parameterTypes[valueIndex]
+                    if targetSymbol.flatMap({ sema.symbols.symbol($0) })?.flags.contains(.localFunction) == true {
+                        storageType = primitiveVarargArrayType(elementType: declarationType, sema: sema, interner: interner)
+                            ?? referenceVarargArrayType(elementType: declarationType, sema: sema, interner: interner) ?? type
+                        keepsArray = true
+                    } else {
+                        storageType = driver.constructorParameterStorageType(
+                            at: valueIndex, signature: signature, sema: sema, interner: interner
+                        )
+                        keepsArray = true
+                    }
+                } else {
+                    storageType = type
+                    keepsArray = false
+                }
+                func normalizedValue() -> KIRExprID {
+                    guard isVararg else {
+                        return normalizeHOFPrimitiveParameter(raw, type: type, sema: sema, arena: arena,
+                                                               interner: interner, instructions: &body)
+                    }
                     let packed = arena.appendTemporary(type: storageType)
-                    if primitiveVarargArrayType(elementType: type, sema: sema, interner: interner) != nil {
-                        // Reflection receives the whole primitive array, not a
-                        // boxed scalar of the signature's element type.
+                    if keepsArray {
                         body.append(.copy(from: raw, to: packed))
                     } else {
-                        // Kotlin reflection accepts Array<out T>; the existing
-                        // source constructor ABI consumes a packed List<T>.
-                        body.append(.call(
-                            symbol: nil, callee: interner.intern("__kk_array_toList"),
-                            arguments: [raw], result: packed, canThrow: false, thrownResult: nil
-                        ))
+                        body.append(.call(symbol: nil, callee: interner.intern("__kk_array_toList"),
+                                          arguments: [raw], result: packed, canThrow: false, thrownResult: nil))
                     }
                     return packed
                 }
-                return normalizeHOFPrimitiveParameter(raw, type: type, sema: sema, arena: arena,
-                                                       interner: interner, instructions: &body)
+                // callBy places zero in an omitted optional slot. In
+                // particular, do not array-to-List or unbox that placeholder.
+                let isOptional = valueParameters && packsValueVarargs && valueIndex >= 0 && valueIndex < 30
+                    && signature?.valueParameterHasDefaultValues.indices.contains(valueIndex) == true
+                    && signature?.valueParameterHasDefaultValues[valueIndex] == true
+                guard isOptional else { return normalizedValue() }
+                func integer(_ value: Int64) -> KIRExprID {
+                    let expr = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
+                    body.append(.constValue(result: expr, value: .intLiteral(value)))
+                    return expr
+                }
+                let divisor = integer(Int64(1) << valueIndex)
+                let divided = arena.appendTemporary(type: sema.types.intType)
+                body.append(.binary(op: .divide, lhs: refs[2], rhs: divisor, result: divided))
+                let two = integer(2)
+                let bit = arena.appendTemporary(type: sema.types.intType)
+                body.append(.binary(op: .modulo, lhs: divided, rhs: two, result: bit))
+                let zero = integer(0)
+                let supplied = driver.ctx.makeLoopLabel()
+                let done = driver.ctx.makeLoopLabel()
+                let normalized = arena.appendTemporary(type: storageType)
+                body.append(.jumpIfEqual(lhs: bit, rhs: zero, target: supplied))
+                let placeholderKind: KIRExprKind
+                switch sema.types.kind(of: storageType) {
+                case .stringStruct: placeholderKind = .stringLiteral(interner.intern(""))
+                case .primitive(.double, .nonNull): placeholderKind = .doubleLiteral(0)
+                case .primitive(.float, .nonNull): placeholderKind = .floatLiteral(0)
+                case .primitive(.boolean, .nonNull): placeholderKind = .boolLiteral(false)
+                case .primitive(.char, .nonNull): placeholderKind = .charLiteral(0)
+                case .unit: placeholderKind = .unit
+                default: placeholderKind = .intLiteral(0)
+                }
+                let placeholder = arena.appendExpr(placeholderKind, type: storageType)
+                body.append(.constValue(result: placeholder, value: placeholderKind))
+                body.append(.copy(from: placeholder, to: normalized))
+                body.append(.jump(done))
+                body.append(.label(supplied))
+                let suppliedValue = normalizedValue()
+                body.append(.copy(from: suppliedValue, to: normalized))
+                body.append(.label(done))
+                return normalized
             }
         }
         let arguments = unpack(refs[0], types: captureTypes)
-            + unpack(refs[1], types: parameterTypes, constructorParameters: packedConstructorVarargs)
+            + unpack(refs[1], types: parameterTypes, valueParameters: true)
         let result = arena.appendTemporary(type: returnType)
-        if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
+        if let packedFunctionTarget {
+            let targetName = callableTargetName(for: packedFunctionTarget, sema: sema, interner: interner)
+            func emitNormalPackedCall() {
+                // For source members the full target argument vector starts
+                // with its dispatch receiver, whether captured or unbound.
+                if signature?.receiverType != nil, captureTypes.count + receiverCount == 1,
+                   let receiver = arguments.first,
+                   let virtual = driver.callLowerer.tryEmitVirtualDispatch(
+                       chosenCallee: packedFunctionTarget, calleeName: targetName, receiverExpr: nil,
+                       loweredReceiverID: receiver, isSuperCall: false, finalArguments: arguments,
+                       result: result, sema: sema, arena: arena, interner: interner
+                   ), case let .virtualCall(symbol, callee, receiver, args, result, _, _, dispatch) = virtual {
+                    body.append(.virtualCall(symbol: symbol, callee: callee, receiver: receiver, arguments: args,
+                                             result: result, canThrow: true, thrownResult: nil, dispatch: dispatch))
+                } else {
+                    body.append(.call(symbol: packedFunctionTarget, callee: targetName, arguments: arguments,
+                                      result: result, canThrow: true, thrownResult: nil))
+                }
+            }
+            if signature?.valueParameterHasDefaultValues.contains(true) == true {
+                let zero = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                body.append(.constValue(result: zero, value: .intLiteral(0)))
+                let normal = driver.ctx.makeLoopLabel()
+                let done = driver.ctx.makeLoopLabel()
+                body.append(.jumpIfEqual(lhs: refs[2], rhs: zero, target: normal))
+                let owner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: packedFunctionTarget, sema: sema)
+                let ownerName = callableTargetName(for: owner, sema: sema, interner: interner)
+                body.append(.call(symbol: driver.callSupportLowerer.defaultStubSymbol(for: owner),
+                                  callee: interner.intern(interner.resolve(ownerName) + "$default"),
+                                  arguments: arguments + [refs[2]], result: result, canThrow: true, thrownResult: nil))
+                body.append(.jump(done))
+                body.append(.label(normal))
+                emitNormalPackedCall()
+                body.append(.label(done))
+            } else {
+                emitNormalPackedCall()
+            }
+        } else if let targetSymbol, signature?.valueParameterHasDefaultValues.contains(true) == true,
            sema.symbols.symbol(targetSymbol)?.kind == .constructor,
            let wrapper = driver.ctx.pendingGeneratedCallableDeclIDs.compactMap({ declID -> KIRFunction? in
                guard case let .function(function) = arena.decl(declID), function.symbol == callableSymbol else { return nil }
@@ -345,11 +559,14 @@ extension LambdaLowerer {
 private func callableReflectionParameterType(
     _ elementType: TypeID,
     isVararg: Bool,
+    declarationType: TypeID? = nil,
     sema: SemaModule,
     interner: StringInterner
 ) -> TypeID {
     guard isVararg else { return elementType }
-    if let primitiveArray = primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner) {
+    // Erasure follows the declaration: vararg T stays Array even when a
+    // bound receiver specializes T to a primitive element type.
+    if let primitiveArray = primitiveVarargArrayType(elementType: declarationType ?? elementType, sema: sema, interner: interner) {
         return primitiveArray
     }
     guard let arraySymbol = sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]) else {

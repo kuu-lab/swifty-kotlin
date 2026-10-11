@@ -2565,6 +2565,7 @@ extension ExprTypeChecker {
             expectedType: expectedFunctionType,
             bindReceiver: isBoundReceiver,
             boundReceiverType: boundReceiverType,
+            interner: interner,
             sema: sema
         )
 
@@ -2575,6 +2576,7 @@ extension ExprTypeChecker {
                 for: signature,
                 bindReceiver: isBoundReceiver,
                 boundReceiver: boundReceiverType.map { (chosen, $0) },
+                interner: interner,
                 sema: sema
             )
             let resultType: TypeID
@@ -2591,6 +2593,7 @@ extension ExprTypeChecker {
                         bindReceiver: isBoundReceiver,
                         boundReceiver: boundReceiverType.map { (chosen, $0) },
                         expectedFunctionType: expectedFunctionType,
+                        interner: interner,
                         sema: sema
                     ) {
                         inferredType = specializedType
