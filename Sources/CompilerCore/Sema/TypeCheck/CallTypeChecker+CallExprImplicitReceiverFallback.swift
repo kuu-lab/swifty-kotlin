@@ -18,7 +18,6 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         memberExtensionReceiverMarks: inout [SymbolID: SymbolID]
     ) -> TypeID? {
-        let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
