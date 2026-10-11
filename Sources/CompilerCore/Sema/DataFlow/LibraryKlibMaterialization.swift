@@ -458,7 +458,11 @@ private struct KlibRecordMaterializer {
                 propertyReceiverTypeSignature: property.getter?.base.extensionReceiver
                     .flatMap { encodeType($0.nameType.typeIndex, fileIndex: fileIndex) },
                 isMutable: property.base.flags.isVar,
-                constValueLiteral: constLiteral(property.backingField?.initializerIndex, fileIndex: fileIndex)
+                // Literal backing-field initializers also occur on ordinary
+                // val declarations; only the Native property flag proves const.
+                constValueLiteral: property.base.flags.isConst
+                    ? constLiteral(property.backingField?.initializerIndex, fileIndex: fileIndex, typeSignature: propertySignature)
+                    : nil
             )
         )
 
@@ -502,7 +506,7 @@ private struct KlibRecordMaterializer {
                 typeSignature: signature,
                 annotations: annotationRecords(field.base.annotations, fileIndex: fileIndex),
                 isMutable: !field.base.flags.isFinalField,
-                constValueLiteral: constLiteral(field.initializerIndex, fileIndex: fileIndex)
+                constValueLiteral: constLiteral(field.initializerIndex, fileIndex: fileIndex, typeSignature: signature)
             )
         )
     }
@@ -744,19 +748,25 @@ private struct KlibRecordMaterializer {
         }
     }
 
-    /// `const val` initializers are `bodies` entries wrapping a const
-    /// expression; render them into `MetadataConstValueCoder`'s `<tag>:<payload>`.
-    private func constLiteral(_ bodyIndex: Int32?, fileIndex: Int) -> String? {
+    /// Field initializers are bare `IrExpression` entries, unlike function
+    /// bodies. Convert their physical literals to the text metadata contract.
+    private func constLiteral(_ bodyIndex: Int32?, fileIndex: Int, typeSignature: String) -> String? {
         guard let bodyIndex,
-              let statement = try? module.body(bodyIndex, fileIndex: fileIndex),
-              case .expression(let expression) = statement.kind
+              let expression = try? module.expressionBody(bodyIndex, fileIndex: fileIndex)
         else { return nil }
         switch expression.kind {
-        case .constInt(let value): return "i:\(value)"
-        case .constLong(let value): return "l:\(value)"
+        case .constByte(let value), .constShort(let value), .constInt(let value):
+            switch typeSignature {
+            case "UB": return "u:\(UInt8(truncatingIfNeeded: value))"
+            case "US": return "u:\(UInt16(truncatingIfNeeded: value))"
+            case "UI": return "u:\(UInt32(bitPattern: value))"
+            default: return "i:\(value)"
+            }
+        case .constLong(let value):
+            return typeSignature == "UJ" ? "ul:\(UInt64(bitPattern: value))" : "l:\(value)"
         case .constBool(let value): return "b:\(value ? 1 : 0)"
         case .constChar(let value): return "c:\(value)"
-        case .constFloat(let bits): return "f:\(bits)"
+        case .constFloat(let bits): return "f:\(Double(Float(bitPattern: bits)).bitPattern)"
         case .constDouble(let bits): return "d:\(bits)"
         case .constString(let index):
             guard let text = try? module.string(index, fileIndex: fileIndex) else { return nil }
